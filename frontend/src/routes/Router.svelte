@@ -12,7 +12,6 @@
     window.addEventListener('popstate', handleNavigation);
     handleNavigation();
     
-    // Add click handler for links
     document.body.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const anchor = target.closest('a');

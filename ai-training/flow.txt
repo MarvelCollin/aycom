@@ -1,0 +1,91 @@
+# News Category Classification Model - Training and Inference Flow
+
+## 1. Data Preparation
+- Load datasets from `train.csv` and `test.csv`
+- Each dataset has three columns: `Class Index` (1-4), `Title`, and `Description`
+- Class Index mapping:
+  - 1: World
+  - 2: Sports
+  - 3: Business
+  - 4: Science/Technology
+
+## 2. Data Preprocessing
+- Combine `Title` and `Description` into a single `content` field
+- Create category labels from class indices
+- Split training data into train and validation sets (90%/10%)
+- Tokenize text data using Keras Tokenizer
+- Pad sequences to ensure uniform length
+
+## 3. Model Architecture
+- Word Embedding layer (128-dimensional)
+- SpatialDropout1D (0.2) for regularization
+- LSTM layer (128 units with dropout)
+- Dense output layer with softmax activation (4 classes)
+
+## 4. Model Training
+- Compile model with categorical_crossentropy loss and adam optimizer
+- Use early stopping to prevent overfitting (monitor validation loss)
+- Train for up to 10 epochs with batch size of 64
+- Best model is automatically saved when validation metrics improve
+
+## 5. Model Evaluation
+- Plot training/validation accuracy and loss curves
+- Generate classification report with precision, recall, and F1-score
+- Create confusion matrix to visualize prediction performance across classes
+
+## 6. Model Saving
+- Save the trained model as `thread_category_model.h5`
+- Save the tokenizer as `tokenizer.pickle` for future use
+
+## 7. Making Predictions
+- Load the saved model and tokenizer
+- Preprocess new text by tokenizing and padding
+- Use model to predict category probabilities
+- Return the predicted category and confidence score
+
+## 8. Example Usage
+```python
+import pickle
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+# Load model and tokenizer
+model = tf.keras.models.load_model('thread_category_model.h5')
+with open('tokenizer.pickle', 'rb') as handle:
+    tokenizer = pickle.load(handle)
+
+# Define label mapping
+label_mapping = {
+    1: "World",
+    2: "Sports", 
+    3: "Business",
+    4: "Science/Technology"
+}
+
+# Function to predict category of new content
+def predict_category(text):
+    # Tokenize and pad the input text
+    sequence = tokenizer.texts_to_sequences([text])
+    padded = pad_sequences(sequence, maxlen=100, padding='post', truncating='post')
+    
+    # Make prediction
+    prediction = model.predict(padded)[0]
+    predicted_category_id = np.argmax(prediction) + 1
+    
+    # Get category name and confidence
+    category_name = label_mapping[predicted_category_id]
+    confidence = float(prediction[np.argmax(prediction)]) * 100
+    
+    return category_name, confidence
+
+# Example usage
+text = "Stock market falls amid economic concerns"
+category, confidence = predict_category(text)
+print(f"Predicted category: {category} (Confidence: {confidence:.2f}%)")
+```
+
+## 9. Troubleshooting
+- If model saving fails, try alternative formats (H5, SavedModel, weights-only)
+- For memory issues during training, try reducing batch size or sequence length
+- Low accuracy may require more training data or adjusting model parameters
