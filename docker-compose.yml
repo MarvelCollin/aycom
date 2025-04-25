@@ -1,0 +1,166 @@
+version: '3.8'
+
+services:
+  # Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_OPTIONS=--openssl-legacy-provider
+    depends_on:
+      - gateway
+
+  # API Gateway
+  gateway:
+    build: ./backend/gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - SERVER_HOST=0.0.0.0
+      - AUTH_SERVICE=auth:50051
+      - USER_SERVICE=user:50052
+      - PRODUCT_SERVICE=product:50053
+      - JWT_SECRET=your-secret-key
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      - auth
+      - user
+      - product
+      - redis
+      - rabbitmq
+
+  # Auth Service
+  auth:
+    build: ./backend/services/auth
+    ports:
+      - "50051:50051"
+    environment:
+      - PORT=50051
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=auth_db
+      - JWT_SECRET=your-secret-key
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - auth-db
+      - redis
+      - rabbitmq
+
+  # User Service
+  user:
+    build: ./backend/services/user
+    ports:
+      - "50052:50052"
+    environment:
+      - PORT=50052
+      - DB_HOST=user-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=user_db
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - user-db
+      - redis
+      - rabbitmq
+
+  # Product Service
+  product:
+    build: ./backend/services/product
+    ports:
+      - "50053:50053"
+    environment:
+      - PORT=50053
+      - DB_HOST=product-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=product_db
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - product-db
+      - redis
+      - rabbitmq
+
+  # Event Bus
+  event-bus:
+    build: ./backend/event-bus
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+
+  # AI Service
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./ai-service:/app
+    environment:
+      - FLASK_ENV=development
+
+  # Databases
+  auth-db:
+    image: postgres:14-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=auth_db
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+
+  user-db:
+    image: postgres:14-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=user_db
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+
+  product-db:
+    image: postgres:14-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=product_db
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+
+  # Redis for caching
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # RabbitMQ for event-driven communication
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  auth-db-data:
+  user-db-data:
+  product-db-data: 
