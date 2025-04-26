@@ -49,7 +49,7 @@
   </div>
 </header>
 
-<style lang="scss">
+<style>
   header {
     background-color: var(--card-background);
     padding: 1rem 0;
@@ -72,25 +72,23 @@
     text-decoration: none;
   }
   
-  nav {
-    ul {
-      display: flex;
-      list-style: none;
-      
-      li {
-        margin-left: 1.5rem;
-        
-        a {
-          color: var(--text-color);
-          text-decoration: none;
-          transition: color 0.2s;
-          
-          &:hover {
-            color: var(--primary-color);
-          }
-        }
-      }
-    }
+  nav ul {
+    display: flex;
+    list-style: none;
+  }
+  
+  nav ul li {
+    margin-left: 1.5rem;
+  }
+  
+  nav ul li a {
+    color: var(--text-color);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  
+  nav ul li a:hover {
+    color: var(--primary-color);
   }
   
   .actions {
@@ -105,37 +103,37 @@
     margin-right: 1rem;
     padding: 0.25rem;
     cursor: pointer;
-    
-    span {
-      display: block;
-    }
+  }
+  
+  .theme-toggle span {
+    display: block;
   }
   
   .auth-buttons {
     display: flex;
     gap: 0.5rem;
-    
-    .login-btn {
-      color: var(--primary-color);
-      text-decoration: none;
-      padding: 0.5rem 1rem;
-      
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-    
-    .register-btn {
-      background-color: var(--primary-color);
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      text-decoration: none;
-      
-      &:hover {
-        background-color: darken(#4f46e5, 10%);
-      }
-    }
+  }
+  
+  .login-btn {
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+  }
+  
+  .login-btn:hover {
+    text-decoration: underline;
+  }
+  
+  .register-btn {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    text-decoration: none;
+  }
+  
+  .register-btn:hover {
+    background-color: var(--primary-color-dark, #3730a3);
   }
   
   .menu-toggle {
@@ -145,15 +143,15 @@
     border: none;
     cursor: pointer;
     padding: 0.5rem;
-    
-    .bar {
-      width: 25px;
-      height: 3px;
-      background-color: var(--text-color);
-      margin: 3px 0;
-      border-radius: 3px;
-      transition: 0.3s;
-    }
+  }
+  
+  .menu-toggle .bar {
+    width: 25px;
+    height: 3px;
+    background-color: var(--text-color);
+    margin: 3px 0;
+    border-radius: 3px;
+    transition: 0.3s;
   }
   
   /* Responsive styles */
@@ -177,19 +175,19 @@
       transform: translateY(-100%);
       opacity: 0;
       transition: transform 0.3s, opacity 0.3s;
-      
-      &.active {
-        transform: translateY(0);
-        opacity: 1;
-      }
-      
-      ul {
-        flex-direction: column;
-        
-        li {
-          margin: 0.5rem 0;
-        }
-      }
+    }
+    
+    nav.active {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    nav ul {
+      flex-direction: column;
+    }
+    
+    nav ul li {
+      margin: 0.5rem 0;
     }
   }
 </style> 

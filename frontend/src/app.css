@@ -1,4 +1,26 @@
 :root {
+  --primary-color: #1d9bf0;
+  --primary-color-dark: #1a8cd8;
+  --secondary-color: #71767b;
+  
+  /* Light theme */
+  --light-bg: #ffffff;
+  --light-text: #0f1419;
+  --light-text-secondary: #536471;
+  --light-border: #eff3f4;
+  --light-hover: rgba(0, 0, 0, 0.03);
+  --light-card-bg: #ffffff;
+  --light-shadow: rgba(0, 0, 0, 0.08);
+  
+  /* Dark theme */
+  --dark-bg: #000000;
+  --dark-text: #e7e9ea;
+  --dark-text-secondary: #71767b;
+  --dark-border: #2f3336;
+  --dark-hover: rgba(255, 255, 255, 0.03);
+  --dark-card-bg: #16181c;
+  --dark-shadow: rgba(255, 255, 255, 0.08);
+
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -13,20 +35,32 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+body[data-theme="light"] {
+  --text-color: var(--light-text);
+  --text-color-secondary: var(--light-text-secondary);
+  --background-color: var(--light-bg);
+  --border-color: var(--light-border);
+  --card-background: var(--light-card-bg);
+  --hover-color: var(--light-hover);
+  --shadow-color: var(--light-shadow);
 }
-a:hover {
-  color: #535bf2;
+
+body[data-theme="dark"] {
+  --text-color: var(--dark-text);
+  --text-color-secondary: var(--dark-text-secondary);
+  --background-color: var(--dark-bg);
+  --border-color: var(--dark-border);
+  --card-background: var(--dark-card-bg);
+  --hover-color: var(--dark-hover);
+  --shadow-color: var(--dark-shadow);
 }
 
 body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  padding: 0;
   min-height: 100vh;
 }
 
@@ -76,4 +110,41 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--secondary-color);
+  border-radius: 20px;
+}
+
+/* Remove outline for clicked buttons */
+button:focus,
+a:focus {
+  outline: none;
+}
+
+/* Global focus styles for accessibility */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }

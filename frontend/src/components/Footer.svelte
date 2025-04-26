@@ -46,7 +46,7 @@
   </div>
 </footer>
 
-<style lang="scss">
+<style>
   footer {
     background-color: var(--card-background);
     padding: 3rem 0 1rem;
@@ -61,70 +61,68 @@
     margin-bottom: 2rem;
   }
   
-  .footer-section {
-    h3 {
-      margin-bottom: 1rem;
-      font-size: 1.2rem;
-    }
-    
-    p {
-      color: var(--text-color);
-      opacity: 0.8;
-    }
-    
-    ul {
-      list-style: none;
-      
-      li {
-        margin-bottom: 0.5rem;
-        
-        a {
-          color: var(--text-color);
-          opacity: 0.8;
-          text-decoration: none;
-          transition: opacity 0.2s;
-          
-          &:hover {
-            opacity: 1;
-            color: var(--primary-color);
-          }
-        }
-      }
-    }
+  .footer-section h3 {
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+  }
+  
+  .footer-section p {
+    color: var(--text-color);
+    opacity: 0.8;
+  }
+  
+  .footer-section ul {
+    list-style: none;
+  }
+  
+  .footer-section ul li {
+    margin-bottom: 0.5rem;
+  }
+  
+  .footer-section ul li a {
+    color: var(--text-color);
+    opacity: 0.8;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+  
+  .footer-section ul li a:hover {
+    opacity: 1;
+    color: var(--primary-color);
   }
   
   .social-links {
     display: flex;
     gap: 1rem;
     margin-top: 0.5rem;
-    
-    a {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 36px;
-      height: 36px;
-      background-color: var(--primary-color);
-      color: white;
-      border-radius: 50%;
-      transition: transform 0.2s;
-      
-      &:hover {
-        transform: translateY(-3px);
-      }
-    }
+  }
+  
+  .social-links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  
+  .social-links a:hover {
+    transform: translateY(-3px);
   }
   
   .footer-bottom {
     padding-top: 1.5rem;
     border-top: 1px solid var(--border-color);
     text-align: center;
-    
-    p {
-      color: var(--text-color);
-      opacity: 0.7;
-      font-size: 0.9rem;
-    }
+  }
+  
+  .footer-bottom p {
+    color: var(--text-color);
+    opacity: 0.7;
+    font-size: 0.9rem;
   }
   
   /* Responsive styles */

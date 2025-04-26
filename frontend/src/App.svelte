@@ -1,11 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import './styles/global.scss';
-  import Header from './components/Header.svelte';
-  import Footer from './components/Footer.svelte';
+  import './styles/magniview.css';
   import Router from './routes/Router.svelte';
 
-  let theme: 'light' | 'dark' = 'light';
+  let theme: 'light' | 'dark' = 'dark';  // Default to dark theme for Twitter clone
 
   onMount(() => {
     // Check for saved theme preference
@@ -13,6 +11,9 @@
     if (savedTheme) {
       theme = savedTheme as 'light' | 'dark';
       document.body.setAttribute('data-theme', theme);
+    } else {
+      // Set dark theme by default for Twitter
+      document.body.setAttribute('data-theme', 'dark');
     }
   });
 
@@ -24,37 +25,22 @@
 </script>
 
 <div class="app">
-  <Header {theme} {toggleTheme} />
-<main>
+  <main>
     <Router />
   </main>
-  <Footer />
-  </div>
+</div>
 
-<style lang="scss">
+<style>
   .app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    background-color: black;
+    color: white;
   }
 
   main {
     flex: 1;
-    padding: 20px;
-    max-width: 1200px;
-    margin: 0 auto;
     width: 100%;
-  }
-
-  @media (max-width: 768px) {
-    main {
-      padding: 15px;
-  }
-  }
-
-  @media (max-width: 480px) {
-    main {
-      padding: 10px;
-    }
   }
 </style>
