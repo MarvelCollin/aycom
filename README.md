@@ -1,86 +1,92 @@
-# AYCOM - Microservices Application
+# AYCOM Microservices Application
 
-AYCOM is a full-stack microservices application with a Svelte frontend and Go microservices backend.
+This project is a modern web application built with a microservices architecture.
 
-## Architecture
+## Technology Stack
 
-The application consists of the following components:
+### Frontend
+- **Framework**: Svelte with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Pure CSS/SASS/SCSS (no UI libraries)
+- **Design**: Responsive with desktop, tablet, mobile breakpoints
 
-- **Frontend**: Svelte application
-- **API Gateway**: Go-based API Gateway with Swagger documentation
-- **Auth Service**: Handles authentication and authorization
-- **User Service**: Manages user profiles and data
-- **Product Service**: Manages product data
-- **Event Bus**: Handles event-driven communication between services
-- **AI Service**: Provides AI-related functionality
+### Backend
+- **Language**: Go
+- **Architecture**: Microservices
+- **Communication**: gRPC between services
+- **Messaging**: RabbitMQ for async workflows
+- **API Gateway**: For frontend-backend communication
+- **Documentation**: Swagger
+- **Database**: PostgreSQL (separate for each microservice)
+- **Caching**: Redis
+- **Logging**: Configurable levels based on environment
 
-## Prerequisites
+### Security
+- **Authentication**: JWT with access and refresh tokens
+- **Password Security**: Salting and hashing
 
-- Docker and Docker Compose
-- Git
+### Infrastructure
+- **Media Storage**: Supabase
+- **AI Components**: Flask
+- **Containerization**: Docker + Docker Compose
+- **Version Control**: Git with structured commits
+
+## Project Structure
+
+```
+AYCOM/
+├── frontend/                   # Svelte frontend application
+├── backend/                    # Go microservices
+│   ├── gateway/                # API Gateway
+│   ├── event-bus/              # Event Bus for async messaging
+│   └── services/               # Microservices
+│       ├── auth/               # Authentication service
+│       ├── user/               # User management service
+│       └── product/            # Product service
+├── ai-service/                 # Flask AI service
+└── shared/                     # Shared code and protocols
+```
 
 ## Getting Started
 
+### Prerequisites
+- Docker and Docker Compose
+- Go 1.21 or higher
+- Node.js 18 or higher
+- PostgreSQL 14 or higher
+
+### Setup and Installation
+
 1. Clone the repository:
    ```
-   git clone https://github.com/your-username/AYCOM.git
-   cd AYCOM
+   git clone https://github.com/your-username/aycom.git
+   cd aycom
    ```
 
-2. Start the application:
+2. Create a `.env` file based on the example:
    ```
-   docker-compose up -d
+   cp .env.example .env
    ```
 
-3. Access the application:
+3. Start the development environment:
+   ```
+   docker-compose up
+   ```
+
+4. Access the application:
    - Frontend: http://localhost:3000
-   - API Gateway Swagger Documentation: http://localhost:8080/swagger/index.html
-   - RabbitMQ Management: http://localhost:15672 (username: guest, password: guest)
+   - API Gateway: http://localhost:8080
+   - Swagger documentation: http://localhost:8080/swagger/index.html
+   - RabbitMQ management: http://localhost:15672 (guest/guest)
 
-## Service Endpoints
+## Development Guidelines
 
-- Frontend: `http://localhost:3000`
-- API Gateway: `http://localhost:8080`
-- Auth Service (gRPC): `localhost:50051`
-- User Service (gRPC): `localhost:50052`
-- Product Service (gRPC): `localhost:50053`
-- AI Service: `http://localhost:5000`
-
-## Databases
-
-- Auth Database: PostgreSQL on port 5432
-- User Database: PostgreSQL on port 5433
-- Product Database: PostgreSQL on port 5434
-- Redis: Redis on port 6379
-
-## Development
-
-### Building and running individual services
-
-You can build and run individual services using Docker:
-
-```bash
-# Build and run the frontend
-cd frontend
-docker build -t aycom-frontend .
-docker run -p 3000:3000 aycom-frontend
-
-# Build and run the gateway
-cd backend/gateway
-docker build -t aycom-gateway .
-docker run -p 8080:8080 aycom-gateway
-```
-
-### Environment Variables
-
-Each service uses environment variables for configuration. See the docker-compose.yml file for details.
-
-## Troubleshooting
-
-- **Crypto Issues**: If you encounter crypto-related errors in the frontend, the environment variable `NODE_OPTIONS=--openssl-legacy-provider` is included to address this.
-- **Database Connection Issues**: Ensure the database containers are running. You can connect to them using a PostgreSQL client.
-- **Service Communication**: The services are configured to communicate with each other using the service names defined in docker-compose.yml.
+- Follow the ESLint rules for frontend development
+- Use Go idioms and patterns for backend services
+- All API endpoints should be documented with Swagger
+- Use gRPC for internal service communication
+- Implement unit tests for critical functionality
 
 ## License
 
-MIT 
+This project is licensed under the MIT License - see the LICENSE file for details. 

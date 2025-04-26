@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "github.com/Acad600-Tpa/WEB-MV-242/user-service/proto";
+
+import "google/protobuf/timestamp.proto";
+
+// User service definition
+service UserService {
+  // Get user by ID
+  rpc GetUser (GetUserRequest) returns (UserResponse) {}
+  
+  // Register a new user
+  rpc Register (RegisterRequest) returns (UserResponse) {}
+  
+  // Login a user
+  rpc Login (LoginRequest) returns (LoginResponse) {}
+  
+  // Update user information
+  rpc UpdateUser (UpdateUserRequest) returns (UserResponse) {}
+  
+  // Delete a user
+  rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse) {}
+}
+
+// GetUserRequest is used to request user information by ID
+message GetUserRequest {
+  string id = 1;
+}
+
+// RegisterRequest contains information needed to register a new user
+message RegisterRequest {
+  string name = 1;
+  string email = 2;
+  string password = 3;
+}
+
+// LoginRequest contains credentials for user login
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+// UpdateUserRequest contains updated user information
+message UpdateUserRequest {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+// DeleteUserRequest contains user ID to delete
+message DeleteUserRequest {
+  string id = 1;
+}
+
+// UserResponse contains user information
+message UserResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+// LoginResponse contains authentication result
+message LoginResponse {
+  UserResponse user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+// DeleteUserResponse indicates the result of a delete operation
+message DeleteUserResponse {
+  bool success = 1;
+  string message = 2;
+} 

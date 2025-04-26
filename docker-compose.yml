@@ -3,164 +3,163 @@ version: '3.8'
 services:
   # Frontend
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
-      - NODE_OPTIONS=--openssl-legacy-provider
+      - VITE_API_URL=http://localhost:8080/api/v1
     depends_on:
-      - gateway
+      - api-gateway
 
   # API Gateway
-  gateway:
-    build: ./backend/gateway
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: api-gateway/Dockerfile
     ports:
       - "8080:8080"
     environment:
-      - SERVER_PORT=8080
-      - SERVER_HOST=0.0.0.0
-      - AUTH_SERVICE=auth:50051
-      - USER_SERVICE=user:50052
-      - PRODUCT_SERVICE=product:50053
-      - JWT_SECRET=your-secret-key
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
+      - API_GATEWAY_PORT=8080
+      - USER_SERVICE_ADDR=user-service:9091
+      - PRODUCT_SERVICE_ADDR=product-service:9092
+      - AUTH_SERVICE_ADDR=auth-service:9090
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
-      - auth
-      - user
-      - product
-      - redis
+      - auth-service
+      - user-service
+      - product-service
       - rabbitmq
 
   # Auth Service
-  auth:
-    build: ./backend/services/auth
+  auth-service:
+    build:
+      context: ./backend
+      dockerfile: services/auth/Dockerfile
     ports:
-      - "50051:50051"
+      - "9090:9090"
     environment:
-      - PORT=50051
-      - DB_HOST=auth-db
+      - AUTH_SERVICE_PORT=9090
+      - DB_HOST=auth_db
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=auth_db
-      - JWT_SECRET=your-secret-key
-      - REDIS_URL=redis://redis:6379
+      - DB_USER=${AUTH_DB_USER}
+      - DB_PASSWORD=${AUTH_DB_PASSWORD}
+      - DB_NAME=${AUTH_DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_ADDRESS=redis:6379
     depends_on:
-      - auth-db
-      - redis
+      - auth_db
       - rabbitmq
+      - redis
 
   # User Service
-  user:
-    build: ./backend/services/user
+  user-service:
+    build:
+      context: ./backend
+      dockerfile: services/user/Dockerfile
     ports:
-      - "50052:50052"
+      - "9091:9091"
     environment:
-      - PORT=50052
-      - DB_HOST=user-db
+      - USER_SERVICE_PORT=9091
+      - DB_HOST=user_db
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=user_db
-      - REDIS_URL=redis://redis:6379
+      - DB_USER=${USER_DB_USER}
+      - DB_PASSWORD=${USER_DB_PASSWORD}
+      - DB_NAME=${USER_DB_NAME}
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_ADDRESS=redis:6379
     depends_on:
-      - user-db
-      - redis
+      - user_db
       - rabbitmq
+      - redis
 
   # Product Service
-  product:
-    build: ./backend/services/product
+  product-service:
+    build:
+      context: ./backend
+      dockerfile: services/product/Dockerfile
     ports:
-      - "50053:50053"
+      - "9092:9092"
     environment:
-      - PORT=50053
-      - DB_HOST=product-db
+      - PRODUCT_SERVICE_PORT=9092
+      - DB_HOST=product_db
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=product_db
-      - REDIS_URL=redis://redis:6379
+      - DB_USER=${PRODUCT_DB_USER}
+      - DB_PASSWORD=${PRODUCT_DB_PASSWORD}
+      - DB_NAME=${PRODUCT_DB_NAME}
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_ADDRESS=redis:6379
     depends_on:
-      - product-db
-      - redis
+      - product_db
       - rabbitmq
+      - redis
 
   # Event Bus
   event-bus:
-    build: ./backend/event-bus
+    build:
+      context: ./backend
+      dockerfile: event-bus/Dockerfile
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
       - rabbitmq
 
-  # AI Service
-  ai-service:
-    build: ./ai-service
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./ai-service:/app
-    environment:
-      - FLASK_ENV=development
-
   # Databases
-  auth-db:
+  auth_db:
     image: postgres:14-alpine
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=${AUTH_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-auth_password}
+      - POSTGRES_DB=${AUTH_DB_NAME:-auth_db}
     volumes:
-      - auth-db-data:/var/lib/postgresql/data
+      - auth_db_data:/var/lib/postgresql/data
 
-  user-db:
+  user_db:
     image: postgres:14-alpine
     ports:
       - "5433:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=user_db
+      - POSTGRES_USER=${USER_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${USER_DB_PASSWORD:-user_password}
+      - POSTGRES_DB=${USER_DB_NAME:-user_db}
     volumes:
-      - user-db-data:/var/lib/postgresql/data
+      - user_db_data:/var/lib/postgresql/data
 
-  product-db:
+  product_db:
     image: postgres:14-alpine
     ports:
       - "5434:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=product_db
+      - POSTGRES_USER=${PRODUCT_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${PRODUCT_DB_PASSWORD:-product_password}
+      - POSTGRES_DB=${PRODUCT_DB_NAME:-product_db}
     volumes:
-      - product-db-data:/var/lib/postgresql/data
+      - product_db_data:/var/lib/postgresql/data
 
   # Redis for caching
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
 
-  # RabbitMQ for event-driven communication
+  # RabbitMQ for messaging
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"  # AMQP
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
 volumes:
-  auth-db-data:
-  user-db-data:
-  product-db-data: 
+  auth_db_data:
+  user_db_data:
+  product_db_data:
+  redis_data:
+  rabbitmq_data: 
