@@ -9,8 +9,17 @@ service AuthService {
   // Login with email and password
   rpc Login (LoginRequest) returns (TokenResponse) {}
   
-  // Register a new user
-  rpc Register (RegisterRequest) returns (TokenResponse) {}
+  // Register a new user (Step 1)
+  rpc Register (RegisterRequest) returns (RegistrationResponse) {}
+  
+  // Verify email with verification code (Step 2)
+  rpc VerifyEmail (VerifyEmailRequest) returns (TokenResponse) {}
+  
+  // Resend verification code
+  rpc ResendVerificationCode (ResendCodeRequest) returns (ResendCodeResponse) {}
+  
+  // Google OAuth integration
+  rpc GoogleAuth (GoogleAuthRequest) returns (TokenResponse) {}
   
   // Validate token
   rpc ValidateToken (ValidateRequest) returns (ValidateResponse) {}
@@ -32,7 +41,46 @@ message LoginRequest {
 message RegisterRequest {
   string name = 1;
   string email = 2;
-  string password = 3;
+  string username = 3;
+  string password = 4;
+  string confirm_password = 5;
+  string gender = 6;
+  string date_of_birth = 7;  // Format: YYYY-MM-DD
+  bytes profile_picture = 8;
+  bytes banner = 9;
+  string security_question = 10;
+  string security_answer = 11;
+  bool subscribe_to_newsletter = 12;
+  string recaptcha_token = 13;  // Token from frontend reCAPTCHA verification
+}
+
+// VerifyEmailRequest contains the verification code for email validation
+message VerifyEmailRequest {
+  string email = 1;
+  string verification_code = 2;
+}
+
+// ResendCodeRequest contains the email to send a new verification code to
+message ResendCodeRequest {
+  string email = 1;
+}
+
+// ResendCodeResponse contains the result of the resend operation
+message ResendCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// GoogleAuthRequest contains the Google OAuth data
+message GoogleAuthRequest {
+  string token_id = 1;
+}
+
+// RegistrationResponse contains registration confirmation
+message RegistrationResponse {
+  bool success = 1;
+  string message = 2;
+  string email = 3;
 }
 
 // ValidateRequest contains the token to validate

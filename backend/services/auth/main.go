@@ -3,60 +3,40 @@ package main
 import (
 	"fmt"
 	"log"
-	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/Acad600-Tpa/WEB-MV-242/services/auth/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/services/auth/handler"
-	"github.com/Acad600-Tpa/WEB-MV-242/services/auth/repository"
-	"github.com/Acad600-Tpa/WEB-MV-242/services/auth/service"
-	"github.com/joho/godotenv"
-	"google.golang.org/grpc"
+	"time"
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+	port := os.Getenv("AUTH_SERVICE_PORT")
+	if port == "" {
+		port = "9090"
 	}
 
-	// Initialize configuration
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	// Create a simple HTTP server
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Auth Service is running"))
+	})
+
+	// Health check endpoint
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Start server in a goroutine
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: http.DefaultServeMux,
 	}
 
-	// Set up database connection
-	db, err := repository.NewPostgresConnection(cfg.Database)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-
-	// Set up repository layer
-	authRepo := repository.NewAuthRepository(db)
-
-	// Set up service layer
-	authService := service.NewAuthService(authRepo, cfg.JWTSecret)
-
-	// Set up gRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.Port))
-	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
-	}
-
-	grpcServer := grpc.NewServer()
-
-	// Register gRPC service handlers
-	handler.RegisterAuthServiceServer(grpcServer, authService)
-
-	// Start gRPC server
-	log.Printf("Auth service starting on port %s", cfg.Port)
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+		fmt.Printf("Auth service started on port: %s\n", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
@@ -66,6 +46,9 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down auth service...")
-	grpcServer.GracefulStop()
+	
+	// Give the server 5 seconds to finish ongoing requests
+	time.Sleep(5 * time.Second)
+	
 	log.Println("Auth service stopped")
 }

@@ -7,104 +7,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3000:5173"
     environment:
-      - VITE_API_URL=http://localhost:8080/api/v1
-    depends_on:
-      - api-gateway
-
-  # API Gateway
-  api-gateway:
-    build:
-      context: ./backend
-      dockerfile: api-gateway/Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      - API_GATEWAY_PORT=8080
-      - USER_SERVICE_ADDR=user-service:9091
-      - PRODUCT_SERVICE_ADDR=product-service:9092
-      - AUTH_SERVICE_ADDR=auth-service:9090
-      - JWT_SECRET=${JWT_SECRET}
-    depends_on:
-      - auth-service
-      - user-service
-      - product-service
-      - rabbitmq
-
-  # Auth Service
-  auth-service:
-    build:
-      context: ./backend
-      dockerfile: services/auth/Dockerfile
-    ports:
-      - "9090:9090"
-    environment:
-      - AUTH_SERVICE_PORT=9090
-      - DB_HOST=auth_db
-      - DB_PORT=5432
-      - DB_USER=${AUTH_DB_USER}
-      - DB_PASSWORD=${AUTH_DB_PASSWORD}
-      - DB_NAME=${AUTH_DB_NAME}
-      - JWT_SECRET=${JWT_SECRET}
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_ADDRESS=redis:6379
-    depends_on:
-      - auth_db
-      - rabbitmq
-      - redis
-
-  # User Service
-  user-service:
-    build:
-      context: ./backend
-      dockerfile: services/user/Dockerfile
-    ports:
-      - "9091:9091"
-    environment:
-      - USER_SERVICE_PORT=9091
-      - DB_HOST=user_db
-      - DB_PORT=5432
-      - DB_USER=${USER_DB_USER}
-      - DB_PASSWORD=${USER_DB_PASSWORD}
-      - DB_NAME=${USER_DB_NAME}
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_ADDRESS=redis:6379
-    depends_on:
-      - user_db
-      - rabbitmq
-      - redis
-
-  # Product Service
-  product-service:
-    build:
-      context: ./backend
-      dockerfile: services/product/Dockerfile
-    ports:
-      - "9092:9092"
-    environment:
-      - PRODUCT_SERVICE_PORT=9092
-      - DB_HOST=product_db
-      - DB_PORT=5432
-      - DB_USER=${PRODUCT_DB_USER}
-      - DB_PASSWORD=${PRODUCT_DB_PASSWORD}
-      - DB_NAME=${PRODUCT_DB_NAME}
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_ADDRESS=redis:6379
-    depends_on:
-      - product_db
-      - rabbitmq
-      - redis
-
-  # Event Bus
-  event-bus:
-    build:
-      context: ./backend
-      dockerfile: event-bus/Dockerfile
-    environment:
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-    depends_on:
-      - rabbitmq
+      - VITE_API_URL=http://localhost:8080/api
+      - GOOGLE_CLIENT=${GOOGLE_CLIENT}
+      - GOOGLE_SECRET=${GOOGLE_SECRET}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: always
 
   # Databases
   auth_db:
@@ -117,6 +28,7 @@ services:
       - POSTGRES_DB=${AUTH_DB_NAME:-auth_db}
     volumes:
       - auth_db_data:/var/lib/postgresql/data
+    restart: always
 
   user_db:
     image: postgres:14-alpine
@@ -128,6 +40,7 @@ services:
       - POSTGRES_DB=${USER_DB_NAME:-user_db}
     volumes:
       - user_db_data:/var/lib/postgresql/data
+    restart: always
 
   product_db:
     image: postgres:14-alpine
@@ -139,6 +52,7 @@ services:
       - POSTGRES_DB=${PRODUCT_DB_NAME:-product_db}
     volumes:
       - product_db_data:/var/lib/postgresql/data
+    restart: always
 
   # Redis for caching
   redis:
@@ -147,6 +61,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: always
 
   # RabbitMQ for messaging
   rabbitmq:
@@ -156,6 +71,7 @@ services:
       - "15672:15672"  # Management UI
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    restart: always
 
 volumes:
   auth_db_data:

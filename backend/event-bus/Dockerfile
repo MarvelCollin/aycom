@@ -1,28 +1,26 @@
-FROM golang:1.20-alpine
+FROM golang:1.20-alpine AS builder
 
 WORKDIR /app
 
-# Create a simple executable
-RUN echo 'package main' > main.go && \
-    echo 'import "fmt"' >> main.go && \
-    echo 'func main() {' >> main.go && \
-    echo '    fmt.Println("Event bus service started")' >> main.go && \
-    echo '    select{}' >> main.go && \
-    echo '}' >> main.go
+# Copy Go modules files
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Initialize go module
-RUN go mod init event-bus
+# Copy the source code
+COPY . .
 
-# Build the executable
-RUN go build -o event-bus .
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o event-bus .
 
 # Use a smaller image for the final application
 FROM alpine:latest
 
+RUN apk --no-cache add ca-certificates
+
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=0 /app/event-bus .
+COPY --from=builder /app/event-bus .
 
 # Set the entrypoint
 ENTRYPOINT ["./event-bus"] 

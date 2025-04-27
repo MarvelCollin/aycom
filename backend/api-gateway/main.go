@@ -3,13 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-
-	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-
-	_ "api-gateway/docs" // Import generated docs
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 // @title           AYCOM API Gateway
@@ -32,66 +30,44 @@ import (
 // @name Authorization
 
 func main() {
-	// Get API Gateway port from environment variable
 	port := os.Getenv("API_GATEWAY_PORT")
 	if port == "" {
-		port = "8080" // Default port
+		port = "8080"
 	}
 
-	// Initialize Gin router
-	r := gin.Default()
-
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+	// Create a simple HTTP server
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("API Gateway is running"))
 	})
 
-	// API routes
-	api := r.Group("/api/v1")
-	{
-		// User service routes
-		userRoutes := api.Group("/users")
-		{
-			userRoutes.GET("/", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "List users endpoint"})
-			})
-			userRoutes.GET("/:id", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "Get user by ID: " + c.Param("id")})
-			})
-		}
+	// Health check endpoint
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
 
-		// Product service routes
-		productRoutes := api.Group("/products")
-		{
-			productRoutes.GET("/", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "List products endpoint"})
-			})
-			productRoutes.GET("/:id", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "Get product by ID: " + c.Param("id")})
-			})
-		}
-
-		// Auth service routes
-		authRoutes := api.Group("/auth")
-		{
-			authRoutes.POST("/login", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "Login endpoint"})
-			})
-			authRoutes.POST("/register", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "Register endpoint"})
-			})
-		}
+	// Start server in a goroutine
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: http.DefaultServeMux,
 	}
 
-	// Swagger documentation
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	go func() {
+		fmt.Printf("API Gateway started on port: %s\n", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
 
-	// Start the server
-	serverAddr := ":" + port
-	fmt.Printf("API Gateway started on port: %s\n", port)
-	fmt.Printf("Swagger UI available at: http://localhost:%s/swagger/index.html\n", port)
+	// Set up graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
-	if err := r.Run(serverAddr); err != nil {
-		log.Fatalf("Failed to start API Gateway: %v", err)
-	}
+	log.Println("Shutting down API Gateway...")
+	
+	// Give the server 5 seconds to finish ongoing requests
+	time.Sleep(5 * time.Second)
+	
+	log.Println("API Gateway stopped")
 }

@@ -2,31 +2,20 @@ FROM golang:1.20-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies and Swagger
-RUN apk add --no-cache git && \
-    go install github.com/swaggo/swag/cmd/swag@latest
+# Copy Go modules files
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Create a simple executable
-RUN echo 'package main' > main.go && \
-    echo 'import "fmt"' >> main.go && \
-    echo 'import "os"' >> main.go && \
-    echo 'func main() {' >> main.go && \
-    echo '    fmt.Println("API Gateway started on port:", os.Getenv("API_GATEWAY_PORT"))' >> main.go && \
-    echo '    select{}' >> main.go && \
-    echo '}' >> main.go
+# Copy the source code
+COPY . .
 
-# Initialize go module and add required dependencies
-RUN go mod init api-gateway && \
-    go get github.com/gin-gonic/gin && \
-    go get github.com/swaggo/swag && \
-    go get github.com/swaggo/gin-swagger && \
-    go get github.com/swaggo/files
-
-# Build the executable
-RUN go build -o api-gateway .
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway .
 
 # Use a smaller image for the final application
 FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 

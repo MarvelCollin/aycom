@@ -1,77 +1,49 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/Acad600-Tpa/WEB-MV-242/event-bus/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/event-bus/handlers"
-	"github.com/Acad600-Tpa/WEB-MV-242/event-bus/publisher"
-	"github.com/joho/godotenv"
-	"github.com/streadway/amqp"
+	"time"
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+	// Create a simple HTTP server for health checks
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Event Bus is running"))
+	})
+
+	// Health check endpoint
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Start server in a goroutine
+	server := &http.Server{
+		Addr:    ":8000", // Just for health checks
+		Handler: http.DefaultServeMux,
 	}
 
-	// Initialize configuration
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
+	go func() {
+		fmt.Println("Event bus service started")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
 
-	// Connect to RabbitMQ
-	conn, err := amqp.Dial(cfg.RabbitMQURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
-
-	// Create a channel
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	// Declare the exchange
-	err = ch.ExchangeDeclare(
-		"events", // name
-		"topic",  // type
-		true,     // durable
-		false,    // auto-deleted
-		false,    // internal
-		false,    // no-wait
-		nil,      // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare an exchange: %v", err)
-	}
-
-	// Initialize publisher
-	pub := publisher.NewEventPublisher(ch)
-
-	// Initialize event handlers
-	userEventHandler := handlers.NewUserEventHandler(ch, pub)
-	productEventHandler := handlers.NewProductEventHandler(ch, pub)
-	orderEventHandler := handlers.NewOrderEventHandler(ch, pub)
-
-	// Start the event handlers
-	go userEventHandler.Start()
-	go productEventHandler.Start()
-	go orderEventHandler.Start()
-
-	log.Println("Event bus started. Waiting for events...")
-
-	// Wait for termination signal
+	// Set up graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down event bus...")
+	
+	// Give the server 5 seconds to finish ongoing requests
+	time.Sleep(5 * time.Second)
+	
+	log.Println("Event bus stopped")
 }
