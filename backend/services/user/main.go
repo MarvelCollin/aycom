@@ -13,15 +13,31 @@ import (
 )
 
 func main() {
-	// Check if migration command is specified
-	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		log.Println("Running migrations...")
-		_, err := service.NewUserService()
-		if err != nil {
-			log.Fatalf("Failed to initialize service: %v", err)
+	// Check if a command is specified
+	if len(os.Args) > 1 {
+		cmd := os.Args[1]
+
+		switch cmd {
+		case "migrate":
+			log.Println("Running migrations...")
+			svc, err := service.NewUserService()
+			if err != nil {
+				log.Fatalf("Failed to initialize service: %v", err)
+			}
+			log.Println("Migrations completed successfully")
+			return
+
+		case "status":
+			log.Println("Getting migration status...")
+			svc, err := service.NewUserService()
+			if err != nil {
+				log.Fatalf("Failed to initialize service: %v", err)
+			}
+			if err := svc.GetMigrationStatus(); err != nil {
+				log.Fatalf("Failed to get migration status: %v", err)
+			}
+			return
 		}
-		log.Println("Migrations completed successfully")
-		return
 	}
 
 	// Normal application startup

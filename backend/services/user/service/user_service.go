@@ -3,7 +3,6 @@ package service
 import (
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
@@ -13,7 +12,7 @@ import (
 	"github.com/Acad600-Tpa/WEB-MV-242/services/user/repository"
 )
 
-// UserService manages user-related operations
+// UserService manages user profile operations
 type UserService struct {
 	DB *gorm.DB
 }
@@ -39,12 +38,11 @@ func NewUserService() (*UserService, error) {
 		return nil, err
 	}
 
-	// Run migrations
-	migrationDir := filepath.Join("migrations")
-	err = repository.RunMigrations(db, repository.MigrationConfig{
-		MigrationsDir: migrationDir,
-		DBDialect:     "postgres",
-	})
+	// Run migrations using GORM AutoMigrate
+	log.Println("Running database migrations...")
+	err = repository.RunMigrations(db,
+		&model.User{},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +52,7 @@ func NewUserService() (*UserService, error) {
 	}, nil
 }
 
-// AutoMigrate uses GORM's built-in schema migration - alternative to SQL migrations
-// This is less recommended for production but useful for development
-func (s *UserService) AutoMigrate() error {
-	return s.DB.AutoMigrate(
-		&model.SecurityQuestion{},
-		&model.User{},
-	)
+// GetMigrationStatus prints information about the database tables
+func (s *UserService) GetMigrationStatus() error {
+	return repository.GetMigrationStatus(s.DB)
 }

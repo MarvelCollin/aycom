@@ -46,7 +46,7 @@ const docTemplate = `{
     "title": "{{.Title}}",
     "contact": {
       "name": "API Support",
-      "url": "https://github.com/your-username/aycom",
+      "url": "https://github.com/Acad/aycom",
       "email": "support@example.com"
     },
     "license": {

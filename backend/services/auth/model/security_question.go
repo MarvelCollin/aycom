@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// SecurityQuestion defines available security questions for account recovery
 type SecurityQuestion struct {
 	QuestionID uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	Question   string    `gorm:"type:varchar(255);not null"`

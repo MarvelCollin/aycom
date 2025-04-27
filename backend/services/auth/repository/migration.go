@@ -7,21 +7,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// MigrationConfig holds configuration for migrations
-type MigrationConfig struct {
-	// Only kept for backward compatibility
-	DBDialect string
-}
-
 // RunMigrations runs database migrations using GORM's AutoMigrate
 func RunMigrations(db *gorm.DB, models ...interface{}) error {
-	log.Println("Running GORM auto-migrations...")
+	log.Println("Running GORM auto-migrations for auth service...")
 
 	if err := db.AutoMigrate(models...); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	log.Println("Migrations completed successfully")
+	log.Println("Auth service migrations completed successfully")
 	return nil
 }
 
@@ -34,7 +28,7 @@ func GetMigrationStatus(db *gorm.DB) error {
 		return fmt.Errorf("failed to get table information: %w", err)
 	}
 
-	log.Println("Database tables:")
+	log.Println("Auth database tables:")
 	for _, table := range tables {
 		log.Printf("- %s", table)
 	}

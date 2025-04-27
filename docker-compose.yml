@@ -17,19 +17,91 @@ services:
       - /app/node_modules
     restart: always
 
-  # Databases
-  auth_db:
-    image: postgres:14-alpine
+  # API Gateway
+  api_gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
     ports:
-      - "5432:5432"
+      - "${API_GATEWAY_PORT:-8080}:8080"
     environment:
-      - POSTGRES_USER=${AUTH_DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-auth_password}
-      - POSTGRES_DB=${AUTH_DB_NAME:-auth_db}
-    volumes:
-      - auth_db_data:/var/lib/postgresql/data
+      - USER_SERVICE_HOST=user_service
+      - USER_SERVICE_PORT=9091
+      - AUTH_SERVICE_HOST=auth_service
+      - AUTH_SERVICE_PORT=9090
+    depends_on:
+      - user_service
+      - auth_service
     restart: always
 
+  # User Service - Profile Management
+  user_service:
+    build:
+      context: ./backend/services/user
+      dockerfile: Dockerfile
+    ports:
+      - "9091:9091"
+    environment:
+      - DATABASE_HOST=user_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${USER_DB_USER:-postgres}
+      - DATABASE_PASSWORD=${USER_DB_PASSWORD:-user_password}
+      - DATABASE_NAME=${USER_DB_NAME:-user_db}
+      - DATABASE_URL=postgres://${USER_DB_USER:-postgres}:${USER_DB_PASSWORD:-user_password}@user_db:5432/${USER_DB_NAME:-user_db}
+      - AUTH_SERVICE_HOST=auth_service
+      - AUTH_SERVICE_PORT=9090
+    depends_on:
+      user_db:
+        condition: service_healthy
+    restart: always
+    entrypoint: ["sh", "./entrypoint.sh"]
+
+  # Auth Service - Authentication & Authorization
+  auth_service:
+    build:
+      context: ./backend/services/auth
+      dockerfile: Dockerfile
+    ports:
+      - "9090:9090"
+    environment:
+      - DATABASE_HOST=auth_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${AUTH_DB_USER:-postgres}
+      - DATABASE_PASSWORD=${AUTH_DB_PASSWORD:-auth_password}
+      - DATABASE_NAME=${AUTH_DB_NAME:-auth_db}
+      - DATABASE_URL=postgres://${AUTH_DB_USER:-postgres}:${AUTH_DB_PASSWORD:-auth_password}@auth_db:5432/${AUTH_DB_NAME:-auth_db}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_URL=redis://redis:6379/0
+      - USER_SERVICE_HOST=user_service
+      - USER_SERVICE_PORT=9091
+    depends_on:
+      auth_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: always
+    entrypoint: ["sh", "./entrypoint.sh"]
+
+  # Event Bus Service
+  event_bus:
+    build:
+      context: ./backend/event-bus
+      dockerfile: Dockerfile
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - USER_SERVICE_HOST=user_service
+      - USER_SERVICE_PORT=9091
+      - AUTH_SERVICE_HOST=auth_service
+      - AUTH_SERVICE_PORT=9090
+    depends_on:
+      - rabbitmq
+      - user_service
+      - auth_service
+    restart: always
+
+  # User Database - Profile Data
   user_db:
     image: postgres:14-alpine
     ports:
@@ -41,17 +113,37 @@ services:
     volumes:
       - user_db_data:/var/lib/postgresql/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  product_db:
+  # Auth Database - Authentication Data
+  auth_db:
     image: postgres:14-alpine
     ports:
-      - "5434:5432"
+      - "5432:5432"
     environment:
-      - POSTGRES_USER=${PRODUCT_DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${PRODUCT_DB_PASSWORD:-product_password}
-      - POSTGRES_DB=${PRODUCT_DB_NAME:-product_db}
+      - POSTGRES_USER=${AUTH_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-auth_password}
+      - POSTGRES_DB=${AUTH_DB_NAME:-auth_db}
     volumes:
-      - product_db_data:/var/lib/postgresql/data
+      - auth_db_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # AI Service
+  ai_service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
     restart: always
 
   # Redis for caching
@@ -76,6 +168,5 @@ services:
 volumes:
   auth_db_data:
   user_db_data:
-  product_db_data:
   redis_data:
-  rabbitmq_data: 
+  rabbitmq_data:
