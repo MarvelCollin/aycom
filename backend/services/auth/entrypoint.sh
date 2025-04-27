@@ -13,8 +13,8 @@ echo "PostgreSQL is up - starting application"
 
 # Run migrations
 echo "Running migrations..."
-./main migrate
+./auth-service migrate
 
 # Start the application
 echo "Starting auth service..."
-exec ./main
+exec ./auth-service

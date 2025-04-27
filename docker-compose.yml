@@ -42,16 +42,16 @@ services:
     ports:
       - "9091:9091"
     environment:
-      - DATABASE_HOST=user_db
+      - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_USER=${USER_DB_USER:-postgres}
-      - DATABASE_PASSWORD=${USER_DB_PASSWORD:-user_password}
-      - DATABASE_NAME=${USER_DB_NAME:-user_db}
-      - DATABASE_URL=postgres://${USER_DB_USER:-postgres}:${USER_DB_PASSWORD:-user_password}@user_db:5432/${USER_DB_NAME:-user_db}
+      - DATABASE_USER=${POSTGRES_USER:-postgres}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
+      - DATABASE_NAME=user_db
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/user_db
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
     depends_on:
-      user_db:
+      postgres:
         condition: service_healthy
     restart: always
     entrypoint: ["sh", "./entrypoint.sh"]
@@ -64,18 +64,18 @@ services:
     ports:
       - "9090:9090"
     environment:
-      - DATABASE_HOST=auth_db
+      - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_USER=${AUTH_DB_USER:-postgres}
-      - DATABASE_PASSWORD=${AUTH_DB_PASSWORD:-auth_password}
-      - DATABASE_NAME=${AUTH_DB_NAME:-auth_db}
-      - DATABASE_URL=postgres://${AUTH_DB_USER:-postgres}:${AUTH_DB_PASSWORD:-auth_password}@auth_db:5432/${AUTH_DB_NAME:-auth_db}
+      - DATABASE_USER=${POSTGRES_USER:-postgres}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
+      - DATABASE_NAME=auth_db
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/auth_db
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - REDIS_URL=redis://redis:6379/0
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
     depends_on:
-      auth_db:
+      postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_started
@@ -101,50 +101,24 @@ services:
       - auth_service
     restart: always
 
-  # User Database - Profile Data
-  user_db:
-    image: postgres:14-alpine
-    ports:
-      - "5433:5432"
-    environment:
-      - POSTGRES_USER=${USER_DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${USER_DB_PASSWORD:-user_password}
-      - POSTGRES_DB=${USER_DB_NAME:-user_db}
-    volumes:
-      - user_db_data:/var/lib/postgresql/data
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # Auth Database - Authentication Data
-  auth_db:
+  # Single PostgreSQL Database for all services
+  postgres:
     image: postgres:14-alpine
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=${AUTH_DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-auth_password}
-      - POSTGRES_DB=${AUTH_DB_NAME:-auth_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
+      - POSTGRES_DB=postgres
     volumes:
-      - auth_db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./db-init.sh:/docker-entrypoint-initdb.d/db-init.sh
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
-
-  # AI Service
-  ai_service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    restart: always
 
   # Redis for caching
   redis:
@@ -166,7 +140,6 @@ services:
     restart: always
 
 volumes:
-  auth_db_data:
-  user_db_data:
+  postgres_data:
   redis_data:
   rabbitmq_data:
