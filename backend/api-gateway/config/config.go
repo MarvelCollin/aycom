@@ -1,14 +1,16 @@
 package config
 
 import (
+	"fmt"
 	"os"
 )
 
 // ServiceConfig contains the configuration for remote microservices
 type ServiceConfig struct {
-	UserServiceAddr    string
-	ProductServiceAddr string
-	PaymentServiceAddr string
+	AuthServiceHost string
+	AuthServicePort string
+	UserServiceHost string
+	UserServicePort string
 	// Add more services as needed
 }
 
@@ -22,14 +24,25 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Services: ServiceConfig{
-			UserServiceAddr:    getEnv("USER_SERVICE_ADDR", "localhost:50051"),
-			ProductServiceAddr: getEnv("PRODUCT_SERVICE_ADDR", "localhost:50052"),
-			PaymentServiceAddr: getEnv("PAYMENT_SERVICE_ADDR", "localhost:50053"),
+			AuthServiceHost: getEnv("AUTH_SERVICE_HOST", "auth_service"),
+			AuthServicePort: getEnv("AUTH_SERVICE_PORT", "9090"),
+			UserServiceHost: getEnv("USER_SERVICE_HOST", "user_service"),
+			UserServicePort: getEnv("USER_SERVICE_PORT", "9091"),
 		},
 		JWTSecret: getEnv("JWT_SECRET", "default-secret-key"),
 	}
 
 	return cfg, nil
+}
+
+// GetAuthServiceAddr returns the full address for the auth service
+func (c *Config) GetAuthServiceAddr() string {
+	return fmt.Sprintf("%s:%s", c.Services.AuthServiceHost, c.Services.AuthServicePort)
+}
+
+// GetUserServiceAddr returns the full address for the user service
+func (c *Config) GetUserServiceAddr() string {
+	return fmt.Sprintf("%s:%s", c.Services.UserServiceHost, c.Services.UserServicePort)
 }
 
 // Helper to get environment variables with fallbacks

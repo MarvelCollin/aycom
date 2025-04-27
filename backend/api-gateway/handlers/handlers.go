@@ -6,31 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// HealthCheck godoc
-// @Summary Health check endpoint
-// @Description Get the status of the API
-// @Tags health
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]interface{} "status: ok"
-// @Router /health [get]
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
 	})
 }
 
-// Login godoc
-// @Summary User login
-// @Description Authenticate user and return tokens
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param user body map[string]interface{} true "Login credentials"
-// @Success 200 {object} map[string]interface{} "tokens and user info"
-// @Failure 400 {object} map[string]interface{} "bad request"
-// @Failure 401 {object} map[string]interface{} "unauthorized"
-// @Router /api/v1/auth/login [post]
 func Login(c *gin.Context) {
 	// This is just a stub - in a real implementation, this would call the user service via gRPC
 	c.JSON(http.StatusOK, gin.H{
@@ -38,15 +19,6 @@ func Login(c *gin.Context) {
 	})
 }
 
-// Register godoc
-// @Summary Register a new user
-// @Description Create a new user account
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param user body map[string]interface{} true "User registration data"
-// @Success 201 {object} map[string]interface{} "user created"
-// @Failure 400 {object} map[string]interface{} "bad request"
 // @Router /api/v1/auth/register [post]
 func Register(c *gin.Context) {
 	// This is just a stub - in a real implementation, this would call the user service via gRPC
@@ -55,16 +27,6 @@ func Register(c *gin.Context) {
 	})
 }
 
-// RefreshToken godoc
-// @Summary Refresh access token
-// @Description Use refresh token to get a new access token
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param token body map[string]interface{} true "Refresh token"
-// @Success 200 {object} map[string]interface{} "new tokens"
-// @Failure 401 {object} map[string]interface{} "unauthorized"
-// @Router /api/v1/auth/refresh [post]
 func RefreshToken(c *gin.Context) {
 	// This is just a stub - in a real implementation, this would call the auth service via gRPC
 	c.JSON(http.StatusOK, gin.H{

@@ -309,6 +309,7 @@
         <button 
           class="text-blue-500 hover:text-blue-600 transition-colors"
           on:click={goBack}
+          data-cy="back-button"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -334,7 +335,7 @@
     {#if step === 1}
       <h1 class="text-2xl font-bold mb-6 text-center">Create your account</h1>
       
-      <div id="google-signin-button" class="w-full mb-4"></div>
+      <div id="google-signin-button" class="w-full mb-4" data-cy="google-signin-button"></div>
       
       <div class="flex items-center mb-4">
         <div class="flex-grow h-px bg-gray-600"></div>
@@ -345,7 +346,7 @@
       <div class="mb-4">
         <div class="flex justify-between">
           <label for="name" class="block text-sm font-medium mb-1">Name</label>
-          <span class="text-xs text-gray-400">{name.length} / 50</span>
+          <span class="text-xs text-gray-400" data-cy="name-char-count">{name.length} / 50</span>
         </div>
         <input 
           type="text" 
@@ -355,9 +356,10 @@
           maxlength="50"
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Name"
+          data-cy="name-input"
         />
         {#if nameError}
-          <p class="text-red-500 text-xs mt-1">{nameError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="name-error">{nameError}</p>
         {/if}
       </div>
       
@@ -371,9 +373,10 @@
           on:blur={validateUsernameAndUpdate}
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Username"
+          data-cy="username-input"
         />
         {#if usernameError}
-          <p class="text-red-500 text-xs mt-1">{usernameError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="username-error">{usernameError}</p>
         {/if}
       </div>
       
@@ -387,9 +390,10 @@
           on:blur={validateEmailAndUpdate}
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Email"
+          data-cy="email-input"
         />
         {#if emailError}
-          <p class="text-red-500 text-xs mt-1">{emailError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="email-error">{emailError}</p>
         {/if}
       </div>
       
@@ -403,9 +407,10 @@
           on:blur={validatePasswordAndUpdate}
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Password"
+          data-cy="password-input"
         />
         {#if passwordErrors.length > 0}
-          <div class="text-red-500 text-xs mt-1">
+          <div class="text-red-500 text-xs mt-1" data-cy="password-error">
             {#each passwordErrors as error}
               <p>{error}</p>
             {/each}
@@ -423,9 +428,10 @@
           on:blur={validateConfirmPasswordAndUpdate}
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Confirm Password"
+          data-cy="confirm-password-input"
         />
         {#if confirmPasswordError}
-          <p class="text-red-500 text-xs mt-1">{confirmPasswordError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="password-match-error">{confirmPasswordError}</p>
         {/if}
       </div>
       
@@ -441,6 +447,7 @@
               bind:group={gender} 
               on:change={validateGenderAndUpdate}
               class="mr-2"
+              data-cy="gender-male"
             />
             <span>Male</span>
           </label>
@@ -452,12 +459,13 @@
               bind:group={gender} 
               on:change={validateGenderAndUpdate}
               class="mr-2"
+              data-cy="gender-female"
             />
             <span>Female</span>
           </label>
         </div>
         {#if genderError}
-          <p class="text-red-500 text-xs mt-1">{genderError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="gender-error">{genderError}</p>
         {/if}
       </div>
       
@@ -472,6 +480,7 @@
               bind:value={dateOfBirth.month} 
               on:change={validateDateOfBirthAndUpdate}
               class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              data-cy="dob-month"
             >
               <option value="" disabled selected>Month</option>
               {#each months as month}
@@ -484,6 +493,7 @@
               bind:value={dateOfBirth.day} 
               on:change={validateDateOfBirthAndUpdate}
               class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              data-cy="dob-day"
             >
               <option value="" disabled selected>Day</option>
               {#each days as day}
@@ -496,6 +506,7 @@
               bind:value={dateOfBirth.year} 
               on:change={validateDateOfBirthAndUpdate}
               class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              data-cy="dob-year"
             >
               <option value="" disabled selected>Year</option>
               {#each years as year}
@@ -506,7 +517,7 @@
         </div>
         
         {#if dateOfBirthError}
-          <p class="text-red-500 text-xs mt-1">{dateOfBirthError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="dob-error">{dateOfBirthError}</p>
         {/if}
       </div>
       
@@ -518,6 +529,7 @@
           id="profilePicture" 
           accept="image/*" 
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+          data-cy="profile-picture-input"
         />
       </div>
       
@@ -529,6 +541,7 @@
           id="banner" 
           accept="image/*" 
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+          data-cy="banner-input"
         />
       </div>
       
@@ -540,6 +553,7 @@
           bind:value={securityQuestion}
           on:change={validateSecurityQuestionAndUpdate}
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+          data-cy="security-question"
         >
           <option value="" disabled selected>Select a security question</option>
           {#each securityQuestions as question}
@@ -553,10 +567,11 @@
           on:blur={validateSecurityQuestionAndUpdate}
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Your answer"
+          data-cy="security-answer"
         />
         
         {#if securityQuestionError}
-          <p class="text-red-500 text-xs mt-1">{securityQuestionError}</p>
+          <p class="text-red-500 text-xs mt-1" data-cy="security-question-error">{securityQuestionError}</p>
         {/if}
       </div>
       
@@ -567,18 +582,20 @@
             type="checkbox" 
             bind:checked={subscribeToNewsletter} 
             class="mr-2"
+            data-cy="subscribe-checkbox"
           />
           <span class="text-sm">Subscribe to newsletter</span>
         </label>
       </div>
       
       <!-- reCAPTCHA placeholder -->
-      <div id="recaptcha-container" class="mb-6"></div>
+      <div id="recaptcha-container" class="mb-6" data-cy="recaptcha-container"></div>
       
       <!-- Submit button -->
       <button 
         class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
         on:click={submitStep1}
+        data-cy="register-button"
       >
         Next
       </button>
@@ -595,7 +612,7 @@
       </p>
     {:else}
       <!-- Step 2: Verification Code Input -->
-      <h1 class="text-2xl font-bold mb-6 text-center">We sent you a code</h1>
+      <h1 class="text-2xl font-bold mb-6 text-center" data-cy="verification-title">We sent you a code</h1>
       <p class="text-center mb-6">Enter it below to verify {email}</p>
       
       <div class="mb-6">
@@ -606,17 +623,19 @@
           bind:value={verificationCode} 
           class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Verification code"
+          data-cy="verification-code"
         />
       </div>
       
       {#if !showResendOption}
-        <p class="text-sm text-center mb-4">Code expires in {formatTimeLeft()}</p>
+        <p class="text-sm text-center mb-4" data-cy="verification-timer">Code expires in {formatTimeLeft()}</p>
       {/if}
       
       {#if showResendOption}
         <button 
           class="w-full text-blue-500 hover:underline mb-4 text-center"
           on:click={resendCode}
+          data-cy="resend-button"
         >
           Didn't receive email?
         </button>
@@ -625,6 +644,7 @@
       <button 
         class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
         on:click={verifyCode}
+        data-cy="verify-button"
       >
         Next
       </button>
