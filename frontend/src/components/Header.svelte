@@ -1,6 +1,6 @@
 <script lang="ts">
-  export let theme: 'light' | 'dark';
-  export let toggleTheme: () => void;
+  import { theme } from '../hooks/useTheme';
+  import ThemeToggle from './ThemeToggle.svelte';
   
   let isMenuOpen = false;
   
@@ -26,13 +26,7 @@
       </nav>
       
       <div class="actions">
-        <button class="theme-toggle" on:click={toggleTheme} aria-label="Toggle theme">
-          {#if theme === 'light'}
-            <span>🌙</span>
-          {:else}
-            <span>☀️</span>
-          {/if}
-        </button>
+        <ThemeToggle size="5" className="theme-toggle" />
         
         <div class="auth-buttons">
           <a href="/login" class="login-btn">Login</a>
@@ -51,9 +45,9 @@
 
 <style>
   header {
-    background-color: var(--card-background);
+    background-color: var(--bg-secondary);
     padding: 1rem 0;
-    box-shadow: 0 2px 4px var(--shadow-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -68,7 +62,7 @@
   .logo a {
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--primary-color);
+    color: var(--color-primary);
     text-decoration: none;
   }
   
@@ -82,13 +76,13 @@
   }
   
   nav ul li a {
-    color: var(--text-color);
+    color: var(--text-primary);
     text-decoration: none;
     transition: color 0.2s;
   }
   
   nav ul li a:hover {
-    color: var(--primary-color);
+    color: var(--color-primary);
   }
   
   .actions {
@@ -97,16 +91,7 @@
   }
   
   .theme-toggle {
-    background: none;
-    border: none;
-    font-size: 1.25rem;
     margin-right: 1rem;
-    padding: 0.25rem;
-    cursor: pointer;
-  }
-  
-  .theme-toggle span {
-    display: block;
   }
   
   .auth-buttons {
@@ -115,7 +100,7 @@
   }
   
   .login-btn {
-    color: var(--primary-color);
+    color: var(--color-primary);
     text-decoration: none;
     padding: 0.5rem 1rem;
   }
@@ -125,7 +110,7 @@
   }
   
   .register-btn {
-    background-color: var(--primary-color);
+    background-color: var(--color-primary);
     color: white;
     padding: 0.5rem 1rem;
     border-radius: 4px;
@@ -133,7 +118,7 @@
   }
   
   .register-btn:hover {
-    background-color: var(--primary-color-dark, #3730a3);
+    opacity: 0.9;
   }
   
   .menu-toggle {
@@ -148,7 +133,7 @@
   .menu-toggle .bar {
     width: 25px;
     height: 3px;
-    background-color: var(--text-color);
+    background-color: var(--text-primary);
     margin: 3px 0;
     border-radius: 3px;
     transition: 0.3s;
@@ -169,8 +154,8 @@
       top: 60px;
       left: 0;
       right: 0;
-      background-color: var(--card-background);
-      box-shadow: 0 4px 8px var(--shadow-color);
+      background-color: var(--bg-secondary);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
       padding: 1rem;
       transform: translateY(-100%);
       opacity: 0;
@@ -190,4 +175,4 @@
       margin: 0.5rem 0;
     }
   }
-</style> 
+</style>

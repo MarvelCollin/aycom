@@ -1,23 +1,8 @@
 @import url("src/reset.css");
-
 @import url("src/colors.css");
-@import url("src/typography.css");
-@import url("src/spacing-sizing.css");
 @import url("src/background-border.css");
-@import url("src/utilities.css");
-
 @import url("src/layout-flex.css");
-@import url("src/flexbox.css");
-@import url("src/grid.css");
-
-@import url("src/filter-effect.css");
 @import url("src/keyframes.css");
-@import url("src/transform.css");
-@import url("src/transition.css");
-
-@import url("src/interaction.css");
-
-@import url("src/responsive.css");
 
 :root {
   --color-primary: #3b82f6;

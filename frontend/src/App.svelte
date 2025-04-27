@@ -1,42 +1,25 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import './styles/magniview.css';
   import Router from './routes/Router.svelte';
-
-  let theme: 'light' | 'dark' = 'dark';  // Default to dark theme for Twitter clone
-
-  onMount(() => {
-    // Check for saved theme preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      theme = savedTheme as 'light' | 'dark';
-      document.body.setAttribute('data-theme', theme);
-    } else {
-      // Set dark theme by default for Twitter
-      document.body.setAttribute('data-theme', 'dark');
-    }
-  });
-
-  function toggleTheme() {
-    theme = theme === 'light' ? 'dark' : 'light';
-    document.body.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }
+  import ThemeProvider from './components/ThemeProvider.svelte';
+  import { theme } from './hooks/useTheme';
 </script>
 
-<div class="app">
-  <main>
-    <Router />
-  </main>
-</div>
+<ThemeProvider>
+  <div class="app">
+    <main>
+      <Router />
+    </main>
+  </div>
+</ThemeProvider>
 
 <style>
   .app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    background-color: black;
-    color: white;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
   }
 
   main {
