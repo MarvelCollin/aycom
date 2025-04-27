@@ -24,6 +24,10 @@ func main() {
 			if err != nil {
 				log.Fatalf("Failed to initialize service: %v", err)
 			}
+			// Use svc to avoid unused variable error
+			if err := svc.GetMigrationStatus(); err != nil {
+				log.Fatalf("Failed to get migration status: %v", err)
+			}
 			log.Println("Auth migrations completed successfully")
 			return
 

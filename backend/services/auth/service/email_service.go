@@ -6,7 +6,11 @@ import (
 	"os"
 )
 
-// EmailService interface is defined in auth_service.go
+// EmailService defines the interface for email operations
+type EmailService interface {
+	SendVerificationEmail(email, code string) error
+	SendWelcomeEmail(email, name string) error
+}
 
 // SMTPEmailService implements EmailService using SMTP
 type SMTPEmailService struct {

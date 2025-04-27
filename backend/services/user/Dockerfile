@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine AS builder
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
@@ -15,12 +15,17 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o user-service .
 # Use a smaller image for the final application
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates
+# Install PostgreSQL client and CA certificates
+RUN apk --no-cache add ca-certificates postgresql-client
 
 WORKDIR /app
 
 # Copy the binary from builder
 COPY --from=builder /app/user-service .
+COPY --from=builder /app/entrypoint.sh .
+
+# Make the entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
 
 # Set the entrypoint
-ENTRYPOINT ["./user-service"] 
+ENTRYPOINT ["/app/entrypoint.sh"]
