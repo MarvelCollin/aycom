@@ -25,6 +25,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.POST("/login", handlers.Login)
 		auth.POST("/register", handlers.Register)
 		auth.POST("/refresh", handlers.RefreshToken)
+		auth.POST("/google", handlers.GoogleAuth)
+		auth.POST("/verify-email", handlers.VerifyEmail)
+		auth.POST("/resend-code", handlers.ResendVerificationCode)
 	}
 
 	// Protected routes - using JWT authentication middleware

@@ -117,7 +117,7 @@ func verifyRecaptchaToken(token string) (bool, error) {
 	}
 
 	// Get secret key from environment
-	secretKey := os.Getenv("GOOGLE_SECRET")
+	secretKey := os.Getenv("GOOGLE_CLIENT_SECRET")
 	if secretKey == "" {
 		return false, fmt.Errorf("reCAPTCHA secret key not configured")
 	}

@@ -47,6 +47,72 @@ AYCOM/
 └── shared/                     # Shared code and protocols
 ```
 
+## Environment Variables Setup
+
+The application uses environment variables to configure various services and features. These are organized as follows:
+
+### Root `.env` File
+
+The root `.env` file contains global variables used by Docker Compose and shared between services:
+
+```
+# Global Configuration
+JWT_SECRET=your_jwt_secret
+
+# Google OAuth Credentials
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Database Credentials
+AUTH_DB_USER=db_user
+AUTH_DB_PASSWORD=db_password
+AUTH_DB_NAME=auth_db
+...
+```
+
+### Frontend `.env` File (frontend/.env)
+
+The frontend `.env` file contains frontend-specific variables, which are prefixed with `VITE_` to make them accessible in the Vite application:
+
+```
+# Google OAuth client ID for frontend
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+
+# reCAPTCHA site key
+VITE_RECAPTCHA_SITE_KEY=your_recaptcha_site_key
+
+# API base URL
+VITE_API_BASE_URL=/api/v1
+```
+
+### Backend `.env` File (backend/.env)
+
+The backend `.env` file contains backend-specific variables used by the various microservices:
+
+```
+# Service Configuration
+API_GATEWAY_PORT=8080
+AUTH_SERVICE_ADDR=localhost:50051
+...
+
+# Security
+JWT_SECRET=your_jwt_secret
+
+# Google OAuth Configuration (for auth service)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+...
+```
+
+## Google Authentication Flow
+
+1. The frontend initializes Google Sign-In using the Google Identity Services API
+2. When a user clicks the Google Sign-In button, they are redirected to Google for authentication
+3. After successful authentication, Google redirects back to the `/google-callback` route
+4. The callback page extracts the credential token and sends it to the backend API
+5. The backend validates the token with Google and either creates a new user or logs in an existing user
+6. The backend returns JWT tokens which are stored by the frontend for authentication
+
 ## Getting Started
 
 ### Prerequisites

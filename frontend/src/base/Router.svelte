@@ -5,6 +5,7 @@
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
+  import GoogleCallback from '../pages/GoogleCallback.svelte';
   
   let route = '/';
   let isAuthenticated = false; // Normally this would be determined by a real auth system
@@ -82,6 +83,8 @@
     <Register />
   {:else if route === '/home'}
     <Feed />
+  {:else if route === '/google/' || route === '/google'}
+    <GoogleCallback />
   {:else if route === '/explore' || route === '/notifications' || route === '/messages' || route === '/profile'}
     <Feed />
   {:else}

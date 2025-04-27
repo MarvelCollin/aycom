@@ -1,8 +1,11 @@
 import { writable } from 'svelte/store';
-import type { TokenResponse, GoogleCredentialResponse } from '../interfaces/auth';
+import type { TokenResponse, GoogleCredentialResponse, AuthStore } from '../interfaces/auth';
+
+// Get API base URL from environment
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 // Authentication store
-export const authStore = writable({
+export const authStore = writable<AuthStore>({
   isAuthenticated: false,
   userId: null,
   accessToken: null,
@@ -14,7 +17,7 @@ export function useAuth() {
   // Login with email and password
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -39,7 +42,7 @@ export function useAuth() {
   // Register a new user
   const register = async (userData: any) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -58,7 +61,7 @@ export function useAuth() {
   // Verify email with code
   const verifyEmail = async (email: string, verificationCode: string) => {
     try {
-      const response = await fetch('/api/auth/verify-email', {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -86,7 +89,7 @@ export function useAuth() {
   // Resend verification code
   const resendVerificationCode = async (email: string) => {
     try {
-      const response = await fetch('/api/auth/resend-code', {
+      const response = await fetch(`${API_BASE_URL}/auth/resend-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -105,7 +108,14 @@ export function useAuth() {
   // Handle Google authentication
   const handleGoogleAuth = async (response: GoogleCredentialResponse) => {
     try {
-      const result = await fetch('/api/auth/google', {
+      console.log('Google Auth Response:', response);
+      
+      if (!response || !response.credential) {
+        console.error('Invalid Google credential response');
+        return { success: false, message: 'Invalid Google credentials' };
+      }
+      
+      const result = await fetch(`${API_BASE_URL}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -116,6 +126,14 @@ export function useAuth() {
       });
       
       const data = await result.json();
+      
+      if (!result.ok) {
+        console.error('Google auth API error:', data);
+        return { 
+          success: false, 
+          message: data.message || `Authentication failed with status: ${result.status}`
+        };
+      }
       
       if (data.access_token) {
         storeTokens(data);

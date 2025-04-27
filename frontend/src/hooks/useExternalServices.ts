@@ -19,7 +19,7 @@ export function useExternalServices() {
           recaptchaLoaded = true;
           if (customWindow.grecaptcha) {
             customWindow.grecaptcha.render('recaptcha-container', {
-              'sitekey': import.meta.env.GOOGLE_SECRET || import.meta.env.VITE_RECAPTCHA_SITE_KEY,
+              'sitekey': import.meta.env.VITE_RECAPTCHA_SITE_KEY,
               'callback': (token: string) => {
                 recaptchaToken = token;
                 callback(token);
@@ -57,9 +57,14 @@ export function useExternalServices() {
       try {
         const customWindow = window as CustomWindow;
         if (customWindow.google) {
+          // Get Google Client ID from environment variables
+          const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com";
+          
           customWindow.google.accounts.id.initialize({
-            client_id: import.meta.env.GOOGLE_CLIENT || import.meta.env.VITE_GOOGLE_CLIENT_ID,
-            callback: handleCredentialResponse
+            client_id: clientId,
+            callback: handleCredentialResponse,
+            ux_mode: 'redirect',
+            redirect_uri: 'http://localhost:3000/google-callback'
           });
           
           const buttonElement = document.getElementById(buttonId);
@@ -70,7 +75,7 @@ export function useExternalServices() {
                 theme: isDarkMode ? 'filled_black' : 'outline',
                 size: 'large',
                 width: '100%',
-                text: 'signup_with'
+                text: 'continue_with'
               }
             );
           }

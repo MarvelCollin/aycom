@@ -6,7 +6,6 @@
   import { useExternalServices } from '../hooks/useExternalServices';
   import type { DateOfBirth, GoogleCredentialResponse } from '../interfaces/auth';
   
-  // Define interfaces for Google and reCAPTCHA
   interface GoogleAccountsId {
     initialize: (config: any) => void;
     renderButton: (element: HTMLElement, options: any) => void;
@@ -25,19 +24,15 @@
     render: (container: string, options: any) => number;
   }
   
-  // Extend Window interface with custom properties
   interface CustomWindow extends Window {
     google?: Google;
     grecaptcha?: RecaptchaInstance;
   }
   
-  // Get the theme store and toggleTheme function from our hook
   const { theme } = useTheme();
   
-  // Get auth functions from auth hook
   const { register, verifyEmail, resendVerificationCode, handleGoogleAuth } = useAuth();
   
-  // Get validation functions from validation hook
   const { 
     validateName, 
     validateUsername, 
@@ -77,7 +72,6 @@
   let verificationCode = "";
   let showResendOption = false;
   
-  // ReCAPTCHA and Google authentication
   let recaptchaToken = "";
   let recaptchaLoaded = false;
   let googleAuthLoaded = false;
@@ -276,6 +270,7 @@
       window.location.href = '/dashboard';
     } else {
       console.error('Google authentication failed:', result.message);
+      alert(`Google authentication failed: ${result.message || 'Unknown error'}`);
     }
   }
   

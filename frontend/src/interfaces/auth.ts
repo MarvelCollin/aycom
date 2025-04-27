@@ -53,11 +53,19 @@ export interface DateOfBirth {
   year: string;
 }
 
-// Auth token response interface
+// Token response from the server
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;
   user_id: string;
-  token_type: string;
-  expires_in: number;
+  token_type?: string;
+  expires_in?: number;
+}
+
+// AuthStore type
+export interface AuthStore {
+  isAuthenticated: boolean;
+  userId: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
 } 

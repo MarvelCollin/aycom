@@ -460,7 +460,7 @@ func (s *authService) verifyGoogleToken(idToken string) (*GoogleUserInfo, error)
 	}
 
 	// Validate the issuer and audience (client ID)
-	clientID := os.Getenv("GOOGLE_CLIENT")
+	clientID := os.Getenv("GOOGLE_CLIENT_ID")
 	if userInfo.Aud != clientID {
 		return nil, fmt.Errorf("token was not issued for this application")
 	}
