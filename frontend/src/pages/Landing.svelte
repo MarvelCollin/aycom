@@ -1,12 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { theme, toggleTheme } from '../hooks/useTheme';
+  import { useTheme } from '../hooks/useTheme';
+  
+  // Get the theme store and toggleTheme function from our hook
+  const { theme, toggleTheme } = useTheme();
   
   let isDarkMode;
   
+  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
   
   onMount(() => {
+    // Preload logo images
     const logoImgDark = new Image();
     logoImgDark.src = '/src/assets/logo/dark-logo.jpeg';
     

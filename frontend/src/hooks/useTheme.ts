@@ -1,62 +1,65 @@
 import { writable } from 'svelte/store';
 
-// Define theme types
-export type Theme = 'dark' | 'light';
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
 
-// Check for system preference or saved preference
-function getInitialTheme(): Theme {
-  if (typeof window !== 'undefined') {
-    // Check local storage first
-    const savedTheme = localStorage.getItem('theme') as Theme;
-    if (savedTheme === 'dark' || savedTheme === 'light') {
-      return savedTheme;
-    }
-    
-    // Fall back to system preference
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
+// Get the user's preferred theme from localStorage or system preference
+const getUserPreference = (): 'light' | 'dark' => {
+  // Check for saved theme preference
+  const savedTheme = isBrowser ? localStorage.getItem('theme') : null;
+  
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    return savedTheme;
   }
   
-  // Default to dark theme
-  return 'dark';
-}
+  // Check for system preference
+  if (isBrowser && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  
+  // Default to light
+  return 'light';
+};
 
-// Create theme store
-export const theme = writable<Theme>(getInitialTheme());
+// Create a theme store
+const theme = writable<'light' | 'dark'>(getUserPreference());
 
-// Theme toggler function
-export function toggleTheme(): void {
-  theme.update(currentTheme => {
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+// Subscribe to theme changes to update localStorage
+if (isBrowser) {
+  theme.subscribe((value) => {
+    localStorage.setItem('theme', value);
+    document.documentElement.setAttribute('data-theme', value);
     
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('theme', newTheme);
-      applyThemeToDocument(newTheme);
+    // Also add/remove the dark class on the html element for convenience
+    if (value === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
-    
-    return newTheme;
+  });
+
+  // Listen for system theme changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
+    // Only update if user hasn't explicitly set a preference
+    if (!localStorage.getItem('theme')) {
+      theme.set(event.matches ? 'dark' : 'light');
+    }
   });
 }
 
-// Apply theme to document
-export function applyThemeToDocument(currentTheme: Theme): void {
-  if (typeof document !== 'undefined') {
-    const html = document.documentElement;
-    
-    if (currentTheme === 'dark') {
-      html.classList.add('dark-theme');
-      html.classList.remove('light-theme');
-    } else {
-      html.classList.add('light-theme');
-      html.classList.remove('dark-theme');
-    }
-  }
-}
+// Export the theme hook
+export function useTheme() {
+  const toggleTheme = () => {
+    theme.update((current) => (current === 'light' ? 'dark' : 'light'));
+  };
 
-// Initialize theme on import
-if (typeof window !== 'undefined') {
-  const currentTheme = getInitialTheme();
-  localStorage.setItem('theme', currentTheme);
-  applyThemeToDocument(currentTheme);
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    theme.set(newTheme);
+  };
+
+  return {
+    theme,
+    toggleTheme,
+    setTheme
+  };
 }

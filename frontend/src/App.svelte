@@ -1,8 +1,10 @@
 <script lang="ts">
   import './styles/magniview.css';
-  import Router from './routes/Router.svelte';
-  import ThemeProvider from './components/ThemeProvider.svelte';
-  import { theme } from './hooks/useTheme';
+  import Router from './base/Router.svelte';
+  import ThemeProvider from './components/common/ThemeProvider.svelte';
+  import { useTheme } from './hooks/useTheme';
+  
+  const { theme } = useTheme();
 </script>
 
 <ThemeProvider>
