@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 
-	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto/auth"
+	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
 )
 
 // Global config for the handlers
@@ -26,6 +26,34 @@ type RegisterRequest struct {
 	SecurityAnswer        string `json:"securityAnswer" binding:"required"`
 	SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
 	RecaptchaToken        string `json:"recaptcha_token" binding:"required"`
+}
+
+// LoginRequest represents the login payload
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// VerifyEmailRequest represents the request for verifying email
+type VerifyEmailRequest struct {
+	Email            string `json:"email" binding:"required,email"`
+	VerificationCode string `json:"verification_code" binding:"required"`
+}
+
+// ResendCodeRequest represents the request for resending verification code
+type ResendCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// LogoutRequest represents the request for logging out
+type LogoutRequest struct {
+	AccessToken  string `json:"access_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// RefreshTokenRequest represents the request for refreshing token
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 // RegisterResponse represents the response from user registration
@@ -61,9 +89,49 @@ func HealthCheck(c *gin.Context) {
 }
 
 func Login(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the user service via gRPC
+	var request LoginRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+		})
+		return
+	}
+	defer conn.Close()
+
+	client := authProto.NewAuthServiceClient(conn)
+
+	req := &authProto.LoginRequest{
+		Email:    request.Email,
+		Password: request.Password,
+	}
+
+	resp, err := client.Login(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Login failed: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "login endpoint",
+		"success":       resp.Success,
+		"message":       resp.Message,
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"user_id":       resp.UserId,
+		"token_type":    resp.TokenType,
+		"expires_in":    resp.ExpiresIn,
 	})
 }
 
@@ -87,8 +155,7 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Connect to auth service
-	conn, err := grpc.Dial(config.Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
@@ -98,10 +165,8 @@ func Register(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	// Create auth service client
 	client := authProto.NewAuthServiceClient(conn)
 
-	// Prepare gRPC request
 	req := &authProto.RegisterRequest{
 		Name:                  request.Name,
 		Username:              request.Username,
@@ -116,7 +181,6 @@ func Register(c *gin.Context) {
 		RecaptchaToken:        request.RecaptchaToken,
 	}
 
-	// Call auth service
 	resp, err := client.Register(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -126,7 +190,6 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Return response to client
 	c.JSON(http.StatusOK, RegisterResponse{
 		Success: resp.Success,
 		Message: resp.Message,
@@ -134,9 +197,48 @@ func Register(c *gin.Context) {
 }
 
 func RefreshToken(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the auth service via gRPC
+	var request RefreshTokenRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+		})
+		return
+	}
+	defer conn.Close()
+
+	client := authProto.NewAuthServiceClient(conn)
+
+	req := &authProto.RefreshTokenRequest{
+		RefreshToken: request.RefreshToken,
+	}
+
+	resp, err := client.RefreshToken(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Token refresh failed: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "refresh token endpoint",
+		"success":       resp.Success,
+		"message":       resp.Message,
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"user_id":       resp.UserId,
+		"token_type":    resp.TokenType,
+		"expires_in":    resp.ExpiresIn,
 	})
 }
 
@@ -164,15 +266,39 @@ func GoogleAuth(c *gin.Context) {
 		return
 	}
 
-	// For now, since the actual gRPC call is not implemented, we'll simulate a successful response
-	// In production, this would be replaced with a real call to the auth service
+	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+		})
+		return
+	}
+	defer conn.Close()
+
+	client := authProto.NewAuthServiceClient(conn)
+
+	req := &authProto.GoogleLoginRequest{
+		TokenId: requestBody.TokenID,
+	}
+
+	resp, err := client.GoogleLogin(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Google authentication failed: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"success":       true,
-		"access_token":  "simulated_access_token",
-		"refresh_token": "simulated_refresh_token",
-		"user_id":       "simulated_user_id",
-		"token_type":    "Bearer",
-		"expires_in":    3600,
+		"success":       resp.Success,
+		"message":       resp.Message,
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"user_id":       resp.UserId,
+		"token_type":    resp.TokenType,
+		"expires_in":    resp.ExpiresIn,
 	})
 }
 
@@ -187,9 +313,49 @@ func GoogleAuth(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "bad request"
 // @Router /api/v1/auth/verify-email [post]
 func VerifyEmail(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the auth service via gRPC
+	var request VerifyEmailRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+		})
+		return
+	}
+	defer conn.Close()
+
+	client := authProto.NewAuthServiceClient(conn)
+
+	req := &authProto.VerifyEmailRequest{
+		Email:            request.Email,
+		VerificationCode: request.VerificationCode,
+	}
+
+	resp, err := client.VerifyEmail(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Email verification failed: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "verify email endpoint",
+		"success":       resp.Success,
+		"message":       resp.Message,
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"user_id":       resp.UserId,
+		"token_type":    resp.TokenType,
+		"expires_in":    resp.ExpiresIn,
 	})
 }
 
@@ -204,9 +370,43 @@ func VerifyEmail(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "bad request"
 // @Router /api/v1/auth/resend-code [post]
 func ResendVerificationCode(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the auth service via gRPC
+	var request ResendCodeRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+		})
+		return
+	}
+	defer conn.Close()
+
+	client := authProto.NewAuthServiceClient(conn)
+
+	req := &authProto.ResendVerificationCodeRequest{
+		Email: request.Email,
+	}
+
+	resp, err := client.ResendVerificationCode(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to resend verification code: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "resend verification code endpoint",
+		"success": resp.Success,
+		"message": resp.Message,
 	})
 }
 
@@ -256,6 +456,7 @@ func UpdateUserProfile(c *gin.Context) {
 // @Success 200 {array} map[string]interface{} "list of products"
 // @Router /api/v1/products [get]
 func ListProducts(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the product service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "list products endpoint",
 	})
@@ -273,6 +474,7 @@ func ListProducts(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "product not found"
 // @Router /api/v1/products/{id} [get]
 func GetProduct(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the product service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get product endpoint",
 	})
@@ -290,6 +492,7 @@ func GetProduct(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "bad request"
 // @Router /api/v1/products [post]
 func CreateProduct(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the product service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "create product endpoint",
 	})
@@ -309,6 +512,7 @@ func CreateProduct(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "product not found"
 // @Router /api/v1/products/{id} [put]
 func UpdateProduct(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the product service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "update product endpoint",
 	})
@@ -326,6 +530,7 @@ func UpdateProduct(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "product not found"
 // @Router /api/v1/products/{id} [delete]
 func DeleteProduct(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the product service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "delete product endpoint",
 	})
@@ -343,6 +548,7 @@ func DeleteProduct(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "bad request"
 // @Router /api/v1/payments [post]
 func CreatePayment(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the payment service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "create payment endpoint",
 	})
@@ -360,6 +566,7 @@ func CreatePayment(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "payment not found"
 // @Router /api/v1/payments/{id} [get]
 func GetPayment(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the payment service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get payment endpoint",
 	})
@@ -375,6 +582,7 @@ func GetPayment(c *gin.Context) {
 // @Success 200 {array} map[string]interface{} "payment history"
 // @Router /api/v1/payments/history [get]
 func GetPaymentHistory(c *gin.Context) {
+	// This is just a stub - in a real implementation, this would call the payment service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get payment history endpoint",
 	})

@@ -1,10 +1,8 @@
 import { writable, get } from 'svelte/store';
 import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse } from '../interfaces/IAuth';
 
-// In a real app, these would be fetched from an API server
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.example.com';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 
-// Create auth store
 const createAuthStore = () => {
   const auth = writable({
     isAuthenticated: false,
@@ -13,7 +11,6 @@ const createAuthStore = () => {
     refreshToken: null as string | null
   });
   
-  // Initialize store from localStorage
   const initAuth = () => {
     try {
       const storedAuth = localStorage.getItem('auth');
@@ -26,7 +23,6 @@ const createAuthStore = () => {
     }
   };
   
-  // Save auth state to localStorage
   const persistAuth = (authState: any) => {
     try {
       localStorage.setItem('auth', JSON.stringify(authState));
@@ -61,25 +57,25 @@ const createAuthStore = () => {
   };
 };
 
-// Create and initialize the auth store
 const authStore = createAuthStore();
 authStore.init();
 
 export function useAuth() {
-  /**
-   * Handles user registration
-   * @param userData User registration data
-   * @returns Result of the registration attempt
-   */
   const register = async (userData: IUserRegistration) => {
     try {
-      // In a real app, this would be an API call
-      console.log('Registering user:', userData);
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
       
-      // Mock successful registration
+      const data = await response.json();
+      
       return {
-        success: true,
-        message: 'Registration successful! Check your email for verification code.'
+        success: data.success,
+        message: data.message || 'Registration successful! Check your email for verification code.'
       };
     } catch (error) {
       console.error('Registration error:', error);
@@ -90,21 +86,30 @@ export function useAuth() {
     }
   };
   
-  /**
-   * Verifies a user's email with the provided verification code
-   * @param email User's email
-   * @param code Verification code sent to the user's email
-   * @returns Result of the verification attempt
-   */
   const verifyEmail = async (email: string, code: string) => {
     try {
-      // In a real app, this would be an API call
-      console.log('Verifying email:', email, 'with code:', code);
+      const response = await fetch(`${API_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, verification_code: code })
+      });
       
-      // Mock successful verification
+      const data = await response.json();
+      
+      if (data.success && data.access_token) {
+        authStore.set({
+          isAuthenticated: true,
+          userId: data.user_id,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token
+        });
+      }
+      
       return {
-        success: true,
-        message: 'Email verification successful!'
+        success: data.success,
+        message: data.message || 'Email verification successful!'
       };
     } catch (error) {
       console.error('Email verification error:', error);
@@ -115,20 +120,21 @@ export function useAuth() {
     }
   };
   
-  /**
-   * Resends the verification code to the user's email
-   * @param email User's email
-   * @returns Result of the resend attempt
-   */
   const resendVerificationCode = async (email: string) => {
     try {
-      // In a real app, this would be an API call
-      console.log('Resending verification code to:', email);
+      const response = await fetch(`${API_URL}/auth/resend-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      });
       
-      // Mock successful resend
+      const data = await response.json();
+      
       return {
-        success: true,
-        message: 'Verification code has been resent.'
+        success: data.success,
+        message: data.message || 'Verification code has been resent.'
       };
     } catch (error) {
       console.error('Resend verification code error:', error);
@@ -139,37 +145,30 @@ export function useAuth() {
     }
   };
   
-  /**
-   * Logs in a user with email and password
-   * @param email User's email
-   * @param password User's password
-   * @returns Result of the login attempt
-   */
   const login = async (email: string, password: string) => {
     try {
-      // In a real app, this would be an API call
-      console.log('Logging in user:', email);
-      
-      // Mock successful login
-      const tokenResponse: ITokenResponse = {
-        access_token: 'mock-access-token',
-        refresh_token: 'mock-refresh-token',
-        user_id: '123456',
-        token_type: 'Bearer',
-        expires_in: 3600
-      };
-      
-      // Update auth store
-      authStore.set({
-        isAuthenticated: true,
-        userId: tokenResponse.user_id,
-        accessToken: tokenResponse.access_token,
-        refreshToken: tokenResponse.refresh_token
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
       });
       
+      const data = await response.json();
+      
+      if (data.success && data.access_token) {
+        authStore.set({
+          isAuthenticated: true,
+          userId: data.user_id,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token
+        });
+      }
+      
       return {
-        success: true,
-        message: 'Login successful!'
+        success: data.success,
+        message: data.message || 'Login successful!'
       };
     } catch (error) {
       console.error('Login error:', error);
@@ -180,36 +179,30 @@ export function useAuth() {
     }
   };
   
-  /**
-   * Handles Google authentication
-   * @param response Google credential response
-   * @returns Result of the Google auth attempt
-   */
   const handleGoogleAuth = async (response: IGoogleCredentialResponse) => {
     try {
-      // In a real app, this would be an API call to verify the token and get user info
-      console.log('Handling Google auth with credential:', response.credential);
-      
-      // Mock successful Google auth
-      const tokenResponse: ITokenResponse = {
-        access_token: 'mock-google-access-token',
-        refresh_token: 'mock-google-refresh-token',
-        user_id: '789012',
-        token_type: 'Bearer',
-        expires_in: 3600
-      };
-      
-      // Update auth store
-      authStore.set({
-        isAuthenticated: true,
-        userId: tokenResponse.user_id,
-        accessToken: tokenResponse.access_token,
-        refreshToken: tokenResponse.refresh_token
+      const apiResponse = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token_id: response.credential })
       });
       
+      const data = await apiResponse.json();
+      
+      if (data.success && data.access_token) {
+        authStore.set({
+          isAuthenticated: true,
+          userId: data.user_id,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token
+        });
+      }
+      
       return {
-        success: true,
-        message: 'Google authentication successful!'
+        success: data.success,
+        message: data.message || 'Google authentication successful!'
       };
     } catch (error) {
       console.error('Google auth error:', error);
@@ -220,17 +213,27 @@ export function useAuth() {
     }
   };
   
-  /**
-   * Logs out the current user
-   */
   const logout = () => {
+    const token = get(authStore).accessToken;
+    if (token) {
+      fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          access_token: get(authStore).accessToken,
+          refresh_token: get(authStore).refreshToken
+        })
+      }).catch(error => {
+        console.error('Logout error:', error);
+      });
+    }
+    
     authStore.logout();
   };
   
-  /**
-   * Gets the current authentication state
-   * @returns Current auth state
-   */
   const getAuthState = () => get(authStore);
   
   return {
