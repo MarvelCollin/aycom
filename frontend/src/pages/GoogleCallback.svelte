@@ -1,12 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
+  import { useTheme } from '../hooks/useTheme';
 
   // Get auth functions
   const { handleGoogleAuth } = useAuth();
+  // Get theme store
+  const { theme } = useTheme();
+
+  // Reactive declaration to update isDarkMode when theme changes
+  $: isDarkMode = $theme === 'dark';
 
   let loading = true;
   let error = "";
+  let success = false;
+  let redirectCountdown = 3;
+
+  function startRedirectCountdown() {
+    success = true;
+    const interval = setInterval(() => {
+      redirectCountdown--;
+      if (redirectCountdown <= 0) {
+        clearInterval(interval);
+        window.location.href = '/feed';
+      }
+    }, 1000);
+  }
 
   onMount(() => {
     // Get the credential from various potential sources
@@ -27,12 +46,12 @@
       // Process the Google credential
       handleGoogleAuth({ credential })
         .then(result => {
+          loading = false;
           if (result.success) {
-            // Redirect to dashboard on success
-            window.location.href = '/dashboard';
+            // Start countdown for redirect to feed page
+            startRedirectCountdown();
           } else {
             error = result.message || 'Google authentication failed';
-            loading = false;
           }
         })
         .catch(err => {
@@ -47,32 +66,61 @@
   });
 </script>
 
-<div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-  <div class="max-w-md w-full p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+<div class="min-h-screen flex items-center justify-center bg-black text-white">
+  <div class="max-w-md w-full p-6 bg-gray-900 rounded-lg shadow-lg border border-gray-800">
     <div class="text-center">
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+      <!-- AYCOM Logo/Branding -->
+      <div class="mb-6 flex justify-center">
+        <div class="bg-blue-500 rounded-full w-16 h-16 flex items-center justify-center text-2xl font-bold">
+          AY
+        </div>
+      </div>
+      
+      <h1 class="text-2xl font-semibold text-white mb-4">
         Google Authentication
       </h1>
       
       {#if loading}
-        <div class="mb-4">
-          <p class="text-gray-600 dark:text-gray-400">
+        <div class="mb-6">
+          <p class="text-gray-400 mb-4">
             Processing your login...
           </p>
-          <div class="mt-4 flex justify-center">
+          <div class="flex justify-center">
             <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         </div>
+      {:else if success}
+        <div class="mb-6 text-center">
+          <div class="mb-4 flex justify-center">
+            <div class="bg-green-500 rounded-full w-16 h-16 flex items-center justify-center text-white text-2xl">
+              ✓
+            </div>
+          </div>
+          <p class="text-green-400 text-xl font-semibold mb-2">Authentication Successful!</p>
+          <p class="text-gray-400">Redirecting to your feed in {redirectCountdown} second{redirectCountdown !== 1 ? 's' : ''}...</p>
+        </div>
       {:else if error}
-        <div class="mb-4">
-          <p class="text-red-500">
+        <div class="mb-6 text-center">
+          <div class="mb-4 flex justify-center">
+            <div class="bg-red-500 rounded-full w-16 h-16 flex items-center justify-center text-white text-2xl">
+              ✕
+            </div>
+          </div>
+          <p class="text-red-500 mb-4">
             {error}
           </p>
-          <a href="/login" class="mt-4 inline-block text-blue-500 hover:underline">
+          <a 
+            href="/login" 
+            class="mt-4 inline-block px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition"
+          >
             Return to login
           </a>
         </div>
       {/if}
+      
+      <p class="text-gray-500 text-sm mt-8">
+        &copy; {new Date().getFullYear()} AYCOM. All rights reserved.
+      </p>
     </div>
   </div>
-</div> 
+</div>

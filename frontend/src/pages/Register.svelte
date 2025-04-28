@@ -361,7 +361,7 @@
     
     if (result.success) {
       // Redirect to dashboard
-      window.location.href = '/dashboard';
+      window.location.href = '/feed';
     } else {
       console.error('Google authentication failed:', result.message);
       alert(`Google authentication failed: ${result.message || 'Unknown error'}`);

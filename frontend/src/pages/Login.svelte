@@ -39,8 +39,8 @@
     isLoading = false;
     
     if (result.success) {
-      // Redirect to dashboard
-      window.location.href = '/dashboard';
+      // Redirect to feed page
+      window.location.href = '/feed';
     } else {
       error = result.message || "Login failed. Please check your credentials.";
     }
@@ -56,8 +56,8 @@
     isLoading = false;
     
     if (result.success) {
-      // Redirect to dashboard
-      window.location.href = '/dashboard';
+      // Redirect to feed page
+      window.location.href = '/feed';
     } else {
       error = result.message || "Google authentication failed";
     }

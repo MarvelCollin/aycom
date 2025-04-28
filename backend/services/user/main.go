@@ -126,7 +126,7 @@ func main() {
 }
 
 // seedDefaultUsers initializes the user seeder and seeds default users
-func seedDefaultUsers(svc *service.UserService) error {
+func seedDefaultUsers(svc *service.UserServiceImpl) error {
 	if svc.DB == nil {
 		return fmt.Errorf("database connection not available")
 	}

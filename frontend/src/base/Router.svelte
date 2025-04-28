@@ -8,17 +8,16 @@
   import GoogleCallback from '../pages/GoogleCallback.svelte';
   
   let route = '/';
-  let isAuthenticated = false; // Normally this would be determined by a real auth system
+  let isAuthenticated = false; 
   
   function handleNavigation() {
     route = window.location.pathname;
     
-    // Basic auth check - in a real app this would check tokens, etc.
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
     
-    // Redirect to landing if not authenticated and trying to access protected routes
     if (!isAuthenticated && 
         (route === '/home' || 
+         route === '/feed' ||
          route === '/explore' || 
          route === '/notifications' || 
          route === '/messages' || 
@@ -27,27 +26,22 @@
       route = '/';
     }
     
-    // Redirect to home if authenticated and trying to access auth pages
     if (isAuthenticated && 
         (route === '/login' || 
          route === '/register' || 
          route === '/')) {
-      window.history.replaceState({}, '', '/home');
-      route = '/home';
+      window.history.replaceState({}, '', '/feed');
+      route = '/feed';
     }
   }
   
-  // For demo purposes - handle login/logout
   function setAuthenticated(value: boolean): void {
     localStorage.setItem('aycom_authenticated', value.toString());
     isAuthenticated = value;
     handleNavigation();
   }
   
-  // Expose to window for demo purposes
   onMount(() => {
-    // Add login/logout functions to window object for demo purposes
-    // Using type assertion to bypass TypeScript checks
     (window as any).login = () => setAuthenticated(true);
     (window as any).logout = () => setAuthenticated(false);
     
@@ -82,6 +76,8 @@
   {:else if route === '/register'}
     <Register />
   {:else if route === '/home'}
+    <Feed />
+  {:else if route === '/feed'}
     <Feed />
   {:else if route === '/google/' || route === '/google'}
     <GoogleCallback />
@@ -132,4 +128,4 @@
   .not-found a:hover {
     background-color: #1a8cd8;
   }
-</style> 
+</style>

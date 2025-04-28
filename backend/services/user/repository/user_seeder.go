@@ -76,7 +76,7 @@ func getDefaultUsers() []*model.User {
 		{
 			ID:                    "550e8400-e29b-41d4-a716-446655440001",
 			Username:              "johndoe",
-			Email:                 "john@example.com",
+			Email:                 "kolin@example.com", // Fixed to match the auth service
 			Name:                  "John Doe",
 			Gender:                "Male",
 			DateOfBirth:           time.Date(1995, 5, 15, 0, 0, 0, 0, time.UTC),
