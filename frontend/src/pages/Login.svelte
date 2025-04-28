@@ -1,10 +1,17 @@
 <script lang="ts">
   import { useAuth } from '../hooks/useAuth';
+  import { useTheme } from '../hooks/useTheme';
   import AuthLayout from '../components/layout/AuthLayout.svelte';
   import GoogleSignInButton from '../components/auth/GoogleSignInButton.svelte';
 
   // Get auth functions from auth hook
   const { login } = useAuth();
+  
+  // Get theme
+  const { theme } = useTheme();
+  
+  // Reactive declaration to update isDarkMode when theme changes
+  $: isDarkMode = $theme === 'dark';
   
   // Login state
   let email = "";
@@ -59,9 +66,9 @@
   />
   
   <div class="flex items-center mb-4">
-    <div class="flex-grow h-px bg-gray-600"></div>
-    <span class="px-2 text-sm text-gray-400">or</span>
-    <div class="flex-grow h-px bg-gray-600"></div>
+    <div class="flex-grow h-px bg-gray-300 dark:bg-gray-700"></div>
+    <span class="px-2 text-sm text-gray-500 dark:text-gray-400">or</span>
+    <div class="flex-grow h-px bg-gray-300 dark:bg-gray-700"></div>
   </div>
   
   {#if error}
@@ -78,7 +85,7 @@
         type="email" 
         id="email" 
         bind:value={email} 
-        class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Email"
         required
       />
@@ -94,7 +101,7 @@
         type="password" 
         id="password" 
         bind:value={password} 
-        class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Password"
         required
       />

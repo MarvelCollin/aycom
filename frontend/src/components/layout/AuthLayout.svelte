@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useTheme } from '../../hooks/useTheme';
   import Logo from '../common/Logo.svelte';
+  import { onMount } from 'svelte';
   
   export let title = '';
   export let showLogo = true;
@@ -13,10 +14,15 @@
   
   // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
+  
+  onMount(() => {
+    // Apply theme class to document when component mounts
+    document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
+  });
 </script>
 
-<div class="{isDarkMode ? 'bg-black text-white' : 'bg-white text-black'} min-h-screen w-full flex justify-center items-center p-4">
-  <div class="w-full max-w-md bg-dark-900 rounded-lg shadow-lg p-6">
+<div class="theme-container {isDarkMode ? 'dark-mode' : 'light-mode'} min-h-screen w-full flex justify-center items-center p-4">
+  <div class="{isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} w-full max-w-md rounded-lg shadow-lg p-6 transition-colors">
     <div class="flex items-center justify-between mb-6">
       {#if showBackButton}
         <button 
@@ -54,4 +60,31 @@
     
     <slot />
   </div>
-</div> 
+</div>
+
+<style>
+  .theme-container {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  /* Apply these styles to auth buttons so they look more like Twitter */
+  :global(.auth-btn) {
+    @apply w-full py-3 rounded-full font-semibold transition-colors;
+  }
+  
+  :global(.auth-btn-primary) {
+    @apply bg-blue-500 text-white hover:bg-blue-600;
+  }
+  
+  :global(.auth-btn-secondary) {
+    @apply border dark:border-gray-700 border-gray-300 text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800;
+  }
+  
+  :global(.auth-input) {
+    @apply w-full p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500;
+    background-color: var(--bg-primary);
+    border-color: var(--border-color);
+  }
+</style> 

@@ -22,8 +22,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// API v1 group
 	v1 := router.Group("/api/v1")
 
-	// Public routes
+	// Public routes with rate limiting
 	auth := v1.Group("/auth")
+	auth.Use(handlers.RateLimitMiddleware())
 	{
 		auth.GET("/oauth-config", handlers.GetOAuthConfig)
 		auth.POST("/login", handlers.Login)

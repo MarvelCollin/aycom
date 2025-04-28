@@ -2,36 +2,28 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install git for go mod tidy
-RUN apk add --no-cache git
+# Install git and build dependencies
+RUN apk add --no-cache git ca-certificates
 
-# Copy Go modules files
-COPY go.mod go.sum ./
+# Copy the event-bus directory
+COPY ./backend/event-bus /app/
+
+# Download dependencies
 RUN go mod download
 
-# Copy the source code
-COPY . .
+# Build the binary
+RUN go build -o event-bus .
 
-# Run go mod tidy to ensure dependencies are correct
-RUN go mod tidy
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o event-bus .
-
-# Use a smaller image for the final application
-FROM alpine:3.19
-
-RUN apk --no-cache add ca-certificates && \
-    # Create a non-root user to run the application
-    addgroup -S appgroup && adduser -S appuser -G appgroup
+# Final stage: create a clean image
+FROM alpine:latest
 
 WORKDIR /app
 
-# Copy the binary from builder
+# Copy necessary certificates
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy the binary from the builder stage
 COPY --from=builder /app/event-bus .
 
-# Use the non-root user
-USER appuser
-
-# Set the entrypoint
+# Set the entrypoint to run the binary
 ENTRYPOINT ["./event-bus"] 

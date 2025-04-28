@@ -25,8 +25,8 @@ services:
   # API Gateway
   api_gateway:
     build:
-      context: ./backend/api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/api-gateway/Dockerfile
     ports:
       - "${API_GATEWAY_PORT:-8080}:8080"
     environment:
@@ -34,6 +34,9 @@ services:
       - USER_SERVICE_PORT=9091
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
+      - JWT_SECRET=${JWT_SECRET:-default_secret_key}
+      - TLS_ENABLED=${TLS_ENABLED:-false}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       - user_service
       - auth_service
@@ -47,8 +50,8 @@ services:
   # User Service - Profile Management
   user_service:
     build:
-      context: ./backend/services/user
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/services/user/Dockerfile
     ports:
       - "9091:9091"
     environment:
@@ -60,6 +63,8 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@user_db:5432/user_db
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
+      - JWT_SECRET=${JWT_SECRET:-default_secret_key}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       user_db:
         condition: service_healthy
@@ -73,8 +78,8 @@ services:
   # Auth Service - Authentication & Authorization
   auth_service:
     build:
-      context: ./backend/services/auth
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/services/auth/Dockerfile
     ports:
       - "9090:9090"
     environment:
@@ -89,6 +94,12 @@ services:
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
       - JWT_SECRET=${JWT_SECRET:-default_secret_key}
+      - JWT_EXPIRY=${JWT_EXPIRY:-3600}
+      - REFRESH_TOKEN_EXPIRY=${REFRESH_TOKEN_EXPIRY:-604800}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       auth_db:
         condition: service_healthy
@@ -106,14 +117,15 @@ services:
   # Event Bus Service
   event_bus:
     build:
-      context: ./backend/event-bus
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/event-bus/Dockerfile
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -203,10 +215,11 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: always
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:

@@ -167,41 +167,43 @@ seed_user_directly() {
     # Change to project root directory
     cd "$(dirname "$0")/../" || { echo -e "${RED}Cannot access project root directory${NC}"; return 1; }
     
-    # First, check if any users already exist
-    USER_COUNT=$(docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d user_db -t -c "SELECT COUNT(*) FROM users")
+    # First, check if any profiles already exist
+    PROFILE_COUNT=$(docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d user_db -t -c "SELECT COUNT(*) FROM user_profiles")
     
     # Remove whitespace from result
-    USER_COUNT=$(echo $USER_COUNT | tr -d ' ')
+    PROFILE_COUNT=$(echo $PROFILE_COUNT | tr -d ' ')
     
-    if [[ "$USER_COUNT" -gt "0" ]]; then
-        echo -e "${YELLOW}User profiles already exist (count: $USER_COUNT), skipping seeding${NC}"
+    if [[ "$PROFILE_COUNT" -gt "0" ]]; then
+        echo -e "${YELLOW}User profiles already exist (count: $PROFILE_COUNT), skipping seeding${NC}"
         return 0
     fi
     
     NOW=$(date +"%Y-%m-%d %H:%M:%S")
-    DOB_ADMIN='1990-01-01 00:00:00'
-    DOB_JOHN='1995-05-15 00:00:00'
-    DOB_JANE='1997-08-22 00:00:00'
     
-    # Create admin user profile - using user_id to match actual schema
+    # Create admin user profile
     docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d user_db -c "
-    INSERT INTO users (user_id, username, name, email, profile_picture_url, banner_url, bio, gender, date_of_birth, joined_at, is_banned, is_deactivated, is_private, is_premium, newsletter_subscription, created_at, updated_at) 
-    VALUES ('550e8400-e29b-41d4-a716-446655440000', 'admin', 'Admin User', 'admin@aycom.com', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'I am the administrator of this platform.', 'Other', '$DOB_ADMIN', '$NOW', false, false, false, false, false, '$NOW', '$NOW');
+    INSERT INTO user_profiles (id, user_id, bio, profile_picture_url, banner_url, location, website, social_links, interests, language, theme, is_private, is_premium, notification_preferences, created_at, updated_at) 
+    VALUES ('d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'I am the administrator of this platform.', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'Jakarta, Indonesia', 'https://admin.example.com', '{\"twitter\": \"@admin\", \"github\": \"admin-github\"}', '{\"coding\", \"system administration\", \"security\"}', 'en', 'dark', false, true, '{\"email\": true, \"push\": true}', '$NOW', '$NOW');
     "
     
-    # Create John Doe user profile - using user_id to match actual schema
+    # Create test user profile
     docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d user_db -c "
-    INSERT INTO users (user_id, username, name, email, profile_picture_url, banner_url, bio, gender, date_of_birth, joined_at, is_banned, is_deactivated, is_private, is_premium, newsletter_subscription, created_at, updated_at) 
-    VALUES ('550e8400-e29b-41d4-a716-446655440001', 'johndoe', 'John Doe', 'kolin@example.com', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'Hello, I''m John Doe. I love coding and connecting with people.', 'Male', '$DOB_JOHN', '$NOW', false, false, false, false, true, '$NOW', '$NOW');
+    INSERT INTO user_profiles (id, user_id, bio, profile_picture_url, banner_url, location, website, social_links, interests, language, theme, is_private, is_premium, notification_preferences, created_at, updated_at) 
+    VALUES ('e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'Regular test user account', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'Bandung, Indonesia', 'https://testuser.example.com', '{\"instagram\": \"@testuser\", \"linkedin\": \"test-user\"}', '{\"reading\", \"travel\", \"photography\"}', 'id', 'light', true, false, '{\"email\": true, \"push\": false}', '$NOW', '$NOW');
     "
     
-    # Create Jane Doe user profile - using user_id to match actual schema
+    # Create contacts between users
     docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d user_db -c "
-    INSERT INTO users (user_id, username, name, email, profile_picture_url, banner_url, bio, gender, date_of_birth, joined_at, is_banned, is_deactivated, is_private, is_premium, newsletter_subscription, created_at, updated_at) 
-    VALUES ('550e8400-e29b-41d4-a716-446655440002', 'janedoe', 'Jane Doe', 'jane@example.com', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'Designer, photographer, and tech enthusiast.', 'Female', '$DOB_JANE', '$NOW', false, false, false, false, true, '$NOW', '$NOW');
+    INSERT INTO contacts (id, user_id, contact_user_id, relationship, created_at, updated_at) 
+    VALUES ('f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a16', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'friend', '$NOW', '$NOW');
     "
     
-    echo -e "${GREEN}Successfully seeded default user profiles${NC}"
+    docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d user_db -c "
+    INSERT INTO contacts (id, user_id, contact_user_id, relationship, created_at, updated_at) 
+    VALUES ('g0eebc99-9c0b-4ef8-bb6d-6bb9bd380a17', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'friend', '$NOW', '$NOW');
+    "
+    
+    echo -e "${GREEN}Successfully seeded default user profiles and contacts${NC}"
     return 0
 }
 
@@ -219,27 +221,51 @@ seed_auth_directly() {
     if [[ -z "$TABLE_EXISTS" || "$TABLE_EXISTS" == *"NULL"* ]]; then
         echo -e "${BLUE}Creating users table in auth database...${NC}"
         docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d auth_db -c "
+        CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
+        
         CREATE TABLE users (
             id UUID PRIMARY KEY,
+            username VARCHAR(255) NOT NULL UNIQUE,
+            name VARCHAR(255) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
-            username VARCHAR(50) NOT NULL UNIQUE,
-            name VARCHAR(100) NOT NULL,
-            hashed_password VARCHAR(255) NOT NULL,
-            is_verified BOOLEAN DEFAULT false,
-            gender VARCHAR(20),
+            password_hash VARCHAR(255) NOT NULL,
+            password_salt VARCHAR(64) NOT NULL,
+            gender VARCHAR(10),
             date_of_birth DATE,
-            profile_picture TEXT,
-            banner TEXT,
-            security_question TEXT,
-            security_answer TEXT,
-            subscribe_to_newsletter BOOLEAN DEFAULT false,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            security_question VARCHAR(255),
+            security_answer VARCHAR(255),
+            google_id VARCHAR(255) UNIQUE,
+            is_activated BOOLEAN DEFAULT true,
+            is_banned BOOLEAN DEFAULT false,
+            is_deactivated BOOLEAN DEFAULT false,
+            is_admin BOOLEAN DEFAULT false,
+            newsletter_subscription BOOLEAN DEFAULT false,
+            last_login_at TIMESTAMP WITH TIME ZONE,
+            joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             verification_code VARCHAR(64),
-            verification_code_expiry TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            verification_code_expires_at TIMESTAMP WITH TIME ZONE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        
+        CREATE TABLE sessions (
+            id UUID PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id),
+            access_token VARCHAR(500) NOT NULL,
+            refresh_token VARCHAR(500) NOT NULL UNIQUE,
+            ip_address VARCHAR(45),
+            user_agent TEXT,
+            expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        
+        CREATE INDEX idx_users_username ON users(username);
+        CREATE INDEX idx_users_email ON users(email);
+        CREATE INDEX idx_users_google_id ON users(google_id);
+        CREATE INDEX idx_sessions_user_id ON sessions(user_id);
+        CREATE INDEX idx_sessions_refresh_token ON sessions(refresh_token);
         "
-        echo -e "${GREEN}Users table created successfully.${NC}"
+        echo -e "${GREEN}Users and sessions tables created successfully.${NC}"
     else
         echo -e "${BLUE}Users table already exists in auth database.${NC}"
     fi
@@ -260,25 +286,24 @@ seed_auth_directly() {
     # Create admin user
     ADMIN_HASH='$2a$10$KgGZ2GNjdAj8LqoLwpJCaeEuNpZgRqy2KMM.aPXIUi7h3B4kxzLj2'  # Hash for 'admin123'
     docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d auth_db -c "
-    INSERT INTO users (id, email, name, username, hashed_password, is_verified, gender, date_of_birth, profile_picture, banner, security_question, security_answer, subscribe_to_newsletter, created_at, updated_at, verification_code, verification_code_expiry) 
-    VALUES ('550e8400-e29b-41d4-a716-446655440000', 'admin@aycom.com', 'Admin User', 'admin', '$ADMIN_HASH', true, 'Other', '1990-01-01', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'What is your first pet''s name?', 'Admin', false, '$NOW', '$NOW', '', '$NOW');
+    INSERT INTO users (id, username, name, email, password_hash, password_salt, gender, date_of_birth, security_question, security_answer, google_id, is_activated, is_banned, is_deactivated, is_admin, newsletter_subscription, last_login_at, joined_at, verification_code, verification_code_expires_at, created_at, updated_at) 
+    VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin', 'Admin User', 'admin@aycom.com', '$ADMIN_HASH', 'testsalt', 'Other', '1990-01-01', 'What is your first pet''s name?', 'Admin', '', true, false, false, true, true, '$NOW', '$NOW', NULL, NULL, '$NOW', '$NOW');
     "
     
-    # Create John Doe user
-    JOHN_HASH='$2a$10$lMXtDHODM6mUoBSW1wZzve8EQjQqNmLIg8Y9/0psKDwILTmpnJ3w.'  # Hash for 'kolin123'
+    # Create test user
+    TEST_HASH='$2a$10$lMXtDHODM6mUoBSW1wZzve8EQjQqNmLIg8Y9/0psKDwILTmpnJ3w.'  # Hash for 'test123'
     docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d auth_db -c "
-    INSERT INTO users (id, email, name, username, hashed_password, is_verified, gender, date_of_birth, profile_picture, banner, security_question, security_answer, subscribe_to_newsletter, created_at, updated_at, verification_code, verification_code_expiry) 
-    VALUES ('550e8400-e29b-41d4-a716-446655440001', 'kolin@example.com', 'John Doe', 'johndoe', '$JOHN_HASH', true, 'Male', '1995-05-15', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'What is your mother''s maiden name?', 'Doe', true, '$NOW', '$NOW', '', '$NOW');
+    INSERT INTO users (id, username, name, email, password_hash, password_salt, gender, date_of_birth, security_question, security_answer, google_id, is_activated, is_banned, is_deactivated, is_admin, newsletter_subscription, last_login_at, joined_at, verification_code, verification_code_expires_at, created_at, updated_at) 
+    VALUES ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'testuser', 'Test User', 'test@example.com', '$TEST_HASH', 'testsalt', 'Female', '1995-05-15', 'What is your mother''s maiden name?', 'Doe', '', true, false, false, false, false, '$NOW', '$NOW', NULL, NULL, '$NOW', '$NOW');
     "
     
-    # Create Jane Doe user
-    JANE_HASH='$2a$10$eZlZJXu0i8F7XFOw/Gh4G.d9w9CpFKHEcbDKW0UkSAt1jXYWcNZXO'  # Hash for 'securePass456!'
+    # Create a test session for admin user
     docker-compose exec -T postgres psql -U ${POSTGRES_USER:-postgres} -d auth_db -c "
-    INSERT INTO users (id, email, name, username, hashed_password, is_verified, gender, date_of_birth, profile_picture, banner, security_question, security_answer, subscribe_to_newsletter, created_at, updated_at, verification_code, verification_code_expiry) 
-    VALUES ('550e8400-e29b-41d4-a716-446655440002', 'jane@example.com', 'Jane Doe', 'janedoe', '$JANE_HASH', true, 'Female', '1997-08-22', 'https://via.placeholder.com/150', 'https://via.placeholder.com/1200x300', 'What city were you born in?', 'New York', true, '$NOW', '$NOW', '', '$NOW');
+    INSERT INTO sessions (id, user_id, access_token, refresh_token, ip_address, user_agent, expires_at, created_at) 
+    VALUES ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMGVlYmM5OS05YzBiLTRlZjgtYmI2ZC02YmI5YmQzODBhMTEiLCJuYW1lIjoiQWRtaW4gVXNlciIsImlhdCI6MTUxNjIzOTAyMn0.XG0fIRH_tga1vbRxqQr3S0aKd5OGxhXKFNZwwZDIZlc', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMGVlYmM5OS05YzBiLTRlZjgtYmI2ZC02YmI5YmQzODBhMTEiLCJyZWYiOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.8O_MaAjTDfmXYOPiQeXnP-YzpkQKfMWZ4qleDSEfB5c', '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', '$NOW' + INTERVAL '24 hours', '$NOW');
     "
     
-    echo -e "${GREEN}Successfully seeded default auth users${NC}"
+    echo -e "${GREEN}Successfully seeded default auth users and sessions${NC}"
     return 0
 }
 

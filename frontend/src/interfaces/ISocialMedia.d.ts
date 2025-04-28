@@ -12,21 +12,22 @@ export interface ITweet {
   replies: number;
   reposts: number;
   views: string;
+  bookmarked?: boolean;
+  liked?: boolean;
+  reposted?: boolean;
 }
 
 // User profile interface
 export interface IUserProfile {
-  id: string;
+  name: string;
   username: string;
-  displayName: string;
-  avatar: string;
   bio?: string;
-  followers: number;
-  following: number;
-  joined: string;
   location?: string;
   website?: string;
-  banner?: string;
+  joined_date: string;
+  following_count: number;
+  followers_count: number;
+  profile_picture?: string[];
 }
 
 // Trend interface
@@ -38,17 +39,17 @@ export interface ITrend {
 
 // Suggested follow interface
 export interface ISuggestedFollow {
-  username: string;
   displayName: string;
+  username: string;
   avatar: string;
-  verified?: boolean;
-  followerCount?: number;
+  verified: boolean;
+  followerCount: number;
   isFollowing?: boolean;
 }
 
 // Navigation item interface
 export interface INavigationItem {
   label: string;
-  icon: string;
+  icon: string; // This will contain SVG component reference as a string
   path: string;
 } 

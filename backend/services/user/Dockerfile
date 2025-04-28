@@ -2,38 +2,33 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install git for go mod tidy
-RUN apk add --no-cache git
+# Install git and build dependencies
+RUN apk add --no-cache git postgresql-client ca-certificates
 
-# Copy Go modules files
-COPY go.mod go.sum ./
+# Copy the user service directory and any proto files needed
+COPY ./backend/services/user /app/
+COPY ./backend/proto /app/backend/proto
+
+# Download dependencies
 RUN go mod download
 
-# Copy the source code
-COPY . .
+# Build the binary
+RUN go build -o user-service .
 
-# Run go mod tidy to ensure dependencies are correct
-RUN go mod tidy
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o user-service .
-
-# Use a smaller image for the final application
-FROM alpine:3.19
-
-# Install PostgreSQL client and CA certificates
-RUN apk --no-cache add ca-certificates postgresql-client && \
-    # Create a non-root user to run the application
-    addgroup -S appgroup && adduser -S appuser -G appgroup
+# Final stage: create a clean image
+FROM alpine:latest
 
 WORKDIR /app
 
-# Copy the binary from builder
+# Copy necessary certificates and PostgreSQL client
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+RUN apk add --no-cache postgresql-client
+
+# Copy the binary from the builder stage
 COPY --from=builder /app/user-service .
 
-# Use the non-root user
-USER appuser
-
+# Expose the port
 EXPOSE 9091
 
-CMD ["./user-service"]
+# Run the binary
+ENTRYPOINT ["./user-service"]

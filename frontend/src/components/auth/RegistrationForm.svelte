@@ -1,7 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { useTheme } from '../../hooks/useTheme';
   import GoogleSignInButton from './GoogleSignInButton.svelte';
   import type { IDateOfBirth } from '../../interfaces/IAuth';
+
+  // Get theme
+  const { theme } = useTheme();
+  
+  // Reactive declaration to update isDarkMode when theme changes
+  $: isDarkMode = $theme === 'dark';
 
   // Form data
   export let name = "";
@@ -59,16 +66,16 @@
 />
 
 <div class="flex items-center mb-4">
-  <div class="flex-grow h-px bg-gray-600"></div>
-  <span class="px-2 text-sm text-gray-400">or</span>
-  <div class="flex-grow h-px bg-gray-600"></div>
+  <div class="flex-grow h-px bg-gray-300 dark:bg-gray-700"></div>
+  <span class="px-2 text-sm text-gray-500 dark:text-gray-400">or</span>
+  <div class="flex-grow h-px bg-gray-300 dark:bg-gray-700"></div>
 </div>
 
 <!-- Name Input -->
 <div class="mb-4">
   <div class="flex justify-between">
     <label for="name" class="block text-sm font-medium mb-1">Name</label>
-    <span class="text-xs text-gray-400" data-cy="name-char-count">{name.length} / 50</span>
+    <span class="text-xs text-gray-500 dark:text-gray-400" data-cy="name-char-count">{name.length} / 50</span>
   </div>
   <input 
     type="text" 
@@ -76,7 +83,7 @@
     bind:value={name} 
     on:blur={onNameBlur}
     maxlength="50"
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Name"
     data-cy="name-input"
   />
@@ -93,7 +100,7 @@
     id="username" 
     bind:value={username} 
     on:blur={onUsernameBlur}
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Username"
     data-cy="username-input"
   />
@@ -110,7 +117,7 @@
     id="email" 
     bind:value={email} 
     on:blur={onEmailBlur}
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Email"
     data-cy="email-input"
   />
@@ -127,7 +134,7 @@
     id="password" 
     bind:value={password} 
     on:blur={onPasswordBlur}
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Password"
     data-cy="password-input"
   />
@@ -148,7 +155,7 @@
     id="confirmPassword" 
     bind:value={confirmPassword} 
     on:blur={onConfirmPasswordBlur}
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Confirm Password"
     data-cy="confirm-password-input"
   />
@@ -194,17 +201,17 @@
 <!-- Date of birth -->
 <div class="mb-4">
   <label class="block text-sm font-medium mb-1">Date of birth</label>
-  <p class="text-xs text-gray-400 mb-2">This will not be shown publicly. Confirm your own age, even if this account is for a business, a pet, or something else.</p>
+  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">This will not be shown publicly. Confirm your own age, even if this account is for a business, a pet, or something else.</p>
   
   <div class="flex space-x-2">
     <div class="w-1/3">
       <select 
         bind:value={dateOfBirth.month} 
         on:change={onDateOfBirthChange}
-        class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         data-cy="dob-month"
       >
-        <option value="" disabled selected>Month</option>
+        <option value="">Month</option>
         {#each months as month}
           <option value={month}>{month}</option>
         {/each}
@@ -212,12 +219,12 @@
     </div>
     <div class="w-1/3">
       <select 
-        bind:value={dateOfBirth.day} 
+        bind:value={dateOfBirth.day}
         on:change={onDateOfBirthChange}
-        class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         data-cy="dob-day"
       >
-        <option value="" disabled selected>Day</option>
+        <option value="">Day</option>
         {#each days as day}
           <option value={day}>{day}</option>
         {/each}
@@ -225,12 +232,12 @@
     </div>
     <div class="w-1/3">
       <select 
-        bind:value={dateOfBirth.year} 
+        bind:value={dateOfBirth.year}
         on:change={onDateOfBirthChange}
-        class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         data-cy="dob-year"
       >
-        <option value="" disabled selected>Year</option>
+        <option value="">Year</option>
         {#each years as year}
           <option value={year}>{year}</option>
         {/each}
@@ -250,7 +257,7 @@
     type="file" 
     id="profilePicture" 
     accept="image/*" 
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     data-cy="profile-picture-input"
     on:change={(e) => { 
       const input = e.target as HTMLInputElement;
@@ -274,7 +281,7 @@
     type="file" 
     id="banner" 
     accept="image/*" 
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     data-cy="banner-input"
     on:change={(e) => {
       const input = e.target as HTMLInputElement;
@@ -291,59 +298,61 @@
   {/if}
 </div>
 
-<!-- Security question -->
+<!-- Security Question -->
 <div class="mb-4">
-  <label for="securityQuestion" class="block text-sm font-medium mb-1">Security Question</label>
+  <label for="securityQuestion" class="block text-sm font-medium mb-1">Security question</label>
   <select 
-    id="securityQuestion" 
+    id="securityQuestion"
     bind:value={securityQuestion}
     on:change={onSecurityQuestionChange}
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     data-cy="security-question"
   >
-    <option value="" disabled selected>Select a security question</option>
+    <option value="">Select a security question</option>
     {#each securityQuestions as question}
       <option value={question}>{question}</option>
     {/each}
   </select>
-  
-  <input 
-    type="text" 
-    bind:value={securityAnswer} 
-    on:blur={onSecurityAnswerBlur}
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-    placeholder="Your answer"
-    data-cy="security-answer"
-  />
-  
   {#if securityQuestionError}
     <p class="text-red-500 text-xs mt-1" data-cy="security-question-error">{securityQuestionError}</p>
   {/if}
 </div>
 
+<!-- Security Answer -->
+<div class="mb-6">
+  <label for="securityAnswer" class="block text-sm font-medium mb-1">Security answer</label>
+  <input 
+    type="text" 
+    id="securityAnswer" 
+    bind:value={securityAnswer} 
+    on:blur={onSecurityAnswerBlur}
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+    placeholder="Your answer"
+    data-cy="security-answer"
+  />
+</div>
+
 <!-- Newsletter subscription -->
 <div class="mb-6">
-  <label class="flex items-center">
+  <label class="flex items-start">
     <input 
       type="checkbox" 
       bind:checked={subscribeToNewsletter} 
-      class="mr-2"
-      data-cy="subscribe-checkbox"
+      class="mt-1 mr-2"
+      data-cy="newsletter-checkbox"
     />
-    <span class="text-sm">Subscribe to newsletter</span>
+    <span class="text-sm">Subscribe to newsletter and other promotional emails</span>
   </label>
 </div>
 
-<!-- reCAPTCHA placeholder -->
-<div id="recaptcha-container" class="mb-6" data-cy="recaptcha-container"></div>
-
 <!-- Submit button -->
 <button 
-  class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
   on:click={onSubmit}
+  type="button" 
+  class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
   data-cy="register-button"
 >
-  Next
+  Create account
 </button>
 
 <!-- Terms & services text -->

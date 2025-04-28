@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { useTheme } from '../hooks/useTheme';
   import AuthLayout from '../components/layout/AuthLayout.svelte';
   import RegistrationForm from '../components/auth/RegistrationForm.svelte';
   import VerificationForm from '../components/auth/VerificationForm.svelte';
@@ -26,6 +27,12 @@
   
   // Get auth functions
   const { register, verifyEmail, resendVerificationCode } = useAuth();
+  
+  // Get theme
+  const { theme } = useTheme();
+  
+  // Reactive declaration to update isDarkMode when theme changes
+  $: isDarkMode = $theme === 'dark';
   
   // Get external services
   const { loadRecaptcha } = useExternalServices();
@@ -193,7 +200,7 @@
     <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
       {$formState.error}
     </div>
-        {/if}
+  {/if}
   
   {#if $formState.step === 1}
     <RegistrationForm
@@ -237,13 +244,13 @@
       onGoogleAuthError={handleGoogleAuthError}
     />
       
-      <!-- Login link -->
-      <p class="text-sm mt-6 text-center">
-        Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
-      </p>
-    {:else}
-      <!-- Step 2: Verification Code Input -->
-    <p class="text-center mb-6">Enter it below to verify {$formData.email}</p>
+    <!-- Login link -->
+    <p class="text-sm mt-6 text-center">
+      Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
+    </p>
+  {:else}
+    <!-- Step 2: Verification Code Input -->
+    <p class="text-center mb-6 text-gray-700 dark:text-gray-300">Enter it below to verify {$formData.email}</p>
     
     <VerificationForm
       bind:verificationCode={$formData.verificationCode}
@@ -252,5 +259,5 @@
       onVerify={submitVerification}
       onResend={resendCode}
     />
-      {/if}
+  {/if}
 </AuthLayout>

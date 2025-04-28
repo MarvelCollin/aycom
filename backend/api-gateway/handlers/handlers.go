@@ -1,17 +1,147 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
 	"github.com/gin-gonic/gin"
+	"github.com/golang/groupcache/lru"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
 )
 
 // Global config for the handlers
 var Config *config.Config
+
+// gRPC connection pool
+var (
+	authConnPool      *ConnectionPool
+	connPoolInitOnce  sync.Once
+	responseCache     *lru.Cache
+	requestRateLimits = make(map[string]RateLimiter)
+	rateLimiterMutex  sync.RWMutex
+)
+
+// ConnectionPool manages a pool of gRPC connections
+type ConnectionPool struct {
+	connections chan *grpc.ClientConn
+	serviceAddr string
+	maxIdle     int
+	maxOpen     int
+	timeout     time.Duration
+	mu          sync.Mutex
+}
+
+// RateLimiter implements a simple token bucket rate limiter
+type RateLimiter struct {
+	tokens         float64
+	maxTokens      float64
+	tokensPerSec   float64
+	lastRefillTime time.Time
+	mu             sync.Mutex
+}
+
+// NewConnectionPool creates a new connection pool
+func NewConnectionPool(serviceAddr string, maxIdle, maxOpen int, timeout time.Duration) *ConnectionPool {
+	return &ConnectionPool{
+		connections: make(chan *grpc.ClientConn, maxIdle),
+		serviceAddr: serviceAddr,
+		maxIdle:     maxIdle,
+		maxOpen:     maxOpen,
+		timeout:     timeout,
+	}
+}
+
+// Initialize the connection pools
+func InitConnectionPools() {
+	connPoolInitOnce.Do(func() {
+		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
+		responseCache = lru.New(100) // Cache size of 100 items
+	})
+}
+
+// Get returns a connection from the pool or creates a new one
+func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
+	select {
+	case conn := <-p.connections:
+		return conn, nil
+	default:
+		// Create a new connection with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+		defer cancel()
+
+		// In production, use TLS credentials instead of insecure
+		conn, err := grpc.DialContext(ctx, p.serviceAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock())
+
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
+	}
+}
+
+// Put returns a connection to the pool
+func (p *ConnectionPool) Put(conn *grpc.ClientConn) {
+	select {
+	case p.connections <- conn:
+		// Connection returned to pool
+	default:
+		// Pool is full, close the connection
+		conn.Close()
+	}
+}
+
+// Close closes all connections in the pool
+func (p *ConnectionPool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	close(p.connections)
+	for conn := range p.connections {
+		conn.Close()
+	}
+}
+
+// NewRateLimiter creates a new rate limiter
+func NewRateLimiter(maxTokens, tokensPerSec float64) RateLimiter {
+	return RateLimiter{
+		tokens:         maxTokens,
+		maxTokens:      maxTokens,
+		tokensPerSec:   tokensPerSec,
+		lastRefillTime: time.Now(),
+	}
+}
+
+// Allow checks if a request should be allowed
+func (r *RateLimiter) Allow() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(r.lastRefillTime).Seconds()
+	r.lastRefillTime = now
+
+	// Refill tokens based on elapsed time
+	r.tokens += elapsed * r.tokensPerSec
+	if r.tokens > r.maxTokens {
+		r.tokens = r.maxTokens
+	}
+
+	if r.tokens < 1 {
+		return false
+	}
+
+	r.tokens--
+	return true
+}
 
 // RegisterRequest represents the user registration payload
 type RegisterRequest struct {
@@ -66,6 +196,42 @@ type RegisterResponse struct {
 type ErrorResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`
+}
+
+// Initialize connection pools when package is loaded
+func init() {
+	InitConnectionPools()
+}
+
+// RateLimitMiddleware limits the number of requests from a single IP
+func RateLimitMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		rateLimiterMutex.RLock()
+		limiter, exists := requestRateLimits[ip]
+		rateLimiterMutex.RUnlock()
+
+		if !exists {
+			rateLimiterMutex.Lock()
+			// Create a new rate limiter allowing 20 requests per minute
+			limiter = NewRateLimiter(20, 0.33)
+			requestRateLimits[ip] = limiter
+			rateLimiterMutex.Unlock()
+		}
+
+		if !limiter.Allow() {
+			c.JSON(http.StatusTooManyRequests, ErrorResponse{
+				Success: false,
+				Message: "Rate limit exceeded. Please try again later.",
+				Code:    "RATE_LIMIT_EXCEEDED",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // GetOAuthConfig godoc
@@ -94,33 +260,50 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
 		})
 		return
 	}
 
-	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	// Get connection from pool
+	conn, err := authConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer conn.Close()
+	defer authConnPool.Put(conn)
 
 	client := authProto.NewAuthServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
 
 	req := &authProto.LoginRequest{
 		Email:    request.Email,
 		Password: request.Password,
 	}
 
-	resp, err := client.Login(c.Request.Context(), req)
+	resp, err := client.Login(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Login failed: " + err.Error(),
-		})
+		// Properly handle gRPC status errors
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Login failed: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
 		return
 	}
 
@@ -151,21 +334,28 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
 		})
 		return
 	}
 
-	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	// Get connection from pool
+	conn, err := authConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer conn.Close()
+	defer authConnPool.Put(conn)
 
 	client := authProto.NewAuthServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
 
 	req := &authProto.RegisterRequest{
 		Name:                  request.Name,
@@ -181,12 +371,21 @@ func Register(c *gin.Context) {
 		RecaptchaToken:        request.RecaptchaToken,
 	}
 
-	resp, err := client.Register(c.Request.Context(), req)
+	resp, err := client.Register(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Registration failed: " + err.Error(),
-		})
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Registration failed: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
 		return
 	}
 
@@ -202,32 +401,48 @@ func RefreshToken(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
 		})
 		return
 	}
 
-	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	// Get connection from pool
+	conn, err := authConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer conn.Close()
+	defer authConnPool.Put(conn)
 
 	client := authProto.NewAuthServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
 
 	req := &authProto.RefreshTokenRequest{
 		RefreshToken: request.RefreshToken,
 	}
 
-	resp, err := client.RefreshToken(c.Request.Context(), req)
+	resp, err := client.RefreshToken(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Token refresh failed: " + err.Error(),
-		})
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Token refresh failed: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
 		return
 	}
 
@@ -255,39 +470,55 @@ func RefreshToken(c *gin.Context) {
 // @Router /api/v1/auth/google [post]
 func GoogleAuth(c *gin.Context) {
 	var requestBody struct {
-		TokenID string `json:"token_id"`
+		TokenID string `json:"token_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Invalid request body",
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
 		})
 		return
 	}
 
-	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	// Get connection from pool
+	conn, err := authConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer conn.Close()
+	defer authConnPool.Put(conn)
 
 	client := authProto.NewAuthServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
 
 	req := &authProto.GoogleLoginRequest{
 		TokenId: requestBody.TokenID,
 	}
 
-	resp, err := client.GoogleLogin(c.Request.Context(), req)
+	resp, err := client.GoogleLogin(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Google authentication failed: " + err.Error(),
-		})
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Google authentication failed: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
 		return
 	}
 
@@ -318,33 +549,49 @@ func VerifyEmail(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
 		})
 		return
 	}
 
-	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	// Get connection from pool
+	conn, err := authConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer conn.Close()
+	defer authConnPool.Put(conn)
 
 	client := authProto.NewAuthServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
 
 	req := &authProto.VerifyEmailRequest{
 		Email:            request.Email,
 		VerificationCode: request.VerificationCode,
 	}
 
-	resp, err := client.VerifyEmail(c.Request.Context(), req)
+	resp, err := client.VerifyEmail(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Email verification failed: " + err.Error(),
-		})
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Email verification failed: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
 		return
 	}
 
@@ -375,32 +622,48 @@ func ResendVerificationCode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
 		})
 		return
 	}
 
-	conn, err := grpc.Dial(Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	// Get connection from pool
+	conn, err := authConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer conn.Close()
+	defer authConnPool.Put(conn)
 
 	client := authProto.NewAuthServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
 
 	req := &authProto.ResendVerificationCodeRequest{
 		Email: request.Email,
 	}
 
-	resp, err := client.ResendVerificationCode(c.Request.Context(), req)
+	resp, err := client.ResendVerificationCode(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to resend verification code: " + err.Error(),
-		})
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to resend verification code: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
 		return
 	}
 

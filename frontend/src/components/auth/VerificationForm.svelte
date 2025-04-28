@@ -1,9 +1,17 @@
 <script lang="ts">
+  import { useTheme } from '../../hooks/useTheme';
+  
   export let verificationCode = "";
   export let showResendOption = false;
   export let timeLeft = "";
   export let onVerify: () => void;
   export let onResend: () => void;
+  
+  // Get theme
+  const { theme } = useTheme();
+  
+  // Reactive declaration to update isDarkMode when theme changes
+  $: isDarkMode = $theme === 'dark';
 </script>
 
 <div class="mb-6">
@@ -12,14 +20,14 @@
     type="text" 
     id="verificationCode" 
     bind:value={verificationCode} 
-    class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Verification code"
     data-cy="verification-code"
   />
 </div>
 
 {#if !showResendOption}
-  <p class="text-sm text-center mb-4" data-cy="verification-timer">Code expires in {timeLeft}</p>
+  <p class="text-sm text-center mb-4 text-gray-600 dark:text-gray-400" data-cy="verification-timer">Code expires in {timeLeft}</p>
 {/if}
 
 {#if showResendOption}
