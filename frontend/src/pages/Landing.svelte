@@ -1,10 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { useTheme } from '../hooks/useTheme';
-  import ThemeToggle from '../components/common/ThemeToggle.svelte';
-  import Logo from '../components/common/Logo.svelte';
+  import LandingLayout from '../components/layout/LandingLayout.svelte';
   
-  // Get the theme store
+  // Get the theme store and toggleTheme function from our hook
   const { theme } = useTheme();
   
   // Reactive declaration to update isDarkMode when theme changes
@@ -20,13 +19,15 @@
   });
 </script>
 
-<div class="{isDarkMode ? 'bg-black text-white' : 'bg-white text-black'} min-h-screen w-full pos-relative overflow-x-hidden">
-  <ThemeToggle />
-  
+<LandingLayout>
   <div class="w-full max-w-screen-xl mx-auto p-8 md:p-0 flex flex-col md:flex-row md:h-screen">
     <div class="flex justify-center items-center w-full md:w-55 mb-8 md:mb-0 md:h-full">
       <div class="w-full max-w-xs md:max-w-md flex justify-center items-center">
-        <Logo size="large" />
+        <img 
+          src={isDarkMode ? "/src/assets/logo/light-logo.jpeg" : "/src/assets/logo/dark-logo.jpeg"} 
+          alt="AYCOM Logo" 
+          class="w-full h-auto rounded-xl shadow-lg"
+        />
       </div>
     </div>
     
@@ -61,4 +62,4 @@
       </div>
     </div>
   </div>
-</div>
+</LandingLayout>

@@ -1,65 +1,107 @@
 import { writable } from 'svelte/store';
 
-// Check if we're in a browser environment
-const isBrowser = typeof window !== 'undefined';
+type ThemeType = 'light' | 'dark';
 
-// Get the user's preferred theme from localStorage or system preference
-const getUserPreference = (): 'light' | 'dark' => {
-  // Check for saved theme preference
-  const savedTheme = isBrowser ? localStorage.getItem('theme') : null;
+// Create a writable store for the theme
+const createThemeStore = () => {
+  // Get stored theme or user's preferred color scheme
+  const getInitialTheme = (): ThemeType => {
+    try {
+      const storedTheme = localStorage.getItem('theme') as ThemeType;
+      if (storedTheme) {
+        return storedTheme;
+      }
+      
+      // Check user's preferred color scheme
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+    } catch (error) {
+      console.error('Error getting initial theme:', error);
+    }
+    
+    // Default to light
+    return 'light';
+  };
   
-  if (savedTheme === 'light' || savedTheme === 'dark') {
-    return savedTheme;
+  // Create the writable store with the initial theme
+  const theme = writable<ThemeType>('light');
+  
+  // Initialize when in browser
+  if (typeof window !== 'undefined') {
+    theme.set(getInitialTheme());
   }
   
-  // Check for system preference
-  if (isBrowser && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    return 'dark';
+  // Listen for system preference changes
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const handleChange = (event: MediaQueryListEvent) => {
+      const currentTheme = localStorage.getItem('theme');
+      
+      // Only update based on system preference if user hasn't explicitly set a theme
+      if (!currentTheme) {
+        theme.set(event.matches ? 'dark' : 'light');
+      }
+    };
+    
+    // Add the listener
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      // For older browsers
+      mediaQuery.addListener(handleChange);
+    }
   }
   
-  // Default to light
-  return 'light';
+  return {
+    subscribe: theme.subscribe,
+    set: (value: ThemeType) => {
+      theme.set(value);
+      try {
+        localStorage.setItem('theme', value);
+        
+        // Update document with the theme class
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(value);
+        }
+      } catch (error) {
+        console.error('Error setting theme:', error);
+      }
+    }
+  };
 };
 
-// Create a theme store
-const theme = writable<'light' | 'dark'>(getUserPreference());
+// Create the theme store
+const themeStore = createThemeStore();
 
-// Subscribe to theme changes to update localStorage
-if (isBrowser) {
-  theme.subscribe((value) => {
-    localStorage.setItem('theme', value);
-    document.documentElement.setAttribute('data-theme', value);
-    
-    // Also add/remove the dark class on the html element for convenience
-    if (value === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  });
-
-  // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
-    // Only update if user hasn't explicitly set a preference
-    if (!localStorage.getItem('theme')) {
-      theme.set(event.matches ? 'dark' : 'light');
-    }
-  });
-}
-
-// Export the theme hook
 export function useTheme() {
+  /**
+   * Toggles between light and dark themes
+   */
   const toggleTheme = () => {
-    theme.update((current) => (current === 'light' ? 'dark' : 'light'));
+    themeStore.update(currentTheme => {
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      try {
+        localStorage.setItem('theme', newTheme);
+        
+        // Update document with the theme class
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(newTheme);
+        }
+      } catch (error) {
+        console.error('Error toggling theme:', error);
+      }
+      
+      return newTheme;
+    });
   };
-
-  const setTheme = (newTheme: 'light' | 'dark') => {
-    theme.set(newTheme);
-  };
-
+  
   return {
-    theme,
-    toggleTheme,
-    setTheme
+    theme: themeStore,
+    toggleTheme
   };
 }

@@ -1,20 +1,19 @@
 <script lang="ts">
-  export let avatar = '👤';
+  export let avatar = "👤";
   
-  let tweetContent = '';
+  let newTweet = '';
   
   function postTweet() {
-    if (tweetContent.trim() === '') return;
-    console.log('Posted:', tweetContent);
+    if (newTweet.trim() === '') return;
+    console.log('Posted:', newTweet);
     
-    // Dispatch an event that parent components can listen to
-    dispatch('tweet', { content: tweetContent });
+    // Dispatch an event to notify parent component
+    dispatch('tweet', { content: newTweet });
     
-    // Clear the input field
-    tweetContent = '';
+    // Clear the input
+    newTweet = '';
   }
   
-  // Create a dispatch function to emit events to parent components
   import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher();
 </script>
@@ -26,7 +25,7 @@
     </div>
     <div class="flex-1">
       <textarea 
-        bind:value={tweetContent}
+        bind:value={newTweet}
         placeholder="What is happening?!"
         class="w-full bg-transparent border-none outline-none text-white resize-none mb-4 text-xl"
         rows="3"
@@ -44,7 +43,7 @@
         <button 
           on:click={postTweet}
           class="px-4 py-2 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600 disabled:opacity-50"
-          disabled={tweetContent.trim() === ''}
+          disabled={newTweet.trim() === ''}
         >
           Post
         </button>

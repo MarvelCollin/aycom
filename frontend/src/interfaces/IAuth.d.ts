@@ -1,26 +1,26 @@
 // Authentication related interfaces
 
 // Google authentication interfaces
-export interface GoogleAccountsId {
+export interface IGoogleAccountsId {
   initialize: (config: any) => void;
   renderButton: (element: HTMLElement, options: any) => void;
 }
 
-export interface GoogleAccounts {
-  id: GoogleAccountsId;
+export interface IGoogleAccounts {
+  id: IGoogleAccountsId;
 }
 
-export interface Google {
-  accounts: GoogleAccounts;
+export interface IGoogle {
+  accounts: IGoogleAccounts;
 }
 
 // Type for Google credential response
-export interface GoogleCredentialResponse {
+export interface IGoogleCredentialResponse {
   credential: string;
 }
 
 // reCAPTCHA interface
-export interface RecaptchaInstance {
+export interface IRecaptchaInstance {
   ready: (callback: () => void) => void;
   render: (container: string, options: any) => number;
 }
@@ -33,7 +33,7 @@ declare global {
 }
 
 // Custom window interface that includes Google and reCAPTCHA properties
-export interface CustomWindow extends Window {
+export interface ICustomWindow extends Window {
   google?: {
     accounts: {
       id: {
@@ -48,11 +48,11 @@ export interface CustomWindow extends Window {
     execute: (siteKey: string, options?: { action: string }) => Promise<string>;
     reset: (widgetId?: number) => void;
   };
-  handleGoogleCredentialResponse?: (response: GoogleCredentialResponse) => void;
+  handleGoogleCredentialResponse?: (response: IGoogleCredentialResponse) => void;
 }
 
 // User registration data interface
-export interface UserRegistration {
+export interface IUserRegistration {
   name: string;
   email: string;
   username: string;
@@ -67,14 +67,14 @@ export interface UserRegistration {
 }
 
 // Date of birth interface
-export interface DateOfBirth {
+export interface IDateOfBirth {
   month: string;
   day: string;
   year: string;
 }
 
 // Token response from the server
-export interface TokenResponse {
+export interface ITokenResponse {
   access_token: string;
   refresh_token: string;
   user_id: string;
@@ -83,7 +83,7 @@ export interface TokenResponse {
 }
 
 // AuthStore type
-export interface AuthStore {
+export interface IAuthStore {
   isAuthenticated: boolean;
   userId: string | null;
   accessToken: string | null;

@@ -1,16 +1,7 @@
 <script lang="ts">
-  export let tweet = {
-    id: 0,
-    username: '',
-    displayName: '',
-    avatar: '👤',
-    content: '',
-    timestamp: '',
-    likes: 0,
-    replies: 0,
-    reposts: 0,
-    views: '0'
-  };
+  import type { ITweet } from '../../interfaces/ISocialMedia';
+  
+  export let tweet: ITweet;
 </script>
 
 <div class="p-4 border-b border-gray-800 hover:bg-gray-900 hover:bg-opacity-30 transition-colors">

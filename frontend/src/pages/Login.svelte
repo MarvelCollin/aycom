@@ -1,16 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
-  import { useExternalServices } from '../hooks/useExternalServices';
-  import type { GoogleCredentialResponse } from '../interfaces/auth';
   import AuthLayout from '../components/layout/AuthLayout.svelte';
-  import FormInput from '../components/forms/FormInput.svelte';
-  
+  import GoogleSignInButton from '../components/auth/GoogleSignInButton.svelte';
+
   // Get auth functions from auth hook
-  const { login, handleGoogleAuth } = useAuth();
-  
-  // Get external services functions
-  const { loadGoogleAuth } = useExternalServices();
+  const { login } = useAuth();
   
   // Login state
   let email = "";
@@ -41,40 +35,28 @@
     }
   }
   
-  // Google authentication handler
-  async function handleGoogleCredentialResponse(response: GoogleCredentialResponse) {
-    isLoading = true;
-    error = "";
-    
-    const result = await handleGoogleAuth(response);
-    
-    isLoading = false;
-    
-    if (result.success) {
-      // Redirect to feed page
-      window.location.href = '/feed';
-    } else {
-      error = result.message || "Google authentication failed";
-    }
+  interface AuthResult {
+    success: boolean;
+    message?: string;
+    [key: string]: any;
   }
   
-  onMount(() => {
-    // Load Google Sign-In
-    const googleCleanup = loadGoogleAuth(
-      'google-signin-button', 
-      true, // Always dark for Google button
-      handleGoogleCredentialResponse
-    );
-    
-    // Return cleanup function
-    return () => {
-      googleCleanup();
-    };
-  });
+  // Handle Google auth success
+  function handleGoogleAuthSuccess(result: AuthResult) {
+    window.location.href = '/feed';
+  }
+  
+  // Handle Google auth error
+  function handleGoogleAuthError(message: string) {
+    error = message;
+  }
 </script>
 
 <AuthLayout title="Sign in to AYCOM">
-  <div id="google-signin-button" class="w-full mb-4"></div>
+  <GoogleSignInButton 
+    onAuthSuccess={handleGoogleAuthSuccess} 
+    onAuthError={handleGoogleAuthError} 
+  />
   
   <div class="flex items-center mb-4">
     <div class="flex-grow h-px bg-gray-600"></div>
@@ -90,15 +72,17 @@
   
   <form on:submit|preventDefault={handleSubmit} class="mb-4">
     <!-- Email input -->
-    <FormInput
-      id="email"
-      type="email"
-      bind:value={email}
-      label="Email"
-      placeholder="Email"
-      required={true}
-      dataCy="email-input"
-    />
+    <div class="mb-4">
+      <label for="email" class="block text-sm font-medium mb-1">Email</label>
+      <input 
+        type="email" 
+        id="email" 
+        bind:value={email} 
+        class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Email"
+        required
+      />
+    </div>
     
     <!-- Password input -->
     <div class="mb-6">
@@ -113,7 +97,6 @@
         class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Password"
         required
-        data-cy="password-input"
       />
     </div>
     

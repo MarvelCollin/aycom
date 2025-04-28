@@ -1,41 +1,44 @@
 <script lang="ts">
-  import Sidebar from '../components/navigation/Sidebar.svelte';
-  import RightSidebar from '../components/navigation/RightSidebar.svelte';
-  import TweetComposer from '../components/forms/TweetComposer.svelte';
-  import Tweet from '../components/common/Tweet.svelte';
-  import { useTweets } from '../hooks/useTweets';
+  import SidebarNav from '../components/navigation/SidebarNav.svelte';
+  import ComposeTweet from '../components/social/ComposeTweet.svelte';
+  import TweetCard from '../components/social/TweetCard.svelte';
+  import TrendsList from '../components/social/TrendsList.svelte';
+  import SuggestedFollows from '../components/social/SuggestedFollows.svelte';
+  import SearchBar from '../components/social/SearchBar.svelte';
+  import type { ITweet } from '../interfaces/ISocialMedia';
+
+  // Dummy data for tweets
+  const tweets: ITweet[] = [
+    {
+      id: 1,
+      username: 'elonmusk',
+      displayName: 'Elon Musk',
+      avatar: '👨‍🚀',
+      content: 'Just launched another rocket! 🚀 #SpaceX',
+      timestamp: '2h',
+      likes: 3240,
+      replies: 421,
+      reposts: 892,
+      views: '1.2M'
+    }
+  ];
   
-  // Get tweets and tweet functions from our hook
-  const { tweets, addTweet } = useTweets();
-  
-  // Mock user info (should come from auth store in a real app)
-  const currentUser = {
-    username: 'username',
-    displayName: 'User Name',
-    avatar: '👤'
-  };
-  
-  // Define the type for the custom event
   interface TweetEvent {
     detail: {
       content: string;
-    };
+    }
   }
   
-  // Handle new tweet creation
-  function handleNewTweet(event: TweetEvent) {
-    const tweetContent = event.detail.content;
-    addTweet(tweetContent, currentUser);
+  function handleTweet(event: TweetEvent) {
+    const { content } = event.detail;
+    console.log('New tweet from Feed page:', content);
+    // Here you would typically send the tweet to an API
   }
 </script>
 
 <div class="min-h-screen bg-black text-white">
   <!-- Navigation Sidebar -->
-  <Sidebar 
-    username={currentUser.username} 
-    displayName={currentUser.displayName} 
-    avatar={currentUser.avatar} 
-  />
+  <SidebarNav />
   
   <!-- Main Content -->
   <div class="ml-16 md:ml-64">
@@ -44,20 +47,26 @@
       <h1 class="text-xl font-bold">Home</h1>
     </header>
     
-    <!-- Tweet Composer -->
-    <TweetComposer 
-      avatar={currentUser.avatar}
-      on:tweet={handleNewTweet} 
-    />
+    <!-- Tweet Compose -->
+    <ComposeTweet on:tweet={handleTweet} />
     
     <!-- Tweet Feed -->
     <div>
-      {#each $tweets as tweet (tweet.id)}
-        <Tweet {tweet} />
+      {#each tweets as tweet (tweet.id)}
+        <TweetCard {tweet} />
       {/each}
     </div>
   </div>
   
   <!-- Right Sidebar -->
-  <RightSidebar />
+  <div class="hidden lg:block fixed top-0 bottom-0 right-0 w-80 border-l border-gray-800 p-4 overflow-y-auto">
+    <!-- Search -->
+    <SearchBar />
+    
+    <!-- Trends -->
+    <TrendsList />
+    
+    <!-- Who to follow -->
+    <SuggestedFollows />
+  </div>
 </div> 

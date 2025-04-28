@@ -1,283 +1,246 @@
-import { writable } from 'svelte/store';
-import type { TokenResponse, GoogleCredentialResponse, AuthStore } from '../interfaces/auth';
+import { writable, get } from 'svelte/store';
+import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse } from '../interfaces/IAuth';
 
-// Get API base URL from environment
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+// In a real app, these would be fetched from an API server
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.example.com';
 
-// Authentication store
-export const authStore = writable<AuthStore>({
-  isAuthenticated: false,
-  userId: null,
-  accessToken: null,
-  refreshToken: null
-});
-
-// Hook for authentication functions
-export function useAuth() {
-  // Login with email and password
-  const login = async (email: string, password: string) => {
+// Create auth store
+const createAuthStore = () => {
+  const auth = writable({
+    isAuthenticated: false,
+    userId: null as string | null,
+    accessToken: null as string | null,
+    refreshToken: null as string | null
+  });
+  
+  // Initialize store from localStorage
+  const initAuth = () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-      });
-      
-      const result = await response.json();
-      
-      if (result.access_token) {
-        storeTokens(result);
-        return { success: true };
-      } else {
-        return { success: false, message: result.message || 'Login failed' };
+      const storedAuth = localStorage.getItem('auth');
+      if (storedAuth) {
+        const parsedAuth = JSON.parse(storedAuth);
+        auth.set(parsedAuth);
       }
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, message: 'An error occurred during login' };
+      console.error('Failed to initialize auth from localStorage:', error);
     }
   };
-
-  // Register a new user
-  const register = async (userData: any) => {
+  
+  // Save auth state to localStorage
+  const persistAuth = (authState: any) => {
     try {
-      // Special handling for Cypress testing
-      if (window.Cypress) {
-        // Mock successful registration for tests
-        return {
-          success: true,
-          message: 'Registration successful! Please check your email for verification.'
-        };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userData)
+      localStorage.setItem('auth', JSON.stringify(authState));
+    } catch (error) {
+      console.error('Failed to persist auth to localStorage:', error);
+    }
+  };
+  
+  return {
+    subscribe: auth.subscribe,
+    set: (value: any) => {
+      auth.set(value);
+      persistAuth(value);
+    },
+    update: (updater: (value: any) => any) => {
+      auth.update((value) => {
+        const updated = updater(value);
+        persistAuth(updated);
+        return updated;
       });
+    },
+    init: initAuth,
+    logout: () => {
+      auth.set({
+        isAuthenticated: false,
+        userId: null,
+        accessToken: null,
+        refreshToken: null
+      });
+      localStorage.removeItem('auth');
+    }
+  };
+};
+
+// Create and initialize the auth store
+const authStore = createAuthStore();
+authStore.init();
+
+export function useAuth() {
+  /**
+   * Handles user registration
+   * @param userData User registration data
+   * @returns Result of the registration attempt
+   */
+  const register = async (userData: IUserRegistration) => {
+    try {
+      // In a real app, this would be an API call
+      console.log('Registering user:', userData);
       
-      const result = await response.json();
-      return result;
+      // Mock successful registration
+      return {
+        success: true,
+        message: 'Registration successful! Check your email for verification code.'
+      };
     } catch (error) {
       console.error('Registration error:', error);
-      return { success: false, message: 'An error occurred during registration' };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Registration failed. Please try again.'
+      };
     }
   };
-
-  // Verify email with code
-  const verifyEmail = async (email: string, verificationCode: string) => {
+  
+  /**
+   * Verifies a user's email with the provided verification code
+   * @param email User's email
+   * @param code Verification code sent to the user's email
+   * @returns Result of the verification attempt
+   */
+  const verifyEmail = async (email: string, code: string) => {
     try {
-      // Special handling for Cypress testing
-      if (window.Cypress) {
-        // Mock successful verification for tests
-        return {
-          success: true,
-          access_token: 'test-access-token',
-          refresh_token: 'test-refresh-token',
-          user_id: 'test-user-id'
-        };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email,
-          verification_code: verificationCode
-        })
-      });
+      // In a real app, this would be an API call
+      console.log('Verifying email:', email, 'with code:', code);
       
-      const result = await response.json();
-      
-      if (result.access_token) {
-        storeTokens(result);
-        return { success: true };
-      } else {
-        return { success: false, message: 'Verification failed' };
-      }
+      // Mock successful verification
+      return {
+        success: true,
+        message: 'Email verification successful!'
+      };
     } catch (error) {
-      console.error('Verification error:', error);
-      return { success: false, message: 'An error occurred during verification' };
+      console.error('Email verification error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Email verification failed. Please try again.'
+      };
     }
   };
-
-  // Resend verification code
+  
+  /**
+   * Resends the verification code to the user's email
+   * @param email User's email
+   * @returns Result of the resend attempt
+   */
   const resendVerificationCode = async (email: string) => {
     try {
-      // Special handling for Cypress testing
-      if (window.Cypress) {
-        // Mock successful resend for tests
-        return { 
-          success: true, 
-          message: 'Verification code has been sent to your email.'
-        };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/auth/resend-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-      });
+      // In a real app, this would be an API call
+      console.log('Resending verification code to:', email);
       
-      const result = await response.json();
-      return result;
+      // Mock successful resend
+      return {
+        success: true,
+        message: 'Verification code has been resent.'
+      };
     } catch (error) {
-      console.error('Resend code error:', error);
-      return { success: false, message: 'An error occurred' };
+      console.error('Resend verification code error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to resend verification code. Please try again.'
+      };
     }
   };
-
-  // Handle Google authentication
-  const handleGoogleAuth = async (response: GoogleCredentialResponse) => {
+  
+  /**
+   * Logs in a user with email and password
+   * @param email User's email
+   * @param password User's password
+   * @returns Result of the login attempt
+   */
+  const login = async (email: string, password: string) => {
     try {
-      console.log('Google Auth Response:', response);
+      // In a real app, this would be an API call
+      console.log('Logging in user:', email);
       
-      if (!response || !response.credential) {
-        console.error('Invalid Google credential response');
-        return { success: false, message: 'Invalid Google credentials' };
-      }
-
-      // Special handling for Cypress testing
-      if (window.Cypress) {
-        // Mock successful Google auth for tests
-        storeTokens({
-          access_token: 'test-google-access-token',
-          refresh_token: 'test-google-refresh-token',
-          user_id: 'test-google-user-id'
-        });
-        return { success: true };
-      }
-      
-      try {
-        // Try the API call first
-        const result = await fetch(`${API_BASE_URL}/auth/google`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            token_id: response.credential
-          })
-        });
-        
-        const data = await result.json();
-        
-        if (data.access_token) {
-          storeTokens(data);
-          return { success: true };
-        }
-      } catch (apiError) {
-        console.warn('API error, using development fallback:', apiError);
-        // If the API call fails, use a development fallback
-      }
-      
-      // Development fallback - parse the JWT token directly
-      console.log('Using development fallback for Google auth');
-      
-      try {
-        // Parse the JWT to get user info (for development only)
-        const parts = response.credential.split('.');
-        if (parts.length === 3) {
-          const base64Url = parts[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-          
-          const payload = JSON.parse(jsonPayload);
-          console.log('Decoded token payload:', payload);
-          
-          // Create a mock token response
-          const mockTokens = {
-            access_token: 'dev-google-access-token',
-            refresh_token: 'dev-google-refresh-token',
-            user_id: payload.sub || 'unknown-user-id'
-          };
-          
-          storeTokens(mockTokens);
-          return { success: true };
-        }
-      } catch (parseError) {
-        console.error('Failed to parse credential:', parseError);
-      }
-      
-      // If all else fails, create a simple mock auth
-      const fallbackTokens = {
-        access_token: 'fallback-access-token',
-        refresh_token: 'fallback-refresh-token',
-        user_id: 'fallback-user-id'
+      // Mock successful login
+      const tokenResponse: ITokenResponse = {
+        access_token: 'mock-access-token',
+        refresh_token: 'mock-refresh-token',
+        user_id: '123456',
+        token_type: 'Bearer',
+        expires_in: 3600
       };
       
-      storeTokens(fallbackTokens);
-      return { success: true, message: 'Development mode: Simulated successful login' };
-    } catch (error) {
-      console.error('Error during Google authentication:', error);
-      return { success: false, message: 'An error occurred during Google authentication' };
-    }
-  };
-
-  // Logout user
-  const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_id');
-    
-    authStore.set({
-      isAuthenticated: false,
-      userId: null,
-      accessToken: null,
-      refreshToken: null
-    });
-    
-    // Redirect to login page
-    window.location.href = '/login';
-  };
-
-  // Store authentication tokens
-  const storeTokens = (tokenData: TokenResponse) => {
-    localStorage.setItem('access_token', tokenData.access_token);
-    localStorage.setItem('refresh_token', tokenData.refresh_token);
-    localStorage.setItem('user_id', tokenData.user_id);
-    
-    authStore.set({
-      isAuthenticated: true,
-      userId: tokenData.user_id,
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token
-    });
-  };
-
-  // Initialize auth state from localStorage
-  const initAuth = () => {
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    const userId = localStorage.getItem('user_id');
-    
-    if (accessToken && userId) {
+      // Update auth store
       authStore.set({
         isAuthenticated: true,
-        userId,
-        accessToken,
-        refreshToken
+        userId: tokenResponse.user_id,
+        accessToken: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token
       });
+      
+      return {
+        success: true,
+        message: 'Login successful!'
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Login failed. Please check your credentials and try again.'
+      };
     }
   };
-
+  
+  /**
+   * Handles Google authentication
+   * @param response Google credential response
+   * @returns Result of the Google auth attempt
+   */
+  const handleGoogleAuth = async (response: IGoogleCredentialResponse) => {
+    try {
+      // In a real app, this would be an API call to verify the token and get user info
+      console.log('Handling Google auth with credential:', response.credential);
+      
+      // Mock successful Google auth
+      const tokenResponse: ITokenResponse = {
+        access_token: 'mock-google-access-token',
+        refresh_token: 'mock-google-refresh-token',
+        user_id: '789012',
+        token_type: 'Bearer',
+        expires_in: 3600
+      };
+      
+      // Update auth store
+      authStore.set({
+        isAuthenticated: true,
+        userId: tokenResponse.user_id,
+        accessToken: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token
+      });
+      
+      return {
+        success: true,
+        message: 'Google authentication successful!'
+      };
+    } catch (error) {
+      console.error('Google auth error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Google authentication failed. Please try again.'
+      };
+    }
+  };
+  
+  /**
+   * Logs out the current user
+   */
+  const logout = () => {
+    authStore.logout();
+  };
+  
+  /**
+   * Gets the current authentication state
+   * @returns Current auth state
+   */
+  const getAuthState = () => get(authStore);
+  
   return {
-    login,
+    subscribe: authStore.subscribe,
     register,
     verifyEmail,
     resendVerificationCode,
+    login,
     handleGoogleAuth,
     logout,
-    initAuth,
-    authStore
+    getAuthState
   };
 } 

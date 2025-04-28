@@ -1,778 +1,256 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { useTheme } from '../hooks/useTheme';
+  import { onMount, onDestroy } from 'svelte';
+  import AuthLayout from '../components/layout/AuthLayout.svelte';
+  import RegistrationForm from '../components/auth/RegistrationForm.svelte';
+  import VerificationForm from '../components/auth/VerificationForm.svelte';
+  import { useRegistrationForm } from '../hooks/useRegistrationForm';
   import { useAuth } from '../hooks/useAuth';
-  import { useValidation } from '../hooks/useValidation';
   import { useExternalServices } from '../hooks/useExternalServices';
-  import type { DateOfBirth, GoogleCredentialResponse } from '../interfaces/auth';
+  import type { IUserRegistration } from '../interfaces/IAuth';
   
-  interface GoogleAccountsId {
-    initialize: (config: any) => void;
-    renderButton: (element: HTMLElement, options: any) => void;
-  }
+  // Get registration form functionality
+  const {
+    formData,
+    errors,
+    formState,
+    months,
+    days,
+    years,
+    securityQuestions,
+    validateFormField,
+    validateStep1,
+    startTimer,
+    formatTimeLeft,
+    cleanupTimers
+  } = useRegistrationForm();
   
-  interface GoogleAccounts {
-    id: GoogleAccountsId;
-  }
+  // Get auth functions
+  const { register, verifyEmail, resendVerificationCode } = useAuth();
   
-  interface Google {
-    accounts: GoogleAccounts;
-  }
+  // Get external services
+  const { loadRecaptcha } = useExternalServices();
   
-  interface RecaptchaInstance {
-    ready: (callback: () => void) => void;
-    render: (container: string, options: any) => number;
-  }
-  
-  interface CustomWindow extends Window {
-    google?: Google;
-    grecaptcha?: RecaptchaInstance;
-  }
-  
-  const { theme } = useTheme();
-  
-  const { register, verifyEmail, resendVerificationCode, handleGoogleAuth } = useAuth();
-  
-  const { 
-    validateName, 
-    validateUsername, 
-    validateEmail, 
-    validatePassword, 
-    validateConfirmPassword, 
-    validateGender, 
-    validateDateOfBirth, 
-    validateSecurityQuestion, 
-    formatDateOfBirth 
-  } = useValidation();
-  
-  // Get external services functions
-  const { loadRecaptcha, loadGoogleAuth, getRecaptchaToken } = useExternalServices();
-  
-  // Reactive declaration to update isDarkMode when theme changes
-  $: isDarkMode = $theme === 'dark';
-  
-  // Registration state
-  let step = 1;
-  let name = "";
-  let email = "";
-  let username = "";
-  let password = "";
-  let confirmPassword = "";
-  let gender = "";
-  let dateOfBirth: DateOfBirth = {
-    month: "",
-    day: "",
-    year: ""
-  };
-  let profilePicture: File | string | null = null;
-  let banner: File | string | null = null;
-  let securityQuestion = "";
-  let securityAnswer = "";
-  let subscribeToNewsletter = false;
-  let verificationCode = "";
-  let showResendOption = false;
-  
-  let recaptchaToken = "";
-  let recaptchaLoaded = false;
-  let googleAuthLoaded = false;
-  
-  // Validation states
-  let nameError = "";
-  let usernameError = "";
-  let emailError = "";
-  let passwordErrors: string[] = [];
-  let confirmPasswordError = "";
-  let genderError = "";
-  let dateOfBirthError = "";
-  let securityQuestionError = "";
-  let profilePictureError = "";
-  let bannerError = "";
-  
-  // List of security questions
-  const securityQuestions = [
-    "What was the name of your first pet?",
-    "What city were you born in?",
-    "What is your favorite video game?",
-    "What was the name of your first school?",
-    "What was your childhood nickname?"
-  ];
-  
-  // List of months for date of birth dropdown
-  const months = [
-    "January", "February", "March", "April", "May", "June", 
-    "July", "August", "September", "October", "November", "December"
-  ];
-  
-  // Generate days 1-31
-  const days = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
-  
-  // Generate years from current year - 100 to current year
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 100 }, (_, i) => (currentYear - i).toString());
-  
-  // Timer for verification code
-  let timeLeft = 300; // 5 minutes in seconds
-  let timerId: number | undefined;
-  
-  // Validation wrapper functions that update error states
+  // Validation wrapper functions
   function validateNameAndUpdate() {
-    const nameRegex = /^[a-zA-Z\s]+$/;
-    if (!name) {
-      nameError = "Name is required";
-    } else if (name.length <= 4) {
-      nameError = "Name must be more than 4 characters";
-    } else if (!nameRegex.test(name)) {
-      nameError = "Name must not contain symbols or numbers";
-    } else if (name.length > 50) {
-      nameError = "Name cannot exceed 50 characters";
-    } else {
-      nameError = "";
-    }
-    return !nameError;
+    $formData.name && validateFormField('name', $formData.name);
   }
   
   function validateUsernameAndUpdate() {
-    usernameError = validateUsername(username);
-    return !usernameError;
+    $formData.username && validateFormField('username', $formData.username);
   }
   
   function validateEmailAndUpdate() {
-    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
-    if (!email) {
-      emailError = "Email is required";
-    } else if (!emailRegex.test(email)) {
-      emailError = "Please enter a valid email in the format name@domain.com";
-    } else {
-      emailError = "";
-    }
-    return !emailError;
+    $formData.email && validateFormField('email', $formData.email);
   }
   
   function validatePasswordAndUpdate() {
-    passwordErrors = validatePassword(password);
-    return passwordErrors.length === 0;
+    $formData.password && validateFormField('password', $formData.password);
   }
   
   function validateConfirmPasswordAndUpdate() {
-    confirmPasswordError = validateConfirmPassword(password, confirmPassword);
-    return !confirmPasswordError;
+    $formData.confirmPassword && validateFormField('confirmPassword', $formData.confirmPassword);
   }
   
   function validateGenderAndUpdate() {
-    genderError = validateGender(gender);
-    return !genderError;
+    $formData.gender && validateFormField('gender', $formData.gender);
   }
   
   function validateDateOfBirthAndUpdate() {
-    if (!dateOfBirth.month || !dateOfBirth.day || !dateOfBirth.year) {
-      dateOfBirthError = "Date of birth is required";
-      return false;
-    }
-    
-    const birthDate = new Date(
-      parseInt(dateOfBirth.year),
-      months.indexOf(dateOfBirth.month),
-      parseInt(dateOfBirth.day)
-    );
-    
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    
-    if (age < 13) {
-      dateOfBirthError = "You must be at least 13 years old to register";
-      return false;
-    }
-    
-    dateOfBirthError = "";
-    return true;
-  }
-  
-  function validateProfilePictureAndUpdate() {
-    if (!profilePicture) {
-      profilePictureError = "Profile picture is required";
-      return false;
-    }
-    
-    // Special case handling for Cypress testing
-    if (window.Cypress && typeof profilePicture === 'string') {
-      profilePictureError = "";
-      return true;
-    }
-    
-    profilePictureError = "";
-    return true;
-  }
-  
-  function validateBannerAndUpdate() {
-    if (!banner) {
-      bannerError = "Banner image is required";
-      return false;
-    }
-    
-    // Special case handling for Cypress testing
-    if (window.Cypress && typeof banner === 'string') {
-      bannerError = "";
-      return true;
-    }
-    
-    bannerError = "";
-    return true;
+    validateFormField('dateOfBirth', $formData.dateOfBirth);
   }
   
   function validateSecurityQuestionAndUpdate() {
-    securityQuestionError = validateSecurityQuestion(securityQuestion, securityAnswer);
-    return !securityQuestionError;
+    validateFormField('securityQuestion', $formData.securityQuestion);
   }
   
-  function validateStep1() {
-    const isNameValid = validateNameAndUpdate();
-    const isUsernameValid = validateUsernameAndUpdate();
-    const isEmailValid = validateEmailAndUpdate();
-    const isPasswordValid = validatePasswordAndUpdate();
-    const isConfirmPasswordValid = validateConfirmPasswordAndUpdate();
-    const isGenderValid = validateGenderAndUpdate();
-    const isDateOfBirthValid = validateDateOfBirthAndUpdate();
-    const isSecurityQuestionValid = validateSecurityQuestionAndUpdate();
-    const isProfilePictureValid = validateProfilePictureAndUpdate();
-    const isBannerValid = validateBannerAndUpdate();
-    
-    return isNameValid && isUsernameValid && isEmailValid && isPasswordValid && 
-           isConfirmPasswordValid && isGenderValid && isDateOfBirthValid && 
-           isSecurityQuestionValid && isProfilePictureValid && isBannerValid;
+  function validateSecurityAnswerAndUpdate() {
+    validateFormField('securityAnswer', $formData.securityAnswer);
   }
   
   // Make the function async to use await
-  async function submitStep1() {
+  async function submitRegistration() {
     if (validateStep1()) {
-      // Check if reCAPTCHA is completed
-      const token = getRecaptchaToken();
-      if (!token) {
-        alert("Please complete the reCAPTCHA verification");
-        return;
-      }
+      // Update loading state
+      formState.update(state => ({ ...state, loading: true }));
       
       // Prepare registration data
-      const userData = {
-        name,
-        username,
-        email,
-        password,
-        confirm_password: confirmPassword,
-        gender,
-        date_of_birth: formatDateOfBirth(dateOfBirth, months),
-        security_question: securityQuestion,
-        security_answer: securityAnswer,
-        subscribe_to_newsletter: subscribeToNewsletter,
-        recaptcha_token: token
+      const userData: IUserRegistration = {
+        name: $formData.name,
+        username: $formData.username,
+        email: $formData.email,
+        password: $formData.password,
+        confirm_password: $formData.confirmPassword,
+        gender: $formData.gender,
+        date_of_birth: months.indexOf($formData.dateOfBirth.month) + '-' + $formData.dateOfBirth.day + '-' + $formData.dateOfBirth.year,
+        security_question: $formData.securityQuestion,
+        security_answer: $formData.securityAnswer,
+        subscribe_to_newsletter: $formData.subscribeToNewsletter,
+        recaptcha_token: ''
       };
       
       // Call the register function from auth hook
       const result = await register(userData);
+      
+      // Update loading state
+      formState.update(state => ({ ...state, loading: false }));
       
       if (result.success) {
         // Start timer for verification code
         startTimer();
         
         // Move to step 2
-        step = 2;
+        formState.update(state => ({ ...state, step: 2 }));
       } else {
         // Display error message
-        alert(result.message || "Registration failed. Please try again.");
+        formState.update(state => ({ ...state, error: result.message || "Registration failed. Please try again." }));
       }
     }
   }
   
-  function startTimer() {
-    timeLeft = 300; // Reset to 5 minutes
-    clearInterval(timerId);
-    showResendOption = false; // Reset resend option
-    
-    timerId = window.setInterval(() => {
-      timeLeft -= 1;
-      
-      if (timeLeft <= 0) {
-        clearInterval(timerId);
-        showResendOption = true;
-      }
-    }, 1000);
+  // Handle Google authentication success
+  function handleGoogleAuthSuccess(result: any) {
+    window.location.href = '/feed';
   }
   
-  function formatTimeLeft() {
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
-    return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+  // Handle Google authentication error
+  function handleGoogleAuthError(error: string) {
+    formState.update(state => ({ ...state, error }));
   }
   
   // Make the function async to use await
-  async function resendCode() {
-    // Call the resendVerificationCode function from auth hook
-    const result = await resendVerificationCode(email);
-    
-    if (result.success) {
-      showResendOption = false;
-      startTimer();
-      alert("Verification code has been sent to your email.");
-    } else {
-      alert(result.message || "Failed to resend verification code.");
-    }
-  }
-  
-  // Make the function async to use await
-  async function verifyCode() {
-    if (!verificationCode) {
-      alert("Please enter the verification code sent to your email");
+  async function submitVerification() {
+    if (!$formData.verificationCode) {
+      formState.update(state => ({ ...state, error: "Please enter the verification code sent to your email" }));
       return;
     }
     
-    // Call the verifyEmail function from auth hook
-    const result = await verifyEmail(email, verificationCode);
+    // Update loading state
+    formState.update(state => ({ ...state, loading: true }));
+    
+    // Call the verifyEmail function
+    const result = await verifyEmail($formData.email, $formData.verificationCode);
+    
+    // Update loading state
+    formState.update(state => ({ ...state, loading: false }));
     
     if (result.success) {
       // Redirect to login page
       window.location.href = '/login';
     } else {
-      alert("Verification failed. Please check your code and try again.");
+      formState.update(state => ({ ...state, error: result.message || "Verification failed. Please check your code and try again." }));
     }
   }
   
-  function goBack() {
-    // Make sure to stop the timer when going back
-    if (timerId) {
-      clearInterval(timerId);
-    }
+  // Make the function async to use await
+  async function resendCode() {
+    // Update loading state
+    formState.update(state => ({ ...state, loading: true }));
     
-    // Reset the verification code
-    verificationCode = "";
-    showResendOption = false;
+    // Call the resendVerificationCode function
+    const result = await resendVerificationCode($formData.email);
     
-    // Go back to step 1
-    step = 1;
-  }
-  
-  // Google authentication handler
-  async function handleGoogleCredentialResponse(response: GoogleCredentialResponse) {
-    // Call the handleGoogleAuth function from auth hook
-    const result = await handleGoogleAuth(response);
+    // Update loading state
+    formState.update(state => ({ ...state, loading: false }));
     
     if (result.success) {
-      // Redirect to dashboard
-      window.location.href = '/feed';
+      formState.update(state => ({ ...state, showResendOption: false }));
+      startTimer();
+      alert("Verification code has been sent to your email.");
     } else {
-      console.error('Google authentication failed:', result.message);
-      alert(`Google authentication failed: ${result.message || 'Unknown error'}`);
+      formState.update(state => ({ ...state, error: result.message || "Failed to resend verification code." }));
     }
   }
   
+  // Handle back button
+  function goBack() {
+    formState.update(state => ({ ...state, step: 1, error: "" }));
+  }
+
   onMount(() => {
-    // Clean up timer on component unmount
-    const cleanupFn = () => {
-      if (timerId) {
-        clearInterval(timerId);
-      }
-    };
-    
     // Load reCAPTCHA
     const recaptchaCleanup = loadRecaptcha((token) => {
       // This callback will be called when the token is updated
       console.log("reCAPTCHA token updated");
     });
     
-    // Load Google Sign-In
-    const googleCleanup = loadGoogleAuth(
-      'google-signin-button', 
-      isDarkMode, 
-      handleGoogleCredentialResponse
-    );
-    
-    // Return cleanup function
     return () => {
-      cleanupFn();
       recaptchaCleanup();
-      googleCleanup();
     };
+  });
+  
+  onDestroy(() => {
+    // Clean up timers
+    cleanupTimers();
   });
 </script>
 
-<div class="{isDarkMode ? 'bg-black text-white' : 'bg-white text-black'} min-h-screen w-full flex justify-center items-center p-4">
-  <div class="w-full max-w-md bg-dark-900 rounded-lg shadow-lg p-6">
-    <div class="flex items-center justify-between mb-6">
-      {#if step === 2}
-        <button 
-          class="text-blue-500 hover:text-blue-600 transition-colors"
-          on:click={goBack}
-          data-cy="back-button"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-        </button>
-      {:else}
-        <a href="/" class="text-blue-500 hover:text-blue-600 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </a>
-      {/if}
-      
-      <div class="mx-auto">
-        <img 
-          src={isDarkMode ? "/src/assets/logo/light-logo.jpeg" : "/src/assets/logo/dark-logo.jpeg"} 
-          alt="AYCOM Logo" 
-          class="h-8 w-auto"
-        />
-      </div>
+<AuthLayout 
+  title={$formState.step === 1 ? "Create your account" : "We sent you a code"}
+  showBackButton={$formState.step === 2} 
+  onBack={goBack}
+>
+  {#if $formState.error}
+    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
+      {$formState.error}
     </div>
+  {/if}
+  
+  {#if $formState.step === 1}
+    <RegistrationForm
+      bind:name={$formData.name}
+      bind:username={$formData.username}
+      bind:email={$formData.email}
+      bind:password={$formData.password}
+      bind:confirmPassword={$formData.confirmPassword}
+      bind:gender={$formData.gender}
+      bind:dateOfBirth={$formData.dateOfBirth}
+      bind:profilePicture={$formData.profilePicture}
+      bind:banner={$formData.banner}
+      bind:securityQuestion={$formData.securityQuestion}
+      bind:securityAnswer={$formData.securityAnswer}
+      bind:subscribeToNewsletter={$formData.subscribeToNewsletter}
+      {months}
+      {days}
+      {years}
+      {securityQuestions}
+      nameError={$errors.name}
+      usernameError={$errors.username}
+      emailError={$errors.email}
+      passwordErrors={$errors.password}
+      confirmPasswordError={$errors.confirmPassword}
+      genderError={$errors.gender}
+      dateOfBirthError={$errors.dateOfBirth}
+      securityQuestionError={$errors.securityQuestion}
+      profilePictureError={$errors.profilePicture}
+      bannerError={$errors.banner}
+      onNameBlur={validateNameAndUpdate}
+      onUsernameBlur={validateUsernameAndUpdate}
+      onEmailBlur={validateEmailAndUpdate}
+      onPasswordBlur={validatePasswordAndUpdate}
+      onConfirmPasswordBlur={validateConfirmPasswordAndUpdate}
+      onGenderChange={validateGenderAndUpdate}
+      onDateOfBirthChange={validateDateOfBirthAndUpdate}
+      onSecurityQuestionChange={validateSecurityQuestionAndUpdate}
+      onSecurityAnswerBlur={validateSecurityAnswerAndUpdate}
+      onSubmit={submitRegistration}
+      onGoogleAuthSuccess={handleGoogleAuthSuccess}
+      onGoogleAuthError={handleGoogleAuthError}
+    />
     
-    {#if step === 1}
-      <h1 class="text-2xl font-bold mb-6 text-center">Create your account</h1>
-      
-      <!-- Make sure this div has a minimum height for visibility in tests -->
-      <div id="google-signin-button" class="w-full mb-4 min-h-[40px]" data-cy="google-signin-button"></div>
-      
-      <div class="flex items-center mb-4">
-        <div class="flex-grow h-px bg-gray-600"></div>
-        <span class="px-2 text-sm text-gray-400">or</span>
-        <div class="flex-grow h-px bg-gray-600"></div>
-      </div>
-      
-      <div class="mb-4">
-        <div class="flex justify-between">
-          <label for="name" class="block text-sm font-medium mb-1">Name</label>
-          <span class="text-xs text-gray-400" data-cy="name-char-count">{name.length} / 50</span>
-        </div>
-        <input 
-          type="text" 
-          id="name" 
-          bind:value={name} 
-          on:blur={validateNameAndUpdate}
-          maxlength="50"
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Name"
-          data-cy="name-input"
-        />
-        {#if nameError}
-          <p class="text-red-500 text-xs mt-1" data-cy="name-error">{nameError}</p>
-        {/if}
-      </div>
-      
-      <!-- Username input -->
-      <div class="mb-4">
-        <label for="username" class="block text-sm font-medium mb-1">Username</label>
-        <input 
-          type="text" 
-          id="username" 
-          bind:value={username} 
-          on:blur={validateUsernameAndUpdate}
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Username"
-          data-cy="username-input"
-        />
-        {#if usernameError}
-          <p class="text-red-500 text-xs mt-1" data-cy="username-error">{usernameError}</p>
-        {/if}
-      </div>
-      
-      <!-- Email input -->
-      <div class="mb-4">
-        <label for="email" class="block text-sm font-medium mb-1">Email</label>
-        <input 
-          type="email" 
-          id="email" 
-          bind:value={email} 
-          on:blur={validateEmailAndUpdate}
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Email"
-          data-cy="email-input"
-        />
-        {#if emailError}
-          <p class="text-red-500 text-xs mt-1" data-cy="email-error">{emailError}</p>
-        {/if}
-      </div>
-      
-      <!-- Password input -->
-      <div class="mb-4">
-        <label for="password" class="block text-sm font-medium mb-1">Password</label>
-        <input 
-          type="password" 
-          id="password" 
-          bind:value={password} 
-          on:blur={validatePasswordAndUpdate}
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Password"
-          data-cy="password-input"
-        />
-        {#if passwordErrors.length > 0}
-          <div class="text-red-500 text-xs mt-1" data-cy="password-error">
-            {#each passwordErrors as error}
-              <p>{error}</p>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Confirm Password input -->
-      <div class="mb-4">
-        <label for="confirmPassword" class="block text-sm font-medium mb-1">Confirm Password</label>
-        <input 
-          type="password" 
-          id="confirmPassword" 
-          bind:value={confirmPassword} 
-          on:blur={validateConfirmPasswordAndUpdate}
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Confirm Password"
-          data-cy="confirm-password-input"
-        />
-        {#if confirmPasswordError}
-          <p class="text-red-500 text-xs mt-1" data-cy="password-match-error">{confirmPasswordError}</p>
-        {/if}
-      </div>
-      
-      <!-- Gender selection -->
-      <div class="mb-4">
-        <label class="block text-sm font-medium mb-1">Gender</label>
-        <div class="flex space-x-4">
-          <label class="flex items-center">
-            <input 
-              type="radio" 
-              name="gender" 
-              value="male" 
-              bind:group={gender} 
-              on:change={validateGenderAndUpdate}
-              class="mr-2"
-              data-cy="gender-male"
-            />
-            <span>Male</span>
-          </label>
-          <label class="flex items-center">
-            <input 
-              type="radio" 
-              name="gender" 
-              value="female" 
-              bind:group={gender} 
-              on:change={validateGenderAndUpdate}
-              class="mr-2"
-              data-cy="gender-female"
-            />
-            <span>Female</span>
-          </label>
-        </div>
-        {#if genderError}
-          <p class="text-red-500 text-xs mt-1" data-cy="gender-error">{genderError}</p>
-        {/if}
-      </div>
-      
-      <!-- Date of birth -->
-      <div class="mb-4">
-        <label class="block text-sm font-medium mb-1">Date of birth</label>
-        <p class="text-xs text-gray-400 mb-2">This will not be shown publicly. Confirm your own age, even if this account is for a business, a pet, or something else.</p>
-        
-        <div class="flex space-x-2">
-          <div class="w-1/3">
-            <select 
-              bind:value={dateOfBirth.month} 
-              on:change={validateDateOfBirthAndUpdate}
-              class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-              data-cy="dob-month"
-            >
-              <option value="" disabled selected>Month</option>
-              {#each months as month}
-                <option value={month}>{month}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="w-1/3">
-            <select 
-              bind:value={dateOfBirth.day} 
-              on:change={validateDateOfBirthAndUpdate}
-              class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-              data-cy="dob-day"
-            >
-              <option value="" disabled selected>Day</option>
-              {#each days as day}
-                <option value={day}>{day}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="w-1/3">
-            <select 
-              bind:value={dateOfBirth.year} 
-              on:change={validateDateOfBirthAndUpdate}
-              class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-              data-cy="dob-year"
-            >
-              <option value="" disabled selected>Year</option>
-              {#each years as year}
-                <option value={year}>{year}</option>
-              {/each}
-            </select>
-          </div>
-        </div>
-        
-        {#if dateOfBirthError}
-          <p class="text-red-500 text-xs mt-1" data-cy="dob-error">{dateOfBirthError}</p>
-        {/if}
-      </div>
-      
-      <!-- Profile picture upload -->
-      <div class="mb-4">
-        <label for="profilePicture" class="block text-sm font-medium mb-1">Profile Picture</label>
-        <input 
-          type="file" 
-          id="profilePicture" 
-          accept="image/*" 
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          data-cy="profile-picture-input"
-          on:change={(e) => { 
-            const input = e.target as HTMLInputElement;
-            if (input.files && input.files.length > 0) {
-              profilePicture = input.files[0];
-              validateProfilePictureAndUpdate();
-            } else if (window.Cypress) {
-              // For Cypress testing
-              profilePicture = "mock-profile-picture.jpg";
-              validateProfilePictureAndUpdate();
-            }
-          }}
-        />
-        {#if profilePictureError}
-          <p class="text-red-500 text-xs mt-1" data-cy="profile-picture-error">{profilePictureError}</p>
-        {/if}
-      </div>
-      
-      <!-- Banner upload -->
-      <div class="mb-4">
-        <label for="banner" class="block text-sm font-medium mb-1">Banner</label>
-        <input 
-          type="file" 
-          id="banner" 
-          accept="image/*" 
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          data-cy="banner-input"
-          on:change={(e) => {
-            const input = e.target as HTMLInputElement;
-            if (input.files && input.files.length > 0) {
-              banner = input.files[0];
-              validateBannerAndUpdate();
-            } else if (window.Cypress) {
-              // For Cypress testing
-              banner = "mock-banner.jpg";
-              validateBannerAndUpdate();
-            }
-          }}
-        />
-        {#if bannerError}
-          <p class="text-red-500 text-xs mt-1" data-cy="banner-error">{bannerError}</p>
-        {/if}
-      </div>
-      
-      <!-- Security question -->
-      <div class="mb-4">
-        <label for="securityQuestion" class="block text-sm font-medium mb-1">Security Question</label>
-        <select 
-          id="securityQuestion" 
-          bind:value={securityQuestion}
-          on:change={validateSecurityQuestionAndUpdate}
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
-          data-cy="security-question"
-        >
-          <option value="" disabled selected>Select a security question</option>
-          {#each securityQuestions as question}
-            <option value={question}>{question}</option>
-          {/each}
-        </select>
-        
-        <input 
-          type="text" 
-          bind:value={securityAnswer} 
-          on:blur={validateSecurityQuestionAndUpdate}
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Your answer"
-          data-cy="security-answer"
-        />
-        
-        {#if securityQuestionError}
-          <p class="text-red-500 text-xs mt-1" data-cy="security-question-error">{securityQuestionError}</p>
-        {/if}
-      </div>
-      
-      <!-- Newsletter subscription -->
-      <div class="mb-6">
-        <label class="flex items-center">
-          <input 
-            type="checkbox" 
-            bind:checked={subscribeToNewsletter} 
-            class="mr-2"
-            data-cy="subscribe-checkbox"
-          />
-          <span class="text-sm">Subscribe to newsletter</span>
-        </label>
-      </div>
-      
-      <!-- reCAPTCHA placeholder -->
-      <div id="recaptcha-container" class="mb-6" data-cy="recaptcha-container"></div>
-      
-      <!-- Submit button -->
-      <button 
-        class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
-        on:click={submitStep1}
-        data-cy="register-button"
-      >
-        Next
-      </button>
-      
-      <!-- Terms & services text -->
-      <p class="text-xs mt-4 text-gray-400 text-center">
-        By signing up, you agree to the <a href="#" class="text-blue-500 hover:underline">Terms of Service</a> and 
-        <a href="#" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="#" class="text-blue-500 hover:underline">Cookie Use</a>.
-      </p>
-      
-      <!-- Login link -->
-      <p class="text-sm mt-6 text-center">
-        Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
-      </p>
-    {:else}
-      <!-- Step 2: Verification Code Input -->
-      <h1 class="text-2xl font-bold mb-6 text-center" data-cy="verification-title">We sent you a code</h1>
-      <p class="text-center mb-6">Enter it below to verify {email}</p>
-      
-      <div class="mb-6">
-        <label for="verificationCode" class="block text-sm font-medium mb-1">Verification code</label>
-        <input 
-          type="text" 
-          id="verificationCode" 
-          bind:value={verificationCode} 
-          class="w-full p-2 border border-gray-600 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Verification code"
-          data-cy="verification-code"
-        />
-      </div>
-      
-      {#if !showResendOption}
-        <p class="text-sm text-center mb-4" data-cy="verification-timer">Code expires in {formatTimeLeft()}</p>
-      {/if}
-      
-      {#if showResendOption}
-        <button 
-          class="w-full text-blue-500 hover:underline mb-4 text-center"
-          on:click={resendCode}
-          data-cy="resend-button"
-        >
-          Didn't receive email?
-        </button>
-      {/if}
-      
-      <button 
-        class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
-        on:click={verifyCode}
-        data-cy="verify-button"
-      >
-        Next
-      </button>
-    {/if}
-  </div>
-</div>
+    <!-- Login link -->
+    <p class="text-sm mt-6 text-center">
+      Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
+    </p>
+  {:else}
+    <!-- Step 2: Verification Code Input -->
+    <p class="text-center mb-6">Enter it below to verify {$formData.email}</p>
+    
+    <VerificationForm
+      bind:verificationCode={$formData.verificationCode}
+      showResendOption={$formState.showResendOption}
+      timeLeft={formatTimeLeft()}
+      onVerify={submitVerification}
+      onResend={resendCode}
+    />
+  {/if}
+</AuthLayout>

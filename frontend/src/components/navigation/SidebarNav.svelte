@@ -1,17 +1,18 @@
 <script lang="ts">
-  // Navigation items
-  const navItems = [
-    { href: '/home', icon: '🏠', label: 'Home' },
-    { href: '/explore', icon: '🔍', label: 'Explore' },
-    { href: '/notifications', icon: '🔔', label: 'Notifications' },
-    { href: '/messages', icon: '✉️', label: 'Messages' },
-    { href: '/profile', icon: '👤', label: 'Profile' }
-  ];
+  import type { INavigationItem } from '../../interfaces/ISocialMedia';
   
-  // User info (should come from a store or prop in a real app)
-  export let username = 'username';
-  export let displayName = 'User Name';
-  export let avatar = '👤';
+  export let username = "username";
+  export let displayName = "User Name";
+  export let avatar = "👤";
+  
+  // Navigation items
+  const navItems: INavigationItem[] = [
+    { label: 'Home', icon: '🏠', path: '/home' },
+    { label: 'Explore', icon: '🔍', path: '/explore' },
+    { label: 'Notifications', icon: '🔔', path: '/notifications' },
+    { label: 'Messages', icon: '✉️', path: '/messages' },
+    { label: 'Profile', icon: '👤', path: '/profile' }
+  ];
 </script>
 
 <div class="fixed top-0 bottom-0 left-0 w-16 md:w-64 border-r border-gray-800 p-2 md:p-4">
@@ -25,7 +26,7 @@
     <nav class="w-full">
       {#each navItems as item}
         <a 
-          href={item.href} 
+          href={item.path} 
           class="flex items-center p-3 hover:bg-gray-900 rounded-full mb-1 font-medium"
         >
           <span class="mr-4">{item.icon}</span>
