@@ -25,10 +25,30 @@ export interface RecaptchaInstance {
   render: (container: string, options: any) => number;
 }
 
+// Cypress type declaration
+declare global {
+  interface Window {
+    Cypress?: any;
+  }
+}
+
 // Custom window interface that includes Google and reCAPTCHA properties
 export interface CustomWindow extends Window {
-  google?: Google;
-  grecaptcha?: RecaptchaInstance;
+  google?: {
+    accounts: {
+      id: {
+        initialize: (config: any) => void;
+        renderButton: (element: HTMLElement, options: any) => void;
+      }
+    }
+  };
+  grecaptcha?: {
+    ready: (callback: () => void) => void;
+    render: (container: string | HTMLElement, parameters: any) => number;
+    execute: (siteKey: string, options?: { action: string }) => Promise<string>;
+    reset: (widgetId?: number) => void;
+  };
+  handleGoogleCredentialResponse?: (response: GoogleCredentialResponse) => void;
 }
 
 // User registration data interface

@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/services/user/service"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/service"
 )
 
 func main() {

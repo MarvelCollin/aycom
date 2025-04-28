@@ -14,9 +14,16 @@ type ServiceConfig struct {
 	// Add more services as needed
 }
 
+// OAuthConfig contains OAuth configuration
+type OAuthConfig struct {
+	GoogleClientID     string
+	GoogleClientSecret string
+}
+
 // Config represents the API Gateway configuration
 type Config struct {
 	Services  ServiceConfig
+	OAuth     OAuthConfig
 	JWTSecret string
 }
 
@@ -28,6 +35,10 @@ func LoadConfig() (*Config, error) {
 			AuthServicePort: getEnv("AUTH_SERVICE_PORT", "9090"),
 			UserServiceHost: getEnv("USER_SERVICE_HOST", "user_service"),
 			UserServicePort: getEnv("USER_SERVICE_PORT", "9091"),
+		},
+		OAuth: OAuthConfig{
+			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+			GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		},
 		JWTSecret: getEnv("JWT_SECRET", "default-secret-key"),
 	}

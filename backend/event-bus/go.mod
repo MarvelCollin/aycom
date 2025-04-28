@@ -1,4 +1,4 @@
-module github.com/Acad600-Tpa/WEB-MV-242/event-bus
+module github.com/Acad600-Tpa/WEB-MV-242/backend/event-bus
 
 go 1.20
 

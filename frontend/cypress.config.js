@@ -9,6 +9,7 @@ export default defineConfig({
     viewportHeight: 720,
     video: false,
     screenshotOnRunFailure: true,
+    chromeWebSecurity: false,
     retries: {
       runMode: 1,
       openMode: 0,
@@ -17,4 +18,4 @@ export default defineConfig({
   env: {
     apiUrl: 'http://localhost:8080/api/v1',
   },
-});
+}); 

@@ -1,4 +1,4 @@
-module github.com/Acad600-Tpa/WEB-MV-242/api-gateway
+module github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway
 
 go 1.20
 

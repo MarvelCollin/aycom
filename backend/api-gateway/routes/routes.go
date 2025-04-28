@@ -1,14 +1,17 @@
 package routes
 
 import (
-	"github.com/Acad600-Tpa/WEB-MV-242/api-gateway/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/api-gateway/handlers"
-	"github.com/Acad600-Tpa/WEB-MV-242/api-gateway/middleware"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // RegisterRoutes sets up all the routes for the API Gateway
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
+	// Set the config for handlers
+	handlers.Config = cfg
+
 	// Add global middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
@@ -22,6 +25,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Public routes
 	auth := v1.Group("/auth")
 	{
+		auth.GET("/oauth-config", handlers.GetOAuthConfig)
 		auth.POST("/login", handlers.Login)
 		auth.POST("/register", handlers.Register)
 		auth.POST("/refresh", handlers.RefreshToken)

@@ -3,8 +3,56 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
+
+	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto/auth"
 )
+
+// Global config for the handlers
+var Config *config.Config
+
+// RegisterRequest represents the user registration payload
+type RegisterRequest struct {
+	Name                  string `json:"name" binding:"required"`
+	Username              string `json:"username" binding:"required"`
+	Email                 string `json:"email" binding:"required,email"`
+	Password              string `json:"password" binding:"required,min=8"`
+	ConfirmPassword       string `json:"confirmPassword" binding:"required,eqfield=Password"`
+	Gender                string `json:"gender" binding:"required"`
+	DateOfBirth           string `json:"dateOfBirth" binding:"required"`
+	SecurityQuestion      string `json:"securityQuestion" binding:"required"`
+	SecurityAnswer        string `json:"securityAnswer" binding:"required"`
+	SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
+	RecaptchaToken        string `json:"recaptcha_token" binding:"required"`
+}
+
+// RegisterResponse represents the response from user registration
+type RegisterResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// ErrorResponse represents an error response
+type ErrorResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// GetOAuthConfig godoc
+// @Summary Get OAuth configuration
+// @Description Get OAuth configuration details for the client
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "OAuth configuration"
+// @Router /api/v1/auth/oauth-config [get]
+func GetOAuthConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"google_client_id": Config.OAuth.GoogleClientID,
+	})
+}
 
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
@@ -19,11 +67,69 @@ func Login(c *gin.Context) {
 	})
 }
 
+// Register godoc
+// @Summary Register a new user
+// @Description Register a new user account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param registration body RegisterRequest true "User registration data"
+// @Success 200 {object} RegisterResponse "registration successful"
+// @Failure 400 {object} ErrorResponse "invalid input"
 // @Router /api/v1/auth/register [post]
 func Register(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the user service via gRPC
-	c.JSON(http.StatusOK, gin.H{
-		"message": "register endpoint",
+	var request RegisterRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+		})
+		return
+	}
+
+	// Connect to auth service
+	conn, err := grpc.Dial(config.Config.GetAuthServiceAddr(), grpc.WithInsecure())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+		})
+		return
+	}
+	defer conn.Close()
+
+	// Create auth service client
+	client := authProto.NewAuthServiceClient(conn)
+
+	// Prepare gRPC request
+	req := &authProto.RegisterRequest{
+		Name:                  request.Name,
+		Username:              request.Username,
+		Email:                 request.Email,
+		Password:              request.Password,
+		ConfirmPassword:       request.ConfirmPassword,
+		Gender:                request.Gender,
+		DateOfBirth:           request.DateOfBirth,
+		SecurityQuestion:      request.SecurityQuestion,
+		SecurityAnswer:        request.SecurityAnswer,
+		SubscribeToNewsletter: request.SubscribeToNewsletter,
+		RecaptchaToken:        request.RecaptchaToken,
+	}
+
+	// Call auth service
+	resp, err := client.Register(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Registration failed: " + err.Error(),
+		})
+		return
+	}
+
+	// Return response to client
+	c.JSON(http.StatusOK, RegisterResponse{
+		Success: resp.Success,
+		Message: resp.Message,
 	})
 }
 

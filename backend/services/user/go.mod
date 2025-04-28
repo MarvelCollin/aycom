@@ -1,4 +1,4 @@
-module github.com/Acad600-Tpa/WEB-MV-242/services/user
+module github.com/Acad600-Tpa/WEB-MV-242/backend/services/user
 
 go 1.20
 

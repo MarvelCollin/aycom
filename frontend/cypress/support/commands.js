@@ -49,3 +49,22 @@ Cypress.Commands.add('interceptApi', (method, path, response = {}) => {
     }
   );
 });
+
+// Custom command to test file uploads without actual files
+Cypress.Commands.add('mockFileUpload', { prevSubject: 'element' }, (subject, fileName = 'test.jpg', fileType = 'image/jpeg') => {
+  // Create a blob with simple content
+  const blob = new Blob(['test file content'], { type: fileType });
+  
+  // Create a File from the blob
+  const testFile = new File([blob], fileName, { type: fileType });
+  
+  // Create a DataTransfer instance
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(testFile);
+  
+  // Assign the created file list to the element
+  subject[0].files = dataTransfer.files;
+  
+  // Trigger change event
+  return cy.wrap(subject).trigger('change', { force: true });
+});

@@ -2,33 +2,83 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/Acad600-Tpa/WEB-MV-242/services/auth/proto";
+option go_package = "github.com/AYCOM/backend/services/auth/proto/auth";
 
 // Auth service definition
 service AuthService {
-  // Login with email and password
-  rpc Login (LoginRequest) returns (TokenResponse) {}
+  // Register a new user
+  rpc Register(RegisterRequest) returns (RegisterResponse) {}
   
-  // Register a new user (Step 1)
-  rpc Register (RegisterRequest) returns (RegistrationResponse) {}
-  
-  // Verify email with verification code (Step 2)
-  rpc VerifyEmail (VerifyEmailRequest) returns (TokenResponse) {}
+  // Verify email address
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse) {}
   
   // Resend verification code
-  rpc ResendVerificationCode (ResendCodeRequest) returns (ResendCodeResponse) {}
+  rpc ResendVerificationCode(ResendVerificationCodeRequest) returns (ResendVerificationCodeResponse) {}
   
-  // Google OAuth integration
-  rpc GoogleAuth (GoogleAuthRequest) returns (TokenResponse) {}
+  // Login with email and password
+  rpc Login(LoginRequest) returns (LoginResponse) {}
   
   // Validate token
-  rpc ValidateToken (ValidateRequest) returns (ValidateResponse) {}
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse) {}
   
   // Refresh access token using refresh token
-  rpc RefreshToken (RefreshRequest) returns (TokenResponse) {}
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {}
   
   // Logout and invalidate tokens
-  rpc Logout (LogoutRequest) returns (LogoutResponse) {}
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {}
+  
+  // Google OAuth login
+  rpc GoogleLogin(GoogleLoginRequest) returns (GoogleLoginResponse) {}
+}
+
+// RegisterRequest contains information needed to register a new user
+message RegisterRequest {
+  string name = 1;
+  string username = 2;
+  string email = 3;
+  string password = 4;
+  string confirm_password = 5;
+  string gender = 6;
+  string date_of_birth = 7;
+  string security_question = 8;
+  string security_answer = 9;
+  bool subscribe_to_newsletter = 10;
+  string recaptcha_token = 11;
+}
+
+// RegisterResponse contains the result of a registration request
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  string email = 3;
+}
+
+// VerifyEmailRequest contains the email and verification code for email verification
+message VerifyEmailRequest {
+  string email = 1;
+  string verification_code = 2;
+}
+
+// VerifyEmailResponse contains the result of an email verification request
+message VerifyEmailResponse {
+  bool success = 1;
+  string message = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  string user_id = 5;
+  string token_type = 6;
+  int32 expires_in = 7;
+}
+
+// ResendVerificationCodeRequest contains the email to resend verification code to
+message ResendVerificationCodeRequest {
+  string email = 1;
+}
+
+// ResendVerificationCodeResponse contains the result of a resend verification code request
+message ResendVerificationCodeResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 // LoginRequest contains credentials for user login
@@ -37,86 +87,69 @@ message LoginRequest {
   string password = 2;
 }
 
-// RegisterRequest contains information needed to register a new user
-message RegisterRequest {
-  string name = 1;
-  string email = 2;
-  string username = 3;
-  string password = 4;
-  string confirm_password = 5;
-  string gender = 6;
-  string date_of_birth = 7;  // Format: YYYY-MM-DD
-  bytes profile_picture = 8;
-  bytes banner = 9;
-  string security_question = 10;
-  string security_answer = 11;
-  bool subscribe_to_newsletter = 12;
-  string recaptcha_token = 13;  // Token from frontend reCAPTCHA verification
-}
-
-// VerifyEmailRequest contains the verification code for email validation
-message VerifyEmailRequest {
-  string email = 1;
-  string verification_code = 2;
-}
-
-// ResendCodeRequest contains the email to send a new verification code to
-message ResendCodeRequest {
-  string email = 1;
-}
-
-// ResendCodeResponse contains the result of the resend operation
-message ResendCodeResponse {
+// LoginResponse contains the result of a login request
+message LoginResponse {
   bool success = 1;
   string message = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  string user_id = 5;
+  string token_type = 6;
+  int32 expires_in = 7;
 }
 
-// GoogleAuthRequest contains the Google OAuth data
-message GoogleAuthRequest {
-  string token_id = 1;
-}
-
-// RegistrationResponse contains registration confirmation
-message RegistrationResponse {
-  bool success = 1;
-  string message = 2;
-  string email = 3;
-}
-
-// ValidateRequest contains the token to validate
-message ValidateRequest {
+// ValidateTokenRequest contains the token to validate
+message ValidateTokenRequest {
   string token = 1;
 }
 
-// ValidateResponse contains validation result
-message ValidateResponse {
+// ValidateTokenResponse contains the result of a token validation request
+message ValidateTokenResponse {
   bool valid = 1;
-  string user_id = 2;
-  map<string, string> claims = 3;
+  string message = 2;
+  string user_id = 3;
 }
 
-// RefreshRequest contains the refresh token
-message RefreshRequest {
+// RefreshTokenRequest contains the refresh token to use for getting a new access token
+message RefreshTokenRequest {
   string refresh_token = 1;
 }
 
-// TokenResponse contains authentication tokens
-message TokenResponse {
-  string access_token = 1;
-  string refresh_token = 2;
-  string user_id = 3;
-  string token_type = 4; // Usually "Bearer"
-  int64 expires_in = 5;  // Expiration time in seconds
+// RefreshTokenResponse contains the result of a token refresh request
+message RefreshTokenResponse {
+  bool success = 1;
+  string message = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  string user_id = 5;
+  string token_type = 6;
+  int32 expires_in = 7;
 }
 
-// LogoutRequest contains tokens to invalidate
+// LogoutRequest contains the tokens to invalidate during logout
 message LogoutRequest {
   string access_token = 1;
   string refresh_token = 2;
 }
 
-// LogoutResponse indicates the result of logout operation
+// LogoutResponse contains the result of a logout request
 message LogoutResponse {
   bool success = 1;
   string message = 2;
-} 
+}
+
+// GoogleLoginRequest contains the Google ID token for authentication
+message GoogleLoginRequest {
+  string id_token = 1;
+}
+
+// GoogleLoginResponse contains the result of a Google login request
+message GoogleLoginResponse {
+  bool success = 1;
+  string message = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  string user_id = 5;
+  string token_type = 6;
+  int32 expires_in = 7;
+}

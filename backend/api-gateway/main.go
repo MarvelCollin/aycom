@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/api-gateway/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/api-gateway/routes"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/routes"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"

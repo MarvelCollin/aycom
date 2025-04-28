@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/services/auth/config"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/config"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
