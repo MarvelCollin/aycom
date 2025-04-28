@@ -3,9 +3,9 @@ package handler
 import (
 	"context"
 
-	"github.com/AYCOM/backend/services/auth/proto"
-	"github.com/AYCOM/backend/services/auth/repository"
-	"github.com/AYCOM/backend/services/auth/service"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/repository"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/service"
 )
 
 // AuthServiceServer implements the AuthService gRPC server

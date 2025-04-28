@@ -6,8 +6,11 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.5.1
+	github.com/streadway/amqp v1.1.0
 	golang.org/x/crypto v0.31.0
 	google.golang.org/grpc v1.55.0
+	gorm.io/driver/postgres v1.5.11
+	gorm.io/gorm v1.26.0
 )
 
 require (
@@ -24,6 +27,14 @@ require (
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
-	gorm.io/driver/postgres v1.5.11 // indirect
-	gorm.io/gorm v1.26.0 // indirect
+)
+
+// Fix the import paths
+replace (
+	github.com/AYCOM/backend/services/auth => ./
+	github.com/AYCOM/backend/services/auth/handler => ./handler
+	github.com/AYCOM/backend/services/auth/model => ./model
+	github.com/AYCOM/backend/services/auth/proto => ./proto
+	github.com/AYCOM/backend/services/auth/repository => ./repository
+	github.com/AYCOM/backend/services/auth/service => ./service
 )

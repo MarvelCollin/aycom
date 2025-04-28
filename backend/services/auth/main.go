@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/AYCOM/backend/services/auth/repository"
-	"github.com/AYCOM/backend/services/auth/service"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/repository"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/service"
 )
 
 func main() {
@@ -126,7 +126,7 @@ func main() {
 }
 
 // seedDefaultUsers initializes the auth seeder and seeds default users
-func seedDefaultUsers(svc *service.AuthService) error {
+func seedDefaultUsers(svc *service.AuthServiceImpl) error {
 	if svc.DB == nil {
 		return fmt.Errorf("database connection not available")
 	}

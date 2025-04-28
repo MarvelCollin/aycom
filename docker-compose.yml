@@ -5,15 +5,22 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:5173"
+      - "3000:3000"
     environment:
-      - VITE_API_BASE_URL=${API_GATEWAY_PORT:-8080}/api/v1
+      - VITE_API_BASE_URL=http://localhost:${API_GATEWAY_PORT:-8080}/api/v1
       - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - VITE_RECAPTCHA_SITE_KEY=${VITE_RECAPTCHA_SITE_KEY:-6Ldr5iYrAAAAAM2qFrNO3E7Bz-H1Ze46W_uq6bQl}
     volumes:
       - ./frontend:/app
       - /app/node_modules
     restart: always
+    depends_on:
+      - api_gateway
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
 
   # API Gateway
   api_gateway:
@@ -31,6 +38,11 @@ services:
       - user_service
       - auth_service
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
   # User Service - Profile Management
   user_service:
@@ -40,19 +52,23 @@ services:
     ports:
       - "9091:9091"
     environment:
-      - DATABASE_HOST=postgres
+      - DATABASE_HOST=user_db
       - DATABASE_PORT=5432
       - DATABASE_USER=${POSTGRES_USER:-postgres}
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
       - DATABASE_NAME=user_db
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/user_db
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@user_db:5432/user_db
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
     depends_on:
-      postgres:
+      user_db:
         condition: service_healthy
     restart: always
-    entrypoint: ["sh", "./entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
   # Auth Service - Authentication & Authorization
   auth_service:
@@ -62,25 +78,30 @@ services:
     ports:
       - "9090:9090"
     environment:
-      - DATABASE_HOST=postgres
+      - DATABASE_HOST=auth_db
       - DATABASE_PORT=5432
       - DATABASE_USER=${POSTGRES_USER:-postgres}
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
       - DATABASE_NAME=auth_db
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/auth_db
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@auth_db:5432/auth_db
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - REDIS_URL=redis://redis:6379/0
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
+      - JWT_SECRET=${JWT_SECRET:-default_secret_key}
     depends_on:
-      postgres:
+      auth_db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
     restart: always
-    entrypoint: ["sh", "./entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
   # Event Bus Service
   event_bus:
@@ -94,50 +115,106 @@ services:
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
     depends_on:
-      - rabbitmq
-      - user_service
-      - auth_service
+      rabbitmq:
+        condition: service_healthy
+      user_service:
+        condition: service_started
+      auth_service:
+        condition: service_started
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
-  # Single PostgreSQL Database for all services
-  postgres:
+  # Auth Service Database
+  auth_db:
     image: postgres:14-alpine
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
-      - POSTGRES_DB=postgres
+      - POSTGRES_DB=auth_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db-init.sh:/docker-entrypoint-initdb.d/db-init.sh
+      - auth_db_data:/var/lib/postgresql/data
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  # User Service Database
+  user_db:
+    image: postgres:14-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
+      - POSTGRES_DB=user_db
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
   # Redis for caching
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
   # RabbitMQ for messaging
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.11-management-alpine
     ports:
       - "5672:5672"  # AMQP
       - "15672:15672"  # Management UI
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
 
 volumes:
-  postgres_data:
+  auth_db_data:
+  user_db_data:
   redis_data:
   rabbitmq_data:

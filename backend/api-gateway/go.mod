@@ -12,3 +12,6 @@ require (
 	github.com/swaggo/swag v1.16.2
 	google.golang.org/grpc v1.55.0
 )
+
+// Add replace directive to fix the import path issue
+replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto/auth => ../services/auth/proto/auth
