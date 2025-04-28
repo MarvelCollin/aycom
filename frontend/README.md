@@ -1,3 +1,65 @@
+# AYCOM Frontend
+
+Frontend for the AYCOM social media platform.
+
+## Project Structure
+
+The project has been organized into the following structure:
+
+### Components
+
+- **common/**: Reusable UI components across the application
+  - `Logo.svelte`: Logo component with theme support
+  - `ThemeToggle.svelte`: Button to toggle between dark and light themes
+  - `Tweet.svelte`: Component for displaying tweets
+
+- **layout/**: Layout components
+  - `AuthLayout.svelte`: Common layout for authentication pages
+
+- **navigation/**: Navigation-related components
+  - `Sidebar.svelte`: Left sidebar navigation for the app
+  - `RightSidebar.svelte`: Right sidebar with search, trends, etc.
+
+- **forms/**: Form-related components
+  - `FormInput.svelte`: Reusable form input component
+  - `TweetComposer.svelte`: Component for composing new tweets
+
+- **auth/**: Authentication-related components
+
+### Hooks
+
+- `useTheme.ts`: Hook for managing theme state (dark/light)
+- `useAuth.ts`: Hook for authentication operations
+- `useValidation.ts`: Hook for form validation functions
+- `useExternalServices.ts`: Hook for external services like Google Auth
+- `useTweets.ts`: Hook for managing tweets with CRUD operations
+
+## Pages
+
+- `Landing.svelte`: Landing page
+- `Login.svelte`: Login page
+- `Register.svelte`: Registration page
+- `Feed.svelte`: Main feed page with tweets
+- `GoogleCallback.svelte`: Callback handler for Google authentication
+- `Home.svelte`: Home page with marketing content
+
+## Development
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Run the development server:
+```bash
+npm run dev
+```
+
+3. Build for production:
+```bash
+npm run build
+```
+
 # Svelte + TS + Vite
 
 This template should help get you started developing with Svelte and TypeScript in Vite.

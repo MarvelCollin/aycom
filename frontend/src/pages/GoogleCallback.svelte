@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
+  import Logo from '../components/common/Logo.svelte';
 
   // Get auth functions
   const { handleGoogleAuth } = useAuth();
@@ -71,9 +72,7 @@
     <div class="text-center">
       <!-- AYCOM Logo/Branding -->
       <div class="mb-6 flex justify-center">
-        <div class="bg-blue-500 rounded-full w-16 h-16 flex items-center justify-center text-2xl font-bold">
-          AY
-        </div>
+        <Logo size="medium" />
       </div>
       
       <h1 class="text-2xl font-semibold text-white mb-4">

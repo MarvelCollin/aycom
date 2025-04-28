@@ -1,4 +1,4 @@
-FROM node:18
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -12,8 +12,8 @@ COPY . .
 # Set development as default environment
 ENV NODE_ENV=development
 
-# Expose Vite's default port
-EXPOSE 5173
+# Expose the port that matches our docker-compose configuration
+EXPOSE 3000
 
-# Default to development mode
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"] 
+# Default to development mode - binding to all interfaces
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"] 
