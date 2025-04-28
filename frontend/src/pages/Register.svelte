@@ -9,7 +9,7 @@
   import type { IUserRegistration } from '../interfaces/IAuth';
   
   // Get registration form functionality
-  const {
+  const { 
     formData,
     errors,
     formState,
@@ -165,7 +165,7 @@
   function goBack() {
     formState.update(state => ({ ...state, step: 1, error: "" }));
   }
-
+  
   onMount(() => {
     // Load reCAPTCHA
     const recaptchaCleanup = loadRecaptcha((token) => {
@@ -193,7 +193,7 @@
     <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
       {$formState.error}
     </div>
-  {/if}
+        {/if}
   
   {#if $formState.step === 1}
     <RegistrationForm
@@ -236,13 +236,13 @@
       onGoogleAuthSuccess={handleGoogleAuthSuccess}
       onGoogleAuthError={handleGoogleAuthError}
     />
-    
-    <!-- Login link -->
-    <p class="text-sm mt-6 text-center">
-      Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
-    </p>
-  {:else}
-    <!-- Step 2: Verification Code Input -->
+      
+      <!-- Login link -->
+      <p class="text-sm mt-6 text-center">
+        Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
+      </p>
+    {:else}
+      <!-- Step 2: Verification Code Input -->
     <p class="text-center mb-6">Enter it below to verify {$formData.email}</p>
     
     <VerificationForm
@@ -252,5 +252,5 @@
       onVerify={submitVerification}
       onResend={resendCode}
     />
-  {/if}
+      {/if}
 </AuthLayout>

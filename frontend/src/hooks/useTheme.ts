@@ -69,6 +69,37 @@ const createThemeStore = () => {
       } catch (error) {
         console.error('Error setting theme:', error);
       }
+    },
+    // Add update method to the store
+    update: (callback: (value: ThemeType) => ThemeType) => {
+      let currentValue: ThemeType;
+      
+      // Get current value
+      const unsubscribe = theme.subscribe((value) => {
+        currentValue = value;
+      });
+      unsubscribe();
+      
+      // Calculate new value
+      const newValue = callback(currentValue);
+      
+      // Set the new value
+      theme.set(newValue);
+      
+      // Update localStorage and classes
+      try {
+        localStorage.setItem('theme', newValue);
+        
+        // Update document with the theme class
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(newValue);
+        }
+      } catch (error) {
+        console.error('Error updating theme:', error);
+      }
+      
+      return newValue;
     }
   };
 };
@@ -83,19 +114,6 @@ export function useTheme() {
   const toggleTheme = () => {
     themeStore.update(currentTheme => {
       const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-      
-      try {
-        localStorage.setItem('theme', newTheme);
-        
-        // Update document with the theme class
-        if (typeof document !== 'undefined') {
-          document.documentElement.classList.remove('light', 'dark');
-          document.documentElement.classList.add(newTheme);
-        }
-      } catch (error) {
-        console.error('Error toggling theme:', error);
-      }
-      
       return newTheme;
     });
   };

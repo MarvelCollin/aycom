@@ -6,14 +6,30 @@
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
   import GoogleCallback from '../pages/GoogleCallback.svelte';
+  import Debug from '../pages/Debug.svelte';
+  import appConfig from '../config/appConfig';
   
   let route = '/';
   let isAuthenticated = false; 
+  
+  // For the secret "kowlin" command detection
+  let secretBuffer = '';
+  const secretCode = 'kowlin';
   
   function handleNavigation() {
     route = window.location.pathname;
     
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
+    
+    // Skip authentication checks if Debug route or auth is disabled in config
+    if (route === '/debug') {
+      return;
+    }
+    
+    // Skip auth checks if disabled in config
+    if (!appConfig.auth.enabled) {
+      return;
+    }
     
     if (!isAuthenticated && 
         (route === '/home' || 
@@ -41,9 +57,32 @@
     handleNavigation();
   }
   
+  function handleKeydown(event: KeyboardEvent) {
+    // Add the typed key to the buffer
+    secretBuffer += event.key.toLowerCase();
+    
+    // Keep only the last N characters where N is the length of the secret code
+    if (secretBuffer.length > secretCode.length) {
+      secretBuffer = secretBuffer.slice(secretBuffer.length - secretCode.length);
+    }
+    
+    // Check if the buffer matches the secret code
+    if (secretBuffer === secretCode) {
+      // Clear the buffer
+      secretBuffer = '';
+      
+      // Redirect to the debug page
+      window.history.pushState({}, '', '/debug');
+      handleNavigation();
+    }
+  }
+  
   onMount(() => {
     (window as any).login = () => setAuthenticated(true);
     (window as any).logout = () => setAuthenticated(false);
+    
+    // Add keyboard listener for the secret code
+    window.addEventListener('keydown', handleKeydown);
     
     window.addEventListener('popstate', handleNavigation);
     handleNavigation();
@@ -64,12 +103,15 @@
     
     return () => {
       window.removeEventListener('popstate', handleNavigation);
+      window.removeEventListener('keydown', handleKeydown);
     };
   });
 </script>
 
 <main>
-  {#if route === '/'}
+  {#if route === '/debug'}
+    <Debug />
+  {:else if route === '/'}
     <Landing />
   {:else if route === '/login'}
     <Login />

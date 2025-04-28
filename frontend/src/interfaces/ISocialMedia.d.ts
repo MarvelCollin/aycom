@@ -41,6 +41,9 @@ export interface ISuggestedFollow {
   username: string;
   displayName: string;
   avatar: string;
+  verified?: boolean;
+  followerCount?: number;
+  isFollowing?: boolean;
 }
 
 // Navigation item interface

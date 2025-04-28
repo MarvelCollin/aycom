@@ -1,9 +1,31 @@
-@import url("src/reset.css");
-@import url("src/colors.css");
-@import url("src/background-border.css");
-@import url("src/layout-flex.css");
-@import url("src/keyframes.css");
+/* First import the reset for a clean base */
+@import url("./src/reset.css");
 
+/* Core utilities */
+@import url("./src/colors.css");
+@import url("./src/typography.css");
+@import url("./src/spacing-sizing.css");
+@import url("./src/background-border.css");
+@import url("./src/utilities.css");
+
+/* Layout utilities */
+@import url("./src/layout-flex.css");
+@import url("./src/flexbox.css");
+@import url("./src/grid.css");
+
+/* Effects and animations */
+@import url("./src/filter-effect.css");
+@import url("./src/keyframes.css");
+@import url("./src/transform.css");
+@import url("./src/transition.css");
+
+/* Interaction utilities */
+@import url("./src/interaction.css");
+
+/* Responsive utilities */
+@import url("./src/responsive.css");
+
+/* Base styles */
 :root {
   --color-primary: #3b82f6;
   --color-secondary: #6b7280;
@@ -13,36 +35,85 @@
   --color-info: #3b82f6;
   --color-light: #f3f4f6;
   --color-dark: #1f2937;
+  
+  /* Light mode defaults */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f4f6;
+  --text-primary: #374151;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+}
+
+/* Dark mode variables */
+.dark-mode, :root.dark {
+  --bg-primary: #1f2937;
+  --bg-secondary: #111827;
+  --text-primary: #f9fafb;
+  --text-secondary: #e5e7eb;
+  --border-color: #4b5563;
 }
 
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   line-height: 1.5;
-  color: #374151;
+  color: var(--text-primary, #374151);
+  background-color: var(--bg-primary, #ffffff);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Dark mode utilities */
+.dark\:bg-gray-800 {
+  background-color: #1f2937;
+}
+
+.dark\:bg-gray-700 {
+  background-color: #374151;
+}
+
+.dark\:text-white {
+  color: #ffffff;
+}
+
+.dark\:border-gray-700 {
+  border-color: #374151;
+}
+
+.dark\:hover\:bg-gray-700:hover {
+  background-color: #374151;
+}
+
+.dark\:hover\:bg-gray-800:hover {
+  background-color: #1f2937;
+}
+
+/* Responsive utilities */
 @media (min-width: 640px) {
   .sm\: {
+    /* Small screen breakpoint */
   }
 }
 
 @media (min-width: 768px) {
   .md\: {
+    /* Medium screen breakpoint */
   }
 }
 
 @media (min-width: 1024px) {
   .lg\: {
+    /* Large screen breakpoint */
   }
 }
 
 @media (min-width: 1280px) {
   .xl\: {
+    /* Extra large screen breakpoint */
   }
 }
 
 @media (min-width: 1536px) {
   .\2xl\: {
+    /* 2xl screen breakpoint */
   }
 }

@@ -88,4 +88,5 @@ export interface IAuthStore {
   userId: string | null;
   accessToken: string | null;
   refreshToken: string | null;
+  expiresAt?: number | null;
 } 
