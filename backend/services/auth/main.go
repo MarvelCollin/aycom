@@ -9,7 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/service"
+	"github.com/AYCOM/backend/services/auth/repository"
+	"github.com/AYCOM/backend/services/auth/service"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 
 		switch cmd {
 		case "migrate":
-			log.Println("Running auth migrations...")
+			log.Println("Running migrations...")
 			svc, err := service.NewAuthService()
 			if err != nil {
 				log.Fatalf("Failed to initialize service: %v", err)
@@ -28,11 +29,17 @@ func main() {
 			if err := svc.GetMigrationStatus(); err != nil {
 				log.Fatalf("Failed to get migration status: %v", err)
 			}
-			log.Println("Auth migrations completed successfully")
+			log.Println("Migrations completed successfully")
+
+			// Seed default users after migration
+			if err := seedDefaultUsers(svc); err != nil {
+				log.Fatalf("Failed to seed default users: %v", err)
+			}
+
 			return
 
 		case "status":
-			log.Println("Getting auth migration status...")
+			log.Println("Getting migration status...")
 			svc, err := service.NewAuthService()
 			if err != nil {
 				log.Fatalf("Failed to initialize service: %v", err)
@@ -41,6 +48,17 @@ func main() {
 				log.Fatalf("Failed to get migration status: %v", err)
 			}
 			return
+		case "seed":
+			log.Println("Seeding default auth users...")
+			svc, err := service.NewAuthService()
+			if err != nil {
+				log.Fatalf("Failed to initialize service: %v", err)
+			}
+			if err := seedDefaultUsers(svc); err != nil {
+				log.Fatalf("Failed to seed default auth users: %v", err)
+			}
+			log.Println("Auth seeding completed successfully")
+			return
 		}
 	}
 
@@ -48,6 +66,11 @@ func main() {
 	authService, err := service.NewAuthService()
 	if err != nil {
 		log.Fatalf("Failed to initialize service: %v", err)
+	}
+
+	// Seed default auth users on startup
+	if err := seedDefaultUsers(authService); err != nil {
+		log.Printf("Warning: Failed to seed default auth users: %v", err)
 	}
 
 	port := os.Getenv("AUTH_SERVICE_PORT")
@@ -66,7 +89,7 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// Status endpoint
+	// Example endpoint using the auth service (to avoid unused variable warning)
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if authService.DB != nil {
@@ -100,4 +123,17 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	log.Println("Auth service stopped")
+}
+
+// seedDefaultUsers initializes the auth seeder and seeds default users
+func seedDefaultUsers(svc *service.AuthService) error {
+	if svc.DB == nil {
+		return fmt.Errorf("database connection not available")
+	}
+
+	// Initialize the auth seeder
+	seeder := repository.NewAuthSeeder(svc.DB)
+
+	// Seed default users
+	return seeder.SeedUsers()
 }

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/repository"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/service"
 )
 
@@ -29,6 +30,12 @@ func main() {
 				log.Fatalf("Failed to get migration status: %v", err)
 			}
 			log.Println("Migrations completed successfully")
+
+			// Seed default users after migration
+			if err := seedDefaultUsers(svc); err != nil {
+				log.Fatalf("Failed to seed default users: %v", err)
+			}
+
 			return
 
 		case "status":
@@ -41,6 +48,17 @@ func main() {
 				log.Fatalf("Failed to get migration status: %v", err)
 			}
 			return
+		case "seed":
+			log.Println("Seeding default users...")
+			svc, err := service.NewUserService()
+			if err != nil {
+				log.Fatalf("Failed to initialize service: %v", err)
+			}
+			if err := seedDefaultUsers(svc); err != nil {
+				log.Fatalf("Failed to seed default users: %v", err)
+			}
+			log.Println("User seeding completed successfully")
+			return
 		}
 	}
 
@@ -48,6 +66,11 @@ func main() {
 	userService, err := service.NewUserService()
 	if err != nil {
 		log.Fatalf("Failed to initialize service: %v", err)
+	}
+
+	// Seed default users on startup
+	if err := seedDefaultUsers(userService); err != nil {
+		log.Printf("Warning: Failed to seed default users: %v", err)
 	}
 
 	port := os.Getenv("USER_SERVICE_PORT")
@@ -100,4 +123,17 @@ func main() {
 	time.Sleep(5 * time.Second)
 
 	log.Println("User service stopped")
+}
+
+// seedDefaultUsers initializes the user seeder and seeds default users
+func seedDefaultUsers(svc *service.UserService) error {
+	if svc.DB == nil {
+		return fmt.Errorf("database connection not available")
+	}
+
+	// Initialize the user seeder
+	seeder := repository.NewUserSeeder(svc.DB)
+
+	// Seed default users
+	return seeder.SeedUsers()
 }

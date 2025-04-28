@@ -112,16 +112,29 @@ func (s *AuthServiceServer) ResendVerificationCode(ctx context.Context, req *pro
 
 // Login handles user login
 func (s *AuthServiceServer) Login(ctx context.Context, req *proto.LoginRequest) (*proto.LoginResponse, error) {
-	// TODO: Implement login functionality
-	// For now, return a placeholder response
+	// Login user using auth service
+	tokens, err := s.authService.Login(ctx, req.Email, req.Password)
+	if err != nil {
+		return &proto.LoginResponse{
+			Success:      false,
+			Message:      err.Error(),
+			AccessToken:  "",
+			RefreshToken: "",
+			UserId:       "",
+			TokenType:    "",
+			ExpiresIn:    0,
+		}, nil
+	}
+
+	// Return success response with tokens
 	return &proto.LoginResponse{
-		Success:      false,
-		Message:      "Login functionality not implemented yet",
-		AccessToken:  "",
-		RefreshToken: "",
-		UserId:       "",
-		TokenType:    "",
-		ExpiresIn:    0,
+		Success:      true,
+		Message:      "Login successful",
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		UserId:       tokens.UserID,
+		TokenType:    tokens.TokenType,
+		ExpiresIn:    int32(tokens.ExpiresIn),
 	}, nil
 }
 
