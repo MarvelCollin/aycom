@@ -1,41 +1,40 @@
-FROM golang:1.21-alpine
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
-RUN apk --no-cache add git
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
 
-# Copy the API Gateway code
-COPY ./backend/api-gateway /app/
+# Copy dependency files and download dependencies first to leverage Docker cache
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Create a minimal main.go file for testing
-RUN echo 'package main' > /app/main-minimal.go && \
-    echo 'import (' >> /app/main-minimal.go && \
-    echo '    "net/http"' >> /app/main-minimal.go && \
-    echo '    "github.com/gin-gonic/gin"' >> /app/main-minimal.go && \
-    echo ')' >> /app/main-minimal.go && \
-    echo 'func main() {' >> /app/main-minimal.go && \
-    echo '    r := gin.Default()' >> /app/main-minimal.go && \
-    echo '    r.GET("/healthcheck", func(c *gin.Context) {' >> /app/main-minimal.go && \
-    echo '        c.JSON(http.StatusOK, gin.H{' >> /app/main-minimal.go && \
-    echo '            "status": "UP",' >> /app/main-minimal.go && \
-    echo '            "message": "API Gateway is running",' >> /app/main-minimal.go && \
-    echo '        })' >> /app/main-minimal.go && \
-    echo '    })' >> /app/main-minimal.go && \
-    echo '    r.Run(":8080")' >> /app/main-minimal.go && \
-    echo '}' >> /app/main-minimal.go
+# Copy the rest of the application code
+COPY . .
 
-# Initialize or update go.mod
-RUN if [ ! -f go.mod ]; then go mod init github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway; fi
+# Build the Go app
+# Assuming the main package is in the root of the api-gateway directory
+RUN go build -o api-gateway -ldflags="-w -s" .
 
-# Download required packages
-RUN go get github.com/gin-gonic/gin
+# --- Final Stage ---
+FROM alpine:latest
 
-# Build minimal version for testing
-RUN go build -o api-gateway main-minimal.go
+# Create a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Expose port
+WORKDIR /app
+
+# Copy necessary certificates from the builder stage
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy the built binary from the builder stage, changing ownership
+COPY --chown=appuser:appgroup --from=builder /app/api-gateway .
+
+# Switch to the non-root user
+USER appuser
+
+# Expose the port the service listens on
 EXPOSE 8080
 
-# Run the application
-CMD ["./api-gateway"] 
+# Run the binary
+ENTRYPOINT ["./api-gateway"] 

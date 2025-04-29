@@ -18,6 +18,9 @@ RUN go build -o user-service .
 # Final stage: create a clean image
 FROM alpine:latest
 
+# Create a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 WORKDIR /app
 
 # Copy necessary certificates and PostgreSQL client
@@ -25,7 +28,10 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 RUN apk add --no-cache postgresql-client
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/user-service .
+COPY --chown=appuser:appgroup --from=builder /app/user-service .
+
+# Switch to the non-root user
+USER appuser
 
 # Expose the port
 EXPOSE 9091

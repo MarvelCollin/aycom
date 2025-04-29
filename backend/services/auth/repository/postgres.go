@@ -25,7 +25,7 @@ func NewPostgresConnection(cfg config.DatabaseConfig) (*sql.DB, error) {
 	}
 
 	// Create the auth_tokens table if it doesn't exist
-	if err := createTables(db); err != nil {
+	if err := CreateTables(db); err != nil {
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
@@ -33,7 +33,8 @@ func NewPostgresConnection(cfg config.DatabaseConfig) (*sql.DB, error) {
 }
 
 // createTables creates the necessary tables if they don't exist
-func createTables(db *sql.DB) error {
+// Exported now to be callable from service layer during initialization/status check
+func CreateTables(db *sql.DB) error {
 	// Create auth_tokens table
 	authTokensQuery := `
 	CREATE TABLE IF NOT EXISTS auth_tokens (

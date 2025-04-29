@@ -8,11 +8,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// DefaultLogger middleware using gin's default logger
-func DefaultLogger() gin.HandlerFunc {
-	return gin.Logger()
-}
-
 // CORS middleware for handling Cross-Origin Resource Sharing
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {

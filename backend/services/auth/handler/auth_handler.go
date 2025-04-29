@@ -41,6 +41,8 @@ func (s *AuthServiceServer) Register(ctx context.Context, req *proto.RegisterReq
 		SecurityQuestion:      req.SecurityQuestion,
 		SecurityAnswer:        req.SecurityAnswer,
 		SubscribeToNewsletter: req.SubscribeToNewsletter,
+		ProfilePictureURL:     req.ProfilePictureUrl,
+		BannerURL:             req.BannerUrl,
 	}
 
 	// Register user using auth service with reCAPTCHA token

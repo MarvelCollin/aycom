@@ -3,22 +3,25 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/config"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/repository"
+	userProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
-	"gorm.io/gorm"
 )
 
 // Tokens holds the JWT access and refresh tokens
@@ -54,8 +57,10 @@ type authService struct {
 
 // UserServiceClient is an interface for the user service client
 type UserServiceClient interface {
-	CreateUser(ctx context.Context, userId, username, email, name, gender, dateOfBirth, profilePicture, banner, secQuestion, secAnswer string, subscribeToNewsletter bool) error
-	UpdateUserVerification(ctx context.Context, userID string, isVerified bool) error
+	// Changed method name and signature to match updated user.proto
+	CreateUserProfile(ctx context.Context, req *userProto.CreateUserProfileRequest) error
+	// Changed method name and signature to match updated user.proto
+	UpdateUserVerificationStatus(ctx context.Context, req *userProto.UpdateUserVerificationStatusRequest) error
 }
 
 // UserServiceClientImpl implements the UserServiceClient interface
@@ -70,36 +75,112 @@ func NewUserServiceClient(conn *grpc.ClientConn) UserServiceClient {
 	}
 }
 
-// CreateUser calls the user service to create a new user
-func (c *UserServiceClientImpl) CreateUser(ctx context.Context, userId, username, email, name, gender, dateOfBirth, profilePicture, banner, secQuestion, secAnswer string, subscribeToNewsletter bool) error {
-	// Implementation would use the gRPC client to call the user service
-	// For this example, we'll just return nil as if it succeeded
-	// In a real implementation, you would use the protobuf client here
-	fmt.Printf("Creating user in user service: %s, %s\n", userId, email)
+// CreateUserProfile calls the user service to create a new user profile
+func (c *UserServiceClientImpl) CreateUserProfile(ctx context.Context, req *userProto.CreateUserProfileRequest) error {
+	client := userProto.NewUserServiceClient(c.conn)
+	_, err := client.CreateUserProfile(ctx, req)
+	if err != nil {
+		log.Printf("Error calling CreateUserProfile on user service: %v", err)
+		return fmt.Errorf("failed to create user profile in user service: %w", err)
+	}
+	log.Printf("Successfully called CreateUserProfile for user ID: %s", req.UserId)
 	return nil
 }
 
-// UpdateUserVerification calls the user service to update a user's verification status
-func (c *UserServiceClientImpl) UpdateUserVerification(ctx context.Context, userID string, isVerified bool) error {
-	// Implementation would use the gRPC client to call the user service
-	// For this example, we'll just return nil as if it succeeded
-	fmt.Printf("Updating user verification in user service: %s, %v\n", userID, isVerified)
+// UpdateUserVerificationStatus calls the user service to update a user's verification status
+func (c *UserServiceClientImpl) UpdateUserVerificationStatus(ctx context.Context, req *userProto.UpdateUserVerificationStatusRequest) error {
+	client := userProto.NewUserServiceClient(c.conn)
+	_, err := client.UpdateUserVerificationStatus(ctx, req)
+	if err != nil {
+		log.Printf("Error calling UpdateUserVerificationStatus on user service: %v", err)
+		return fmt.Errorf("failed to update user verification status in user service: %w", err)
+	}
+	log.Printf("Successfully called UpdateUserVerificationStatus for user ID: %s, status: %t", req.UserId, req.IsVerified)
 	return nil
-}
-
-// NewAuthService creates a new auth service with default parameters (for compatibility with existing code)
-func NewAuthService() (*AuthServiceImpl, error) {
-	// Create mock objects for testing/building
-	return &AuthServiceImpl{}, nil
 }
 
 // AuthServiceImpl is a concrete implementation of AuthService
+// It now holds the database connection.
+// We use *sql.DB because the current repository uses it.
+// Consider standardizing to GORM later if needed.
 type AuthServiceImpl struct {
-	DB *gorm.DB
+	DB           *sql.DB // Changed from gorm.DB to sql.DB to match repository
+	repo         repository.AuthRepository
+	emailService EmailService
+	jwtSecret    string
+	// Add other fields like userServiceClient if needed for full functionality
 }
 
-// GetMigrationStatus implements the migration status check
+// NewAuthService creates a new auth service and initializes the DB connection.
+func NewAuthService() (*AuthServiceImpl, error) {
+	// Load database configuration from environment variables
+	cfg := config.LoadDatabaseConfig()
+
+	// Connect to the database with retry mechanism
+	var db *sql.DB
+	var err error
+	maxRetries := 5
+	retryInterval := time.Second * 5
+
+	for i := 0; i < maxRetries; i++ {
+		db, err = repository.NewPostgresConnection(cfg)
+		if err == nil {
+			// Test the connection
+			if pingErr := db.Ping(); pingErr == nil {
+				log.Println("Successfully connected to the database")
+				break // Success
+			} else {
+				err = fmt.Errorf("failed to ping database: %w", pingErr)
+				db.Close() // Close the potentially invalid connection
+				db = nil
+			}
+		}
+		log.Printf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
+		if i < maxRetries-1 {
+			log.Printf("Retrying in %v...", retryInterval)
+			time.Sleep(retryInterval)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to database after %d attempts: %w", maxRetries, err)
+	}
+
+	// Create the repository (assuming NewSQLAuthRepository exists or needs creating)
+	// repo := repository.NewSQLAuthRepository(db)
+
+	// Load JWT secret
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "default_secret_key" // Provide a default for safety
+		log.Println("Warning: JWT_SECRET environment variable not set. Using default.")
+	}
+
+	// Create the service implementation
+	svc := &AuthServiceImpl{
+		DB: db,
+		// repo: repo, // Uncomment when repository is ready
+		// emailService: emailSvc, // Initialize email service if needed
+		jwtSecret: jwtSecret,
+		// Initialize userServiceClient if needed
+	}
+
+	return svc, nil
+}
+
+// GetMigrationStatus checks migration status. Placeholder implementation.
+// TODO: Implement actual migration logic if needed here or separately.
 func (s *AuthServiceImpl) GetMigrationStatus() error {
+	if s.DB == nil {
+		return errors.New("database connection is not initialized")
+	}
+	log.Println("Checking migration status (placeholder)... Database connection is available.")
+	// Attempt to run the table creation logic again, just in case
+	err := repository.CreateTables(s.DB) // Use the exported CreateTables function
+	if err != nil {
+		log.Printf("Warning: Failed to ensure tables exist during status check: %v", err)
+		// Don't fail the status check, just log the warning
+	}
 	return nil
 }
 
@@ -232,25 +313,26 @@ func (s *authService) RegisterUser(ctx context.Context, user *repository.User, p
 		return "", errors.New("failed to create user: " + err.Error())
 	}
 
-	// Create user in user service
-	err = s.userServiceClient.CreateUser(
-		ctx,
-		userID,
-		user.Username,
-		user.Email,
-		user.Name,
-		user.Gender,
-		user.DateOfBirth,
-		"", // Default empty profile picture
-		"", // Default empty banner
-		user.SecurityQuestion,
-		user.SecurityAnswer,
-		user.SubscribeToNewsletter,
-	)
+	// Create user profile in user service using the new method
+	createUserReq := &userProto.CreateUserProfileRequest{
+		UserId:                user.ID,
+		Name:                  user.Name,
+		Username:              user.Username,
+		Email:                 user.Email,
+		Gender:                user.Gender,
+		DateOfBirth:           user.DateOfBirth,
+		ProfilePictureUrl:     user.ProfilePictureURL,
+		BannerUrl:             user.BannerURL,
+		SecurityQuestion:      user.SecurityQuestion,
+		SecurityAnswer:        user.SecurityAnswer,
+		SubscribeToNewsletter: user.SubscribeToNewsletter,
+	}
+	err = s.userServiceClient.CreateUserProfile(ctx, createUserReq)
 	if err != nil {
 		// Rollback auth user if user service creation fails
-		_ = s.repo.DeleteUser(userID)
-		return "", errors.New("failed to create user in user service: " + err.Error())
+		// Note: Need to handle potential error from DeleteUser if used in production
+		_ = s.repo.DeleteUser(user.ID)
+		return "", fmt.Errorf("failed to create user profile in user service: %w", err)
 	}
 
 	// Send verification email
@@ -297,11 +379,15 @@ func (s *authService) VerifyEmail(ctx context.Context, email string, code string
 		return "", errors.New("failed to update user: " + err.Error())
 	}
 
-	// Update the user in user service
-	err = s.userServiceClient.UpdateUserVerification(ctx, user.ID, true)
+	// Update the user verification status in user service
+	updateStatusReq := &userProto.UpdateUserVerificationStatusRequest{
+		UserId:     user.ID,
+		IsVerified: true,
+	}
+	err = s.userServiceClient.UpdateUserVerificationStatus(ctx, updateStatusReq)
 	if err != nil {
 		// Log the error but don't fail the verification
-		fmt.Printf("Failed to update user verification in user service: %v\n", err)
+		log.Printf("Failed to update user verification status in user service: %v", err)
 	}
 
 	return user.ID, nil

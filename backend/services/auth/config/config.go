@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -76,4 +77,41 @@ func parseInt(value string) (int, error) {
 	var intValue int
 	_, err := fmt.Sscanf(value, "%d", &intValue)
 	return intValue, err
+}
+
+// LoadDatabaseConfig loads database configuration from environment variables
+func LoadDatabaseConfig() DatabaseConfig {
+	cfg := DatabaseConfig{
+		Host:     os.Getenv("DATABASE_HOST"),
+		Port:     os.Getenv("DATABASE_PORT"),
+		Username: os.Getenv("DATABASE_USER"),
+		Password: os.Getenv("DATABASE_PASSWORD"),
+		DBName:   os.Getenv("DATABASE_NAME"),
+		SSLMode:  os.Getenv("DATABASE_SSL_MODE"),
+	}
+
+	// Set defaults if environment variables are not set
+	if cfg.Host == "" {
+		cfg.Host = "auth_db" // Default service name in Docker Compose
+	}
+	if cfg.Port == "" {
+		cfg.Port = "5432"
+	}
+	if cfg.Username == "" {
+		cfg.Username = "kolin" // Default user from docker-compose
+	}
+	if cfg.Password == "" {
+		cfg.Password = "kolin" // Default password from docker-compose
+	}
+	if cfg.DBName == "" {
+		cfg.DBName = "auth_db" // Default db name from docker-compose
+	}
+	if cfg.SSLMode == "" {
+		cfg.SSLMode = "disable" // Default to disable for local development
+	}
+
+	log.Printf("Loaded DB Config: Host=%s, Port=%s, User=%s, DBName=%s, SSLMode=%s",
+		cfg.Host, cfg.Port, cfg.Username, cfg.DBName, cfg.SSLMode)
+
+	return cfg
 }

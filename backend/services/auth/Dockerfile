@@ -1,23 +1,39 @@
-FROM golang:1.21-alpine
+FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
 # Install git and build dependencies
-RUN apk add --no-cache git postgresql-client ca-certificates
+RUN apk add --no-cache git ca-certificates
 
-# Copy the auth service directory
-COPY ./backend/services/auth /app/
-COPY ./backend/proto /app/backend/proto
+# Copy dependency files and proto files
+COPY go.mod go.sum ./
+COPY ../../proto /app/backend/proto
 
-# Initialize the go module if it doesn't already exist
-RUN if [ ! -f go.mod ]; then go mod init github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth; fi
+# Download dependencies
+RUN go mod download
 
-# Fix and download dependencies
-RUN go mod tidy
-RUN go mod vendor
+# Copy the rest of the auth service code
+COPY . .
 
 # Build the binary
-RUN go build -o auth-service .
+RUN go build -o auth-service -ldflags="-w -s" .
+
+# --- Final Stage ---
+FROM alpine:latest
+
+# Create a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy necessary certificates from the builder stage
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy the binary from the builder stage, changing ownership
+COPY --chown=appuser:appgroup --from=builder /app/auth-service .
+
+# Switch to the non-root user
+USER appuser
 
 # Expose the port
 EXPOSE 9090

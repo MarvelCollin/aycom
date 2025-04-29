@@ -44,6 +44,8 @@ message RegisterRequest {
   string security_answer = 9;
   bool subscribe_to_newsletter = 10;
   string recaptcha_token = 11;
+  string profile_picture_url = 12;
+  string banner_url = 13;
 }
 
 // RegisterResponse contains the result of a registration request

@@ -20,10 +20,17 @@ type OAuthConfig struct {
 	GoogleClientSecret string
 }
 
+// SupabaseConfig contains Supabase configuration
+type SupabaseConfig struct {
+	URL     string
+	AnonKey string
+}
+
 // Config represents the API Gateway configuration
 type Config struct {
 	Services  ServiceConfig
 	OAuth     OAuthConfig
+	Supabase  SupabaseConfig
 	JWTSecret string
 }
 
@@ -40,7 +47,16 @@ func LoadConfig() (*Config, error) {
 			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 			GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		},
+		Supabase: SupabaseConfig{
+			URL:     getEnv("SUPABASE_URL", ""),
+			AnonKey: getEnv("SUPABASE_ANON_KEY", ""),
+		},
 		JWTSecret: getEnv("JWT_SECRET", "default-secret-key"),
+	}
+
+	// Basic validation (can be expanded)
+	if cfg.Supabase.URL == "" || cfg.Supabase.AnonKey == "" {
+		return nil, fmt.Errorf("SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set")
 	}
 
 	return cfg, nil

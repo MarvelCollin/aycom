@@ -1,139 +1,95 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"google.golang.org/grpc"
+	// Adjust import paths if handlers/proto are elsewhere
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/internal/handlers"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/pkg/db"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/repository"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/service"
 )
 
 func main() {
-	// Check if a command is specified
-	if len(os.Args) > 1 {
-		cmd := os.Args[1]
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		switch cmd {
-		case "migrate":
-			log.Println("Running migrations...")
-			svc, err := service.NewUserService()
-			if err != nil {
-				log.Fatalf("Failed to initialize service: %v", err)
-			}
-			// Use svc to avoid unused variable error
-			if err := svc.GetMigrationStatus(); err != nil {
-				log.Fatalf("Failed to get migration status: %v", err)
-			}
-			log.Println("Migrations completed successfully")
-
-			// Seed default users after migration
-			if err := seedDefaultUsers(svc); err != nil {
-				log.Fatalf("Failed to seed default users: %v", err)
-			}
-
-			return
-
-		case "status":
-			log.Println("Getting migration status...")
-			svc, err := service.NewUserService()
-			if err != nil {
-				log.Fatalf("Failed to initialize service: %v", err)
-			}
-			if err := svc.GetMigrationStatus(); err != nil {
-				log.Fatalf("Failed to get migration status: %v", err)
-			}
-			return
-		case "seed":
-			log.Println("Seeding default users...")
-			svc, err := service.NewUserService()
-			if err != nil {
-				log.Fatalf("Failed to initialize service: %v", err)
-			}
-			if err := seedDefaultUsers(svc); err != nil {
-				log.Fatalf("Failed to seed default users: %v", err)
-			}
-			log.Println("User seeding completed successfully")
-			return
-		}
-	}
-
-	// Normal application startup
-	userService, err := service.NewUserService()
+	// --- Database Connection ---
+	dbConn, err := db.ConnectDatabaseWithRetry()
 	if err != nil {
-		log.Fatalf("Failed to initialize service: %v", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	log.Println("Successfully connected to database")
 
-	// Seed default users on startup
-	if err := seedDefaultUsers(userService); err != nil {
-		log.Printf("Warning: Failed to seed default users: %v", err)
+	// --- Run Migrations ---
+	err = dbConn.AutoMigrate(&model.User{})
+	if err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
 	}
+	log.Println("Database migration completed")
 
-	port := os.Getenv("USER_SERVICE_PORT")
-	if port == "" {
-		port = "9091"
-	}
+	// --- Dependency Injection ---
+	userRepo := repository.NewPostgresUserRepository(dbConn)
+	userService := service.NewUserService(userRepo)
+	userHandler := handlers.NewUserHandler(userService)
 
-	// Create a simple HTTP server
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("User Service is running"))
-	})
-
-	// Health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	// Example endpoint using the user service (to avoid unused variable warning)
-	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if userService.DB != nil {
-			w.Write([]byte("DB Connected"))
-		} else {
-			w.Write([]byte("DB Not Connected"))
+	// --- Seed Data (Optional) ---
+	if len(os.Args) > 1 && os.Args[1] == "seed" {
+		log.Println("Seeding default users...")
+		seeder := repository.NewUserSeeder(dbConn)
+		if err := seeder.SeedUsers(); err != nil {
+			log.Fatalf("Failed to seed users: %v", err)
 		}
-	})
-
-	// Start server in a goroutine
-	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: http.DefaultServeMux,
+		log.Println("Seeding completed.")
+		return // Exit after seeding
 	}
 
+	// --- gRPC Server Setup ---
+	grpcPort := os.Getenv("USER_SERVICE_PORT")
+	if grpcPort == "" {
+		grpcPort = "9091" // Default gRPC port
+	}
+	listener, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.Fatalf("Failed to listen on port %s: %v", grpcPort, err)
+	}
+
+	grpcServer := grpc.NewServer()
+	proto.RegisterUserServiceServer(grpcServer, userHandler)
+
+	log.Printf("User gRPC server starting on port %s...", grpcPort)
+
+	// Start gRPC server in a goroutine
 	go func() {
-		fmt.Printf("User service started on port: %s\n", port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+		if err := grpcServer.Serve(listener); err != nil {
+			log.Printf("gRPC server failed to serve: %v", err)
 		}
 	}()
 
-	// Set up graceful shutdown
+	// --- Graceful Shutdown ---
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down user service...")
 
-	// Give the server 5 seconds to finish ongoing requests
-	time.Sleep(5 * time.Second)
+	// Gracefully stop the gRPC server
+	grpcServer.GracefulStop()
+	log.Println("gRPC server stopped.")
 
-	log.Println("User service stopped")
-}
-
-// seedDefaultUsers initializes the user seeder and seeds default users
-func seedDefaultUsers(svc *service.UserServiceImpl) error {
-	if svc.DB == nil {
-		return fmt.Errorf("database connection not available")
+	// Close database connection (optional, depends on context)
+	if sqlDB, err := dbConn.DB(); err == nil {
+		sqlDB.Close()
+		log.Println("Database connection closed.")
 	}
 
-	// Initialize the user seeder
-	seeder := repository.NewUserSeeder(svc.DB)
-
-	// Seed default users
-	return seeder.SeedUsers()
+	log.Println("User service stopped gracefully.")
 }

@@ -29,6 +29,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.GET("/oauth-config", handlers.GetOAuthConfig)
 		auth.POST("/login", handlers.Login)
 		auth.POST("/register", handlers.Register)
+		auth.POST("/register-with-media", handlers.RegisterWithMedia)
 		auth.POST("/refresh", handlers.RefreshToken)
 		auth.POST("/google", handlers.GoogleAuth)
 		auth.POST("/verify-email", handlers.VerifyEmail)

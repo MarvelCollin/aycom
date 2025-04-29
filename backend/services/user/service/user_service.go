@@ -3,24 +3,25 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/repository"
-	"gorm.io/driver/postgres"
+	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 )
 
 // UserService defines the methods for user-related operations
 type UserService interface {
-	CreateUser(ctx context.Context, userId, username, email, name, gender, dateOfBirth, profilePicture, banner, secQuestion, secAnswer string, subscribeToNewsletter bool) (*model.User, error)
+	CreateUserProfile(ctx context.Context, req *proto.CreateUserProfileRequest) (*model.User, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
-	UpdateUserProfile(ctx context.Context, id string, updates map[string]interface{}) (*model.User, error)
-	UpdateUserVerification(ctx context.Context, userID string, isVerified bool) error
+	UpdateUserProfile(ctx context.Context, req *proto.UpdateUserRequest) (*model.User, error)
+	UpdateUserVerificationStatus(ctx context.Context, req *proto.UpdateUserVerificationStatusRequest) error
 	DeleteUser(ctx context.Context, id string) error
 }
 
@@ -29,134 +30,75 @@ type userService struct {
 	repo repository.UserRepository
 }
 
-// UserService struct that also exposes DB for main.go
-type UserServiceImpl struct {
-	DB   *gorm.DB
-	repo repository.UserRepository
-	UserService
-}
+// UserServiceImpl is used by main for seeding, can be removed if seeding is moved
+// type UserServiceImpl struct {
+// 	DB   *gorm.DB
+// 	repo repository.UserRepository
+// 	UserService
+// }
 
-// NewUserService creates a new user service with DB connection for main.go compatibility
-func NewUserService() (*UserServiceImpl, error) {
-	// Get database connection details from environment variables
-	dbHost := os.Getenv("DATABASE_HOST")
-	if dbHost == "" {
-		dbHost = "postgres" // Default in docker-compose
-	}
-
-	dbPort := os.Getenv("DATABASE_PORT")
-	if dbPort == "" {
-		dbPort = "5432" // Default PostgreSQL port
-	}
-
-	dbUser := os.Getenv("DATABASE_USER")
-	if dbUser == "" {
-		dbUser = "postgres" // Default user
-	}
-
-	dbPassword := os.Getenv("DATABASE_PASSWORD")
-	if dbPassword == "" {
-		dbPassword = "postgres_password" // Default password
-	}
-
-	dbName := os.Getenv("DATABASE_NAME")
-	if dbName == "" {
-		dbName = "user_db" // Default database name
-	}
-
-	// Build connection string
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		dbHost, dbPort, dbUser, dbPassword, dbName)
-
-	// Connect to database with retry mechanism
-	var db *gorm.DB
-	var err error
-	maxRetries := 5
-	retryInterval := time.Second * 5
-
-	for i := 0; i < maxRetries; i++ {
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err == nil {
-			break
-		}
-		log.Printf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
-		if i < maxRetries-1 {
-			log.Printf("Retrying in %v...", retryInterval)
-			time.Sleep(retryInterval)
-		}
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to database after %d attempts: %w", maxRetries, err)
-	}
-
-	log.Println("Successfully connected to the database")
-
-	// Create repository
-	repo := repository.NewPostgresUserRepository(db)
-
-	// Create service
-	svc := newUserService(repo)
-
-	// Return service implementation with DB access
-	return &UserServiceImpl{
-		DB:          db,
-		repo:        repo,
-		UserService: svc,
-	}, nil
-}
-
-// GetMigrationStatus checks migration status and runs migrations if needed
-func (s *UserServiceImpl) GetMigrationStatus() error {
-	// Run auto migration
-	if err := s.DB.AutoMigrate(&model.User{}); err != nil {
-		return fmt.Errorf("failed to migrate user table: %w", err)
-	}
-
-	log.Println("User table migration complete")
-	return nil
-}
-
-// Create the original user service without DB access
-func newUserService(repo repository.UserRepository) UserService {
+// NewUserService creates a new user service
+// Changed to accept repository and return the interface type
+func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{
 		repo: repo,
 	}
 }
 
-// CreateUser creates a new user in the system
-func (s *userService) CreateUser(ctx context.Context, userId, username, email, name, gender, dateOfBirth, profilePicture, banner, secQuestion, secAnswer string, subscribeToNewsletter bool) (*model.User, error) {
-	// Check if user with same email already exists
-	existingUser, err := s.repo.FindUserByEmail(email)
-	if err == nil && existingUser != nil {
-		return nil, errors.New("user with this email already exists")
+// GetMigrationStatus is likely not needed here anymore, moved to main
+// func (s *UserServiceImpl) GetMigrationStatus() error { ... }
+
+// CreateUserProfile creates a new user profile in the system
+// Renamed from CreateUser, accepts proto request
+func (s *userService) CreateUserProfile(ctx context.Context, req *proto.CreateUserProfileRequest) (*model.User, error) {
+	// Validate required fields from request
+	if req.UserId == "" || req.Username == "" || req.Email == "" || req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "Missing required user profile information")
 	}
+
+	// Convert proto user_id (string) to uuid.UUID
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid user ID format: %v", err)
+	}
+
+	// Check if user with same email already exists
+	existingUser, err := s.repo.FindUserByEmail(req.Email)
+	if err == nil && existingUser != nil {
+		// Idempotency: If user already exists with the same ID, maybe return existing?
+		// Or return error? Current behavior: Error.
+		return nil, status.Error(codes.AlreadyExists, "User with this email already exists")
+	}
+	// TODO: Check for specific GORM 'record not found' error if repo returns it
 
 	// Check if user with same username already exists
-	existingUser, err = s.repo.FindUserByUsername(username)
+	existingUser, err = s.repo.FindUserByUsername(req.Username)
 	if err == nil && existingUser != nil {
-		return nil, errors.New("username already taken")
+		return nil, status.Error(codes.AlreadyExists, "Username already taken")
 	}
+	// TODO: Check for specific GORM 'record not found' error
 
-	// Create new user
+	// Create new user model using the constructor
+	// Note: Assumes date format from auth service is compatible
 	user := model.NewUser(
-		userId,
-		username,
-		email,
-		name,
-		gender,
-		dateOfBirth,
-		profilePicture,
-		banner,
-		secQuestion,
-		secAnswer,
-		subscribeToNewsletter,
+		userID,
+		req.Username,
+		req.Email,
+		req.Name,
+		req.Gender,
+		req.DateOfBirth, // Pass string directly, constructor handles parsing
+		req.ProfilePictureUrl,
+		req.BannerUrl,
+		req.SecurityQuestion,
+		req.SecurityAnswer,
+		req.SubscribeToNewsletter,
 	)
 
 	// Save user to database
 	err = s.repo.CreateUser(user)
 	if err != nil {
-		return nil, err
+		log.Printf("Error creating user in repository: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to create user profile")
 	}
 
 	return user, nil
@@ -164,48 +106,68 @@ func (s *userService) CreateUser(ctx context.Context, userId, username, email, n
 
 // GetUserByID gets a user by their ID
 func (s *userService) GetUserByID(ctx context.Context, id string) (*model.User, error) {
-	return s.repo.FindUserByID(id)
+	user, err := s.repo.FindUserByID(id)
+	if err != nil {
+		// Check if the error is 'record not found'
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Errorf(codes.NotFound, "User with ID %s not found", id)
+		}
+		log.Printf("Error finding user by ID %s: %v", id, err)
+		return nil, status.Error(codes.Internal, "Failed to retrieve user")
+	}
+	return user, nil
 }
 
 // GetUserByUsername gets a user by their username
 func (s *userService) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
-	return s.repo.FindUserByUsername(username)
+	user, err := s.repo.FindUserByUsername(username)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Errorf(codes.NotFound, "User with username %s not found", username)
+		}
+		log.Printf("Error finding user by username %s: %v", username, err)
+		return nil, status.Error(codes.Internal, "Failed to retrieve user")
+	}
+	return user, nil
 }
 
 // UpdateUserProfile updates a user's profile information
-func (s *userService) UpdateUserProfile(ctx context.Context, id string, updates map[string]interface{}) (*model.User, error) {
+// Accepts proto request
+func (s *userService) UpdateUserProfile(ctx context.Context, req *proto.UpdateUserRequest) (*model.User, error) {
+	// Validate User ID
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required for update")
+	}
+
 	// Get current user data
-	user, err := s.repo.FindUserByID(id)
+	user, err := s.repo.FindUserByID(req.UserId)
 	if err != nil {
-		return nil, err
-	}
-
-	// Apply updates
-	if name, ok := updates["name"].(string); ok && name != "" {
-		user.Name = name
-	}
-
-	if gender, ok := updates["gender"].(string); ok && gender != "" {
-		user.Gender = gender
-	}
-
-	if dobStr, ok := updates["date_of_birth"].(string); ok && dobStr != "" {
-		dob, err := time.Parse("2006-01-02", dobStr)
-		if err == nil {
-			user.DateOfBirth = dob
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Errorf(codes.NotFound, "User with ID %s not found for update", req.UserId)
 		}
+		log.Printf("Error finding user by ID %s for update: %v", req.UserId, err)
+		return nil, status.Error(codes.Internal, "Failed to retrieve user for update")
 	}
 
-	if profilePic, ok := updates["profile_picture"].(string); ok && profilePic != "" {
-		user.ProfilePicture = profilePic
+	// Apply updates from request (only update non-empty fields)
+	updated := false
+	if req.Name != "" {
+		user.Name = req.Name
+		updated = true
+	}
+	// Add email update if needed, but ensure uniqueness check if changed
+	// if req.Email != "" && req.Email != user.Email { user.Email = req.Email; updated = true }
+	if req.ProfilePictureUrl != "" {
+		user.ProfilePictureURL = req.ProfilePictureUrl
+		updated = true
+	}
+	if req.BannerUrl != "" {
+		user.BannerURL = req.BannerUrl
+		updated = true
 	}
 
-	if banner, ok := updates["banner"].(string); ok && banner != "" {
-		user.Banner = banner
-	}
-
-	if bio, ok := updates["bio"].(string); ok {
-		user.Bio = bio
+	if !updated {
+		return user, nil // No changes detected
 	}
 
 	user.UpdatedAt = time.Now()
@@ -213,18 +175,40 @@ func (s *userService) UpdateUserProfile(ctx context.Context, id string, updates 
 	// Save updated user
 	err = s.repo.UpdateUser(user)
 	if err != nil {
-		return nil, err
+		log.Printf("Error updating user profile for ID %s: %v", req.UserId, err)
+		return nil, status.Error(codes.Internal, "Failed to update user profile")
 	}
 
 	return user, nil
 }
 
-// UpdateUserVerification updates a user's verification status
-func (s *userService) UpdateUserVerification(ctx context.Context, userID string, isVerified bool) error {
-	return s.repo.UpdateUserVerification(userID, isVerified)
+// UpdateUserVerificationStatus updates a user's verification status
+// Accepts proto request
+func (s *userService) UpdateUserVerificationStatus(ctx context.Context, req *proto.UpdateUserVerificationStatusRequest) error {
+	// Validate User ID
+	if req.UserId == "" {
+		return status.Error(codes.InvalidArgument, "User ID is required for verification update")
+	}
+	err := s.repo.UpdateUserVerification(req.UserId, req.IsVerified)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Errorf(codes.NotFound, "User with ID %s not found for verification update", req.UserId)
+		}
+		log.Printf("Error updating verification status for user ID %s: %v", req.UserId, err)
+		return status.Error(codes.Internal, "Failed to update verification status")
+	}
+	return nil
 }
 
 // DeleteUser deletes a user by their ID
 func (s *userService) DeleteUser(ctx context.Context, id string) error {
-	return s.repo.DeleteUser(id)
+	err := s.repo.DeleteUser(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Errorf(codes.NotFound, "User with ID %s not found for deletion", id)
+		}
+		log.Printf("Error deleting user ID %s: %v", id, err)
+		return status.Error(codes.Internal, "Failed to delete user")
+	}
+	return nil
 }

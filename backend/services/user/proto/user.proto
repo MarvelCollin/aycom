@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package user;
 
-option go_package = "github.com/Acad600-Tpa/WEB-MV-242/backend/user-service/proto";
+option go_package = "github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto";
 
 import "google/protobuf/timestamp.proto";
 
@@ -12,66 +12,81 @@ service UserService {
   rpc GetUser (GetUserRequest) returns (UserResponse) {}
   
   // Register a new user
-  rpc Register (RegisterRequest) returns (UserResponse) {}
-  
-  // Login a user
-  rpc Login (LoginRequest) returns (LoginResponse) {}
+  rpc CreateUserProfile (CreateUserProfileRequest) returns (UserResponse) {}
   
   // Update user information
   rpc UpdateUser (UpdateUserRequest) returns (UserResponse) {}
   
   // Delete a user
   rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse) {}
+  
+  // Update user verification status
+  rpc UpdateUserVerificationStatus (UpdateUserVerificationStatusRequest) returns (UpdateUserVerificationStatusResponse) {}
 }
 
 // GetUserRequest is used to request user information by ID
 message GetUserRequest {
-  string id = 1;
+  string user_id = 1;
 }
 
-// RegisterRequest contains information needed to register a new user
-message RegisterRequest {
-  string name = 1;
-  string email = 2;
-  string password = 3;
-}
-
-// LoginRequest contains credentials for user login
-message LoginRequest {
-  string email = 1;
-  string password = 2;
+// CreateUserProfileRequest contains information needed to register a new user
+message CreateUserProfileRequest {
+  string user_id = 1;
+  string name = 2;
+  string username = 3;
+  string email = 4;
+  string gender = 5;
+  string date_of_birth = 6;
+  string profile_picture_url = 7;
+  string banner_url = 8;
+  string security_question = 9;
+  string security_answer = 10;
+  bool subscribe_to_newsletter = 11;
 }
 
 // UpdateUserRequest contains updated user information
 message UpdateUserRequest {
-  string id = 1;
+  string user_id = 1;
   string name = 2;
   string email = 3;
+  string profile_picture_url = 4;
+  string banner_url = 5;
 }
 
 // DeleteUserRequest contains user ID to delete
 message DeleteUserRequest {
-  string id = 1;
+  string user_id = 1;
 }
 
 // UserResponse contains user information
 message UserResponse {
-  string id = 1;
+  string user_id = 1;
   string name = 2;
   string email = 3;
-  google.protobuf.Timestamp created_at = 4;
-  google.protobuf.Timestamp updated_at = 5;
-}
-
-// LoginResponse contains authentication result
-message LoginResponse {
-  UserResponse user = 1;
-  string access_token = 2;
-  string refresh_token = 3;
+  string username = 4;
+  string gender = 5;
+  string date_of_birth = 6;
+  string profile_picture_url = 7;
+  string banner_url = 8;
+  bool is_verified = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
 }
 
 // DeleteUserResponse indicates the result of a delete operation
 message DeleteUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// UpdateUserVerificationStatusRequest contains request to update user verification status
+message UpdateUserVerificationStatusRequest {
+  string user_id = 1;
+  bool is_verified = 2;
+}
+
+// UpdateUserVerificationStatusResponse contains response to update user verification status
+message UpdateUserVerificationStatusResponse {
   bool success = 1;
   string message = 2;
 } 

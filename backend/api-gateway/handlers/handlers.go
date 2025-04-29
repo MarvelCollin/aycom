@@ -2,18 +2,25 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
+	userProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
 	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
 	"github.com/golang/groupcache/lru"
+	supabase "github.com/supabase-community/storage-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-
-	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
 )
 
 // Global config for the handlers
@@ -22,10 +29,13 @@ var Config *config.Config
 // gRPC connection pool
 var (
 	authConnPool      *ConnectionPool
+	userConnPool      *ConnectionPool
 	connPoolInitOnce  sync.Once
 	responseCache     *lru.Cache
 	requestRateLimits = make(map[string]RateLimiter)
 	rateLimiterMutex  sync.RWMutex
+	supabaseClient    *supabase.Client
+	supabaseInitOnce  sync.Once
 )
 
 // ConnectionPool manages a pool of gRPC connections
@@ -62,6 +72,7 @@ func NewConnectionPool(serviceAddr string, maxIdle, maxOpen int, timeout time.Du
 func InitConnectionPools() {
 	connPoolInitOnce.Do(func() {
 		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
+		userConnPool = NewConnectionPool(Config.GetUserServiceAddr(), 5, 20, 10*time.Second)
 		responseCache = lru.New(100) // Cache size of 100 items
 	})
 }
@@ -149,9 +160,9 @@ type RegisterRequest struct {
 	Username              string `json:"username" binding:"required"`
 	Email                 string `json:"email" binding:"required,email"`
 	Password              string `json:"password" binding:"required,min=8"`
-	ConfirmPassword       string `json:"confirmPassword" binding:"required,eqfield=Password"`
+	ConfirmPassword       string `json:"confirm_password" binding:"required,eqfield=Password"`
 	Gender                string `json:"gender" binding:"required"`
-	DateOfBirth           string `json:"dateOfBirth" binding:"required"`
+	DateOfBirth           string `json:"date_of_birth" binding:"required"`
 	SecurityQuestion      string `json:"securityQuestion" binding:"required"`
 	SecurityAnswer        string `json:"securityAnswer" binding:"required"`
 	SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
@@ -202,6 +213,9 @@ type ErrorResponse struct {
 // Initialize connection pools when package is loaded
 func init() {
 	InitConnectionPools()
+	supabaseInitOnce.Do(func() {
+		supabaseClient = supabase.NewClient(Config.Supabase.URL, Config.Supabase.AnonKey, nil)
+	})
 }
 
 // RateLimitMiddleware limits the number of requests from a single IP
@@ -501,7 +515,7 @@ func GoogleAuth(c *gin.Context) {
 	defer cancel()
 
 	req := &authProto.GoogleLoginRequest{
-		TokenId: requestBody.TokenID,
+		IdToken: requestBody.TokenID,
 	}
 
 	resp, err := client.GoogleLogin(ctx, req)
@@ -680,14 +694,77 @@ func ResendVerificationCode(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} map[string]interface{} "user profile"
-// @Failure 401 {object} map[string]interface{} "unauthorized"
+// @Success 200 {object} userProto.UserResponse "user profile"
+// @Failure 401 {object} ErrorResponse "unauthorized"
+// @Failure 500 {object} ErrorResponse "internal server error"
 // @Router /api/v1/users/profile [get]
 func GetUserProfile(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the user service via gRPC
-	c.JSON(http.StatusOK, gin.H{
-		"message": "get user profile endpoint",
-	})
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get connection from user service pool
+	conn, err := userConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to user service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer userConnPool.Put(conn)
+
+	client := userProto.NewUserServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	req := &userProto.GetUserRequest{
+		Id: userID,
+	}
+
+	resp, err := client.GetUser(ctx, req)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			// Map gRPC status code to HTTP status code if needed, otherwise use 500
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to get user profile: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // UpdateUserProfile godoc
@@ -697,16 +774,89 @@ func GetUserProfile(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param profile body map[string]interface{} true "User profile data"
-// @Success 200 {object} map[string]interface{} "updated profile"
-// @Failure 400 {object} map[string]interface{} "bad request"
-// @Failure 401 {object} map[string]interface{} "unauthorized"
+// @Param profile body userProto.UpdateUserRequest true "User profile data to update"
+// @Success 200 {object} userProto.UserResponse "updated profile"
+// @Failure 400 {object} ErrorResponse "bad request"
+// @Failure 401 {object} ErrorResponse "unauthorized"
+// @Failure 500 {object} ErrorResponse "internal server error"
 // @Router /api/v1/users/profile [put]
 func UpdateUserProfile(c *gin.Context) {
-	// This is just a stub - in a real implementation, this would call the user service via gRPC
-	c.JSON(http.StatusOK, gin.H{
-		"message": "update user profile endpoint",
-	})
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	var request userProto.UpdateUserRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request body: " + err.Error(),
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Ensure the user ID from the token matches the request (or set it)
+	request.Id = userID
+
+	// Get connection from user service pool
+	conn, err := userConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to user service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer userConnPool.Put(conn)
+
+	client := userProto.NewUserServiceClient(conn)
+
+	// Set timeout for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.UpdateUser(ctx, &request)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to update user profile: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // ListProducts godoc
@@ -848,5 +998,189 @@ func GetPaymentHistory(c *gin.Context) {
 	// This is just a stub - in a real implementation, this would call the payment service via gRPC
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get payment history endpoint",
+	})
+}
+
+// Helper function to upload a file to Supabase
+func uploadToSupabase(fileHeader *multipart.FileHeader, bucketName string, destinationPath string) (string, error) {
+	if fileHeader == nil {
+		return "", nil // No file provided
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return "", fmt.Errorf("failed to open uploaded file: %w", err)
+	}
+	defer file.Close()
+
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream" // Default content type
+	}
+
+	// Remove context for now as UploadFile doesn't seem to use it
+	// ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
+
+	upsert := false // Define the boolean value
+	fileOptions := supabase.FileOptions{
+		ContentType: &contentType,
+		Upsert:      &upsert,
+	}
+
+	_, err = supabaseClient.UploadFile(bucketName, destinationPath, file, fileOptions)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to upload to supabase: %w", err)
+	}
+
+	// Construct the public URL
+	publicURL := supabaseClient.GetPublicUrl(bucketName, destinationPath)
+
+	// Note: GetPublicUrl might return the base URL + path, not necessarily a signed URL unless configured.
+	// If you need temporary signed URLs, use client.CreateSignedUrl() instead after upload.
+	// For simple public buckets, this structure is usually sufficient.
+	return publicURL.SignedURL, nil // Assuming SignedURL gives the public accessible URL
+}
+
+// RegisterWithMedia godoc
+// @Summary Register a new user with profile picture and banner
+// @Description Register a new user account, including optional profile picture and banner uploads
+// @Tags auth
+// @Accept multipart/form-data
+// @Produce json
+// @Param name formData string true "User's full name"
+// @Param username formData string true "Desired username"
+// @Param email formData string true "User's email address"
+// @Param password formData string true "Password (min 8 chars)"
+// @Param confirm_password formData string true "Password confirmation"
+// @Param gender formData string true "User's gender"
+// @Param date_of_birth formData string true "Date of birth (e.g., MM-DD-YYYY)"
+// @Param security_question formData string true "Security question"
+// @Param security_answer formData string true "Security answer"
+// @Param subscribe_to_newsletter formData boolean false "Subscribe to newsletter"
+// @Param recaptcha_token formData string true "Google reCAPTCHA token"
+// @Param profile_picture formData file false "Profile picture file"
+// @Param banner_image formData file false "Banner image file"
+// @Success 200 {object} RegisterResponse "registration successful"
+// @Failure 400 {object} ErrorResponse "invalid input or file upload error"
+// @Failure 500 {object} ErrorResponse "internal server error or service unavailable"
+// @Router /api/v1/auth/register-with-media [post]
+func RegisterWithMedia(c *gin.Context) {
+	// Ensure services are initialized (especially Supabase client)
+	// This might be redundant if init() works as expected, but safer.
+	if supabaseClient == nil {
+		InitServices()
+	}
+	if supabaseClient == nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Supabase client not initialized", Code: "CONFIG_ERROR"})
+		return
+	}
+
+	// Parse multipart form (adjust MaxMemory as needed)
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid form data: " + err.Error(), Code: "INVALID_REQUEST"})
+		return
+	}
+
+	// Extract text fields
+	values := form.Value
+	name := values["name"][0]
+	username := values["username"][0]
+	email := values["email"][0]
+	password := values["password"][0]
+	confirmPassword := values["confirm_password"][0]
+	gender := values["gender"][0]
+	dateOfBirth := values["date_of_birth"][0]
+	securityQuestion := values["security_question"][0]
+	securityAnswer := values["security_answer"][0]
+	subscribe := values["subscribe_to_newsletter"][0] == "true"
+	recaptchaToken := values["recaptcha_token"][0]
+
+	// Basic validation (can be expanded)
+	if password != confirmPassword {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Passwords do not match", Code: "VALIDATION_ERROR"})
+		return
+	}
+	// Add more validation as needed...
+
+	// Extract files
+	profilePicFileHeader, _ := c.FormFile("profile_picture") // Ignore error if file not present
+	bannerFileHeader, _ := c.FormFile("banner_image")        // Ignore error if file not present
+
+	// Generate a unique ID for path generation (or use user ID after creation if preferred)
+	uuidVal, _ := uuid.NewV4()
+	userPathPrefix := uuidVal.String()
+
+	// --- Upload files to Supabase --- Needs error handling improvement
+	profilePicURL, err := uploadToSupabase(profilePicFileHeader, "profile-pictures", userPathPrefix+"/"+filepath.Base(profilePicFileHeader.Filename))
+	if err != nil {
+		log.Printf("Failed to upload profile picture: %v", err)
+		// Decide if this error is fatal or if registration can continue without profile pic
+		// c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to upload profile picture", Code: "UPLOAD_ERROR"})
+		// return
+	}
+	bannerURL, err := uploadToSupabase(bannerFileHeader, "banner-images", userPathPrefix+"/"+filepath.Base(bannerFileHeader.Filename))
+	if err != nil {
+		log.Printf("Failed to upload banner image: %v", err)
+		// Decide if this error is fatal or if registration can continue without banner
+		// c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to upload banner image", Code: "UPLOAD_ERROR"})
+		// return
+	}
+
+	// --- Call Auth Service ---
+	conn, err := authConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to connect to auth service: " + err.Error(), Code: "SERVICE_UNAVAILABLE"})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	client := authProto.NewAuthServiceClient(conn)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second) // Increased timeout for potential upload + registration
+	defer cancel()
+
+	req := &authProto.RegisterRequest{
+		Name:                  name,
+		Username:              username,
+		Email:                 email,
+		Password:              password,
+		ConfirmPassword:       confirmPassword,
+		Gender:                gender,
+		DateOfBirth:           dateOfBirth,
+		SecurityQuestion:      securityQuestion,
+		SecurityAnswer:        securityAnswer,
+		SubscribeToNewsletter: subscribe,
+		RecaptchaToken:        recaptchaToken,
+		ProfilePictureUrl:     profilePicURL, // Pass Supabase URL
+		BannerUrl:             bannerURL,     // Pass Supabase URL
+	}
+
+	resp, err := client.Register(ctx, req)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: st.Message(), Code: st.Code().String()})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Registration failed: " + err.Error(), Code: "INTERNAL_ERROR"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, RegisterResponse{
+		Success: resp.Success,
+		Message: resp.Message,
+	})
+}
+
+// Initialize connection pools and Supabase client
+func InitServices() {
+	connPoolInitOnce.Do(func() {
+		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
+		userConnPool = NewConnectionPool(Config.GetUserServiceAddr(), 5, 20, 10*time.Second)
+		responseCache = lru.New(100)
+	})
+	supabaseInitOnce.Do(func() {
+		supabaseClient = supabase.NewClient(Config.Supabase.URL, Config.Supabase.AnonKey, nil)
 	})
 }
