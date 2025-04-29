@@ -157,6 +157,28 @@ export function useAuth() {
     }
   };
   
+  const registerWithMedia = async (formData: FormData) => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/register-with-media`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+      
+      const data = await response.json();
+      
+      return {
+        success: data.success,
+        message: data.message || 'Registration successful! Check your email for verification code.'
+      };
+    } catch (error) {
+      console.error('Registration with media error:', error);
+      return handleApiError(error);
+    }
+  };
+  
   const verifyEmail = async (email: string, code: string) => {
     try {
       const response = await fetchWithTimeout(
@@ -326,6 +348,7 @@ export function useAuth() {
   return {
     subscribe: authStore.subscribe,
     register,
+    registerWithMedia,
     verifyEmail,
     resendVerificationCode,
     login,

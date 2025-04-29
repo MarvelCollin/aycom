@@ -21,6 +21,12 @@ const appConfig = {
   // API settings
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+  },
+
+  // UI/Developer settings
+  ui: {
+    // Show frontend error messages as toasts (useful for debugging)
+    showErrorToasts: true // Set to false in production or when not needed
   }
 };
 

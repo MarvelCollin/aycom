@@ -21,7 +21,8 @@ export function useRegistrationForm() {
     securityQuestion: "",
     securityAnswer: "",
     subscribeToNewsletter: false,
-    verificationCode: ""
+    verificationCode: "",
+    recaptchaToken: ""
   });
 
   // Validation errors

@@ -3,6 +3,8 @@
   import { useTheme } from '../hooks/useTheme';
   import AuthLayout from '../components/layout/AuthLayout.svelte';
   import GoogleSignInButton from '../components/auth/GoogleSignInButton.svelte';
+  import { toastStore } from '../stores/toastStore';
+  import appConfig from '../config/appConfig';
 
   // Get auth functions from auth hook
   const { login } = useAuth();
@@ -24,6 +26,7 @@
   async function handleSubmit() {
     if (!email || !password) {
       error = "Please enter both email and password";
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(error);
       return;
     }
     
@@ -39,6 +42,7 @@
       window.location.href = '/feed';
     } else {
       error = result.message || "Login failed. Please check your credentials.";
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(error);
     }
   }
   
@@ -56,6 +60,7 @@
   // Handle Google auth error
   function handleGoogleAuthError(message: string) {
     error = message;
+    if (appConfig.ui.showErrorToasts) toastStore.showToast(message);
   }
 </script>
 

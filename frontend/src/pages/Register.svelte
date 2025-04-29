@@ -8,6 +8,8 @@
   import { useAuth } from '../hooks/useAuth';
   import { useExternalServices } from '../hooks/useExternalServices';
   import type { IUserRegistration } from '../interfaces/IAuth';
+  import { toastStore } from '../stores/toastStore';
+  import appConfig from '../config/appConfig';
   
   // Get registration form functionality
   const { 
@@ -26,7 +28,7 @@
   } = useRegistrationForm();
   
   // Get auth functions
-  const { register, verifyEmail, resendVerificationCode } = useAuth();
+  const { register, verifyEmail, resendVerificationCode, registerWithMedia } = useAuth();
   
   // Get theme
   const { theme } = useTheme();
@@ -77,10 +79,24 @@
   // Make the function async to use await
   async function submitRegistration() {
     if (validateStep1()) {
-      // Update loading state
       formState.update(state => ({ ...state, loading: true }));
       
-      // Prepare registration data
+      if (!$formData.recaptchaToken) {
+        formState.update(state => ({ ...state, loading: false, error: "reCAPTCHA verification failed. Please try again." }));
+        if (appConfig.ui.showErrorToasts) toastStore.showToast("reCAPTCHA verification failed. Please try again.");
+        return;
+      }
+
+      // Create FormData
+      const registrationFormData = new FormData();
+
+      // Append text fields (ensure keys match backend handler expectations)
+      registrationFormData.append('name', $formData.name);
+      registrationFormData.append('username', $formData.username);
+      registrationFormData.append('email', $formData.email);
+      registrationFormData.append('password', $formData.password);
+      registrationFormData.append('confirm_password', $formData.confirmPassword);
+      registrationFormData.append('gender', $formData.gender);
       const userData: IUserRegistration = {
         name: $formData.name,
         username: $formData.username,
@@ -92,24 +108,19 @@
         security_question: $formData.securityQuestion,
         security_answer: $formData.securityAnswer,
         subscribe_to_newsletter: $formData.subscribeToNewsletter,
-        recaptcha_token: ''
+        recaptcha_token: $formData.recaptchaToken // Use token from store
       };
       
-      // Call the register function from auth hook
       const result = await register(userData);
       
-      // Update loading state
       formState.update(state => ({ ...state, loading: false }));
       
       if (result.success) {
-        // Start timer for verification code
         startTimer();
-        
-        // Move to step 2
         formState.update(state => ({ ...state, step: 2 }));
       } else {
-        // Display error message
         formState.update(state => ({ ...state, error: result.message || "Registration failed. Please try again." }));
+        if (appConfig.ui.showErrorToasts) toastStore.showToast(result.message || "Registration failed. Please try again.");
       }
     }
   }
@@ -122,12 +133,14 @@
   // Handle Google authentication error
   function handleGoogleAuthError(error: string) {
     formState.update(state => ({ ...state, error }));
+    if (appConfig.ui.showErrorToasts) toastStore.showToast(error);
   }
   
   // Make the function async to use await
   async function submitVerification() {
     if (!$formData.verificationCode) {
       formState.update(state => ({ ...state, error: "Please enter the verification code sent to your email" }));
+      if (appConfig.ui.showErrorToasts) toastStore.showToast("Please enter the verification code sent to your email");
       return;
     }
     
@@ -145,6 +158,7 @@
       window.location.href = '/login';
     } else {
       formState.update(state => ({ ...state, error: result.message || "Verification failed. Please check your code and try again." }));
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(result.message || "Verification failed. Please check your code and try again.");
     }
   }
   
@@ -165,6 +179,7 @@
       alert("Verification code has been sent to your email.");
     } else {
       formState.update(state => ({ ...state, error: result.message || "Failed to resend verification code." }));
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(result.message || "Failed to resend verification code.");
     }
   }
   
@@ -174,20 +189,16 @@
   }
   
   onMount(() => {
-    // Load reCAPTCHA
     const recaptchaCleanup = loadRecaptcha((token) => {
-      // This callback will be called when the token is updated
-      console.log("reCAPTCHA token updated");
+      // Update the formData store with the received token
+      formData.update(data => ({ ...data, recaptchaToken: token }));
+      console.log("reCAPTCHA token updated in store");
     });
     
     return () => {
       recaptchaCleanup();
+      cleanupTimers(); // Also ensure timers are cleaned up here
     };
-  });
-  
-  onDestroy(() => {
-    // Clean up timers
-    cleanupTimers();
   });
 </script>
 

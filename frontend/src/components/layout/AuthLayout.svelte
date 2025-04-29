@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useTheme } from '../../hooks/useTheme';
   import Logo from '../common/Logo.svelte';
+  import Toast from '../common/Toast.svelte';
   import { onMount } from 'svelte';
   
   export let title = '';
@@ -20,6 +21,9 @@
     document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
   });
 </script>
+
+<!-- Render the Toast component here -->
+<Toast />
 
 <div class="theme-container {isDarkMode ? 'dark-mode' : 'light-mode'} min-h-screen w-full flex justify-center items-center p-4">
   <div class="{isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} w-full max-w-md rounded-lg shadow-lg p-6 transition-colors">
