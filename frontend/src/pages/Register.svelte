@@ -78,12 +78,14 @@
   
   // Make the function async to use await
   async function submitRegistration() {
+    let errorMessage = ""; // Variable for detailed message
     if (validateStep1()) {
       formState.update(state => ({ ...state, loading: true }));
       
       if (!$formData.recaptchaToken) {
-        formState.update(state => ({ ...state, loading: false, error: "reCAPTCHA verification failed. Please try again." }));
-        if (appConfig.ui.showErrorToasts) toastStore.showToast("reCAPTCHA verification failed. Please try again.");
+        errorMessage = "reCAPTCHA verification failed. Please try again.";
+        formState.update(state => ({ ...state, loading: false, error: errorMessage }));
+        if (appConfig.ui.showErrorToasts) toastStore.showToast(`Validation Error: ${errorMessage}`);
         return;
       }
 
@@ -108,20 +110,33 @@
         security_question: $formData.securityQuestion,
         security_answer: $formData.securityAnswer,
         subscribe_to_newsletter: $formData.subscribeToNewsletter,
-        recaptcha_token: $formData.recaptchaToken // Use token from store
+        recaptcha_token: $formData.recaptchaToken
       };
       
-      const result = await register(userData);
-      
-      formState.update(state => ({ ...state, loading: false }));
-      
-      if (result.success) {
-        startTimer();
-        formState.update(state => ({ ...state, step: 2 }));
-      } else {
-        formState.update(state => ({ ...state, error: result.message || "Registration failed. Please try again." }));
-        if (appConfig.ui.showErrorToasts) toastStore.showToast(result.message || "Registration failed. Please try again.");
+      try {
+        const result = await register(userData);
+        formState.update(state => ({ ...state, loading: false }));
+        
+        if (result.success) {
+          startTimer();
+          formState.update(state => ({ ...state, step: 2, error: "" })); // Clear error on success
+        } else {
+          errorMessage = result.message || "Registration failed. Please try again.";
+          formState.update(state => ({ ...state, error: errorMessage }));
+          if (appConfig.ui.showErrorToasts) toastStore.showToast(`Registration Error: ${errorMessage}`);
+        }
+      } catch (err) {
+         formState.update(state => ({ ...state, loading: false }));
+         console.error("Registration Exception:", err);
+         errorMessage = "An unexpected error occurred during registration.";
+         formState.update(state => ({ ...state, error: errorMessage }));
+         const detail = (err instanceof Error) ? err.message : String(err);
+         if (appConfig.ui.showErrorToasts) toastStore.showToast(`Registration Exception: ${errorMessage} - ${detail}`);
       }
+    } else {
+      // Handle Step 1 validation failure (optional toast)
+      errorMessage = "Please correct the errors in the form.";
+       if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
     }
   }
   
@@ -131,55 +146,70 @@
   }
   
   // Handle Google authentication error
-  function handleGoogleAuthError(error: string) {
-    formState.update(state => ({ ...state, error }));
-    if (appConfig.ui.showErrorToasts) toastStore.showToast(error);
+  function handleGoogleAuthError(errorMsg: string) { // Renamed param
+    formState.update(state => ({ ...state, error: errorMsg }));
+    if (appConfig.ui.showErrorToasts) toastStore.showToast(`Google Auth Error: ${errorMsg}`);
   }
   
   // Make the function async to use await
   async function submitVerification() {
+    let errorMessage = "";
     if (!$formData.verificationCode) {
-      formState.update(state => ({ ...state, error: "Please enter the verification code sent to your email" }));
-      if (appConfig.ui.showErrorToasts) toastStore.showToast("Please enter the verification code sent to your email");
+      errorMessage = "Please enter the verification code sent to your email";
+      formState.update(state => ({ ...state, error: errorMessage }));
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
       return;
     }
     
-    // Update loading state
     formState.update(state => ({ ...state, loading: true }));
     
-    // Call the verifyEmail function
-    const result = await verifyEmail($formData.email, $formData.verificationCode);
-    
-    // Update loading state
-    formState.update(state => ({ ...state, loading: false }));
-    
-    if (result.success) {
-      // Redirect to login page
-      window.location.href = '/login';
-    } else {
-      formState.update(state => ({ ...state, error: result.message || "Verification failed. Please check your code and try again." }));
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(result.message || "Verification failed. Please check your code and try again.");
+    try {
+      const result = await verifyEmail($formData.email, $formData.verificationCode);
+      formState.update(state => ({ ...state, loading: false }));
+      
+      if (result.success) {
+        window.location.href = '/login'; // Redirect on success
+      } else {
+        errorMessage = result.message || "Verification failed. Please check your code and try again.";
+        formState.update(state => ({ ...state, error: errorMessage }));
+        if (appConfig.ui.showErrorToasts) toastStore.showToast(`Verification Error: ${errorMessage}`);
+      }
+    } catch (err) {
+      formState.update(state => ({ ...state, loading: false }));
+      console.error("Verification Exception:", err);
+      errorMessage = "An unexpected error occurred during verification.";
+      formState.update(state => ({ ...state, error: errorMessage }));
+      const detail = (err instanceof Error) ? err.message : String(err);
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(`Verification Exception: ${errorMessage} - ${detail}`);
     }
   }
   
   // Make the function async to use await
   async function resendCode() {
-    // Update loading state
+    let errorMessage = "";
     formState.update(state => ({ ...state, loading: true }));
     
-    // Call the resendVerificationCode function
-    const result = await resendVerificationCode($formData.email);
-    
-    // Update loading state
-    formState.update(state => ({ ...state, loading: false }));
-    
-    if (result.success) {
-      formState.update(state => ({ ...state, showResendOption: false }));
-      startTimer();
-      alert("Verification code has been sent to your email.");
-    } else {
-      formState.update(state => ({ ...state, error: result.message || "Failed to resend verification code." }));
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(result.message || "Failed to resend verification code.");
+    try {
+      const result = await resendVerificationCode($formData.email);
+      formState.update(state => ({ ...state, loading: false }));
+      
+      if (result.success) {
+        formState.update(state => ({ ...state, showResendOption: false, error: "" })); // Clear error
+        startTimer();
+        // Show success toast instead of alert
+        toastStore.showToast("Verification code has been resent.", "success"); 
+      } else {
+        errorMessage = result.message || "Failed to resend verification code.";
+        formState.update(state => ({ ...state, error: errorMessage }));
+        if (appConfig.ui.showErrorToasts) toastStore.showToast(`Resend Code Error: ${errorMessage}`);
+      }
+    } catch (err) {
+      formState.update(state => ({ ...state, loading: false }));
+      console.error("Resend Code Exception:", err);
+      errorMessage = "An unexpected error occurred while resending code.";
+      formState.update(state => ({ ...state, error: errorMessage }));
+      const detail = (err instanceof Error) ? err.message : String(err);
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(`Resend Code Exception: ${errorMessage} - ${detail}`);
     }
   }
   

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { toastStore, type ToastType } from '../stores/toastStore';
+  import { toastStore, type ToastState, type ToastType } from '../../stores/toastStore';
   import { fly } from 'svelte/transition';
   import {
     InfoIcon,
@@ -15,7 +15,7 @@
   let toastId = 0;
 
   // Subscribe to the toast store
-  toastStore.subscribe(state => {
+  toastStore.subscribe((state: ToastState) => {
     // Only update if ID changes to allow re-triggering with same message
     if (state.id !== toastId) {
       message = state.message;

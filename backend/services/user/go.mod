@@ -27,4 +27,4 @@ require (
 )
 
 // Add replace directive for local proto module
-replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ./proto
+// replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ./proto

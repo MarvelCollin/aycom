@@ -24,25 +24,41 @@
   
   // Handle login form submission
   async function handleSubmit() {
+    let errorMessage = "";
     if (!email || !password) {
-      error = "Please enter both email and password";
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(error);
+      errorMessage = "Please enter both email and password";
+      error = errorMessage;
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
       return;
     }
     
     isLoading = true;
     error = "";
     
-    const result = await login(email, password);
-    
-    isLoading = false;
-    
-    if (result.success) {
-      // Redirect to feed page
-      window.location.href = '/feed';
-    } else {
-      error = result.message || "Login failed. Please check your credentials.";
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(error);
+    try {
+      const result = await login(email, password);
+      isLoading = false;
+      
+      if (result.success) {
+        window.location.href = '/feed';
+      } else {
+        errorMessage = result.message || "Login failed. Please check your credentials.";
+        error = errorMessage; // Keep simple error for inline display
+        // Show detailed toast if configured
+        if (appConfig.ui.showErrorToasts) {
+          toastStore.showToast(`Login Error: ${errorMessage}`);
+        }
+      }
+    } catch (err) {
+      isLoading = false;
+      console.error("Login Exception:", err);
+      errorMessage = "An unexpected error occurred during login.";
+      error = errorMessage;
+      // Show detailed toast if configured
+      if (appConfig.ui.showErrorToasts) {
+        const detail = (err instanceof Error) ? err.message : String(err);
+        toastStore.showToast(`Login Exception: ${errorMessage} - ${detail}`);
+      }
     }
   }
   
@@ -59,8 +75,11 @@
   
   // Handle Google auth error
   function handleGoogleAuthError(message: string) {
-    error = message;
-    if (appConfig.ui.showErrorToasts) toastStore.showToast(message);
+    error = message; // Keep simple error for inline display
+    // Show detailed toast if configured
+    if (appConfig.ui.showErrorToasts) {
+      toastStore.showToast(`Google Auth Error: ${message}`);
+    }
   }
 </script>
 

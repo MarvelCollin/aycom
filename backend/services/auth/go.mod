@@ -35,6 +35,7 @@ replace (
 	github.com/AYCOM/backend/services/auth/model => ./model
 	github.com/AYCOM/backend/services/auth/repository => ./repository
 	github.com/AYCOM/backend/services/auth/service => ./service
-	github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto => ./proto
-	github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ../user/proto
+	// Removed replace directive for local proto modules
+	// github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto => ./proto 
+	// github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ../user/proto
 )

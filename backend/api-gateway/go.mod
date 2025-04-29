@@ -59,6 +59,6 @@ require (
 )
 
 // Add replace directives to fix the import path issues
-replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto => ../services/auth/proto
+// replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto => ../services/auth/proto
 
-replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ../services/user/proto
+// replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ../services/user/proto

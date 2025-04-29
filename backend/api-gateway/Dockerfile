@@ -1,20 +1,29 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
+# Set working directory
 WORKDIR /app
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
 
-# Copy dependency files and download dependencies first to leverage Docker cache
-COPY go.mod go.sum ./
+# Copy necessary files for dependency download
+COPY backend/api-gateway/go.mod backend/api-gateway/go.sum ./
+# Copy shared proto files needed by go.mod replace directives BEFORE downloading deps
+COPY backend/proto ./backend/proto 
+
+# Download dependencies
 RUN go mod download
 
-# Copy the rest of the application code
-COPY . .
+# Copy the rest of the api-gateway source code
+COPY backend/api-gateway/ .
+# Ensure proto is copied again in case source code relies on it directly
+# (This might be redundant depending on imports, but safe)
+COPY backend/proto ./backend/proto
 
 # Build the Go app
-# Assuming the main package is in the root of the api-gateway directory
-RUN go build -o api-gateway -ldflags="-w -s" .
+# The build command now runs in /app where the service code root is
+# Assuming main package is in ./cmd/
+RUN go build -o /app/api-gateway -ldflags="-w -s" ./cmd
 
 # --- Final Stage ---
 FROM alpine:latest
@@ -28,6 +37,7 @@ WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the built binary from the builder stage, changing ownership
+# Binary is now built to /app/api-gateway in builder stage
 COPY --chown=appuser:appgroup --from=builder /app/api-gateway .
 
 # Switch to the non-root user
