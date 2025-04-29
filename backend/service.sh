@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# Interactive Backend Service Management Script
 
-# --- Auth Service Commands ---
 run_auth_command() {
   local cmd=$1
   echo "-------------------------------------------"
@@ -22,13 +20,11 @@ run_auth_command() {
   return $exit_code
 }
 
-# --- User Service Commands ---
 run_user_command() {
   local cmd=$1
   echo "-------------------------------------------"
   echo "Running '$cmd' for user_service..."
   echo "-------------------------------------------"
-  # User service specific logic
   if [ "$cmd" == "seed" ]; then
     docker-compose run --rm user_service seed
     local exit_code=$?
@@ -59,7 +55,6 @@ run_user_command() {
   fi
 }
 
-# --- Check Auth Database ---
 check_auth_db() {
   local db_container="auth_db"
   local db_user="kolin" # Replace if different in your docker-compose.yml
@@ -76,7 +71,6 @@ check_auth_db() {
 
   if [ $exit_code_tables -ne 0 ]; then
       echo "Error checking tables for $db_container."
-      # Optionally add check if container is running
   else
       echo "Checking row count for '$table_to_check' table:"
       docker-compose exec -T $db_container psql -U $db_user -d $db_name -c "SELECT COUNT(*) FROM $table_to_check;"
@@ -88,11 +82,9 @@ check_auth_db() {
   echo "-------------------------------------------"
   echo "Auth Database check finished."
   echo "-------------------------------------------"
-  # Return overall success (0) or failure (non-zero)
   return $((exit_code_tables + exit_code_count))
 }
 
-# --- Check User Database ---
 check_user_db() {
   local db_container="user_db"
   local db_user="kolin" # From pkg/db/db.go default
@@ -109,7 +101,6 @@ check_user_db() {
 
   if [ $exit_code_tables -ne 0 ]; then
       echo "Error checking tables for $db_container."
-      # Optionally add check if container is running
   else
       echo "Checking row count for '$table_to_check' table:"
       docker-compose exec -T $db_container psql -U $db_user -d $db_name -c "SELECT COUNT(*) FROM $table_to_check;"
@@ -121,21 +112,17 @@ check_user_db() {
   echo "-------------------------------------------"
   echo "User Database check finished."
   echo "-------------------------------------------"
-  # Return overall success (0) or failure (non-zero)
   return $((exit_code_tables + exit_code_count))
 }
 
-# --- Comprehensive Check for a Single Service ---
 run_single_service_check() {
     local service_display_name=$1
     local db_container=$2
     local db_user=$3
     local db_name=$4
-    # local table_to_check=$5 <-- No longer needed
 
     echo "--- Comprehensive Check: $service_display_name ---"
 
-    # 1. Check DB Container Status
     local container_id=$(docker-compose ps -q $db_container)
     if [ -z "$container_id" ]; then
         echo " [FAIL] Database container '$db_container' is not running."
@@ -145,7 +132,6 @@ run_single_service_check() {
         echo " [OK]   Database container '$db_container' is running."
     fi
 
-    # 2. Check Migration Status (Any Table Existence)
     local tables=$(docker-compose exec -T $db_container psql -U $db_user -d $db_name -tAc "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';")
     if [ $? -ne 0 ]; then
         echo " [FAIL] Migration check failed (error querying tables)."
@@ -159,7 +145,6 @@ run_single_service_check() {
         echo " [OK]   Migration check passed (found user tables in '$db_name')."
     fi
 
-    # 3. Check Seeding Status (Row Counts for All Tables)
     echo " [INFO] Checking row counts and sample data for all user tables:"
     local all_tables_empty=true
     local query_errors=false
@@ -169,13 +154,11 @@ run_single_service_check() {
             echo "        - Table '$table': $row_count rows"
             if [ "$row_count" -gt 0 ]; then
                 all_tables_empty=false
-                # Fetch and display first 3 rows as sample data
                 echo "          Sample Data (first 3 rows):"
                 docker-compose exec -T $db_container psql -U $db_user -d $db_name -c "SELECT * FROM \"$table\" LIMIT 3;"
                 local sample_exit_code=$?
                 if [ $sample_exit_code -ne 0 ]; then
                     echo "          Error fetching sample data for table '$table'."
-                    # Don't mark as overall query error, just note the sample failure
                 fi
             fi
         else
@@ -197,7 +180,6 @@ run_single_service_check() {
     return 0 # Return success overall for this service check completion
 }
 
-# --- Run Comprehensive Check for All Services ---
 run_comprehensive_check() {
     echo "==========================================="
     echo " Starting Comprehensive Checks..."
@@ -211,7 +193,6 @@ run_comprehensive_check() {
     echo "==========================================="
 }
 
-# --- Command Menu Function ---
 show_command_menu() {
   local service_name=$1
   local service_display_name=$2
@@ -274,7 +255,6 @@ show_command_menu() {
 }
 
 
-# --- 'All Services' Command Menu Function ---
 show_all_services_menu() {
     while true; do
         clear
@@ -322,7 +302,6 @@ show_all_services_menu() {
 }
 
 
-# --- Main Menu Loop ---
 while true; do
   clear # Clear the screen for a clean menu
   echo "==========================================="

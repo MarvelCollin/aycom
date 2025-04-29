@@ -5,28 +5,23 @@ import (
 	"os"
 )
 
-// ServiceConfig contains the configuration for remote microservices
 type ServiceConfig struct {
 	AuthServiceHost string
 	AuthServicePort string
 	UserServiceHost string
 	UserServicePort string
-	// Add more services as needed
 }
 
-// OAuthConfig contains OAuth configuration
 type OAuthConfig struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 }
 
-// SupabaseConfig contains Supabase configuration
 type SupabaseConfig struct {
 	URL     string
 	AnonKey string
 }
 
-// Config represents the API Gateway configuration
 type Config struct {
 	Services  ServiceConfig
 	OAuth     OAuthConfig
@@ -34,7 +29,6 @@ type Config struct {
 	JWTSecret string
 }
 
-// LoadConfig loads configuration from environment variables
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Services: ServiceConfig{
@@ -54,7 +48,6 @@ func LoadConfig() (*Config, error) {
 		JWTSecret: getEnv("JWT_SECRET", "default-secret-key"),
 	}
 
-	// Basic validation (can be expanded)
 	if cfg.Supabase.URL == "" || cfg.Supabase.AnonKey == "" {
 		return nil, fmt.Errorf("SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set")
 	}
@@ -62,17 +55,14 @@ func LoadConfig() (*Config, error) {
 	return cfg, nil
 }
 
-// GetAuthServiceAddr returns the full address for the auth service
 func (c *Config) GetAuthServiceAddr() string {
 	return fmt.Sprintf("%s:%s", c.Services.AuthServiceHost, c.Services.AuthServicePort)
 }
 
-// GetUserServiceAddr returns the full address for the user service
 func (c *Config) GetUserServiceAddr() string {
 	return fmt.Sprintf("%s:%s", c.Services.UserServiceHost, c.Services.UserServicePort)
 }
 
-// Helper to get environment variables with fallbacks
 func getEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value

@@ -1,32 +1,8 @@
-// Package docs provides API documentation for the AYCOM API Gateway.
-//
-// Documentation for the AYCOM API Gateway
-//
-//	Schemes: http, https
-//	Host: localhost:8080
-//	BasePath: /api/v1
-//	Version: 1.0.0
-//
-//	Consumes:
-//	- application/json
-//
-//	Produces:
-//	- application/json
-//
-//	Security:
-//	- bearer
-//
-//	SecurityDefinitions:
-//	bearer:
-//	     type: apiKey
-//	     name: Authorization
-//	     in: header
 package docs
 
 import "github.com/swaggo/swag"
 
 var (
-	// SwaggerInfo holds exported Swagger Info so clients can modify it
 	SwaggerInfo = &swag.Spec{
 		Version:          "1.0",
 		Host:             "localhost:8080",

@@ -2,36 +2,46 @@ import { onDestroy } from 'svelte';
 import type { GoogleCredentialResponse, CustomWindow } from '../interfaces/auth';
 import type { IGoogleCredentialResponse } from '../interfaces/IAuth';
 
+// Instead of extending Window globally, use type assertions
 export function useExternalServices() {
   let recaptchaWidgetId: number | null = null;
   let googleAuthLoaded = false;
   
-  // Direct implementation with hardcoded values as requested
-  const RECAPTCHA_SITE_KEY = '6Lfj6CYrAAAAAHmB9dsCaAzKt06ebbXkBduL-bxe';
-  const GOOGLE_CLIENT_ID = '161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com';
-  const GOOGLE_REDIRECT_URI = 'http://localhost:3000/register';
+  // Use environment variables instead of hardcoding
+  const getRecaptchaSiteKey = (): string => 
+    import.meta.env.VITE_RECAPTCHA_SITE_KEY || '';
+    
+  const getGoogleClientId = (): string => 
+    import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+    
+  const getGoogleRedirectUri = (): string => 
+    import.meta.env.VITE_GOOGLE_REDIRECT_URI || '';
   
   /**
    * Loads the reCAPTCHA script and initializes it
    * @param callback Function to call when the token is updated
+   * @param containerId ID or DOM element of the container for reCAPTCHA
    * @returns Cleanup function
    */
-  const loadRecaptcha = (callback: (token: string) => void): (() => void) => {
+  const loadRecaptcha = (
+    callback: (token: string) => void, 
+    containerId: string | HTMLElement = 'recaptcha-container'
+  ): (() => void) => {
     // Check if reCAPTCHA script is already loaded
-    if (window.grecaptcha) {
-      initializeRecaptcha(callback);
+    if ((window as CustomWindow).grecaptcha) {
+      initializeRecaptcha(callback, containerId);
       return () => {};
     }
     
-    // Add the reCAPTCHA script
+    // Add the reCAPTCHA script with a global callback
+    (window as any).CaptchaCallback = () => {
+      initializeRecaptcha(callback, containerId);
+    };
+    
     const script = document.createElement('script');
-    script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
+    script.src = 'https://www.google.com/recaptcha/api.js?onload=CaptchaCallback&render=explicit';
     script.async = true;
     script.defer = true;
-    
-    script.onload = () => {
-      initializeRecaptcha(callback);
-    };
     
     document.head.appendChild(script);
     
@@ -45,28 +55,49 @@ export function useExternalServices() {
       }
       
       // Reset reCAPTCHA if it exists
-      if (window.grecaptcha && recaptchaWidgetId !== null) {
-        window.grecaptcha.reset(recaptchaWidgetId);
+      if ((window as CustomWindow).grecaptcha && recaptchaWidgetId !== null) {
+        (window as CustomWindow).grecaptcha?.reset(recaptchaWidgetId);
       }
+      
+      // Clean up global callback
+      delete (window as any).CaptchaCallback;
     };
   };
   
   /**
    * Initializes reCAPTCHA after the script is loaded
    * @param callback Function to call when the token is updated
+   * @param containerId ID or DOM element of the container for reCAPTCHA
    */
-  const initializeRecaptcha = (callback: (token: string) => void) => {
-    if (!window.grecaptcha) return;
+  const initializeRecaptcha = (
+    callback: (token: string) => void, 
+    containerId: string | HTMLElement
+  ) => {
+    const customWindow = window as CustomWindow;
+    if (!customWindow.grecaptcha) return;
     
-    window.grecaptcha.ready(() => {
-      recaptchaWidgetId = window.grecaptcha.render('recaptcha-container', {
-        sitekey: import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI', // Test key if not provided
+    try {
+      // Get the container element
+      const container = typeof containerId === 'string' 
+        ? document.getElementById(containerId) 
+        : containerId;
+        
+      if (!container) {
+        console.error(`reCAPTCHA container with ID "${containerId}" not found`);
+        return;
+      }
+      
+      // Render reCAPTCHA in the container
+      recaptchaWidgetId = customWindow.grecaptcha.render(container, {
+        sitekey: getRecaptchaSiteKey(),
         theme: 'dark',
         callback: (token: string) => {
           callback(token);
         }
       });
-    });
+    } catch (error) {
+      console.error('Error initializing reCAPTCHA:', error);
+    }
   };
   
   /**
@@ -74,11 +105,12 @@ export function useExternalServices() {
    * @returns The reCAPTCHA token
    */
   const getRecaptchaToken = (): string => {
-    if (!window.grecaptcha || recaptchaWidgetId === null) {
+    const customWindow = window as CustomWindow;
+    if (!customWindow.grecaptcha || recaptchaWidgetId === null) {
       return '';
     }
     
-    return window.grecaptcha.getResponse(recaptchaWidgetId);
+    return customWindow.grecaptcha.getResponse(recaptchaWidgetId);
   };
   
   /**
@@ -94,10 +126,10 @@ export function useExternalServices() {
     callback: (response: IGoogleCredentialResponse) => void
   ): (() => void) => {
     // Set up the global callback function for Google
-    window.handleGoogleCredentialResponse = callback;
+    (window as CustomWindow).handleGoogleCredentialResponse = callback;
     
     // Check if Google Sign-In script is already loaded
-    if (window.google?.accounts) {
+    if ((window as CustomWindow).google?.accounts) {
       initializeGoogleAuth(buttonId, isDarkMode);
       return () => {};
     }
@@ -109,6 +141,7 @@ export function useExternalServices() {
     script.defer = true;
     
     script.onload = () => {
+      googleAuthLoaded = true;
       initializeGoogleAuth(buttonId, isDarkMode);
     };
     
@@ -124,7 +157,7 @@ export function useExternalServices() {
       }
       
       // Remove the global callback
-      delete window.handleGoogleCredentialResponse;
+      delete (window as CustomWindow).handleGoogleCredentialResponse;
     };
   };
   
@@ -134,30 +167,41 @@ export function useExternalServices() {
    * @param isDarkMode Whether to use dark mode
    */
   const initializeGoogleAuth = (buttonId: string, isDarkMode: boolean) => {
-    if (!window.google?.accounts) return;
+    const customWindow = window as CustomWindow;
+    if (!customWindow.google?.accounts) return;
     
-    const buttonElement = document.getElementById(buttonId);
-    if (!buttonElement) {
-      console.error(`Element with ID "${buttonId}" not found`);
-      return;
+    try {
+      const buttonElement = document.getElementById(buttonId);
+      if (!buttonElement) {
+        console.error(`Element with ID "${buttonId}" not found`);
+        return;
+      }
+      
+      const clientId = getGoogleClientId();
+      if (!clientId) {
+        console.error('Google Client ID not provided');
+        return;
+      }
+      
+      customWindow.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: customWindow.handleGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+      
+      customWindow.google.accounts.id.renderButton(buttonElement, {
+        theme: isDarkMode ? 'filled_black' : 'outline',
+        size: 'large',
+        type: 'standard',
+        shape: 'pill',
+        text: 'continue_with',
+        logo_alignment: 'left',
+        width: buttonElement.offsetWidth
+      });
+    } catch (error) {
+      console.error('Error initializing Google Sign-In:', error);
     }
-    
-    window.google.accounts.id.initialize({
-      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_CLIENT_ID_HERE',
-      callback: window.handleGoogleCredentialResponse,
-      auto_select: false,
-      cancel_on_tap_outside: true
-    });
-    
-    window.google.accounts.id.renderButton(buttonElement, {
-      theme: isDarkMode ? 'filled_black' : 'outline',
-      size: 'large',
-      type: 'standard',
-      shape: 'pill',
-      text: 'continue_with',
-      logo_alignment: 'left',
-      width: buttonElement.offsetWidth
-    });
   };
   
   return {

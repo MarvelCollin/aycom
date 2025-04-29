@@ -5,8 +5,8 @@ go 1.21
 toolchain go1.24.2
 
 require (
-	github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto v0.0.0-00010101000000-000000000000
-	github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto v0.0.0-00010101000000-000000000000
+	// github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto v0.0.0-00010101000000-000000000000
+	// github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.9.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang-jwt/jwt/v5 v5.0.0
