@@ -1,0 +1,290 @@
+syntax = "proto3";
+
+package thread;
+
+option go_package = "thread-service/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ThreadService defines all the operations related to threads
+service ThreadService {
+  // Thread operations
+  rpc CreateThread(CreateThreadRequest) returns (ThreadResponse) {}
+  rpc GetThreadById(GetThreadRequest) returns (ThreadResponse) {}
+  rpc GetThreadsByUser(GetThreadsByUserRequest) returns (ThreadsResponse) {}
+  rpc UpdateThread(UpdateThreadRequest) returns (ThreadResponse) {}
+  rpc DeleteThread(DeleteThreadRequest) returns (google.protobuf.Empty) {}
+  
+  // Reply operations
+  rpc CreateReply(CreateReplyRequest) returns (ReplyResponse) {}
+  rpc GetRepliesByThread(GetRepliesByThreadRequest) return  s (RepliesResponse) {}
+  rpc UpdateReply(UpdateReplyRequest) returns (ReplyResponse) {}
+  rpc DeleteReply(DeleteReplyRequest) returns (google.protobuf.Empty) {}
+  
+  // Interaction operations
+  rpc LikeThread(LikeThreadRequest) returns (google.protobuf.Empty) {}
+  rpc UnlikeThread(UnlikeThreadRequest) returns (google.protobuf.Empty) {}
+  rpc LikeReply(LikeReplyRequest) returns (google.protobuf.Empty) {}
+  rpc UnlikeReply(UnlikeReplyRequest) returns (google.protobuf.Empty) {}
+  rpc RepostThread(RepostThreadRequest) returns (google.protobuf.Empty) {}
+  rpc RemoveRepost(RemoveRepostRequest) returns (google.protobuf.Empty) {}
+  rpc BookmarkThread(BookmarkThreadRequest) returns (google.protobuf.Empty) {}
+  rpc RemoveBookmark(RemoveBookmarkRequest) returns (google.protobuf.Empty) {}
+  
+  // Poll operations
+  rpc CreatePoll(CreatePollRequest) returns (PollResponse) {}
+  rpc VotePoll(VotePollRequest) returns (google.protobuf.Empty) {}
+  rpc GetPollResults(GetPollResultsRequest) returns (PollResultsResponse) {}
+}
+
+// Media information
+message MediaInfo {
+  string type = 1; // Image, GIF, Video
+  string url = 2;
+}
+
+// Create Thread
+message CreateThreadRequest {
+  string user_id = 1;
+  string content = 2;
+  string who_can_reply = 3; // Everyone, Accounts You Follow, Verified Accounts
+  repeated string category_names = 4;
+  repeated string hashtags = 5;
+  repeated string mentioned_user_ids = 6;
+  repeated MediaInfo media = 7;
+  google.protobuf.Timestamp scheduled_at = 8;
+  string community_id = 9;
+  bool is_advertisement = 10;
+  
+  // For poll
+  PollInfo poll = 11;
+}
+
+message PollInfo {
+  string question = 1;
+  repeated string options = 2;
+  google.protobuf.Timestamp closes_at = 3;
+  string who_can_vote = 4; // Everyone, Accounts You Follow, Verified Accounts
+}
+
+// Get Thread
+message GetThreadRequest {
+  string thread_id = 1;
+}
+
+// Get Threads by User
+message GetThreadsByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+// Update Thread
+message UpdateThreadRequest {
+  string thread_id = 1;
+  string content = 2;
+  bool is_pinned = 3;
+  repeated string add_category_names = 4;
+  repeated string remove_category_names = 5;
+  repeated string add_hashtags = 6;
+  repeated string remove_hashtags = 7;
+}
+
+// Delete Thread
+message DeleteThreadRequest {
+  string thread_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+// Create Reply
+message CreateReplyRequest {
+  string thread_id = 1;
+  string user_id = 2;
+  string content = 3;
+  string parent_reply_id = 4;
+  repeated MediaInfo media = 5;
+  repeated string mentioned_user_ids = 6;
+}
+
+// Get Replies
+message GetRepliesByThreadRequest {
+  string thread_id = 1;
+  string parent_reply_id = 2; // Optional, if provided gets replies to a specific reply
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Update Reply
+message UpdateReplyRequest {
+  string reply_id = 1;
+  string user_id = 2; // For authorization check
+  string content = 3;
+  bool is_pinned = 4;
+}
+
+// Delete Reply
+message DeleteReplyRequest {
+  string reply_id = 1;
+  string user_id = 2; // For authorization check
+}
+
+// Like Thread
+message LikeThreadRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// Unlike Thread
+message UnlikeThreadRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// Like Reply
+message LikeReplyRequest {
+  string reply_id = 1;
+  string user_id = 2;
+}
+
+// Unlike Reply
+message UnlikeReplyRequest {
+  string reply_id = 1;
+  string user_id = 2;
+}
+
+// Repost Thread
+message RepostThreadRequest {
+  string thread_id = 1;
+  string user_id = 2;
+  string repost_text = 3; // Optional text to add to the repost
+}
+
+// Remove Repost
+message RemoveRepostRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// Bookmark Thread
+message BookmarkThreadRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// Remove Bookmark
+message RemoveBookmarkRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// Create Poll Vote
+message VotePollRequest {
+  string poll_id = 1;
+  string option_id = 2;
+  string user_id = 3;
+}
+
+// Get Poll Results
+message GetPollResultsRequest {
+  string poll_id = 1;
+}
+
+// Thread Response
+message ThreadResponse {
+  string thread_id = 1;
+  string user_id = 2;
+  string content = 3;
+  bool is_pinned = 4;
+  string who_can_reply = 5;
+  google.protobuf.Timestamp scheduled_at = 6;
+  string community_id = 7;
+  bool is_advertisement = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  
+  // Stats
+  int32 reply_count = 11;
+  int32 like_count = 12;
+  int32 repost_count = 13;
+  int32 view_count = 14;
+  
+  // Related data
+  repeated MediaResponse media = 15;
+  repeated string hashtags = 16;
+  repeated string categories = 17;
+  repeated string mentioned_user_ids = 18;
+  PollResponse poll = 19;
+}
+
+// Media Response
+message MediaResponse {
+  string media_id = 1;
+  string type = 2;
+  string url = 3;
+}
+
+// Poll Response
+message PollResponse {
+  string poll_id = 1;
+  string thread_id = 2;
+  string question = 3;
+  google.protobuf.Timestamp closes_at = 4;
+  string who_can_vote = 5;
+  repeated PollOptionResponse options = 6;
+  int32 total_votes = 7;
+}
+
+// Poll Option Response
+message PollOptionResponse {
+  string option_id = 1;
+  string text = 2;
+  int32 vote_count = 3;
+  float percentage = 4;
+}
+
+// Poll Results Response
+message PollResultsResponse {
+  string poll_id = 1;
+  repeated PollOptionResponse options = 2;
+  int32 total_votes = 3;
+  bool has_user_voted = 4;
+  string user_voted_option_id = 5;
+  bool is_closed = 6;
+}
+
+// Reply Response
+message ReplyResponse {
+  string reply_id = 1;
+  string thread_id = 2;
+  string user_id = 3;
+  string content = 4;
+  bool is_pinned = 5;
+  string parent_reply_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  
+  // Stats
+  int32 like_count = 9;
+  int32 reply_count = 10;
+  
+  // Related data
+  repeated MediaResponse media = 11;
+  repeated string mentioned_user_ids = 12;
+}
+
+// Multiple Threads Response
+message ThreadsResponse {
+  repeated ThreadResponse threads = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Multiple Replies Response
+message RepliesResponse {
+  repeated ReplyResponse replies = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+} 

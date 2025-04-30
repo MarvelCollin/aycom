@@ -29,6 +29,7 @@ var Config *config.Config
 var (
 	authConnPool      *ConnectionPool
 	userConnPool      *ConnectionPool
+	threadConnPool    *ConnectionPool
 	connPoolInitOnce  sync.Once
 	responseCache     *lru.Cache
 	requestRateLimits = make(map[string]RateLimiter)
@@ -54,6 +55,12 @@ type RateLimiter struct {
 	mu             sync.Mutex
 }
 
+type ErrorResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`
+}
+
 func NewConnectionPool(serviceAddr string, maxIdle, maxOpen int, timeout time.Duration) *ConnectionPool {
 	return &ConnectionPool{
 		connections: make(chan *grpc.ClientConn, maxIdle),
@@ -68,6 +75,9 @@ func InitConnectionPools() {
 	connPoolInitOnce.Do(func() {
 		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
 		userConnPool = NewConnectionPool(Config.GetUserServiceAddr(), 5, 20, 10*time.Second)
+		if Config.GetThreadServiceAddr() != "" {
+			threadConnPool = NewConnectionPool(Config.GetThreadServiceAddr(), 5, 20, 10*time.Second)
+		}
 		responseCache = lru.New(100)
 	})
 }
@@ -77,7 +87,6 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 	case conn := <-p.connections:
 		return conn, nil
 	default:
-
 		ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 		defer cancel()
 
@@ -95,9 +104,9 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 func (p *ConnectionPool) Put(conn *grpc.ClientConn) {
 	select {
 	case p.connections <- conn:
-
+		// Connection successfully returned to pool
 	default:
-
+		// Pool is full, close the connection
 		conn.Close()
 	}
 }
@@ -142,6 +151,62 @@ func (r *RateLimiter) Allow() bool {
 	return true
 }
 
+func RateLimitMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		rateLimiterMutex.RLock()
+		limiter, exists := requestRateLimits[ip]
+		rateLimiterMutex.RUnlock()
+
+		if !exists {
+			rateLimiterMutex.Lock()
+			limiter = NewRateLimiter(20, 0.33)
+			requestRateLimits[ip] = limiter
+			rateLimiterMutex.Unlock()
+		}
+
+		if !limiter.Allow() {
+			c.JSON(http.StatusTooManyRequests, ErrorResponse{
+				Success: false,
+				Message: "Rate limit exceeded. Please try again later.",
+				Code:    "RATE_LIMIT_EXCEEDED",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func GetOAuthConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"google_client_id": Config.OAuth.GoogleClientID,
+	})
+}
+
+func HealthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+	})
+}
+
+func InitServices() {
+	connPoolInitOnce.Do(func() {
+		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
+		userConnPool = NewConnectionPool(Config.GetUserServiceAddr(), 5, 20, 10*time.Second)
+		if Config.GetThreadServiceAddr() != "" {
+			threadConnPool = NewConnectionPool(Config.GetThreadServiceAddr(), 5, 20, 10*time.Second)
+		}
+		responseCache = lru.New(100)
+	})
+	supabaseInitOnce.Do(func() {
+		if Config != nil && Config.Supabase.URL != "" && Config.Supabase.AnonKey != "" {
+			supabaseClient = supabase.NewClient(Config.Supabase.URL, Config.Supabase.AnonKey, nil)
+		}
+	})
+}
+
 type RegisterRequest struct {
 	Name                  string `json:"name" binding:"required"`
 	Username              string `json:"username" binding:"required"`
@@ -184,60 +249,6 @@ type RegisterResponse struct {
 	Message string `json:"message"`
 }
 
-type ErrorResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Code    string `json:"code,omitempty"`
-}
-
-func init() {
-	InitConnectionPools()
-	supabaseInitOnce.Do(func() {
-		supabaseClient = supabase.NewClient(Config.Supabase.URL, Config.Supabase.AnonKey, nil)
-	})
-}
-
-func RateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		rateLimiterMutex.RLock()
-		limiter, exists := requestRateLimits[ip]
-		rateLimiterMutex.RUnlock()
-
-		if !exists {
-			rateLimiterMutex.Lock()
-
-			limiter = NewRateLimiter(20, 0.33)
-			requestRateLimits[ip] = limiter
-			rateLimiterMutex.Unlock()
-		}
-
-		if !limiter.Allow() {
-			c.JSON(http.StatusTooManyRequests, ErrorResponse{
-				Success: false,
-				Message: "Rate limit exceeded. Please try again later.",
-				Code:    "RATE_LIMIT_EXCEEDED",
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-func GetOAuthConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"google_client_id": Config.OAuth.GoogleClientID,
-	})
-}
-
-func HealthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
-	})
-}
-
 func Login(c *gin.Context) {
 	var request LoginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -272,7 +283,6 @@ func Login(c *gin.Context) {
 
 	resp, err := client.Login(ctx, req)
 	if err != nil {
-
 		if st, ok := status.FromError(err); ok {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Success: false,
@@ -648,7 +658,6 @@ func GetUserProfile(c *gin.Context) {
 	resp, err := client.GetUser(ctx, req)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
-
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
@@ -748,56 +757,48 @@ func UpdateUserProfile(c *gin.Context) {
 }
 
 func ListProducts(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "list products endpoint",
 	})
 }
 
 func GetProduct(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get product endpoint",
 	})
 }
 
 func CreateProduct(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "create product endpoint",
 	})
 }
 
 func UpdateProduct(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "update product endpoint",
 	})
 }
 
 func DeleteProduct(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "delete product endpoint",
 	})
 }
 
 func CreatePayment(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "create payment endpoint",
 	})
 }
 
 func GetPayment(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get payment endpoint",
 	})
 }
 
 func GetPaymentHistory(c *gin.Context) {
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get payment history endpoint",
 	})
@@ -837,7 +838,6 @@ func uploadToSupabase(fileHeader *multipart.FileHeader, bucketName string, desti
 }
 
 func RegisterWithMedia(c *gin.Context) {
-
 	if supabaseClient == nil {
 		InitServices()
 	}
@@ -879,7 +879,6 @@ func RegisterWithMedia(c *gin.Context) {
 	profilePicURL, err := uploadToSupabase(profilePicFileHeader, "profile-pictures", userPathPrefix+"/"+filepath.Base(profilePicFileHeader.Filename))
 	if err != nil {
 		log.Printf("Failed to upload profile picture: %v", err)
-
 	}
 	bannerURL, err := uploadToSupabase(bannerFileHeader, "banner-images", userPathPrefix+"/"+filepath.Base(bannerFileHeader.Filename))
 	if err != nil {
@@ -927,16 +926,5 @@ func RegisterWithMedia(c *gin.Context) {
 	c.JSON(http.StatusOK, RegisterResponse{
 		Success: resp.Success,
 		Message: resp.Message,
-	})
-}
-
-func InitServices() {
-	connPoolInitOnce.Do(func() {
-		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
-		userConnPool = NewConnectionPool(Config.GetUserServiceAddr(), 5, 20, 10*time.Second)
-		responseCache = lru.New(100)
-	})
-	supabaseInitOnce.Do(func() {
-		supabaseClient = supabase.NewClient(Config.Supabase.URL, Config.Supabase.AnonKey, nil)
 	})
 }

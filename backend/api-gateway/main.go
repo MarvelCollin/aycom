@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/routes"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/router"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -23,20 +24,23 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Create a Gin router
-	router := gin.Default()
-
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Register routes
-	routes.RegisterRoutes(router, cfg)
+	// Make the config available to handlers
+	handlers.Config = cfg
+
+	// Initialize services
+	handlers.InitServices()
+
+	// Set up router with all routes
+	r := router.SetupRouter()
 
 	// Add Swagger documentation endpoint
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Get port from environment
 	port := os.Getenv("API_GATEWAY_PORT")
@@ -47,7 +51,7 @@ func main() {
 	// Create the server
 	server := &http.Server{
 		Addr:    ":" + port,
-		Handler: router,
+		Handler: r,
 	}
 
 	// Start the server in a goroutine

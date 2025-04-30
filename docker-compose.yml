@@ -34,12 +34,15 @@ services:
       - USER_SERVICE_PORT=9091
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
+      - THREAD_SERVICE_HOST=thread_service
+      - THREAD_SERVICE_PORT=9092
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - TLS_ENABLED=${TLS_ENABLED:-false}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       - user_service
       - auth_service
+      - thread_service
     restart: always
     deploy:
       resources:
@@ -114,6 +117,39 @@ services:
           cpus: '0.3'
           memory: 512M
 
+  # Thread Service - Thread Management
+  thread_service:
+    build:
+      context: .
+      dockerfile: ./backend/services/thread/Dockerfile
+    ports:
+      - "9092:9092"
+    environment:
+      - DB_HOST=thread_db
+      - DB_PORT=5432
+      - DB_USER=${THREAD_DB_USER:-kolin}
+      - DB_PASSWORD=${THREAD_DB_PASSWORD:-kolin}
+      - DB_NAME=${THREAD_DB_NAME:-thread_db}
+      - DB_SSLMODE=disable
+      - THREAD_SERVICE_PORT=9092
+      - USER_SERVICE_HOST=user_service
+      - USER_SERVICE_PORT=9091
+      - AUTH_SERVICE_HOST=auth_service
+      - AUTH_SERVICE_PORT=9090
+      - JWT_SECRET=${JWT_SECRET:-wompwomp123}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    depends_on:
+      thread_db:
+        condition: service_healthy
+      user_service:
+        condition: service_started
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
   # Event Bus Service
   event_bus:
     build:
@@ -125,6 +161,8 @@ services:
       - USER_SERVICE_PORT=9091
       - AUTH_SERVICE_HOST=auth_service
       - AUTH_SERVICE_PORT=9090
+      - THREAD_SERVICE_HOST=thread_service
+      - THREAD_SERVICE_PORT=9092
       - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       rabbitmq:
@@ -132,6 +170,8 @@ services:
       user_service:
         condition: service_started
       auth_service:
+        condition: service_started
+      thread_service:
         condition: service_started
     restart: always
     deploy:
@@ -186,6 +226,29 @@ services:
           cpus: '0.3'
           memory: 512M
 
+  # Thread Service Database
+  thread_db:
+    image: postgres:14-alpine
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=${THREAD_DB_USER:-kolin}
+      - POSTGRES_PASSWORD=${THREAD_DB_PASSWORD:-kolin}
+      - POSTGRES_DB=${THREAD_DB_NAME:-thread_db}
+    volumes:
+      - thread_db_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${THREAD_DB_USER:-kolin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
   # Redis for caching
   redis:
     image: redis:7-alpine
@@ -229,5 +292,6 @@ services:
 volumes:
   auth_db_data:
   user_db_data:
+  thread_db_data:
   redis_data:
   rabbitmq_data:

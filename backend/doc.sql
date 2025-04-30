@@ -1,10 +1,13 @@
-```sql
--- User Management Tables
+-- USERS SERVICE
+
+-- Security questions for account recovery
 CREATE TABLE security_questions (
     question_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     question_text VARCHAR(255) NOT NULL UNIQUE
 );
+-- Relation: One-to-Many with users (One question can be used by many users)
 
+-- Core user data
 CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -34,27 +37,36 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (security_question_id) REFERENCES security_questions(question_id)
 );
+-- Relations:
+-- 1. Many-to-One with security_questions (Many users use one security question)
+-- 2. One-to-Many with threads, replies, likes, etc. (One user can create many content items)
+-- 3. One-to-One with user_settings (One user has one settings record)
 
+-- Represents follow relationships between users
 CREATE TABLE followers (
-    follower_id UUID NOT NULL,
-    followee_id UUID NOT NULL,
+    follower_id UUID NOT NULL,  -- User who follows someone
+    followee_id UUID NOT NULL,  -- User who is being followed
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    PRIMARY KEY (follower_id, followee_id),
+    PRIMARY KEY (follower_id, followee_id), 
     FOREIGN KEY (follower_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (followee_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CHECK (follower_id != followee_id)
 );
+-- Relation: Many-to-Many between users (Users can follow many users and be followed by many users)
 
+-- Represents block relationships between users
 CREATE TABLE blocked_users (
-    blocker_id UUID NOT NULL,
-    blocked_id UUID NOT NULL,
+    blocker_id UUID NOT NULL,  -- User who blocks someone
+    blocked_id UUID NOT NULL,  -- User who is blocked
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     PRIMARY KEY (blocker_id, blocked_id),
     FOREIGN KEY (blocker_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (blocked_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CHECK (blocker_id != blocked_id)
 );
+-- Relation: Many-to-Many between users (Users can block many users and be blocked by many users)
 
+-- User preference settings
 CREATE TABLE user_settings (
     user_id UUID PRIMARY KEY,
     font_size VARCHAR(20) DEFAULT 'medium' NOT NULL,
@@ -68,8 +80,11 @@ CREATE TABLE user_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+-- Relation: One-to-One with users (One user has one settings record)
 
--- Communities Tables
+-- COMMUNITIES SERVICE
+
+-- Community information
 CREATE TABLE communities (
     community_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -82,8 +97,14 @@ CREATE TABLE communities (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (creator_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+-- Relations:
+-- 1. Many-to-One with users (Many communities can be created by one user)
+-- 2. One-to-Many with threads (One community can have many threads)
+-- 3. One-to-Many with community_members (One community can have many members)
 
--- Content Tables
+-- CONTENT SERVICE
+
+-- Thread posts
 CREATE TABLE threads (
     thread_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
@@ -98,7 +119,13 @@ CREATE TABLE threads (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE SET NULL
 );
+-- Relations:
+-- 1. Many-to-One with users (Many threads can be created by one user)
+-- 2. Many-to-One with communities (Many threads can belong to one community)
+-- 3. One-to-Many with replies (One thread can have many replies)
+-- 4. One-to-One with polls (One thread can have one poll)
 
+-- Thread replies
 CREATE TABLE replies (
     reply_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thread_id UUID NOT NULL,
@@ -112,7 +139,12 @@ CREATE TABLE replies (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (parent_reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE
 );
+-- Relations:
+-- 1. Many-to-One with threads (Many replies can belong to one thread)
+-- 2. Many-to-One with users (Many replies can be created by one user)
+-- 3. Many-to-One with replies (Many replies can be responses to one parent reply - nested replies)
 
+-- Media attachments for threads and replies
 CREATE TABLE media (
     media_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thread_id UUID,
@@ -124,7 +156,11 @@ CREATE TABLE media (
     FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE,
     CHECK ((thread_id IS NULL AND reply_id IS NOT NULL) OR (thread_id IS NOT NULL AND reply_id IS NULL))
 );
+-- Relations:
+-- 1. Many-to-One with threads (Many media items can belong to one thread)
+-- 2. Many-to-One with replies (Many media items can belong to one reply)
 
+-- Categories for threads and communities
 CREATE TABLE categories (
     category_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) NOT NULL,
@@ -133,7 +169,9 @@ CREATE TABLE categories (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE (name, type)
 );
+-- Used for categorizing both threads and communities
 
+-- Junction table to connect threads with categories
 CREATE TABLE thread_categories (
     thread_id UUID NOT NULL,
     category_id UUID NOT NULL,
@@ -141,7 +179,9 @@ CREATE TABLE thread_categories (
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-Many between threads and categories
 
+-- Junction table to connect communities with categories
 CREATE TABLE community_categories (
     community_id UUID NOT NULL,
     category_id UUID NOT NULL,
@@ -149,7 +189,9 @@ CREATE TABLE community_categories (
     FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-Many between communities and categories
 
+-- Represents like actions on threads or replies
 CREATE TABLE likes (
     user_id UUID NOT NULL,
     thread_id UUID,
@@ -161,7 +203,11 @@ CREATE TABLE likes (
     FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE,
     CHECK ((thread_id IS NULL AND reply_id IS NOT NULL) OR (thread_id IS NOT NULL AND reply_id IS NULL))
 );
+-- Relations:
+-- 1. Many-to-Many between users and threads (Users can like many threads, threads can be liked by many users)
+-- 2. Many-to-Many between users and replies (Users can like many replies, replies can be liked by many users)
 
+-- Represents repost actions
 CREATE TABLE reposts (
     user_id UUID NOT NULL,
     thread_id UUID NOT NULL,
@@ -171,7 +217,9 @@ CREATE TABLE reposts (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-Many between users and threads (Users can repost many threads, threads can be reposted by many users)
 
+-- Represents bookmark actions
 CREATE TABLE bookmarks (
     user_id UUID NOT NULL,
     thread_id UUID NOT NULL,
@@ -180,13 +228,17 @@ CREATE TABLE bookmarks (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-Many between users and threads (Users can bookmark many threads, threads can be bookmarked by many users)
 
+-- Hashtags used in threads
 CREATE TABLE hashtags (
     hashtag_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     text VARCHAR(50) NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
+-- Will be connected to threads via the thread_hashtags junction table
 
+-- Junction table to connect threads with hashtags
 CREATE TABLE thread_hashtags (
     thread_id UUID NOT NULL,
     hashtag_id UUID NOT NULL,
@@ -194,20 +246,28 @@ CREATE TABLE thread_hashtags (
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE,
     FOREIGN KEY (hashtag_id) REFERENCES hashtags(hashtag_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-Many between threads and hashtags
 
+-- Represents user mentions in threads or replies
 CREATE TABLE user_mentions (
     mention_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    mentioned_user_id UUID NOT NULL,
-    thread_id UUID,
-    reply_id UUID,
+    mentioned_user_id UUID NOT NULL,  -- User who is mentioned
+    thread_id UUID,                  -- Thread where the mention occurs (if in a thread)
+    reply_id UUID,                   -- Reply where the mention occurs (if in a reply)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (mentioned_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE,
     FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE,
     CHECK ((thread_id IS NULL AND reply_id IS NOT NULL) OR (thread_id IS NOT NULL AND reply_id IS NULL))
 );
+-- Relations:
+-- 1. Many-to-One with users (Many mentions can reference one user)
+-- 2. Many-to-One with threads (Many mentions can be in one thread)
+-- 3. Many-to-One with replies (Many mentions can be in one reply)
 
--- Community Management Tables
+-- COMMUNITY MANAGEMENT SERVICE
+
+-- Users who are members of communities
 CREATE TABLE community_members (
     community_id UUID NOT NULL,
     user_id UUID NOT NULL,
@@ -218,7 +278,9 @@ CREATE TABLE community_members (
     FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-Many between communities and users with roles
 
+-- Requests to join communities
 CREATE TABLE community_join_requests (
     request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     community_id UUID NOT NULL,
@@ -230,7 +292,11 @@ CREATE TABLE community_join_requests (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     UNIQUE (community_id, user_id)
 );
+-- Relations:
+-- 1. Many-to-One with communities (Many requests can be for one community)
+-- 2. Many-to-One with users (Many requests can be from one user)
 
+-- Rules for communities
 CREATE TABLE community_rules (
     rule_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     community_id UUID NOT NULL,
@@ -239,157 +305,6 @@ CREATE TABLE community_rules (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE
 );
+-- Relation: Many-to-One with communities (Many rules can belong to one community)
 
-CREATE TABLE community_creation_requests (
-    request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT NOT NULL,
-    logo_url VARCHAR(512) NOT NULL,
-    banner_url VARCHAR(512) NOT NULL,
-    status VARCHAR(10) NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
--- Messaging System Tables
-CREATE TABLE conversations (
-    conversation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    is_group BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-
-CREATE TABLE conversation_participants (
-    conversation_id UUID NOT NULL,
-    user_id UUID NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    PRIMARY KEY (conversation_id, user_id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
-CREATE TABLE messages (
-    message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    conversation_id UUID NOT NULL,
-    sender_id UUID NOT NULL,
-    content TEXT NOT NULL,
-    is_deleted BOOLEAN DEFAULT FALSE NOT NULL,
-    is_unsent BOOLEAN DEFAULT FALSE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
-CREATE TABLE message_media (
-    media_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    message_id UUID NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('Image', 'GIF', 'Video')),
-    url VARCHAR(512) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE
-);
-
--- Notification Tables
-CREATE TABLE notifications (
-    notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('Like', 'Repost', 'Follow', 'Mention', 'Community')),
-    actor_id UUID NOT NULL,
-    thread_id UUID,
-    reply_id UUID,
-    community_id UUID,
-    is_read BOOLEAN DEFAULT FALSE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (actor_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE,
-    FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE,
-    FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE
-);
-
--- Poll Tables
-CREATE TABLE polls (
-    poll_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    thread_id UUID NOT NULL UNIQUE,
-    question TEXT NOT NULL,
-    closes_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    who_can_vote VARCHAR(20) NOT NULL CHECK (who_can_vote IN ('Everyone', 'Accounts You Follow', 'Verified Accounts')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
-);
-
-CREATE TABLE poll_options (
-    option_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    poll_id UUID NOT NULL,
-    text VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (poll_id) REFERENCES polls(poll_id) ON DELETE CASCADE
-);
-
-CREATE TABLE poll_votes (
-    vote_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    poll_id UUID NOT NULL,
-    option_id UUID NOT NULL,
-    user_id UUID NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (poll_id) REFERENCES polls(poll_id) ON DELETE CASCADE,
-    FOREIGN KEY (option_id) REFERENCES poll_options(option_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    UNIQUE (poll_id, user_id)
-);
-
--- Premium and Moderation Tables
-CREATE TABLE premium_requests (
-    request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
-    id_card_number VARCHAR(255) NOT NULL, -- Should be encrypted
-    reason TEXT NOT NULL,
-    face_pic_url VARCHAR(512) NOT NULL,
-    status VARCHAR(10) NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    UNIQUE (user_id)
-);
-
-CREATE TABLE user_reports (
-    report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    reporter_id UUID NOT NULL,
-    reported_id UUID NOT NULL,
-    reason TEXT NOT NULL,
-    status VARCHAR(10) NOT NULL CHECK (status IN ('Pending', 'Resolved', 'Rejected')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (reporter_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (reported_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
-CREATE TABLE thread_reports (
-    report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    reporter_id UUID NOT NULL,
-    thread_id UUID NOT NULL,
-    reason TEXT NOT NULL,
-    status VARCHAR(10) NOT NULL CHECK (status IN ('Pending', 'Resolved', 'Rejected')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (reporter_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
-);
-
-CREATE TABLE newsletters (
-    newsletter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    subject VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    sent_at TIMESTAMP WITH TIME ZONE,
-    created_by UUID NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
--- Note: Redis caching tables would be implemented in Redis, not in PostgreSQL
-```
+--

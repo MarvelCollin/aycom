@@ -3,12 +3,13 @@ package handlers
 import (
 	"context"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/service"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/service"
 )
 
 // UserHandler implements the proto.UserServiceServer interface
@@ -111,5 +112,3 @@ func (h *UserHandler) UpdateUserVerificationStatus(ctx context.Context, req *pro
 	}
 	return &proto.UpdateUserVerificationStatusResponse{Success: true, Message: "Verification status updated"}, nil
 }
-
-// Ensure file ends cleanly

@@ -8,8 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"google.golang.org/grpc"
 	// Adjust import paths if handlers/proto are elsewhere
+
+	"google.golang.org/grpc"
+
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/internal/handlers"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/pkg/db"
@@ -22,26 +24,22 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// --- Database Connection ---
 	dbConn, err := db.ConnectDatabaseWithRetry()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	log.Println("Successfully connected to database")
 
-	// --- Run Migrations ---
 	err = dbConn.AutoMigrate(&model.User{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	log.Println("Database migration completed")
 
-	// --- Dependency Injection ---
 	userRepo := repository.NewPostgresUserRepository(dbConn)
 	userService := service.NewUserService(userRepo)
 	userHandler := handlers.NewUserHandler(userService)
 
-	// --- Seed Data (Optional) ---
 	if len(os.Args) > 1 && os.Args[1] == "seed" {
 		log.Println("Seeding default users...")
 		seeder := repository.NewUserSeeder(dbConn)
@@ -52,10 +50,9 @@ func main() {
 		return // Exit after seeding
 	}
 
-	// --- gRPC Server Setup ---
 	grpcPort := os.Getenv("USER_SERVICE_PORT")
 	if grpcPort == "" {
-		grpcPort = "9091" // Default gRPC port
+		grpcPort = "9091"
 	}
 	listener, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {
@@ -67,7 +64,6 @@ func main() {
 
 	log.Printf("User gRPC server starting on port %s...", grpcPort)
 
-	// Start gRPC server in a goroutine
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Printf("gRPC server failed to serve: %v", err)
