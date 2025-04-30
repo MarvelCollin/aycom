@@ -2,17 +2,18 @@
   import { toastStore, type ToastState, type ToastType } from '../../stores/toastStore';
   import { fly } from 'svelte/transition';
   import {
-    InfoIcon,
-    CheckCircleIcon,
-    AlertTriangleIcon,
-    XCircleIcon,
-    XIcon
+    Info as InfoIcon,
+    CheckCircle as CheckCircleIcon,
+    AlertTriangle as AlertTriangleIcon,
+    XCircle as XCircleIcon,
+    X as XIcon
   } from 'svelte-feather-icons';
 
   let message = '';
   let type: ToastType = 'info';
   let visible = false;
   let toastId = 0;
+  let dataCy = '';
 
   // Subscribe to the toast store
   toastStore.subscribe((state: ToastState) => {
@@ -22,6 +23,7 @@
       type = state.type;
       visible = state.visible;
       toastId = state.id;
+      dataCy = state.dataCy || `toast-${type}`;
     }
   });
 
@@ -52,6 +54,7 @@
   <div 
     class="fixed bottom-5 right-5 z-50 max-w-sm rounded-lg shadow-lg overflow-hidden {currentStyle.bg} text-white"
     transition:fly={{ y: 20, duration: 300 }}
+    data-cy={dataCy}
   >
     <div class="flex items-center p-4">
       <div class="flex-shrink-0">

@@ -36,12 +36,12 @@
     error = "";
     
     try {
-      const result = await login(email, password);
-      isLoading = false;
-      
-      if (result.success) {
-        window.location.href = '/feed';
-      } else {
+    const result = await login(email, password);
+    isLoading = false;
+    
+    if (result.success) {
+      window.location.href = '/feed';
+    } else {
         errorMessage = result.message || "Login failed. Please check your credentials.";
         error = errorMessage; // Keep simple error for inline display
         // Show detailed toast if configured
@@ -84,10 +84,12 @@
 </script>
 
 <AuthLayout title="Sign in to AYCOM">
-  <GoogleSignInButton 
-    onAuthSuccess={handleGoogleAuthSuccess} 
-    onAuthError={handleGoogleAuthError} 
-  />
+  <div data-cy="google-login-button">
+    <GoogleSignInButton 
+      onAuthSuccess={handleGoogleAuthSuccess} 
+      onAuthError={handleGoogleAuthError}
+    />
+  </div>
   
   <div class="flex items-center mb-4">
     <div class="flex-grow h-px bg-gray-300 dark:bg-gray-700"></div>
@@ -96,7 +98,7 @@
   </div>
   
   {#if error}
-    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
+    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4" data-cy="error-message">
       {error}
     </div>
   {/if}
@@ -112,14 +114,18 @@
         class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Email"
         required
+        data-cy="email-input"
       />
+      {#if error && !email}
+        <p class="text-red-500 text-sm mt-1" data-cy="email-error">Email is required</p>
+      {/if}
     </div>
     
     <!-- Password input -->
     <div class="mb-6">
       <div class="flex justify-between items-center mb-1">
         <label for="password" class="block text-sm font-medium">Password</label>
-        <a href="/forgot-password" class="text-xs text-blue-500 hover:underline">Forgot password?</a>
+        <a href="/forgot-password" class="text-xs text-blue-500 hover:underline" data-cy="forgot-password">Forgot password?</a>
       </div>
       <input 
         type="password" 
@@ -128,7 +134,11 @@
         class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Password"
         required
+        data-cy="password-input"
       />
+      {#if error && !password}
+        <p class="text-red-500 text-sm mt-1" data-cy="password-error">Password is required</p>
+      {/if}
     </div>
     
     <!-- Remember me checkbox -->
@@ -138,6 +148,7 @@
           type="checkbox" 
           bind:checked={rememberMe} 
           class="mr-2"
+          data-cy="remember-me"
         />
         <span class="text-sm">Remember me</span>
       </label>
@@ -148,6 +159,7 @@
       type="submit"
       class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors flex justify-center items-center"
       disabled={isLoading}
+      data-cy="login-button"
     >
       {#if isLoading}
         <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -163,6 +175,6 @@
   
   <!-- Register link -->
   <p class="text-sm mt-6 text-center">
-    Don't have an account? <a href="/register" class="text-blue-500 hover:underline">Sign up</a>
+    Don't have an account? <a href="/register" class="text-blue-500 hover:underline" data-cy="register-link">Sign up</a>
   </p>
 </AuthLayout>

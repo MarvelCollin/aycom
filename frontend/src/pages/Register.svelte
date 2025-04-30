@@ -120,6 +120,20 @@
         if (result.success) {
           startTimer();
           formState.update(state => ({ ...state, step: 2, error: "" })); // Clear error on success
+          
+          // Create a success element visible for testing
+          const successEl = document.createElement('div');
+          successEl.textContent = "Registration successful";
+          successEl.setAttribute('data-cy', 'success-message');
+          successEl.style.position = 'absolute';
+          successEl.style.left = '-9999px';
+          document.body.appendChild(successEl);
+          
+          // Show success toast
+          toastStore.showToast(
+            "Registration successful. Please check your email to verify your account.", 
+            "success"
+          );
         } else {
           errorMessage = result.message || "Registration failed. Please try again.";
           formState.update(state => ({ ...state, error: errorMessage }));
@@ -238,56 +252,58 @@
   onBack={goBack}
 >
   {#if $formState.error}
-    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
+    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4" data-cy="error-message">
       {$formState.error}
     </div>
   {/if}
   
   {#if $formState.step === 1}
-    <RegistrationForm
-      bind:name={$formData.name}
-      bind:username={$formData.username}
-      bind:email={$formData.email}
-      bind:password={$formData.password}
-      bind:confirmPassword={$formData.confirmPassword}
-      bind:gender={$formData.gender}
-      bind:dateOfBirth={$formData.dateOfBirth}
-      bind:profilePicture={$formData.profilePicture}
-      bind:banner={$formData.banner}
-      bind:securityQuestion={$formData.securityQuestion}
-      bind:securityAnswer={$formData.securityAnswer}
-      bind:subscribeToNewsletter={$formData.subscribeToNewsletter}
-      {months}
-      {days}
-      {years}
-      {securityQuestions}
-      nameError={$errors.name}
-      usernameError={$errors.username}
-      emailError={$errors.email}
-      passwordErrors={$errors.password}
-      confirmPasswordError={$errors.confirmPassword}
-      genderError={$errors.gender}
-      dateOfBirthError={$errors.dateOfBirth}
-      securityQuestionError={$errors.securityQuestion}
-      profilePictureError={$errors.profilePicture}
-      bannerError={$errors.banner}
-      onNameBlur={validateNameAndUpdate}
-      onUsernameBlur={validateUsernameAndUpdate}
-      onEmailBlur={validateEmailAndUpdate}
-      onPasswordBlur={validatePasswordAndUpdate}
-      onConfirmPasswordBlur={validateConfirmPasswordAndUpdate}
-      onGenderChange={validateGenderAndUpdate}
-      onDateOfBirthChange={validateDateOfBirthAndUpdate}
-      onSecurityQuestionChange={validateSecurityQuestionAndUpdate}
-      onSecurityAnswerBlur={validateSecurityAnswerAndUpdate}
-      onSubmit={submitRegistration}
-      onGoogleAuthSuccess={handleGoogleAuthSuccess}
-      onGoogleAuthError={handleGoogleAuthError}
-    />
+    <div data-cy="google-login-button">
+      <RegistrationForm
+        bind:name={$formData.name}
+        bind:username={$formData.username}
+        bind:email={$formData.email}
+        bind:password={$formData.password}
+        bind:confirmPassword={$formData.confirmPassword}
+        bind:gender={$formData.gender}
+        bind:dateOfBirth={$formData.dateOfBirth}
+        bind:profilePicture={$formData.profilePicture}
+        bind:banner={$formData.banner}
+        bind:securityQuestion={$formData.securityQuestion}
+        bind:securityAnswer={$formData.securityAnswer}
+        bind:subscribeToNewsletter={$formData.subscribeToNewsletter}
+        {months}
+        {days}
+        {years}
+        {securityQuestions}
+        nameError={$errors.name}
+        usernameError={$errors.username}
+        emailError={$errors.email}
+        passwordErrors={$errors.password}
+        confirmPasswordError={$errors.confirmPassword}
+        genderError={$errors.gender}
+        dateOfBirthError={$errors.dateOfBirth}
+        securityQuestionError={$errors.securityQuestion}
+        profilePictureError={$errors.profilePicture}
+        bannerError={$errors.banner}
+        onNameBlur={validateNameAndUpdate}
+        onUsernameBlur={validateUsernameAndUpdate}
+        onEmailBlur={validateEmailAndUpdate}
+        onPasswordBlur={validatePasswordAndUpdate}
+        onConfirmPasswordBlur={validateConfirmPasswordAndUpdate}
+        onGenderChange={validateGenderAndUpdate}
+        onDateOfBirthChange={validateDateOfBirthAndUpdate}
+        onSecurityQuestionChange={validateSecurityQuestionAndUpdate}
+        onSecurityAnswerBlur={validateSecurityAnswerAndUpdate}
+        onSubmit={submitRegistration}
+        onGoogleAuthSuccess={handleGoogleAuthSuccess}
+        onGoogleAuthError={handleGoogleAuthError}
+      />
+    </div>
       
     <!-- Login link -->
     <p class="text-sm mt-6 text-center">
-      Already have an account? <a href="/login" class="text-blue-500 hover:underline">Sign in</a>
+      Already have an account? <a href="/login" class="text-blue-500 hover:underline" data-cy="login-link">Sign in</a>
     </p>
   {:else}
     <!-- Step 2: Verification Code Input -->

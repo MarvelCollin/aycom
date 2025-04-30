@@ -9,6 +9,10 @@
   export let onAuthError: (error: string) => void = () => {};
   export let containerId = 'google-signin-button';
   
+  // Forward additional HTML attributes for testing
+  let buttonClass = '';
+  export { buttonClass as class };
+  
   // Get external services functions
   const { loadGoogleAuth } = useExternalServices();
   
@@ -47,4 +51,4 @@
   });
 </script>
 
-<div id={containerId} class="w-full mb-4 min-h-[40px]"></div> 
+<div id={containerId} class="w-full mb-4 min-h-[40px] {buttonClass}"></div> 

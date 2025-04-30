@@ -17,12 +17,6 @@ export function useExternalServices() {
   const getGoogleRedirectUri = (): string => 
     import.meta.env.VITE_GOOGLE_REDIRECT_URI || '';
   
-  /**
-   * Loads the reCAPTCHA script and initializes it
-   * @param callback Function to call when the token is updated
-   * @param containerId ID or DOM element of the container for reCAPTCHA
-   * @returns Cleanup function
-   */
   const loadRecaptcha = (
     callback: (token: string) => void, 
     containerId: string | HTMLElement = 'recaptcha-container'
@@ -147,25 +141,17 @@ export function useExternalServices() {
     
     document.head.appendChild(script);
     
-    // Return cleanup function
     return () => {
-      // Remove the script
       try {
         document.head.removeChild(script);
       } catch (e) {
         console.error('Error removing Google Sign-In script:', e);
       }
       
-      // Remove the global callback
       delete (window as CustomWindow).handleGoogleCredentialResponse;
     };
   };
   
-  /**
-   * Initializes Google Sign-In after the script is loaded
-   * @param buttonId ID of the HTML element to render the Google button in
-   * @param isDarkMode Whether to use dark mode
-   */
   const initializeGoogleAuth = (buttonId: string, isDarkMode: boolean) => {
     const customWindow = window as CustomWindow;
     if (!customWindow.google?.accounts) return;

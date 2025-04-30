@@ -58,20 +58,15 @@
   }
   
   function handleKeydown(event: KeyboardEvent) {
-    // Add the typed key to the buffer
     secretBuffer += event.key.toLowerCase();
     
-    // Keep only the last N characters where N is the length of the secret code
     if (secretBuffer.length > secretCode.length) {
       secretBuffer = secretBuffer.slice(secretBuffer.length - secretCode.length);
     }
     
-    // Check if the buffer matches the secret code
     if (secretBuffer === secretCode) {
-      // Clear the buffer
       secretBuffer = '';
       
-      // Redirect to the debug page
       window.history.pushState({}, '', '/debug');
       handleNavigation();
     }

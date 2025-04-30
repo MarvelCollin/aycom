@@ -2,6 +2,12 @@ import { writable } from 'svelte/store';
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error';
 
+// Toast options interface
+interface ToastOptions {
+  duration?: number;
+  dataCy?: string;
+}
+
 // Export the interface
 export interface ToastState {
   message: string;
@@ -9,6 +15,7 @@ export interface ToastState {
   visible: boolean;
   duration: number;
   id: number; // Unique ID to trigger reactivity even if message/type are same
+  dataCy?: string; // Optional data-cy attribute for testing
 }
 
 const defaultDuration = 4000; // Default duration in ms
@@ -26,10 +33,21 @@ const initialState: ToastState = {
 const { subscribe, set, update } = writable<ToastState>(initialState);
 
 // Function to show a toast
-function showToast(message: string, type: ToastType = 'error', duration: number = defaultDuration) {
+function showToast(message: string, type: ToastType = 'error', options?: ToastOptions | number) {
   // Clear any existing timeout
   if (toastTimeoutId) {
     clearTimeout(toastTimeoutId);
+  }
+
+  // Process options
+  let duration = defaultDuration;
+  let dataCy: string | undefined = undefined;
+  
+  if (typeof options === 'number') {
+    duration = options;
+  } else if (options && typeof options === 'object') {
+    duration = options.duration || defaultDuration;
+    dataCy = options.dataCy;
   }
 
   // Set the new toast state
@@ -38,7 +56,8 @@ function showToast(message: string, type: ToastType = 'error', duration: number 
     type,
     visible: true,
     duration,
-    id: Date.now() // Use timestamp as unique ID
+    id: Date.now(), // Use timestamp as unique ID
+    dataCy
   });
 
   // Set a timeout to hide the toast

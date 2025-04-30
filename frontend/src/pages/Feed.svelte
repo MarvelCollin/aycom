@@ -112,6 +112,6 @@
       {isDarkMode}
       on:close={toggleComposeModal}
       avatar={sidebarAvatar} 
-    /> 
+    />
   {/if}
 </div> 

@@ -59,7 +59,7 @@
     </div>
     
     {#if title}
-      <h1 class="text-2xl font-bold mb-6 text-center">{title}</h1>
+      <h1 class="text-2xl font-bold mb-6 text-center" data-cy="page-title">{title}</h1>
     {/if}
     
     <slot />
