@@ -2,11 +2,11 @@
   import { toastStore, type ToastState, type ToastType } from '../../stores/toastStore';
   import { fly } from 'svelte/transition';
   import {
-    Info as InfoIcon,
-    CheckCircle as CheckCircleIcon,
-    AlertTriangle as AlertTriangleIcon,
-    XCircle as XCircleIcon,
-    X as XIcon
+    InfoIcon,
+    CheckCircleIcon,
+    AlertTriangleIcon,
+    XCircleIcon,
+    XIcon
   } from 'svelte-feather-icons';
 
   let message = '';

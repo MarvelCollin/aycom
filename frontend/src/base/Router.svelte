@@ -113,13 +113,13 @@
   {:else if route === '/register'}
     <Register />
   {:else if route === '/home'}
-    <Feed />
+    <Feed {route} />
   {:else if route === '/feed'}
-    <Feed />
+    <Feed {route} />
   {:else if route === '/google/' || route === '/google'}
     <GoogleCallback />
   {:else if route === '/explore' || route === '/notifications' || route === '/messages' || route === '/profile'}
-    <Feed />
+    <Feed {route} />
   {:else}
     <div class="not-found">
       <h1>404 - Page Not Found</h1>

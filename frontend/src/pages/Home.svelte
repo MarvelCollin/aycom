@@ -1,114 +1,143 @@
 <script lang="ts">
-  import { useTheme } from '../hooks/useTheme';
+  import MainLayout from '../components/layout/MainLayout.svelte';
+  import TweetCard from '../components/social/TweetCard.svelte';
+  import CreateThreadModal from '../components/feed/CreateThreadModal.svelte';
   import { onMount } from 'svelte';
-  
-  // Get theme store
+  import { useAuth } from '../hooks/useAuth';
+  import { useTheme } from '../hooks/useTheme';
+  import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
+  import type { IAuthStore } from '../interfaces/IAuth';
+
+  const { getAuthState } = useAuth();
   const { theme } = useTheme();
-  
-  // Reactive declaration to update isDarkMode when theme changes
+
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
   $: isDarkMode = $theme === 'dark';
+  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
+  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
+  $: sidebarAvatar = '👤'; 
+
+  let tweets: ITweet[] = [];
+  let showComposeModal: boolean = false;
   
-  onMount(() => {
-    // Apply theme class to document when component mounts
-    document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
+  let trends: ITrend[] = [
+    { category: 'Politics', title: 'Election 2023', postCount: '235K' },
+    { category: 'Sports', title: 'Champions League', postCount: '187K' },
+    { category: 'Technology', title: 'AI Advancements', postCount: '142K' },
+    { category: 'Entertainment', title: 'New Movie Release', postCount: '98K' },
+  ];
+  let suggestedUsers: ISuggestedFollow[] = [
+    { username: 'techguru', displayName: 'Tech Guru', avatar: 'https://i.pravatar.cc/150?img=1', verified: true, followerCount: 12000 },
+    { username: 'newsupdate', displayName: 'News Update', avatar: 'https://i.pravatar.cc/150?img=2', verified: true, followerCount: 9800 },
+    { username: 'sportscentral', displayName: 'Sports Central', avatar: 'https://i.pravatar.cc/150?img=3', verified: false, followerCount: 500 }
+  ];
+
+  onMount(async () => {
+    setTimeout(() => {
+      tweets = [
+        { 
+          id: 1, 
+          username: 'devuser', 
+          displayName: 'Developer', 
+          avatar: '🧑‍💻',
+          content: 'Just released a new feature!', 
+          timestamp: new Date().toISOString(), 
+          likes: 42, 
+          replies: 5,
+          reposts: 11,
+          views: '1.1K'
+        },
+        { 
+          id: 2, 
+          username: 'naturelover', 
+          displayName: 'Nature Enthusiast', 
+          avatar: '🌳',
+          content: 'What a beautiful day! #sunshine', 
+          timestamp: new Date(Date.now() - 3600000).toISOString(), 
+          likes: 18, 
+          replies: 2,
+          reposts: 3,
+          views: '580'
+        }
+      ];
+    }, 1000);
   });
+
+  function toggleComposeModal() {
+    console.log('Toggle compose modal called', showComposeModal);
+    showComposeModal = !showComposeModal;
+    console.log('New state:', showComposeModal);
+  }
 </script>
 
-<div class="w-full min-h-screen {isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'} transition-colors duration-300">
-  <section class="py-20 mb-12 text-center relative overflow-hidden {isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-md">
-    <div class="absolute inset-0 z-0 {isDarkMode ? 'opacity-10' : 'opacity-5'}">
-      <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 transform -rotate-6 scale-110 translate-x-1/4 translate-y-1/4 rounded-full blur-3xl"></div>
+<MainLayout
+  username={sidebarUsername}
+  displayName={sidebarDisplayName}
+  avatar={sidebarAvatar}
+  trends={trends}
+  suggestedFollows={suggestedUsers}
+  on:toggleComposeModal={toggleComposeModal}
+>
+  <div class="min-h-screen border-x {isDarkMode ? 'border-gray-800 bg-black' : 'border-gray-200 bg-white'}">
+    <div class="sticky top-0 z-10 {isDarkMode ? 'bg-black/80 border-gray-800' : 'bg-white/80 border-gray-200'} backdrop-blur-md border-b px-4 py-3">
+      <h1 class="text-xl font-bold {isDarkMode ? 'text-white' : 'text-black'}">Home</h1>
     </div>
-    <div class="container mx-auto relative z-10">
-      <div class="max-w-3xl mx-auto px-6">
-        <h1 class="text-4xl md:text-6xl mb-6 font-bold {isDarkMode ? 'text-white' : 'text-gray-900'}">Welcome to <span class="text-blue-500">AYCOM</span></h1>
-        <p class="text-xl mb-10 {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Your trusted online marketplace for all your needs</p>
-        <div class="flex flex-col sm:flex-row justify-center gap-4">
-          <a href="/products" class="py-3 px-8 rounded-full font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all hover:shadow-lg transform hover:-translate-y-1">
-            Browse Products
-          </a>
-          <a href="/register" class="py-3 px-8 rounded-full font-semibold {isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-all hover:shadow-lg transform hover:-translate-y-1">
-            Join Now
-          </a>
+    
+    <!-- Tweet Composer -->
+    <div class="p-4 border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'}">
+      <div class="flex items-start space-x-3">
+        <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center overflow-hidden">
+          <span>{sidebarAvatar}</span>
+        </div>
+        <div class="flex-1">
+          <button 
+            class="w-full text-left px-4 py-2 {isDarkMode ? 'text-gray-400 bg-transparent hover:bg-gray-800 border-gray-700' : 'text-gray-500 bg-transparent hover:bg-gray-100 border-gray-300'} rounded-full border"
+            on:click={toggleComposeModal}
+          >
+            What's happening?
+          </button>
+        </div>
+      </div>
+      <div class="flex justify-between mt-3 pl-12">
+        <div class="flex space-x-4">
+          <button class="text-blue-500 hover:text-blue-600 transition-colors" title="Media">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+          <button class="text-blue-500 hover:text-blue-600 transition-colors" title="GIF">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button class="text-blue-500 hover:text-blue-600 transition-colors" title="Poll">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
-  </section>
-  
-  <section class="mb-20">
-    <div class="container mx-auto px-6">
-      <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-blue-500">Why Choose AYCOM?</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-        <div class="{isDarkMode ? 'bg-gray-800' : 'bg-white'} p-8 rounded-xl text-center shadow-lg transition-transform hover:-translate-y-2 duration-300">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">🚚</div>
-          <h3 class="font-bold text-xl mb-3 {isDarkMode ? 'text-white' : 'text-gray-900'}">Fast Delivery</h3>
-          <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-600'}">Get your products delivered to your doorstep in no time.</p>
+    
+    <!-- Tweet Feed -->
+    <div class="{isDarkMode ? 'bg-black' : 'bg-white'}">
+      {#each tweets as tweet (tweet.id)}
+        <TweetCard {tweet} {isDarkMode} />
+      {:else}
+        <div class="p-4 text-center {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
+          <p>Loading tweets...</p>
         </div>
-        
-        <div class="{isDarkMode ? 'bg-gray-800' : 'bg-white'} p-8 rounded-xl text-center shadow-lg transition-transform hover:-translate-y-2 duration-300">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">💎</div>
-          <h3 class="font-bold text-xl mb-3 {isDarkMode ? 'text-white' : 'text-gray-900'}">Quality Products</h3>
-          <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-600'}">All our products are carefully selected for quality.</p>
-        </div>
-        
-        <div class="{isDarkMode ? 'bg-gray-800' : 'bg-white'} p-8 rounded-xl text-center shadow-lg transition-transform hover:-translate-y-2 duration-300">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">🔒</div>
-          <h3 class="font-bold text-xl mb-3 {isDarkMode ? 'text-white' : 'text-gray-900'}">Secure Payments</h3>
-          <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-600'}">Shop with confidence with our secure payment options.</p>
-        </div>
-        
-        <div class="{isDarkMode ? 'bg-gray-800' : 'bg-white'} p-8 rounded-xl text-center shadow-lg transition-transform hover:-translate-y-2 duration-300">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">🌍</div>
-          <h3 class="font-bold text-xl mb-3 {isDarkMode ? 'text-white' : 'text-gray-900'}">Global Reach</h3>
-          <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-600'}">Connect with sellers and buyers from around the world.</p>
-        </div>
-      </div>
+      {/each}
     </div>
-  </section>
-  
-  <section class="mb-20">
-    <div class="container mx-auto px-6">
-      <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-blue-500">Popular Categories</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <a href="/products?category=electronics" class="flex flex-col items-center p-8 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-xl shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl text-center">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">📱</div>
-          <h3 class="font-bold text-xl {isDarkMode ? 'text-white' : 'text-gray-900'}">Electronics</h3>
-        </a>
-        
-        <a href="/products?category=fashion" class="flex flex-col items-center p-8 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-xl shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl text-center">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">👕</div>
-          <h3 class="font-bold text-xl {isDarkMode ? 'text-white' : 'text-gray-900'}">Fashion</h3>
-        </a>
-        
-        <a href="/products?category=home" class="flex flex-col items-center p-8 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-xl shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl text-center">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">🏠</div>
-          <h3 class="font-bold text-xl {isDarkMode ? 'text-white' : 'text-gray-900'}">Home & Garden</h3>
-        </a>
-        
-        <a href="/products?category=beauty" class="flex flex-col items-center p-8 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-xl shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl text-center">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">✨</div>
-          <h3 class="font-bold text-xl {isDarkMode ? 'text-white' : 'text-gray-900'}">Beauty</h3>
-        </a>
-        
-        <a href="/products?category=sports" class="flex flex-col items-center p-8 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-xl shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl text-center">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">⚽</div>
-          <h3 class="font-bold text-xl {isDarkMode ? 'text-white' : 'text-gray-900'}">Sports</h3>
-        </a>
-        
-        <a href="/products?category=toys" class="flex flex-col items-center p-8 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-xl shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl text-center">
-          <div class="text-5xl mb-6 mx-auto bg-blue-500 bg-opacity-10 rounded-full w-20 h-20 flex items-center justify-center">🧸</div>
-          <h3 class="font-bold text-xl {isDarkMode ? 'text-white' : 'text-gray-900'}">Toys & Games</h3>
-        </a>
-      </div>
-    </div>
-  </section>
-  
-  <section class="pb-20">
-    <div class="container mx-auto px-6 text-center">
-      <h2 class="text-3xl md:text-4xl font-bold mb-8 text-blue-500">Ready to start shopping?</h2>
-      <a href="/register" class="inline-block py-3 px-8 rounded-full font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all hover:shadow-lg transform hover:-translate-y-1">
-        Create Account
-      </a>
-    </div>
-  </section>
-</div> 
+  </div>
+</MainLayout>
+
+{#if showComposeModal}
+  <CreateThreadModal 
+    on:close={toggleComposeModal}
+    on:created={toggleComposeModal}
+    avatar={sidebarAvatar}
+    username={sidebarUsername}
+    displayName={sidebarDisplayName}
+  />
+{/if}
