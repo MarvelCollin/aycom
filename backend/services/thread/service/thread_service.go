@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/repository"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"

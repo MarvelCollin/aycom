@@ -3,10 +3,14 @@ package service
 import (
 	"context"
 
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/repository"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// Thread is an alias for the model.Thread to avoid circular imports
+type Thread = model.Thread
 
 // InteractionService defines the interface for interaction operations (likes, reposts, bookmarks)
 type InteractionService interface {

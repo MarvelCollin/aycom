@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/service"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc/codes"

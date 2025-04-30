@@ -18,13 +18,11 @@ type DatabaseConfig struct {
 
 // Config represents the auth service configuration
 type Config struct {
-	Port         string
-	Database     DatabaseConfig
-	JWTSecret    string
-	AccessTTL    int // Time-to-live for access tokens in minutes
-	RefreshTTL   int // Time-to-live for refresh tokens in days
-	RedisAddress string
-	RabbitMQURL  string
+	Port       string
+	Database   DatabaseConfig
+	JWTSecret  string
+	AccessTTL  int // Time-to-live for access tokens in minutes
+	RefreshTTL int // Time-to-live for refresh tokens in days
 }
 
 // LoadConfig loads configuration from environment variables
@@ -39,11 +37,9 @@ func LoadConfig() (*Config, error) {
 			DBName:   getEnv("DB_NAME", "auth_service"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
-		JWTSecret:    getEnv("JWT_SECRET", "your-secret-key"),
-		AccessTTL:    getEnvAsInt("ACCESS_TOKEN_TTL", 15), // 15 minutes default
-		RefreshTTL:   getEnvAsInt("REFRESH_TOKEN_TTL", 7), // 7 days default
-		RedisAddress: getEnv("REDIS_ADDRESS", "localhost:6379"),
-		RabbitMQURL:  getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		JWTSecret:  getEnv("JWT_SECRET", "your-secret-key"),
+		AccessTTL:  getEnvAsInt("ACCESS_TOKEN_TTL", 15), // 15 minutes default
+		RefreshTTL: getEnvAsInt("REFRESH_TOKEN_TTL", 7), // 7 days default
 	}
 
 	return cfg, nil

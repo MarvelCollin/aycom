@@ -1,0 +1,39 @@
+# Node and frontend
+node_modules
+frontend
+
+# Git
+.git
+.gitignore
+
+# Editor and OS files
+*.swp
+*.swo
+*.DS_Store
+*.vscode
+
+# Logs
+*.log
+
+# Debugger and ERD
+/debugger
+/erd
+
+# AI and training
+ai-service
+aio-training
+
+# PDF and docs
+*.pdf
+
+# Cursor and IDE
+.cursor
+
+# Docker
+Dockerfile*
+.dockerignore
+
+dist
+build
+coverage
+.env 

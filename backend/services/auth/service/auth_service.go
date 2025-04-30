@@ -597,3 +597,7 @@ func (s *authService) AuthenticateWithGoogle(ctx context.Context, idToken string
 	// For this example, we'll just return an error
 	return nil, errors.New("Google authentication not implemented yet")
 }
+
+func Add(a, b int) int {
+	return a + b
+}

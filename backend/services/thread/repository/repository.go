@@ -117,7 +117,7 @@ type ThreadRepositoryImpl struct {
 
 // NewThreadRepository creates a new thread repository
 func NewThreadRepository(db *gorm.DB) ThreadRepository {
-	return &ThreadRepositoryImpl{db: db}
+	return &threadRepositoryImpl{db: db}
 }
 
 // NewReplyRepository creates a new reply repository

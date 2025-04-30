@@ -31,6 +31,11 @@ type Thread struct {
 	Poll             *Poll            `gorm:"foreignKey:ThreadID" json:"poll,omitempty"`
 }
 
+// TableName sets the table name for Thread model
+func (Thread) TableName() string {
+	return "threads"
+}
+
 type Reply struct {
 	ReplyID       uuid.UUID      `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"reply_id"`
 	ThreadID      uuid.UUID      `gorm:"type:uuid;not null" json:"thread_id"`
@@ -51,6 +56,11 @@ type Reply struct {
 	Likes        []Like        `gorm:"foreignKey:ReplyID" json:"likes,omitempty"`
 }
 
+// TableName sets the table name for Reply model
+func (Reply) TableName() string {
+	return "replies"
+}
+
 // Media represents an image, GIF, or video attached to a thread or reply
 type Media struct {
 	MediaID   uuid.UUID      `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"media_id"`
@@ -61,7 +71,7 @@ type Media struct {
 	CreatedAt time.Time      `gorm:"type:timestamp with time zone;not null;default:now()" json:"created_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	// Relationships
+	// Relationship references without constraint names
 	Thread *Thread `gorm:"foreignKey:ThreadID" json:"-"`
 	Reply  *Reply  `gorm:"foreignKey:ReplyID" json:"-"`
 }

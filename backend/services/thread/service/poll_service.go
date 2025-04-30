@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/repository"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -98,7 +98,8 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *prot
 	}
 
 	// Create poll options
-	pollOptions := make([]*model.PollOption, 0, len(req.Options))
+	pollOptions := make([]model.PollOption, 0, len(req.Options))
+	modelPointers := make([]*model.PollOption, 0, len(req.Options))
 	for _, optionText := range req.Options {
 		option := &model.PollOption{
 			OptionID:  uuid.New(),
@@ -106,11 +107,12 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *prot
 			Text:      optionText,
 			CreatedAt: time.Now(),
 		}
-		pollOptions = append(pollOptions, option)
+		modelPointers = append(modelPointers, option)
+		pollOptions = append(pollOptions, *option)
 	}
 
 	// Create poll options in database
-	if err := s.pollRepo.CreatePollOptions(pollOptions); err != nil {
+	if err := s.pollRepo.CreatePollOptions(modelPointers); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create poll options: %v", err)
 	}
 
@@ -135,9 +137,14 @@ func (s *pollService) GetPollByID(ctx context.Context, pollID string) (*model.Po
 	}
 
 	// Load options
-	options, err := s.pollRepo.FindPollOptionsByPollID(pollID)
+	optionPointers, err := s.pollRepo.FindPollOptionsByPollID(pollID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
+	}
+
+	options := make([]model.PollOption, len(optionPointers))
+	for i, opt := range optionPointers {
+		options[i] = *opt
 	}
 	poll.Options = options
 
@@ -159,9 +166,14 @@ func (s *pollService) GetPollByThreadID(ctx context.Context, threadID string) (*
 	}
 
 	// Load options
-	options, err := s.pollRepo.FindPollOptionsByPollID(poll.PollID.String())
+	optionPointers, err := s.pollRepo.FindPollOptionsByPollID(poll.PollID.String())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
+	}
+
+	options := make([]model.PollOption, len(optionPointers))
+	for i, opt := range optionPointers {
+		options[i] = *opt
 	}
 	poll.Options = options
 

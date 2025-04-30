@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	threadProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto"
+	threadProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

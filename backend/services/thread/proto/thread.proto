@@ -18,7 +18,7 @@ service ThreadService {
   
   // Reply operations
   rpc CreateReply(CreateReplyRequest) returns (ReplyResponse) {}
-  rpc GetRepliesByThread(GetRepliesByThreadRequest) return  s (RepliesResponse) {}
+  rpc GetRepliesByThread(GetRepliesByThreadRequest) returns (RepliesResponse) {}
   rpc UpdateReply(UpdateReplyRequest) returns (ReplyResponse) {}
   rpc DeleteReply(DeleteReplyRequest) returns (google.protobuf.Empty) {}
   
@@ -287,4 +287,12 @@ message RepliesResponse {
   int32 total_count = 2;
   int32 page = 3;
   int32 limit = 4;
+}
+
+message CreatePollRequest {
+  string thread_id = 1;
+  string question = 2;
+  repeated string options = 3;
+  google.protobuf.Timestamp closes_at = 4;
+  string who_can_vote = 5;
 } 

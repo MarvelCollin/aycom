@@ -1,10 +1,18 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
 # Install required dependencies
 RUN apk add --no-cache gcc musl-dev git
+
+# Copy the entire project for correct Go module resolution
+COPY . .
+
+WORKDIR /app/backend/services/thread
+
+# Download dependencies (including local replaces)
+RUN go mod tidy
 
 # Create directories for the service code
 RUN mkdir -p /app/proto
@@ -12,21 +20,8 @@ RUN mkdir -p /app/proto
 # Copy just the proto files first 
 COPY backend/services/thread/proto/ /app/proto/
 
-# Copy the rest of the code
-COPY backend/services/thread/ .
-
-# Create a go.mod file that doesn't require external GitHub access
-RUN rm go.mod go.sum && \
-    go mod init thread-service && \
-    go get google.golang.org/grpc@v1.59.0 && \
-    go get google.golang.org/protobuf@v1.31.0 && \
-    go get gorm.io/driver/postgres@v1.5.4 && \
-    go get gorm.io/gorm@v1.25.5 && \
-    go get github.com/google/uuid@v1.4.0 && \
-    go mod tidy
-
 # Build the service
-RUN go build -o thread-service .
+RUN go build -o /app/thread-service .
 
 # Final stage
 FROM alpine:latest
