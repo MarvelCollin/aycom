@@ -1,7 +1,6 @@
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import TweetCard from '../components/social/TweetCard.svelte';
-  import CreateThreadModal from '../components/feed/CreateThreadModal.svelte';
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
@@ -131,13 +130,3 @@
     </div>
   </div>
 </MainLayout>
-
-{#if showComposeModal}
-  <CreateThreadModal 
-    on:close={toggleComposeModal}
-    on:created={toggleComposeModal}
-    avatar={sidebarAvatar}
-    username={sidebarUsername}
-    displayName={sidebarDisplayName}
-  />
-{/if}

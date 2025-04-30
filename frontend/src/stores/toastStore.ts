@@ -1,83 +1,41 @@
 import { writable } from 'svelte/store';
 
-export type ToastType = 'info' | 'success' | 'warning' | 'error';
+type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-// Toast options interface
-interface ToastOptions {
-  duration?: number;
-  dataCy?: string;
-}
-
-// Export the interface
-export interface ToastState {
+interface Toast {
+  id: string;
   message: string;
   type: ToastType;
-  visible: boolean;
-  duration: number;
-  id: number; // Unique ID to trigger reactivity even if message/type are same
-  dataCy?: string; // Optional data-cy attribute for testing
+  timeout: number;
 }
 
-const defaultDuration = 4000; // Default duration in ms
-let toastTimeoutId: NodeJS.Timeout | null = null;
+function createToastStore() {
+  const { subscribe, update } = writable<Toast[]>([]);
 
-// Initial state
-const initialState: ToastState = {
-  message: '',
-  type: 'info',
-  visible: false,
-  duration: defaultDuration,
-  id: 0
-};
+  function showToast(message: string, type: ToastType = 'info', timeout: number = 3000) {
+    const id = Math.random().toString(36).substring(2, 9);
+    
+    update(toasts => [
+      ...toasts,
+      { id, message, type, timeout }
+    ]);
 
-const { subscribe, set, update } = writable<ToastState>(initialState);
+    setTimeout(() => {
+      removeToast(id);
+    }, timeout);
 
-// Function to show a toast
-function showToast(message: string, type: ToastType = 'error', options?: ToastOptions | number) {
-  // Clear any existing timeout
-  if (toastTimeoutId) {
-    clearTimeout(toastTimeoutId);
+    return id;
   }
 
-  // Process options
-  let duration = defaultDuration;
-  let dataCy: string | undefined = undefined;
-  
-  if (typeof options === 'number') {
-    duration = options;
-  } else if (options && typeof options === 'object') {
-    duration = options.duration || defaultDuration;
-    dataCy = options.dataCy;
+  function removeToast(id: string) {
+    update(toasts => toasts.filter(t => t.id !== id));
   }
 
-  // Set the new toast state
-  set({
-    message,
-    type,
-    visible: true,
-    duration,
-    id: Date.now(), // Use timestamp as unique ID
-    dataCy
-  });
-
-  // Set a timeout to hide the toast
-  toastTimeoutId = setTimeout(() => {
-    hideToast();
-  }, duration);
+  return {
+    subscribe,
+    showToast,
+    removeToast
+  };
 }
 
-// Function to hide the toast
-function hideToast() {
-  update(state => ({ ...state, visible: false }));
-  if (toastTimeoutId) {
-    clearTimeout(toastTimeoutId);
-    toastTimeoutId = null;
-  }
-}
-
-// Export the store and functions
-export const toastStore = {
-  subscribe,
-  showToast,
-  hideToast
-}; 
+export const toastStore = createToastStore(); 

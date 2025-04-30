@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { ITrend, ISuggestedFollow } from "../../interfaces/ISocialMedia";
+  import ComposeTweet from "../social/ComposeTweet.svelte";
 
   export let trends: ITrend[] = [];
   export let suggestedFollows: ISuggestedFollow[] = [];
   export let isDarkMode: boolean = false;
 </script>
 
-<!-- Search Box -->
 <div class="search-container {isDarkMode ? 'search-dark' : ''} sticky top-0 z-10 pb-3 bg-inherit">
   <div class="relative">
     <input 
@@ -22,7 +22,6 @@
   </div>
 </div>
 
-<!-- What's happening section -->
 <div class="sidebar {isDarkMode ? 'sidebar-dark' : ''} rounded-xl mb-4">
   <div class="sidebar-section">
     <h2 class="sidebar-title text-xl font-bold">What's happening</h2>
@@ -47,7 +46,6 @@
   </div>
 </div>
 
-<!-- Who to follow section -->
 <div class="sidebar {isDarkMode ? 'sidebar-dark' : ''} rounded-xl mb-4">
   <div class="sidebar-section">
     <h2 class="sidebar-title text-xl font-bold">Who to follow</h2>
@@ -92,7 +90,6 @@
   </div>
 </div>
 
-<!-- Footer links -->
 <div class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-xs">
   <div class="flex flex-wrap gap-2">
     <a href="#" class="hover:underline">Terms of Service</a>

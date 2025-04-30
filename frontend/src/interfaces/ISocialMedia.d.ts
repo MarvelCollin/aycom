@@ -1,4 +1,5 @@
 // Social media related interfaces
+import type { IUserProfile } from './IUser';
 
 // Tweet/Post interface
 export interface ITweet {
@@ -12,22 +13,6 @@ export interface ITweet {
   replies: number;
   reposts: number;
   views: string;
-  bookmarked?: boolean;
-  liked?: boolean;
-  reposted?: boolean;
-}
-
-// User profile interface
-export interface IUserProfile {
-  name: string;
-  username: string;
-  bio?: string;
-  location?: string;
-  website?: string;
-  joined_date: string;
-  following_count: number;
-  followers_count: number;
-  profile_picture?: string[];
 }
 
 // Trend interface
@@ -39,17 +24,17 @@ export interface ITrend {
 
 // Suggested follow interface
 export interface ISuggestedFollow {
-  displayName: string;
   username: string;
+  displayName: string;
   avatar: string;
   verified: boolean;
   followerCount: number;
-  isFollowing?: boolean;
 }
 
-// Navigation item interface
-export interface INavigationItem {
-  label: string;
-  icon: string; // This will contain SVG component reference as a string
-  path: string;
+// Community interface
+export interface ICommunity {
+  id: string;
+  name: string;
+  memberCount: number;
+  avatar: string;
 } 

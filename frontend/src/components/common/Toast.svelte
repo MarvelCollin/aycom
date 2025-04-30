@@ -10,7 +10,7 @@
   } from 'svelte-feather-icons';
 
   let message = '';
-  let type: ToastType = 'info';
+  let type: ToastType = 'info'; 
   let visible = false;
   let toastId = 0;
   let dataCy = '';

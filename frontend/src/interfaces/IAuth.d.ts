@@ -84,9 +84,20 @@ export interface ITokenResponse {
 
 // AuthStore type
 export interface IAuthStore {
-  isAuthenticated: boolean;
   userId: string | null;
+  isAuthenticated: boolean;
   accessToken: string | null;
   refreshToken: string | null;
-  expiresAt?: number | null;
+}
+
+export interface ILoginCredentials {
+  username: string;
+  password: string;
+}
+
+export interface IRegisterCredentials {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
 } 

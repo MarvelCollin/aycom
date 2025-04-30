@@ -2,14 +2,11 @@
   import { createEventDispatcher } from 'svelte';
   import type { ITweet } from '../../interfaces/ISocialMedia';
 
-  // Props
   export let tweet: ITweet;
   export let isDarkMode: boolean = false;
   
-  // Event dispatcher
   const dispatch = createEventDispatcher();
   
-  // Format the timestamp to a relative time string
   function formatTimestamp(timestamp: string): string {
     const date = new Date(timestamp);
     const now = new Date();
@@ -135,7 +132,6 @@
 </div>
 
 <style>
-  /* Additional custom styles that complement the components.css file */
   .post-avatar-container {
     flex-shrink: 0;
   }
@@ -144,7 +140,6 @@
     transition: color 0.2s;
   }
   
-  /* Custom interaction styles for tweet actions */
   .post-actions button:hover {
     color: inherit;
   }

@@ -7,17 +7,19 @@ export interface IUser {
   isFollowing?: boolean;
 }
 
-export interface IUserProfile extends IUser {
-  email: string;
+export interface IUserProfile {
+  id: string;
+  username: string;
+  displayName: string;
   bio?: string;
+  avatar?: string;
+  banner?: string;
+  verified: boolean;
+  followerCount: number;
+  followingCount: number;
+  joinDate: string;
   location?: string;
   website?: string;
-  banner?: string;
-  followers_count: number;
-  following_count: number;
-  tweets_count: number;
-  joined_date: string;
-  birthday?: string;
 }
 
 export interface IUserUpdateRequest {

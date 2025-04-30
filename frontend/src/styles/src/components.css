@@ -248,3 +248,139 @@
 .btn-follow-dark.outlined:hover {
   background-color: rgba(96, 165, 250, 0.1);
 }
+
+/* Modal Component Styles */
+.modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+}
+
+.modal-content {
+  position: relative;
+  width: 100%;
+  max-width: 36rem;
+  background-color: #ffffff;
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  z-index: 50;
+}
+
+.modal-content-dark {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header-dark {
+  border-color: #374151;
+}
+
+.modal-body {
+  padding: 1rem;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.modal-footer-dark {
+  border-color: #374151;
+}
+
+.fixed {
+  position: fixed;
+}
+
+.inset-0 {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.bg-black {
+  background-color: #000;
+}
+
+.bg-opacity-50 {
+  --tw-bg-opacity: 0.5;
+}
+
+.bg-white {
+  background-color: #fff;
+}
+
+.dark\:bg-gray-900 {
+  background-color: #111827;
+}
+
+.rounded-xl {
+  border-radius: 0.75rem;
+}
+
+.shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.max-w-xl {
+  max-width: 36rem;
+}
+
+.p-4 {
+  padding: 1rem;
+}

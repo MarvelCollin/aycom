@@ -227,21 +227,19 @@
     }
   }
   
-  // Handle back button
   function goBack() {
     formState.update(state => ({ ...state, step: 1, error: "" }));
   }
   
   onMount(() => {
     const recaptchaCleanup = loadRecaptcha((token) => {
-      // Update the formData store with the received token
       formData.update(data => ({ ...data, recaptchaToken: token }));
       console.log("reCAPTCHA token updated in store");
     });
     
     return () => {
       recaptchaCleanup();
-      cleanupTimers(); // Also ensure timers are cleaned up here
+      cleanupTimers(); 
     };
   });
 </script>

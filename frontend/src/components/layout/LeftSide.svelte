@@ -30,8 +30,8 @@
     showUserMenu = !showUserMenu;
   }
   
-  // Handle compose tweet action
-  function handleComposeClick() {
+  // Handle compose tweet modal action
+  function handleToggleComposeModal() {
     dispatch('toggleComposeModal');
   }
   
@@ -108,7 +108,7 @@
     <div class="mt-4 px-3">
       <button 
         class="w-full py-3 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600"
-        on:click={handleComposeClick}
+        on:click={handleToggleComposeModal}
       >
         <span class="md:hidden">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -119,7 +119,6 @@
       </button>
     </div>
 
-    <!-- Theme Toggle Button -->
     <div class="mt-4 px-3">
       <div class="flex justify-center md:justify-start p-2">
         <ThemeToggle size="md" />
@@ -127,7 +126,6 @@
     </div>
   </nav>
 
-  <!-- User Profile -->
   <div class="mt-4 px-3 mb-4">
     <button 
       class="flex items-center w-full p-3 rounded-full hover:bg-gray-200 hover:bg-opacity-10"

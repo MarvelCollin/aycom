@@ -1,7 +1,6 @@
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
-  import CreateThreadModal from '../components/feed/CreateThreadModal.svelte';
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
@@ -27,7 +26,6 @@
   // State for tweets and compose modal
   let tweets: ITweet[] = [];
   let showComposeModal: boolean = false;
-  let showThreadModal: boolean = false;
   let selectedTweet: ITweet | null = null;
   
   // Trends data
@@ -84,11 +82,9 @@
   
   function openThreadModal(tweet: ITweet) {
     selectedTweet = tweet;
-    showThreadModal = true;
   }
   
   function closeThreadModal() {
-    showThreadModal = false;
     selectedTweet = null;
   }
   
@@ -134,17 +130,19 @@
   <div class="min-h-screen border-x border-gray-200 dark:border-gray-800">
     <!-- Dynamic Header based on route -->
     <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-      {#if route === '/home' || route === '/feed'}
-        <h1 class="text-xl font-bold">Home</h1>
-      {:else if route === '/explore'}
-        <h1 class="text-xl font-bold">Explore</h1>
-      {:else if route === '/notifications'}
-        <h1 class="text-xl font-bold">Notifications</h1>
-      {:else if route === '/messages'}
-        <h1 class="text-xl font-bold">Messages</h1>
-      {:else if route === '/profile'}
-        <h1 class="text-xl font-bold">Profile</h1>
-      {/if}
+      <div class="flex justify-between items-center">
+        {#if route === '/home' || route === '/feed'}
+          <h1 class="text-xl font-bold">Home</h1>
+        {:else if route === '/explore'}
+          <h1 class="text-xl font-bold">Explore</h1>
+        {:else if route === '/notifications'}
+          <h1 class="text-xl font-bold">Notifications</h1>
+        {:else if route === '/messages'}
+          <h1 class="text-xl font-bold">Messages</h1>
+        {:else if route === '/profile'}
+          <h1 class="text-xl font-bold">Profile</h1>
+        {/if}
+      </div>
     </div>
     
     <!-- Dynamic Content based on route -->
@@ -226,16 +224,6 @@
   />
 {/if}
 
-{#if showThreadModal && selectedTweet}
-  <CreateThreadModal 
-    username={selectedTweet.username}
-    displayName={selectedTweet.displayName}
-    avatar={selectedTweet.avatar}
-    isAdmin={false}
-    on:close={closeThreadModal}
-  />
-{/if}
-
 <style>
   /* Additional custom styles for posts */
   .post {
@@ -244,5 +232,20 @@
 
   .post-avatar-container {
     flex-shrink: 0;
+  }
+  
+  /* Float action button styles */
+  .float-action-button {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 20;
   }
 </style>

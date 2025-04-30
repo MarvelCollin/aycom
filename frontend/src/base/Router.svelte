@@ -5,6 +5,7 @@
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
+  import Profile from '../pages/Profile.svelte';
   import GoogleCallback from '../pages/GoogleCallback.svelte';
   import Debug from '../pages/Debug.svelte';
   import appConfig from '../config/appConfig';
@@ -76,7 +77,6 @@
     (window as any).login = () => setAuthenticated(true);
     (window as any).logout = () => setAuthenticated(false);
     
-    // Add keyboard listener for the secret code
     window.addEventListener('keydown', handleKeydown);
     
     window.addEventListener('popstate', handleNavigation);
@@ -118,7 +118,9 @@
     <Feed {route} />
   {:else if route === '/google/' || route === '/google'}
     <GoogleCallback />
-  {:else if route === '/explore' || route === '/notifications' || route === '/messages' || route === '/profile'}
+  {:else if route === '/profile'}
+    <Profile />
+  {:else if route === '/explore' || route === '/notifications' || route === '/messages'}
     <Feed {route} />
   {:else}
     <div class="not-found">
