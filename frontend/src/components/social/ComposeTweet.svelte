@@ -33,10 +33,15 @@
     }
   }
 
+  function removeFile(index: number) {
+    files = files.filter((_, i) => i !== index);
+  }
+
   const dispatch = createEventDispatcher();
   function closeModal() { dispatch('close'); }
   $: wordCount = newTweet.trim().split(/\s+/).filter(Boolean).length;
   $: wordPercent = Math.min(100, Math.round((wordCount / maxWords) * 100));
+  $: isNearLimit = wordCount > maxWords * 0.8;
 </script>
 
 <div class="modal-container">
@@ -56,72 +61,100 @@
     </div>
     <div class="modal-body {isDarkMode ? 'bg-gray-900' : 'bg-white'}">
       <div class="flex mb-4">
-        <div class="w-12 h-12 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-4 overflow-hidden">
+        <div class="w-12 h-12 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-4 overflow-hidden flex-shrink-0">
           <span>{avatar}</span>
         </div>
         <div class="flex-1">
           <textarea 
             bind:value={newTweet}
             placeholder="What is happening?!"
-            class="w-full bg-transparent border-none outline-none {isDarkMode ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'} resize-none mb-2 text-xl"
+            class="compose-textarea {isDarkMode ? 'compose-textarea-dark' : ''}"
             rows="3"
             maxlength={maxWords * 6}
           ></textarea>
-          <div class="flex items-center gap-2 mb-2">
-            <div class="relative w-8 h-8">
-              <svg viewBox="0 0 36 36" class="absolute top-0 left-0 w-8 h-8">
+
+          <div class="flex items-center gap-2 mb-3">
+            <div class="compose-word-circle">
+              <svg viewBox="0 0 36 36">
                 <path
                   d="M18 2a16 16 0 1 1 0 32 16 16 0 0 1 0-32"
                   fill="none"
-                  stroke="#e5e7eb"
+                  stroke={isDarkMode ? "#374151" : "#e5e7eb"}
                   stroke-width="4"
                 />
                 <path
                   d="M18 2a16 16 0 1 1 0 32 16 16 0 0 1 0-32"
                   fill="none"
-                  stroke="#2563eb"
+                  stroke={isNearLimit ? "#ef4444" : "#3b82f6"}
                   stroke-width="4"
                   stroke-dasharray="100, 100"
                   stroke-dashoffset={100 - wordPercent}
-                  style="transition: stroke-dashoffset 0.2s;"
+                  style="transition: stroke-dashoffset 0.2s ease;"
                 />
               </svg>
-              <span class="absolute inset-0 flex items-center justify-center text-xs font-bold {isDarkMode ? 'text-white' : 'text-gray-900'}">{wordCount}</span>
+              <span class="compose-word-circle-text {isDarkMode ? 'text-white' : 'text-gray-900'} {isNearLimit ? 'compose-word-limit' : ''}">{wordCount}</span>
             </div>
             <span class="text-xs {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">/ {maxWords} words</span>
           </div>
-          <div class="flex gap-2 mb-2">
-            <input type="file" multiple accept="image/*,video/*,.gif" on:change={handleFileChange} class="hidden" id="file-upload" />
-            <label for="file-upload" class="cursor-pointer p-2 rounded-full {isDarkMode ? 'hover:bg-blue-900 hover:bg-opacity-20' : 'hover:bg-blue-100'} text-blue-500">
-              <ImageIcon size="18" />
-            </label>
-            {#if files.length > 0}
-              <span class="text-xs {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">{files.length} file(s) attached</span>
-            {/if}
-          </div>
-          <div class="flex gap-2 mb-2">
-            <input type="text" placeholder="Add categories (comma separated)" bind:value={category} class="w-1/2 px-2 py-1 rounded border {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-300 text-gray-900'} text-xs" />
-            <select bind:value={replyPermission} class="px-2 py-1 rounded border {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-300 text-gray-900'} text-xs">
+
+          {#if files.length > 0}
+            <div class="compose-file-preview">
+              {#each files as file, i}
+                <div class="compose-file-thumb {isDarkMode ? 'compose-file-thumb-dark' : ''}">
+                  {#if file.type.startsWith('image/')}
+                    <img src={URL.createObjectURL(file)} alt="preview" class="w-full h-full object-cover" />
+                  {:else if file.type.startsWith('video/')}
+                    <video src={URL.createObjectURL(file)} class="w-full h-full object-cover" />
+                  {:else}
+                    <div class="flex items-center justify-center h-full p-2 text-center">
+                      <span class="text-xs overflow-hidden">{file.name}</span>
+                    </div>
+                  {/if}
+                  <button class="compose-file-remove" type="button" on:click={() => removeFile(i)}>&times;</button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="flex flex-wrap gap-2 mb-3">
+            <input 
+              type="text" 
+              placeholder="Add categories (comma separated)" 
+              bind:value={category} 
+              class="compose-category-input {isDarkMode ? 'compose-category-input-dark' : ''}" 
+            />
+            <select 
+              bind:value={replyPermission} 
+              class="compose-reply-select {isDarkMode ? 'compose-reply-select-dark' : ''}"
+            >
               <option value="everyone">Everyone can reply</option>
               <option value="following">Accounts you follow</option>
               <option value="verified">Verified accounts</option>
             </select>
           </div>
-          <div class="flex justify-between items-center mt-2">
-            <div class="flex text-blue-500 gap-2">
-              <button class="p-2 rounded-full {isDarkMode ? 'hover:bg-blue-900 hover:bg-opacity-20' : 'hover:bg-blue-100'}">
+
+          <div class="compose-controls {isDarkMode ? 'compose-controls-dark' : ''}">
+            <div class="flex flex-1 gap-1">
+              <input type="file" multiple accept="image/*,video/*,.gif" on:change={handleFileChange} class="hidden" id="file-upload" />
+              <label for="file-upload" class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add media">
+                <ImageIcon size="18" />
+              </label>
+              <button class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add poll">
                 <BarChart2Icon size="18" />
               </button>
-              <button class="p-2 rounded-full {isDarkMode ? 'hover:bg-blue-900 hover:bg-opacity-20' : 'hover:bg-blue-100'}">
+              <button class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add emoji">
                 <SmileIcon size="18" />
               </button>
-              <button class="p-2 rounded-full {isDarkMode ? 'hover:bg-blue-900 hover:bg-opacity-20' : 'hover:bg-blue-100'}">
+              <button class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add location">
                 <MapPinIcon size="18" />
               </button>
+              {#if files.length > 0}
+                <span class="text-xs self-center ml-2 {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">{files.length} {files.length === 1 ? 'file' : 'files'}</span>
+              {/if}
             </div>
             <button 
               on:click={postTweet}
-              class="px-4 py-2 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600 disabled:opacity-50"
+              class="compose-submit-btn"
               disabled={newTweet.trim() === '' || wordCount > maxWords}
             >
               Post
