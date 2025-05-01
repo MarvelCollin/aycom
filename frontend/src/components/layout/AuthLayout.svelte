@@ -32,13 +32,14 @@
         <button 
           class="text-blue-500 hover:text-blue-600 transition-colors"
           on:click={onBack}
+          data-cy="back-button"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
         </button>
       {:else if showCloseButton}
-        <a href="/" class="text-blue-500 hover:text-blue-600 transition-colors">
+        <a href="/" class="text-blue-500 hover:text-blue-600 transition-colors" data-cy="close-button">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>

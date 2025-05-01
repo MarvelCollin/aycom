@@ -68,3 +68,16 @@ Cypress.Commands.add('mockFileUpload', { prevSubject: 'element' }, (subject, fil
   // Trigger change event
   return cy.wrap(subject).trigger('change', { force: true });
 });
+
+// Custom command to attach file to an input
+Cypress.Commands.add('attachFile', { prevSubject: 'element' }, (subject, { fileContent, fileName, mimeType }) => {
+  // Use the built-in Cypress.Blob utility
+  const fileBlob = Cypress.Blob.base64StringToBlob(fileContent, mimeType);
+  const testFile = new File([fileBlob], fileName, { type: mimeType });
+  const dataTransfer = new DataTransfer();
+  
+  dataTransfer.items.add(testFile);
+  subject[0].files = dataTransfer.files;
+  
+  return cy.wrap(subject).trigger('change', { force: true });
+});

@@ -6,6 +6,12 @@
 // Import commands.js using ES2015 syntax:
 import './commands'
 
+// Configure Cypress for file uploads and attachments
+import 'cypress-file-upload';
+
+// Use the existing Cypress Blob utility instead of overriding it
+// The Cypress.Blob utilities are already available and include base64StringToBlob
+
 // Alternatively you can use CommonJS syntax:
 // require('./commands')
 

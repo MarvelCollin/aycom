@@ -22,12 +22,12 @@
     bind:value={verificationCode} 
     class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     placeholder="Verification code"
-    data-cy="verification-code"
+    data-cy="verification-code-input"
   />
 </div>
 
 {#if !showResendOption}
-  <p class="text-sm text-center mb-4 text-gray-600 dark:text-gray-400" data-cy="verification-timer">Code expires in {timeLeft}</p>
+  <p class="text-sm text-center mb-4 text-gray-600 dark:text-gray-400" data-cy="resend-timer">Code expires in {timeLeft}</p>
 {/if}
 
 {#if showResendOption}
