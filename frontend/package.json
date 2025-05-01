@@ -26,6 +26,7 @@
     "vite": "^6.3.1"
   },
   "dependencies": {
-    "svelte-feather-icons": "^4.2.0"
+    "svelte-feather-icons": "^4.2.0",
+    "svelte-icons": "^2.1.0"
   }
 }

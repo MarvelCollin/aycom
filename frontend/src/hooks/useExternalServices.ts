@@ -1,6 +1,5 @@
 import { onDestroy } from 'svelte';
-import type { GoogleCredentialResponse, CustomWindow } from '../interfaces/auth';
-import type { IGoogleCredentialResponse } from '../interfaces/IAuth';
+import type { IGoogleCredentialResponse, ICustomWindow } from '../interfaces/IAuth';
 
 // Instead of extending Window globally, use type assertions
 export function useExternalServices() {
@@ -22,7 +21,7 @@ export function useExternalServices() {
     containerId: string | HTMLElement = 'recaptcha-container'
   ): (() => void) => {
     // Check if reCAPTCHA script is already loaded
-    if ((window as CustomWindow).grecaptcha) {
+    if ((window as ICustomWindow).grecaptcha) {
       initializeRecaptcha(callback, containerId);
       return () => {};
     }
@@ -49,8 +48,8 @@ export function useExternalServices() {
       }
       
       // Reset reCAPTCHA if it exists
-      if ((window as CustomWindow).grecaptcha && recaptchaWidgetId !== null) {
-        (window as CustomWindow).grecaptcha?.reset(recaptchaWidgetId);
+      if ((window as ICustomWindow).grecaptcha && recaptchaWidgetId !== null) {
+        (window as ICustomWindow).grecaptcha?.reset(recaptchaWidgetId);
       }
       
       // Clean up global callback
@@ -67,7 +66,7 @@ export function useExternalServices() {
     callback: (token: string) => void, 
     containerId: string | HTMLElement
   ) => {
-    const customWindow = window as CustomWindow;
+    const customWindow = window as ICustomWindow;
     if (!customWindow.grecaptcha) return;
     
     try {
@@ -99,7 +98,7 @@ export function useExternalServices() {
    * @returns The reCAPTCHA token
    */
   const getRecaptchaToken = (): string => {
-    const customWindow = window as CustomWindow;
+    const customWindow = window as ICustomWindow;
     if (!customWindow.grecaptcha || recaptchaWidgetId === null) {
       return '';
     }
@@ -120,10 +119,10 @@ export function useExternalServices() {
     callback: (response: IGoogleCredentialResponse) => void
   ): (() => void) => {
     // Set up the global callback function for Google
-    (window as CustomWindow).handleGoogleCredentialResponse = callback;
+    (window as ICustomWindow).handleGoogleCredentialResponse = callback;
     
     // Check if Google Sign-In script is already loaded
-    if ((window as CustomWindow).google?.accounts) {
+    if ((window as ICustomWindow).google?.accounts) {
       initializeGoogleAuth(buttonId, isDarkMode);
       return () => {};
     }
@@ -148,12 +147,12 @@ export function useExternalServices() {
         console.error('Error removing Google Sign-In script:', e);
       }
       
-      delete (window as CustomWindow).handleGoogleCredentialResponse;
+      delete (window as ICustomWindow).handleGoogleCredentialResponse;
     };
   };
   
   const initializeGoogleAuth = (buttonId: string, isDarkMode: boolean) => {
-    const customWindow = window as CustomWindow;
+    const customWindow = window as ICustomWindow;
     if (!customWindow.google?.accounts) return;
     
     try {

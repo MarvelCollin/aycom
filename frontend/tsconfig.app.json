@@ -14,7 +14,14 @@
     "allowJs": true,
     "checkJs": true,
     "isolatedModules": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "composite": true,
+    "outDir": "../dist/js",
+    "declaration": true,
+    "declarationDir": "../dist/types"
   },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
+  "exclude": ["node_modules/**/*"]
 }
