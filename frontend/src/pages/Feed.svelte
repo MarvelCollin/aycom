@@ -1,11 +1,19 @@
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
+  import TweetCard from '../components/social/TweetCard.svelte';
+  import Toast from '../components/common/Toast.svelte';
+  import DebugPanel from '../components/common/DebugPanel.svelte';
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
+  import { getThreadsByUser } from '../api/thread';
+  import { createLoggerWithPrefix } from '../utils/logger';
+
+  // Create a logger for this component
+  const logger = createLoggerWithPrefix('Feed');
 
   // Accept the route prop for conditionally rendering content
   export let route: string;
@@ -25,96 +33,175 @@
 
   // State for tweets and compose modal
   let tweets: ITweet[] = [];
+  let isLoading = true;
+  let error: string | null = null;
   let showComposeModal: boolean = false;
   let selectedTweet: ITweet | null = null;
   
-  // Trends data
-  let trends: ITrend[] = [
-    { category: 'Politics', title: 'Election 2023', postCount: '235K' },
-    { category: 'Sports', title: 'Champions League', postCount: '187K' },
-    { category: 'Technology', title: 'AI Advancements', postCount: '142K' },
-    { category: 'Entertainment', title: 'New Movie Release', postCount: '98K' },
-    { category: 'Health', title: 'Fitness Trends', postCount: '75K' }
-  ];
+  // Pagination
+  let page = 1;
+  let limit = 10;
+  let hasMore = true;
   
-  // Suggested users to follow
-  let suggestedUsers: ISuggestedFollow[] = [
-    { username: 'techguru', displayName: 'Tech Guru', avatar: 'https://i.pravatar.cc/150?img=1', verified: true, followerCount: 12000 },
-    { username: 'newsupdate', displayName: 'News Update', avatar: 'https://i.pravatar.cc/150?img=2', verified: true, followerCount: 9800 },
-    { username: 'sportscentral', displayName: 'Sports Central', avatar: 'https://i.pravatar.cc/150?img=3', verified: false, followerCount: 500 }
-  ];
+  // Trends data - will be replaced with real API call once available
+  let trends: ITrend[] = [];
+  let isTrendsLoading = true;
+  
+  // Suggested users to follow - will be replaced with real API call once available
+  let suggestedUsers: ISuggestedFollow[] = [];
+  let isSuggestedUsersLoading = true;
+
+  // Convert thread data to tweet format
+  function threadToTweet(thread: any): ITweet {
+    logger.debug('Converting thread to tweet', { threadId: thread.thread_id });
+    return {
+      id: thread.thread_id,
+      username: thread.user?.username || `user_${thread.user_id.substring(0, 4)}`,
+      displayName: thread.user?.display_name || `User ${thread.user_id.substring(0, 4)}`,
+      avatar: thread.user?.avatar_url || '👤',
+      content: thread.content,
+      timestamp: thread.created_at,
+      likes: thread.likes?.length || 0,
+      replies: thread.replies?.length || 0,
+      reposts: thread.reposts?.length || 0,
+      views: thread.view_count?.toString() || '0',
+      media: thread.media || []
+    };
+  }
+
+  async function fetchTweets(resetPage = false) {
+    logger.info('Fetching tweets', { resetPage, page });
+    
+    if (resetPage) {
+      page = 1;
+      tweets = [];
+    }
+    
+    if (!authState.isAuthenticated || !authState.userId) {
+      logger.warn('User not authenticated, aborting tweet fetch');
+      isLoading = false;
+      return;
+    }
+    
+    isLoading = true;
+    error = null;
+    
+    try {
+      // Fetch threads from API
+      logger.debug('Making API call to getThreadsByUser', { userId: 'me', page, limit });
+      const response = await getThreadsByUser('me');
+      
+      if (response && response.threads) {
+        logger.info(`Received ${response.threads.length} threads from API`);
+        const newTweets = response.threads.map(threadToTweet);
+        
+        // If first page, replace tweets, otherwise append
+        tweets = page === 1 ? newTweets : [...tweets, ...newTweets];
+        
+        // Check if there are more threads to load
+        hasMore = newTweets.length === limit;
+        page++;
+        
+        logger.debug('Updated tweets state', { 
+          totalTweets: tweets.length, 
+          hasMore, 
+          nextPage: page 
+        });
+      } else {
+        logger.info('No threads received from API');
+        hasMore = false;
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch tweets';
+      logger.error('Error fetching tweets', { error: err }, { showToast: true });
+      error = errorMessage;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function fetchTrends() {
+    logger.debug('Fetching trends');
+    isTrendsLoading = true;
+    // This will be replaced with real API call once available
+    setTimeout(() => {
+      trends = [
+        { category: 'Politics', title: 'Election 2023', postCount: '235K' },
+        { category: 'Sports', title: 'Champions League', postCount: '187K' },
+        { category: 'Technology', title: 'AI Advancements', postCount: '142K' },
+        { category: 'Entertainment', title: 'New Movie Release', postCount: '98K' },
+        { category: 'Health', title: 'Fitness Trends', postCount: '75K' }
+      ];
+      isTrendsLoading = false;
+      logger.debug('Trends loaded', { trendsCount: trends.length });
+    }, 1000);
+  }
+
+  async function fetchSuggestedUsers() {
+    logger.debug('Fetching suggested users');
+    isSuggestedUsersLoading = true;
+    // This will be replaced with real API call once available
+    setTimeout(() => {
+      suggestedUsers = [
+        { username: 'techguru', displayName: 'Tech Guru', avatar: 'https://i.pravatar.cc/150?img=1', verified: true, followerCount: 12000 },
+        { username: 'newsupdate', displayName: 'News Update', avatar: 'https://i.pravatar.cc/150?img=2', verified: true, followerCount: 9800 },
+        { username: 'sportscentral', displayName: 'Sports Central', avatar: 'https://i.pravatar.cc/150?img=3', verified: false, followerCount: 500 }
+      ];
+      isSuggestedUsersLoading = false;
+      logger.debug('Suggested users loaded', { count: suggestedUsers.length });
+    }, 1000);
+  }
 
   onMount(async () => {
-    // Fetch tweets (simulated)
-    setTimeout(() => {
-      tweets = [
-        { 
-          id: 1, 
-          username: 'devuser', 
-          displayName: 'Developer', 
-          avatar: '🧑‍💻',
-          content: 'Just released a new feature!', 
-          timestamp: new Date().toISOString(), 
-          likes: 42, 
-          replies: 5,
-          reposts: 11,
-          views: '1.1K'
-        },
-        { 
-          id: 2, 
-          username: 'naturelover', 
-          displayName: 'Nature Enthusiast', 
-          avatar: '🌳',
-          content: 'What a beautiful day! #sunshine', 
-          timestamp: new Date(Date.now() - 3600000).toISOString(), 
-          likes: 18, 
-          replies: 2,
-          reposts: 3,
-          views: '580'
-        }
-      ];
-    }, 1000);
+    logger.info('Feed component mounted');
+    fetchTweets();
+    fetchTrends();
+    fetchSuggestedUsers();
   });
 
   function toggleComposeModal() {
+    logger.debug('Toggling compose modal', { currentState: showComposeModal });
     showComposeModal = !showComposeModal;
   }
   
   function openThreadModal(tweet: ITweet) {
+    logger.debug('Opening thread modal', { tweetId: tweet.id });
     selectedTweet = tweet;
   }
   
   function closeThreadModal() {
+    logger.debug('Closing thread modal');
     selectedTweet = null;
   }
   
-  // Format the timestamp to a relative time string
-  function formatTimestamp(timestamp: string): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    let interval = seconds / 31536000; // seconds in a year
-    if (interval > 1) {
-      return Math.floor(interval) + 'y';
-    }
-    interval = seconds / 2592000; // seconds in a month
-    if (interval > 1) {
-      return Math.floor(interval) + 'mo';
-    }
-    interval = seconds / 86400; // seconds in a day
-    if (interval > 1) {
-      return Math.floor(interval) + 'd';
-    }
-    interval = seconds / 3600; // seconds in an hour
-    if (interval > 1) {
-      return Math.floor(interval) + 'h';
-    }
-    interval = seconds / 60; // seconds in a minute
-    if (interval > 1) {
-      return Math.floor(interval) + 'm';
-    }
-    return Math.floor(seconds) + 's';
+  // When a new tweet is created, refresh the feed
+  function handleNewTweet() {
+    logger.info('New tweet created, refreshing feed');
+    fetchTweets(true);
+    toggleComposeModal();
+  }
+  
+  // Handle tweet actions
+  function handleTweetClick(event: CustomEvent) {
+    openThreadModal(event.detail);
+  }
+  
+  function handleTweetLike(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Like tweet action', { tweetId }, { showToast: true });
+    // TODO: Implement like functionality with API
+  }
+  
+  function handleTweetRepost(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Repost tweet action', { tweetId }, { showToast: true });
+    // TODO: Implement repost functionality with API
+  }
+  
+  function handleTweetReply(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Reply to tweet action', { tweetId }, { showToast: true });
+    // TODO: Implement reply functionality with API
   }
 </script>
 
@@ -147,39 +234,73 @@
     
     <!-- Dynamic Content based on route -->
     {#if route === '/home' || route === '/feed'}
-      <!-- Home Feed Content -->
-      {#each tweets as tweet (tweet.id)}
-        <!-- Replace TweetCard with custom post component that opens modal on click -->
-        <div 
-          class="post {isDarkMode ? 'post-dark' : ''} border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'} hover:bg-opacity-50 {isDarkMode ? 'hover:bg-gray-900 bg-black text-white' : 'hover:bg-gray-50 bg-white text-black'} transition-colors cursor-pointer"
-          on:click={() => openThreadModal(tweet)}
-        >
-          <div class="post-header p-4">
-            <div class="flex items-start">
-              <div class="post-avatar-container w-12 h-12 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3">
-                {#if typeof tweet.avatar === 'string' && tweet.avatar.startsWith('http')}
-                  <img src={tweet.avatar} alt={tweet.username} class="w-full h-full object-cover" />
-                {:else}
-                  <div class="text-xl">{tweet.avatar}</div>
-                {/if}
-              </div>
-              
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center">
-                  <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5">{tweet.displayName}</span>
-                  <span class="text-gray-500 text-sm truncate">@{tweet.username}</span>
-                  <span class="text-gray-500 mx-1.5">·</span>
-                  <span class="text-gray-500 text-sm">{formatTimestamp(tweet.timestamp)}</span>
-                </div>
-                
-                <div class="post-content my-2 {isDarkMode ? 'text-white' : 'text-black'}">
-                  <p>{tweet.content}</p>
-                </div>
-              </div>
+      <!-- Welcome message for user -->
+      {#if authState.isAuthenticated && sidebarDisplayName}
+        <div class="p-4 bg-blue-50 dark:bg-blue-900/30 mb-2">
+          <div class="flex items-center">
+            <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
+              <span>{sidebarAvatar}</span>
+            </div>
+            <div>
+              <h2 class="font-bold text-lg dark:text-white">Welcome, {sidebarDisplayName}!</h2>
+              <p class="text-sm text-gray-600 dark:text-gray-300">We're glad to see you today. Here's your feed.</p>
             </div>
           </div>
         </div>
-      {/each}
+      {/if}
+      
+      <!-- Home Feed Content -->
+      {#if isLoading && tweets.length === 0}
+        <div class="flex justify-center items-center p-8">
+          <div class="spinner h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+        </div>
+      {:else if error}
+        <div class="p-4 text-center text-red-500">
+          <p>{error}</p>
+          <button 
+            class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+            on:click={() => fetchTweets(true)}
+          >
+            Try Again
+          </button>
+        </div>
+      {:else if tweets.length === 0}
+        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+          <p class="mb-4">No posts yet</p>
+          <button 
+            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+            on:click={toggleComposeModal}
+          >
+            Create First Post
+          </button>
+        </div>
+      {:else}
+        {#each tweets as tweet (tweet.id)}
+          <TweetCard 
+            {tweet}
+            {isDarkMode}
+            on:click={handleTweetClick}
+            on:like={handleTweetLike}
+            on:repost={handleTweetRepost}
+            on:reply={handleTweetReply}
+          />
+        {/each}
+        
+        {#if isLoading}
+          <div class="flex justify-center items-center p-4">
+            <div class="spinner h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+          </div>
+        {:else if hasMore}
+          <div class="p-4 text-center">
+            <button 
+              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+              on:click={() => fetchTweets()}
+            >
+              Load More
+            </button>
+          </div>
+        {/if}
+      {/if}
     {:else if route === '/explore'}
       <!-- Explore Content -->
       <div class="p-4">
@@ -220,32 +341,24 @@
   <ComposeTweet 
     {isDarkMode}
     on:close={toggleComposeModal}
+    on:tweet={handleNewTweet}
     avatar={sidebarAvatar} 
   />
 {/if}
 
-<style>
-  /* Additional custom styles for posts */
-  .post {
-    padding: 0.5rem 0;
-  }
+<!-- Toast notifications -->
+<Toast />
 
-  .post-avatar-container {
-    flex-shrink: 0;
+<!-- Debug panel -->
+<DebugPanel />
+
+<style>
+  /* Spinner animation */
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
-  
-  /* Float action button styles */
-  .float-action-button {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    width: 3.5rem;
-    height: 3.5rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    z-index: 20;
+  .animate-spin {
+    animation: spin 1s linear infinite;
   }
 </style>

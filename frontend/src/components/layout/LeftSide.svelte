@@ -1,12 +1,16 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import ThemeToggle from '../common/ThemeToggle.svelte';
+  import { useTheme } from '../../hooks/useTheme';
 
   // Props
   export let username = "";
   export let displayName = "";
   export let avatar = "👤";
-  export let isDarkMode = false;
+  
+  // Get theme from the store
+  const { theme } = useTheme();
+  $: isDarkMode = $theme === 'dark';
   
   // Event dispatcher
   const dispatch = createEventDispatcher();
@@ -39,10 +43,10 @@
   let currentPath = window.location.pathname;
 </script>
 
-<div class="flex flex-col h-full py-2 px-2">
+<div class="flex flex-col h-full py-2 px-2 text-black dark:text-white">
   <!-- Logo -->
   <div class="px-3 mb-4">
-    <a href="/" class="flex items-center justify-center md:justify-start p-3 rounded-full hover:bg-gray-200 hover:bg-opacity-20">
+    <a href="/" class="flex items-center justify-center md:justify-start p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800">
       <div class="text-3xl font-bold text-blue-500">AY</div>
     </a>
   </div>
@@ -54,7 +58,7 @@
         <li>
           <a 
             href={item.path} 
-            class="flex items-center px-4 py-3 rounded-full {currentPath === item.path ? 'font-bold' : 'font-normal'} hover:bg-gray-200 hover:bg-opacity-10"
+            class="flex items-center px-4 py-3 rounded-full {currentPath === item.path ? 'font-bold' : 'font-normal'} text-black dark:text-white hover:bg-gray-200 dark:hover:bg-gray-800"
           >
             <!-- Icon -->
             <div class="flex items-center justify-center w-6 h-6">
@@ -128,10 +132,10 @@
 
   <div class="mt-4 px-3 mb-4">
     <button 
-      class="flex items-center w-full p-3 rounded-full hover:bg-gray-200 hover:bg-opacity-10"
+      class="flex items-center w-full p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800"
       on:click={toggleUserMenu}
     >
-      <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
+      <div class="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
         {#if typeof avatar === 'string' && avatar.startsWith('http')}
           <img src={avatar} alt={username} class="w-full h-full object-cover" />
         {:else}
@@ -139,8 +143,8 @@
         {/if}
       </div>
       <div class="hidden md:block ml-3 flex-1 text-left">
-        <p class="font-bold text-sm">{displayName || 'User'}</p>
-        <p class="text-gray-500 text-sm">@{username || 'username'}</p>
+        <p class="font-bold text-sm text-black dark:text-white">{displayName || 'User'}</p>
+        <p class="text-gray-500 dark:text-gray-400 text-sm">@{username || 'username'}</p>
       </div>
       <div class="hidden md:flex">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -152,11 +156,11 @@
     <!-- User Menu Dropdown -->
     {#if showUserMenu}
       <div 
-        class="absolute bottom-20 left-2 w-60 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
+        class="absolute bottom-20 left-2 w-60 rounded-lg shadow border bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 z-50"
       >
         <div class="py-2">
           <button
-            class="flex items-center w-full px-4 py-3 hover:bg-gray-100 hover:bg-opacity-10"
+            class="flex items-center w-full px-4 py-3 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

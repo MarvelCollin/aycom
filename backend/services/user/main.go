@@ -1,91 +1,135 @@
 package main
 
 import (
-	"context"
+	"flag"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	// Adjust import paths if handlers/proto are elsewhere
-
-	"google.golang.org/grpc"
-
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/internal/handlers"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/pkg/db"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
+	pb "github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/repository"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/service"
+	"google.golang.org/grpc"
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Setup command line flags
+	skipServer := flag.Bool("skip-server", false, "Skip starting the server after running migrations/seeds")
+	flag.Parse()
 
+	// Get the command (if any)
+	var command string
+	if flag.NArg() > 0 {
+		command = flag.Arg(0)
+	}
+
+	// Database connection
 	dbConn, err := db.ConnectDatabaseWithRetry()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	log.Println("Successfully connected to database")
 
-	err = dbConn.AutoMigrate(&model.User{})
-	if err != nil {
+	// Auto-migrate database tables
+	log.Println("Running database migrations...")
+	if err := dbConn.AutoMigrate(
+		&model.User{},
+		&model.UserProfile{},
+		&model.Contact{},
+	); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	log.Println("Database migration completed")
 
-	userRepo := repository.NewPostgresUserRepository(dbConn)
-	userService := service.NewUserService(userRepo)
-	userHandler := handlers.NewUserHandler(userService)
+	// Handle specific commands
+	switch command {
+	case "migrate":
+		if *skipServer {
+			log.Println("Server startup skipped due to --skip-server flag")
+			os.Exit(0)
+		}
 
-	if len(os.Args) > 1 && os.Args[1] == "seed" {
-		log.Println("Seeding default users...")
+	case "seed":
+		log.Println("Seeding user data...")
 		seeder := repository.NewUserSeeder(dbConn)
 		if err := seeder.SeedUsers(); err != nil {
 			log.Fatalf("Failed to seed users: %v", err)
 		}
 		log.Println("Seeding completed.")
-		return // Exit after seeding
+
+		if *skipServer {
+			log.Println("Server startup skipped due to --skip-server flag")
+			os.Exit(0)
+		}
+
+	case "status":
+		// Check if database is properly migrated and print status
+		log.Println("Checking database migration status...")
+
+		// Get all tables in the database
+		var tables []string
+		dbConn.Raw("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'").Scan(&tables)
+
+		log.Println("Database tables found:")
+		for _, table := range tables {
+			var count int64
+			dbConn.Table(table).Count(&count)
+			log.Printf("- %s (%d rows)", table, count)
+		}
+
+		log.Println("Database status check completed")
+		return
 	}
 
-	grpcPort := os.Getenv("USER_SERVICE_PORT")
-	if grpcPort == "" {
-		grpcPort = "9091"
+	// If --skip-server flag is set, don't start the server
+	if *skipServer {
+		log.Println("Server startup skipped due to --skip-server flag")
+		os.Exit(0)
 	}
-	listener, err := net.Listen("tcp", ":"+grpcPort)
+
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(dbConn)
+
+	// Initialize services
+	userService := service.NewUserService(userRepo)
+
+	// Initialize handler
+	userHandler := handlers.NewUserHandler(userService)
+
+	// Setup gRPC server
+	port := os.Getenv("USER_SERVICE_PORT")
+	if port == "" {
+		port = "9091" // Default port
+	}
+
+	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Failed to listen on port %s: %v", grpcPort, err)
+		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
 
 	grpcServer := grpc.NewServer()
-	proto.RegisterUserServiceServer(grpcServer, userHandler)
+	pb.RegisterUserServiceServer(grpcServer, userHandler)
 
-	log.Printf("User gRPC server starting on port %s...", grpcPort)
+	log.Printf("User Service starting on :%s", port)
 
+	// Start the gRPC server in a goroutine
 	go func() {
-		if err := grpcServer.Serve(listener); err != nil {
-			log.Printf("gRPC server failed to serve: %v", err)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
-	// --- Graceful Shutdown ---
+	// Set up graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down user service...")
-
-	// Gracefully stop the gRPC server
 	grpcServer.GracefulStop()
-	log.Println("gRPC server stopped.")
-
-	// Close database connection (optional, depends on context)
-	if sqlDB, err := dbConn.DB(); err == nil {
-		sqlDB.Close()
-		log.Println("Database connection closed.")
-	}
-
-	log.Println("User service stopped gracefully.")
+	log.Println("User service stopped.")
 }

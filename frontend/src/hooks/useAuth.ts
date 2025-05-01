@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse, IAuthStore } from '../interfaces/IAuth';
+import { setAuthData, clearAuthData } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
@@ -33,25 +34,36 @@ const createAuthStore = () => {
           refreshExpiredToken(parsedAuth.refreshToken);
         } else {
           // No valid tokens, clear auth state
-          clearAuthData();
+          clearAuth();
         }
       }
     } catch (error) {
       console.error('Failed to initialize auth from localStorage:', error);
-      clearAuthData();
+      clearAuth();
     }
   };
   
   const persistAuth = (authState: AuthState) => {
     try {
-      localStorage.setItem('auth', JSON.stringify(authState));
+      // Use the auth utility to set data
+      if (authState.accessToken && authState.userId) {
+        setAuthData({
+          accessToken: authState.accessToken,
+          refreshToken: authState.refreshToken || undefined,
+          userId: authState.userId,
+          expiresAt: authState.expiresAt || undefined
+        });
+      } else {
+        localStorage.setItem('auth', JSON.stringify(authState));
+      }
     } catch (error) {
       console.error('Failed to persist auth to localStorage:', error);
     }
   };
 
-  const clearAuthData = () => {
-    localStorage.removeItem('auth');
+  const clearAuth = () => {
+    // Use the auth utility to clear data
+    clearAuthData();
     auth.set(initialState);
   };
 
@@ -79,11 +91,11 @@ const createAuthStore = () => {
         auth.set(newState);
         persistAuth(newState);
       } else {
-        clearAuthData();
+        clearAuth();
       }
     } catch (error) {
       console.error('Failed to refresh token:', error);
-      clearAuthData();
+      clearAuth();
     }
   };
   
@@ -101,7 +113,7 @@ const createAuthStore = () => {
       });
     },
     init: initAuth,
-    logout: () => clearAuthData(),
+    logout: () => clearAuth(),
     refreshToken: refreshExpiredToken
   };
 };
@@ -238,6 +250,8 @@ export function useAuth() {
   
   const login = async (email: string, password: string) => {
     try {
+      console.log('Attempting login for:', email);
+      
       const response = await fetchWithTimeout(
         `${API_URL}/auth/login`,
         {
@@ -247,17 +261,52 @@ export function useAuth() {
         }
       );
       
+      console.log('Login response status:', response.status);
       const data = await response.json();
+      console.log('Login response data:', { 
+        success: data.success, 
+        hasToken: !!data.access_token,
+        userId: data.user_id
+      });
       
       if (data.success && data.access_token) {
         const expiresAt = Date.now() + (data.expires_in * 1000);
-        authStore.set({
+        const authState = {
           isAuthenticated: true,
           userId: data.user_id,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
           expiresAt
+        };
+        
+        console.log('Setting auth state:', { 
+          isAuthenticated: true,
+          userId: data.user_id,
+          hasToken: !!data.access_token,
+          tokenLength: data.access_token ? data.access_token.length : 0,
+          expiresAt
         });
+        
+        authStore.set(authState);
+        
+        // Double-check that the token was saved correctly
+        setTimeout(() => {
+          try {
+            const storedAuth = localStorage.getItem('auth');
+            if (storedAuth) {
+              const parsed = JSON.parse(storedAuth);
+              console.log('Auth data saved in localStorage:', {
+                isAuthenticated: parsed.isAuthenticated,
+                hasToken: !!parsed.accessToken,
+                tokenLength: parsed.accessToken ? parsed.accessToken.length : 0
+              });
+            } else {
+              console.warn('No auth data found in localStorage after login');
+            }
+          } catch (err) {
+            console.error('Error checking localStorage after login:', err);
+          }
+        }, 100);
       }
       
       return {

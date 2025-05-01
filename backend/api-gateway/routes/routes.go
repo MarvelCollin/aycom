@@ -47,6 +47,17 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.PUT("/profile", handlers.UpdateUserProfile)
 	}
 
+	// Thread routes
+	threads := protected.Group("/threads")
+	{
+		threads.POST("", handlers.CreateThread)
+		threads.GET("/:id", handlers.GetThread)
+		threads.GET("/user/:id", handlers.GetThreadsByUser)
+		threads.PUT("/:id", handlers.UpdateThread)
+		threads.DELETE("/:id", handlers.DeleteThread)
+		threads.POST("/media", handlers.UploadThreadMedia)
+	}
+
 	// Product routes
 	products := protected.Group("/products")
 	{

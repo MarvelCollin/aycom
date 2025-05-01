@@ -1,6 +1,13 @@
 // Social media related interfaces
 import type { IUserProfile } from './IUser';
 
+// Media interface
+export interface IMedia {
+  url: string;
+  type: string;
+  media_id?: string;
+}
+
 // Tweet/Post interface
 export interface ITweet {
   id: number;
@@ -13,6 +20,7 @@ export interface ITweet {
   replies: number;
   reposts: number;
   views: string;
+  media?: IMedia[];
 }
 
 // Trend interface

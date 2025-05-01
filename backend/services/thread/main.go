@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net"
 	"os"
@@ -19,6 +20,16 @@ import (
 )
 
 func main() {
+	// Setup command line flags
+	skipServer := flag.Bool("skip-server", false, "Skip starting the server after running migrations/seeds")
+	flag.Parse()
+
+	// Get the command (if any)
+	var command string
+	if flag.NArg() > 0 {
+		command = flag.Arg(0)
+	}
+
 	// Database connection
 	dbConn, err := db.ConnectDatabaseWithRetry()
 	if err != nil {
@@ -26,11 +37,58 @@ func main() {
 	}
 	log.Println("Successfully connected to database")
 
-	// Run migrations
-	if err := migrateModels(dbConn); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	// Handle the commands
+	switch command {
+	case "migrate":
+		log.Println("Running database migrations...")
+		if err := migrateModels(dbConn); err != nil {
+			log.Fatalf("Failed to migrate database: %v", err)
+		}
+		log.Println("Database migration completed")
+
+		if *skipServer {
+			log.Println("Server startup skipped due to --skip-server flag")
+			return
+		}
+
+	case "seed":
+		log.Println("Seeding thread data...")
+		seeder := repository.NewThreadSeeder(dbConn)
+		if err := seeder.SeedThreads(); err != nil {
+			log.Fatalf("Failed to seed threads: %v", err)
+		}
+		log.Println("Seeding completed.")
+
+		if *skipServer {
+			log.Println("Server startup skipped due to --skip-server flag")
+			return
+		}
+
+	case "status":
+		// Check if database is properly migrated and print status
+		log.Println("Checking database migration status...")
+
+		// Implement actual status check logic here
+		tables, err := dbConn.Migrator().GetTables()
+		if err != nil {
+			log.Fatalf("Failed to get tables: %v", err)
+		}
+
+		log.Println("Database tables found:")
+		for _, table := range tables {
+			log.Printf("- %s", table)
+		}
+
+		log.Println("Database status check completed")
+		return
+
+	default:
+		// For normal startup (no command), run migrations
+		if err := migrateModels(dbConn); err != nil {
+			log.Fatalf("Failed to migrate database: %v", err)
+		}
+		log.Println("Database migration completed")
 	}
-	log.Println("Database migration completed")
 
 	// Dependency Injection
 	threadRepo := repository.NewThreadRepository(dbConn)
@@ -73,17 +131,6 @@ func main() {
 		interactionService,
 		pollService,
 	)
-
-	// Handle seed command
-	if len(os.Args) > 1 && os.Args[1] == "seed" {
-		log.Println("Seeding thread data...")
-		seeder := repository.NewThreadSeeder(dbConn)
-		if err := seeder.SeedThreads(); err != nil {
-			log.Fatalf("Failed to seed threads: %v", err)
-		}
-		log.Println("Seeding completed.")
-		return
-	}
 
 	// Setup gRPC server
 	grpcPort := os.Getenv("THREAD_SERVICE_PORT")
@@ -265,61 +312,102 @@ func migrateModels(db *gorm.DB) error {
 		)`,
 	}
 
-	// Step 2: Add foreign key constraints after all tables are created
-	constraintMigrations := []string{
-		`ALTER TABLE replies ADD CONSTRAINT fk_threads_replies
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE replies ADD CONSTRAINT fk_replies_parent
-			FOREIGN KEY (parent_reply_id) REFERENCES replies(reply_id) ON DELETE SET NULL`,
-
-		`ALTER TABLE media ADD CONSTRAINT fk_threads_media
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE media ADD CONSTRAINT fk_replies_media
-			FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE likes ADD CONSTRAINT fk_threads_likes
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE likes ADD CONSTRAINT fk_replies_likes
-			FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE reposts ADD CONSTRAINT fk_threads_reposts
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE bookmarks ADD CONSTRAINT fk_threads_bookmarks
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE thread_hashtags ADD CONSTRAINT fk_threads_thread_hashtags
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE thread_hashtags ADD CONSTRAINT fk_hashtags_thread_hashtags
-			FOREIGN KEY (hashtag_id) REFERENCES hashtags(hashtag_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE user_mentions ADD CONSTRAINT fk_threads_user_mentions
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE user_mentions ADD CONSTRAINT fk_replies_user_mentions
-			FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE thread_categories ADD CONSTRAINT fk_threads_thread_categories
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE thread_categories ADD CONSTRAINT fk_categories_thread_categories
-			FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE polls ADD CONSTRAINT fk_threads_polls
-			FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE poll_options ADD CONSTRAINT fk_polls_poll_options
-			FOREIGN KEY (poll_id) REFERENCES polls(poll_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE poll_votes ADD CONSTRAINT fk_polls_poll_votes
-			FOREIGN KEY (poll_id) REFERENCES polls(poll_id) ON DELETE CASCADE`,
-
-		`ALTER TABLE poll_votes ADD CONSTRAINT fk_poll_options_poll_votes
-			FOREIGN KEY (option_id) REFERENCES poll_options(option_id) ON DELETE CASCADE`,
+	// Step 2: Define foreign key constraints to add if they don't exist
+	constraintMigrations := []struct {
+		table      string
+		constraint string
+		sql        string
+	}{
+		{
+			table:      "replies",
+			constraint: "fk_threads_replies",
+			sql:        `ALTER TABLE replies ADD CONSTRAINT fk_threads_replies FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "replies",
+			constraint: "fk_replies_parent",
+			sql:        `ALTER TABLE replies ADD CONSTRAINT fk_replies_parent FOREIGN KEY (parent_reply_id) REFERENCES replies(reply_id) ON DELETE SET NULL`,
+		},
+		{
+			table:      "media",
+			constraint: "fk_threads_media",
+			sql:        `ALTER TABLE media ADD CONSTRAINT fk_threads_media FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "media",
+			constraint: "fk_replies_media",
+			sql:        `ALTER TABLE media ADD CONSTRAINT fk_replies_media FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "likes",
+			constraint: "fk_threads_likes",
+			sql:        `ALTER TABLE likes ADD CONSTRAINT fk_threads_likes FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "likes",
+			constraint: "fk_replies_likes",
+			sql:        `ALTER TABLE likes ADD CONSTRAINT fk_replies_likes FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "reposts",
+			constraint: "fk_threads_reposts",
+			sql:        `ALTER TABLE reposts ADD CONSTRAINT fk_threads_reposts FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "bookmarks",
+			constraint: "fk_threads_bookmarks",
+			sql:        `ALTER TABLE bookmarks ADD CONSTRAINT fk_threads_bookmarks FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "thread_hashtags",
+			constraint: "fk_threads_thread_hashtags",
+			sql:        `ALTER TABLE thread_hashtags ADD CONSTRAINT fk_threads_thread_hashtags FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "thread_hashtags",
+			constraint: "fk_hashtags_thread_hashtags",
+			sql:        `ALTER TABLE thread_hashtags ADD CONSTRAINT fk_hashtags_thread_hashtags FOREIGN KEY (hashtag_id) REFERENCES hashtags(hashtag_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "user_mentions",
+			constraint: "fk_threads_user_mentions",
+			sql:        `ALTER TABLE user_mentions ADD CONSTRAINT fk_threads_user_mentions FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "user_mentions",
+			constraint: "fk_replies_user_mentions",
+			sql:        `ALTER TABLE user_mentions ADD CONSTRAINT fk_replies_user_mentions FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "thread_categories",
+			constraint: "fk_threads_thread_categories",
+			sql:        `ALTER TABLE thread_categories ADD CONSTRAINT fk_threads_thread_categories FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "thread_categories",
+			constraint: "fk_categories_thread_categories",
+			sql:        `ALTER TABLE thread_categories ADD CONSTRAINT fk_categories_thread_categories FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "polls",
+			constraint: "fk_threads_polls",
+			sql:        `ALTER TABLE polls ADD CONSTRAINT fk_threads_polls FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "poll_options",
+			constraint: "fk_polls_poll_options",
+			sql:        `ALTER TABLE poll_options ADD CONSTRAINT fk_polls_poll_options FOREIGN KEY (poll_id) REFERENCES polls(poll_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "poll_votes",
+			constraint: "fk_polls_poll_votes",
+			sql:        `ALTER TABLE poll_votes ADD CONSTRAINT fk_polls_poll_votes FOREIGN KEY (poll_id) REFERENCES polls(poll_id) ON DELETE CASCADE`,
+		},
+		{
+			table:      "poll_votes",
+			constraint: "fk_poll_options_poll_votes",
+			sql:        `ALTER TABLE poll_votes ADD CONSTRAINT fk_poll_options_poll_votes FOREIGN KEY (option_id) REFERENCES poll_options(option_id) ON DELETE CASCADE`,
+		},
 	}
 
 	// Execute table creation migrations
@@ -330,17 +418,86 @@ func migrateModels(db *gorm.DB) error {
 		}
 	}
 
-	// Execute constraint migrations
+	// Execute constraint migrations with check if they exist
 	log.Println("Adding foreign key constraints...")
-	for _, migration := range constraintMigrations {
-		if err := executeMigration(db, migration); err != nil {
-			// If there's an error, log it but continue with the next constraint
-			log.Printf("Warning: Failed to add constraint: %v", err)
+
+	// First, get all existing constraints in one query to reduce database calls
+	var existingConstraints []string
+	constraintQuery := `
+	SELECT conname 
+	FROM pg_constraint 
+	WHERE contype = 'f'
+	`
+	if err := db.Raw(constraintQuery).Scan(&existingConstraints).Error; err != nil {
+		log.Printf("Warning: Error fetching existing constraints: %v", err)
+		// Continue with per-constraint checks as fallback
+	}
+
+	// Convert to map for faster lookups
+	constraintMap := make(map[string]bool)
+	for _, constraint := range existingConstraints {
+		constraintMap[constraint] = true
+	}
+
+	// Add missing constraints
+	constraintsAdded := 0
+	constraintsSkipped := 0
+
+	for _, constraint := range constraintMigrations {
+		// Check if constraint already exists
+		if constraintMap[constraint.constraint] {
+			constraintsSkipped++
+			log.Printf("Constraint %s already exists on table %s, skipping", constraint.constraint, constraint.table)
+			continue
+		}
+
+		// Fallback to direct check if our map approach failed
+		if len(constraintMap) == 0 {
+			exists, err := constraintExists(db, constraint.table, constraint.constraint)
+			if err != nil {
+				log.Printf("Warning: Error checking constraint %s: %v", constraint.constraint, err)
+				continue
+			}
+
+			if exists {
+				constraintsSkipped++
+				log.Printf("Constraint %s already exists on table %s, skipping", constraint.constraint, constraint.table)
+				continue
+			}
+		}
+
+		// Constraint doesn't exist, add it
+		if err := executeMigration(db, constraint.sql); err != nil {
+			log.Printf("Warning: Failed to add constraint %s: %v", constraint.constraint, err)
+		} else {
+			constraintsAdded++
+			log.Printf("Added constraint %s to table %s", constraint.constraint, constraint.table)
 		}
 	}
 
+	log.Printf("Migration summary: %d constraints added, %d constraints skipped", constraintsAdded, constraintsSkipped)
 	log.Println("Migration completed successfully")
 	return nil
+}
+
+// constraintExists checks if a constraint already exists
+func constraintExists(db *gorm.DB, table, constraint string) (bool, error) {
+	var count int64
+
+	// Query to check if constraint exists
+	query := `
+	SELECT COUNT(*) 
+	FROM pg_constraint 
+	WHERE conname = ? 
+	AND conrelid = (SELECT oid FROM pg_class WHERE relname = ?)
+	`
+
+	err := db.Raw(query, constraint, table).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
 }
 
 // executeMigration helper function to execute a single migration statement

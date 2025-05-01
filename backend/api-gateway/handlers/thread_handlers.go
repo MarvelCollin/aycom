@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	threadProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
@@ -431,5 +433,145 @@ func DeleteThread(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread deleted successfully",
+	})
+}
+
+// UploadThreadMedia handles media upload for threads
+func UploadThreadMedia(c *gin.Context) {
+	// Extract user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "error",
+			"code":    http.StatusUnauthorized,
+			"message": "User not authenticated",
+		})
+		return
+	}
+
+	// Get the multipart form
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"code":    http.StatusBadRequest,
+			"message": "Failed to parse form data: " + err.Error(),
+		})
+		return
+	}
+
+	// Get thread ID
+	threadIDs := form.Value["thread_id"]
+	if len(threadIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"code":    http.StatusBadRequest,
+			"message": "Thread ID is required",
+		})
+		return
+	}
+	threadID := threadIDs[0]
+
+	// Get all files
+	files := form.File
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"code":    http.StatusBadRequest,
+			"message": "No files uploaded",
+		})
+		return
+	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"code":    http.StatusInternalServerError,
+			"message": "Failed to connect to thread service: " + err.Error(),
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Process each file
+	mediaResponses := make([]interface{}, 0)
+	for fieldName, fileHeaders := range files {
+		for _, fileHeader := range fileHeaders {
+			// Open the file
+			file, err := fileHeader.Open()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  "error",
+					"code":    http.StatusInternalServerError,
+					"message": "Failed to open file: " + err.Error(),
+				})
+				return
+			}
+			defer file.Close()
+
+			// Read the file
+			fileData, err := io.ReadAll(file)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  "error",
+					"code":    http.StatusInternalServerError,
+					"message": "Failed to read file: " + err.Error(),
+				})
+				return
+			}
+
+			// Determine media type
+			contentType := fileHeader.Header.Get("Content-Type")
+			mediaType := "Image"
+			if strings.HasPrefix(contentType, "video/") {
+				mediaType = "Video"
+			} else if strings.Contains(fileHeader.Filename, ".gif") {
+				mediaType = "GIF"
+			}
+
+			// Call thread service to upload media
+			mediaResp, err := client.UploadMedia(ctx, &threadProto.UploadMediaRequest{
+				ThreadId:    threadID,
+				UserId:      userID.(string),
+				MediaType:   mediaType,
+				FileName:    fileHeader.Filename,
+				Data:        fileData,
+				ContentType: contentType,
+			})
+
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  "error",
+					"code":    http.StatusInternalServerError,
+					"message": "Failed to upload media: " + err.Error(),
+				})
+				return
+			}
+
+			mediaResponses = append(mediaResponses, gin.H{
+				"media_id": mediaResp.MediaId,
+				"url":      mediaResp.Url,
+				"type":     mediaType,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"code":    http.StatusOK,
+		"message": "Media uploaded successfully",
+		"data": gin.H{
+			"thread_id": threadID,
+			"media":     mediaResponses,
+		},
 	})
 }

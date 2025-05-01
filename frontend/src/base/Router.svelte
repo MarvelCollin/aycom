@@ -7,25 +7,15 @@
   import Feed from '../pages/Feed.svelte';
   import Profile from '../pages/Profile.svelte';
   import GoogleCallback from '../pages/GoogleCallback.svelte';
-  import Debug from '../pages/Debug.svelte';
   import appConfig from '../config/appConfig';
   
   let route = '/';
   let isAuthenticated = false; 
   
-  // For the secret "kowlin" command detection
-  let secretBuffer = '';
-  const secretCode = 'kowlin';
-  
   function handleNavigation() {
     route = window.location.pathname;
     
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
-    
-    // Skip authentication checks if Debug route or auth is disabled in config
-    if (route === '/debug') {
-      return;
-    }
     
     // Skip auth checks if disabled in config
     if (!appConfig.auth.enabled) {
@@ -58,26 +48,9 @@
     handleNavigation();
   }
   
-  function handleKeydown(event: KeyboardEvent) {
-    secretBuffer += event.key.toLowerCase();
-    
-    if (secretBuffer.length > secretCode.length) {
-      secretBuffer = secretBuffer.slice(secretBuffer.length - secretCode.length);
-    }
-    
-    if (secretBuffer === secretCode) {
-      secretBuffer = '';
-      
-      window.history.pushState({}, '', '/debug');
-      handleNavigation();
-    }
-  }
-  
   onMount(() => {
     (window as any).login = () => setAuthenticated(true);
     (window as any).logout = () => setAuthenticated(false);
-    
-    window.addEventListener('keydown', handleKeydown);
     
     window.addEventListener('popstate', handleNavigation);
     handleNavigation();
@@ -98,15 +71,12 @@
     
     return () => {
       window.removeEventListener('popstate', handleNavigation);
-      window.removeEventListener('keydown', handleKeydown);
     };
   });
 </script>
 
 <main>
-  {#if route === '/debug'}
-    <Debug />
-  {:else if route === '/'}
+  {#if route === '/'}
     <Landing />
   {:else if route === '/login'}
     <Login />

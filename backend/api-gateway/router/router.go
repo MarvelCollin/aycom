@@ -12,27 +12,32 @@ func SetupRouter() *gin.Engine {
 
 	// Middleware
 	r.Use(gin.Recovery())
-	r.Use(handlers.RateLimitMiddleware())
+	r.Use(middleware.CORS())
+	r.Use(middleware.Logger())
 
 	// Health check
 	r.GET("/health", handlers.HealthCheck)
 
+	// API v1 group
+	v1 := r.Group("/api/v1")
+
 	// Auth routes - no authentication required
-	auth := r.Group("/auth")
+	auth := v1.Group("/auth")
+	auth.Use(handlers.RateLimitMiddleware())
 	{
+		auth.GET("/oauth-config", handlers.GetOAuthConfig)
+		auth.POST("/login", handlers.Login)
 		auth.POST("/register", handlers.Register)
 		auth.POST("/register-with-media", handlers.RegisterWithMedia)
-		auth.POST("/login", handlers.Login)
-		auth.POST("/refresh-token", handlers.RefreshToken)
-		auth.POST("/verify-email", handlers.VerifyEmail)
-		auth.POST("/resend-verification", handlers.ResendVerificationCode)
+		auth.POST("/refresh", handlers.RefreshToken)
 		auth.POST("/google", handlers.GoogleAuth)
-		auth.GET("/oauth-config", handlers.GetOAuthConfig)
+		auth.POST("/verify-email", handlers.VerifyEmail)
+		auth.POST("/resend-code", handlers.ResendVerificationCode)
 	}
 
-	// Protected routes - authentication required
-	protected := r.Group("/api")
-	protected.Use(middleware.AuthMiddleware())
+	// Protected routes - using JWT authentication middleware
+	protected := v1.Group("")
+	protected.Use(middleware.JWTAuth(handlers.Config.JWTSecret))
 
 	// User routes
 	users := protected.Group("/users")
@@ -46,10 +51,10 @@ func SetupRouter() *gin.Engine {
 	{
 		threads.POST("", handlers.CreateThread)
 		threads.GET("/:id", handlers.GetThread)
-		threads.GET("/user/:userId", handlers.GetThreadsByUser)
-		threads.GET("/me", handlers.GetThreadsByUser) // Current user's threads
+		threads.GET("/user/:id", handlers.GetThreadsByUser)
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
+		threads.POST("/media", handlers.UploadThreadMedia)
 	}
 
 	// Product routes
