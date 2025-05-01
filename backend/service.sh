@@ -42,7 +42,6 @@ print_debug() {
   echo -e "${PURPLE}[DEBUG] $1${NC}"
 }
 
-# Helper to check if a container is running
 check_container_running() {
   local container_name=$1
   
@@ -55,7 +54,6 @@ check_container_running() {
   fi
 }
 
-# Helper to execute a command in a container
 execute_in_container() {
   local container_name=$1
   local command=$2

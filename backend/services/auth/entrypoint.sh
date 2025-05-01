@@ -11,10 +11,6 @@ done
 
 echo "PostgreSQL is up - starting application"
 
-# Run migrations
-echo "Running migrations..."
-./auth-service migrate
-
 # Start the application
 echo "Starting auth service..."
 exec ./auth-service

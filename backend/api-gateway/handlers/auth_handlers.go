@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/middleware"
 	authProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
@@ -71,42 +73,27 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	conn, err := authConnPool.Get()
+	// Create a new auth client
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to auth service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
+			Message: "Failed to load configuration: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
 		})
 		return
 	}
-	defer authConnPool.Put(conn)
 
-	client := authProto.NewAuthServiceClient(conn)
+	authClient := middleware.NewAuthClient(cfg)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	req := &authProto.LoginRequest{
-		Email:    request.Email,
-		Password: request.Password,
-	}
-
-	resp, err := client.Login(ctx, req)
+	// Call the auth service
+	resp, err := authClient.Login(request.Email, request.Password)
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Login failed: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
-		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Login failed: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
+		})
 		return
 	}
 
@@ -115,7 +102,7 @@ func Login(c *gin.Context) {
 		"message":       resp.Message,
 		"access_token":  resp.AccessToken,
 		"refresh_token": resp.RefreshToken,
-		"user_id":       resp.UserId,
+		"user_id":       resp.UserID,
 		"token_type":    resp.TokenType,
 		"expires_in":    resp.ExpiresIn,
 	})

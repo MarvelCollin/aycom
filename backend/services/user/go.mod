@@ -5,7 +5,7 @@ go 1.23
 toolchain go1.24.2
 
 require (
-	// github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto v0.0.0-00010101000000-000000000000
+	github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto v0.0.0-00010101000000-000000000000
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.72.0
 	gorm.io/driver/postgres v1.5.2
@@ -27,4 +27,4 @@ require (
 )
 
 // Add replace directive for local proto module
-// replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ./proto
+replace github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto => ./proto
