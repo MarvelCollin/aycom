@@ -11,6 +11,7 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
+	github.com/joho/godotenv v1.5.1
 	github.com/supabase-community/storage-go v0.7.0
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0

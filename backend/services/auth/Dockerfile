@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -6,13 +6,18 @@ WORKDIR /app
 RUN apk add --no-cache git gcc musl-dev
 
 # Copy go mod files
-COPY ./backend/services/auth/go.mod ./backend/services/auth/go.sum ./
+COPY backend/services/auth/go.mod backend/services/auth/go.sum ./
 
 # Copy the proto files first
-COPY ./backend/services/auth/proto ./proto/
+COPY backend/services/auth/proto ./proto/
 
 # Copy the source files
-COPY ./backend/services/auth/*.go ./
+COPY backend/services/auth/*.go ./
+COPY backend/services/auth/model ./model/
+COPY backend/services/auth/repository ./repository/
+COPY backend/services/auth/service ./service/
+COPY backend/services/auth/handler ./handler/
+COPY backend/services/auth/config ./config/
 
 # Download dependencies
 RUN go mod tidy

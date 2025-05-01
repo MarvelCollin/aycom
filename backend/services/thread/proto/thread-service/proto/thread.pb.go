@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v4.25.3
-// source: proto/thread.proto
+// source: proto/thread-service/proto/thread.proto
 
 package proto
 
@@ -23,30 +23,41 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Media information
-type MediaInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // Image, GIF, Video
-	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+// Thread message
+type Thread struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content         string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Media           []*Media               `protobuf:"bytes,4,rep,name=media,proto3" json:"media,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	ViewCount       int64                  `protobuf:"varint,7,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
+	Poll            *Poll                  `protobuf:"bytes,8,opt,name=poll,proto3,oneof" json:"poll,omitempty"`
+	CommunityId     *string                `protobuf:"bytes,9,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
+	IsPinned        *bool                  `protobuf:"varint,10,opt,name=is_pinned,json=isPinned,proto3,oneof" json:"is_pinned,omitempty"`
+	WhoCanReply     *string                `protobuf:"bytes,11,opt,name=who_can_reply,json=whoCanReply,proto3,oneof" json:"who_can_reply,omitempty"`
+	ScheduledAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=scheduled_at,json=scheduledAt,proto3,oneof" json:"scheduled_at,omitempty"`
+	IsAdvertisement *bool                  `protobuf:"varint,13,opt,name=is_advertisement,json=isAdvertisement,proto3,oneof" json:"is_advertisement,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
-func (x *MediaInfo) Reset() {
-	*x = MediaInfo{}
-	mi := &file_proto_thread_proto_msgTypes[0]
+func (x *Thread) Reset() {
+	*x = Thread{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MediaInfo) String() string {
+func (x *Thread) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MediaInfo) ProtoMessage() {}
+func (*Thread) ProtoMessage() {}
 
-func (x *MediaInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[0]
+func (x *Thread) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,164 +68,315 @@ func (x *MediaInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MediaInfo.ProtoReflect.Descriptor instead.
-func (*MediaInfo) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use Thread.ProtoReflect.Descriptor instead.
+func (*Thread) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *MediaInfo) GetType() string {
+func (x *Thread) GetId() string {
 	if x != nil {
-		return x.Type
+		return x.Id
 	}
 	return ""
 }
 
-func (x *MediaInfo) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-// Create Thread
-type CreateThreadRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Content          string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
-	WhoCanReply      string                 `protobuf:"bytes,3,opt,name=who_can_reply,json=whoCanReply,proto3" json:"who_can_reply,omitempty"` // Everyone, Accounts You Follow, Verified Accounts
-	CategoryNames    []string               `protobuf:"bytes,4,rep,name=category_names,json=categoryNames,proto3" json:"category_names,omitempty"`
-	Hashtags         []string               `protobuf:"bytes,5,rep,name=hashtags,proto3" json:"hashtags,omitempty"`
-	MentionedUserIds []string               `protobuf:"bytes,6,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
-	Media            []*MediaInfo           `protobuf:"bytes,7,rep,name=media,proto3" json:"media,omitempty"`
-	ScheduledAt      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=scheduled_at,json=scheduledAt,proto3" json:"scheduled_at,omitempty"`
-	CommunityId      string                 `protobuf:"bytes,9,opt,name=community_id,json=communityId,proto3" json:"community_id,omitempty"`
-	IsAdvertisement  bool                   `protobuf:"varint,10,opt,name=is_advertisement,json=isAdvertisement,proto3" json:"is_advertisement,omitempty"`
-	// For poll
-	Poll          *PollInfo `protobuf:"bytes,11,opt,name=poll,proto3" json:"poll,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateThreadRequest) Reset() {
-	*x = CreateThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateThreadRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateThreadRequest) ProtoMessage() {}
-
-func (x *CreateThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateThreadRequest.ProtoReflect.Descriptor instead.
-func (*CreateThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *CreateThreadRequest) GetUserId() string {
+func (x *Thread) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
 	return ""
 }
 
-func (x *CreateThreadRequest) GetContent() string {
+func (x *Thread) GetContent() string {
 	if x != nil {
 		return x.Content
 	}
 	return ""
 }
 
-func (x *CreateThreadRequest) GetWhoCanReply() string {
-	if x != nil {
-		return x.WhoCanReply
-	}
-	return ""
-}
-
-func (x *CreateThreadRequest) GetCategoryNames() []string {
-	if x != nil {
-		return x.CategoryNames
-	}
-	return nil
-}
-
-func (x *CreateThreadRequest) GetHashtags() []string {
-	if x != nil {
-		return x.Hashtags
-	}
-	return nil
-}
-
-func (x *CreateThreadRequest) GetMentionedUserIds() []string {
-	if x != nil {
-		return x.MentionedUserIds
-	}
-	return nil
-}
-
-func (x *CreateThreadRequest) GetMedia() []*MediaInfo {
+func (x *Thread) GetMedia() []*Media {
 	if x != nil {
 		return x.Media
 	}
 	return nil
 }
 
-func (x *CreateThreadRequest) GetScheduledAt() *timestamppb.Timestamp {
+func (x *Thread) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.ScheduledAt
+		return x.CreatedAt
 	}
 	return nil
 }
 
-func (x *CreateThreadRequest) GetCommunityId() string {
+func (x *Thread) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.CommunityId
+		return x.UpdatedAt
 	}
-	return ""
+	return nil
 }
 
-func (x *CreateThreadRequest) GetIsAdvertisement() bool {
+func (x *Thread) GetViewCount() int64 {
 	if x != nil {
-		return x.IsAdvertisement
+		return x.ViewCount
 	}
-	return false
+	return 0
 }
 
-func (x *CreateThreadRequest) GetPoll() *PollInfo {
+func (x *Thread) GetPoll() *Poll {
 	if x != nil {
 		return x.Poll
 	}
 	return nil
 }
 
+func (x *Thread) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
+	}
+	return ""
+}
+
+func (x *Thread) GetIsPinned() bool {
+	if x != nil && x.IsPinned != nil {
+		return *x.IsPinned
+	}
+	return false
+}
+
+func (x *Thread) GetWhoCanReply() string {
+	if x != nil && x.WhoCanReply != nil {
+		return *x.WhoCanReply
+	}
+	return ""
+}
+
+func (x *Thread) GetScheduledAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ScheduledAt
+	}
+	return nil
+}
+
+func (x *Thread) GetIsAdvertisement() bool {
+	if x != nil && x.IsAdvertisement != nil {
+		return *x.IsAdvertisement
+	}
+	return false
+}
+
+// Media message
+type Media struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"` // "image", "video", etc.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Media) Reset() {
+	*x = Media{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Media) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Media) ProtoMessage() {}
+
+func (x *Media) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Media.ProtoReflect.Descriptor instead.
+func (*Media) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Media) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Media) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *Media) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+// MediaResponse message
+type MediaResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MediaResponse) Reset() {
+	*x = MediaResponse{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MediaResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MediaResponse) ProtoMessage() {}
+
+func (x *MediaResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MediaResponse.ProtoReflect.Descriptor instead.
+func (*MediaResponse) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MediaResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *MediaResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *MediaResponse) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+// Poll message
+type Poll struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Question      string                 `protobuf:"bytes,2,opt,name=question,proto3" json:"question,omitempty"`
+	Options       []*PollOption          `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	IsAnonymous   bool                   `protobuf:"varint,5,opt,name=is_anonymous,json=isAnonymous,proto3" json:"is_anonymous,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Poll) Reset() {
+	*x = Poll{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Poll) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Poll) ProtoMessage() {}
+
+func (x *Poll) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Poll.ProtoReflect.Descriptor instead.
+func (*Poll) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Poll) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Poll) GetQuestion() string {
+	if x != nil {
+		return x.Question
+	}
+	return ""
+}
+
+func (x *Poll) GetOptions() []*PollOption {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *Poll) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *Poll) GetIsAnonymous() bool {
+	if x != nil {
+		return x.IsAnonymous
+	}
+	return false
+}
+
+// PollInfo message
 type PollInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      string                 `protobuf:"bytes,1,opt,name=question,proto3" json:"question,omitempty"`
 	Options       []string               `protobuf:"bytes,2,rep,name=options,proto3" json:"options,omitempty"`
-	ClosesAt      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=closes_at,json=closesAt,proto3" json:"closes_at,omitempty"`
-	WhoCanVote    string                 `protobuf:"bytes,4,opt,name=who_can_vote,json=whoCanVote,proto3" json:"who_can_vote,omitempty"` // Everyone, Accounts You Follow, Verified Accounts
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	IsAnonymous   bool                   `protobuf:"varint,4,opt,name=is_anonymous,json=isAnonymous,proto3" json:"is_anonymous,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PollInfo) Reset() {
 	*x = PollInfo{}
-	mi := &file_proto_thread_proto_msgTypes[2]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -226,7 +388,7 @@ func (x *PollInfo) String() string {
 func (*PollInfo) ProtoMessage() {}
 
 func (x *PollInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[2]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -239,7 +401,7 @@ func (x *PollInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollInfo.ProtoReflect.Descriptor instead.
 func (*PollInfo) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{2}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PollInfo) GetQuestion() string {
@@ -256,21 +418,369 @@ func (x *PollInfo) GetOptions() []string {
 	return nil
 }
 
-func (x *PollInfo) GetClosesAt() *timestamppb.Timestamp {
+func (x *PollInfo) GetEndTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.ClosesAt
+		return x.EndTime
 	}
 	return nil
 }
 
-func (x *PollInfo) GetWhoCanVote() string {
+func (x *PollInfo) GetIsAnonymous() bool {
 	if x != nil {
-		return x.WhoCanVote
+		return x.IsAnonymous
+	}
+	return false
+}
+
+// Poll option message
+type PollOption struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PollOption) Reset() {
+	*x = PollOption{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollOption) ProtoMessage() {}
+
+func (x *PollOption) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollOption.ProtoReflect.Descriptor instead.
+func (*PollOption) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *PollOption) GetId() string {
+	if x != nil {
+		return x.Id
 	}
 	return ""
 }
 
-// Get Thread
+func (x *PollOption) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+// Reply message
+type Reply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ThreadId      string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	Media         []*Media               `protobuf:"bytes,5,rep,name=media,proto3" json:"media,omitempty"`
+	ParentId      string                 `protobuf:"bytes,6,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // Optional, for replies to replies
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	IsPinned      *bool                  `protobuf:"varint,9,opt,name=is_pinned,json=isPinned,proto3,oneof" json:"is_pinned,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Reply) Reset() {
+	*x = Reply{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reply) ProtoMessage() {}
+
+func (x *Reply) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reply.ProtoReflect.Descriptor instead.
+func (*Reply) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Reply) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Reply) GetThreadId() string {
+	if x != nil {
+		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *Reply) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *Reply) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *Reply) GetMedia() []*Media {
+	if x != nil {
+		return x.Media
+	}
+	return nil
+}
+
+func (x *Reply) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *Reply) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Reply) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *Reply) GetIsPinned() bool {
+	if x != nil && x.IsPinned != nil {
+		return *x.IsPinned
+	}
+	return false
+}
+
+// CreateThreadRequest message
+type CreateThreadRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content          string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	Media            []*Media               `protobuf:"bytes,3,rep,name=media,proto3" json:"media,omitempty"`
+	Poll             *PollRequest           `protobuf:"bytes,4,opt,name=poll,proto3,oneof" json:"poll,omitempty"`
+	CommunityId      *string                `protobuf:"bytes,5,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
+	ScheduledAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=scheduled_at,json=scheduledAt,proto3,oneof" json:"scheduled_at,omitempty"`
+	WhoCanReply      *string                `protobuf:"bytes,7,opt,name=who_can_reply,json=whoCanReply,proto3,oneof" json:"who_can_reply,omitempty"`
+	IsAdvertisement  *bool                  `protobuf:"varint,8,opt,name=is_advertisement,json=isAdvertisement,proto3,oneof" json:"is_advertisement,omitempty"`
+	Hashtags         []string               `protobuf:"bytes,9,rep,name=hashtags,proto3" json:"hashtags,omitempty"`
+	MentionedUserIds []string               `protobuf:"bytes,10,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *CreateThreadRequest) Reset() {
+	*x = CreateThreadRequest{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateThreadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateThreadRequest) ProtoMessage() {}
+
+func (x *CreateThreadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateThreadRequest.ProtoReflect.Descriptor instead.
+func (*CreateThreadRequest) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CreateThreadRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateThreadRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *CreateThreadRequest) GetMedia() []*Media {
+	if x != nil {
+		return x.Media
+	}
+	return nil
+}
+
+func (x *CreateThreadRequest) GetPoll() *PollRequest {
+	if x != nil {
+		return x.Poll
+	}
+	return nil
+}
+
+func (x *CreateThreadRequest) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
+	}
+	return ""
+}
+
+func (x *CreateThreadRequest) GetScheduledAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ScheduledAt
+	}
+	return nil
+}
+
+func (x *CreateThreadRequest) GetWhoCanReply() string {
+	if x != nil && x.WhoCanReply != nil {
+		return *x.WhoCanReply
+	}
+	return ""
+}
+
+func (x *CreateThreadRequest) GetIsAdvertisement() bool {
+	if x != nil && x.IsAdvertisement != nil {
+		return *x.IsAdvertisement
+	}
+	return false
+}
+
+func (x *CreateThreadRequest) GetHashtags() []string {
+	if x != nil {
+		return x.Hashtags
+	}
+	return nil
+}
+
+func (x *CreateThreadRequest) GetMentionedUserIds() []string {
+	if x != nil {
+		return x.MentionedUserIds
+	}
+	return nil
+}
+
+// PollRequest message for creating polls
+type PollRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Question      string                 `protobuf:"bytes,1,opt,name=question,proto3" json:"question,omitempty"`
+	Options       []string               `protobuf:"bytes,2,rep,name=options,proto3" json:"options,omitempty"`
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	IsAnonymous   bool                   `protobuf:"varint,4,opt,name=is_anonymous,json=isAnonymous,proto3" json:"is_anonymous,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PollRequest) Reset() {
+	*x = PollRequest{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollRequest) ProtoMessage() {}
+
+func (x *PollRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollRequest.ProtoReflect.Descriptor instead.
+func (*PollRequest) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PollRequest) GetQuestion() string {
+	if x != nil {
+		return x.Question
+	}
+	return ""
+}
+
+func (x *PollRequest) GetOptions() []string {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *PollRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *PollRequest) GetIsAnonymous() bool {
+	if x != nil {
+		return x.IsAnonymous
+	}
+	return false
+}
+
+// GetThreadRequest message
 type GetThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -280,7 +790,7 @@ type GetThreadRequest struct {
 
 func (x *GetThreadRequest) Reset() {
 	*x = GetThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[3]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -292,7 +802,7 @@ func (x *GetThreadRequest) String() string {
 func (*GetThreadRequest) ProtoMessage() {}
 
 func (x *GetThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[3]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -305,7 +815,7 @@ func (x *GetThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetThreadRequest.ProtoReflect.Descriptor instead.
 func (*GetThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{3}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetThreadRequest) GetThreadId() string {
@@ -315,7 +825,7 @@ func (x *GetThreadRequest) GetThreadId() string {
 	return ""
 }
 
-// Get Threads by User
+// GetThreadsByUserRequest message
 type GetThreadsByUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -327,7 +837,7 @@ type GetThreadsByUserRequest struct {
 
 func (x *GetThreadsByUserRequest) Reset() {
 	*x = GetThreadsByUserRequest{}
-	mi := &file_proto_thread_proto_msgTypes[4]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +849,7 @@ func (x *GetThreadsByUserRequest) String() string {
 func (*GetThreadsByUserRequest) ProtoMessage() {}
 
 func (x *GetThreadsByUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[4]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +862,7 @@ func (x *GetThreadsByUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetThreadsByUserRequest.ProtoReflect.Descriptor instead.
 func (*GetThreadsByUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{4}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetThreadsByUserRequest) GetUserId() string {
@@ -376,23 +886,25 @@ func (x *GetThreadsByUserRequest) GetLimit() int32 {
 	return 0
 }
 
-// Update Thread
+// UpdateThreadRequest message
 type UpdateThreadRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId            string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	Content             string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
-	IsPinned            bool                   `protobuf:"varint,3,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
-	AddCategoryNames    []string               `protobuf:"bytes,4,rep,name=add_category_names,json=addCategoryNames,proto3" json:"add_category_names,omitempty"`
-	RemoveCategoryNames []string               `protobuf:"bytes,5,rep,name=remove_category_names,json=removeCategoryNames,proto3" json:"remove_category_names,omitempty"`
-	AddHashtags         []string               `protobuf:"bytes,6,rep,name=add_hashtags,json=addHashtags,proto3" json:"add_hashtags,omitempty"`
-	RemoveHashtags      []string               `protobuf:"bytes,7,rep,name=remove_hashtags,json=removeHashtags,proto3" json:"remove_hashtags,omitempty"`
+	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content             string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	Media               []*Media               `protobuf:"bytes,4,rep,name=media,proto3" json:"media,omitempty"`
+	IsPinned            *bool                  `protobuf:"varint,5,opt,name=is_pinned,json=isPinned,proto3,oneof" json:"is_pinned,omitempty"`
+	AddCategoryNames    []string               `protobuf:"bytes,6,rep,name=add_category_names,json=addCategoryNames,proto3" json:"add_category_names,omitempty"`
+	RemoveCategoryNames []string               `protobuf:"bytes,7,rep,name=remove_category_names,json=removeCategoryNames,proto3" json:"remove_category_names,omitempty"`
+	AddHashtags         []string               `protobuf:"bytes,8,rep,name=add_hashtags,json=addHashtags,proto3" json:"add_hashtags,omitempty"`
+	RemoveHashtags      []string               `protobuf:"bytes,9,rep,name=remove_hashtags,json=removeHashtags,proto3" json:"remove_hashtags,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdateThreadRequest) Reset() {
 	*x = UpdateThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[5]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -404,7 +916,7 @@ func (x *UpdateThreadRequest) String() string {
 func (*UpdateThreadRequest) ProtoMessage() {}
 
 func (x *UpdateThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[5]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -417,12 +929,19 @@ func (x *UpdateThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateThreadRequest.ProtoReflect.Descriptor instead.
 func (*UpdateThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{5}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateThreadRequest) GetThreadId() string {
 	if x != nil {
 		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *UpdateThreadRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
 	}
 	return ""
 }
@@ -434,9 +953,16 @@ func (x *UpdateThreadRequest) GetContent() string {
 	return ""
 }
 
-func (x *UpdateThreadRequest) GetIsPinned() bool {
+func (x *UpdateThreadRequest) GetMedia() []*Media {
 	if x != nil {
-		return x.IsPinned
+		return x.Media
+	}
+	return nil
+}
+
+func (x *UpdateThreadRequest) GetIsPinned() bool {
+	if x != nil && x.IsPinned != nil {
+		return *x.IsPinned
 	}
 	return false
 }
@@ -469,18 +995,18 @@ func (x *UpdateThreadRequest) GetRemoveHashtags() []string {
 	return nil
 }
 
-// Delete Thread
+// DeleteThreadRequest message
 type DeleteThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteThreadRequest) Reset() {
 	*x = DeleteThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[6]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +1018,7 @@ func (x *DeleteThreadRequest) String() string {
 func (*DeleteThreadRequest) ProtoMessage() {}
 
 func (x *DeleteThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[6]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +1031,7 @@ func (x *DeleteThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteThreadRequest.ProtoReflect.Descriptor instead.
 func (*DeleteThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{6}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DeleteThreadRequest) GetThreadId() string {
@@ -522,22 +1048,23 @@ func (x *DeleteThreadRequest) GetUserId() string {
 	return ""
 }
 
-// Create Reply
+// CreateReplyRequest message
 type CreateReplyRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId         string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
 	UserId           string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Content          string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	ParentReplyId    string                 `protobuf:"bytes,4,opt,name=parent_reply_id,json=parentReplyId,proto3" json:"parent_reply_id,omitempty"`
-	Media            []*MediaInfo           `protobuf:"bytes,5,rep,name=media,proto3" json:"media,omitempty"`
-	MentionedUserIds []string               `protobuf:"bytes,6,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
+	Media            []*Media               `protobuf:"bytes,4,rep,name=media,proto3" json:"media,omitempty"`
+	ParentId         string                 `protobuf:"bytes,5,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // Optional, for replies to replies
+	ParentReplyId    *string                `protobuf:"bytes,6,opt,name=parent_reply_id,json=parentReplyId,proto3,oneof" json:"parent_reply_id,omitempty"`
+	MentionedUserIds []string               `protobuf:"bytes,7,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CreateReplyRequest) Reset() {
 	*x = CreateReplyRequest{}
-	mi := &file_proto_thread_proto_msgTypes[7]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -549,7 +1076,7 @@ func (x *CreateReplyRequest) String() string {
 func (*CreateReplyRequest) ProtoMessage() {}
 
 func (x *CreateReplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[7]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -562,7 +1089,7 @@ func (x *CreateReplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReplyRequest.ProtoReflect.Descriptor instead.
 func (*CreateReplyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{7}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CreateReplyRequest) GetThreadId() string {
@@ -586,18 +1113,25 @@ func (x *CreateReplyRequest) GetContent() string {
 	return ""
 }
 
-func (x *CreateReplyRequest) GetParentReplyId() string {
-	if x != nil {
-		return x.ParentReplyId
-	}
-	return ""
-}
-
-func (x *CreateReplyRequest) GetMedia() []*MediaInfo {
+func (x *CreateReplyRequest) GetMedia() []*Media {
 	if x != nil {
 		return x.Media
 	}
 	return nil
+}
+
+func (x *CreateReplyRequest) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *CreateReplyRequest) GetParentReplyId() string {
+	if x != nil && x.ParentReplyId != nil {
+		return *x.ParentReplyId
+	}
+	return ""
 }
 
 func (x *CreateReplyRequest) GetMentionedUserIds() []string {
@@ -607,20 +1141,19 @@ func (x *CreateReplyRequest) GetMentionedUserIds() []string {
 	return nil
 }
 
-// Get Replies
+// GetRepliesByThreadRequest message
 type GetRepliesByThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	ParentReplyId string                 `protobuf:"bytes,2,opt,name=parent_reply_id,json=parentReplyId,proto3" json:"parent_reply_id,omitempty"` // Optional, if provided gets replies to a specific reply
-	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
-	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetRepliesByThreadRequest) Reset() {
 	*x = GetRepliesByThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[8]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -632,7 +1165,7 @@ func (x *GetRepliesByThreadRequest) String() string {
 func (*GetRepliesByThreadRequest) ProtoMessage() {}
 
 func (x *GetRepliesByThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[8]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -645,19 +1178,12 @@ func (x *GetRepliesByThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRepliesByThreadRequest.ProtoReflect.Descriptor instead.
 func (*GetRepliesByThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{8}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetRepliesByThreadRequest) GetThreadId() string {
 	if x != nil {
 		return x.ThreadId
-	}
-	return ""
-}
-
-func (x *GetRepliesByThreadRequest) GetParentReplyId() string {
-	if x != nil {
-		return x.ParentReplyId
 	}
 	return ""
 }
@@ -676,20 +1202,21 @@ func (x *GetRepliesByThreadRequest) GetLimit() int32 {
 	return 0
 }
 
-// Update Reply
+// UpdateReplyRequest message
 type UpdateReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	IsPinned      bool                   `protobuf:"varint,4,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
+	Media         []*Media               `protobuf:"bytes,4,rep,name=media,proto3" json:"media,omitempty"`
+	IsPinned      *bool                  `protobuf:"varint,5,opt,name=is_pinned,json=isPinned,proto3,oneof" json:"is_pinned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateReplyRequest) Reset() {
 	*x = UpdateReplyRequest{}
-	mi := &file_proto_thread_proto_msgTypes[9]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -701,7 +1228,7 @@ func (x *UpdateReplyRequest) String() string {
 func (*UpdateReplyRequest) ProtoMessage() {}
 
 func (x *UpdateReplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[9]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -714,7 +1241,7 @@ func (x *UpdateReplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateReplyRequest.ProtoReflect.Descriptor instead.
 func (*UpdateReplyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{9}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateReplyRequest) GetReplyId() string {
@@ -738,25 +1265,32 @@ func (x *UpdateReplyRequest) GetContent() string {
 	return ""
 }
 
-func (x *UpdateReplyRequest) GetIsPinned() bool {
+func (x *UpdateReplyRequest) GetMedia() []*Media {
 	if x != nil {
-		return x.IsPinned
+		return x.Media
+	}
+	return nil
+}
+
+func (x *UpdateReplyRequest) GetIsPinned() bool {
+	if x != nil && x.IsPinned != nil {
+		return *x.IsPinned
 	}
 	return false
 }
 
-// Delete Reply
+// DeleteReplyRequest message
 type DeleteReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // For authorization check
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteReplyRequest) Reset() {
 	*x = DeleteReplyRequest{}
-	mi := &file_proto_thread_proto_msgTypes[10]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -768,7 +1302,7 @@ func (x *DeleteReplyRequest) String() string {
 func (*DeleteReplyRequest) ProtoMessage() {}
 
 func (x *DeleteReplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[10]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -781,7 +1315,7 @@ func (x *DeleteReplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReplyRequest.ProtoReflect.Descriptor instead.
 func (*DeleteReplyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{10}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeleteReplyRequest) GetReplyId() string {
@@ -798,7 +1332,7 @@ func (x *DeleteReplyRequest) GetUserId() string {
 	return ""
 }
 
-// Like Thread
+// LikeThreadRequest message
 type LikeThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -809,7 +1343,7 @@ type LikeThreadRequest struct {
 
 func (x *LikeThreadRequest) Reset() {
 	*x = LikeThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[11]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -821,7 +1355,7 @@ func (x *LikeThreadRequest) String() string {
 func (*LikeThreadRequest) ProtoMessage() {}
 
 func (x *LikeThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[11]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -834,7 +1368,7 @@ func (x *LikeThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LikeThreadRequest.ProtoReflect.Descriptor instead.
 func (*LikeThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{11}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *LikeThreadRequest) GetThreadId() string {
@@ -851,7 +1385,7 @@ func (x *LikeThreadRequest) GetUserId() string {
 	return ""
 }
 
-// Unlike Thread
+// UnlikeThreadRequest message
 type UnlikeThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -862,7 +1396,7 @@ type UnlikeThreadRequest struct {
 
 func (x *UnlikeThreadRequest) Reset() {
 	*x = UnlikeThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[12]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -874,7 +1408,7 @@ func (x *UnlikeThreadRequest) String() string {
 func (*UnlikeThreadRequest) ProtoMessage() {}
 
 func (x *UnlikeThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[12]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -887,7 +1421,7 @@ func (x *UnlikeThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlikeThreadRequest.ProtoReflect.Descriptor instead.
 func (*UnlikeThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{12}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *UnlikeThreadRequest) GetThreadId() string {
@@ -904,7 +1438,7 @@ func (x *UnlikeThreadRequest) GetUserId() string {
 	return ""
 }
 
-// Like Reply
+// LikeReplyRequest message
 type LikeReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -915,7 +1449,7 @@ type LikeReplyRequest struct {
 
 func (x *LikeReplyRequest) Reset() {
 	*x = LikeReplyRequest{}
-	mi := &file_proto_thread_proto_msgTypes[13]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -927,7 +1461,7 @@ func (x *LikeReplyRequest) String() string {
 func (*LikeReplyRequest) ProtoMessage() {}
 
 func (x *LikeReplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[13]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -940,7 +1474,7 @@ func (x *LikeReplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LikeReplyRequest.ProtoReflect.Descriptor instead.
 func (*LikeReplyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{13}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *LikeReplyRequest) GetReplyId() string {
@@ -957,7 +1491,7 @@ func (x *LikeReplyRequest) GetUserId() string {
 	return ""
 }
 
-// Unlike Reply
+// UnlikeReplyRequest message
 type UnlikeReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -968,7 +1502,7 @@ type UnlikeReplyRequest struct {
 
 func (x *UnlikeReplyRequest) Reset() {
 	*x = UnlikeReplyRequest{}
-	mi := &file_proto_thread_proto_msgTypes[14]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -980,7 +1514,7 @@ func (x *UnlikeReplyRequest) String() string {
 func (*UnlikeReplyRequest) ProtoMessage() {}
 
 func (x *UnlikeReplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[14]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -993,7 +1527,7 @@ func (x *UnlikeReplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlikeReplyRequest.ProtoReflect.Descriptor instead.
 func (*UnlikeReplyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{14}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UnlikeReplyRequest) GetReplyId() string {
@@ -1010,19 +1544,19 @@ func (x *UnlikeReplyRequest) GetUserId() string {
 	return ""
 }
 
-// Repost Thread
+// RepostThreadRequest message
 type RepostThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	RepostText    string                 `protobuf:"bytes,3,opt,name=repost_text,json=repostText,proto3" json:"repost_text,omitempty"` // Optional text to add to the repost
+	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"` // Optional content to add to the repost
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RepostThreadRequest) Reset() {
 	*x = RepostThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[15]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1034,7 +1568,7 @@ func (x *RepostThreadRequest) String() string {
 func (*RepostThreadRequest) ProtoMessage() {}
 
 func (x *RepostThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[15]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1047,7 +1581,7 @@ func (x *RepostThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepostThreadRequest.ProtoReflect.Descriptor instead.
 func (*RepostThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{15}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RepostThreadRequest) GetThreadId() string {
@@ -1064,17 +1598,17 @@ func (x *RepostThreadRequest) GetUserId() string {
 	return ""
 }
 
-func (x *RepostThreadRequest) GetRepostText() string {
+func (x *RepostThreadRequest) GetContent() string {
 	if x != nil {
-		return x.RepostText
+		return x.Content
 	}
 	return ""
 }
 
-// Remove Repost
+// RemoveRepostRequest message
 type RemoveRepostRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	RepostId      string                 `protobuf:"bytes,1,opt,name=repost_id,json=repostId,proto3" json:"repost_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1082,7 +1616,7 @@ type RemoveRepostRequest struct {
 
 func (x *RemoveRepostRequest) Reset() {
 	*x = RemoveRepostRequest{}
-	mi := &file_proto_thread_proto_msgTypes[16]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1094,7 +1628,7 @@ func (x *RemoveRepostRequest) String() string {
 func (*RemoveRepostRequest) ProtoMessage() {}
 
 func (x *RemoveRepostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[16]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1107,12 +1641,12 @@ func (x *RemoveRepostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRepostRequest.ProtoReflect.Descriptor instead.
 func (*RemoveRepostRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{16}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *RemoveRepostRequest) GetThreadId() string {
+func (x *RemoveRepostRequest) GetRepostId() string {
 	if x != nil {
-		return x.ThreadId
+		return x.RepostId
 	}
 	return ""
 }
@@ -1124,7 +1658,7 @@ func (x *RemoveRepostRequest) GetUserId() string {
 	return ""
 }
 
-// Bookmark Thread
+// BookmarkThreadRequest message
 type BookmarkThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1135,7 +1669,7 @@ type BookmarkThreadRequest struct {
 
 func (x *BookmarkThreadRequest) Reset() {
 	*x = BookmarkThreadRequest{}
-	mi := &file_proto_thread_proto_msgTypes[17]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1147,7 +1681,7 @@ func (x *BookmarkThreadRequest) String() string {
 func (*BookmarkThreadRequest) ProtoMessage() {}
 
 func (x *BookmarkThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[17]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1160,7 +1694,7 @@ func (x *BookmarkThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookmarkThreadRequest.ProtoReflect.Descriptor instead.
 func (*BookmarkThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{17}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *BookmarkThreadRequest) GetThreadId() string {
@@ -1177,10 +1711,10 @@ func (x *BookmarkThreadRequest) GetUserId() string {
 	return ""
 }
 
-// Remove Bookmark
+// RemoveBookmarkRequest message
 type RemoveBookmarkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	BookmarkId    string                 `protobuf:"bytes,1,opt,name=bookmark_id,json=bookmarkId,proto3" json:"bookmark_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1188,7 +1722,7 @@ type RemoveBookmarkRequest struct {
 
 func (x *RemoveBookmarkRequest) Reset() {
 	*x = RemoveBookmarkRequest{}
-	mi := &file_proto_thread_proto_msgTypes[18]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1200,7 +1734,7 @@ func (x *RemoveBookmarkRequest) String() string {
 func (*RemoveBookmarkRequest) ProtoMessage() {}
 
 func (x *RemoveBookmarkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[18]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1213,12 +1747,12 @@ func (x *RemoveBookmarkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveBookmarkRequest.ProtoReflect.Descriptor instead.
 func (*RemoveBookmarkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{18}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *RemoveBookmarkRequest) GetThreadId() string {
+func (x *RemoveBookmarkRequest) GetBookmarkId() string {
 	if x != nil {
-		return x.ThreadId
+		return x.BookmarkId
 	}
 	return ""
 }
@@ -1230,7 +1764,68 @@ func (x *RemoveBookmarkRequest) GetUserId() string {
 	return ""
 }
 
-// Create Poll Vote
+// CreatePollRequest message
+type CreatePollRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Poll          *PollRequest           `protobuf:"bytes,3,opt,name=poll,proto3" json:"poll,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreatePollRequest) Reset() {
+	*x = CreatePollRequest{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreatePollRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreatePollRequest) ProtoMessage() {}
+
+func (x *CreatePollRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreatePollRequest.ProtoReflect.Descriptor instead.
+func (*CreatePollRequest) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CreatePollRequest) GetThreadId() string {
+	if x != nil {
+		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *CreatePollRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreatePollRequest) GetPoll() *PollRequest {
+	if x != nil {
+		return x.Poll
+	}
+	return nil
+}
+
+// VotePollRequest message
 type VotePollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PollId        string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
@@ -1242,7 +1837,7 @@ type VotePollRequest struct {
 
 func (x *VotePollRequest) Reset() {
 	*x = VotePollRequest{}
-	mi := &file_proto_thread_proto_msgTypes[19]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1254,7 +1849,7 @@ func (x *VotePollRequest) String() string {
 func (*VotePollRequest) ProtoMessage() {}
 
 func (x *VotePollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[19]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1267,7 +1862,7 @@ func (x *VotePollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VotePollRequest.ProtoReflect.Descriptor instead.
 func (*VotePollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{19}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *VotePollRequest) GetPollId() string {
@@ -1291,7 +1886,7 @@ func (x *VotePollRequest) GetUserId() string {
 	return ""
 }
 
-// Get Poll Results
+// GetPollResultsRequest message
 type GetPollResultsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PollId        string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
@@ -1301,7 +1896,7 @@ type GetPollResultsRequest struct {
 
 func (x *GetPollResultsRequest) Reset() {
 	*x = GetPollResultsRequest{}
-	mi := &file_proto_thread_proto_msgTypes[20]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1313,7 +1908,7 @@ func (x *GetPollResultsRequest) String() string {
 func (*GetPollResultsRequest) ProtoMessage() {}
 
 func (x *GetPollResultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[20]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1326,7 +1921,7 @@ func (x *GetPollResultsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPollResultsRequest.ProtoReflect.Descriptor instead.
 func (*GetPollResultsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{20}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetPollResultsRequest) GetPollId() string {
@@ -1336,37 +1931,37 @@ func (x *GetPollResultsRequest) GetPollId() string {
 	return ""
 }
 
-// Thread Response
+// ThreadResponse message
 type ThreadResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	ThreadId        string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	UserId          string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Content         string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	IsPinned        bool                   `protobuf:"varint,4,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
-	WhoCanReply     string                 `protobuf:"bytes,5,opt,name=who_can_reply,json=whoCanReply,proto3" json:"who_can_reply,omitempty"`
-	ScheduledAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=scheduled_at,json=scheduledAt,proto3" json:"scheduled_at,omitempty"`
-	CommunityId     string                 `protobuf:"bytes,7,opt,name=community_id,json=communityId,proto3" json:"community_id,omitempty"`
-	IsAdvertisement bool                   `protobuf:"varint,8,opt,name=is_advertisement,json=isAdvertisement,proto3" json:"is_advertisement,omitempty"`
-	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	// Stats
-	ReplyCount  int32 `protobuf:"varint,11,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"`
-	LikeCount   int32 `protobuf:"varint,12,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
-	RepostCount int32 `protobuf:"varint,13,opt,name=repost_count,json=repostCount,proto3" json:"repost_count,omitempty"`
-	ViewCount   int32 `protobuf:"varint,14,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
-	// Related data
-	Media            []*MediaResponse `protobuf:"bytes,15,rep,name=media,proto3" json:"media,omitempty"`
-	Hashtags         []string         `protobuf:"bytes,16,rep,name=hashtags,proto3" json:"hashtags,omitempty"`
-	Categories       []string         `protobuf:"bytes,17,rep,name=categories,proto3" json:"categories,omitempty"`
-	MentionedUserIds []string         `protobuf:"bytes,18,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
-	Poll             *PollResponse    `protobuf:"bytes,19,opt,name=poll,proto3" json:"poll,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ThreadId        string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	UserId          string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content         string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	Media           []*MediaResponse       `protobuf:"bytes,5,rep,name=media,proto3" json:"media,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	ReplyCount      int64                  `protobuf:"varint,8,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"`
+	LikeCount       int64                  `protobuf:"varint,9,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
+	RepostCount     int64                  `protobuf:"varint,10,opt,name=repost_count,json=repostCount,proto3" json:"repost_count,omitempty"`
+	ViewCount       int64                  `protobuf:"varint,11,opt,name=view_count,json=viewCount,proto3" json:"view_count,omitempty"`
+	Poll            *Poll                  `protobuf:"bytes,12,opt,name=poll,proto3,oneof" json:"poll,omitempty"`
+	ParentThreadId  *string                `protobuf:"bytes,13,opt,name=parent_thread_id,json=parentThreadId,proto3,oneof" json:"parent_thread_id,omitempty"` // For reposts
+	IsRepost        *bool                  `protobuf:"varint,14,opt,name=is_repost,json=isRepost,proto3,oneof" json:"is_repost,omitempty"`
+	IsLiked         *bool                  `protobuf:"varint,15,opt,name=is_liked,json=isLiked,proto3,oneof" json:"is_liked,omitempty"`
+	IsBookmarked    *bool                  `protobuf:"varint,16,opt,name=is_bookmarked,json=isBookmarked,proto3,oneof" json:"is_bookmarked,omitempty"`
+	IsPinned        *bool                  `protobuf:"varint,17,opt,name=is_pinned,json=isPinned,proto3,oneof" json:"is_pinned,omitempty"`
+	WhoCanReply     *string                `protobuf:"bytes,18,opt,name=who_can_reply,json=whoCanReply,proto3,oneof" json:"who_can_reply,omitempty"`
+	ScheduledAt     *timestamppb.Timestamp `protobuf:"bytes,19,opt,name=scheduled_at,json=scheduledAt,proto3,oneof" json:"scheduled_at,omitempty"`
+	CommunityId     *string                `protobuf:"bytes,20,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
+	IsAdvertisement *bool                  `protobuf:"varint,21,opt,name=is_advertisement,json=isAdvertisement,proto3,oneof" json:"is_advertisement,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ThreadResponse) Reset() {
 	*x = ThreadResponse{}
-	mi := &file_proto_thread_proto_msgTypes[21]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1378,7 +1973,7 @@ func (x *ThreadResponse) String() string {
 func (*ThreadResponse) ProtoMessage() {}
 
 func (x *ThreadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[21]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1391,7 +1986,14 @@ func (x *ThreadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadResponse.ProtoReflect.Descriptor instead.
 func (*ThreadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{21}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ThreadResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
 }
 
 func (x *ThreadResponse) GetThreadId() string {
@@ -1415,39 +2017,11 @@ func (x *ThreadResponse) GetContent() string {
 	return ""
 }
 
-func (x *ThreadResponse) GetIsPinned() bool {
+func (x *ThreadResponse) GetMedia() []*MediaResponse {
 	if x != nil {
-		return x.IsPinned
-	}
-	return false
-}
-
-func (x *ThreadResponse) GetWhoCanReply() string {
-	if x != nil {
-		return x.WhoCanReply
-	}
-	return ""
-}
-
-func (x *ThreadResponse) GetScheduledAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ScheduledAt
+		return x.Media
 	}
 	return nil
-}
-
-func (x *ThreadResponse) GetCommunityId() string {
-	if x != nil {
-		return x.CommunityId
-	}
-	return ""
-}
-
-func (x *ThreadResponse) GetIsAdvertisement() bool {
-	if x != nil {
-		return x.IsAdvertisement
-	}
-	return false
 }
 
 func (x *ThreadResponse) GetCreatedAt() *timestamppb.Timestamp {
@@ -1464,513 +2038,105 @@ func (x *ThreadResponse) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ThreadResponse) GetReplyCount() int32 {
+func (x *ThreadResponse) GetReplyCount() int64 {
 	if x != nil {
 		return x.ReplyCount
 	}
 	return 0
 }
 
-func (x *ThreadResponse) GetLikeCount() int32 {
+func (x *ThreadResponse) GetLikeCount() int64 {
 	if x != nil {
 		return x.LikeCount
 	}
 	return 0
 }
 
-func (x *ThreadResponse) GetRepostCount() int32 {
+func (x *ThreadResponse) GetRepostCount() int64 {
 	if x != nil {
 		return x.RepostCount
 	}
 	return 0
 }
 
-func (x *ThreadResponse) GetViewCount() int32 {
+func (x *ThreadResponse) GetViewCount() int64 {
 	if x != nil {
 		return x.ViewCount
 	}
 	return 0
 }
 
-func (x *ThreadResponse) GetMedia() []*MediaResponse {
-	if x != nil {
-		return x.Media
-	}
-	return nil
-}
-
-func (x *ThreadResponse) GetHashtags() []string {
-	if x != nil {
-		return x.Hashtags
-	}
-	return nil
-}
-
-func (x *ThreadResponse) GetCategories() []string {
-	if x != nil {
-		return x.Categories
-	}
-	return nil
-}
-
-func (x *ThreadResponse) GetMentionedUserIds() []string {
-	if x != nil {
-		return x.MentionedUserIds
-	}
-	return nil
-}
-
-func (x *ThreadResponse) GetPoll() *PollResponse {
+func (x *ThreadResponse) GetPoll() *Poll {
 	if x != nil {
 		return x.Poll
 	}
 	return nil
 }
 
-// Media Response
-type MediaResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MediaId       string                 `protobuf:"bytes,1,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MediaResponse) Reset() {
-	*x = MediaResponse{}
-	mi := &file_proto_thread_proto_msgTypes[22]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MediaResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MediaResponse) ProtoMessage() {}
-
-func (x *MediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[22]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MediaResponse.ProtoReflect.Descriptor instead.
-func (*MediaResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{22}
-}
-
-func (x *MediaResponse) GetMediaId() string {
-	if x != nil {
-		return x.MediaId
+func (x *ThreadResponse) GetParentThreadId() string {
+	if x != nil && x.ParentThreadId != nil {
+		return *x.ParentThreadId
 	}
 	return ""
 }
 
-func (x *MediaResponse) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *MediaResponse) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-// Poll Response
-type PollResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PollId        string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
-	ThreadId      string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	Question      string                 `protobuf:"bytes,3,opt,name=question,proto3" json:"question,omitempty"`
-	ClosesAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=closes_at,json=closesAt,proto3" json:"closes_at,omitempty"`
-	WhoCanVote    string                 `protobuf:"bytes,5,opt,name=who_can_vote,json=whoCanVote,proto3" json:"who_can_vote,omitempty"`
-	Options       []*PollOptionResponse  `protobuf:"bytes,6,rep,name=options,proto3" json:"options,omitempty"`
-	TotalVotes    int32                  `protobuf:"varint,7,opt,name=total_votes,json=totalVotes,proto3" json:"total_votes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PollResponse) Reset() {
-	*x = PollResponse{}
-	mi := &file_proto_thread_proto_msgTypes[23]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PollResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PollResponse) ProtoMessage() {}
-
-func (x *PollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[23]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PollResponse.ProtoReflect.Descriptor instead.
-func (*PollResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{23}
-}
-
-func (x *PollResponse) GetPollId() string {
-	if x != nil {
-		return x.PollId
-	}
-	return ""
-}
-
-func (x *PollResponse) GetThreadId() string {
-	if x != nil {
-		return x.ThreadId
-	}
-	return ""
-}
-
-func (x *PollResponse) GetQuestion() string {
-	if x != nil {
-		return x.Question
-	}
-	return ""
-}
-
-func (x *PollResponse) GetClosesAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ClosesAt
-	}
-	return nil
-}
-
-func (x *PollResponse) GetWhoCanVote() string {
-	if x != nil {
-		return x.WhoCanVote
-	}
-	return ""
-}
-
-func (x *PollResponse) GetOptions() []*PollOptionResponse {
-	if x != nil {
-		return x.Options
-	}
-	return nil
-}
-
-func (x *PollResponse) GetTotalVotes() int32 {
-	if x != nil {
-		return x.TotalVotes
-	}
-	return 0
-}
-
-// Poll Option Response
-type PollOptionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OptionId      string                 `protobuf:"bytes,1,opt,name=option_id,json=optionId,proto3" json:"option_id,omitempty"`
-	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	VoteCount     int32                  `protobuf:"varint,3,opt,name=vote_count,json=voteCount,proto3" json:"vote_count,omitempty"`
-	Percentage    float32                `protobuf:"fixed32,4,opt,name=percentage,proto3" json:"percentage,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PollOptionResponse) Reset() {
-	*x = PollOptionResponse{}
-	mi := &file_proto_thread_proto_msgTypes[24]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PollOptionResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PollOptionResponse) ProtoMessage() {}
-
-func (x *PollOptionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[24]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PollOptionResponse.ProtoReflect.Descriptor instead.
-func (*PollOptionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{24}
-}
-
-func (x *PollOptionResponse) GetOptionId() string {
-	if x != nil {
-		return x.OptionId
-	}
-	return ""
-}
-
-func (x *PollOptionResponse) GetText() string {
-	if x != nil {
-		return x.Text
-	}
-	return ""
-}
-
-func (x *PollOptionResponse) GetVoteCount() int32 {
-	if x != nil {
-		return x.VoteCount
-	}
-	return 0
-}
-
-func (x *PollOptionResponse) GetPercentage() float32 {
-	if x != nil {
-		return x.Percentage
-	}
-	return 0
-}
-
-// Poll Results Response
-type PollResultsResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	PollId            string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
-	Options           []*PollOptionResponse  `protobuf:"bytes,2,rep,name=options,proto3" json:"options,omitempty"`
-	TotalVotes        int32                  `protobuf:"varint,3,opt,name=total_votes,json=totalVotes,proto3" json:"total_votes,omitempty"`
-	HasUserVoted      bool                   `protobuf:"varint,4,opt,name=has_user_voted,json=hasUserVoted,proto3" json:"has_user_voted,omitempty"`
-	UserVotedOptionId string                 `protobuf:"bytes,5,opt,name=user_voted_option_id,json=userVotedOptionId,proto3" json:"user_voted_option_id,omitempty"`
-	IsClosed          bool                   `protobuf:"varint,6,opt,name=is_closed,json=isClosed,proto3" json:"is_closed,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *PollResultsResponse) Reset() {
-	*x = PollResultsResponse{}
-	mi := &file_proto_thread_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PollResultsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PollResultsResponse) ProtoMessage() {}
-
-func (x *PollResultsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PollResultsResponse.ProtoReflect.Descriptor instead.
-func (*PollResultsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{25}
-}
-
-func (x *PollResultsResponse) GetPollId() string {
-	if x != nil {
-		return x.PollId
-	}
-	return ""
-}
-
-func (x *PollResultsResponse) GetOptions() []*PollOptionResponse {
-	if x != nil {
-		return x.Options
-	}
-	return nil
-}
-
-func (x *PollResultsResponse) GetTotalVotes() int32 {
-	if x != nil {
-		return x.TotalVotes
-	}
-	return 0
-}
-
-func (x *PollResultsResponse) GetHasUserVoted() bool {
-	if x != nil {
-		return x.HasUserVoted
+func (x *ThreadResponse) GetIsRepost() bool {
+	if x != nil && x.IsRepost != nil {
+		return *x.IsRepost
 	}
 	return false
 }
 
-func (x *PollResultsResponse) GetUserVotedOptionId() string {
-	if x != nil {
-		return x.UserVotedOptionId
-	}
-	return ""
-}
-
-func (x *PollResultsResponse) GetIsClosed() bool {
-	if x != nil {
-		return x.IsClosed
+func (x *ThreadResponse) GetIsLiked() bool {
+	if x != nil && x.IsLiked != nil {
+		return *x.IsLiked
 	}
 	return false
 }
 
-// Reply Response
-type ReplyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
-	ThreadId      string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
-	IsPinned      bool                   `protobuf:"varint,5,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
-	ParentReplyId string                 `protobuf:"bytes,6,opt,name=parent_reply_id,json=parentReplyId,proto3" json:"parent_reply_id,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	// Stats
-	LikeCount  int32 `protobuf:"varint,9,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
-	ReplyCount int32 `protobuf:"varint,10,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"`
-	// Related data
-	Media            []*MediaResponse `protobuf:"bytes,11,rep,name=media,proto3" json:"media,omitempty"`
-	MentionedUserIds []string         `protobuf:"bytes,12,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *ReplyResponse) Reset() {
-	*x = ReplyResponse{}
-	mi := &file_proto_thread_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReplyResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReplyResponse) ProtoMessage() {}
-
-func (x *ReplyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReplyResponse.ProtoReflect.Descriptor instead.
-func (*ReplyResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{26}
-}
-
-func (x *ReplyResponse) GetReplyId() string {
-	if x != nil {
-		return x.ReplyId
-	}
-	return ""
-}
-
-func (x *ReplyResponse) GetThreadId() string {
-	if x != nil {
-		return x.ThreadId
-	}
-	return ""
-}
-
-func (x *ReplyResponse) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *ReplyResponse) GetContent() string {
-	if x != nil {
-		return x.Content
-	}
-	return ""
-}
-
-func (x *ReplyResponse) GetIsPinned() bool {
-	if x != nil {
-		return x.IsPinned
+func (x *ThreadResponse) GetIsBookmarked() bool {
+	if x != nil && x.IsBookmarked != nil {
+		return *x.IsBookmarked
 	}
 	return false
 }
 
-func (x *ReplyResponse) GetParentReplyId() string {
-	if x != nil {
-		return x.ParentReplyId
+func (x *ThreadResponse) GetIsPinned() bool {
+	if x != nil && x.IsPinned != nil {
+		return *x.IsPinned
+	}
+	return false
+}
+
+func (x *ThreadResponse) GetWhoCanReply() string {
+	if x != nil && x.WhoCanReply != nil {
+		return *x.WhoCanReply
 	}
 	return ""
 }
 
-func (x *ReplyResponse) GetCreatedAt() *timestamppb.Timestamp {
+func (x *ThreadResponse) GetScheduledAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.CreatedAt
+		return x.ScheduledAt
 	}
 	return nil
 }
 
-func (x *ReplyResponse) GetUpdatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.UpdatedAt
+func (x *ThreadResponse) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
 	}
-	return nil
+	return ""
 }
 
-func (x *ReplyResponse) GetLikeCount() int32 {
-	if x != nil {
-		return x.LikeCount
+func (x *ThreadResponse) GetIsAdvertisement() bool {
+	if x != nil && x.IsAdvertisement != nil {
+		return *x.IsAdvertisement
 	}
-	return 0
+	return false
 }
 
-func (x *ReplyResponse) GetReplyCount() int32 {
-	if x != nil {
-		return x.ReplyCount
-	}
-	return 0
-}
-
-func (x *ReplyResponse) GetMedia() []*MediaResponse {
-	if x != nil {
-		return x.Media
-	}
-	return nil
-}
-
-func (x *ReplyResponse) GetMentionedUserIds() []string {
-	if x != nil {
-		return x.MentionedUserIds
-	}
-	return nil
-}
-
-// Multiple Threads Response
+// ThreadsResponse message
 type ThreadsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Threads       []*ThreadResponse      `protobuf:"bytes,1,rep,name=threads,proto3" json:"threads,omitempty"`
@@ -1983,7 +2149,7 @@ type ThreadsResponse struct {
 
 func (x *ThreadsResponse) Reset() {
 	*x = ThreadsResponse{}
-	mi := &file_proto_thread_proto_msgTypes[27]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1995,7 +2161,7 @@ func (x *ThreadsResponse) String() string {
 func (*ThreadsResponse) ProtoMessage() {}
 
 func (x *ThreadsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[27]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2008,7 +2174,7 @@ func (x *ThreadsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadsResponse.ProtoReflect.Descriptor instead.
 func (*ThreadsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{27}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ThreadsResponse) GetThreads() []*ThreadResponse {
@@ -2039,7 +2205,132 @@ func (x *ThreadsResponse) GetLimit() int32 {
 	return 0
 }
 
-// Multiple Replies Response
+// ReplyResponse message
+type ReplyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ThreadId      string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	Media         []*Media               `protobuf:"bytes,5,rep,name=media,proto3" json:"media,omitempty"`
+	ParentId      string                 `protobuf:"bytes,6,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // Optional, for replies to replies
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	LikeCount     int64                  `protobuf:"varint,9,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
+	ReplyCount    int64                  `protobuf:"varint,10,opt,name=reply_count,json=replyCount,proto3" json:"reply_count,omitempty"`
+	IsLiked       *bool                  `protobuf:"varint,11,opt,name=is_liked,json=isLiked,proto3,oneof" json:"is_liked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReplyResponse) Reset() {
+	*x = ReplyResponse{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplyResponse) ProtoMessage() {}
+
+func (x *ReplyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReplyResponse.ProtoReflect.Descriptor instead.
+func (*ReplyResponse) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ReplyResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ReplyResponse) GetThreadId() string {
+	if x != nil {
+		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *ReplyResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ReplyResponse) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ReplyResponse) GetMedia() []*Media {
+	if x != nil {
+		return x.Media
+	}
+	return nil
+}
+
+func (x *ReplyResponse) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *ReplyResponse) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ReplyResponse) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *ReplyResponse) GetLikeCount() int64 {
+	if x != nil {
+		return x.LikeCount
+	}
+	return 0
+}
+
+func (x *ReplyResponse) GetReplyCount() int64 {
+	if x != nil {
+		return x.ReplyCount
+	}
+	return 0
+}
+
+func (x *ReplyResponse) GetIsLiked() bool {
+	if x != nil && x.IsLiked != nil {
+		return *x.IsLiked
+	}
+	return false
+}
+
+// RepliesResponse message
 type RepliesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Replies       []*ReplyResponse       `protobuf:"bytes,1,rep,name=replies,proto3" json:"replies,omitempty"`
@@ -2052,7 +2343,7 @@ type RepliesResponse struct {
 
 func (x *RepliesResponse) Reset() {
 	*x = RepliesResponse{}
-	mi := &file_proto_thread_proto_msgTypes[28]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2064,7 +2355,7 @@ func (x *RepliesResponse) String() string {
 func (*RepliesResponse) ProtoMessage() {}
 
 func (x *RepliesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[28]
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2077,7 +2368,7 @@ func (x *RepliesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepliesResponse.ProtoReflect.Descriptor instead.
 func (*RepliesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{28}
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *RepliesResponse) GetReplies() []*ReplyResponse {
@@ -2108,32 +2399,35 @@ func (x *RepliesResponse) GetLimit() int32 {
 	return 0
 }
 
-type CreatePollRequest struct {
+// PollResponse message
+type PollResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	Question      string                 `protobuf:"bytes,2,opt,name=question,proto3" json:"question,omitempty"`
-	Options       []string               `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
-	ClosesAt      *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=closes_at,json=closesAt,proto3" json:"closes_at,omitempty"`
-	WhoCanVote    string                 `protobuf:"bytes,5,opt,name=who_can_vote,json=whoCanVote,proto3" json:"who_can_vote,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ThreadId      string                 `protobuf:"bytes,2,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	Question      string                 `protobuf:"bytes,3,opt,name=question,proto3" json:"question,omitempty"`
+	Options       []*PollOption          `protobuf:"bytes,4,rep,name=options,proto3" json:"options,omitempty"`
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	IsAnonymous   bool                   `protobuf:"varint,6,opt,name=is_anonymous,json=isAnonymous,proto3" json:"is_anonymous,omitempty"`
+	VotedOptionId *string                `protobuf:"bytes,7,opt,name=voted_option_id,json=votedOptionId,proto3,oneof" json:"voted_option_id,omitempty"` // The option the requesting user voted for, if any
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreatePollRequest) Reset() {
-	*x = CreatePollRequest{}
-	mi := &file_proto_thread_proto_msgTypes[29]
+func (x *PollResponse) Reset() {
+	*x = PollResponse{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreatePollRequest) String() string {
+func (x *PollResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreatePollRequest) ProtoMessage() {}
+func (*PollResponse) ProtoMessage() {}
 
-func (x *CreatePollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_thread_proto_msgTypes[29]
+func (x *PollResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2144,107 +2438,337 @@ func (x *CreatePollRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreatePollRequest.ProtoReflect.Descriptor instead.
-func (*CreatePollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_thread_proto_rawDescGZIP(), []int{29}
+// Deprecated: Use PollResponse.ProtoReflect.Descriptor instead.
+func (*PollResponse) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{32}
 }
 
-func (x *CreatePollRequest) GetThreadId() string {
+func (x *PollResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PollResponse) GetThreadId() string {
 	if x != nil {
 		return x.ThreadId
 	}
 	return ""
 }
 
-func (x *CreatePollRequest) GetQuestion() string {
+func (x *PollResponse) GetQuestion() string {
 	if x != nil {
 		return x.Question
 	}
 	return ""
 }
 
-func (x *CreatePollRequest) GetOptions() []string {
+func (x *PollResponse) GetOptions() []*PollOption {
 	if x != nil {
 		return x.Options
 	}
 	return nil
 }
 
-func (x *CreatePollRequest) GetClosesAt() *timestamppb.Timestamp {
+func (x *PollResponse) GetEndTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.ClosesAt
+		return x.EndTime
 	}
 	return nil
 }
 
-func (x *CreatePollRequest) GetWhoCanVote() string {
+func (x *PollResponse) GetIsAnonymous() bool {
 	if x != nil {
-		return x.WhoCanVote
+		return x.IsAnonymous
+	}
+	return false
+}
+
+func (x *PollResponse) GetVotedOptionId() string {
+	if x != nil && x.VotedOptionId != nil {
+		return *x.VotedOptionId
 	}
 	return ""
 }
 
-var File_proto_thread_proto protoreflect.FileDescriptor
+// PollResultsResponse message
+type PollResultsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Question      string                 `protobuf:"bytes,2,opt,name=question,proto3" json:"question,omitempty"`
+	Results       []*PollOptionResult    `protobuf:"bytes,3,rep,name=results,proto3" json:"results,omitempty"`
+	TotalVotes    int64                  `protobuf:"varint,4,opt,name=total_votes,json=totalVotes,proto3" json:"total_votes,omitempty"`
+	IsEnded       bool                   `protobuf:"varint,5,opt,name=is_ended,json=isEnded,proto3" json:"is_ended,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_proto_thread_proto_rawDesc = "" +
+func (x *PollResultsResponse) Reset() {
+	*x = PollResultsResponse{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollResultsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollResultsResponse) ProtoMessage() {}
+
+func (x *PollResultsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollResultsResponse.ProtoReflect.Descriptor instead.
+func (*PollResultsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *PollResultsResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PollResultsResponse) GetQuestion() string {
+	if x != nil {
+		return x.Question
+	}
+	return ""
+}
+
+func (x *PollResultsResponse) GetResults() []*PollOptionResult {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+func (x *PollResultsResponse) GetTotalVotes() int64 {
+	if x != nil {
+		return x.TotalVotes
+	}
+	return 0
+}
+
+func (x *PollResultsResponse) GetIsEnded() bool {
+	if x != nil {
+		return x.IsEnded
+	}
+	return false
+}
+
+// PollOptionResult message
+type PollOptionResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	VoteCount     int64                  `protobuf:"varint,3,opt,name=vote_count,json=voteCount,proto3" json:"vote_count,omitempty"`
+	Percentage    float64                `protobuf:"fixed64,4,opt,name=percentage,proto3" json:"percentage,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PollOptionResult) Reset() {
+	*x = PollOptionResult{}
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PollOptionResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PollOptionResult) ProtoMessage() {}
+
+func (x *PollOptionResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_service_proto_thread_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PollOptionResult.ProtoReflect.Descriptor instead.
+func (*PollOptionResult) Descriptor() ([]byte, []int) {
+	return file_proto_thread_service_proto_thread_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *PollOptionResult) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PollOptionResult) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *PollOptionResult) GetVoteCount() int64 {
+	if x != nil {
+		return x.VoteCount
+	}
+	return 0
+}
+
+func (x *PollOptionResult) GetPercentage() float64 {
+	if x != nil {
+		return x.Percentage
+	}
+	return 0
+}
+
+var File_proto_thread_service_proto_thread_proto protoreflect.FileDescriptor
+
+const file_proto_thread_service_proto_thread_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/thread.proto\x12\x06thread\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"1\n" +
-	"\tMediaInfo\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\"\xb9\x03\n" +
-	"\x13CreateThreadRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\x12\"\n" +
-	"\rwho_can_reply\x18\x03 \x01(\tR\vwhoCanReply\x12%\n" +
-	"\x0ecategory_names\x18\x04 \x03(\tR\rcategoryNames\x12\x1a\n" +
-	"\bhashtags\x18\x05 \x03(\tR\bhashtags\x12,\n" +
-	"\x12mentioned_user_ids\x18\x06 \x03(\tR\x10mentionedUserIds\x12'\n" +
-	"\x05media\x18\a \x03(\v2\x11.thread.MediaInfoR\x05media\x12=\n" +
-	"\fscheduled_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\vscheduledAt\x12!\n" +
-	"\fcommunity_id\x18\t \x01(\tR\vcommunityId\x12)\n" +
-	"\x10is_advertisement\x18\n" +
-	" \x01(\bR\x0fisAdvertisement\x12$\n" +
-	"\x04poll\x18\v \x01(\v2\x10.thread.PollInfoR\x04poll\"\x9b\x01\n" +
+	"'proto/thread-service/proto/thread.proto\x12\x06thread\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xf3\x04\n" +
+	"\x06Thread\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x04 \x03(\v2\r.thread.MediaR\x05media\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"view_count\x18\a \x01(\x03R\tviewCount\x12%\n" +
+	"\x04poll\x18\b \x01(\v2\f.thread.PollH\x00R\x04poll\x88\x01\x01\x12&\n" +
+	"\fcommunity_id\x18\t \x01(\tH\x01R\vcommunityId\x88\x01\x01\x12 \n" +
+	"\tis_pinned\x18\n" +
+	" \x01(\bH\x02R\bisPinned\x88\x01\x01\x12'\n" +
+	"\rwho_can_reply\x18\v \x01(\tH\x03R\vwhoCanReply\x88\x01\x01\x12B\n" +
+	"\fscheduled_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampH\x04R\vscheduledAt\x88\x01\x01\x12.\n" +
+	"\x10is_advertisement\x18\r \x01(\bH\x05R\x0fisAdvertisement\x88\x01\x01B\a\n" +
+	"\x05_pollB\x0f\n" +
+	"\r_community_idB\f\n" +
+	"\n" +
+	"_is_pinnedB\x10\n" +
+	"\x0e_who_can_replyB\x0f\n" +
+	"\r_scheduled_atB\x13\n" +
+	"\x11_is_advertisement\"=\n" +
+	"\x05Media\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\"E\n" +
+	"\rMediaResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\"\xba\x01\n" +
+	"\x04Poll\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bquestion\x18\x02 \x01(\tR\bquestion\x12,\n" +
+	"\aoptions\x18\x03 \x03(\v2\x12.thread.PollOptionR\aoptions\x125\n" +
+	"\bend_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
+	"\fis_anonymous\x18\x05 \x01(\bR\visAnonymous\"\x9a\x01\n" +
 	"\bPollInfo\x12\x1a\n" +
 	"\bquestion\x18\x01 \x01(\tR\bquestion\x12\x18\n" +
-	"\aoptions\x18\x02 \x03(\tR\aoptions\x127\n" +
-	"\tcloses_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bclosesAt\x12 \n" +
-	"\fwho_can_vote\x18\x04 \x01(\tR\n" +
-	"whoCanVote\"/\n" +
+	"\aoptions\x18\x02 \x03(\tR\aoptions\x125\n" +
+	"\bend_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
+	"\fis_anonymous\x18\x04 \x01(\bR\visAnonymous\"0\n" +
+	"\n" +
+	"PollOption\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\"\xcf\x02\n" +
+	"\x05Reply\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x04 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x05 \x03(\v2\r.thread.MediaR\x05media\x12\x1b\n" +
+	"\tparent_id\x18\x06 \x01(\tR\bparentId\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12 \n" +
+	"\tis_pinned\x18\t \x01(\bH\x00R\bisPinned\x88\x01\x01B\f\n" +
+	"\n" +
+	"_is_pinned\"\xfc\x03\n" +
+	"\x13CreateThreadRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x03 \x03(\v2\r.thread.MediaR\x05media\x12,\n" +
+	"\x04poll\x18\x04 \x01(\v2\x13.thread.PollRequestH\x00R\x04poll\x88\x01\x01\x12&\n" +
+	"\fcommunity_id\x18\x05 \x01(\tH\x01R\vcommunityId\x88\x01\x01\x12B\n" +
+	"\fscheduled_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampH\x02R\vscheduledAt\x88\x01\x01\x12'\n" +
+	"\rwho_can_reply\x18\a \x01(\tH\x03R\vwhoCanReply\x88\x01\x01\x12.\n" +
+	"\x10is_advertisement\x18\b \x01(\bH\x04R\x0fisAdvertisement\x88\x01\x01\x12\x1a\n" +
+	"\bhashtags\x18\t \x03(\tR\bhashtags\x12,\n" +
+	"\x12mentioned_user_ids\x18\n" +
+	" \x03(\tR\x10mentionedUserIdsB\a\n" +
+	"\x05_pollB\x0f\n" +
+	"\r_community_idB\x0f\n" +
+	"\r_scheduled_atB\x10\n" +
+	"\x0e_who_can_replyB\x13\n" +
+	"\x11_is_advertisement\"\x9d\x01\n" +
+	"\vPollRequest\x12\x1a\n" +
+	"\bquestion\x18\x01 \x01(\tR\bquestion\x12\x18\n" +
+	"\aoptions\x18\x02 \x03(\tR\aoptions\x125\n" +
+	"\bend_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
+	"\fis_anonymous\x18\x04 \x01(\bR\visAnonymous\"/\n" +
 	"\x10GetThreadRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\"\\\n" +
 	"\x17GetThreadsByUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x97\x02\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\xe8\x02\n" +
 	"\x13UpdateThreadRequest\x12\x1b\n" +
-	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\x12\x1b\n" +
-	"\tis_pinned\x18\x03 \x01(\bR\bisPinned\x12,\n" +
-	"\x12add_category_names\x18\x04 \x03(\tR\x10addCategoryNames\x122\n" +
-	"\x15remove_category_names\x18\x05 \x03(\tR\x13removeCategoryNames\x12!\n" +
-	"\fadd_hashtags\x18\x06 \x03(\tR\vaddHashtags\x12'\n" +
-	"\x0fremove_hashtags\x18\a \x03(\tR\x0eremoveHashtags\"K\n" +
+	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x04 \x03(\v2\r.thread.MediaR\x05media\x12 \n" +
+	"\tis_pinned\x18\x05 \x01(\bH\x00R\bisPinned\x88\x01\x01\x12,\n" +
+	"\x12add_category_names\x18\x06 \x03(\tR\x10addCategoryNames\x122\n" +
+	"\x15remove_category_names\x18\a \x03(\tR\x13removeCategoryNames\x12!\n" +
+	"\fadd_hashtags\x18\b \x03(\tR\vaddHashtags\x12'\n" +
+	"\x0fremove_hashtags\x18\t \x03(\tR\x0eremoveHashtagsB\f\n" +
+	"\n" +
+	"_is_pinned\"K\n" +
 	"\x13DeleteThreadRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xe3\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x95\x02\n" +
 	"\x12CreateReplyRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\x12&\n" +
-	"\x0fparent_reply_id\x18\x04 \x01(\tR\rparentReplyId\x12'\n" +
-	"\x05media\x18\x05 \x03(\v2\x11.thread.MediaInfoR\x05media\x12,\n" +
-	"\x12mentioned_user_ids\x18\x06 \x03(\tR\x10mentionedUserIds\"\x8a\x01\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x04 \x03(\v2\r.thread.MediaR\x05media\x12\x1b\n" +
+	"\tparent_id\x18\x05 \x01(\tR\bparentId\x12+\n" +
+	"\x0fparent_reply_id\x18\x06 \x01(\tH\x00R\rparentReplyId\x88\x01\x01\x12,\n" +
+	"\x12mentioned_user_ids\x18\a \x03(\tR\x10mentionedUserIdsB\x12\n" +
+	"\x10_parent_reply_id\"b\n" +
 	"\x19GetRepliesByThreadRequest\x12\x1b\n" +
-	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12&\n" +
-	"\x0fparent_reply_id\x18\x02 \x01(\tR\rparentReplyId\x12\x12\n" +
-	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x7f\n" +
+	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\xb7\x01\n" +
 	"\x12UpdateReplyRequest\x12\x19\n" +
 	"\breply_id\x18\x01 \x01(\tR\areplyId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\x12\x1b\n" +
-	"\tis_pinned\x18\x04 \x01(\bR\bisPinned\"H\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x04 \x03(\v2\r.thread.MediaR\x05media\x12 \n" +
+	"\tis_pinned\x18\x05 \x01(\bH\x00R\bisPinned\x88\x01\x01B\f\n" +
+	"\n" +
+	"_is_pinned\"H\n" +
 	"\x12DeleteReplyRequest\x12\x19\n" +
 	"\breply_id\x18\x01 \x01(\tR\areplyId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"I\n" +
@@ -2259,280 +2783,311 @@ const file_proto_thread_proto_rawDesc = "" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"H\n" +
 	"\x12UnlikeReplyRequest\x12\x19\n" +
 	"\breply_id\x18\x01 \x01(\tR\areplyId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"l\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"e\n" +
 	"\x13RepostThreadRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1f\n" +
-	"\vrepost_text\x18\x03 \x01(\tR\n" +
-	"repostText\"K\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\"K\n" +
 	"\x13RemoveRepostRequest\x12\x1b\n" +
-	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
+	"\trepost_id\x18\x01 \x01(\tR\brepostId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"M\n" +
 	"\x15BookmarkThreadRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"M\n" +
-	"\x15RemoveBookmarkRequest\x12\x1b\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"Q\n" +
+	"\x15RemoveBookmarkRequest\x12\x1f\n" +
+	"\vbookmark_id\x18\x01 \x01(\tR\n" +
+	"bookmarkId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"r\n" +
+	"\x11CreatePollRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"`\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12'\n" +
+	"\x04poll\x18\x03 \x01(\v2\x13.thread.PollRequestR\x04poll\"`\n" +
 	"\x0fVotePollRequest\x12\x17\n" +
 	"\apoll_id\x18\x01 \x01(\tR\x06pollId\x12\x1b\n" +
 	"\toption_id\x18\x02 \x01(\tR\boptionId\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\"0\n" +
 	"\x15GetPollResultsRequest\x12\x17\n" +
-	"\apoll_id\x18\x01 \x01(\tR\x06pollId\"\xe7\x05\n" +
-	"\x0eThreadResponse\x12\x1b\n" +
-	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\x12\x1b\n" +
-	"\tis_pinned\x18\x04 \x01(\bR\bisPinned\x12\"\n" +
-	"\rwho_can_reply\x18\x05 \x01(\tR\vwhoCanReply\x12=\n" +
-	"\fscheduled_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\vscheduledAt\x12!\n" +
-	"\fcommunity_id\x18\a \x01(\tR\vcommunityId\x12)\n" +
-	"\x10is_advertisement\x18\b \x01(\bR\x0fisAdvertisement\x129\n" +
-	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
-	"\n" +
-	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
-	"\vreply_count\x18\v \x01(\x05R\n" +
-	"replyCount\x12\x1d\n" +
-	"\n" +
-	"like_count\x18\f \x01(\x05R\tlikeCount\x12!\n" +
-	"\frepost_count\x18\r \x01(\x05R\vrepostCount\x12\x1d\n" +
-	"\n" +
-	"view_count\x18\x0e \x01(\x05R\tviewCount\x12+\n" +
-	"\x05media\x18\x0f \x03(\v2\x15.thread.MediaResponseR\x05media\x12\x1a\n" +
-	"\bhashtags\x18\x10 \x03(\tR\bhashtags\x12\x1e\n" +
-	"\n" +
-	"categories\x18\x11 \x03(\tR\n" +
-	"categories\x12,\n" +
-	"\x12mentioned_user_ids\x18\x12 \x03(\tR\x10mentionedUserIds\x12(\n" +
-	"\x04poll\x18\x13 \x01(\v2\x14.thread.PollResponseR\x04poll\"P\n" +
-	"\rMediaResponse\x12\x19\n" +
-	"\bmedia_id\x18\x01 \x01(\tR\amediaId\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\x12\x10\n" +
-	"\x03url\x18\x03 \x01(\tR\x03url\"\x92\x02\n" +
-	"\fPollResponse\x12\x17\n" +
-	"\apoll_id\x18\x01 \x01(\tR\x06pollId\x12\x1b\n" +
-	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12\x1a\n" +
-	"\bquestion\x18\x03 \x01(\tR\bquestion\x127\n" +
-	"\tcloses_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bclosesAt\x12 \n" +
-	"\fwho_can_vote\x18\x05 \x01(\tR\n" +
-	"whoCanVote\x124\n" +
-	"\aoptions\x18\x06 \x03(\v2\x1a.thread.PollOptionResponseR\aoptions\x12\x1f\n" +
-	"\vtotal_votes\x18\a \x01(\x05R\n" +
-	"totalVotes\"\x84\x01\n" +
-	"\x12PollOptionResponse\x12\x1b\n" +
-	"\toption_id\x18\x01 \x01(\tR\boptionId\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1d\n" +
-	"\n" +
-	"vote_count\x18\x03 \x01(\x05R\tvoteCount\x12\x1e\n" +
-	"\n" +
-	"percentage\x18\x04 \x01(\x02R\n" +
-	"percentage\"\xf9\x01\n" +
-	"\x13PollResultsResponse\x12\x17\n" +
-	"\apoll_id\x18\x01 \x01(\tR\x06pollId\x124\n" +
-	"\aoptions\x18\x02 \x03(\v2\x1a.thread.PollOptionResponseR\aoptions\x12\x1f\n" +
-	"\vtotal_votes\x18\x03 \x01(\x05R\n" +
-	"totalVotes\x12$\n" +
-	"\x0ehas_user_voted\x18\x04 \x01(\bR\fhasUserVoted\x12/\n" +
-	"\x14user_voted_option_id\x18\x05 \x01(\tR\x11userVotedOptionId\x12\x1b\n" +
-	"\tis_closed\x18\x06 \x01(\bR\bisClosed\"\xd0\x03\n" +
-	"\rReplyResponse\x12\x19\n" +
-	"\breply_id\x18\x01 \x01(\tR\areplyId\x12\x1b\n" +
+	"\apoll_id\x18\x01 \x01(\tR\x06pollId\"\xe0\a\n" +
+	"\x0eThreadResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x18\n" +
-	"\acontent\x18\x04 \x01(\tR\acontent\x12\x1b\n" +
-	"\tis_pinned\x18\x05 \x01(\bR\bisPinned\x12&\n" +
-	"\x0fparent_reply_id\x18\x06 \x01(\tR\rparentReplyId\x129\n" +
+	"\acontent\x18\x04 \x01(\tR\acontent\x12+\n" +
+	"\x05media\x18\x05 \x03(\v2\x15.thread.MediaResponseR\x05media\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1d\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1f\n" +
+	"\vreply_count\x18\b \x01(\x03R\n" +
+	"replyCount\x12\x1d\n" +
 	"\n" +
-	"like_count\x18\t \x01(\x05R\tlikeCount\x12\x1f\n" +
-	"\vreply_count\x18\n" +
-	" \x01(\x05R\n" +
-	"replyCount\x12+\n" +
-	"\x05media\x18\v \x03(\v2\x15.thread.MediaResponseR\x05media\x12,\n" +
-	"\x12mentioned_user_ids\x18\f \x03(\tR\x10mentionedUserIds\"\x8e\x01\n" +
+	"like_count\x18\t \x01(\x03R\tlikeCount\x12!\n" +
+	"\frepost_count\x18\n" +
+	" \x01(\x03R\vrepostCount\x12\x1d\n" +
+	"\n" +
+	"view_count\x18\v \x01(\x03R\tviewCount\x12%\n" +
+	"\x04poll\x18\f \x01(\v2\f.thread.PollH\x00R\x04poll\x88\x01\x01\x12-\n" +
+	"\x10parent_thread_id\x18\r \x01(\tH\x01R\x0eparentThreadId\x88\x01\x01\x12 \n" +
+	"\tis_repost\x18\x0e \x01(\bH\x02R\bisRepost\x88\x01\x01\x12\x1e\n" +
+	"\bis_liked\x18\x0f \x01(\bH\x03R\aisLiked\x88\x01\x01\x12(\n" +
+	"\ris_bookmarked\x18\x10 \x01(\bH\x04R\fisBookmarked\x88\x01\x01\x12 \n" +
+	"\tis_pinned\x18\x11 \x01(\bH\x05R\bisPinned\x88\x01\x01\x12'\n" +
+	"\rwho_can_reply\x18\x12 \x01(\tH\x06R\vwhoCanReply\x88\x01\x01\x12B\n" +
+	"\fscheduled_at\x18\x13 \x01(\v2\x1a.google.protobuf.TimestampH\aR\vscheduledAt\x88\x01\x01\x12&\n" +
+	"\fcommunity_id\x18\x14 \x01(\tH\bR\vcommunityId\x88\x01\x01\x12.\n" +
+	"\x10is_advertisement\x18\x15 \x01(\bH\tR\x0fisAdvertisement\x88\x01\x01B\a\n" +
+	"\x05_pollB\x13\n" +
+	"\x11_parent_thread_idB\f\n" +
+	"\n" +
+	"_is_repostB\v\n" +
+	"\t_is_likedB\x10\n" +
+	"\x0e_is_bookmarkedB\f\n" +
+	"\n" +
+	"_is_pinnedB\x10\n" +
+	"\x0e_who_can_replyB\x0f\n" +
+	"\r_scheduled_atB\x0f\n" +
+	"\r_community_idB\x13\n" +
+	"\x11_is_advertisement\"\x8e\x01\n" +
 	"\x0fThreadsResponse\x120\n" +
 	"\athreads\x18\x01 \x03(\v2\x16.thread.ThreadResponseR\athreads\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x8d\x01\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x94\x03\n" +
+	"\rReplyResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x04 \x01(\tR\acontent\x12#\n" +
+	"\x05media\x18\x05 \x03(\v2\r.thread.MediaR\x05media\x12\x1b\n" +
+	"\tparent_id\x18\x06 \x01(\tR\bparentId\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1d\n" +
+	"\n" +
+	"like_count\x18\t \x01(\x03R\tlikeCount\x12\x1f\n" +
+	"\vreply_count\x18\n" +
+	" \x01(\x03R\n" +
+	"replyCount\x12\x1e\n" +
+	"\bis_liked\x18\v \x01(\bH\x00R\aisLiked\x88\x01\x01B\v\n" +
+	"\t_is_liked\"\x8d\x01\n" +
 	"\x0fRepliesResponse\x12/\n" +
 	"\areplies\x18\x01 \x03(\v2\x15.thread.ReplyResponseR\areplies\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xc1\x01\n" +
-	"\x11CreatePollRequest\x12\x1b\n" +
-	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1a\n" +
-	"\bquestion\x18\x02 \x01(\tR\bquestion\x12\x18\n" +
-	"\aoptions\x18\x03 \x03(\tR\aoptions\x127\n" +
-	"\tcloses_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bclosesAt\x12 \n" +
-	"\fwho_can_vote\x18\x05 \x01(\tR\n" +
-	"whoCanVote2\x9e\v\n" +
-	"\rThreadService\x12E\n" +
-	"\fCreateThread\x12\x1b.thread.CreateThreadRequest\x1a\x16.thread.ThreadResponse\"\x00\x12C\n" +
-	"\rGetThreadById\x12\x18.thread.GetThreadRequest\x1a\x16.thread.ThreadResponse\"\x00\x12N\n" +
-	"\x10GetThreadsByUser\x12\x1f.thread.GetThreadsByUserRequest\x1a\x17.thread.ThreadsResponse\"\x00\x12E\n" +
-	"\fUpdateThread\x12\x1b.thread.UpdateThreadRequest\x1a\x16.thread.ThreadResponse\"\x00\x12E\n" +
-	"\fDeleteThread\x12\x1b.thread.DeleteThreadRequest\x1a\x16.google.protobuf.Empty\"\x00\x12B\n" +
-	"\vCreateReply\x12\x1a.thread.CreateReplyRequest\x1a\x15.thread.ReplyResponse\"\x00\x12R\n" +
-	"\x12GetRepliesByThread\x12!.thread.GetRepliesByThreadRequest\x1a\x17.thread.RepliesResponse\"\x00\x12B\n" +
-	"\vUpdateReply\x12\x1a.thread.UpdateReplyRequest\x1a\x15.thread.ReplyResponse\"\x00\x12C\n" +
-	"\vDeleteReply\x12\x1a.thread.DeleteReplyRequest\x1a\x16.google.protobuf.Empty\"\x00\x12A\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xa0\x02\n" +
+	"\fPollResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\tthread_id\x18\x02 \x01(\tR\bthreadId\x12\x1a\n" +
+	"\bquestion\x18\x03 \x01(\tR\bquestion\x12,\n" +
+	"\aoptions\x18\x04 \x03(\v2\x12.thread.PollOptionR\aoptions\x125\n" +
+	"\bend_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12!\n" +
+	"\fis_anonymous\x18\x06 \x01(\bR\visAnonymous\x12+\n" +
+	"\x0fvoted_option_id\x18\a \x01(\tH\x00R\rvotedOptionId\x88\x01\x01B\x12\n" +
+	"\x10_voted_option_id\"\xb1\x01\n" +
+	"\x13PollResultsResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\bquestion\x18\x02 \x01(\tR\bquestion\x122\n" +
+	"\aresults\x18\x03 \x03(\v2\x18.thread.PollOptionResultR\aresults\x12\x1f\n" +
+	"\vtotal_votes\x18\x04 \x01(\x03R\n" +
+	"totalVotes\x12\x19\n" +
+	"\bis_ended\x18\x05 \x01(\bR\aisEnded\"u\n" +
+	"\x10PollOptionResult\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1d\n" +
 	"\n" +
-	"LikeThread\x12\x19.thread.LikeThreadRequest\x1a\x16.google.protobuf.Empty\"\x00\x12E\n" +
-	"\fUnlikeThread\x12\x1b.thread.UnlikeThreadRequest\x1a\x16.google.protobuf.Empty\"\x00\x12?\n" +
-	"\tLikeReply\x12\x18.thread.LikeReplyRequest\x1a\x16.google.protobuf.Empty\"\x00\x12C\n" +
-	"\vUnlikeReply\x12\x1a.thread.UnlikeReplyRequest\x1a\x16.google.protobuf.Empty\"\x00\x12E\n" +
-	"\fRepostThread\x12\x1b.thread.RepostThreadRequest\x1a\x16.google.protobuf.Empty\"\x00\x12E\n" +
-	"\fRemoveRepost\x12\x1b.thread.RemoveRepostRequest\x1a\x16.google.protobuf.Empty\"\x00\x12I\n" +
-	"\x0eBookmarkThread\x12\x1d.thread.BookmarkThreadRequest\x1a\x16.google.protobuf.Empty\"\x00\x12I\n" +
-	"\x0eRemoveBookmark\x12\x1d.thread.RemoveBookmarkRequest\x1a\x16.google.protobuf.Empty\"\x00\x12?\n" +
+	"vote_count\x18\x03 \x01(\x03R\tvoteCount\x12\x1e\n" +
 	"\n" +
-	"CreatePoll\x12\x19.thread.CreatePollRequest\x1a\x14.thread.PollResponse\"\x00\x12=\n" +
-	"\bVotePoll\x12\x17.thread.VotePollRequest\x1a\x16.google.protobuf.Empty\"\x00\x12N\n" +
-	"\x0eGetPollResults\x12\x1d.thread.GetPollResultsRequest\x1a\x1b.thread.PollResultsResponse\"\x00B\x16Z\x14thread-service/protob\x06proto3"
+	"percentage\x18\x04 \x01(\x01R\n" +
+	"percentage2\xf6\n" +
+	"\n" +
+	"\rThreadService\x12C\n" +
+	"\fCreateThread\x12\x1b.thread.CreateThreadRequest\x1a\x16.thread.ThreadResponse\x12A\n" +
+	"\rGetThreadById\x12\x18.thread.GetThreadRequest\x1a\x16.thread.ThreadResponse\x12L\n" +
+	"\x10GetThreadsByUser\x12\x1f.thread.GetThreadsByUserRequest\x1a\x17.thread.ThreadsResponse\x12C\n" +
+	"\fUpdateThread\x12\x1b.thread.UpdateThreadRequest\x1a\x16.thread.ThreadResponse\x12C\n" +
+	"\fDeleteThread\x12\x1b.thread.DeleteThreadRequest\x1a\x16.google.protobuf.Empty\x12@\n" +
+	"\vCreateReply\x12\x1a.thread.CreateReplyRequest\x1a\x15.thread.ReplyResponse\x12P\n" +
+	"\x12GetRepliesByThread\x12!.thread.GetRepliesByThreadRequest\x1a\x17.thread.RepliesResponse\x12@\n" +
+	"\vUpdateReply\x12\x1a.thread.UpdateReplyRequest\x1a\x15.thread.ReplyResponse\x12A\n" +
+	"\vDeleteReply\x12\x1a.thread.DeleteReplyRequest\x1a\x16.google.protobuf.Empty\x12?\n" +
+	"\n" +
+	"LikeThread\x12\x19.thread.LikeThreadRequest\x1a\x16.google.protobuf.Empty\x12C\n" +
+	"\fUnlikeThread\x12\x1b.thread.UnlikeThreadRequest\x1a\x16.google.protobuf.Empty\x12=\n" +
+	"\tLikeReply\x12\x18.thread.LikeReplyRequest\x1a\x16.google.protobuf.Empty\x12A\n" +
+	"\vUnlikeReply\x12\x1a.thread.UnlikeReplyRequest\x1a\x16.google.protobuf.Empty\x12C\n" +
+	"\fRepostThread\x12\x1b.thread.RepostThreadRequest\x1a\x16.google.protobuf.Empty\x12C\n" +
+	"\fRemoveRepost\x12\x1b.thread.RemoveRepostRequest\x1a\x16.google.protobuf.Empty\x12G\n" +
+	"\x0eBookmarkThread\x12\x1d.thread.BookmarkThreadRequest\x1a\x16.google.protobuf.Empty\x12G\n" +
+	"\x0eRemoveBookmark\x12\x1d.thread.RemoveBookmarkRequest\x1a\x16.google.protobuf.Empty\x12=\n" +
+	"\n" +
+	"CreatePoll\x12\x19.thread.CreatePollRequest\x1a\x14.thread.PollResponse\x12;\n" +
+	"\bVotePoll\x12\x17.thread.VotePollRequest\x1a\x16.google.protobuf.Empty\x12L\n" +
+	"\x0eGetPollResults\x12\x1d.thread.GetPollResultsRequest\x1a\x1b.thread.PollResultsResponseBVZTgithub.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/protob\x06proto3"
 
 var (
-	file_proto_thread_proto_rawDescOnce sync.Once
-	file_proto_thread_proto_rawDescData []byte
+	file_proto_thread_service_proto_thread_proto_rawDescOnce sync.Once
+	file_proto_thread_service_proto_thread_proto_rawDescData []byte
 )
 
-func file_proto_thread_proto_rawDescGZIP() []byte {
-	file_proto_thread_proto_rawDescOnce.Do(func() {
-		file_proto_thread_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_thread_proto_rawDesc), len(file_proto_thread_proto_rawDesc)))
+func file_proto_thread_service_proto_thread_proto_rawDescGZIP() []byte {
+	file_proto_thread_service_proto_thread_proto_rawDescOnce.Do(func() {
+		file_proto_thread_service_proto_thread_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_thread_service_proto_thread_proto_rawDesc), len(file_proto_thread_service_proto_thread_proto_rawDesc)))
 	})
-	return file_proto_thread_proto_rawDescData
+	return file_proto_thread_service_proto_thread_proto_rawDescData
 }
 
-var file_proto_thread_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
-var file_proto_thread_proto_goTypes = []any{
-	(*MediaInfo)(nil),                 // 0: thread.MediaInfo
-	(*CreateThreadRequest)(nil),       // 1: thread.CreateThreadRequest
-	(*PollInfo)(nil),                  // 2: thread.PollInfo
-	(*GetThreadRequest)(nil),          // 3: thread.GetThreadRequest
-	(*GetThreadsByUserRequest)(nil),   // 4: thread.GetThreadsByUserRequest
-	(*UpdateThreadRequest)(nil),       // 5: thread.UpdateThreadRequest
-	(*DeleteThreadRequest)(nil),       // 6: thread.DeleteThreadRequest
-	(*CreateReplyRequest)(nil),        // 7: thread.CreateReplyRequest
-	(*GetRepliesByThreadRequest)(nil), // 8: thread.GetRepliesByThreadRequest
-	(*UpdateReplyRequest)(nil),        // 9: thread.UpdateReplyRequest
-	(*DeleteReplyRequest)(nil),        // 10: thread.DeleteReplyRequest
-	(*LikeThreadRequest)(nil),         // 11: thread.LikeThreadRequest
-	(*UnlikeThreadRequest)(nil),       // 12: thread.UnlikeThreadRequest
-	(*LikeReplyRequest)(nil),          // 13: thread.LikeReplyRequest
-	(*UnlikeReplyRequest)(nil),        // 14: thread.UnlikeReplyRequest
-	(*RepostThreadRequest)(nil),       // 15: thread.RepostThreadRequest
-	(*RemoveRepostRequest)(nil),       // 16: thread.RemoveRepostRequest
-	(*BookmarkThreadRequest)(nil),     // 17: thread.BookmarkThreadRequest
-	(*RemoveBookmarkRequest)(nil),     // 18: thread.RemoveBookmarkRequest
-	(*VotePollRequest)(nil),           // 19: thread.VotePollRequest
-	(*GetPollResultsRequest)(nil),     // 20: thread.GetPollResultsRequest
-	(*ThreadResponse)(nil),            // 21: thread.ThreadResponse
-	(*MediaResponse)(nil),             // 22: thread.MediaResponse
-	(*PollResponse)(nil),              // 23: thread.PollResponse
-	(*PollOptionResponse)(nil),        // 24: thread.PollOptionResponse
-	(*PollResultsResponse)(nil),       // 25: thread.PollResultsResponse
-	(*ReplyResponse)(nil),             // 26: thread.ReplyResponse
-	(*ThreadsResponse)(nil),           // 27: thread.ThreadsResponse
-	(*RepliesResponse)(nil),           // 28: thread.RepliesResponse
-	(*CreatePollRequest)(nil),         // 29: thread.CreatePollRequest
-	(*timestamppb.Timestamp)(nil),     // 30: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),             // 31: google.protobuf.Empty
+var file_proto_thread_service_proto_thread_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_proto_thread_service_proto_thread_proto_goTypes = []any{
+	(*Thread)(nil),                    // 0: thread.Thread
+	(*Media)(nil),                     // 1: thread.Media
+	(*MediaResponse)(nil),             // 2: thread.MediaResponse
+	(*Poll)(nil),                      // 3: thread.Poll
+	(*PollInfo)(nil),                  // 4: thread.PollInfo
+	(*PollOption)(nil),                // 5: thread.PollOption
+	(*Reply)(nil),                     // 6: thread.Reply
+	(*CreateThreadRequest)(nil),       // 7: thread.CreateThreadRequest
+	(*PollRequest)(nil),               // 8: thread.PollRequest
+	(*GetThreadRequest)(nil),          // 9: thread.GetThreadRequest
+	(*GetThreadsByUserRequest)(nil),   // 10: thread.GetThreadsByUserRequest
+	(*UpdateThreadRequest)(nil),       // 11: thread.UpdateThreadRequest
+	(*DeleteThreadRequest)(nil),       // 12: thread.DeleteThreadRequest
+	(*CreateReplyRequest)(nil),        // 13: thread.CreateReplyRequest
+	(*GetRepliesByThreadRequest)(nil), // 14: thread.GetRepliesByThreadRequest
+	(*UpdateReplyRequest)(nil),        // 15: thread.UpdateReplyRequest
+	(*DeleteReplyRequest)(nil),        // 16: thread.DeleteReplyRequest
+	(*LikeThreadRequest)(nil),         // 17: thread.LikeThreadRequest
+	(*UnlikeThreadRequest)(nil),       // 18: thread.UnlikeThreadRequest
+	(*LikeReplyRequest)(nil),          // 19: thread.LikeReplyRequest
+	(*UnlikeReplyRequest)(nil),        // 20: thread.UnlikeReplyRequest
+	(*RepostThreadRequest)(nil),       // 21: thread.RepostThreadRequest
+	(*RemoveRepostRequest)(nil),       // 22: thread.RemoveRepostRequest
+	(*BookmarkThreadRequest)(nil),     // 23: thread.BookmarkThreadRequest
+	(*RemoveBookmarkRequest)(nil),     // 24: thread.RemoveBookmarkRequest
+	(*CreatePollRequest)(nil),         // 25: thread.CreatePollRequest
+	(*VotePollRequest)(nil),           // 26: thread.VotePollRequest
+	(*GetPollResultsRequest)(nil),     // 27: thread.GetPollResultsRequest
+	(*ThreadResponse)(nil),            // 28: thread.ThreadResponse
+	(*ThreadsResponse)(nil),           // 29: thread.ThreadsResponse
+	(*ReplyResponse)(nil),             // 30: thread.ReplyResponse
+	(*RepliesResponse)(nil),           // 31: thread.RepliesResponse
+	(*PollResponse)(nil),              // 32: thread.PollResponse
+	(*PollResultsResponse)(nil),       // 33: thread.PollResultsResponse
+	(*PollOptionResult)(nil),          // 34: thread.PollOptionResult
+	(*timestamppb.Timestamp)(nil),     // 35: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),             // 36: google.protobuf.Empty
 }
-var file_proto_thread_proto_depIdxs = []int32{
-	0,  // 0: thread.CreateThreadRequest.media:type_name -> thread.MediaInfo
-	30, // 1: thread.CreateThreadRequest.scheduled_at:type_name -> google.protobuf.Timestamp
-	2,  // 2: thread.CreateThreadRequest.poll:type_name -> thread.PollInfo
-	30, // 3: thread.PollInfo.closes_at:type_name -> google.protobuf.Timestamp
-	0,  // 4: thread.CreateReplyRequest.media:type_name -> thread.MediaInfo
-	30, // 5: thread.ThreadResponse.scheduled_at:type_name -> google.protobuf.Timestamp
-	30, // 6: thread.ThreadResponse.created_at:type_name -> google.protobuf.Timestamp
-	30, // 7: thread.ThreadResponse.updated_at:type_name -> google.protobuf.Timestamp
-	22, // 8: thread.ThreadResponse.media:type_name -> thread.MediaResponse
-	23, // 9: thread.ThreadResponse.poll:type_name -> thread.PollResponse
-	30, // 10: thread.PollResponse.closes_at:type_name -> google.protobuf.Timestamp
-	24, // 11: thread.PollResponse.options:type_name -> thread.PollOptionResponse
-	24, // 12: thread.PollResultsResponse.options:type_name -> thread.PollOptionResponse
-	30, // 13: thread.ReplyResponse.created_at:type_name -> google.protobuf.Timestamp
-	30, // 14: thread.ReplyResponse.updated_at:type_name -> google.protobuf.Timestamp
-	22, // 15: thread.ReplyResponse.media:type_name -> thread.MediaResponse
-	21, // 16: thread.ThreadsResponse.threads:type_name -> thread.ThreadResponse
-	26, // 17: thread.RepliesResponse.replies:type_name -> thread.ReplyResponse
-	30, // 18: thread.CreatePollRequest.closes_at:type_name -> google.protobuf.Timestamp
-	1,  // 19: thread.ThreadService.CreateThread:input_type -> thread.CreateThreadRequest
-	3,  // 20: thread.ThreadService.GetThreadById:input_type -> thread.GetThreadRequest
-	4,  // 21: thread.ThreadService.GetThreadsByUser:input_type -> thread.GetThreadsByUserRequest
-	5,  // 22: thread.ThreadService.UpdateThread:input_type -> thread.UpdateThreadRequest
-	6,  // 23: thread.ThreadService.DeleteThread:input_type -> thread.DeleteThreadRequest
-	7,  // 24: thread.ThreadService.CreateReply:input_type -> thread.CreateReplyRequest
-	8,  // 25: thread.ThreadService.GetRepliesByThread:input_type -> thread.GetRepliesByThreadRequest
-	9,  // 26: thread.ThreadService.UpdateReply:input_type -> thread.UpdateReplyRequest
-	10, // 27: thread.ThreadService.DeleteReply:input_type -> thread.DeleteReplyRequest
-	11, // 28: thread.ThreadService.LikeThread:input_type -> thread.LikeThreadRequest
-	12, // 29: thread.ThreadService.UnlikeThread:input_type -> thread.UnlikeThreadRequest
-	13, // 30: thread.ThreadService.LikeReply:input_type -> thread.LikeReplyRequest
-	14, // 31: thread.ThreadService.UnlikeReply:input_type -> thread.UnlikeReplyRequest
-	15, // 32: thread.ThreadService.RepostThread:input_type -> thread.RepostThreadRequest
-	16, // 33: thread.ThreadService.RemoveRepost:input_type -> thread.RemoveRepostRequest
-	17, // 34: thread.ThreadService.BookmarkThread:input_type -> thread.BookmarkThreadRequest
-	18, // 35: thread.ThreadService.RemoveBookmark:input_type -> thread.RemoveBookmarkRequest
-	29, // 36: thread.ThreadService.CreatePoll:input_type -> thread.CreatePollRequest
-	19, // 37: thread.ThreadService.VotePoll:input_type -> thread.VotePollRequest
-	20, // 38: thread.ThreadService.GetPollResults:input_type -> thread.GetPollResultsRequest
-	21, // 39: thread.ThreadService.CreateThread:output_type -> thread.ThreadResponse
-	21, // 40: thread.ThreadService.GetThreadById:output_type -> thread.ThreadResponse
-	27, // 41: thread.ThreadService.GetThreadsByUser:output_type -> thread.ThreadsResponse
-	21, // 42: thread.ThreadService.UpdateThread:output_type -> thread.ThreadResponse
-	31, // 43: thread.ThreadService.DeleteThread:output_type -> google.protobuf.Empty
-	26, // 44: thread.ThreadService.CreateReply:output_type -> thread.ReplyResponse
-	28, // 45: thread.ThreadService.GetRepliesByThread:output_type -> thread.RepliesResponse
-	26, // 46: thread.ThreadService.UpdateReply:output_type -> thread.ReplyResponse
-	31, // 47: thread.ThreadService.DeleteReply:output_type -> google.protobuf.Empty
-	31, // 48: thread.ThreadService.LikeThread:output_type -> google.protobuf.Empty
-	31, // 49: thread.ThreadService.UnlikeThread:output_type -> google.protobuf.Empty
-	31, // 50: thread.ThreadService.LikeReply:output_type -> google.protobuf.Empty
-	31, // 51: thread.ThreadService.UnlikeReply:output_type -> google.protobuf.Empty
-	31, // 52: thread.ThreadService.RepostThread:output_type -> google.protobuf.Empty
-	31, // 53: thread.ThreadService.RemoveRepost:output_type -> google.protobuf.Empty
-	31, // 54: thread.ThreadService.BookmarkThread:output_type -> google.protobuf.Empty
-	31, // 55: thread.ThreadService.RemoveBookmark:output_type -> google.protobuf.Empty
-	23, // 56: thread.ThreadService.CreatePoll:output_type -> thread.PollResponse
-	31, // 57: thread.ThreadService.VotePoll:output_type -> google.protobuf.Empty
-	25, // 58: thread.ThreadService.GetPollResults:output_type -> thread.PollResultsResponse
-	39, // [39:59] is the sub-list for method output_type
-	19, // [19:39] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+var file_proto_thread_service_proto_thread_proto_depIdxs = []int32{
+	1,  // 0: thread.Thread.media:type_name -> thread.Media
+	35, // 1: thread.Thread.created_at:type_name -> google.protobuf.Timestamp
+	35, // 2: thread.Thread.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 3: thread.Thread.poll:type_name -> thread.Poll
+	35, // 4: thread.Thread.scheduled_at:type_name -> google.protobuf.Timestamp
+	5,  // 5: thread.Poll.options:type_name -> thread.PollOption
+	35, // 6: thread.Poll.end_time:type_name -> google.protobuf.Timestamp
+	35, // 7: thread.PollInfo.end_time:type_name -> google.protobuf.Timestamp
+	1,  // 8: thread.Reply.media:type_name -> thread.Media
+	35, // 9: thread.Reply.created_at:type_name -> google.protobuf.Timestamp
+	35, // 10: thread.Reply.updated_at:type_name -> google.protobuf.Timestamp
+	1,  // 11: thread.CreateThreadRequest.media:type_name -> thread.Media
+	8,  // 12: thread.CreateThreadRequest.poll:type_name -> thread.PollRequest
+	35, // 13: thread.CreateThreadRequest.scheduled_at:type_name -> google.protobuf.Timestamp
+	35, // 14: thread.PollRequest.end_time:type_name -> google.protobuf.Timestamp
+	1,  // 15: thread.UpdateThreadRequest.media:type_name -> thread.Media
+	1,  // 16: thread.CreateReplyRequest.media:type_name -> thread.Media
+	1,  // 17: thread.UpdateReplyRequest.media:type_name -> thread.Media
+	8,  // 18: thread.CreatePollRequest.poll:type_name -> thread.PollRequest
+	2,  // 19: thread.ThreadResponse.media:type_name -> thread.MediaResponse
+	35, // 20: thread.ThreadResponse.created_at:type_name -> google.protobuf.Timestamp
+	35, // 21: thread.ThreadResponse.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 22: thread.ThreadResponse.poll:type_name -> thread.Poll
+	35, // 23: thread.ThreadResponse.scheduled_at:type_name -> google.protobuf.Timestamp
+	28, // 24: thread.ThreadsResponse.threads:type_name -> thread.ThreadResponse
+	1,  // 25: thread.ReplyResponse.media:type_name -> thread.Media
+	35, // 26: thread.ReplyResponse.created_at:type_name -> google.protobuf.Timestamp
+	35, // 27: thread.ReplyResponse.updated_at:type_name -> google.protobuf.Timestamp
+	30, // 28: thread.RepliesResponse.replies:type_name -> thread.ReplyResponse
+	5,  // 29: thread.PollResponse.options:type_name -> thread.PollOption
+	35, // 30: thread.PollResponse.end_time:type_name -> google.protobuf.Timestamp
+	34, // 31: thread.PollResultsResponse.results:type_name -> thread.PollOptionResult
+	7,  // 32: thread.ThreadService.CreateThread:input_type -> thread.CreateThreadRequest
+	9,  // 33: thread.ThreadService.GetThreadById:input_type -> thread.GetThreadRequest
+	10, // 34: thread.ThreadService.GetThreadsByUser:input_type -> thread.GetThreadsByUserRequest
+	11, // 35: thread.ThreadService.UpdateThread:input_type -> thread.UpdateThreadRequest
+	12, // 36: thread.ThreadService.DeleteThread:input_type -> thread.DeleteThreadRequest
+	13, // 37: thread.ThreadService.CreateReply:input_type -> thread.CreateReplyRequest
+	14, // 38: thread.ThreadService.GetRepliesByThread:input_type -> thread.GetRepliesByThreadRequest
+	15, // 39: thread.ThreadService.UpdateReply:input_type -> thread.UpdateReplyRequest
+	16, // 40: thread.ThreadService.DeleteReply:input_type -> thread.DeleteReplyRequest
+	17, // 41: thread.ThreadService.LikeThread:input_type -> thread.LikeThreadRequest
+	18, // 42: thread.ThreadService.UnlikeThread:input_type -> thread.UnlikeThreadRequest
+	19, // 43: thread.ThreadService.LikeReply:input_type -> thread.LikeReplyRequest
+	20, // 44: thread.ThreadService.UnlikeReply:input_type -> thread.UnlikeReplyRequest
+	21, // 45: thread.ThreadService.RepostThread:input_type -> thread.RepostThreadRequest
+	22, // 46: thread.ThreadService.RemoveRepost:input_type -> thread.RemoveRepostRequest
+	23, // 47: thread.ThreadService.BookmarkThread:input_type -> thread.BookmarkThreadRequest
+	24, // 48: thread.ThreadService.RemoveBookmark:input_type -> thread.RemoveBookmarkRequest
+	25, // 49: thread.ThreadService.CreatePoll:input_type -> thread.CreatePollRequest
+	26, // 50: thread.ThreadService.VotePoll:input_type -> thread.VotePollRequest
+	27, // 51: thread.ThreadService.GetPollResults:input_type -> thread.GetPollResultsRequest
+	28, // 52: thread.ThreadService.CreateThread:output_type -> thread.ThreadResponse
+	28, // 53: thread.ThreadService.GetThreadById:output_type -> thread.ThreadResponse
+	29, // 54: thread.ThreadService.GetThreadsByUser:output_type -> thread.ThreadsResponse
+	28, // 55: thread.ThreadService.UpdateThread:output_type -> thread.ThreadResponse
+	36, // 56: thread.ThreadService.DeleteThread:output_type -> google.protobuf.Empty
+	30, // 57: thread.ThreadService.CreateReply:output_type -> thread.ReplyResponse
+	31, // 58: thread.ThreadService.GetRepliesByThread:output_type -> thread.RepliesResponse
+	30, // 59: thread.ThreadService.UpdateReply:output_type -> thread.ReplyResponse
+	36, // 60: thread.ThreadService.DeleteReply:output_type -> google.protobuf.Empty
+	36, // 61: thread.ThreadService.LikeThread:output_type -> google.protobuf.Empty
+	36, // 62: thread.ThreadService.UnlikeThread:output_type -> google.protobuf.Empty
+	36, // 63: thread.ThreadService.LikeReply:output_type -> google.protobuf.Empty
+	36, // 64: thread.ThreadService.UnlikeReply:output_type -> google.protobuf.Empty
+	36, // 65: thread.ThreadService.RepostThread:output_type -> google.protobuf.Empty
+	36, // 66: thread.ThreadService.RemoveRepost:output_type -> google.protobuf.Empty
+	36, // 67: thread.ThreadService.BookmarkThread:output_type -> google.protobuf.Empty
+	36, // 68: thread.ThreadService.RemoveBookmark:output_type -> google.protobuf.Empty
+	32, // 69: thread.ThreadService.CreatePoll:output_type -> thread.PollResponse
+	36, // 70: thread.ThreadService.VotePoll:output_type -> google.protobuf.Empty
+	33, // 71: thread.ThreadService.GetPollResults:output_type -> thread.PollResultsResponse
+	52, // [52:72] is the sub-list for method output_type
+	32, // [32:52] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
-func init() { file_proto_thread_proto_init() }
-func file_proto_thread_proto_init() {
-	if File_proto_thread_proto != nil {
+func init() { file_proto_thread_service_proto_thread_proto_init() }
+func file_proto_thread_service_proto_thread_proto_init() {
+	if File_proto_thread_service_proto_thread_proto != nil {
 		return
 	}
+	file_proto_thread_service_proto_thread_proto_msgTypes[0].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[6].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[7].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[11].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[13].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[15].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[28].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[30].OneofWrappers = []any{}
+	file_proto_thread_service_proto_thread_proto_msgTypes[32].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_thread_proto_rawDesc), len(file_proto_thread_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_thread_service_proto_thread_proto_rawDesc), len(file_proto_thread_service_proto_thread_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_thread_proto_goTypes,
-		DependencyIndexes: file_proto_thread_proto_depIdxs,
-		MessageInfos:      file_proto_thread_proto_msgTypes,
+		GoTypes:           file_proto_thread_service_proto_thread_proto_goTypes,
+		DependencyIndexes: file_proto_thread_service_proto_thread_proto_depIdxs,
+		MessageInfos:      file_proto_thread_service_proto_thread_proto_msgTypes,
 	}.Build()
-	File_proto_thread_proto = out.File
-	file_proto_thread_proto_goTypes = nil
-	file_proto_thread_proto_depIdxs = nil
+	File_proto_thread_service_proto_thread_proto = out.File
+	file_proto_thread_service_proto_thread_proto_goTypes = nil
+	file_proto_thread_service_proto_thread_proto_depIdxs = nil
 }

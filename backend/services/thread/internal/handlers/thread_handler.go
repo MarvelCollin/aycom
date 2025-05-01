@@ -220,31 +220,40 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *proto.GetPollRe
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *model.Thread) (*proto.ThreadResponse, error) {
 	// Create a basic response with available data
 	response := &proto.ThreadResponse{
-		ThreadId:    thread.ThreadID.String(),
-		UserId:      thread.UserID.String(),
-		Content:     thread.Content,
-		IsPinned:    thread.IsPinned,
-		WhoCanReply: thread.WhoCanReply,
-		CreatedAt:   timestamppb.New(thread.CreatedAt),
-		UpdatedAt:   timestamppb.New(thread.UpdatedAt),
+		Id:        thread.ThreadID.String(),
+		ThreadId:  thread.ThreadID.String(),
+		UserId:    thread.UserID.String(),
+		Content:   thread.Content,
+		CreatedAt: timestamppb.New(thread.CreatedAt),
+		UpdatedAt: timestamppb.New(thread.UpdatedAt),
 	}
+
+	// Set optional fields properly
+	isPinned := thread.IsPinned
+	response.IsPinned = &isPinned
+
+	whoCanReply := thread.WhoCanReply
+	response.WhoCanReply = &whoCanReply
 
 	if thread.ScheduledAt != nil {
 		response.ScheduledAt = timestamppb.New(*thread.ScheduledAt)
 	}
 
 	if thread.CommunityID != nil {
-		response.CommunityId = thread.CommunityID.String()
+		communityID := thread.CommunityID.String()
+		response.CommunityId = &communityID
 	}
 
-	response.IsAdvertisement = thread.IsAdvertisement
+	isAd := thread.IsAdvertisement
+	response.IsAdvertisement = &isAd
 
 	// Get thread stats
 	replyCount, likeCount, repostCount, err := h.threadService.GetThreadStats(ctx, thread.ThreadID.String())
 	if err == nil {
-		response.ReplyCount = int32(replyCount)
-		response.LikeCount = int32(likeCount)
-		response.RepostCount = int32(repostCount)
+		// Convert int32 to int64
+		response.ReplyCount = int64(replyCount)
+		response.LikeCount = int64(likeCount)
+		response.RepostCount = int64(repostCount)
 	}
 
 	// Add media if available
@@ -252,9 +261,9 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 		response.Media = make([]*proto.MediaResponse, 0, len(thread.Media))
 		for _, media := range thread.Media {
 			mediaResp := &proto.MediaResponse{
-				MediaId: media.MediaID.String(),
-				Type:    media.Type,
-				Url:     media.URL,
+				Id:   media.MediaID.String(),
+				Type: media.Type,
+				Url:  media.URL,
 			}
 			response.Media = append(response.Media, mediaResp)
 		}

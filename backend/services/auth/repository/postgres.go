@@ -8,6 +8,15 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// ConnectPostgres loads database config and creates a new connection
+func ConnectPostgres() (*sql.DB, error) {
+	// Load database configuration
+	dbConfig := config.LoadDatabaseConfig()
+
+	// Create a new database connection
+	return NewPostgresConnection(dbConfig)
+}
+
 // NewPostgresConnection creates a new connection to the PostgreSQL database
 func NewPostgresConnection(cfg config.DatabaseConfig) (*sql.DB, error) {
 	dsn := fmt.Sprintf(

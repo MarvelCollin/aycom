@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.25.3
-// source: proto/thread.proto
+// source: proto/thread-service/proto/thread.proto
 
 package proto
 
@@ -46,7 +46,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ThreadService defines all the operations related to threads
+// Thread Service definition
 type ThreadServiceClient interface {
 	// Thread operations
 	CreateThread(ctx context.Context, in *CreateThreadRequest, opts ...grpc.CallOption) (*ThreadResponse, error)
@@ -286,7 +286,7 @@ func (c *threadServiceClient) GetPollResults(ctx context.Context, in *GetPollRes
 // All implementations must embed UnimplementedThreadServiceServer
 // for forward compatibility.
 //
-// ThreadService defines all the operations related to threads
+// Thread Service definition
 type ThreadServiceServer interface {
 	// Thread operations
 	CreateThread(context.Context, *CreateThreadRequest) (*ThreadResponse, error)
@@ -852,5 +852,5 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/thread.proto",
+	Metadata: "proto/thread-service/proto/thread.proto",
 }

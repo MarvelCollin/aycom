@@ -74,14 +74,14 @@ func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRe
 
 	// Parse parent reply ID if provided
 	var parentReplyID *uuid.UUID
-	if req.ParentReplyId != "" {
+	if req.ParentReplyId != nil && *req.ParentReplyId != "" {
 		// Verify parent reply exists
-		_, err := s.replyRepo.FindReplyByID(req.ParentReplyId)
+		_, err := s.replyRepo.FindReplyByID(*req.ParentReplyId)
 		if err != nil {
-			return nil, status.Errorf(codes.NotFound, "Parent reply with ID %s not found", req.ParentReplyId)
+			return nil, status.Errorf(codes.NotFound, "Parent reply with ID %s not found", *req.ParentReplyId)
 		}
 
-		parentID, err := uuid.Parse(req.ParentReplyId)
+		parentID, err := uuid.Parse(*req.ParentReplyId)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid parent reply ID: %v", err)
 		}
@@ -208,9 +208,11 @@ func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRe
 		updated = true
 	}
 
-	// Update isPinned status
-	reply.IsPinned = req.IsPinned
-	updated = true
+	// Update isPinned status if provided
+	if req.IsPinned != nil {
+		reply.IsPinned = *req.IsPinned
+		updated = true
+	}
 
 	if updated {
 		reply.UpdatedAt = time.Now()

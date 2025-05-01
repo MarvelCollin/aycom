@@ -70,15 +70,12 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *prot
 
 	// Set closing time if not provided
 	closesAt := time.Now().Add(24 * time.Hour) // Default: 24 hours from now
-	if req.ClosesAt != nil {
-		closesAt = req.ClosesAt.AsTime()
+	if req.EndTime != nil {
+		closesAt = req.EndTime.AsTime()
 	}
 
-	// Set who can vote if not provided
-	whoCanVote := req.WhoCanVote
-	if whoCanVote == "" {
-		whoCanVote = "Everyone"
-	}
+	// Set who can vote if not provided (this might not be in your PollInfo message)
+	whoCanVote := "Everyone" // Default
 
 	// Create poll
 	pollID := uuid.New()

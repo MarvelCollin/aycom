@@ -4,8 +4,11 @@ import (
 	// "crypto/rand"
 	"database/sql"
 	// "encoding/base64"
+	"fmt"
 	"log"
-	// "os"
+	"net"
+	"os"
+
 	// "time"
 
 	// "golang.org/x/crypto/bcrypt"
@@ -16,36 +19,64 @@ import (
 	// "github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	// Proto package is disabled for now
-	// pb "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
+	// Enable the proto package
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/handler"
+	pb "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/repository"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/service"
+
 	// "golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
-// Temporarily define a minimal type to replace the proto server
+// Define the authServer struct
 type authServer struct {
-	// pb.UnimplementedAuthServiceServer
+	pb.UnimplementedAuthServiceServer
 	db *sql.DB
 }
 
-// Just define a main function that doesn't rely on the proto package
 func main() {
 	log.Println("Starting Auth Service...")
-	log.Println("This build is just for testing. The proto package is currently disabled.")
 
-	// Create a simple service to test if imports and type conversions are working
-	// This is just for testing, not actually connecting to the DB
+	// Connect to database
+	db, err := repository.ConnectPostgres()
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
+	log.Println("Successfully connected to the database")
+
+	// Initialize services
 	authService, err := service.NewAuthService()
-	if err == nil {
-		log.Println("Created auth service")
-		_ = handler.NewAuthServiceServer(authService)
-		log.Println("Created auth handler")
-	} else {
-		log.Printf("Error creating auth service: %v", err)
+	if err != nil {
+		log.Fatalf("Error creating auth service: %v", err)
+	}
+	log.Println("Created auth service")
+
+	// Create gRPC server
+	authHandler := handler.NewAuthServiceServer(authService)
+	log.Println("Created auth handler")
+
+	// Get port from environment variable or use default
+	port := os.Getenv("AUTH_SERVICE_PORT")
+	if port == "" {
+		port = "50051"
 	}
 
-	log.Println("Type checking successful!")
+	// Start gRPC server
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+
+	s := grpc.NewServer()
+	pb.RegisterAuthServiceServer(s, authHandler)
+
+	log.Printf("Auth service server starting on port %s...", port)
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("Failed to serve: %v", err)
+	}
 }
 
 /*

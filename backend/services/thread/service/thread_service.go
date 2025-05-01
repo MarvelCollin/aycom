@@ -50,8 +50,8 @@ func NewThreadService(
 // CreateThread creates a new thread
 func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*model.Thread, error) {
 	// Validate required fields
-	if req.UserId == "" || req.Content == "" {
-		return nil, status.Error(codes.InvalidArgument, "User ID and content are required")
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
 	// Parse user ID
@@ -62,36 +62,43 @@ func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThrea
 
 	// Parse community ID if provided
 	var communityID *uuid.UUID
-	if req.CommunityId != "" {
-		commID, err := uuid.Parse(req.CommunityId)
+	if req.CommunityId != nil && *req.CommunityId != "" {
+		commID, err := uuid.Parse(*req.CommunityId)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid community ID: %v", err)
 		}
 		communityID = &commID
 	}
 
-	// Parse scheduled time if provided
+	// Set scheduled post time if provided
 	var scheduledAt *time.Time
 	if req.ScheduledAt != nil {
 		t := req.ScheduledAt.AsTime()
 		scheduledAt = &t
 	}
 
-	// Set default who_can_reply if not provided
-	whoCanReply := req.WhoCanReply
-	if whoCanReply == "" {
-		whoCanReply = "Everyone"
+	// Set who can reply if provided
+	var whoCanReply string = "Everyone" // Default value
+	if req.WhoCanReply != nil && *req.WhoCanReply != "" {
+		whoCanReply = *req.WhoCanReply
+	}
+
+	// Set isAdvertisement if provided
+	isAdvertisement := false // Default value
+	if req.IsAdvertisement != nil {
+		isAdvertisement = *req.IsAdvertisement
 	}
 
 	// Create thread
+	threadID := uuid.New()
 	thread := &model.Thread{
-		ThreadID:        uuid.New(),
+		ThreadID:        threadID,
 		UserID:          userID,
 		Content:         req.Content,
-		WhoCanReply:     whoCanReply,
-		ScheduledAt:     scheduledAt,
 		CommunityID:     communityID,
-		IsAdvertisement: req.IsAdvertisement,
+		ScheduledAt:     scheduledAt,
+		WhoCanReply:     whoCanReply,
+		IsAdvertisement: isAdvertisement,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -215,8 +222,11 @@ func (s *threadService) UpdateThread(ctx context.Context, req *proto.UpdateThrea
 		updated = true
 	}
 
-	// Update isPinned status
-	thread.IsPinned = req.IsPinned
+	// Update isPinned status if provided
+	if req.IsPinned != nil {
+		thread.IsPinned = *req.IsPinned
+		updated = true
+	}
 
 	// Add new categories if provided
 	if len(req.AddCategoryNames) > 0 {

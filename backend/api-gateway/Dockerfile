@@ -1,5 +1,5 @@
 # Builder stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -49,7 +49,7 @@ ENV GIN_MODE=release
 USER appuser
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8081
 
 # Run the application
 CMD ["./app"] 
