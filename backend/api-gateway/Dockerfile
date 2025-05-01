@@ -1,35 +1,55 @@
-FROM golang:1.21-alpine AS builder
+# Builder stage
+FROM golang:1.23-alpine AS builder
 
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Set working directory
 WORKDIR /app
 
+# First, copy over module files and proto directories
+COPY backend/go.mod backend/go.sum ./backend/
+COPY backend/services/thread/proto/ ./backend/services/thread/proto/
+COPY backend/services/user/proto/ ./backend/services/user/proto/
+COPY backend/api-gateway/go.mod backend/api-gateway/go.sum ./backend/api-gateway/
+
 # Install dependencies
-RUN apk add --no-cache git ca-certificates
+RUN cd backend && go mod download
+RUN cd backend/api-gateway && go mod download
 
-# Create a minimal working program with CORS support
-RUN printf 'package main\n\nimport (\n    "fmt"\n    "log"\n    "net/http"\n)\n\n// CORS middleware\nfunc corsMiddleware(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        // Set CORS headers\n        w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")\n        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")\n        w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Authorization")\n        w.Header().Set("Access-Control-Allow-Credentials", "true")\n\n        // Handle preflight requests\n        if r.Method == "OPTIONS" {\n            w.WriteHeader(http.StatusOK)\n            return\n        }\n\n        next.ServeHTTP(w, r)\n    })\n}\n\nfunc main() {\n    // Define routes\n    mux := http.NewServeMux()\n    \n    // API routes\n    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {\n        fmt.Fprintf(w, "API Gateway - Development Placeholder")\n    })\n\n    // Auth routes\n    mux.HandleFunc("/api/v1/auth/google", func(w http.ResponseWriter, r *http.Request) {\n        w.Header().Set("Content-Type", "application/json")\n        fmt.Fprintf(w, `{"success":true,"message":"Development placeholder for Google Auth"}`)\n    })\n\n    // Wrap with CORS middleware\n    handler := corsMiddleware(mux)\n    \n    log.Println("API Gateway starting on :8080")\n    log.Fatal(http.ListenAndServe(":8080", handler))\n}' > main.go
+# Copy application source
+COPY backend/api-gateway/ ./backend/api-gateway/
 
-# Build a static binary
-RUN CGO_ENABLED=0 go build -o api-gateway main.go
+# Build the application
+RUN cd backend/api-gateway && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o app .
 
-# Use a minimal alpine image for the final container
+# Final stage
 FROM alpine:latest
 
-# Add basic utilities and certificates
+# Add certificates and timezone data
 RUN apk --no-cache add ca-certificates tzdata
 
 # Create a non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
+# Create necessary directories with correct permissions
 WORKDIR /app
+RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/api-gateway .
+# Copy binary from builder
+COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/app .
 
-# Use non-root user
+# Copy any additional required files
+COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
+
+# Environment variables
+ENV GIN_MODE=release
+
+# Switch to non-root user
 USER appuser
 
-# Expose the service port
+# Expose port
 EXPOSE 8080
 
-# Run the service
-CMD ["./api-gateway"] 
+# Run the application
+CMD ["./app"] 

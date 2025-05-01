@@ -9,13 +9,13 @@ import "google/protobuf/timestamp.proto";
 // User service definition
 service UserService {
   // Get user by ID
-  rpc GetUser (GetUserRequest) returns (UserResponse) {}
+  rpc GetUser (GetUserRequest) returns (GetUserResponse) {}
   
   // Register a new user
-  rpc CreateUserProfile (CreateUserProfileRequest) returns (UserResponse) {}
+  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse) {}
   
   // Update user information
-  rpc UpdateUser (UpdateUserRequest) returns (UserResponse) {}
+  rpc UpdateUser (UpdateUserRequest) returns (UpdateUserResponse) {}
   
   // Delete a user
   rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse) {}
@@ -24,53 +24,61 @@ service UserService {
   rpc UpdateUserVerificationStatus (UpdateUserVerificationStatusRequest) returns (UpdateUserVerificationStatusResponse) {}
 }
 
-// GetUserRequest is used to request user information by ID
-message GetUserRequest {
-  string user_id = 1;
-}
-
-// CreateUserProfileRequest contains information needed to register a new user
-message CreateUserProfileRequest {
-  string user_id = 1;
+// User contains user information
+message User {
+  string id = 1;
   string name = 2;
   string username = 3;
   string email = 4;
   string gender = 5;
   string date_of_birth = 6;
-  string profile_picture_url = 7;
-  string banner_url = 8;
-  string security_question = 9;
-  string security_answer = 10;
-  bool subscribe_to_newsletter = 11;
+  string bio = 7;
+  string location = 8;
+  string website = 9;
+  string profile_picture_url = 10;
+  string banner_url = 11;
+  string created_at = 12;
+  string updated_at = 13;
+}
+
+// GetUserRequest is used to request user information by ID
+message GetUserRequest {
+  string user_id = 1;
+}
+
+// GetUserResponse contains user information
+message GetUserResponse {
+  User user = 1;
+}
+
+// CreateUserRequest contains information needed to register a new user
+message CreateUserRequest {
+  User user = 1;
+}
+
+// CreateUserResponse contains the result of a create operation
+message CreateUserResponse {
+  User user = 1;
 }
 
 // UpdateUserRequest contains updated user information
 message UpdateUserRequest {
-  string user_id = 1;
-  string name = 2;
-  string email = 3;
-  string profile_picture_url = 4;
-  string banner_url = 5;
+  User user = 1;
+  string user_id = 2;
+  string name = 3;
+  string email = 4;
+  string profile_picture_url = 5;
+  string banner_url = 6;
+}
+
+// UpdateUserResponse contains the result of an update operation
+message UpdateUserResponse {
+  User user = 1;
 }
 
 // DeleteUserRequest contains user ID to delete
 message DeleteUserRequest {
   string user_id = 1;
-}
-
-// UserResponse contains user information
-message UserResponse {
-  string user_id = 1;
-  string name = 2;
-  string email = 3;
-  string username = 4;
-  string gender = 5;
-  string date_of_birth = 6;
-  string profile_picture_url = 7;
-  string banner_url = 8;
-  bool is_verified = 9;
-  google.protobuf.Timestamp created_at = 10;
-  google.protobuf.Timestamp updated_at = 11;
 }
 
 // DeleteUserResponse indicates the result of a delete operation

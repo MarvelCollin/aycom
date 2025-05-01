@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/model"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -22,7 +24,7 @@ func NewAuthSeeder(db *gorm.DB) *AuthSeeder {
 func (s *AuthSeeder) SeedUsers() error {
 	// Check if we already have users in the database
 	var count int64
-	if err := s.db.Model(&User{}).Count(&count).Error; err != nil {
+	if err := s.db.Model(&model.User{}).Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to count users: %w", err)
 	}
 
@@ -57,9 +59,12 @@ func hashPassword(password string) (string, error) {
 }
 
 // getDefaultAuthUsers returns a slice of default users to seed
-func getDefaultAuthUsers() []*User {
+func getDefaultAuthUsers() []*model.User {
 	// Get current time for timestamps
 	now := time.Now()
+	dob1, _ := time.Parse("2006-01-02", "1990-01-01")
+	dob2, _ := time.Parse("2006-01-02", "1995-05-15")
+	dob3, _ := time.Parse("2006-01-02", "1997-08-22")
 
 	// Hash passwords (handle errors in a real implementation)
 	adminHash, _ := hashPassword("admin123")
@@ -67,60 +72,60 @@ func getDefaultAuthUsers() []*User {
 	janeHash, _ := hashPassword("securePass456!")
 
 	// We're creating auth users corresponding to the same users in the user service
-	return []*User{
+	return []*model.User{
 		{
-			ID:                    "550e8400-e29b-41d4-a716-446655440000",
-			Email:                 "admin@aycom.com",
-			Name:                  "Admin User",
-			Username:              "admin",
-			HashedPassword:        adminHash,
-			VerificationCode:      "",
-			IsVerified:            true,
-			Gender:                "Other",
-			DateOfBirth:           "1990-01-01",
-			ProfilePicture:        "https://via.placeholder.com/150",
-			Banner:                "https://via.placeholder.com/1200x300",
-			SecurityQuestion:      "What is your first pet's name?",
-			SecurityAnswer:        "Admin",
-			SubscribeToNewsletter: false,
-			CreatedAt:             now,
-			UpdatedAt:             now,
+			ID:                     uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			Email:                  "admin@aycom.com",
+			Name:                   "Admin User",
+			Username:               "admin",
+			PasswordHash:           adminHash,
+			PasswordSalt:           "",
+			VerificationCode:       nil,
+			IsActivated:            true,
+			Gender:                 "Other",
+			DateOfBirth:            dob1,
+			SecurityQuestion:       "What is your first pet's name?",
+			SecurityAnswer:         "Admin",
+			NewsletterSubscription: false,
+			JoinedAt:               now,
+			CreatedAt:              now,
+			UpdatedAt:              now,
 		},
 		{
-			ID:                    "550e8400-e29b-41d4-a716-446655440001",
-			Email:                 "kolin@example.com",
-			Name:                  "John Doe",
-			Username:              "johndoe",
-			HashedPassword:        johnHash,
-			VerificationCode:      "",
-			IsVerified:            true,
-			Gender:                "Male",
-			DateOfBirth:           "1995-05-15",
-			ProfilePicture:        "https://via.placeholder.com/150",
-			Banner:                "https://via.placeholder.com/1200x300",
-			SecurityQuestion:      "What is your mother's maiden name?",
-			SecurityAnswer:        "Doe",
-			SubscribeToNewsletter: true,
-			CreatedAt:             now,
-			UpdatedAt:             now,
+			ID:                     uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+			Email:                  "kolin@example.com",
+			Name:                   "John Doe",
+			Username:               "johndoe",
+			PasswordHash:           johnHash,
+			PasswordSalt:           "",
+			VerificationCode:       nil,
+			IsActivated:            true,
+			Gender:                 "Male",
+			DateOfBirth:            dob2,
+			SecurityQuestion:       "What is your mother's maiden name?",
+			SecurityAnswer:         "Doe",
+			NewsletterSubscription: true,
+			JoinedAt:               now,
+			CreatedAt:              now,
+			UpdatedAt:              now,
 		},
 		{
-			ID:                    "550e8400-e29b-41d4-a716-446655440002",
-			Email:                 "jane@example.com",
-			Name:                  "Jane Doe",
-			Username:              "janedoe",
-			HashedPassword:        janeHash,
-			VerificationCode:      "",
-			IsVerified:            true,
-			Gender:                "Female",
-			DateOfBirth:           "1997-08-22",
-			ProfilePicture:        "https://via.placeholder.com/150",
-			Banner:                "https://via.placeholder.com/1200x300",
-			SecurityQuestion:      "What city were you born in?",
-			SecurityAnswer:        "New York",
-			SubscribeToNewsletter: true,
-			CreatedAt:             now,
-			UpdatedAt:             now,
+			ID:                     uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
+			Email:                  "jane@example.com",
+			Name:                   "Jane Doe",
+			Username:               "janedoe",
+			PasswordHash:           janeHash,
+			PasswordSalt:           "",
+			VerificationCode:       nil,
+			IsActivated:            true,
+			Gender:                 "Female",
+			DateOfBirth:            dob3,
+			SecurityQuestion:       "What city were you born in?",
+			SecurityAnswer:         "New York",
+			NewsletterSubscription: true,
+			JoinedAt:               now,
+			CreatedAt:              now,
+			UpdatedAt:              now,
 		},
 	}
 }

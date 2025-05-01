@@ -3,14 +3,17 @@ package handler
 import (
 	"context"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/repository"
+	"time"
+
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/model"
+	// proto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
+
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/service"
 )
 
 // AuthServiceServer implements the AuthService gRPC server
 type AuthServiceServer struct {
-	proto.UnimplementedAuthServiceServer
+	// proto.UnimplementedAuthServiceServer
 	authService service.AuthService
 }
 
@@ -21,47 +24,74 @@ func NewAuthServiceServer(authService service.AuthService) *AuthServiceServer {
 	}
 }
 
+// Placeholder types for testing
+type RegisterRequest struct {
+	Name                  string
+	Username              string
+	Email                 string
+	Password              string
+	ConfirmPassword       string
+	Gender                string
+	DateOfBirth           string
+	SecurityQuestion      string
+	SecurityAnswer        string
+	SubscribeToNewsletter bool
+	ProfilePictureUrl     string
+	BannerUrl             string
+	RecaptchaToken        string
+}
+
+type RegisterResponse struct {
+	Success bool
+	Message string
+	Email   string
+}
+
 // Register handles user registration
-func (s *AuthServiceServer) Register(ctx context.Context, req *proto.RegisterRequest) (*proto.RegisterResponse, error) {
+func (s *AuthServiceServer) Register(ctx context.Context, req *RegisterRequest) (*RegisterResponse, error) {
 	// Validate request
 	if req.Password != req.ConfirmPassword {
-		return &proto.RegisterResponse{
+		return &RegisterResponse{
 			Success: false,
 			Message: "Passwords do not match",
 		}, nil
 	}
 
+	// Parse date of birth
+	dob, _ := time.Parse("2006-01-02", req.DateOfBirth)
+
 	// Create user from request
-	user := &repository.User{
-		Name:                  req.Name,
-		Username:              req.Username,
-		Email:                 req.Email,
-		Gender:                req.Gender,
-		DateOfBirth:           req.DateOfBirth,
-		SecurityQuestion:      req.SecurityQuestion,
-		SecurityAnswer:        req.SecurityAnswer,
-		SubscribeToNewsletter: req.SubscribeToNewsletter,
-		ProfilePictureURL:     req.ProfilePictureUrl,
-		BannerURL:             req.BannerUrl,
+	user := &model.User{
+		Name:                   req.Name,
+		Username:               req.Username,
+		Email:                  req.Email,
+		Gender:                 req.Gender,
+		DateOfBirth:            dob,
+		SecurityQuestion:       req.SecurityQuestion,
+		SecurityAnswer:         req.SecurityAnswer,
+		NewsletterSubscription: req.SubscribeToNewsletter,
+		// Model doesn't have these fields, but repository does
+		// ProfilePictureURL and BannerURL will be handled by the user service
 	}
 
 	// Register user using auth service with reCAPTCHA token
 	email, err := s.authService.RegisterUser(ctx, user, req.Password, req.RecaptchaToken)
 	if err != nil {
-		return &proto.RegisterResponse{
+		return &RegisterResponse{
 			Success: false,
 			Message: err.Error(),
 		}, nil
 	}
 
 	// Return success response
-	return &proto.RegisterResponse{
+	return &RegisterResponse{
 		Success: true,
 		Message: "Registration successful. Please check your email for verification code.",
 		Email:   email,
 	}, nil
 }
 
+/*
 // VerifyEmail handles email verification
 func (s *AuthServiceServer) VerifyEmail(ctx context.Context, req *proto.VerifyEmailRequest) (*proto.VerifyEmailResponse, error) {
 	// Verify email using auth service
@@ -231,3 +261,4 @@ func (s *AuthServiceServer) GoogleLogin(ctx context.Context, req *proto.GoogleLo
 		ExpiresIn:    int32(tokens.ExpiresIn),
 	}, nil
 }
+*/

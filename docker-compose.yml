@@ -39,6 +39,9 @@ services:
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - TLS_ENABLED=${TLS_ENABLED:-false}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
     depends_on:
       - user_service
       - auth_service
@@ -52,11 +55,9 @@ services:
 
   # User Service - Profile Management
   user_service:
-    image: alpine:latest
-    command: >
-      sh -c "echo 'User Service is temporarily using a placeholder image.' &&
-             echo 'To run the real service, fix the Go module issues in the Dockerfile.' &&
-             tail -f /dev/null"
+    build:
+      context: .
+      dockerfile: ./backend/services/user/Dockerfile
     ports:
       - "9091:9091"
     environment:

@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/docs"
+	// Import swagger docs
+	_ "github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/docs"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/router"
 	"github.com/gin-gonic/gin"
@@ -18,7 +21,21 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// @title AYCOM API Gateway
+// @version 1.0
+// @description API Gateway for AYCOM microservices
+// @host localhost:8080
+// @BasePath /api/v1
+
 func main() {
+	// Initialize Swagger docs
+	docs.SwaggerInfo.Title = "AYCOM API Gateway"
+	docs.SwaggerInfo.Description = "API Gateway for AYCOM microservices"
+	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Host = "localhost:8080"
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	docs.SwaggerInfo.Schemes = []string{"http", "https"}
+
 	// Set Gin to release mode in production
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)

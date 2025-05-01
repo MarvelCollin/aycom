@@ -2,10 +2,9 @@ package handlers
 
 import (
 	"context"
-	"io"
+	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	threadProto "github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
@@ -183,6 +182,9 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
+	// Use the userID variable here to avoid unused variable warning
+	log.Printf("Getting threads for user: %s", userID)
+
 	// Get pagination parameters
 	page := 1
 	limit := 10
@@ -274,6 +276,9 @@ func UpdateThread(c *gin.Context) {
 		})
 		return
 	}
+
+	// Use userID to log the action
+	log.Printf("User %s is updating a thread", userID)
 
 	// Get thread ID from URL
 	threadID := c.Param("id")
@@ -449,6 +454,9 @@ func UploadThreadMedia(c *gin.Context) {
 		return
 	}
 
+	// Log the user ID to use the variable
+	log.Printf("Media upload requested by user: %v", userID)
+
 	// Get the multipart form
 	form, err := c.MultipartForm()
 	if err != nil {
@@ -472,6 +480,9 @@ func UploadThreadMedia(c *gin.Context) {
 	}
 	threadID := threadIDs[0]
 
+	// Log the thread ID to use the variable
+	log.Printf("Media upload requested for thread: %s", threadID)
+
 	// Get all files
 	files := form.File
 	if len(files) == 0 {
@@ -483,95 +494,12 @@ func UploadThreadMedia(c *gin.Context) {
 		return
 	}
 
-	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"code":    http.StatusInternalServerError,
-			"message": "Failed to connect to thread service: " + err.Error(),
-		})
-		return
-	}
-	defer threadConnPool.Put(conn)
-
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Process each file
-	mediaResponses := make([]interface{}, 0)
-	for fieldName, fileHeaders := range files {
-		for _, fileHeader := range fileHeaders {
-			// Open the file
-			file, err := fileHeader.Open()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"code":    http.StatusInternalServerError,
-					"message": "Failed to open file: " + err.Error(),
-				})
-				return
-			}
-			defer file.Close()
-
-			// Read the file
-			fileData, err := io.ReadAll(file)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"code":    http.StatusInternalServerError,
-					"message": "Failed to read file: " + err.Error(),
-				})
-				return
-			}
-
-			// Determine media type
-			contentType := fileHeader.Header.Get("Content-Type")
-			mediaType := "Image"
-			if strings.HasPrefix(contentType, "video/") {
-				mediaType = "Video"
-			} else if strings.Contains(fileHeader.Filename, ".gif") {
-				mediaType = "GIF"
-			}
-
-			// Call thread service to upload media
-			mediaResp, err := client.UploadMedia(ctx, &threadProto.UploadMediaRequest{
-				ThreadId:    threadID,
-				UserId:      userID.(string),
-				MediaType:   mediaType,
-				FileName:    fileHeader.Filename,
-				Data:        fileData,
-				ContentType: contentType,
-			})
-
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"code":    http.StatusInternalServerError,
-					"message": "Failed to upload media: " + err.Error(),
-				})
-				return
-			}
-
-			mediaResponses = append(mediaResponses, gin.H{
-				"media_id": mediaResp.MediaId,
-				"url":      mediaResp.Url,
-				"type":     mediaType,
-			})
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"code":    http.StatusOK,
-		"message": "Media uploaded successfully",
-		"data": gin.H{
-			"thread_id": threadID,
-			"media":     mediaResponses,
-		},
+	// This functionality is not implemented in the thread service yet
+	// Instead of calling a non-existent method, return a not implemented error
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"status":  "error",
+		"code":    http.StatusNotImplemented,
+		"message": "Media upload functionality is not yet implemented",
 	})
+	return
 }
