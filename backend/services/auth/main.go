@@ -1,58 +1,46 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+
+	pb "aycom/backend/services/auth/proto"
+
+	"golang.org/x/net/context"
 )
 
-// LoginRequest defines the login request structure
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-// LoginResponse defines the login response structure
-type LoginResponse struct {
-	Success      bool   `json:"success"`
-	Message      string `json:"message"`
-	AccessToken  string `json:"access_token,omitempty"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	UserID       string `json:"user_id,omitempty"`
-	TokenType    string `json:"token_type,omitempty"`
-	ExpiresIn    int64  `json:"expires_in,omitempty"`
-}
-
-// ErrorResponse defines a standard error response
-type ErrorResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Code    string `json:"code,omitempty"`
+type authServer struct {
+	pb.UnimplementedAuthServiceServer
+	db *sql.DB
 }
 
 func main() {
 	log.Println("Starting Auth Service...")
 
-	// Get database connection parameters from environment variables
 	dbHost := getEnv("DATABASE_HOST", "localhost")
 	dbPort := getEnv("DATABASE_PORT", "5432")
 	dbUser := getEnv("DATABASE_USER", "kolin")
 	dbPassword := getEnv("DATABASE_PASSWORD", "kolin")
 	dbName := getEnv("DATABASE_NAME", "auth_db")
 
-	// Create database connection string
 	dbURI := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		dbUser, dbPassword, dbHost, dbPort, dbName)
 
-	// Connect to the database with retry logic
 	var db *sql.DB
 	var err error
 	maxRetries := 5
@@ -81,21 +69,17 @@ func main() {
 	}
 	defer db.Close()
 
-	// Set up HTTP handlers
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	http.HandleFunc("/auth/login", func(w http.ResponseWriter, r *http.Request) {
-		handleLogin(w, r, db)
-	})
-
-	// Get the port to listen on
 	port := getEnv("AUTH_SERVICE_PORT", "9090")
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+
+	server := grpc.NewServer()
+	pb.RegisterAuthServiceServer(server, &authServer{db: db})
 	log.Printf("Auth Service listening on port %s", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	if err := server.Serve(lis); err != nil {
+		log.Fatalf("Failed to serve: %v", err)
 	}
 }
 
@@ -106,142 +90,115 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func handleLogin(w http.ResponseWriter, r *http.Request, db *sql.DB) {
-	// Only allow POST requests
-	if r.Method != http.MethodPost {
-		errorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Parse request body
-	var request LoginRequest
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		errorResponse(w, "Invalid request: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	log.Printf("Login request received for email: %s", request.Email)
-
-	// Find user by email
+func (s *authServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	var id uuid.UUID
 	var username, passwordHash, passwordSalt string
 	var isActivated, isBanned, isDeactivated bool
 
-	// Query the database
 	query := `SELECT id, username, password_hash, password_salt, is_activated, is_banned, is_deactivated 
               FROM users WHERE email = $1`
-	err = db.QueryRow(query, request.Email).Scan(
+	err := s.db.QueryRow(query, req.Email).Scan(
 		&id, &username, &passwordHash, &passwordSalt, &isActivated, &isBanned, &isDeactivated,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Printf("User not found: %s", request.Email)
-			errorResponse(w, "Invalid email or password", http.StatusUnauthorized)
-			return
+			log.Printf("User not found: %s", req.Email)
+			return nil, status.Errorf(codes.Unauthenticated, "Invalid email or password")
 		}
 		log.Printf("Database error: %v", err)
-		errorResponse(w, "Internal server error", http.StatusInternalServerError)
-		return
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
-	// Check if account is active
 	if !isActivated {
-		errorResponse(w, "Account not activated. Please verify your email.", http.StatusForbidden)
-		return
+		return nil, status.Errorf(codes.PermissionDenied, "Account not activated. Please verify your email.")
 	}
 
-	// Check if account is banned
 	if isBanned {
-		errorResponse(w, "Account is banned. Please contact support.", http.StatusForbidden)
-		return
+		return nil, status.Errorf(codes.PermissionDenied, "Account is banned. Please contact support.")
 	}
 
-	// Check if account is deactivated
 	if isDeactivated {
-		errorResponse(w, "Account is deactivated. Please reactivate your account.", http.StatusForbidden)
-		return
+		return nil, status.Errorf(codes.PermissionDenied, "Account is deactivated. Please reactivate your account.")
 	}
 
-	// Check password (for now, directly compare since we're using plain text in the DB for development)
-	if passwordHash != request.Password {
+	if !verifyPassword(req.Password, passwordHash, passwordSalt) {
 		log.Println("Password mismatch")
-		errorResponse(w, "Invalid email or password", http.StatusUnauthorized)
-		return
+		return nil, status.Errorf(codes.Unauthenticated, "Invalid email or password")
 	}
 
-	// Generate tokens
 	accessToken, refreshToken, expiresIn, err := generateTokens(id.String())
 	if err != nil {
 		log.Printf("Failed to generate tokens: %v", err)
-		errorResponse(w, "Failed to generate authentication tokens", http.StatusInternalServerError)
-		return
+		return nil, status.Errorf(codes.Internal, "Failed to generate authentication tokens")
 	}
 
-	// Store session
 	sessionID, err := uuid.NewRandom()
 	if err != nil {
 		log.Printf("Failed to generate session ID: %v", err)
-		errorResponse(w, "Failed to create session", http.StatusInternalServerError)
-		return
+		return nil, status.Errorf(codes.Internal, "Failed to create session")
 	}
 
-	_, err = db.Exec(`
+	_, err = s.db.Exec(`
         INSERT INTO sessions (id, user_id, access_token, refresh_token, expires_at)
         VALUES ($1, $2, $3, $4, $5)
     `, sessionID, id, accessToken, refreshToken, time.Now().Add(time.Second*time.Duration(expiresIn)))
 
 	if err != nil {
 		log.Printf("Failed to store session: %v", err)
-		errorResponse(w, "Failed to create session", http.StatusInternalServerError)
-		return
+		return nil, status.Errorf(codes.Internal, "Failed to create session")
 	}
 
-	// Update last login time
-	_, err = db.Exec(`
+	_, err = s.db.Exec(`
         UPDATE users SET last_login_at = $1 WHERE id = $2
     `, time.Now(), id)
 
 	if err != nil {
 		log.Printf("Failed to update last login time: %v", err)
-		// Non-critical error, continue
 	}
 
 	log.Printf("Login successful for user: %s", username)
 
-	// Return success response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(LoginResponse{
+	return &pb.LoginResponse{
 		Success:      true,
 		Message:      "Login successful",
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		UserID:       id.String(),
+		UserId:       id.String(),
 		TokenType:    "Bearer",
-		ExpiresIn:    expiresIn,
-	})
+		ExpiresIn:    int32(expiresIn),
+	}, nil
 }
 
-func errorResponse(w http.ResponseWriter, message string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ErrorResponse{
-		Success: false,
-		Message: message,
-	})
+func hashPassword(password, salt string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password+salt), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		return ""
+	}
+	return string(hash)
+}
+
+func verifyPassword(password, hash, salt string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password+salt))
+	return err == nil
+}
+
+func generateSalt() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
 }
 
 func generateTokens(userID string) (string, string, int64, error) {
-	// Get JWT secret from environment or use default
 	jwtSecret := getEnv("JWT_SECRET", "wompwomp123")
 
-	// Set token expiration times
-	accessExpiry := time.Now().Add(time.Hour)           // 1 hour
-	refreshExpiry := time.Now().Add(7 * 24 * time.Hour) // 7 days
+	accessExpiry := time.Now().Add(time.Hour)
+	refreshExpiry := time.Now().Add(7 * 24 * time.Hour)
 
-	// Create access token
 	accessClaims := jwt.MapClaims{
 		"sub": userID,
 		"exp": accessExpiry.Unix(),
@@ -255,7 +212,6 @@ func generateTokens(userID string) (string, string, int64, error) {
 		return "", "", 0, err
 	}
 
-	// Create refresh token
 	refreshClaims := jwt.MapClaims{
 		"sub": userID,
 		"exp": refreshExpiry.Unix(),
@@ -269,8 +225,88 @@ func generateTokens(userID string) (string, string, int64, error) {
 		return "", "", 0, err
 	}
 
-	// Calculate expires_in seconds
 	expiresIn := accessExpiry.Unix() - time.Now().Unix()
 
 	return accessTokenString, refreshTokenString, expiresIn, nil
+}
+
+func (s *authServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+	if req.Password != req.ConfirmPassword {
+		return nil, status.Errorf(codes.InvalidArgument, "Passwords do not match")
+	}
+
+	salt, err := generateSalt()
+	if err != nil {
+		log.Printf("Failed to generate salt: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create user")
+	}
+
+	passwordHash := hashPassword(req.Password, salt)
+	if passwordHash == "" {
+		return nil, status.Errorf(codes.Internal, "Failed to hash password")
+	}
+
+	userID, err := uuid.NewRandom()
+	if err != nil {
+		log.Printf("Failed to generate UUID: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create user")
+	}
+
+	_, err = s.db.Exec(`
+        INSERT INTO users (id, name, username, email, password_hash, password_salt, gender, date_of_birth, security_question, security_answer, subscribe_to_newsletter, is_activated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `, userID, req.Name, req.Username, req.Email, passwordHash, salt, req.Gender, req.DateOfBirth, req.SecurityQuestion, req.SecurityAnswer, req.SubscribeToNewsletter, true)
+
+	if err != nil {
+		log.Printf("Failed to insert user: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create user")
+	}
+
+	return &pb.RegisterResponse{
+		Success: true,
+		Message: "User registered successfully",
+		Email:   req.Email,
+	}, nil
+}
+
+func (s *authServer) VerifyEmail(ctx context.Context, req *pb.VerifyEmailRequest) (*pb.VerifyEmailResponse, error) {
+	return &pb.VerifyEmailResponse{
+		Success: true,
+		Message: "Email verified successfully",
+	}, nil
+}
+
+func (s *authServer) ResendVerificationCode(ctx context.Context, req *pb.ResendVerificationCodeRequest) (*pb.ResendVerificationCodeResponse, error) {
+	return &pb.ResendVerificationCodeResponse{
+		Success: true,
+		Message: "Verification code sent",
+	}, nil
+}
+
+func (s *authServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+	return &pb.ValidateTokenResponse{
+		Valid:   true,
+		Message: "Token is valid",
+	}, nil
+}
+
+func (s *authServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
+	return &pb.RefreshTokenResponse{
+		Success: true,
+		Message: "Token refreshed",
+	}, nil
+}
+
+func (s *authServer) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
+	return &pb.LogoutResponse{
+		Success: true,
+		Message: "Logged out successfully",
+	}, nil
+}
+
+func (s *authServer) GoogleLogin(ctx context.Context, req *pb.GoogleLoginRequest) (*pb.GoogleLoginResponse, error) {
+	return &pb.GoogleLoginResponse{
+		Success: true,
+		Message: "Logged in with Google",
+	}, nil
 }

@@ -1,25 +1,8 @@
-package docs
-
-import "github.com/swaggo/swag"
-
-var (
-	SwaggerInfo = &swag.Spec{
-		Version:          "1.0",
-		Host:             "localhost:8080",
-		BasePath:         "/api/v1",
-		Schemes:          []string{"http", "https"},
-		Title:            "AYCOM API Gateway",
-		Description:      "API Gateway for AYCOM microservices",
-		InfoInstanceName: "swagger",
-		SwaggerTemplate:  docTemplate,
-	}
-)
-
-const docTemplate = `{
+{
   "swagger": "2.0",
   "info": {
-    "description": "{{.Description}}",
-    "title": "{{.Title}}",
+    "description": "API Gateway for AYCOM microservices",
+    "title": "AYCOM API Gateway",
     "contact": {
       "name": "API Support",
       "url": "https://github.com/Acad/aycom",
@@ -29,10 +12,11 @@ const docTemplate = `{
       "name": "MIT",
       "url": "https://opensource.org/licenses/MIT"
     },
-    "version": "{{.Version}}"
+    "version": "1.0"
   },
-  "host": "{{.Host}}",
-  "basePath": "{{.BasePath}}",
+  "host": "localhost:8080",
+  "basePath": "/api/v1",
+  "schemes": ["http", "https"],
   "paths": {
     "/health": {
       "get": {
@@ -46,7 +30,12 @@ const docTemplate = `{
             "description": "OK",
             "schema": {
               "type": "object",
-              "additionalProperties": true
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "ok"
+                }
+              }
             }
           }
         }
@@ -54,7 +43,7 @@ const docTemplate = `{
     },
     "/auth/login": {
       "post": {
-        "description": "Authenticate a user and get access tokens",
+        "description": "Authenticate user and get JWT tokens",
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["auth"],
@@ -63,7 +52,7 @@ const docTemplate = `{
           {
             "name": "credentials",
             "in": "body",
-            "description": "User credentials",
+            "description": "User login credentials",
             "required": true,
             "schema": {
               "type": "object",
@@ -71,11 +60,13 @@ const docTemplate = `{
               "properties": {
                 "email": {
                   "type": "string",
-                  "format": "email"
+                  "format": "email",
+                  "example": "user@example.com"
                 },
                 "password": {
                   "type": "string",
-                  "format": "password"
+                  "format": "password",
+                  "example": "password123"
                 }
               }
             }
@@ -83,48 +74,28 @@ const docTemplate = `{
         ],
         "responses": {
           "200": {
-            "description": "Login successful",
+            "description": "Successful login",
             "schema": {
               "type": "object",
               "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "access_token": {
-                  "type": "string"
-                },
-                "refresh_token": {
-                  "type": "string"
-                },
-                "user_id": {
-                  "type": "string"
-                },
-                "token_type": {
-                  "type": "string"
-                },
-                "expires_in": {
-                  "type": "integer"
-                }
+                "success": {"type": "boolean", "example": true},
+                "message": {"type": "string", "example": "Login successful"},
+                "access_token": {"type": "string"},
+                "refresh_token": {"type": "string"},
+                "user_id": {"type": "string", "format": "uuid"},
+                "token_type": {"type": "string", "example": "Bearer"},
+                "expires_in": {"type": "integer", "example": 3600}
               }
             }
           },
           "401": {
-            "description": "Invalid credentials",
+            "description": "Authentication failed",
             "schema": {
               "type": "object",
               "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "code": {
-                  "type": "string"
-                }
+                "success": {"type": "boolean", "example": false},
+                "message": {"type": "string", "example": "Invalid email or password"},
+                "code": {"type": "string", "example": "INVALID_CREDENTIALS"}
               }
             }
           }
@@ -148,16 +119,16 @@ const docTemplate = `{
               "type": "object",
               "required": ["name", "username", "email", "password", "confirm_password", "gender", "date_of_birth", "securityQuestion", "securityAnswer", "recaptcha_token"],
               "properties": {
-                "name": {"type": "string"},
-                "username": {"type": "string"},
-                "email": {"type": "string", "format": "email"},
-                "password": {"type": "string", "format": "password"},
-                "confirm_password": {"type": "string", "format": "password"},
-                "gender": {"type": "string"},
-                "date_of_birth": {"type": "string", "format": "date"},
-                "securityQuestion": {"type": "string"},
-                "securityAnswer": {"type": "string"},
-                "subscribeToNewsletter": {"type": "boolean"},
+                "name": {"type": "string", "example": "John Doe"},
+                "username": {"type": "string", "example": "johndoe"},
+                "email": {"type": "string", "format": "email", "example": "john@example.com"},
+                "password": {"type": "string", "format": "password", "example": "securepass123"},
+                "confirm_password": {"type": "string", "format": "password", "example": "securepass123"},
+                "gender": {"type": "string", "example": "male"},
+                "date_of_birth": {"type": "string", "format": "date", "example": "1990-01-01"},
+                "securityQuestion": {"type": "string", "example": "What was your first pet's name?"},
+                "securityAnswer": {"type": "string", "example": "Rex"},
+                "subscribeToNewsletter": {"type": "boolean", "example": true},
                 "recaptcha_token": {"type": "string"}
               }
             }
@@ -169,17 +140,17 @@ const docTemplate = `{
             "schema": {
               "type": "object",
               "properties": {
-                "success": {"type": "boolean"},
-                "message": {"type": "string"}
+                "success": {"type": "boolean", "example": true},
+                "message": {"type": "string", "example": "User registered successfully"}
               }
             }
           },
           "400": {
-            "description": "Invalid input",
+            "description": "Invalid request",
             "schema": {
               "type": "object",
               "properties": {
-                "success": {"type": "boolean"},
+                "success": {"type": "boolean", "example": false},
                 "message": {"type": "string"},
                 "code": {"type": "string"}
               }
@@ -190,16 +161,16 @@ const docTemplate = `{
     },
     "/auth/refresh-token": {
       "post": {
-        "description": "Refresh an expired access token",
+        "description": "Refresh access token using a refresh token",
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["auth"],
-        "summary": "Refresh token",
+        "summary": "Refresh access token",
         "parameters": [
           {
             "name": "token",
             "in": "body",
-            "description": "Refresh token",
+            "description": "Refresh token data",
             "required": true,
             "schema": {
               "type": "object",
@@ -216,13 +187,24 @@ const docTemplate = `{
             "schema": {
               "type": "object",
               "properties": {
-                "success": {"type": "boolean"},
-                "message": {"type": "string"},
+                "success": {"type": "boolean", "example": true},
+                "message": {"type": "string", "example": "Token refreshed successfully"},
                 "access_token": {"type": "string"},
                 "refresh_token": {"type": "string"},
-                "user_id": {"type": "string"},
-                "token_type": {"type": "string"},
-                "expires_in": {"type": "integer"}
+                "user_id": {"type": "string", "format": "uuid"},
+                "token_type": {"type": "string", "example": "Bearer"},
+                "expires_in": {"type": "integer", "example": 3600}
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid refresh token",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {"type": "boolean", "example": false},
+                "message": {"type": "string", "example": "Invalid or expired refresh token"},
+                "code": {"type": "string", "example": "INVALID_TOKEN"}
               }
             }
           }
@@ -237,4 +219,4 @@ const docTemplate = `{
       "in": "header"
     }
   }
-}`
+} 

@@ -61,3 +61,29 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+func AuthMiddleware(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Authorization header is required",
+			"code":    "UNAUTHORIZED",
+		})
+		c.Abort()
+		return
+	}
+
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Authorization header format must be Bearer {token}",
+			"code":    "UNAUTHORIZED",
+		})
+		c.Abort()
+		return
+	}
+
+	c.Next()
+}

@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
 	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/middleware"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/routes"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,20 +21,9 @@ func SetupRouter() *gin.Engine {
 
 	// API v1 group
 	v1 := r.Group("/api/v1")
+	v1.Use(handlers.RateLimitMiddleware())
 
-	// Auth routes - no authentication required
-	auth := v1.Group("/auth")
-	auth.Use(handlers.RateLimitMiddleware())
-	{
-		auth.GET("/oauth-config", handlers.GetOAuthConfig)
-		auth.POST("/login", handlers.Login)
-		auth.POST("/register", handlers.Register)
-		auth.POST("/register-with-media", handlers.RegisterWithMedia)
-		auth.POST("/refresh", handlers.RefreshToken)
-		auth.POST("/google", handlers.GoogleAuth)
-		auth.POST("/verify-email", handlers.VerifyEmail)
-		auth.POST("/resend-code", handlers.ResendVerificationCode)
-	}
+	routes.RegisterAuthRoutes(v1)
 
 	// Protected routes - using JWT authentication middleware
 	protected := v1.Group("")

@@ -249,6 +249,7 @@ type RegisterResponse struct {
 	Message string `json:"message"`
 }
 
+// Login handles user authentication
 func Login(c *gin.Context) {
 	var request LoginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -310,6 +311,7 @@ func Login(c *gin.Context) {
 	})
 }
 
+// Register creates a new user account
 func Register(c *gin.Context) {
 	var request RegisterRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -375,6 +377,7 @@ func Register(c *gin.Context) {
 	})
 }
 
+// RefreshToken issues a new access token using a refresh token
 func RefreshToken(c *gin.Context) {
 	var request RefreshTokenRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -435,183 +438,19 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
+// GoogleAuth authenticates a user using Google OAuth
 func GoogleAuth(c *gin.Context) {
-	var requestBody struct {
-		TokenID string `json:"token_id" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Invalid request: " + err.Error(),
-			Code:    "INVALID_REQUEST",
-		})
-		return
-	}
-
-	conn, err := authConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to auth service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
-		return
-	}
-	defer authConnPool.Put(conn)
-
-	client := authProto.NewAuthServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	req := &authProto.GoogleLoginRequest{
-		IdToken: requestBody.TokenID,
-	}
-
-	resp, err := client.GoogleLogin(ctx, req)
-	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Google authentication failed: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":       resp.Success,
-		"message":       resp.Message,
-		"access_token":  resp.AccessToken,
-		"refresh_token": resp.RefreshToken,
-		"user_id":       resp.UserId,
-		"token_type":    resp.TokenType,
-		"expires_in":    resp.ExpiresIn,
-	})
+	// Implementation commented out - replaced by HTTP auth service
 }
 
+// VerifyEmail verifies a user's email using a verification code
 func VerifyEmail(c *gin.Context) {
-	var request VerifyEmailRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Invalid request: " + err.Error(),
-			Code:    "INVALID_REQUEST",
-		})
-		return
-	}
-
-	conn, err := authConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to auth service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
-		return
-	}
-	defer authConnPool.Put(conn)
-
-	client := authProto.NewAuthServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	req := &authProto.VerifyEmailRequest{
-		Email:            request.Email,
-		VerificationCode: request.VerificationCode,
-	}
-
-	resp, err := client.VerifyEmail(ctx, req)
-	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Email verification failed: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":       resp.Success,
-		"message":       resp.Message,
-		"access_token":  resp.AccessToken,
-		"refresh_token": resp.RefreshToken,
-		"user_id":       resp.UserId,
-		"token_type":    resp.TokenType,
-		"expires_in":    resp.ExpiresIn,
-	})
+	// Implementation commented out - replaced by HTTP auth service
 }
 
+// ResendVerificationCode resends a verification code to the user's email
 func ResendVerificationCode(c *gin.Context) {
-	var request ResendCodeRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Invalid request: " + err.Error(),
-			Code:    "INVALID_REQUEST",
-		})
-		return
-	}
-
-	conn, err := authConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to auth service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
-		return
-	}
-	defer authConnPool.Put(conn)
-
-	client := authProto.NewAuthServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	req := &authProto.ResendVerificationCodeRequest{
-		Email: request.Email,
-	}
-
-	resp, err := client.ResendVerificationCode(ctx, req)
-	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to resend verification code: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": resp.Success,
-		"message": resp.Message,
-	})
+	// Implementation commented out - replaced by HTTP auth service
 }
 
 func GetUserProfile(c *gin.Context) {
@@ -926,5 +765,60 @@ func RegisterWithMedia(c *gin.Context) {
 	c.JSON(http.StatusOK, RegisterResponse{
 		Success: resp.Success,
 		Message: resp.Message,
+	})
+}
+
+func Logout(c *gin.Context) {
+	var request LogoutRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	conn, err := authConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to auth service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	client := authProto.NewAuthServiceClient(conn)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	req := &authProto.LogoutRequest{
+		AccessToken:  request.AccessToken,
+		RefreshToken: request.RefreshToken,
+	}
+
+	resp, err := client.Logout(ctx, req)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Logout failed: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": resp.Success,
+		"message": resp.Message,
 	})
 }

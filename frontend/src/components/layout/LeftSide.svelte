@@ -43,7 +43,7 @@
   let currentPath = window.location.pathname;
 </script>
 
-<div class="flex flex-col h-full py-2 px-2 text-black dark:text-white">
+<div class="flex flex-col h-full py-2 px-2 {isDarkMode ? 'text-white' : 'text-black'}">
   <!-- Logo -->
   <div class="px-3 mb-4">
     <a href="/" class="flex items-center justify-center md:justify-start p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800">
@@ -58,7 +58,7 @@
         <li>
           <a 
             href={item.path} 
-            class="flex items-center px-4 py-3 rounded-full {currentPath === item.path ? 'font-bold' : 'font-normal'} text-black dark:text-white hover:bg-gray-200 dark:hover:bg-gray-800"
+            class="flex items-center px-4 py-3 rounded-full {currentPath === item.path ? 'font-bold' : 'font-normal'} {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-200'}"
           >
             <!-- Icon -->
             <div class="flex items-center justify-center w-6 h-6">
@@ -132,10 +132,10 @@
 
   <div class="mt-4 px-3 mb-4">
     <button 
-      class="flex items-center w-full p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800"
+      class="flex items-center w-full p-3 rounded-full {isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}"
       on:click={toggleUserMenu}
     >
-      <div class="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+      <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden">
         {#if typeof avatar === 'string' && avatar.startsWith('http')}
           <img src={avatar} alt={username} class="w-full h-full object-cover" />
         {:else}
@@ -143,11 +143,11 @@
         {/if}
       </div>
       <div class="hidden md:block ml-3 flex-1 text-left">
-        <p class="font-bold text-sm text-black dark:text-white">{displayName || 'User'}</p>
-        <p class="text-gray-500 dark:text-gray-400 text-sm">@{username || 'username'}</p>
+        <p class="font-bold text-sm {isDarkMode ? 'text-white' : 'text-black'}">{displayName || 'User'}</p>
+        <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{username}</p>
       </div>
       <div class="hidden md:flex">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 {isDarkMode ? 'text-gray-300' : 'text-gray-700'}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
         </svg>
       </div>
@@ -156,11 +156,11 @@
     <!-- User Menu Dropdown -->
     {#if showUserMenu}
       <div 
-        class="absolute bottom-20 left-2 w-60 rounded-lg shadow border bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 z-50"
+        class="absolute bottom-20 left-2 w-60 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
       >
         <div class="py-2">
           <button
-            class="flex items-center w-full px-4 py-3 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
+            class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
