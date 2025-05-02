@@ -730,6 +730,22 @@ func Logout(c *gin.Context) {
 	})
 }
 
+// GetOAuthConfig godoc
+// @Summary Get OAuth configuration
+// @Description Returns OAuth client IDs and configuration
+// @Tags auth
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/oauth-config [get]
+func GetOAuthConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"google_client_id": Config.OAuth.GoogleClientID,
+	})
+}
+
+// The following are Swagger documentation comments for handlers defined
+// in other files. The actual implementations are in their respective files.
+
 // GetUserProfile godoc
 // @Summary Get user profile
 // @Description Get the profile of the authenticated user
@@ -740,11 +756,6 @@ func Logout(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/users/profile [get]
-func GetUserProfile(c *gin.Context) {
-	handler := UserProfileHandler()
-	c.Request.Method = http.MethodGet
-	handler(c)
-}
 
 // UpdateUserProfile godoc
 // @Summary Update user profile
@@ -758,11 +769,6 @@ func GetUserProfile(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/users/profile [put]
-func UpdateUserProfile(c *gin.Context) {
-	handler := UserProfileHandler()
-	c.Request.Method = http.MethodPut
-	handler(c)
-}
 
 // CreateThread godoc
 // @Summary Create a new thread
@@ -776,9 +782,6 @@ func UpdateUserProfile(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/threads [post]
-func CreateThread(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Create thread endpoint"})
-}
 
 // GetThread godoc
 // @Summary Get thread by ID
@@ -793,9 +796,6 @@ func CreateThread(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/{id} [get]
-func GetThread(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Get thread endpoint", "id": c.Param("id")})
-}
 
 // GetThreadsByUser godoc
 // @Summary Get threads by user
@@ -809,9 +809,6 @@ func GetThread(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/threads/user/{id} [get]
-func GetThreadsByUser(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Get threads by user endpoint", "userId": c.Param("id")})
-}
 
 // UpdateThread godoc
 // @Summary Update thread
@@ -827,9 +824,6 @@ func GetThreadsByUser(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/{id} [put]
-func UpdateThread(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Update thread endpoint", "id": c.Param("id")})
-}
 
 // DeleteThread godoc
 // @Summary Delete thread
@@ -844,9 +838,6 @@ func UpdateThread(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/{id} [delete]
-func DeleteThread(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Delete thread endpoint", "id": c.Param("id")})
-}
 
 // UploadThreadMedia godoc
 // @Summary Upload thread media
@@ -860,9 +851,6 @@ func DeleteThread(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/threads/media [post]
-func UploadThreadMedia(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Upload thread media endpoint"})
-}
 
 // ListProducts godoc
 // @Summary List products
@@ -875,9 +863,6 @@ func UploadThreadMedia(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/products [get]
-func ListProducts(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "List products endpoint"})
-}
 
 // GetProduct godoc
 // @Summary Get product by ID
@@ -892,9 +877,6 @@ func ListProducts(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [get]
-func GetProduct(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Get product endpoint", "id": c.Param("id")})
-}
 
 // CreateProduct godoc
 // @Summary Create a new product
@@ -908,9 +890,6 @@ func GetProduct(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/products [post]
-func CreateProduct(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Create product endpoint"})
-}
 
 // UpdateProduct godoc
 // @Summary Update product
@@ -926,9 +905,6 @@ func CreateProduct(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [put]
-func UpdateProduct(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Update product endpoint", "id": c.Param("id")})
-}
 
 // DeleteProduct godoc
 // @Summary Delete product
@@ -943,9 +919,6 @@ func UpdateProduct(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [delete]
-func DeleteProduct(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Delete product endpoint", "id": c.Param("id")})
-}
 
 // CreatePayment godoc
 // @Summary Create a new payment
@@ -959,9 +932,6 @@ func DeleteProduct(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/payments [post]
-func CreatePayment(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Create payment endpoint"})
-}
 
 // GetPayment godoc
 // @Summary Get payment by ID
@@ -976,9 +946,6 @@ func CreatePayment(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/payments/{id} [get]
-func GetPayment(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Get payment endpoint", "id": c.Param("id")})
-}
 
 // GetPaymentHistory godoc
 // @Summary Get payment history
@@ -991,19 +958,3 @@ func GetPayment(c *gin.Context) {
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/payments/history [get]
-func GetPaymentHistory(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Get payment history endpoint"})
-}
-
-// GetOAuthConfig godoc
-// @Summary Get OAuth configuration
-// @Description Returns OAuth client IDs and configuration
-// @Tags auth
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/v1/auth/oauth-config [get]
-func GetOAuthConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"google_client_id": Config.OAuth.GoogleClientID,
-	})
-}

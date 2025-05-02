@@ -60,6 +60,9 @@
 <div 
   class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''} border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'} hover:bg-opacity-50 {isDarkMode ? 'hover:bg-gray-900 bg-black text-white' : 'hover:bg-gray-50 bg-white text-black'} transition-colors cursor-pointer"
   on:click={handleClick}
+  on:keydown={(e) => e.key === 'Enter' && handleClick()}
+  role="button"
+  tabindex="0"
 >
   <div class="tweet-header p-4">
     <div class="flex items-start">
@@ -90,7 +93,9 @@
                 {#if tweet.media[0].type === 'Image'}
                   <img src={tweet.media[0].url} alt="Media" class="h-full w-full object-cover" />
                 {:else if tweet.media[0].type === 'Video'}
-                  <video src={tweet.media[0].url} controls class="h-full w-full object-contain"></video>
+                  <video src={tweet.media[0].url} controls class="h-full w-full object-contain">
+                    <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
+                  </video>
                 {:else}
                   <img src={tweet.media[0].url} alt="GIF" class="h-full w-full object-cover" />
                 {/if}
@@ -103,7 +108,7 @@
                       <img src={media.url} alt="Media" class="h-full w-full object-cover" />
                     {:else if media.type === 'Video'}
                       <video src={media.url} class="h-full w-full object-cover">
-                        <track kind="captions" />
+                        <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
                       </video>
                     {:else}
                       <img src={media.url} alt="GIF" class="h-full w-full object-cover" />

@@ -45,9 +45,9 @@
           Create account
         </a>
         
-        <p class="text-xs text-gray-500 mb-8">
-          By signing up, you agree to the <a href="#" class="text-blue-500 hover:underline">Terms of Service</a> and 
-          <a href="#" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="#" class="text-blue-500 hover:underline">Cookie Use</a>.
+        <p class="text-xs mt-4 text-gray-400 text-center">
+          By signing up, you agree to the <a href="/terms" class="text-blue-500 hover:underline">Terms of Service</a> and 
+          <a href="/privacy" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="/cookies" class="text-blue-500 hover:underline">Cookie Use</a>.
         </p>
         
         <div class="flex items-center my-6">

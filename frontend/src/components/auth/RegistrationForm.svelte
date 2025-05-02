@@ -3,7 +3,7 @@
   import { useTheme } from '../../hooks/useTheme';
   import GoogleSignInButton from './GoogleSignInButton.svelte';
   import type { IDateOfBirth } from '../../interfaces/IAuth';
-  import ReCAPTCHA from 'svelte-recaptcha-v2'; 
+  import ReCaptchaWrapper from './ReCaptchaWrapper.svelte';
 
   const { theme } = useTheme();
   
@@ -21,8 +21,9 @@
   export let securityQuestion = "";
   export let securityAnswer = "";
   export let subscribeToNewsletter = false;
-  let recaptchaToken: string | null = null; // Variable to hold the token
-  let recaptchaWidget: ReCAPTCHA; // Reference to the widget
+  let recaptchaToken: string | null = null; 
+  let recaptchaWrapper: ReCaptchaWrapper;
+  let recaptchaError = "";
 
   // Form options
   export let months: string[] = [];
@@ -41,9 +42,7 @@
   export let securityQuestionError = "";
   export let profilePictureError = "";
   export let bannerError = "";
-  export let recaptchaError = ""; // Add error state for reCAPTCHA
 
-  // Validation methods
   export let onNameBlur: () => void;
   export let onUsernameBlur: () => void;
   export let onEmailBlur: () => void;
@@ -54,17 +53,13 @@
   export let onSecurityQuestionChange: () => void;
   export let onSecurityAnswerBlur: () => void;
 
-  // Form submission
-  export let onSubmit: (token: string | null) => void; // Update onSubmit to accept token
+  export let onSubmit: (token: string | null) => void; 
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
 
-  // reCAPTCHA Site Key (replace with your actual site key or load from env)
-  const recaptchaSiteKey = '6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA'; // Use the client key provided
-
   function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
     recaptchaToken = event.detail.token;
-    recaptchaError = ""; // Clear error on success
+    recaptchaError = ""; 
     console.log('reCAPTCHA verified:', recaptchaToken);
   }
 
@@ -80,20 +75,22 @@
     console.warn('reCAPTCHA expired');
   }
 
-  function triggerSubmit() {
-    if (!recaptchaToken) {
+  async function triggerSubmit() {
+    try {
+      recaptchaToken = await recaptchaWrapper.execute() as string;
+      onSubmit(recaptchaToken);
+    } catch (error) {
       recaptchaError = 'Please complete the reCAPTCHA verification.';
-      return;
+      console.error('reCAPTCHA error:', error);
     }
-    onSubmit(recaptchaToken); // Pass the token to the parent onSubmit
   }
 
-  // Function to reset reCAPTCHA (optional, can be called if form submission fails server-side)
   export function resetRecaptcha() {
-    recaptchaWidget?.reset();
-    recaptchaToken = null;
+    if (recaptchaWrapper) {
+      recaptchaWrapper.reset();
+      recaptchaToken = null;
+    }
   }
-
 </script>
 
 <GoogleSignInButton
@@ -378,18 +375,17 @@
   </label>
 </div>
 
-<!-- reCAPTCHA Widget -->
-<div class="mb-6 flex justify-center">
-  <ReCAPTCHA
-    sitekey={recaptchaSiteKey}
+<!-- Hidden reCAPTCHA -->
+<div class="mb-6 hidden">
+  <ReCaptchaWrapper
+    bind:this={recaptchaWrapper}
+    theme={isDarkMode ? 'dark' : 'light'}
     on:success={handleRecaptchaSuccess}
     on:error={handleRecaptchaError}
     on:expired={handleRecaptchaExpired}
-    bind:this={recaptchaWidget}
-    theme={$theme === 'dark' ? 'dark' : 'light'}
-    data-cy="recaptcha-widget"
   />
 </div>
+
 {#if recaptchaError}
   <p class="text-red-500 text-xs mt-1 text-center" data-cy="recaptcha-error">{recaptchaError}</p>
 {/if}
@@ -404,6 +400,6 @@
 </button>
 
 <p class="text-xs mt-4 text-gray-400 text-center">
-  By signing up, you agree to the <a href="#" class="text-blue-500 hover:underline">Terms of Service</a> and 
-  <a href="#" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="#" class="text-blue-500 hover:underline">Cookie Use</a>.
+  By signing up, you agree to the <a href="/terms" class="text-blue-500 hover:underline">Terms of Service</a> and 
+  <a href="/privacy" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="/cookies" class="text-blue-500 hover:underline">Cookie Use</a>.
 </p>

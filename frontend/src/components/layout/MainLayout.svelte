@@ -247,7 +247,14 @@
   
   <!-- Debug Modal -->
   {#if $isDebugVisible}
-  <div class="debug-overlay" on:click={() => isDebugVisible.set(false)}>
+  <div 
+    class="debug-overlay" 
+    on:click={() => isDebugVisible.set(false)}
+    on:keydown={(e) => e.key === 'Escape' && isDebugVisible.set(false)}
+    role="dialog"
+    aria-modal="true"
+    tabindex="0"
+  >
     <div class="debug-modal" on:click|stopPropagation>
       <div class="debug-header">
         <h1>AYCOM Debug Panel</h1>
