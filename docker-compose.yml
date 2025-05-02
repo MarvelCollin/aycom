@@ -32,8 +32,6 @@ services:
     environment:
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
-      - AUTH_SERVICE_HOST=auth_service
-      - AUTH_SERVICE_PORT=9090
       - THREAD_SERVICE_HOST=thread_service
       - THREAD_SERVICE_PORT=9092
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
@@ -44,7 +42,6 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
     depends_on:
       - user_service
-      - auth_service
       - thread_service
     restart: always
     deploy:
@@ -67,52 +64,11 @@ services:
       - DATABASE_PASSWORD=${USER_DB_PASSWORD:-kolin}
       - DATABASE_NAME=${USER_DB_NAME:-user_db}
       - DATABASE_URL=postgresql://${USER_DB_USER:-kolin}:${USER_DB_PASSWORD:-kolin}@user_db:5432/${USER_DB_NAME:-user_db}
-      - AUTH_SERVICE_HOST=auth_service
-      - AUTH_SERVICE_PORT=9090
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
       user_db:
         condition: service_healthy
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 512M
-
-  # Auth Service - Authentication & Authorization
-  auth_service:
-    build:
-      context: .
-      dockerfile: ./backend/services/auth/Dockerfile
-    ports:
-      - "9090:9090"
-    environment:
-      - DATABASE_HOST=auth_db
-      - DATABASE_PORT=5432
-      - DATABASE_USER=${AUTH_DB_USER:-kolin}
-      - DATABASE_PASSWORD=${AUTH_DB_PASSWORD:-kolin}
-      - DATABASE_NAME=${AUTH_DB_NAME:-auth_db}
-      - DATABASE_URL=postgresql://${AUTH_DB_USER:-kolin}:${AUTH_DB_PASSWORD:-kolin}@auth_db:5432/${AUTH_DB_NAME:-auth_db}
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_URL=redis://redis:6379/0
-      - USER_SERVICE_HOST=user_service
-      - USER_SERVICE_PORT=9091
-      - JWT_SECRET=${JWT_SECRET:-wompwomp123}
-      - JWT_EXPIRY=${JWT_EXPIRY:-3600}
-      - REFRESH_TOKEN_EXPIRY=${REFRESH_TOKEN_EXPIRY:-604800}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
-      - ENVIRONMENT=${ENVIRONMENT:-development}
-    depends_on:
-      auth_db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_started
     restart: always
     deploy:
       resources:
@@ -137,8 +93,6 @@ services:
       - THREAD_SERVICE_PORT=9092
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
-      - AUTH_SERVICE_HOST=auth_service
-      - AUTH_SERVICE_PORT=9090
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
@@ -156,14 +110,12 @@ services:
   # Event Bus Service
   event_bus:
     build:
-      context: .
-      dockerfile: ./backend/event-bus/Dockerfile
+      context: ./backend/event-bus
+      dockerfile: Dockerfile
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
-      - AUTH_SERVICE_HOST=auth_service
-      - AUTH_SERVICE_PORT=9090
       - THREAD_SERVICE_HOST=thread_service
       - THREAD_SERVICE_PORT=9092
       - ENVIRONMENT=${ENVIRONMENT:-development}
@@ -171,8 +123,6 @@ services:
       rabbitmq:
         condition: service_healthy
       user_service:
-        condition: service_started
-      auth_service:
         condition: service_started
       thread_service:
         condition: service_started
@@ -182,29 +132,6 @@ services:
         limits:
           cpus: '0.2'
           memory: 256M
-
-  # Auth Service Database
-  auth_db:
-    image: postgres:14-alpine
-    ports:
-      - "5433:5432"
-    environment:
-      - POSTGRES_USER=${AUTH_DB_USER:-kolin}
-      - POSTGRES_PASSWORD=${AUTH_DB_PASSWORD:-kolin}
-      - POSTGRES_DB=${AUTH_DB_NAME:-auth_db}
-    volumes:
-      - auth_db_data:/var/lib/postgresql/data
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-kolin}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 512M
 
   # User Service Database
   user_db:
@@ -293,7 +220,6 @@ services:
           memory: 512M
 
 volumes:
-  auth_db_data:
   user_db_data:
   thread_db_data:
   redis_data:

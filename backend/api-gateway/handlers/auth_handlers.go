@@ -13,7 +13,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Login handles user login
+// @Summary User login
+// @Description Authenticates a user and returns tokens
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body models.LoginRequest true "Login request"
+// @Success 200 {object} AuthServiceResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/auth/login [post]
 func Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -83,7 +91,15 @@ func Login(c *gin.Context) {
 	})
 }
 
-// Register handles user registration
+// @Summary User registration
+// @Description Registers a new user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body models.RegisterRequest true "Register request"
+// @Success 201 {object} models.RegisterResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/auth/register [post]
 func Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -149,7 +165,15 @@ func Register(c *gin.Context) {
 	})
 }
 
-// RefreshToken refreshes an access token using a refresh token
+// @Summary Refresh token
+// @Description Refreshes an access token using a refresh token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body models.RefreshTokenRequest true "Refresh token request"
+// @Success 200 {object} AuthServiceResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/auth/refresh [post]
 func RefreshToken(c *gin.Context) {
 	var req models.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -213,7 +237,18 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
-// RegisterWithMedia handles user registration with profile picture and banner uploads
+// @Summary Register with media
+// @Description Registers a new user with media upload
+// @Tags Auth
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Media file"
+// @Param name formData string true "Name"
+// @Param email formData string true "Email"
+// @Param password formData string true "Password"
+// @Success 201 {object} models.RegisterResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/auth/register-with-media [post]
 func RegisterWithMedia(c *gin.Context) {
 	// Parse multipart form
 	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
@@ -374,7 +409,12 @@ func Logout(c *gin.Context) {
 	})
 }
 
-// GetOAuthConfig returns OAuth configuration for client-side use
+// @Summary Get OAuth config
+// @Description Returns OAuth configuration for frontend
+// @Tags Auth
+// @Produce json
+// @Success 200 {object} OAuthConfigResponse
+// @Router /api/v1/auth/oauth-config [get]
 func GetOAuthConfig(c *gin.Context) {
 	oauthConfig := map[string]interface{}{
 		"google": map[string]string{

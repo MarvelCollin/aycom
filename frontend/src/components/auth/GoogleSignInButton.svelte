@@ -30,13 +30,8 @@
         onAuthError(result.message || 'Google authentication failed');
       }
     } catch (err) {
-      console.error('Error handling Google auth:', err);
       onAuthError('An unexpected error occurred');
     }
-  }
-
-  function handleManualSignIn() {
-    console.log('Manual Google Sign-In clicked');
   }
   
   onMount(() => {

@@ -8,35 +8,71 @@ import (
 
 // ProductHandlers contains all product-related handlers
 
-// ListProducts lists all products
+// @Summary List products
+// @Description Returns a list of products
+// @Tags Products
+// @Produce json
+// @Success 200 {array} models.ProductResponse
+// @Router /api/v1/products [get]
 func ListProducts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "list products endpoint",
 	})
 }
 
-// GetProduct gets a product by ID
+// @Summary Get product
+// @Description Returns a product by ID
+// @Tags Products
+// @Produce json
+// @Param id path string true "Product ID"
+// @Success 200 {object} models.ProductResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/products/{id} [get]
 func GetProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "get product endpoint",
 	})
 }
 
-// CreateProduct creates a new product
+// @Summary Create product
+// @Description Creates a new product
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param request body models.CreateProductRequest true "Create product request"
+// @Success 201 {object} models.ProductResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/products [post]
 func CreateProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "create product endpoint",
 	})
 }
 
-// UpdateProduct updates a product
+// @Summary Update product
+// @Description Updates a product by ID
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param id path string true "Product ID"
+// @Param request body models.UpdateProductRequest true "Update product request"
+// @Success 200 {object} models.ProductResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/products/{id} [put]
 func UpdateProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "update product endpoint",
 	})
 }
 
-// DeleteProduct deletes a product
+// @Summary Delete product
+// @Description Deletes a product by ID
+// @Tags Products
+// @Produce json
+// @Param id path string true "Product ID"
+// @Success 204 {object} nil
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/products/{id} [delete]
 func DeleteProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "delete product endpoint",

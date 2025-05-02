@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -6,10 +6,10 @@ WORKDIR /app
 RUN apk add --no-cache git ca-certificates
 
 # Copy the event-bus directory
-COPY ./backend/event-bus /app/
-
-# Download dependencies
+COPY go.mod go.sum ./
 RUN go mod download
+
+COPY . .
 
 # Build the binary
 RUN go build -o event-bus .

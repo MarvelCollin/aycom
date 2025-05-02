@@ -1,11 +1,11 @@
 import { getAuthToken } from '../utils/auth';
+import appConfig from '../config/appConfig';
 import type { ITrend } from '../interfaces/ISocialMedia';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+const API_BASE_URL = appConfig.api.baseUrl;
 
 export async function getTrends(limit: number = 5): Promise<ITrend[]> {
   try {
-    // Get token for authenticated requests
     const token = getAuthToken();
     
     const response = await fetch(`${API_BASE_URL}/trends?limit=${limit}`, {
@@ -18,7 +18,12 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch trends: ${response.status}`);
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to fetch trends: ${response.status}`);
+      } catch (parseError) {
+        throw new Error(`Failed to fetch trends: ${response.status}`);
+      }
     }
     
     const data = await response.json();
@@ -33,7 +38,6 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
     
     return [];
   } catch (error) {
-    console.error('Error fetching trends:', error);
     throw error;
   }
 } 

@@ -14,6 +14,12 @@ type Trend struct {
 	PostCount int    `json:"post_count"`
 }
 
+// @Summary Get trends
+// @Description Returns trending topics
+// @Tags Trends
+// @Produce json
+// @Success 200 {array} models.TrendResponse
+// @Router /api/v1/trends [get]
 func GetTrends(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "5")
 	limit, err := strconv.Atoi(limitStr)

@@ -1,33 +1,14 @@
 <script lang="ts">
-  import { toastStore, type ToastState, type ToastType } from '../../stores/toastStore';
+  import { toastStore } from '../../stores/toastStore';
+  import type { Toast, ToastType, ToastPosition } from '@interfaces/IToast';
   import { fly } from 'svelte/transition';
-  import {
-    InfoIcon,
-    CheckCircleIcon,
-    AlertTriangleIcon,
-    XCircleIcon,
-    XIcon
-  } from 'svelte-feather-icons';
+  import { InfoIcon, CheckCircleIcon, AlertTriangleIcon, XCircleIcon, XIcon } from 'svelte-feather-icons';
 
-  let message = '';
-  let type: ToastType = 'info'; 
-  let visible = false;
-  let toastId = 0;
-  let dataCy = '';
-
-  // Subscribe to the toast store
-  toastStore.subscribe((state: ToastState) => {
-    // Only update if ID changes to allow re-triggering with same message
-    if (state.id !== toastId) {
-      message = state.message;
-      type = state.type;
-      visible = state.visible;
-      toastId = state.id;
-      dataCy = state.dataCy || `toast-${type}`;
-    }
+  let toasts: Toast[] = [];
+  toastStore.subscribe((list) => {
+    toasts = list;
   });
 
-  // Map types to colors and icons
   const typeStyles = {
     info: {
       bg: 'bg-blue-500',
@@ -47,31 +28,43 @@
     }
   };
 
-  $: currentStyle = typeStyles[type] || typeStyles.info;
+  const positionClasses: Record<ToastPosition, string> = {
+    'top-left': 'top-5 left-5',
+    'top-center': 'top-5 left-1/2 transform -translate-x-1/2',
+    'top-right': 'top-5 right-5',
+    'bottom-left': 'bottom-5 left-5',
+    'bottom-center': 'bottom-5 left-1/2 transform -translate-x-1/2',
+    'bottom-right': 'bottom-5 right-5',
+  };
 </script>
 
-{#if visible && message}
-  <div 
-    class="fixed bottom-5 right-5 z-50 max-w-sm rounded-lg shadow-lg overflow-hidden {currentStyle.bg} text-white"
-    transition:fly={{ y: 20, duration: 300 }}
-    data-cy={dataCy}
-  >
-    <div class="flex items-center p-4">
-      <div class="flex-shrink-0">
-        <svelte:component this={currentStyle.icon} size="24" />
-      </div>
-      <div class="ml-3 flex-1">
-        <p class="text-sm font-medium">{message}</p>
-      </div>
-      <div class="ml-4 flex-shrink-0">
-        <button 
-          on:click={toastStore.hideToast} 
-          class="inline-flex text-white rounded-md p-1 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 transition-colors"
+{#each Object.keys(positionClasses) as pos}
+  {#if toasts.filter(t => t.position === pos).length}
+    <div class="fixed z-50 pointer-events-none w-full max-w-sm" style="{positionClasses[pos]}" >
+      {#each toasts.filter(t => t.position === pos) as toast (toast.id)}
+        <div 
+          class="mb-3 rounded-lg shadow-lg overflow-hidden {typeStyles[toast.type].bg} text-white pointer-events-auto"
+          transition:fly={{ y: 20, duration: 300 }}
         >
-          <span class="sr-only">Close</span>
-          <XIcon size="18" />
-        </button>
-      </div>
+          <div class="flex items-center p-4">
+            <div class="flex-shrink-0">
+              <svelte:component this={typeStyles[toast.type].icon} size="24" />
+            </div>
+            <div class="ml-3 flex-1">
+              <p class="text-sm font-medium">{toast.message}</p>
+            </div>
+            <div class="ml-4 flex-shrink-0">
+              <button 
+                on:click={() => toastStore.removeToast(toast.id)} 
+                class="inline-flex text-white rounded-md p-1 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 transition-colors"
+              >
+                <span class="sr-only">Close</span>
+                <X size="18" />
+              </button>
+            </div>
+          </div>
+        </div>
+      {/each}
     </div>
-  </div>
-{/if}
+  {/if}
+{/each}

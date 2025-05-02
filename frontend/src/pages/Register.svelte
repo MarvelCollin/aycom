@@ -133,12 +133,7 @@
       } catch (err) {
          formState.update(state => ({ ...state, loading: false }));
          console.error("Registration Exception:", err);
-         errorMessage = "An unexpected error occurred during registration.";
-         formState.update(state => ({ ...state, error: errorMessage }));
-         const detail = (err instanceof Error) ? err.message : String(err);
-         if (appConfig.ui.showErrorToasts) toastStore.showToast(`Registration Exception: ${errorMessage} - ${detail}`);
-         // Optionally reset recaptcha on exception
-         // registrationFormInstance.resetRecaptcha();
+         toastStore.showToast('Registration failed. Please try again.', 'error');
       }
     } else {
       // Handle Step 1 validation failure (optional toast)
@@ -184,10 +179,7 @@
     } catch (err) {
       formState.update(state => ({ ...state, loading: false }));
       console.error("Verification Exception:", err);
-      errorMessage = "An unexpected error occurred during verification.";
-      formState.update(state => ({ ...state, error: errorMessage }));
-      const detail = (err instanceof Error) ? err.message : String(err);
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(`Verification Exception: ${errorMessage} - ${detail}`);
+      toastStore.showToast('Verification failed. Please try again.', 'error');
     }
   }
   
@@ -213,10 +205,7 @@
     } catch (err) {
       formState.update(state => ({ ...state, loading: false }));
       console.error("Resend Code Exception:", err);
-      errorMessage = "An unexpected error occurred while resending code.";
-      formState.update(state => ({ ...state, error: errorMessage }));
-      const detail = (err instanceof Error) ? err.message : String(err);
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(`Resend Code Exception: ${errorMessage} - ${detail}`);
+      toastStore.showToast('Failed to resend verification code. Please try again.', 'error');
     }
   }
   

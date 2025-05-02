@@ -46,12 +46,10 @@ func initUserServiceClient() error {
 
 // GetUserProfile retrieves the user's profile from the User service via gRPC
 // @Summary Get user profile
-// @Description Get the profile of the authenticated user
-// @Tags users
-// @Accept json
+// @Description Returns the profile of the authenticated user
+// @Tags Users
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} object
+// @Success 200 {object} models.UserProfileResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/users/profile [get]
 func GetUserProfile(c *gin.Context) {
@@ -144,13 +142,12 @@ func GetUserProfile(c *gin.Context) {
 
 // UpdateUserProfile updates the user's profile in the User service via gRPC
 // @Summary Update user profile
-// @Description Update the profile of the authenticated user
-// @Tags users
+// @Description Updates the profile of the authenticated user
+// @Tags Users
 // @Accept json
 // @Produce json
-// @Param profileUpdate body handlers.UpdateUserRequest true "User profile data to update"
-// @Security ApiKeyAuth
-// @Success 200 {object} object
+// @Param request body models.UpdateUserProfileRequest true "Update profile request"
+// @Success 200 {object} models.UserProfileResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
 // @Router /api/v1/users/profile [put]

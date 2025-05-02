@@ -1,14 +1,11 @@
 import { getAuthToken } from '../utils/auth';
+import appConfig from '../config/appConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+const API_BASE_URL = appConfig.api.baseUrl;
 
 export async function createThread(data: Record<string, any>) {
   try {
-    console.log("Creating thread with data:", data);
-    
-    // Get the token from auth utility
     const token = getAuthToken();
-    console.log("Found auth token:", !!token);
     
     const response = await fetch(`${API_BASE_URL}/threads`, {
       method: "POST",
@@ -20,29 +17,21 @@ export async function createThread(data: Record<string, any>) {
       credentials: "include",
     });
     
-    console.log("Thread creation response status:", response.status);
-    
     if (!response.ok) {
-      // Try to extract detailed error information
       try {
         const errorData = await response.json();
-        console.error("Thread creation error response:", errorData);
         throw new Error(
           errorData.message || 
           errorData.error?.message || 
           `Failed to create thread: ${response.status} ${response.statusText}`
         );
       } catch (parseError) {
-        console.error("Failed to parse error response:", parseError);
         throw new Error(`Failed to create thread: ${response.status} ${response.statusText}`);
       }
     }
     
-    const result = await response.json();
-    console.log("Thread creation successful:", result);
-    return result;
+    return response.json();
   } catch (error) {
-    console.error("Thread creation exception:", error);
     throw error;
   }
 }
@@ -166,7 +155,6 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
   const formData = new FormData();
   formData.append('thread_id', threadId);
   
-  // Add each file to the form data
   files.forEach((file, index) => {
     formData.append(`media_${index}`, file);
   });

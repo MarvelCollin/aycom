@@ -3,6 +3,7 @@
   import { useAuth } from '../hooks/useAuth';
   import AuthCallback from '../components/auth/AuthCallback.svelte';
   import type { IGoogleCredentialResponse } from '../interfaces/IAuth';
+  import { toastStore } from '../stores/toastStore';
 
   // Get auth functions
   const { handleGoogleAuth } = useAuth();
@@ -52,6 +53,7 @@
         })
         .catch(err => {
           console.error('Error handling Google auth:', err);
+          toastStore.showToast('Google authentication failed. Please try again.', 'error');
           error = 'An unexpected error occurred';
           loading = false;
         });

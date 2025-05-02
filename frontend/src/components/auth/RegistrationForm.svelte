@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   import GoogleSignInButton from './GoogleSignInButton.svelte';
   import type { IDateOfBirth } from '../../interfaces/IAuth';
@@ -59,20 +58,17 @@
 
   function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
     recaptchaToken = event.detail.token;
-    recaptchaError = ""; 
-    console.log('reCAPTCHA verified:', recaptchaToken);
+    recaptchaError = "";
   }
 
   function handleRecaptchaError() {
     recaptchaError = 'reCAPTCHA verification failed. Please try again.';
     recaptchaToken = null;
-    console.error('reCAPTCHA error');
   }
 
   function handleRecaptchaExpired() {
     recaptchaError = 'reCAPTCHA token expired. Please verify again.';
     recaptchaToken = null;
-    console.warn('reCAPTCHA expired');
   }
 
   async function triggerSubmit() {
@@ -81,7 +77,6 @@
       onSubmit(recaptchaToken);
     } catch (error) {
       recaptchaError = 'Please complete the reCAPTCHA verification.';
-      console.error('reCAPTCHA error:', error);
     }
   }
 
@@ -297,9 +292,6 @@
       const input = e.target as HTMLInputElement;
       if (input.files && input.files.length > 0) {
         profilePicture = input.files[0];
-      } else if (window.Cypress) {
-        // For Cypress testing
-        profilePicture = "mock-profile-picture.jpg";
       }
     }}
   />
@@ -320,8 +312,6 @@
       const input = e.target as HTMLInputElement;
       if (input.files && input.files.length > 0) {
         banner = input.files[0];
-      } else if (window.Cypress) {
-        banner = "../../assets/mock-banner.jpg"; 
       }
     }}
   />

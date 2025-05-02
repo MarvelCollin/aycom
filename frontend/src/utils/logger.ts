@@ -10,7 +10,6 @@ export enum LogLevel {
   NONE = 5
 }
 
-// Log entry interface
 export interface LogEntry {
   timestamp: string;
   level: LogLevel;
@@ -20,32 +19,23 @@ export interface LogEntry {
   source: string;
 }
 
-// Create a store to keep logs
 export const logStore = writable<LogEntry[]>([]);
 
-// Max number of logs to keep in memory
 const MAX_LOGS = 1000;
 
-// Add a log entry to the store
 const addLogEntry = (entry: LogEntry) => {
   logStore.update(logs => {
-    // Add new log at the beginning for newest-first
     const newLogs = [entry, ...logs];
-    // Keep only the most recent logs to prevent memory issues
     return newLogs.slice(0, MAX_LOGS);
   });
 };
 
-// Clear all logs from store
 export const clearLogs = () => {
   logStore.set([]);
 };
 
-// Default log level based on environment
-// Can be overridden by settings in localStorage
 const DEFAULT_LOG_LEVEL = import.meta.env.DEV ? LogLevel.DEBUG : LogLevel.WARN;
 
-// Get log level from localStorage or use default
 const getLogLevel = (): LogLevel => {
   const storedLevel = localStorage.getItem('logLevel');
   if (storedLevel !== null && !isNaN(Number(storedLevel))) {
@@ -54,15 +44,12 @@ const getLogLevel = (): LogLevel => {
   return DEFAULT_LOG_LEVEL;
 };
 
-// Set the current log level
 const setLogLevel = (level: LogLevel): void => {
   localStorage.setItem('logLevel', level.toString());
 };
 
-// Current log level from storage or default
 let currentLogLevel = getLogLevel();
 
-// Color settings for console logs
 const LOG_STYLES = {
   [LogLevel.TRACE]: 'color: #6b7280',
   [LogLevel.DEBUG]: 'color: #3b82f6',

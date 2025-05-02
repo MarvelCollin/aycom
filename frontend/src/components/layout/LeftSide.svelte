@@ -4,6 +4,7 @@
   import { useTheme } from '../../hooks/useTheme';
   import { useAuth } from '../../hooks/useAuth';
   import { isAuthenticated, getUserId } from '../../utils/auth';
+  import { toastStore } from '../../stores/toastStore';
 
   // Props
   export let username = "";
@@ -61,6 +62,7 @@
       }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
+      toastStore.showToast('Failed to load user profile. Please try again.', 'error');
     }
   }
   
@@ -71,6 +73,7 @@
       window.location.href = '/login';
     } catch (err) {
       console.error('Error during logout:', err);
+      toastStore.showToast('Logout failed. Please try again.', 'error');
     }
   }
   

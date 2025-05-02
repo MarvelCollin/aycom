@@ -20,7 +20,8 @@
     "composite": true,
     "outDir": "../dist/js",
     "declaration": true,
-    "declarationDir": "../dist/types"
+    "declarationDir": "../dist/types",
+    "moduleResolution": "node"
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
   "exclude": ["node_modules/**/*"]

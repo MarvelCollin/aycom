@@ -80,13 +80,6 @@ export function setAuthData(userData: {
     // Save to localStorage
     localStorage.setItem('auth', JSON.stringify(authData));
     localStorage.setItem('aycom_authenticated', 'true');
-    
-    // Log successful auth storage
-    console.log('Auth data saved successfully', {
-      userId: userData.userId,
-      hasToken: !!userData.accessToken,
-      expiresAt: userData.expiresAt ? new Date(userData.expiresAt).toLocaleString() : null
-    });
   } catch (err) {
     console.error("Error setting auth data:", err);
   }
@@ -99,7 +92,6 @@ export function clearAuthData(): void {
   try {
     localStorage.removeItem('auth');
     localStorage.setItem('aycom_authenticated', 'false');
-    console.log('Auth data cleared successfully');
   } catch (err) {
     console.error("Error clearing auth data:", err);
   }

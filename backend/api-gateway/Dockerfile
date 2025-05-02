@@ -9,10 +9,10 @@ WORKDIR /app
 
 # First, copy over module files and proto directories
 COPY backend/go.mod backend/go.sum ./backend/
-COPY backend/services/auth/proto/ ./backend/services/auth/proto/
 COPY backend/services/thread/proto/ ./backend/services/thread/proto/
 COPY backend/services/user/proto/ ./backend/services/user/proto/
-COPY backend/api-gateway/go.mod backend/api-gateway/go.sum ./backend/api-gateway/
+COPY backend/proto/ ./backend/proto/
+COPY backend/api-gateway/go.sum ./backend/api-gateway/
 
 # Install dependencies
 RUN cd backend && go mod download
@@ -40,8 +40,8 @@ RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 # Copy binary from builder
 COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/app .
 
-# Copy any additional required files
-COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
+# (Optional) Copy Swagger docs if present
+# COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
 
 # Environment variables
 ENV GIN_MODE=release

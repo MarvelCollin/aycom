@@ -14,7 +14,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// CreateThread creates a new thread
+// @Summary Create thread
+// @Description Creates a new thread
+// @Tags Threads
+// @Accept json
+// @Produce json
+// @Param request body models.CreateThreadRequest true "Create thread request"
+// @Success 201 {object} models.ThreadResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/threads [post]
 func CreateThread(c *gin.Context) {
 	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
@@ -96,7 +104,14 @@ func CreateThread(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-// GetThread gets a thread by ID
+// @Summary Get thread
+// @Description Returns a thread by ID
+// @Tags Threads
+// @Produce json
+// @Param id path string true "Thread ID"
+// @Success 200 {object} models.ThreadResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/threads/{id} [get]
 func GetThread(c *gin.Context) {
 	// Get thread ID from URL
 	threadID := c.Param("id")
@@ -156,7 +171,14 @@ func GetThread(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// GetThreadsByUser gets threads by user ID
+// @Summary Get threads by user
+// @Description Returns all threads for a user
+// @Tags Threads
+// @Produce json
+// @Param id path string true "User ID"
+// @Success 200 {array} models.ThreadResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/threads/user/{id} [get]
 func GetThreadsByUser(c *gin.Context) {
 	// Get user ID from URL or from token
 	userID := c.Param("userId")
@@ -255,7 +277,16 @@ func GetThreadsByUser(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// UpdateThread updates a thread
+// @Summary Update thread
+// @Description Updates a thread by ID
+// @Tags Threads
+// @Accept json
+// @Produce json
+// @Param id path string true "Thread ID"
+// @Param request body models.UpdateThreadRequest true "Update thread request"
+// @Success 200 {object} models.ThreadResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/threads/{id} [put]
 func UpdateThread(c *gin.Context) {
 	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
@@ -355,7 +386,14 @@ func UpdateThread(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// DeleteThread deletes a thread
+// @Summary Delete thread
+// @Description Deletes a thread by ID
+// @Tags Threads
+// @Produce json
+// @Param id path string true "Thread ID"
+// @Success 204 {object} nil
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/threads/{id} [delete]
 func DeleteThread(c *gin.Context) {
 	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
@@ -442,7 +480,15 @@ func DeleteThread(c *gin.Context) {
 	})
 }
 
-// UploadThreadMedia handles media upload for threads
+// @Summary Upload thread media
+// @Description Uploads media for a thread
+// @Tags Threads
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Media file"
+// @Success 201 {object} models.ThreadMediaResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/threads/media [post]
 func UploadThreadMedia(c *gin.Context) {
 	// Extract user ID from context
 	userID, exists := c.Get("user_id")

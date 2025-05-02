@@ -12,8 +12,7 @@
   
   onMount(() => {
     if (!siteKey) {
-      console.error('VITE_RECAPTCHA_SITE_KEY is missing in environment variables');
-      dispatch('error', { message: 'reCAPTCHA configuration missing' });
+      dispatch('error', { message: 'VITE_RECAPTCHA_SITE_KEY is missing in environment variables' });
     }
   });
   
@@ -23,7 +22,6 @@
   }
   
   function handleRecaptchaError() {
-    console.error('reCAPTCHA error occurred');
     dispatch('error', { message: 'reCAPTCHA verification failed' });
   }
   

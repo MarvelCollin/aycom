@@ -1,29 +1,31 @@
 import { writable } from 'svelte/store';
+import type { Toast, ToastType, ToastPosition } from '@interfaces/IToast';
 
-type ToastType = 'success' | 'error' | 'info' | 'warning';
-
-interface Toast {
+export interface Toast {
   id: string;
   message: string;
   type: ToastType;
   timeout: number;
+  position: ToastPosition;
 }
 
 function createToastStore() {
   const { subscribe, update } = writable<Toast[]>([]);
 
-  function showToast(message: string, type: ToastType = 'info', timeout: number = 3000) {
+  function showToast(
+    message: string,
+    type: ToastType = 'info',
+    timeout: number = 3000,
+    position: ToastPosition = 'bottom-right'
+  ) {
     const id = Math.random().toString(36).substring(2, 9);
-    
     update(toasts => [
       ...toasts,
-      { id, message, type, timeout }
+      { id, message, type, timeout, position }
     ]);
-
     setTimeout(() => {
       removeToast(id);
     }, timeout);
-
     return id;
   }
 

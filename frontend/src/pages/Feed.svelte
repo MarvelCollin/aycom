@@ -13,6 +13,7 @@
   import { getTrends } from '../api/trends';
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
+  import { toastStore } from '../stores/toastStore';
 
   // Create a logger for this component
   const logger = createLoggerWithPrefix('Feed');
@@ -114,9 +115,9 @@
         hasMore = false;
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch tweets';
-      logger.error('Error fetching tweets', { error: err }, { showToast: true });
-      error = errorMessage;
+      console.error('Error loading feed:', err);
+      toastStore.showToast('Failed to load feed. Please try again.', 'error');
+      error = err instanceof Error ? err.message : 'Failed to fetch tweets';
     } finally {
       isLoading = false;
     }
@@ -131,7 +132,8 @@
       trends = trendData;
       logger.debug('Trends loaded', { trendsCount: trends.length });
     } catch (error) {
-      logger.error('Error fetching trends', { error });
+      console.error('Error loading trends:', error);
+      toastStore.showToast('Failed to load trends. Please try again.', 'error');
       trends = [];
     } finally {
       isTrendsLoading = false;
@@ -147,7 +149,8 @@
       suggestedUsers = userData;
       logger.debug('Suggested users loaded', { count: suggestedUsers.length });
     } catch (error) {
-      logger.error('Error fetching suggested users', { error });
+      console.error('Error loading suggestions:', error);
+      toastStore.showToast('Failed to load suggestions. Please try again.', 'error');
       suggestedUsers = [];
     } finally {
       isSuggestedUsersLoading = false;

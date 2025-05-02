@@ -1,7 +1,8 @@
 import { getAuthToken } from '../utils/auth';
+import appConfig from '../config/appConfig';
 import type { ISuggestedFollow } from '../interfaces/ISocialMedia';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+const API_BASE_URL = appConfig.api.baseUrl;
 
 export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFollow[]> {
   try {
@@ -17,7 +18,12 @@ export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFo
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch suggested users: ${response.status}`);
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to fetch suggested users: ${response.status}`);
+      } catch (parseError) {
+        throw new Error(`Failed to fetch suggested users: ${response.status}`);
+      }
     }
     
     const data = await response.json();
@@ -26,7 +32,7 @@ export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFo
       return data.users.map((user: any) => ({
         username: user.username,
         displayName: user.display_name || user.username,
-        avatar: user.avatar_url || '👤',
+        avatar: user.avatar_url || null,
         verified: user.verified || false,
         followerCount: user.follower_count || 0
       }));
@@ -34,7 +40,6 @@ export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFo
     
     return [];
   } catch (error) {
-    console.error('Error fetching suggested users:', error);
     throw error;
   }
 } 

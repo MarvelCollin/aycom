@@ -8,6 +8,7 @@
   } from 'svelte-feather-icons';
   import { createThread, uploadThreadMedia } from '../../api/thread';
   import { createLoggerWithPrefix } from '../../utils/logger';
+  import { toastStore } from '../../stores/toastStore';
   
   // Create a logger for this component
   const logger = createLoggerWithPrefix('ComposeTweet');
@@ -108,55 +109,8 @@
       // Show success message
       logger.info('Tweet posted successfully', null, { showToast: true });
     } catch (error) {
-      // Extract detailed error information
-      let errorMsg = 'Failed to post tweet';
-      let errorDetails: Record<string, any> = {};
-      
-      if (error instanceof Error) {
-        errorMsg = error.message;
-        
-        // Try to extract additional error info from the error object
-        const errorObj = error as any;
-        if (errorObj.response) {
-          errorDetails = {
-            status: errorObj.response.status,
-            statusText: errorObj.response.statusText,
-            data: errorObj.response.data
-          };
-        } else if (errorObj.request) {
-          errorDetails = { request: 'Request was made but no response received' };
-        } else {
-          errorDetails = { message: errorObj.message };
-        }
-        
-        // Add request/network info if available
-        if (errorObj.code) {
-          errorDetails.code = errorObj.code;
-        }
-        if (errorObj.stack) {
-          errorDetails.stack = errorObj.stack.split('\n')[0]; // Just the first line of stack
-        }
-      }
-      
-      // Log the detailed error
-      logger.error('Error posting tweet', { error, details: errorDetails }, { showToast: true });
-      
-      // Set a user-friendly error message
-      if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
-        errorMessage = 'Your session may have expired. Please try logging in again.';
-      } else if (errorMsg.includes('403') || errorMsg.includes('forbidden')) {
-        errorMessage = 'You don\'t have permission to perform this action. Please log in again.';
-      } else if (errorMsg.includes('413') || errorMsg.includes('too large')) {
-        errorMessage = 'The media files you attached may be too large. Please try smaller files.';
-      } else if (errorMsg.includes('429') || errorMsg.includes('rate limit')) {
-        errorMessage = 'You\'re posting too quickly. Please wait a moment and try again.';
-      } else if (errorMsg.includes('500')) {
-        errorMessage = 'Something went wrong on our server. Please try again later.';
-      } else if (errorMsg.includes('404')) {
-        errorMessage = 'The API endpoint was not found. This may be a temporary issue, please try again.';
-      } else {
-        errorMessage = errorMsg || 'Failed to post tweet. Please try again.';
-      }
+      console.error('Error posting tweet:', error);
+      toastStore.showToast('Failed to post tweet. Please try again.', 'error');
     } finally {
       isPosting = false;
     }

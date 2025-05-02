@@ -31,14 +31,10 @@
     error = "";
     
     try {
-      console.log('Submitting login form with email:', email);
       const result = await login(email, password);
       isLoading = false;
       
-      console.log('Login result:', result);
-      
       if (result.success) {
-        console.log('Login successful, redirecting to feed');
         // Add a small delay to ensure auth state is fully updated before redirect
         setTimeout(() => {
           window.location.href = '/feed';
@@ -46,19 +42,12 @@
       } else {
         errorMessage = result.message || "Login failed. Please check your credentials.";
         error = errorMessage; 
-        if (appConfig.ui.showErrorToasts) {
-          toastStore.showToast(`Login Error: ${errorMessage}`);
-        }
+        toastStore.showToast(errorMessage, 'error');
       }
     } catch (err) {
       isLoading = false;
       console.error("Login Exception:", err);
-      errorMessage = "An unexpected error occurred during login.";
-      error = errorMessage;
-      if (appConfig.ui.showErrorToasts) {
-        const detail = (err instanceof Error) ? err.message : String(err);
-        toastStore.showToast(`Login Exception: ${errorMessage} - ${detail}`);
-      }
+      toastStore.showToast('Login failed. Please try again.', 'error');
     }
   }
   
