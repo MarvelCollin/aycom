@@ -6,7 +6,6 @@
   import VerificationForm from '../components/auth/VerificationForm.svelte';
   import { useRegistrationForm } from '../hooks/useRegistrationForm';
   import { useAuth } from '../hooks/useAuth';
-  import { useExternalServices } from '../hooks/useExternalServices';
   import type { IUserRegistration } from '../interfaces/IAuth';
   import { toastStore } from '../stores/toastStore';
   import appConfig from '../config/appConfig';
@@ -35,9 +34,6 @@
   
   // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
-  
-  // Get external services
-  const { loadRecaptcha } = useExternalServices();
   
   // Validation wrapper functions
   function validateNameAndUpdate() {
@@ -77,28 +73,21 @@
   }
   
   // Make the function async to use await
-  async function submitRegistration() {
+  async function submitRegistration(recaptchaToken: string | null) {
     let errorMessage = ""; // Variable for detailed message
     if (validateStep1()) {
       formState.update(state => ({ ...state, loading: true }));
       
-      if (!$formData.recaptchaToken) {
-        errorMessage = "reCAPTCHA verification failed. Please try again.";
+      // Check the token passed as argument
+      if (!recaptchaToken) {
+        errorMessage = "reCAPTCHA verification failed. Please complete the verification.";
         formState.update(state => ({ ...state, loading: false, error: errorMessage }));
         if (appConfig.ui.showErrorToasts) toastStore.showToast(`Validation Error: ${errorMessage}`);
+        // Optionally reset recaptcha in the form component if needed
+        // registrationFormInstance.resetRecaptcha(); // Requires binding the component instance
         return;
       }
 
-      // Create FormData
-      const registrationFormData = new FormData();
-
-      // Append text fields (ensure keys match backend handler expectations)
-      registrationFormData.append('name', $formData.name);
-      registrationFormData.append('username', $formData.username);
-      registrationFormData.append('email', $formData.email);
-      registrationFormData.append('password', $formData.password);
-      registrationFormData.append('confirm_password', $formData.confirmPassword);
-      registrationFormData.append('gender', $formData.gender);
       const userData: IUserRegistration = {
         name: $formData.name,
         username: $formData.username,
@@ -110,7 +99,7 @@
         security_question: $formData.securityQuestion,
         security_answer: $formData.securityAnswer,
         subscribe_to_newsletter: $formData.subscribeToNewsletter,
-        recaptcha_token: $formData.recaptchaToken
+        recaptcha_token: recaptchaToken // Use the token passed to the function
       };
       
       try {
@@ -138,6 +127,8 @@
           errorMessage = result.message || "Registration failed. Please try again.";
           formState.update(state => ({ ...state, error: errorMessage }));
           if (appConfig.ui.showErrorToasts) toastStore.showToast(`Registration Error: ${errorMessage}`);
+          // Optionally reset recaptcha on server-side failure
+          // registrationFormInstance.resetRecaptcha();
         }
       } catch (err) {
          formState.update(state => ({ ...state, loading: false }));
@@ -146,6 +137,8 @@
          formState.update(state => ({ ...state, error: errorMessage }));
          const detail = (err instanceof Error) ? err.message : String(err);
          if (appConfig.ui.showErrorToasts) toastStore.showToast(`Registration Exception: ${errorMessage} - ${detail}`);
+         // Optionally reset recaptcha on exception
+         // registrationFormInstance.resetRecaptcha();
       }
     } else {
       // Handle Step 1 validation failure (optional toast)
@@ -231,16 +224,8 @@
     formState.update(state => ({ ...state, step: 1, error: "" }));
   }
   
-  onMount(() => {
-    const recaptchaCleanup = loadRecaptcha((token) => {
-      formData.update(data => ({ ...data, recaptchaToken: token }));
-      console.log("reCAPTCHA token updated in store");
-    });
-    
-    return () => {
-      recaptchaCleanup();
-      cleanupTimers(); 
-    };
+  onDestroy(() => {
+    cleanupTimers();
   });
 </script>
 
@@ -299,12 +284,10 @@
       />
     </div>
       
-    <!-- Login link -->
     <p class="text-sm mt-6 text-center">
       Already have an account? <a href="/login" class="text-blue-500 hover:underline" data-cy="login-link">Sign in</a>
     </p>
   {:else}
-    <!-- Step 2: Verification Code Input -->
     <p class="text-center mb-6 text-gray-700 dark:text-gray-300">Enter it below to verify {$formData.email}</p>
     
     <VerificationForm

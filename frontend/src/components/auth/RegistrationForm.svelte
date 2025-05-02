@@ -3,14 +3,12 @@
   import { useTheme } from '../../hooks/useTheme';
   import GoogleSignInButton from './GoogleSignInButton.svelte';
   import type { IDateOfBirth } from '../../interfaces/IAuth';
+  import ReCAPTCHA from 'svelte-recaptcha-v2'; 
 
-  // Get theme
   const { theme } = useTheme();
   
-  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
 
-  // Form data
   export let name = "";
   export let username = "";
   export let email = "";
@@ -23,6 +21,8 @@
   export let securityQuestion = "";
   export let securityAnswer = "";
   export let subscribeToNewsletter = false;
+  let recaptchaToken: string | null = null; // Variable to hold the token
+  let recaptchaWidget: ReCAPTCHA; // Reference to the widget
 
   // Form options
   export let months: string[] = [];
@@ -41,6 +41,7 @@
   export let securityQuestionError = "";
   export let profilePictureError = "";
   export let bannerError = "";
+  export let recaptchaError = ""; // Add error state for reCAPTCHA
 
   // Validation methods
   export let onNameBlur: () => void;
@@ -54,9 +55,45 @@
   export let onSecurityAnswerBlur: () => void;
 
   // Form submission
-  export let onSubmit: () => void;
+  export let onSubmit: (token: string | null) => void; // Update onSubmit to accept token
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
+
+  // reCAPTCHA Site Key (replace with your actual site key or load from env)
+  const recaptchaSiteKey = '6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA'; // Use the client key provided
+
+  function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
+    recaptchaToken = event.detail.token;
+    recaptchaError = ""; // Clear error on success
+    console.log('reCAPTCHA verified:', recaptchaToken);
+  }
+
+  function handleRecaptchaError() {
+    recaptchaError = 'reCAPTCHA verification failed. Please try again.';
+    recaptchaToken = null;
+    console.error('reCAPTCHA error');
+  }
+
+  function handleRecaptchaExpired() {
+    recaptchaError = 'reCAPTCHA token expired. Please verify again.';
+    recaptchaToken = null;
+    console.warn('reCAPTCHA expired');
+  }
+
+  function triggerSubmit() {
+    if (!recaptchaToken) {
+      recaptchaError = 'Please complete the reCAPTCHA verification.';
+      return;
+    }
+    onSubmit(recaptchaToken); // Pass the token to the parent onSubmit
+  }
+
+  // Function to reset reCAPTCHA (optional, can be called if form submission fails server-side)
+  export function resetRecaptcha() {
+    recaptchaWidget?.reset();
+    recaptchaToken = null;
+  }
+
 </script>
 
 <GoogleSignInButton
@@ -274,7 +311,6 @@
   {/if}
 </div>
 
-<!-- Banner upload -->
 <div class="mb-4">
   <label for="banner" class="block text-sm font-medium mb-1">Banner</label>
   <input 
@@ -288,8 +324,7 @@
       if (input.files && input.files.length > 0) {
         banner = input.files[0];
       } else if (window.Cypress) {
-        // For Cypress testing
-        banner = "mock-banner.jpg";
+        banner = "../../assets/mock-banner.jpg"; 
       }
     }}
   />
@@ -298,7 +333,6 @@
   {/if}
 </div>
 
-<!-- Security Question -->
 <div class="mb-4">
   <label for="securityQuestion" class="block text-sm font-medium mb-1">Security question</label>
   <select 
@@ -318,7 +352,6 @@
   {/if}
 </div>
 
-<!-- Security Answer -->
 <div class="mb-6">
   <label for="securityAnswer" class="block text-sm font-medium mb-1">Security answer</label>
   <input 
@@ -345,9 +378,24 @@
   </label>
 </div>
 
-<!-- Submit button -->
+<!-- reCAPTCHA Widget -->
+<div class="mb-6 flex justify-center">
+  <ReCAPTCHA
+    sitekey={recaptchaSiteKey}
+    on:success={handleRecaptchaSuccess}
+    on:error={handleRecaptchaError}
+    on:expired={handleRecaptchaExpired}
+    bind:this={recaptchaWidget}
+    theme={$theme === 'dark' ? 'dark' : 'light'}
+    data-cy="recaptcha-widget"
+  />
+</div>
+{#if recaptchaError}
+  <p class="text-red-500 text-xs mt-1 text-center" data-cy="recaptcha-error">{recaptchaError}</p>
+{/if}
+
 <button 
-  on:click={onSubmit}
+  on:click={triggerSubmit} 
   type="button" 
   class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
   data-cy="register-button"
@@ -355,8 +403,7 @@
   Create account
 </button>
 
-<!-- Terms & services text -->
 <p class="text-xs mt-4 text-gray-400 text-center">
   By signing up, you agree to the <a href="#" class="text-blue-500 hover:underline">Terms of Service</a> and 
   <a href="#" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="#" class="text-blue-500 hover:underline">Cookie Use</a>.
-</p> 
+</p>

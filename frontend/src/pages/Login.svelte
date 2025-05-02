@@ -6,23 +6,18 @@
   import { toastStore } from '../stores/toastStore';
   import appConfig from '../config/appConfig';
 
-  // Get auth functions from auth hook
   const { login } = useAuth();
   
-  // Get theme
   const { theme } = useTheme();
   
-  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
   
-  // Login state
   let email = "";
   let password = "";
   let rememberMe = false;
   let error = "";
   let isLoading = false;
   
-  // Handle login form submission
   async function handleSubmit() {
     let errorMessage = "";
     if (!email || !password) {
@@ -43,8 +38,7 @@
       window.location.href = '/feed';
     } else {
         errorMessage = result.message || "Login failed. Please check your credentials.";
-        error = errorMessage; // Keep simple error for inline display
-        // Show detailed toast if configured
+        error = errorMessage; 
         if (appConfig.ui.showErrorToasts) {
           toastStore.showToast(`Login Error: ${errorMessage}`);
         }
@@ -54,7 +48,6 @@
       console.error("Login Exception:", err);
       errorMessage = "An unexpected error occurred during login.";
       error = errorMessage;
-      // Show detailed toast if configured
       if (appConfig.ui.showErrorToasts) {
         const detail = (err instanceof Error) ? err.message : String(err);
         toastStore.showToast(`Login Exception: ${errorMessage} - ${detail}`);
@@ -68,15 +61,12 @@
     [key: string]: any;
   }
   
-  // Handle Google auth success
   function handleGoogleAuthSuccess(result: AuthResult) {
     window.location.href = '/feed';
   }
   
-  // Handle Google auth error
   function handleGoogleAuthError(message: string) {
-    error = message; // Keep simple error for inline display
-    // Show detailed toast if configured
+    error = message; 
     if (appConfig.ui.showErrorToasts) {
       toastStore.showToast(`Google Auth Error: ${message}`);
     }
@@ -104,7 +94,6 @@
   {/if}
   
   <form on:submit|preventDefault={handleSubmit} class="mb-4">
-    <!-- Email input -->
     <div class="mb-4">
       <label for="email" class="block text-sm font-medium mb-1">Email</label>
       <input 
@@ -121,7 +110,6 @@
       {/if}
     </div>
     
-    <!-- Password input -->
     <div class="mb-6">
       <div class="flex justify-between items-center mb-1">
         <label for="password" class="block text-sm font-medium">Password</label>
@@ -141,7 +129,6 @@
       {/if}
     </div>
     
-    <!-- Remember me checkbox -->
     <div class="flex items-center justify-between mb-6">
       <label class="flex items-center">
         <input 
@@ -154,7 +141,6 @@
       </label>
     </div>
     
-    <!-- Submit button -->
     <button 
       type="submit"
       class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors flex justify-center items-center"
@@ -173,7 +159,6 @@
     </button>
   </form>
   
-  <!-- Register link -->
   <p class="text-sm mt-6 text-center">
     Don't have an account? <a href="/register" class="text-blue-500 hover:underline" data-cy="register-link">Sign up</a>
   </p>

@@ -497,9 +497,9 @@ func UploadThreadMedia(c *gin.Context) {
 	// This functionality is not implemented in the thread service yet
 	// Instead of calling a non-existent method, return a not implemented error
 	c.JSON(http.StatusNotImplemented, gin.H{
-		"status":  "error",
+			"status":  "error",
 		"code":    http.StatusNotImplemented,
 		"message": "Media upload functionality is not yet implemented",
-	})
-	return
+				})
+				return
 }

@@ -211,7 +211,7 @@ func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRe
 	// Update isPinned status if provided
 	if req.IsPinned != nil {
 		reply.IsPinned = *req.IsPinned
-		updated = true
+	updated = true
 	}
 
 	if updated {

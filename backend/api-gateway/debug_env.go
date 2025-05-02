@@ -46,3 +46,4 @@ func loadEnvDebug() {
 		fmt.Println("Successfully loaded .env from current directory")
 	}
 }
+ 

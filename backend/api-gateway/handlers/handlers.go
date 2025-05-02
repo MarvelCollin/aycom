@@ -177,12 +177,13 @@ func RateLimitMiddleware() gin.HandlerFunc {
 	}
 }
 
-func GetOAuthConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"google_client_id": Config.OAuth.GoogleClientID,
-	})
-}
-
+// HealthCheck godoc
+// @Summary Check API health
+// @Description Returns health status of the API
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /health [get]
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
@@ -278,7 +279,18 @@ type AuthServiceResponse struct {
 	ExpiresIn    int64  `json:"expires_in,omitempty"`
 }
 
-// Login handles user authentication
+// Login godoc
+// @Summary User login
+// @Description Authenticates a user and returns access token
+// @Tags auth
+// @Accept  json
+// @Produce  json
+// @Param   login body LoginRequest true "Login Credentials"
+// @Success 200 {object} AuthServiceResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/login [post]
 func Login(c *gin.Context) {
 	var request LoginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -303,7 +315,17 @@ func Login(c *gin.Context) {
 	})
 }
 
-// Register creates a new user account
+// Register godoc
+// @Summary Register a new user
+// @Description Create a new user account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param register body RegisterRequest true "Registration Information"
+// @Success 200 {object} RegisterResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/register [post]
 func Register(c *gin.Context) {
 	var request RegisterRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -323,7 +345,18 @@ func Register(c *gin.Context) {
 	})
 }
 
-// RefreshToken issues a new access token using a refresh token
+// RefreshToken godoc
+// @Summary Refresh access token
+// @Description Issues a new access token using a refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param refreshToken body RefreshTokenRequest true "Refresh Token"
+// @Success 200 {object} AuthServiceResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/refresh-token [post]
 func RefreshToken(c *gin.Context) {
 	var request RefreshTokenRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -348,7 +381,16 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
-// GoogleAuth authenticates a user using Google OAuth
+// GoogleAuth godoc
+// @Summary Authenticate with Google
+// @Description Authenticates a user using Google OAuth
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} AuthServiceResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/google [post]
 func GoogleAuth(c *gin.Context) {
 	// Implementation placeholder - using HTTP auth service
 	c.JSON(http.StatusOK, AuthServiceResponse{
@@ -362,7 +404,17 @@ func GoogleAuth(c *gin.Context) {
 	})
 }
 
-// VerifyEmail verifies a user's email using a verification code
+// VerifyEmail godoc
+// @Summary Verify email address
+// @Description Verifies a user's email using a verification code
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param verification body VerifyEmailRequest true "Email Verification Information"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/verify-email [post]
 func VerifyEmail(c *gin.Context) {
 	var request VerifyEmailRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -381,7 +433,17 @@ func VerifyEmail(c *gin.Context) {
 	})
 }
 
-// ResendVerificationCode resends a verification code to the user's email
+// ResendVerificationCode godoc
+// @Summary Resend verification code
+// @Description Resends a verification code to the user's email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param resendRequest body ResendCodeRequest true "Email to resend verification code"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/resend-verification [post]
 func ResendVerificationCode(c *gin.Context) {
 	var request ResendCodeRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -562,6 +624,29 @@ func uploadToSupabase(fileHeader *multipart.FileHeader, bucketName string, desti
 	return publicURL.SignedURL, nil
 }
 
+// RegisterWithMedia godoc
+// @Summary Register with media files
+// @Description Register a new user with profile picture and banner image
+// @Tags auth
+// @Accept multipart/form-data
+// @Produce json
+// @Param profile_picture formData file false "Profile picture"
+// @Param banner_image formData file false "Banner image"
+// @Param name formData string true "Full name"
+// @Param username formData string true "Username"
+// @Param email formData string true "Email address"
+// @Param password formData string true "Password"
+// @Param confirm_password formData string true "Confirm password"
+// @Param gender formData string true "Gender"
+// @Param date_of_birth formData string true "Date of birth"
+// @Param security_question formData string true "Security question"
+// @Param security_answer formData string true "Security answer"
+// @Param subscribe_to_newsletter formData boolean false "Subscribe to newsletter"
+// @Param recaptcha_token formData string true "reCAPTCHA token"
+// @Success 200 {object} RegisterResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/auth/register-with-media [post]
 func RegisterWithMedia(c *gin.Context) {
 	if supabaseClient == nil {
 		InitServices()
@@ -615,6 +700,18 @@ func RegisterWithMedia(c *gin.Context) {
 	})
 }
 
+// Logout godoc
+// @Summary Logout user
+// @Description Invalidate user tokens and logout
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param logout body LogoutRequest true "Logout Request"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/auth/logout [post]
 func Logout(c *gin.Context) {
 	var request LogoutRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -630,5 +727,283 @@ func Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Logout successful",
+	})
+}
+
+// GetUserProfile godoc
+// @Summary Get user profile
+// @Description Get the profile of the authenticated user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/users/profile [get]
+func GetUserProfile(c *gin.Context) {
+	handler := UserProfileHandler()
+	c.Request.Method = http.MethodGet
+	handler(c)
+}
+
+// UpdateUserProfile godoc
+// @Summary Update user profile
+// @Description Update the profile of the authenticated user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param profileUpdate body UpdateUserRequest true "User profile data to update"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/users/profile [put]
+func UpdateUserProfile(c *gin.Context) {
+	handler := UserProfileHandler()
+	c.Request.Method = http.MethodPut
+	handler(c)
+}
+
+// CreateThread godoc
+// @Summary Create a new thread
+// @Description Create a new thread/post
+// @Tags threads
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param thread body map[string]interface{} true "Thread data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/threads [post]
+func CreateThread(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Create thread endpoint"})
+}
+
+// GetThread godoc
+// @Summary Get thread by ID
+// @Description Get a specific thread by its ID
+// @Tags threads
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Thread ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/threads/{id} [get]
+func GetThread(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Get thread endpoint", "id": c.Param("id")})
+}
+
+// GetThreadsByUser godoc
+// @Summary Get threads by user
+// @Description Get all threads created by a specific user
+// @Tags threads
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "User ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/threads/user/{id} [get]
+func GetThreadsByUser(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Get threads by user endpoint", "userId": c.Param("id")})
+}
+
+// UpdateThread godoc
+// @Summary Update thread
+// @Description Update an existing thread
+// @Tags threads
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Thread ID"
+// @Param thread body map[string]interface{} true "Thread data to update"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/threads/{id} [put]
+func UpdateThread(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Update thread endpoint", "id": c.Param("id")})
+}
+
+// DeleteThread godoc
+// @Summary Delete thread
+// @Description Delete an existing thread
+// @Tags threads
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Thread ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/threads/{id} [delete]
+func DeleteThread(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Delete thread endpoint", "id": c.Param("id")})
+}
+
+// UploadThreadMedia godoc
+// @Summary Upload thread media
+// @Description Upload media files for a thread
+// @Tags threads
+// @Accept multipart/form-data
+// @Produce json
+// @Security ApiKeyAuth
+// @Param file formData file true "Media file"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/threads/media [post]
+func UploadThreadMedia(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Upload thread media endpoint"})
+}
+
+// ListProducts godoc
+// @Summary List products
+// @Description Get a list of all products
+// @Tags products
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/products [get]
+func ListProducts(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "List products endpoint"})
+}
+
+// GetProduct godoc
+// @Summary Get product by ID
+// @Description Get a specific product by its ID
+// @Tags products
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Product ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/products/{id} [get]
+func GetProduct(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Get product endpoint", "id": c.Param("id")})
+}
+
+// CreateProduct godoc
+// @Summary Create a new product
+// @Description Create a new product
+// @Tags products
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param product body map[string]interface{} true "Product data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/products [post]
+func CreateProduct(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Create product endpoint"})
+}
+
+// UpdateProduct godoc
+// @Summary Update product
+// @Description Update an existing product
+// @Tags products
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Product ID"
+// @Param product body map[string]interface{} true "Product data to update"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/products/{id} [put]
+func UpdateProduct(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Update product endpoint", "id": c.Param("id")})
+}
+
+// DeleteProduct godoc
+// @Summary Delete product
+// @Description Delete an existing product
+// @Tags products
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Product ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/products/{id} [delete]
+func DeleteProduct(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Delete product endpoint", "id": c.Param("id")})
+}
+
+// CreatePayment godoc
+// @Summary Create a new payment
+// @Description Create a new payment
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param payment body map[string]interface{} true "Payment data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/payments [post]
+func CreatePayment(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Create payment endpoint"})
+}
+
+// GetPayment godoc
+// @Summary Get payment by ID
+// @Description Get a specific payment by its ID
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "Payment ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/payments/{id} [get]
+func GetPayment(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Get payment endpoint", "id": c.Param("id")})
+}
+
+// GetPaymentHistory godoc
+// @Summary Get payment history
+// @Description Get the payment history for the authenticated user
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/payments/history [get]
+func GetPaymentHistory(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Get payment history endpoint"})
+}
+
+// GetOAuthConfig godoc
+// @Summary Get OAuth configuration
+// @Description Returns OAuth client IDs and configuration
+// @Tags auth
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/oauth-config [get]
+func GetOAuthConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"google_client_id": Config.OAuth.GoogleClientID,
 	})
 }

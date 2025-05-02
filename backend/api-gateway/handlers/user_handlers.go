@@ -37,19 +37,19 @@ func NewUserServiceClient(cc interface{}) interface{} {
 // GetUserProfile retrieves the user's profile
 func GetUserProfile(c *gin.Context) {
 	c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-		Success: false,
+			Success: false,
 		Message: "User service is currently unavailable due to proto compilation issues",
-		Code:    "SERVICE_UNAVAILABLE",
-	})
-	return
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
 }
 
 // UpdateUserProfile updates the user's profile
 func UpdateUserProfile(c *gin.Context) {
 	c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-		Success: false,
+			Success: false,
 		Message: "User service is currently unavailable due to proto compilation issues",
-		Code:    "SERVICE_UNAVAILABLE",
-	})
-	return
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
 }

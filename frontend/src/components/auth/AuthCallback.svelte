@@ -9,7 +9,6 @@
 
 <div class="max-w-md w-full p-6 bg-gray-900 rounded-lg shadow-lg border border-gray-800">
   <div class="text-center">
-    <!-- AYCOM Logo/Branding -->
     <div class="mb-6 flex justify-center">
       <Logo size="large" />
     </div>
