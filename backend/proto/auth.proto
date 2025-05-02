@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto";
+option go_package = "aycom/backend/services/auth/proto";
 
 // Auth service definition
 service AuthService {

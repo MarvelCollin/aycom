@@ -1,9 +1,10 @@
 package routes
 
 import (
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/middleware"
+	"aycom/backend/api-gateway/config"
+	"aycom/backend/api-gateway/handlers"
+	"aycom/backend/api-gateway/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,16 +25,13 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	// Public routes with rate limiting
 	auth := v1.Group("/auth")
-	auth.Use(handlers.RateLimitMiddleware())
+	auth.Use(handlers.RateLimitMiddleware)
 	{
 		auth.GET("/oauth-config", handlers.GetOAuthConfig)
 		auth.POST("/login", handlers.Login)
 		auth.POST("/register", handlers.Register)
 		auth.POST("/register-with-media", handlers.RegisterWithMedia)
 		auth.POST("/refresh", handlers.RefreshToken)
-		auth.POST("/google", handlers.GoogleAuth)
-		auth.POST("/verify-email", handlers.VerifyEmail)
-		auth.POST("/resend-code", handlers.ResendVerificationCode)
 	}
 
 	// Protected routes - using JWT authentication middleware
@@ -45,12 +43,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		users.GET("/profile", handlers.GetUserProfile)
 		users.PUT("/profile", handlers.UpdateUserProfile)
-		users.GET("/suggestions", handlers.GetSuggestedUsers)
-		users.GET("/check-username", handlers.CheckUsernameAvailability)
-		users.POST("/:id/follow", handlers.FollowUser)
-		users.POST("/:id/unfollow", handlers.UnfollowUser)
-		users.GET("/:id/followers", handlers.GetUserFollowers)
-		users.GET("/:id/following", handlers.GetUserFollowing)
 	}
 
 	// Thread routes

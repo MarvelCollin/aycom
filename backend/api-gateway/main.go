@@ -14,9 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/router"
+	"aycom/backend/api-gateway/config"
+	"aycom/backend/api-gateway/handlers"
+	"aycom/backend/api-gateway/router"
 )
 
 func main() {

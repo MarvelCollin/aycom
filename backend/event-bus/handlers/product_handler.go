@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/event-bus/publisher"
+	"aycom/backend/event-bus/publisher"
+
 	"github.com/streadway/amqp"
 )
 

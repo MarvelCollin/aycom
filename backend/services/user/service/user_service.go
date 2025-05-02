@@ -6,9 +6,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/repository"
+	"aycom/backend/services/user/db"
+	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/proto"
+
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,7 +18,7 @@ import (
 
 // UserService defines the methods for user-related operations
 type UserService interface {
-	CreateUserProfile(ctx context.Context, req *proto.CreateUserProfileRequest) (*model.User, error)
+	CreateUserProfile(ctx context.Context, req *proto.CreateUserRequest) (*model.User, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
 	UpdateUserProfile(ctx context.Context, req *proto.UpdateUserRequest) (*model.User, error)
@@ -27,7 +28,7 @@ type UserService interface {
 
 // userService implements the UserService interface
 type userService struct {
-	repo repository.UserRepository
+	repo db.UserRepository
 }
 
 // UserServiceImpl is used by main for seeding, can be removed if seeding is moved
@@ -39,7 +40,7 @@ type userService struct {
 
 // NewUserService creates a new user service
 // Changed to accept repository and return the interface type
-func NewUserService(repo repository.UserRepository) UserService {
+func NewUserService(repo db.UserRepository) UserService {
 	return &userService{
 		repo: repo,
 	}
@@ -50,57 +51,43 @@ func NewUserService(repo repository.UserRepository) UserService {
 
 // CreateUserProfile creates a new user profile in the system
 // Renamed from CreateUser, accepts proto request
-func (s *userService) CreateUserProfile(ctx context.Context, req *proto.CreateUserProfileRequest) (*model.User, error) {
-	// Validate required fields from request
-	if req.UserId == "" || req.Username == "" || req.Email == "" || req.Name == "" {
+func (s *userService) CreateUserProfile(ctx context.Context, req *proto.CreateUserRequest) (*model.User, error) {
+	if req.User == nil {
+		return nil, status.Error(codes.InvalidArgument, "Missing user information")
+	}
+	userProto := req.User
+	if userProto.Id == "" || userProto.Username == "" || userProto.Email == "" || userProto.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Missing required user profile information")
 	}
-
-	// Convert proto user_id (string) to uuid.UUID
-	userID, err := uuid.Parse(req.UserId)
+	userID, err := uuid.Parse(userProto.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid user ID format: %v", err)
 	}
-
-	// Check if user with same email already exists
-	existingUser, err := s.repo.FindUserByEmail(req.Email)
+	existingUser, err := s.repo.FindUserByEmail(userProto.Email)
 	if err == nil && existingUser != nil {
-		// Idempotency: If user already exists with the same ID, maybe return existing?
-		// Or return error? Current behavior: Error.
 		return nil, status.Error(codes.AlreadyExists, "User with this email already exists")
 	}
-	// TODO: Check for specific GORM 'record not found' error if repo returns it
-
-	// Check if user with same username already exists
-	existingUser, err = s.repo.FindUserByUsername(req.Username)
+	existingUser, err = s.repo.FindUserByUsername(userProto.Username)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "Username already taken")
 	}
-	// TODO: Check for specific GORM 'record not found' error
-
-	// Create new user model using the constructor
-	// Note: Assumes date format from auth service is compatible
-	user := model.NewUser(
-		userID,
-		req.Username,
-		req.Email,
-		req.Name,
-		req.Gender,
-		req.DateOfBirth, // Pass string directly, constructor handles parsing
-		req.ProfilePictureUrl,
-		req.BannerUrl,
-		req.SecurityQuestion,
-		req.SecurityAnswer,
-		req.SubscribeToNewsletter,
-	)
-
-	// Save user to database
+	user := &model.User{
+		ID:                userID,
+		Username:          userProto.Username,
+		Email:             userProto.Email,
+		Name:              userProto.Name,
+		Gender:            userProto.Gender,
+		ProfilePictureURL: userProto.ProfilePictureUrl,
+		BannerURL:         userProto.BannerUrl,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+	}
+	// DateOfBirth, Bio, Location, Website, etc. can be mapped if needed
 	err = s.repo.CreateUser(user)
 	if err != nil {
 		log.Printf("Error creating user in repository: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to create user profile")
 	}
-
 	return user, nil
 }
 

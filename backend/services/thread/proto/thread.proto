@@ -2,278 +2,289 @@ syntax = "proto3";
 
 package thread;
 
-option go_package = "thread-service/proto";
+option go_package = "github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 
-// ThreadService defines all the operations related to threads
+// Thread Service definition
 service ThreadService {
   // Thread operations
-  rpc CreateThread(CreateThreadRequest) returns (ThreadResponse) {}
-  rpc GetThreadById(GetThreadRequest) returns (ThreadResponse) {}
-  rpc GetThreadsByUser(GetThreadsByUserRequest) returns (ThreadsResponse) {}
-  rpc UpdateThread(UpdateThreadRequest) returns (ThreadResponse) {}
-  rpc DeleteThread(DeleteThreadRequest) returns (google.protobuf.Empty) {}
-  
+  rpc CreateThread (CreateThreadRequest) returns (ThreadResponse);
+  rpc GetThreadById (GetThreadRequest) returns (ThreadResponse);
+  rpc GetThreadsByUser (GetThreadsByUserRequest) returns (ThreadsResponse);
+  rpc UpdateThread (UpdateThreadRequest) returns (ThreadResponse);
+  rpc DeleteThread (DeleteThreadRequest) returns (google.protobuf.Empty);
+
   // Reply operations
-  rpc CreateReply(CreateReplyRequest) returns (ReplyResponse) {}
-  rpc GetRepliesByThread(GetRepliesByThreadRequest) returns (RepliesResponse) {}
-  rpc UpdateReply(UpdateReplyRequest) returns (ReplyResponse) {}
-  rpc DeleteReply(DeleteReplyRequest) returns (google.protobuf.Empty) {}
-  
+  rpc CreateReply (CreateReplyRequest) returns (ReplyResponse);
+  rpc GetRepliesByThread (GetRepliesByThreadRequest) returns (RepliesResponse);
+  rpc UpdateReply (UpdateReplyRequest) returns (ReplyResponse);
+  rpc DeleteReply (DeleteReplyRequest) returns (google.protobuf.Empty);
+
   // Interaction operations
-  rpc LikeThread(LikeThreadRequest) returns (google.protobuf.Empty) {}
-  rpc UnlikeThread(UnlikeThreadRequest) returns (google.protobuf.Empty) {}
-  rpc LikeReply(LikeReplyRequest) returns (google.protobuf.Empty) {}
-  rpc UnlikeReply(UnlikeReplyRequest) returns (google.protobuf.Empty) {}
-  rpc RepostThread(RepostThreadRequest) returns (google.protobuf.Empty) {}
-  rpc RemoveRepost(RemoveRepostRequest) returns (google.protobuf.Empty) {}
-  rpc BookmarkThread(BookmarkThreadRequest) returns (google.protobuf.Empty) {}
-  rpc RemoveBookmark(RemoveBookmarkRequest) returns (google.protobuf.Empty) {}
-  
+  rpc LikeThread (LikeThreadRequest) returns (google.protobuf.Empty);
+  rpc UnlikeThread (UnlikeThreadRequest) returns (google.protobuf.Empty);
+  rpc LikeReply (LikeReplyRequest) returns (google.protobuf.Empty);
+  rpc UnlikeReply (UnlikeReplyRequest) returns (google.protobuf.Empty);
+  rpc RepostThread (RepostThreadRequest) returns (google.protobuf.Empty);
+  rpc RemoveRepost (RemoveRepostRequest) returns (google.protobuf.Empty);
+  rpc BookmarkThread (BookmarkThreadRequest) returns (google.protobuf.Empty);
+  rpc RemoveBookmark (RemoveBookmarkRequest) returns (google.protobuf.Empty);
+
   // Poll operations
-  rpc CreatePoll(CreatePollRequest) returns (PollResponse) {}
-  rpc VotePoll(VotePollRequest) returns (google.protobuf.Empty) {}
-  rpc GetPollResults(GetPollResultsRequest) returns (PollResultsResponse) {}
+  rpc CreatePoll (CreatePollRequest) returns (PollResponse);
+  rpc VotePoll (VotePollRequest) returns (google.protobuf.Empty);
+  rpc GetPollResults (GetPollResultsRequest) returns (PollResultsResponse);
 }
 
-// Media information
-message MediaInfo {
-  string type = 1; // Image, GIF, Video
+// Thread message
+message Thread {
+  string id = 1;
+  string user_id = 2;
+  string content = 3;
+  repeated Media media = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  int64 view_count = 7;
+  optional Poll poll = 8;
+  optional string community_id = 9;
+  optional bool is_pinned = 10;
+  optional string who_can_reply = 11;
+  optional google.protobuf.Timestamp scheduled_at = 12;
+  optional bool is_advertisement = 13;
+}
+
+// Media message
+message Media {
+  string id = 1;
   string url = 2;
+  string type = 3; // "image", "video", etc.
 }
 
-// Create Thread
-message CreateThreadRequest {
-  string user_id = 1;
-  string content = 2;
-  string who_can_reply = 3; // Everyone, Accounts You Follow, Verified Accounts
-  repeated string category_names = 4;
-  repeated string hashtags = 5;
-  repeated string mentioned_user_ids = 6;
-  repeated MediaInfo media = 7;
-  google.protobuf.Timestamp scheduled_at = 8;
-  string community_id = 9;
-  bool is_advertisement = 10;
-  
-  // For poll
-  PollInfo poll = 11;
+// MediaResponse message
+message MediaResponse {
+  string id = 1;
+  string url = 2;
+  string type = 3;
 }
 
+// Poll message
+message Poll {
+  string id = 1;
+  string question = 2;
+  repeated PollOption options = 3;
+  google.protobuf.Timestamp end_time = 4;
+  bool is_anonymous = 5;
+}
+
+// PollInfo message
 message PollInfo {
   string question = 1;
   repeated string options = 2;
-  google.protobuf.Timestamp closes_at = 3;
-  string who_can_vote = 4; // Everyone, Accounts You Follow, Verified Accounts
+  google.protobuf.Timestamp end_time = 3;
+  bool is_anonymous = 4;
 }
 
-// Get Thread
+// Poll option message
+message PollOption {
+  string id = 1;
+  string text = 2;
+}
+
+// Reply message
+message Reply {
+  string id = 1;
+  string thread_id = 2;
+  string user_id = 3;
+  string content = 4;
+  repeated Media media = 5;
+  string parent_id = 6; // Optional, for replies to replies
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  optional bool is_pinned = 9;
+}
+
+// CreateThreadRequest message
+message CreateThreadRequest {
+  string user_id = 1;
+  string content = 2;
+  repeated Media media = 3;
+  optional PollRequest poll = 4;
+  optional string community_id = 5;
+  optional google.protobuf.Timestamp scheduled_at = 6;
+  optional string who_can_reply = 7;
+  optional bool is_advertisement = 8;
+  repeated string hashtags = 9;
+  repeated string mentioned_user_ids = 10;
+}
+
+// PollRequest message for creating polls
+message PollRequest {
+  string question = 1;
+  repeated string options = 2;
+  google.protobuf.Timestamp end_time = 3;
+  bool is_anonymous = 4;
+}
+
+// GetThreadRequest message
 message GetThreadRequest {
   string thread_id = 1;
 }
 
-// Get Threads by User
+// GetThreadsByUserRequest message
 message GetThreadsByUserRequest {
   string user_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// Update Thread
+// UpdateThreadRequest message
 message UpdateThreadRequest {
   string thread_id = 1;
-  string content = 2;
-  bool is_pinned = 3;
-  repeated string add_category_names = 4;
-  repeated string remove_category_names = 5;
-  repeated string add_hashtags = 6;
-  repeated string remove_hashtags = 7;
+  string user_id = 2;
+  string content = 3;
+  repeated Media media = 4;
+  optional bool is_pinned = 5;
+  repeated string add_category_names = 6;
+  repeated string remove_category_names = 7;
+  repeated string add_hashtags = 8;
+  repeated string remove_hashtags = 9;
 }
 
-// Delete Thread
+// DeleteThreadRequest message
 message DeleteThreadRequest {
   string thread_id = 1;
-  string user_id = 2; // For authorization check
+  string user_id = 2;
 }
 
-// Create Reply
+// CreateReplyRequest message
 message CreateReplyRequest {
   string thread_id = 1;
   string user_id = 2;
   string content = 3;
-  string parent_reply_id = 4;
-  repeated MediaInfo media = 5;
-  repeated string mentioned_user_ids = 6;
+  repeated Media media = 4;
+  string parent_id = 5; // Optional, for replies to replies
+  optional string parent_reply_id = 6;
+  repeated string mentioned_user_ids = 7;
 }
 
-// Get Replies
+// GetRepliesByThreadRequest message
 message GetRepliesByThreadRequest {
   string thread_id = 1;
-  string parent_reply_id = 2; // Optional, if provided gets replies to a specific reply
-  int32 page = 3;
-  int32 limit = 4;
+  int32 page = 2;
+  int32 limit = 3;
 }
 
-// Update Reply
+// UpdateReplyRequest message
 message UpdateReplyRequest {
   string reply_id = 1;
-  string user_id = 2; // For authorization check
+  string user_id = 2;
   string content = 3;
-  bool is_pinned = 4;
+  repeated Media media = 4;
+  optional bool is_pinned = 5;
 }
 
-// Delete Reply
+// DeleteReplyRequest message
 message DeleteReplyRequest {
   string reply_id = 1;
-  string user_id = 2; // For authorization check
+  string user_id = 2;
 }
 
-// Like Thread
+// LikeThreadRequest message
 message LikeThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// Unlike Thread
+// UnlikeThreadRequest message
 message UnlikeThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// Like Reply
+// LikeReplyRequest message
 message LikeReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// Unlike Reply
+// UnlikeReplyRequest message
 message UnlikeReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// Repost Thread
+// RepostThreadRequest message
 message RepostThreadRequest {
   string thread_id = 1;
   string user_id = 2;
-  string repost_text = 3; // Optional text to add to the repost
+  string content = 3; // Optional content to add to the repost
 }
 
-// Remove Repost
+// RemoveRepostRequest message
 message RemoveRepostRequest {
-  string thread_id = 1;
+  string repost_id = 1;
   string user_id = 2;
 }
 
-// Bookmark Thread
+// BookmarkThreadRequest message
 message BookmarkThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// Remove Bookmark
+// RemoveBookmarkRequest message
 message RemoveBookmarkRequest {
-  string thread_id = 1;
+  string bookmark_id = 1;
   string user_id = 2;
 }
 
-// Create Poll Vote
+// CreatePollRequest message
+message CreatePollRequest {
+  string thread_id = 1;
+  string user_id = 2;
+  PollRequest poll = 3;
+}
+
+// VotePollRequest message
 message VotePollRequest {
   string poll_id = 1;
   string option_id = 2;
   string user_id = 3;
 }
 
-// Get Poll Results
+// GetPollResultsRequest message
 message GetPollResultsRequest {
   string poll_id = 1;
 }
 
-// Thread Response
+// ThreadResponse message
 message ThreadResponse {
-  string thread_id = 1;
-  string user_id = 2;
-  string content = 3;
-  bool is_pinned = 4;
-  string who_can_reply = 5;
-  google.protobuf.Timestamp scheduled_at = 6;
-  string community_id = 7;
-  bool is_advertisement = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
-  
-  // Stats
-  int32 reply_count = 11;
-  int32 like_count = 12;
-  int32 repost_count = 13;
-  int32 view_count = 14;
-  
-  // Related data
-  repeated MediaResponse media = 15;
-  repeated string hashtags = 16;
-  repeated string categories = 17;
-  repeated string mentioned_user_ids = 18;
-  PollResponse poll = 19;
-}
-
-// Media Response
-message MediaResponse {
-  string media_id = 1;
-  string type = 2;
-  string url = 3;
-}
-
-// Poll Response
-message PollResponse {
-  string poll_id = 1;
-  string thread_id = 2;
-  string question = 3;
-  google.protobuf.Timestamp closes_at = 4;
-  string who_can_vote = 5;
-  repeated PollOptionResponse options = 6;
-  int32 total_votes = 7;
-}
-
-// Poll Option Response
-message PollOptionResponse {
-  string option_id = 1;
-  string text = 2;
-  int32 vote_count = 3;
-  float percentage = 4;
-}
-
-// Poll Results Response
-message PollResultsResponse {
-  string poll_id = 1;
-  repeated PollOptionResponse options = 2;
-  int32 total_votes = 3;
-  bool has_user_voted = 4;
-  string user_voted_option_id = 5;
-  bool is_closed = 6;
-}
-
-// Reply Response
-message ReplyResponse {
-  string reply_id = 1;
+  string id = 1;
   string thread_id = 2;
   string user_id = 3;
   string content = 4;
-  bool is_pinned = 5;
-  string parent_reply_id = 6;
-  google.protobuf.Timestamp created_at = 7;
-  google.protobuf.Timestamp updated_at = 8;
-  
-  // Stats
-  int32 like_count = 9;
-  int32 reply_count = 10;
-  
-  // Related data
-  repeated MediaResponse media = 11;
-  repeated string mentioned_user_ids = 12;
+  repeated MediaResponse media = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  int64 reply_count = 8;
+  int64 like_count = 9;
+  int64 repost_count = 10;
+  int64 view_count = 11;
+  optional Poll poll = 12;
+  optional string parent_thread_id = 13; // For reposts
+  optional bool is_repost = 14;
+  optional bool is_liked = 15;
+  optional bool is_bookmarked = 16;
+  optional bool is_pinned = 17;
+  optional string who_can_reply = 18;
+  optional google.protobuf.Timestamp scheduled_at = 19;
+  optional string community_id = 20;
+  optional bool is_advertisement = 21;
 }
 
-// Multiple Threads Response
+// ThreadsResponse message
 message ThreadsResponse {
   repeated ThreadResponse threads = 1;
   int32 total_count = 2;
@@ -281,7 +292,22 @@ message ThreadsResponse {
   int32 limit = 4;
 }
 
-// Multiple Replies Response
+// ReplyResponse message
+message ReplyResponse {
+  string id = 1;
+  string thread_id = 2;
+  string user_id = 3;
+  string content = 4;
+  repeated Media media = 5;
+  string parent_id = 6; // Optional, for replies to replies
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  int64 like_count = 9;
+  int64 reply_count = 10;
+  optional bool is_liked = 11;
+}
+
+// RepliesResponse message
 message RepliesResponse {
   repeated ReplyResponse replies = 1;
   int32 total_count = 2;
@@ -289,10 +315,30 @@ message RepliesResponse {
   int32 limit = 4;
 }
 
-message CreatePollRequest {
-  string thread_id = 1;
+// PollResponse message
+message PollResponse {
+  string id = 1;
+  string thread_id = 2;
+  string question = 3;
+  repeated PollOption options = 4;
+  google.protobuf.Timestamp end_time = 5;
+  bool is_anonymous = 6;
+  optional string voted_option_id = 7; // The option the requesting user voted for, if any
+}
+
+// PollResultsResponse message
+message PollResultsResponse {
+  string id = 1;
   string question = 2;
-  repeated string options = 3;
-  google.protobuf.Timestamp closes_at = 4;
-  string who_can_vote = 5;
+  repeated PollOptionResult results = 3;
+  int64 total_votes = 4;
+  bool is_ended = 5;
+}
+
+// PollOptionResult message
+message PollOptionResult {
+  string id = 1;
+  string text = 2;
+  int64 vote_count = 3;
+  double percentage = 4;
 } 

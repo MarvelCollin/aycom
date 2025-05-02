@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/user/proto"
+	"aycom/backend/services/user/proto"
+
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,10 +21,10 @@ func initUserServiceClient() error {
 		return nil
 	}
 
-	userServiceHost := Config.UserServiceHost
+	userServiceHost := Config.Services.UserServiceHost
 	if userServiceHost == "" {
 		// Use environment variables or defaults from config
-		userServiceHost = "user_service:" + Config.UserServicePort // Use Docker service name and configured port
+		userServiceHost = "user_service:" + Config.Services.UserServicePort // Use Docker service name and configured port
 	}
 
 	log.Printf("Connecting to User service at %s", userServiceHost)
@@ -129,16 +130,14 @@ func GetUserProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"user": gin.H{
-			"id":                  resp.UserId,
-			"name":                resp.Name,
-			"username":            resp.Username,
-			"email":               resp.Email,
-			"gender":              resp.Gender,
-			"date_of_birth":       resp.DateOfBirth,
-			"profile_picture_url": resp.ProfilePictureUrl,
-			"banner_url":          resp.BannerUrl,
-			"is_verified":         resp.IsVerified,
-			// Add additional fields from the proto response as needed
+			"id":                  resp.User.Id,
+			"name":                resp.User.Name,
+			"username":            resp.User.Username,
+			"email":               resp.User.Email,
+			"gender":              resp.User.Gender,
+			"date_of_birth":       resp.User.DateOfBirth,
+			"profile_picture_url": resp.User.ProfilePictureUrl,
+			"banner_url":          resp.User.BannerUrl,
 		},
 	})
 }
@@ -250,16 +249,14 @@ func UpdateUserProfile(c *gin.Context) {
 		"success": true,
 		"message": "Profile updated successfully",
 		"user": gin.H{
-			"id":                  resp.UserId,
-			"name":                resp.Name,
-			"username":            resp.Username,
-			"email":               resp.Email,
-			"gender":              resp.Gender,
-			"date_of_birth":       resp.DateOfBirth,
-			"profile_picture_url": resp.ProfilePictureUrl,
-			"banner_url":          resp.BannerUrl,
-			"is_verified":         resp.IsVerified,
-			// Add additional fields from the proto response as needed
+			"id":                  resp.User.Id,
+			"name":                resp.User.Name,
+			"username":            resp.User.Username,
+			"email":               resp.User.Email,
+			"gender":              resp.User.Gender,
+			"date_of_birth":       resp.User.DateOfBirth,
+			"profile_picture_url": resp.User.ProfilePictureUrl,
+			"banner_url":          resp.User.BannerUrl,
 		},
 	})
 }

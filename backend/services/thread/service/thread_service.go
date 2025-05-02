@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/repository"
+	"aycom/backend/services/thread/db"
+	"aycom/backend/services/thread/proto"
+
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,10 +15,10 @@ import (
 
 // ThreadService defines the interface for thread operations
 type ThreadService interface {
-	CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*model.Thread, error)
-	GetThreadByID(ctx context.Context, threadID string) (*model.Thread, error)
-	GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, int64, error)
-	UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*model.Thread, error)
+	CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*db.Thread, error)
+	GetThreadByID(ctx context.Context, threadID string) (*db.Thread, error)
+	GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*db.Thread, int64, error)
+	UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*db.Thread, error)
 	DeleteThread(ctx context.Context, threadID, userID string) error
 	IncrementViewCount(ctx context.Context, threadID string) error
 	GetThreadStats(ctx context.Context, threadID string) (replyCount, likeCount, repostCount int64, err error)
@@ -26,18 +26,18 @@ type ThreadService interface {
 
 // threadService implements the ThreadService interface
 type threadService struct {
-	threadRepo  repository.ThreadRepository
-	mediaRepo   repository.MediaRepository
-	hashtagRepo repository.HashtagRepository
-	mentionRepo repository.MentionRepository
+	threadRepo  db.ThreadRepository
+	mediaRepo   db.MediaRepository
+	hashtagRepo db.HashtagRepository
+	mentionRepo db.MentionRepository
 }
 
 // NewThreadService creates a new thread service
 func NewThreadService(
-	threadRepo repository.ThreadRepository,
-	mediaRepo repository.MediaRepository,
-	hashtagRepo repository.HashtagRepository,
-	mentionRepo repository.MentionRepository,
+	threadRepo db.ThreadRepository,
+	mediaRepo db.MediaRepository,
+	hashtagRepo db.HashtagRepository,
+	mentionRepo db.MentionRepository,
 ) ThreadService {
 	return &threadService{
 		threadRepo:  threadRepo,
@@ -48,7 +48,7 @@ func NewThreadService(
 }
 
 // CreateThread creates a new thread
-func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*model.Thread, error) {
+func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*db.Thread, error) {
 	// Validate required fields
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
@@ -91,7 +91,7 @@ func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThrea
 
 	// Create thread
 	threadID := uuid.New()
-	thread := &model.Thread{
+	thread := &db.Thread{
 		ThreadID:        threadID,
 		UserID:          userID,
 		Content:         req.Content,
@@ -111,7 +111,7 @@ func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThrea
 	// Process media attachments if any
 	if len(req.Media) > 0 {
 		for _, mediaInfo := range req.Media {
-			media := &model.Media{
+			media := &db.Media{
 				MediaID:   uuid.New(),
 				ThreadID:  &thread.ThreadID,
 				Type:      mediaInfo.Type,
@@ -144,7 +144,7 @@ func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThrea
 			if err != nil {
 				return nil, status.Errorf(codes.InvalidArgument, "Invalid mentioned user ID: %v", err)
 			}
-			mention := &model.UserMention{
+			mention := &db.UserMention{
 				MentionID:       uuid.New(),
 				MentionedUserID: userUUID,
 				ThreadID:        &thread.ThreadID,
@@ -162,14 +162,14 @@ func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThrea
 }
 
 // GetThreadByID retrieves a thread by its ID
-func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*model.Thread, error) {
+func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*db.Thread, error) {
 	if threadID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
 
 	thread, err := s.threadRepo.FindThreadByID(threadID)
 	if err != nil {
-		if errors.Is(err, repository.ErrThreadNotFound) {
+		if errors.Is(err, db.ErrThreadNotFound) {
 			return nil, status.Errorf(codes.NotFound, "Thread with ID %s not found", threadID)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)
@@ -179,7 +179,7 @@ func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*mo
 }
 
 // GetThreadsByUserID retrieves threads by user ID with pagination
-func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, int64, error) {
+func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*db.Thread, int64, error) {
 	if userID == "" {
 		return nil, 0, status.Error(codes.InvalidArgument, "User ID is required")
 	}
@@ -201,7 +201,7 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 }
 
 // UpdateThread updates a thread
-func (s *threadService) UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*model.Thread, error) {
+func (s *threadService) UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*db.Thread, error) {
 	if req.ThreadId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
@@ -209,7 +209,7 @@ func (s *threadService) UpdateThread(ctx context.Context, req *proto.UpdateThrea
 	// Get existing thread
 	thread, err := s.threadRepo.FindThreadByID(req.ThreadId)
 	if err != nil {
-		if errors.Is(err, repository.ErrThreadNotFound) {
+		if errors.Is(err, db.ErrThreadNotFound) {
 			return nil, status.Errorf(codes.NotFound, "Thread with ID %s not found", req.ThreadId)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)
@@ -289,7 +289,7 @@ func (s *threadService) DeleteThread(ctx context.Context, threadID, userID strin
 	// Get thread to check ownership
 	thread, err := s.threadRepo.FindThreadByID(threadID)
 	if err != nil {
-		if errors.Is(err, repository.ErrThreadNotFound) {
+		if errors.Is(err, db.ErrThreadNotFound) {
 			return status.Errorf(codes.NotFound, "Thread with ID %s not found", threadID)
 		}
 		return status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)

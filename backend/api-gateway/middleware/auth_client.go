@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	"aycom/backend/api-gateway/config"
 )
 
 // LoginRequest defines the login request structure

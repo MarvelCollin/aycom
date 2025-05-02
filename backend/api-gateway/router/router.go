@@ -1,9 +1,10 @@
 package router
 
 import (
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/middleware"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/routes"
+	"aycom/backend/api-gateway/handlers"
+	"aycom/backend/api-gateway/middleware"
+	"aycom/backend/api-gateway/routes"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +22,7 @@ func SetupRouter() *gin.Engine {
 
 	// API v1 group
 	v1 := r.Group("/api/v1")
-	v1.Use(handlers.RateLimitMiddleware())
+	v1.Use(handlers.RateLimitMiddleware)
 
 	routes.RegisterAuthRoutes(v1)
 

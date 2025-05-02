@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/proto/thread-service/proto"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/repository"
+	db "aycom/backend/services/thread/db"
+	"aycom/backend/services/thread/proto"
+
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,27 +15,27 @@ import (
 
 // ReplyService defines the interface for reply operations
 type ReplyService interface {
-	CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*model.Reply, error)
-	GetReplyByID(ctx context.Context, replyID string) (*model.Reply, error)
-	GetRepliesByThreadID(ctx context.Context, threadID string, parentReplyID *string, page, limit int) ([]*model.Reply, int64, error)
-	UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*model.Reply, error)
+	CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*db.Reply, error)
+	GetReplyByID(ctx context.Context, replyID string) (*db.Reply, error)
+	GetRepliesByThreadID(ctx context.Context, threadID string, parentReplyID *string, page, limit int) ([]*db.Reply, int64, error)
+	UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*db.Reply, error)
 	DeleteReply(ctx context.Context, replyID, userID string) error
 }
 
 // replyService implements the ReplyService interface
 type replyService struct {
-	replyRepo   repository.ReplyRepository
-	threadRepo  repository.ThreadRepository
-	mediaRepo   repository.MediaRepository
-	mentionRepo repository.MentionRepository
+	replyRepo   db.ReplyRepository
+	threadRepo  db.ThreadRepository
+	mediaRepo   db.MediaRepository
+	mentionRepo db.MentionRepository
 }
 
 // NewReplyService creates a new reply service
 func NewReplyService(
-	replyRepo repository.ReplyRepository,
-	threadRepo repository.ThreadRepository,
-	mediaRepo repository.MediaRepository,
-	mentionRepo repository.MentionRepository,
+	replyRepo db.ReplyRepository,
+	threadRepo db.ThreadRepository,
+	mediaRepo db.MediaRepository,
+	mentionRepo db.MentionRepository,
 ) ReplyService {
 	return &replyService{
 		replyRepo:   replyRepo,
@@ -46,7 +46,7 @@ func NewReplyService(
 }
 
 // CreateReply creates a new reply to a thread or another reply
-func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*model.Reply, error) {
+func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*db.Reply, error) {
 	// Validate required fields
 	if req.ThreadId == "" || req.UserId == "" || req.Content == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID, User ID, and content are required")
@@ -55,7 +55,7 @@ func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRe
 	// Verify thread exists
 	_, err := s.threadRepo.FindThreadByID(req.ThreadId)
 	if err != nil {
-		if errors.Is(err, repository.ErrThreadNotFound) {
+		if errors.Is(err, db.ErrThreadNotFound) {
 			return nil, status.Errorf(codes.NotFound, "Thread with ID %s not found", req.ThreadId)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)
@@ -89,7 +89,7 @@ func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRe
 	}
 
 	// Create reply
-	reply := &model.Reply{
+	reply := &db.Reply{
 		ReplyID:       uuid.New(),
 		ThreadID:      threadID,
 		UserID:        userID,
@@ -107,7 +107,7 @@ func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRe
 	// Process media attachments if any
 	if len(req.Media) > 0 {
 		for _, mediaInfo := range req.Media {
-			media := &model.Media{
+			media := &db.Media{
 				MediaID:   uuid.New(),
 				ReplyID:   &reply.ReplyID,
 				Type:      mediaInfo.Type,
@@ -127,7 +127,7 @@ func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRe
 			if err != nil {
 				return nil, status.Errorf(codes.InvalidArgument, "Invalid mentioned user ID: %v", err)
 			}
-			mention := &model.UserMention{
+			mention := &db.UserMention{
 				MentionID:       uuid.New(),
 				MentionedUserID: userUUID,
 				ReplyID:         &reply.ReplyID,
@@ -143,14 +143,14 @@ func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRe
 }
 
 // GetReplyByID retrieves a reply by its ID
-func (s *replyService) GetReplyByID(ctx context.Context, replyID string) (*model.Reply, error) {
+func (s *replyService) GetReplyByID(ctx context.Context, replyID string) (*db.Reply, error) {
 	if replyID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
 	}
 
 	reply, err := s.replyRepo.FindReplyByID(replyID)
 	if err != nil {
-		if errors.Is(err, repository.ErrReplyNotFound) {
+		if errors.Is(err, db.ErrReplyNotFound) {
 			return nil, status.Errorf(codes.NotFound, "Reply with ID %s not found", replyID)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve reply: %v", err)
@@ -160,7 +160,7 @@ func (s *replyService) GetReplyByID(ctx context.Context, replyID string) (*model
 }
 
 // GetRepliesByThreadID retrieves replies to a thread with pagination
-func (s *replyService) GetRepliesByThreadID(ctx context.Context, threadID string, parentReplyID *string, page, limit int) ([]*model.Reply, int64, error) {
+func (s *replyService) GetRepliesByThreadID(ctx context.Context, threadID string, parentReplyID *string, page, limit int) ([]*db.Reply, int64, error) {
 	if threadID == "" {
 		return nil, 0, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
@@ -182,7 +182,7 @@ func (s *replyService) GetRepliesByThreadID(ctx context.Context, threadID string
 }
 
 // UpdateReply updates a reply
-func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*model.Reply, error) {
+func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*db.Reply, error) {
 	if req.ReplyId == "" || req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID and User ID are required")
 	}
@@ -190,7 +190,7 @@ func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRe
 	// Get existing reply
 	reply, err := s.replyRepo.FindReplyByID(req.ReplyId)
 	if err != nil {
-		if errors.Is(err, repository.ErrReplyNotFound) {
+		if errors.Is(err, db.ErrReplyNotFound) {
 			return nil, status.Errorf(codes.NotFound, "Reply with ID %s not found", req.ReplyId)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve reply: %v", err)
@@ -211,7 +211,7 @@ func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRe
 	// Update isPinned status if provided
 	if req.IsPinned != nil {
 		reply.IsPinned = *req.IsPinned
-	updated = true
+		updated = true
 	}
 
 	if updated {
@@ -233,7 +233,7 @@ func (s *replyService) DeleteReply(ctx context.Context, replyID, userID string) 
 	// Get reply to check ownership
 	reply, err := s.replyRepo.FindReplyByID(replyID)
 	if err != nil {
-		if errors.Is(err, repository.ErrReplyNotFound) {
+		if errors.Is(err, db.ErrReplyNotFound) {
 			return status.Errorf(codes.NotFound, "Reply with ID %s not found", replyID)
 		}
 		return status.Errorf(codes.Internal, "Failed to retrieve reply: %v", err)

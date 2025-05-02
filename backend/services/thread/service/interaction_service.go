@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/model"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/thread/repository"
+	"aycom/backend/services/thread/db"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 // Thread is an alias for the model.Thread to avoid circular imports
-type Thread = model.Thread
+type Thread = db.Thread
 
 // InteractionService defines the interface for interaction operations (likes, reposts, bookmarks)
 type InteractionService interface {
@@ -36,16 +36,16 @@ type InteractionService interface {
 
 // interactionService implements the InteractionService interface
 type interactionService struct {
-	likeRepo     repository.LikeRepository
-	repostRepo   repository.RepostRepository
-	bookmarkRepo repository.BookmarkRepository
+	likeRepo     db.LikeRepository
+	repostRepo   db.RepostRepository
+	bookmarkRepo db.BookmarkRepository
 }
 
 // NewInteractionService creates a new interaction service
 func NewInteractionService(
-	likeRepo repository.LikeRepository,
-	repostRepo repository.RepostRepository,
-	bookmarkRepo repository.BookmarkRepository,
+	likeRepo db.LikeRepository,
+	repostRepo db.RepostRepository,
+	bookmarkRepo db.BookmarkRepository,
 ) InteractionService {
 	return &interactionService{
 		likeRepo:     likeRepo,
