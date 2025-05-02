@@ -1,5 +1,7 @@
 import { getAuthToken } from '../utils/auth';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+
 export async function createThread(data: Record<string, any>) {
   try {
     console.log("Creating thread with data:", data);
@@ -8,7 +10,7 @@ export async function createThread(data: Record<string, any>) {
     const token = getAuthToken();
     console.log("Found auth token:", !!token);
     
-    const response = await fetch("/api/v1/threads", {
+    const response = await fetch(`${API_BASE_URL}/threads`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
@@ -48,7 +50,7 @@ export async function createThread(data: Record<string, any>) {
 export async function getThread(id: string) {
   const token = getAuthToken();
   
-  const response = await fetch(`/api/v1/threads/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/threads/${id}`, {
     method: "GET",
     headers: { 
       "Content-Type": "application/json",
@@ -76,7 +78,7 @@ export async function getThread(id: string) {
 export async function getThreadsByUser(userId: string) {
   const token = getAuthToken();
   
-  const response = await fetch(`/api/v1/threads/user/${userId}`, {
+  const response = await fetch(`${API_BASE_URL}/threads/user/${userId}`, {
     method: "GET",
     headers: { 
       "Content-Type": "application/json",
@@ -104,7 +106,7 @@ export async function getThreadsByUser(userId: string) {
 export async function updateThread(id: string, data: Record<string, any>) {
   const token = getAuthToken();
   
-  const response = await fetch(`/api/v1/threads/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/threads/${id}`, {
     method: "PUT",
     headers: { 
       "Content-Type": "application/json",
@@ -133,7 +135,7 @@ export async function updateThread(id: string, data: Record<string, any>) {
 export async function deleteThread(id: string) {
   const token = getAuthToken();
   
-  const response = await fetch(`/api/v1/threads/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/threads/${id}`, {
     method: "DELETE",
     headers: { 
       "Content-Type": "application/json",
@@ -169,7 +171,7 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
     formData.append(`media_${index}`, file);
   });
   
-  const response = await fetch('/api/v1/threads/media', {
+  const response = await fetch(`${API_BASE_URL}/threads/media`, {
     method: 'POST',
     headers: {
       "Authorization": token ? `Bearer ${token}` : ''

@@ -1,14 +1,15 @@
 # Builder stage
 FROM golang:1.24-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache git
+# Install build dependencies including protobuf compiler
+RUN apk add --no-cache git protobuf protobuf-dev
 
 # Set working directory
 WORKDIR /app
 
 # First, copy over module files and proto directories
 COPY backend/go.mod backend/go.sum ./backend/
+COPY backend/services/auth/proto/ ./backend/services/auth/proto/
 COPY backend/services/thread/proto/ ./backend/services/thread/proto/
 COPY backend/services/user/proto/ ./backend/services/user/proto/
 COPY backend/api-gateway/go.mod backend/api-gateway/go.sum ./backend/api-gateway/
@@ -52,4 +53,4 @@ USER appuser
 EXPOSE 8081
 
 # Run the application
-CMD ["./app"] 
+CMD ["./app"]

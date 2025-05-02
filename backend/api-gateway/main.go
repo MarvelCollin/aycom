@@ -11,36 +11,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/docs"
-
-	// Import swagger docs
-	_ "github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/docs"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/router"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-)
 
-// @title AYCOM API Gateway
-// @version 1.0
-// @description API Gateway for AYCOM microservices
-// @host localhost:8081
-// @BasePath /api/v1
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/handlers"
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/router"
+)
 
 func main() {
 	// Load .env file from project root
 	loadEnvFile()
 
-	// Initialize Swagger docs
-	docs.SwaggerInfo.Title = "AYCOM API Gateway"
-	docs.SwaggerInfo.Description = "API Gateway for AYCOM microservices"
-	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "localhost:8081"
-	docs.SwaggerInfo.BasePath = "/api/v1"
-	docs.SwaggerInfo.Schemes = []string{"http", "https"}
+	// Get port from environment with fallback
+	port := os.Getenv("API_GATEWAY_PORT")
+	if port == "" {
+		port = "8081"
+	}
 
 	// Set Gin to release mode in production
 	if os.Getenv("GIN_MODE") != "debug" {
@@ -61,15 +48,6 @@ func main() {
 
 	// Set up router with all routes
 	r := router.SetupRouter()
-
-	// Add Swagger documentation endpoint
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
-	// Get port from environment
-	port := os.Getenv("API_GATEWAY_PORT")
-	if port == "" {
-		port = "8081"
-	}
 
 	// Create the server
 	server := &http.Server{
@@ -106,8 +84,8 @@ func main() {
 
 // loadEnvFile loads the .env file from the project root or current directory
 func loadEnvFile() {
-	// Try loading .env from the absolute project root path first
-	rootEnvPath := filepath.Join("C:\\BINUS\\TPA\\Web\\AYCOM", ".env")
+	// Try loading .env from the absolute project root path first (with explicit file path)
+	rootEnvPath := "C:\\BINUS\\TPA\\Web\\AYCOM\\.env"
 	err := godotenv.Load(rootEnvPath)
 	if err == nil {
 		log.Printf("Loaded .env from %s", rootEnvPath)
@@ -116,38 +94,22 @@ func loadEnvFile() {
 
 	// If that fails, try to load .env from current directory
 	err = godotenv.Load()
-	if err != nil {
-		// If failed, try to find .env in parent directories
-		dir, _ := os.Getwd()
-
-		// Try project root directory (2 levels up from api-gateway directory)
-		rootDir := filepath.Dir(filepath.Dir(dir))
-		rootEnvPath := filepath.Join(rootDir, ".env")
-
-		if _, err := os.Stat(rootEnvPath); err == nil {
-			err = godotenv.Load(rootEnvPath)
-			if err == nil {
-				log.Printf("Loaded .env from %s", rootEnvPath)
-				return
-			}
-		}
-
-		// If still not found, try up to 3 parent directories
-		currentDir := dir
-		for i := 0; i < 3; i++ {
-			currentDir = filepath.Dir(currentDir)
-			envPath := filepath.Join(currentDir, ".env")
-
-			if _, err := os.Stat(envPath); err == nil {
-				err = godotenv.Load(envPath)
-				if err == nil {
-					log.Printf("Loaded .env from %s", envPath)
-					return
-				}
-			}
-		}
-		log.Println("Warning: .env file not found, using environment variables")
-	} else {
+	if err == nil {
 		log.Println("Loaded .env from current directory")
+		return
 	}
+
+	// Try project root directory (2 levels up from api-gateway directory)
+	dir, _ := os.Getwd()
+	rootDir := filepath.Dir(filepath.Dir(dir))
+	rootEnvPath = filepath.Join(rootDir, ".env")
+
+	err = godotenv.Load(rootEnvPath)
+	if err == nil {
+		log.Printf("Loaded .env from %s", rootEnvPath)
+		return
+	}
+
+	// If all attempts fail, log a warning
+	log.Println("Warning: .env file not found, using environment variables")
 }

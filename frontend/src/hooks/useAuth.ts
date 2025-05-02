@@ -2,7 +2,8 @@ import { writable, get } from 'svelte/store';
 import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse, IAuthStore } from '../interfaces/IAuth';
 import { setAuthData, clearAuthData } from '../utils/auth';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+// Use a consistent API URL with port 8081 (matches API Gateway in docker-compose.yml)
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
 const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
 
 interface AuthState extends IAuthStore {
@@ -26,7 +27,6 @@ const createAuthStore = () => {
       if (storedAuth) {
         const parsedAuth = JSON.parse(storedAuth) as AuthState;
         
-        // Check if token is expired
         if (parsedAuth.expiresAt && parsedAuth.expiresAt > Date.now()) {
           auth.set(parsedAuth);
         } else if (parsedAuth.refreshToken) {
@@ -69,13 +69,17 @@ const createAuthStore = () => {
 
   const refreshExpiredToken = async (refreshToken: string) => {
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      const response = await fetch(`${API_URL}/auth/refresh-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ refresh_token: refreshToken })
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
       
       const data = await response.json();
       
@@ -127,13 +131,22 @@ export function useAuth() {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    
-    clearTimeout(id);
-    return response;
+    try {
+      // Log the request URL (helpful for debugging)
+      console.log(`Fetching: ${url}`);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      // Make sure to clear the timeout if fetch fails
+      clearTimeout(id);
+      throw error;
+    }
   };
 
   const handleApiError = (error: unknown): { success: false, message: string } => {
@@ -248,9 +261,16 @@ export function useAuth() {
     }
   };
   
+  const getCurrentUser = async () => {
+    
+  }
+
   const login = async (email: string, password: string) => {
     try {
       console.log('Attempting login for:', email);
+      
+      // Use the consistent API_URL from the top of the file (no fallback here)
+      console.log('Using API URL:', API_URL);
       
       const response = await fetchWithTimeout(
         `${API_URL}/auth/login`,
@@ -287,7 +307,11 @@ export function useAuth() {
           expiresAt
         });
         
+        // Set auth state in store
         authStore.set(authState);
+        
+        // Also explicitly set auth data in localStorage as backup
+        localStorage.setItem('auth', JSON.stringify(authState));
         
         // Double-check that the token was saved correctly
         setTimeout(() => {
@@ -307,11 +331,16 @@ export function useAuth() {
             console.error('Error checking localStorage after login:', err);
           }
         }, 100);
+        
+        return {
+          success: true,
+          message: data.message || 'Login successful!'
+        };
       }
       
       return {
-        success: data.success,
-        message: data.message || 'Login successful!'
+        success: data.success || false,
+        message: data.message || 'Login failed. Please check your credentials.'
       };
     } catch (error) {
       console.error('Login error:', error);
@@ -405,4 +434,4 @@ export function useAuth() {
     logout,
     getAuthState
   };
-} 
+}

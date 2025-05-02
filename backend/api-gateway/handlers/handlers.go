@@ -10,14 +10,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
-
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/services/auth/proto"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 	"github.com/golang/groupcache/lru"
 	supabase "github.com/supabase-community/storage-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+
+	"github.com/Acad600-Tpa/WEB-MV-242/backend/api-gateway/config"
 )
 
 var Config *config.Config
@@ -302,16 +305,78 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Forward the request to the auth service through HTTP
-	// Simplified implementation for now
+	// Make sure connection pool is initialized
+	InitConnectionPools()
+
+	// Get a connection from the pool
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	// Create auth service client
+	authClient := proto.NewAuthServiceClient(conn)
+
+	// Set timeout for the gRPC call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	// Call the Login method on the auth service
+	loginResp, err := authClient.Login(ctx, &proto.LoginRequest{
+		Email:    request.Email,
+		Password: request.Password,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.Unauthenticated:
+				c.JSON(http.StatusUnauthorized, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "INVALID_CREDENTIALS",
+				})
+			case codes.PermissionDenied, codes.FailedPrecondition:
+				c.JSON(http.StatusForbidden, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "ACCESS_DENIED",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred during login",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred during login",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Login error: %v", err)
+		return
+	}
+
+	// Return successful response with tokens
 	c.JSON(http.StatusOK, AuthServiceResponse{
-		Success:      true,
-		Message:      "Login successful",
-		AccessToken:  "sample-access-token",
-		RefreshToken: "sample-refresh-token",
-		UserId:       "sample-user-id",
-		TokenType:    "Bearer",
-		ExpiresIn:    3600,
+		Success:      loginResp.Success,
+		Message:      loginResp.Message,
+		AccessToken:  loginResp.AccessToken,
+		RefreshToken: loginResp.RefreshToken,
+		UserId:       loginResp.UserId,
+		TokenType:    loginResp.TokenType,
+		ExpiresIn:    loginResp.ExpiresIn,
 	})
 }
 
@@ -337,11 +402,83 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Forward the request to the auth service through HTTP
-	// Simplified implementation for now
+	// Make sure connection pool is initialized
+	InitConnectionPools()
+
+	// Get a connection from the pool
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	// Create auth service client
+	authClient := proto.NewAuthServiceClient(conn)
+
+	// Set timeout for the gRPC call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	// Call the Register method on the auth service
+	registerResp, err := authClient.Register(ctx, &proto.RegisterRequest{
+		Name:                  request.Name,
+		Username:              request.Username,
+		Email:                 request.Email,
+		Password:              request.Password,
+		Gender:                request.Gender,
+		DateOfBirth:           request.DateOfBirth,
+		SecurityQuestion:      request.SecurityQuestion,
+		SecurityAnswer:        request.SecurityAnswer,
+		SubscribeToNewsletter: request.SubscribeToNewsletter,
+		RecaptchaToken:        request.RecaptchaToken,
+		ProfilePictureUrl:     request.ProfilePictureUrl,
+		BannerUrl:             request.BannerUrl,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.AlreadyExists:
+				c.JSON(http.StatusConflict, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "USER_ALREADY_EXISTS",
+				})
+			case codes.InvalidArgument:
+				c.JSON(http.StatusBadRequest, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "INVALID_REQUEST",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred during registration",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred during registration",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Registration error: %v", err)
+		return
+	}
+
+	// Return successful response
 	c.JSON(http.StatusOK, RegisterResponse{
-		Success: true,
-		Message: "Registration successful, please verify your email",
+		Success: registerResp.Success,
+		Message: registerResp.Message,
 	})
 }
 
@@ -368,16 +505,65 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Forward the request to the auth service through HTTP
-	// Simplified implementation for now
+	InitConnectionPools()
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	authClient := proto.NewAuthServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	refreshResp, err := authClient.RefreshToken(ctx, &proto.RefreshTokenRequest{
+		RefreshToken: request.RefreshToken,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.Unauthenticated, codes.InvalidArgument:
+				c.JSON(http.StatusUnauthorized, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "INVALID_TOKEN",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred during token refresh",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred during token refresh",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Token refresh error: %v", err)
+		return
+	}
+
+	// Return successful response with new tokens
 	c.JSON(http.StatusOK, AuthServiceResponse{
-		Success:      true,
-		Message:      "Token refreshed successfully",
-		AccessToken:  "new-sample-access-token",
-		RefreshToken: "new-sample-refresh-token",
-		UserId:       "sample-user-id",
-		TokenType:    "Bearer",
-		ExpiresIn:    3600,
+		Success:      refreshResp.Success,
+		Message:      refreshResp.Message,
+		AccessToken:  refreshResp.AccessToken,
+		RefreshToken: refreshResp.RefreshToken,
+		UserId:       refreshResp.UserId,
+		TokenType:    refreshResp.TokenType,
+		ExpiresIn:    refreshResp.ExpiresIn,
 	})
 }
 
@@ -392,15 +578,90 @@ func RefreshToken(c *gin.Context) {
 // @Failure 500 {object} ErrorResponse
 // @Router /api/v1/auth/google [post]
 func GoogleAuth(c *gin.Context) {
-	// Implementation placeholder - using HTTP auth service
+	var request struct {
+		TokenID string `json:"token_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid request: " + err.Error(),
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Make sure connection pool is initialized
+	InitConnectionPools()
+
+	// Get a connection from the pool
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	// Create auth service client
+	authClient := proto.NewAuthServiceClient(conn)
+
+	// Set timeout for the gRPC call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	// Call the GoogleAuth method on the auth service
+	googleAuthResp, err := authClient.GoogleAuth(ctx, &proto.GoogleAuthRequest{
+		TokenId: request.TokenID,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				c.JSON(http.StatusBadRequest, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "INVALID_TOKEN",
+				})
+			case codes.Unauthenticated:
+				c.JSON(http.StatusUnauthorized, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "AUTHENTICATION_FAILED",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred during Google authentication",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred during Google authentication",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Google authentication error: %v", err)
+		return
+	}
+
+	// Return successful response with tokens
 	c.JSON(http.StatusOK, AuthServiceResponse{
-		Success:      true,
-		Message:      "Google authentication successful",
-		AccessToken:  "google-auth-access-token",
-		RefreshToken: "google-auth-refresh-token",
-		UserId:       "google-user-id",
-		TokenType:    "Bearer",
-		ExpiresIn:    3600,
+		Success:      googleAuthResp.Success,
+		Message:      googleAuthResp.Message,
+		AccessToken:  googleAuthResp.AccessToken,
+		RefreshToken: googleAuthResp.RefreshToken,
+		UserId:       googleAuthResp.UserId,
+		TokenType:    googleAuthResp.TokenType,
+		ExpiresIn:    googleAuthResp.ExpiresIn,
 	})
 }
 
@@ -426,11 +687,86 @@ func VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// Simplified implementation for now
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Email verified successfully",
+	// Make sure connection pool is initialized
+	InitConnectionPools()
+
+	// Get a connection from the pool
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	// Create auth service client
+	authClient := proto.NewAuthServiceClient(conn)
+
+	// Set timeout for the gRPC call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	// Call the VerifyEmail method on the auth service
+	verifyResp, err := authClient.VerifyEmail(ctx, &proto.VerifyEmailRequest{
+		Email:            request.Email,
+		VerificationCode: request.VerificationCode,
 	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				c.JSON(http.StatusBadRequest, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "INVALID_CODE",
+				})
+			case codes.NotFound:
+				c.JSON(http.StatusNotFound, ErrorResponse{
+					Success: false,
+					Message: "Email not found",
+					Code:    "EMAIL_NOT_FOUND",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred during email verification",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred during email verification",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Email verification error: %v", err)
+		return
+	}
+
+	// Return successful response with tokens if provided by auth service
+	if verifyResp.AccessToken != "" {
+		c.JSON(http.StatusOK, AuthServiceResponse{
+			Success:      verifyResp.Success,
+			Message:      verifyResp.Message,
+			AccessToken:  verifyResp.AccessToken,
+			RefreshToken: verifyResp.RefreshToken,
+			UserId:       verifyResp.UserId,
+			TokenType:    verifyResp.TokenType,
+			ExpiresIn:    verifyResp.ExpiresIn,
+		})
+	} else {
+		c.JSON(http.StatusOK, gin.H{
+			"success": verifyResp.Success,
+			"message": verifyResp.Message,
+		})
+	}
 }
 
 // ResendVerificationCode godoc
@@ -455,10 +791,72 @@ func ResendVerificationCode(c *gin.Context) {
 		return
 	}
 
-	// Simplified implementation for now
+	// Make sure connection pool is initialized
+	InitConnectionPools()
+
+	// Get a connection from the pool
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	// Create auth service client
+	authClient := proto.NewAuthServiceClient(conn)
+
+	// Set timeout for the gRPC call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	// Call the ResendVerificationCode method on the auth service
+	resendResp, err := authClient.ResendVerificationCode(ctx, &proto.ResendCodeRequest{
+		Email: request.Email,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				c.JSON(http.StatusNotFound, ErrorResponse{
+					Success: false,
+					Message: "Email not found or account already verified",
+					Code:    "EMAIL_NOT_FOUND",
+				})
+			case codes.ResourceExhausted:
+				c.JSON(http.StatusTooManyRequests, ErrorResponse{
+					Success: false,
+					Message: "Too many verification code requests",
+					Code:    "RATE_LIMIT_EXCEEDED",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred while resending verification code",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred while resending verification code",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Resend verification code error: %v", err)
+		return
+	}
+
+	// Return successful response
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Verification code resent successfully",
+		"success": resendResp.Success,
+		"message": resendResp.Message,
 	})
 }
 
@@ -531,28 +929,20 @@ func UserProfileHandler() gin.HandlerFunc {
 	}
 }
 
-// Product handler (combines all product-related operations)
 func ProductHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Handle different HTTP methods
 		switch c.Request.Method {
 		case http.MethodGet:
-			// Check if we're getting a single product or listing products
 			if c.Param("id") != "" {
-				// Get single product
 				c.JSON(http.StatusOK, gin.H{"message": "get product endpoint", "id": c.Param("id")})
 			} else {
-				// List products
 				c.JSON(http.StatusOK, gin.H{"message": "list products endpoint"})
 			}
 		case http.MethodPost:
-			// Create product
 			c.JSON(http.StatusOK, gin.H{"message": "create product endpoint"})
 		case http.MethodPut, http.MethodPatch:
-			// Update product
 			c.JSON(http.StatusOK, gin.H{"message": "update product endpoint", "id": c.Param("id")})
 		case http.MethodDelete:
-			// Delete product
 			c.JSON(http.StatusOK, gin.H{"message": "delete product endpoint", "id": c.Param("id")})
 		default:
 			c.JSON(http.StatusMethodNotAllowed, ErrorResponse{
@@ -564,22 +954,16 @@ func ProductHandler() gin.HandlerFunc {
 	}
 }
 
-// Payment handler (combines all payment-related operations)
 func PaymentHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Handle different HTTP methods
 		switch c.Request.Method {
 		case http.MethodGet:
-			// Check if we're getting a single payment or payment history
 			if c.Param("id") != "" {
-				// Get single payment
 				c.JSON(http.StatusOK, gin.H{"message": "get payment endpoint", "id": c.Param("id")})
 			} else {
-				// Get payment history
 				c.JSON(http.StatusOK, gin.H{"message": "get payment history endpoint"})
 			}
 		case http.MethodPost:
-			// Create payment
 			c.JSON(http.StatusOK, gin.H{"message": "create payment endpoint"})
 		default:
 			c.JSON(http.StatusMethodNotAllowed, ErrorResponse{
@@ -620,33 +1004,9 @@ func uploadToSupabase(fileHeader *multipart.FileHeader, bucketName string, desti
 	}
 
 	publicURL := supabaseClient.GetPublicUrl(bucketName, destinationPath)
-
 	return publicURL.SignedURL, nil
 }
 
-// RegisterWithMedia godoc
-// @Summary Register with media files
-// @Description Register a new user with profile picture and banner image
-// @Tags auth
-// @Accept multipart/form-data
-// @Produce json
-// @Param profile_picture formData file false "Profile picture"
-// @Param banner_image formData file false "Banner image"
-// @Param name formData string true "Full name"
-// @Param username formData string true "Username"
-// @Param email formData string true "Email address"
-// @Param password formData string true "Password"
-// @Param confirm_password formData string true "Confirm password"
-// @Param gender formData string true "Gender"
-// @Param date_of_birth formData string true "Date of birth"
-// @Param security_question formData string true "Security question"
-// @Param security_answer formData string true "Security answer"
-// @Param subscribe_to_newsletter formData boolean false "Subscribe to newsletter"
-// @Param recaptcha_token formData string true "reCAPTCHA token"
-// @Success 200 {object} RegisterResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/auth/register-with-media [post]
 func RegisterWithMedia(c *gin.Context) {
 	if supabaseClient == nil {
 		InitServices()
@@ -663,10 +1023,8 @@ func RegisterWithMedia(c *gin.Context) {
 	}
 
 	values := form.Value
-	// Parse form values (using them in a simplified implementation)
 	password := values["password"][0]
 	confirmPassword := values["confirm_password"][0]
-
 	if password != confirmPassword {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Passwords do not match", Code: "VALIDATION_ERROR"})
 		return
@@ -678,7 +1036,6 @@ func RegisterWithMedia(c *gin.Context) {
 	uuidVal, _ := uuid.NewV4()
 	userPathPrefix := uuidVal.String()
 
-	// Upload files - we'd use these URLs in a real implementation
 	if profilePicFileHeader != nil {
 		_, err := uploadToSupabase(profilePicFileHeader, "profile-pictures", userPathPrefix+"/"+filepath.Base(profilePicFileHeader.Filename))
 		if err != nil {
@@ -693,25 +1050,12 @@ func RegisterWithMedia(c *gin.Context) {
 		}
 	}
 
-	// Simplified implementation
 	c.JSON(http.StatusOK, RegisterResponse{
 		Success: true,
 		Message: "Registration with media successful",
 	})
 }
 
-// Logout godoc
-// @Summary Logout user
-// @Description Invalidate user tokens and logout
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param logout body LogoutRequest true "Logout Request"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/auth/logout [post]
 func Logout(c *gin.Context) {
 	var request LogoutRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -723,238 +1067,69 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	// Simplified implementation
+	// Make sure connection pool is initialized
+	InitConnectionPools()
+
+	// Get a connection from the pool
+	conn, err := authConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to Auth service: %v", err)
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "Auth service is currently unavailable",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer authConnPool.Put(conn)
+
+	authClient := proto.NewAuthServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	logoutResp, err := authClient.Logout(ctx, &proto.LogoutRequest{
+		AccessToken:  request.AccessToken,
+		RefreshToken: request.RefreshToken,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.Unauthenticated, codes.InvalidArgument:
+				c.JSON(http.StatusUnauthorized, ErrorResponse{
+					Success: false,
+					Message: st.Message(),
+					Code:    "INVALID_TOKEN",
+				})
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "An error occurred during logout",
+					Code:    "INTERNAL_ERROR",
+				})
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "An error occurred during logout",
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		log.Printf("Logout error: %v", err)
+		return
+	}
+
+	// Return successful response
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Logout successful",
+		"success": logoutResp.Success,
+		"message": logoutResp.Message,
 	})
 }
 
-// GetOAuthConfig godoc
-// @Summary Get OAuth configuration
-// @Description Returns OAuth client IDs and configuration
-// @Tags auth
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/v1/auth/oauth-config [get]
 func GetOAuthConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"google_client_id": Config.OAuth.GoogleClientID,
 	})
 }
-
-// The following are Swagger documentation comments for handlers defined
-// in other files. The actual implementations are in their respective files.
-
-// GetUserProfile godoc
-// @Summary Get user profile
-// @Description Get the profile of the authenticated user
-// @Tags users
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/users/profile [get]
-
-// UpdateUserProfile godoc
-// @Summary Update user profile
-// @Description Update the profile of the authenticated user
-// @Tags users
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param profileUpdate body UpdateUserRequest true "User profile data to update"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/users/profile [put]
-
-// CreateThread godoc
-// @Summary Create a new thread
-// @Description Create a new thread/post
-// @Tags threads
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param thread body map[string]interface{} true "Thread data"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads [post]
-
-// GetThread godoc
-// @Summary Get thread by ID
-// @Description Get a specific thread by its ID
-// @Tags threads
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id} [get]
-
-// GetThreadsByUser godoc
-// @Summary Get threads by user
-// @Description Get all threads created by a specific user
-// @Tags threads
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "User ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/user/{id} [get]
-
-// UpdateThread godoc
-// @Summary Update thread
-// @Description Update an existing thread
-// @Tags threads
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Thread ID"
-// @Param thread body map[string]interface{} true "Thread data to update"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id} [put]
-
-// DeleteThread godoc
-// @Summary Delete thread
-// @Description Delete an existing thread
-// @Tags threads
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id} [delete]
-
-// UploadThreadMedia godoc
-// @Summary Upload thread media
-// @Description Upload media files for a thread
-// @Tags threads
-// @Accept multipart/form-data
-// @Produce json
-// @Security ApiKeyAuth
-// @Param file formData file true "Media file"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/media [post]
-
-// ListProducts godoc
-// @Summary List products
-// @Description Get a list of all products
-// @Tags products
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/products [get]
-
-// GetProduct godoc
-// @Summary Get product by ID
-// @Description Get a specific product by its ID
-// @Tags products
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Product ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/products/{id} [get]
-
-// CreateProduct godoc
-// @Summary Create a new product
-// @Description Create a new product
-// @Tags products
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param product body map[string]interface{} true "Product data"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/products [post]
-
-// UpdateProduct godoc
-// @Summary Update product
-// @Description Update an existing product
-// @Tags products
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Product ID"
-// @Param product body map[string]interface{} true "Product data to update"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/products/{id} [put]
-
-// DeleteProduct godoc
-// @Summary Delete product
-// @Description Delete an existing product
-// @Tags products
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Product ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/products/{id} [delete]
-
-// CreatePayment godoc
-// @Summary Create a new payment
-// @Description Create a new payment
-// @Tags payments
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param payment body map[string]interface{} true "Payment data"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/payments [post]
-
-// GetPayment godoc
-// @Summary Get payment by ID
-// @Description Get a specific payment by its ID
-// @Tags payments
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "Payment ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/payments/{id} [get]
-
-// GetPaymentHistory godoc
-// @Summary Get payment history
-// @Description Get the payment history for the authenticated user
-// @Tags payments
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/payments/history [get]

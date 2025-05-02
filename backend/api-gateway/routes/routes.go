@@ -45,6 +45,12 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		users.GET("/profile", handlers.GetUserProfile)
 		users.PUT("/profile", handlers.UpdateUserProfile)
+		users.GET("/suggestions", handlers.GetSuggestedUsers)
+		users.GET("/check-username", handlers.CheckUsernameAvailability)
+		users.POST("/:id/follow", handlers.FollowUser)
+		users.POST("/:id/unfollow", handlers.UnfollowUser)
+		users.GET("/:id/followers", handlers.GetUserFollowers)
+		users.GET("/:id/following", handlers.GetUserFollowing)
 	}
 
 	// Thread routes
@@ -56,6 +62,12 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
 		threads.POST("/media", handlers.UploadThreadMedia)
+	}
+
+	// Trend routes
+	trends := protected.Group("/trends")
+	{
+		trends.GET("", handlers.GetTrends)
 	}
 
 	// Product routes

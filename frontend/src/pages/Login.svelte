@@ -31,12 +31,19 @@
     error = "";
     
     try {
-    const result = await login(email, password);
-    isLoading = false;
-    
-    if (result.success) {
-      window.location.href = '/feed';
-    } else {
+      console.log('Submitting login form with email:', email);
+      const result = await login(email, password);
+      isLoading = false;
+      
+      console.log('Login result:', result);
+      
+      if (result.success) {
+        console.log('Login successful, redirecting to feed');
+        // Add a small delay to ensure auth state is fully updated before redirect
+        setTimeout(() => {
+          window.location.href = '/feed';
+        }, 100);
+      } else {
         errorMessage = result.message || "Login failed. Please check your credentials.";
         error = errorMessage; 
         if (appConfig.ui.showErrorToasts) {

@@ -1,3 +1,5 @@
-export * as authApi from "./auth";
-export * as userApi from "./user";
-export * as threadApi from "./thread"; 
+export * from './auth';
+export * from './user';
+export * from './thread';
+export * from './trends';
+export * from './suggestions'; 

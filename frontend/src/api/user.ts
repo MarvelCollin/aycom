@@ -1,5 +1,7 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+
 export async function getProfile() {
-  const response = await fetch("/api/users/profile", {
+  const response = await fetch(`${API_BASE_URL}/users/profile`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -9,7 +11,7 @@ export async function getProfile() {
 }
 
 export async function updateProfile(data: Record<string, any>) {
-  const response = await fetch("/api/users/profile", {
+  const response = await fetch(`${API_BASE_URL}/users/profile`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),

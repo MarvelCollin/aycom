@@ -10,6 +10,8 @@
   import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
   import { getThreadsByUser } from '../api/thread';
+  import { getTrends } from '../api/trends';
+  import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
 
   // Create a logger for this component
@@ -43,11 +45,11 @@
   let limit = 10;
   let hasMore = true;
   
-  // Trends data - will be replaced with real API call once available
+  // Trends data
   let trends: ITrend[] = [];
   let isTrendsLoading = true;
   
-  // Suggested users to follow - will be replaced with real API call once available
+  // Suggested users to follow
   let suggestedUsers: ISuggestedFollow[] = [];
   let isSuggestedUsersLoading = true;
 
@@ -123,33 +125,33 @@
   async function fetchTrends() {
     logger.debug('Fetching trends');
     isTrendsLoading = true;
-    // This will be replaced with real API call once available
-    setTimeout(() => {
-      trends = [
-        { category: 'Politics', title: 'Election 2023', postCount: '235K' },
-        { category: 'Sports', title: 'Champions League', postCount: '187K' },
-        { category: 'Technology', title: 'AI Advancements', postCount: '142K' },
-        { category: 'Entertainment', title: 'New Movie Release', postCount: '98K' },
-        { category: 'Health', title: 'Fitness Trends', postCount: '75K' }
-      ];
-      isTrendsLoading = false;
+    
+    try {
+      const trendData = await getTrends(5);
+      trends = trendData;
       logger.debug('Trends loaded', { trendsCount: trends.length });
-    }, 1000);
+    } catch (error) {
+      logger.error('Error fetching trends', { error });
+      trends = [];
+    } finally {
+      isTrendsLoading = false;
+    }
   }
 
   async function fetchSuggestedUsers() {
     logger.debug('Fetching suggested users');
     isSuggestedUsersLoading = true;
-    // This will be replaced with real API call once available
-    setTimeout(() => {
-      suggestedUsers = [
-        { username: 'techguru', displayName: 'Tech Guru', avatar: 'https://i.pravatar.cc/150?img=1', verified: true, followerCount: 12000 },
-        { username: 'newsupdate', displayName: 'News Update', avatar: 'https://i.pravatar.cc/150?img=2', verified: true, followerCount: 9800 },
-        { username: 'sportscentral', displayName: 'Sports Central', avatar: 'https://i.pravatar.cc/150?img=3', verified: false, followerCount: 500 }
-      ];
-      isSuggestedUsersLoading = false;
+    
+    try {
+      const userData = await getSuggestedUsers(3);
+      suggestedUsers = userData;
       logger.debug('Suggested users loaded', { count: suggestedUsers.length });
-    }, 1000);
+    } catch (error) {
+      logger.error('Error fetching suggested users', { error });
+      suggestedUsers = [];
+    } finally {
+      isSuggestedUsersLoading = false;
+    }
   }
 
   onMount(async () => {
@@ -232,9 +234,7 @@
       </div>
     </div>
     
-    <!-- Dynamic Content based on route -->
     {#if route === '/home' || route === '/feed'}
-      <!-- Welcome message for user -->
       {#if authState.isAuthenticated && sidebarDisplayName}
         <div class="p-4 bg-blue-50 dark:bg-blue-900/30 mb-2">
           <div class="flex items-center">
@@ -249,7 +249,6 @@
         </div>
       {/if}
       
-      <!-- Home Feed Content -->
       {#if isLoading && tweets.length === 0}
         <div class="flex justify-center items-center p-8">
           <div class="spinner h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>

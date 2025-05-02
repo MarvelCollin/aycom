@@ -25,7 +25,15 @@ export function isAuthenticated(): boolean {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
-      return !!auth.accessToken && auth.isAuthenticated === true;
+      
+      // Check if token exists and is not expired
+      if (auth.accessToken && auth.isAuthenticated === true) {
+        // If we have an expiry, check it
+        if (auth.expiresAt) {
+          return Date.now() < auth.expiresAt;
+        }
+        return true;
+      }
     }
   } catch (err) {
     console.error("Error checking authentication status:", err);
@@ -69,8 +77,16 @@ export function setAuthData(userData: {
       expiresAt: userData.expiresAt || null
     };
     
+    // Save to localStorage
     localStorage.setItem('auth', JSON.stringify(authData));
     localStorage.setItem('aycom_authenticated', 'true');
+    
+    // Log successful auth storage
+    console.log('Auth data saved successfully', {
+      userId: userData.userId,
+      hasToken: !!userData.accessToken,
+      expiresAt: userData.expiresAt ? new Date(userData.expiresAt).toLocaleString() : null
+    });
   } catch (err) {
     console.error("Error setting auth data:", err);
   }
@@ -83,7 +99,24 @@ export function clearAuthData(): void {
   try {
     localStorage.removeItem('auth');
     localStorage.setItem('aycom_authenticated', 'false');
+    console.log('Auth data cleared successfully');
   } catch (err) {
     console.error("Error clearing auth data:", err);
   }
+}
+
+/**
+ * Get the full auth data object
+ */
+export function getAuthData() {
+  try {
+    const authData = localStorage.getItem('auth');
+    if (authData) {
+      return JSON.parse(authData);
+    }
+  } catch (err) {
+    console.error("Error getting auth data:", err);
+  }
+  
+  return null;
 } 

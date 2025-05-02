@@ -8,6 +8,14 @@
   const dispatch = createEventDispatcher();
   let recaptchaWidget: Recaptcha;
   let token: string | null = null;
+  let recaptchaLoaded = false;
+  
+  onMount(() => {
+    if (!siteKey) {
+      console.error('VITE_RECAPTCHA_SITE_KEY is missing in environment variables');
+      dispatch('error', { message: 'reCAPTCHA configuration missing' });
+    }
+  });
   
   function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
     token = event.detail.token;
@@ -15,6 +23,7 @@
   }
   
   function handleRecaptchaError() {
+    console.error('reCAPTCHA error occurred');
     dispatch('error', { message: 'reCAPTCHA verification failed' });
   }
   
@@ -24,10 +33,15 @@
   }
   
   function handleRecaptchaReady() {
+    recaptchaLoaded = true;
     dispatch('ready');
   }
   
   export function execute(): Promise<string> {
+    if (!recaptchaLoaded) {
+      return Promise.reject(new Error('reCAPTCHA not loaded yet'));
+    }
+    
     if (recaptcha) {
       recaptcha.execute();
       return new Promise<string>((resolve, reject) => {
@@ -53,6 +67,7 @@
   }
 </script>
 
+{#if siteKey}
 <Recaptcha
   bind:this={recaptchaWidget}
   sitekey={siteKey}
@@ -63,4 +78,7 @@
   on:error={handleRecaptchaError}
   on:expired={handleRecaptchaExpired}
   on:ready={handleRecaptchaReady}
-/> 
+/>
+{:else}
+<div class="hidden">reCAPTCHA missing configuration</div>
+{/if} 

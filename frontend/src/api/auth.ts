@@ -1,5 +1,7 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+
 export async function login(email: string, password: string) {
-  const response = await fetch("/api/auth/login", {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -9,7 +11,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function register(data: Record<string, any>) {
-  const response = await fetch("/api/auth/register", {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -19,7 +21,7 @@ export async function register(data: Record<string, any>) {
 }
 
 export async function refreshToken(refreshToken: string) {
-  const response = await fetch("/api/auth/refresh-token", {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
@@ -29,7 +31,7 @@ export async function refreshToken(refreshToken: string) {
 }
 
 export async function verifyEmail(email: string, verificationCode: string) {
-  const response = await fetch("/api/auth/verify-email", {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, verification_code: verificationCode }),
@@ -39,7 +41,7 @@ export async function verifyEmail(email: string, verificationCode: string) {
 }
 
 export async function resendVerification(email: string) {
-  const response = await fetch("/api/auth/resend-verification", {
+  const response = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -49,7 +51,7 @@ export async function resendVerification(email: string) {
 }
 
 export async function googleLogin(tokenId: string) {
-  const response = await fetch("/api/auth/google", {
+  const response = await fetch(`${API_BASE_URL}/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token_id: tokenId }),

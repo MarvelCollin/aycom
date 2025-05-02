@@ -2,6 +2,8 @@
   import { createEventDispatcher } from 'svelte';
   import ThemeToggle from '../common/ThemeToggle.svelte';
   import { useTheme } from '../../hooks/useTheme';
+  import { useAuth } from '../../hooks/useAuth';
+  import { isAuthenticated, getUserId } from '../../utils/auth';
 
   // Props
   export let username = "";
@@ -11,6 +13,66 @@
   // Get theme from the store
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
+  
+  // Get auth state
+  const { getAuthState, logout } = useAuth();
+  let authState = getAuthState();
+  
+  // User profile data
+  let userDetails = {
+    username: username || 'guest',
+    displayName: displayName || 'Guest User',
+    avatar: avatar,
+    userId: getUserId() || '',
+    email: '',
+    isVerified: false,
+    joinDate: ''
+  };
+  
+  // Fetch user profile if authenticated
+  async function fetchUserProfile() {
+    if (!isAuthenticated()) return;
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+      const token = authState.accessToken;
+      
+      if (!token) return;
+      
+      const response = await fetch(`${apiUrl}/users/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.user) {
+          userDetails = {
+            username: data.user.username || username,
+            displayName: data.user.displayName || displayName,
+            avatar: data.user.profilePictureUrl || avatar,
+            userId: data.user.id || getUserId() || '',
+            email: data.user.email || '',
+            isVerified: data.user.isVerified || false,
+            joinDate: data.user.createdAt ? new Date(data.user.createdAt).toLocaleDateString() : ''
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err);
+    }
+  }
+  
+  // Handle logout
+  async function handleLogout() {
+    try {
+      await logout();
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Error during logout:', err);
+    }
+  }
   
   // Event dispatcher
   const dispatch = createEventDispatcher();
@@ -32,6 +94,11 @@
   let showUserMenu = false;
   function toggleUserMenu() {
     showUserMenu = !showUserMenu;
+    
+    // If we're showing the menu and authenticated, update user details
+    if (showUserMenu && isAuthenticated()) {
+      fetchUserProfile();
+    }
   }
   
   // Handle compose tweet modal action
@@ -41,6 +108,16 @@
   
   // Get current path for active state
   let currentPath = window.location.pathname;
+  
+  // Import lifecycle functions
+  import { onMount } from 'svelte';
+  
+  onMount(() => {
+    // Try to fetch user profile
+    if (isAuthenticated()) {
+      fetchUserProfile();
+    }
+  });
 </script>
 
 <div class="flex flex-col h-full py-2 px-2 {isDarkMode ? 'text-white' : 'text-black'}">
@@ -130,21 +207,25 @@
     </div>
   </nav>
 
-  <div class="mt-4 px-3 mb-4">
+  <div class="mt-4 px-3 mb-4 relative">
+    <!-- User profile button with auth status indicator -->
     <button 
-      class="flex items-center w-full p-3 rounded-full {isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}"
+      class="flex items-center w-full p-3 rounded-full relative {isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}"
       on:click={toggleUserMenu}
     >
+      <!-- Auth indicator dot -->
+      <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'}"></div>
+      
       <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden">
-        {#if typeof avatar === 'string' && avatar.startsWith('http')}
-          <img src={avatar} alt={username} class="w-full h-full object-cover" />
+        {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
+          <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
         {:else}
-          <span class="text-lg">{avatar}</span>
+          <span class="text-lg">{userDetails.avatar}</span>
         {/if}
       </div>
       <div class="hidden md:block ml-3 flex-1 text-left">
-        <p class="font-bold text-sm {isDarkMode ? 'text-white' : 'text-black'}">{displayName || 'User'}</p>
-        <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{username}</p>
+        <p class="font-bold text-sm {isDarkMode ? 'text-white' : 'text-black'}">{userDetails.displayName}</p>
+        <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{userDetails.username}</p>
       </div>
       <div class="hidden md:flex">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 {isDarkMode ? 'text-gray-300' : 'text-gray-700'}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -156,17 +237,76 @@
     <!-- User Menu Dropdown -->
     {#if showUserMenu}
       <div 
-        class="absolute bottom-20 left-2 w-60 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
+        class="absolute bottom-20 left-2 w-72 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
       >
+        <div class="py-3 px-4 border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'}">
+          <div class="flex items-center mb-2">
+            <div class="w-12 h-12 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden mr-3">
+              {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
+                <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
+              {:else}
+                <span class="text-lg">{userDetails.avatar}</span>
+              {/if}
+            </div>
+            
+            <div>
+              <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'}">{userDetails.displayName}</p>
+              <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{userDetails.username}</p>
+            </div>
+          </div>
+          
+          {#if isAuthenticated()}
+            <div class="text-xs {isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-2">
+              <div class="flex items-center mb-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                {userDetails.email}
+              </div>
+              
+              {#if userDetails.isVerified}
+                <div class="flex items-center mb-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Verified account
+                </div>
+              {/if}
+              
+              {#if userDetails.joinDate}
+                <div class="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Joined {userDetails.joinDate}
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+        
         <div class="py-2">
-          <button
-            class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Log out @{username}
-          </button>
+          {#if isAuthenticated()}
+            <button
+              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
+              on:click={handleLogout}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Log out
+            </button>
+          {:else}
+            <a
+              href="/login"
+              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Sign in
+            </a>
+          {/if}
         </div>
       </div>
     {/if}

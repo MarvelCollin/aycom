@@ -1,45 +1,68 @@
 import { writable, get } from 'svelte/store';
 import type { IUser, IUserProfile, IUserUpdateRequest } from '../interfaces/IUser';
+import { getAuthToken } from '../utils/auth';
 
 export function useProfile() {
-  // Profile data store
   const profile = writable<IUserProfile | null>(null);
   const loading = writable(false);
   const error = writable<string | null>(null);
+  
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
 
-  // Function to fetch user profile data
   async function fetchProfile(userId: string): Promise<boolean> {
     loading.set(true);
     error.set(null);
 
     try {
-      // Mock API call - replace with actual API call
-      console.log('Fetching profile for user:', userId);
+      const token = getAuthToken();
       
-      // Simulate API response
-      const mockUserData: IUserProfile = {
-        id: userId,
-        name: 'John Doe',
-        username: 'johndoe',
-        email: 'johndoe@example.com',
-        bio: 'This is my bio',
-        location: 'New York',
-        website: 'https://example.com',
-        profile_picture: 'https://via.placeholder.com/150',
-        banner: 'https://via.placeholder.com/1500x500',
-        verified: false,
-        followers_count: 250,
-        following_count: 120,
-        tweets_count: 65,
-        joined_date: '2023-01-15',
-        birthday: '1990-05-20'
-      };
+      const endpoint = userId === 'me' 
+        ? `${API_BASE_URL}/users/profile` 
+        : `${API_BASE_URL}/users/${userId}`;
       
-      profile.set(mockUserData);
-      return true;
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch profile: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.user) {
+        const userData = data.user;
+        
+        const userProfile: IUserProfile = {
+          id: userData.id,
+          name: userData.name || userData.display_name,
+          username: userData.username,
+          email: userData.email,
+          bio: userData.bio || '',
+          location: userData.location || '',
+          website: userData.website || '',
+          profile_picture: userData.profile_picture_url || '',
+          banner: userData.banner_url || '',
+          verified: userData.verified || false,
+          followers_count: userData.followers_count || 0,
+          following_count: userData.following_count || 0,
+          tweets_count: userData.tweets_count || 0,
+          joined_date: userData.created_at || new Date().toISOString(),
+          birthday: userData.birthday || ''
+        };
+        
+        profile.set(userProfile);
+        return true;
+      } else {
+        throw new Error('Invalid profile data received from API');
+      }
     } catch (err) {
       console.error('Failed to fetch profile:', err);
-      error.set('Failed to load profile data');
+      error.set(err instanceof Error ? err.message : 'Failed to load profile data');
       return false;
     } finally {
       loading.set(false);
@@ -52,27 +75,43 @@ export function useProfile() {
     error.set(null);
 
     try {
-      // Mock API call - replace with actual API call
-      console.log('Updating profile with data:', data);
+      const token = getAuthToken();
       
-      // Simulate API response
-      const currentProfile = get(profile);
-      
-      if (!currentProfile) {
-        throw new Error('No profile loaded');
-      }
-      
-      // Update the profile with the new data
-      profile.set({
-        ...currentProfile,
-        ...data,
+      const response = await fetch(`${API_BASE_URL}/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(data)
       });
       
-      return { success: true, message: 'Profile updated successfully' };
+      if (!response.ok) {
+        throw new Error(`Failed to update profile: ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      
+      // Update the local profile with the new data
+      const currentProfile = get(profile);
+      if (currentProfile) {
+        profile.set({
+          ...currentProfile,
+          ...data,
+        });
+      }
+      
+      return { 
+        success: true, 
+        message: responseData.message || 'Profile updated successfully' 
+      };
     } catch (err) {
       console.error('Failed to update profile:', err);
-      error.set('Failed to update profile');
-      return { success: false, message: 'Failed to update profile' };
+      error.set(err instanceof Error ? err.message : 'Failed to update profile');
+      return { 
+        success: false, 
+        message: err instanceof Error ? err.message : 'Failed to update profile' 
+      };
     } finally {
       loading.set(false);
     }
@@ -81,14 +120,19 @@ export function useProfile() {
   // Function to check if a username is available
   async function checkUsernameAvailability(username: string): Promise<boolean> {
     try {
-      // Mock API call - replace with actual API call
-      console.log('Checking username availability:', username);
+      const response = await fetch(`${API_BASE_URL}/users/check-username?username=${encodeURIComponent(username)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
-      // Simulate a delay for the API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!response.ok) {
+        throw new Error(`Failed to check username: ${response.status}`);
+      }
       
-      // For demonstration, consider usernames containing 'taken' as unavailable
-      return !username.toLowerCase().includes('taken');
+      const data = await response.json();
+      return data.available;
     } catch (err) {
       console.error('Failed to check username availability:', err);
       return false;
@@ -98,8 +142,19 @@ export function useProfile() {
   // Function to follow a user
   async function followUser(userId: string): Promise<boolean> {
     try {
-      // Mock API call - replace with actual API call
-      console.log('Following user:', userId);
+      const token = getAuthToken();
+      
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/follow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to follow user: ${response.status}`);
+      }
       
       // Update followers count in the profile
       const currentProfile = get(profile);
@@ -120,8 +175,19 @@ export function useProfile() {
   // Function to unfollow a user
   async function unfollowUser(userId: string): Promise<boolean> {
     try {
-      // Mock API call - replace with actual API call
-      console.log('Unfollowing user:', userId);
+      const token = getAuthToken();
+      
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/unfollow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to unfollow user: ${response.status}`);
+      }
       
       // Update followers count in the profile
       const currentProfile = get(profile);
@@ -142,18 +208,34 @@ export function useProfile() {
   // Function to get followers list
   async function getFollowers(userId: string, page = 1, limit = 20): Promise<IUser[]> {
     try {
-      // Mock API call - replace with actual API call
-      console.log(`Getting followers for user: ${userId}, page: ${page}, limit: ${limit}`);
+      const token = getAuthToken();
       
-      // Simulate API response with mock followers
-      return Array(10).fill(null).map((_, i) => ({
-        id: `follower-${i}`,
-        name: `Follower ${i}`,
-        username: `follower${i}`,
-        profile_picture: `https://via.placeholder.com/150?text=F${i}`,
-        verified: i % 3 === 0,
-        isFollowing: i % 2 === 0
-      }));
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/followers?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get followers: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.followers) {
+        return data.followers.map((follower: any) => ({
+          id: follower.id,
+          name: follower.name || follower.display_name,
+          username: follower.username,
+          profile_picture: follower.profile_picture_url || '👤',
+          verified: follower.verified || false,
+          isFollowing: follower.is_following || false
+        }));
+      }
+      
+      return [];
     } catch (err) {
       console.error('Failed to get followers:', err);
       return [];
@@ -163,18 +245,34 @@ export function useProfile() {
   // Function to get following list
   async function getFollowing(userId: string, page = 1, limit = 20): Promise<IUser[]> {
     try {
-      // Mock API call - replace with actual API call
-      console.log(`Getting following for user: ${userId}, page: ${page}, limit: ${limit}`);
+      const token = getAuthToken();
       
-      // Simulate API response with mock following users
-      return Array(10).fill(null).map((_, i) => ({
-        id: `following-${i}`,
-        name: `Following ${i}`,
-        username: `following${i}`,
-        profile_picture: `https://via.placeholder.com/150?text=F${i}`,
-        verified: i % 4 === 0,
-        isFollowing: true
-      }));
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/following?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get following: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.following) {
+        return data.following.map((following: any) => ({
+          id: following.id,
+          name: following.name || following.display_name,
+          username: following.username,
+          profile_picture: following.profile_picture_url || '👤',
+          verified: following.verified || false,
+          isFollowing: true
+        }));
+      }
+      
+      return [];
     } catch (err) {
       console.error('Failed to get following list:', err);
       return [];
