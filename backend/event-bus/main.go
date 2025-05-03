@@ -18,6 +18,17 @@ func main() {
 
 	// Health check endpoint
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		// Add CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // Allow frontend origin
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		// Handle preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -41,9 +52,9 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down event bus...")
-	
+
 	// Give the server 5 seconds to finish ongoing requests
 	time.Sleep(5 * time.Second)
-	
+
 	log.Println("Event bus stopped")
 }

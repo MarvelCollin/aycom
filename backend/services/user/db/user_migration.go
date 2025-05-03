@@ -5,12 +5,14 @@ import (
 	"log"
 	"time"
 
+	"aycom/backend/services/user/model"
+
 	"gorm.io/gorm"
 )
 
 type SchemaVersion struct {
-	Version   string    `gorm:"primaryKey"`
-	AppliedAt time.Time `gorm:"default:CURRENT_TIMESTAMP"`
+	Version   string `gorm:"primaryKey"`
+	AppliedAt time.Time
 }
 
 func Migrate(db *gorm.DB) error {
@@ -50,48 +52,26 @@ func Migrate(db *gorm.DB) error {
 }
 
 func migrateInitSchema(db *gorm.DB) error {
-	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
-	// Add your user model and session model here
-	type User struct {
-		ID                     string `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-		Email                  string `gorm:"size:255;uniqueIndex;not null"`
-		Name                   string `gorm:"size:255;not null"`
-		Username               string `gorm:"size:255;uniqueIndex;not null"`
-		PasswordHash           string `gorm:"size:255;not null"`
-		PasswordSalt           string `gorm:"size:255"`
-		VerificationCode       *string
-		IsActivated            bool
-		Gender                 string
-		DateOfBirth            time.Time
-		SecurityQuestion       string
-		SecurityAnswer         string
-		NewsletterSubscription bool
-		JoinedAt               time.Time
-		CreatedAt              time.Time
-		UpdatedAt              time.Time
-	}
-
-	type Session struct {
-		ID           string    `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
-		UserID       string    `gorm:"type:uuid;not null;index"`
-		AccessToken  string    `gorm:"type:text;not null"`
-		RefreshToken string    `gorm:"type:text;not null"`
-		IPAddress    string    `gorm:"size:255"`
-		UserAgent    string    `gorm:"size:255"`
-		ExpiresAt    time.Time `gorm:"not null"`
-		CreatedAt    time.Time
-		UpdatedAt    time.Time
-	}
-
-	err := db.AutoMigrate(&User{}, &Session{})
+	// Now run AutoMigrate for the models
+	err := db.AutoMigrate(&model.User{}, &model.Session{}) // Use model.User and model.Session
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to migrate User or Session models: %w", err)
 	}
 
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token)")
+	// Create indexes separately after tables are ensured
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)").Error; err != nil {
+		log.Printf("Warning: Failed to create username index: %v", err)
+	}
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)").Error; err != nil {
+		log.Printf("Warning: Failed to create email index: %v", err)
+	}
+	// You might not have model.Session defined, adjust if necessary
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)").Error; err != nil {
+		log.Printf("Warning: Failed to create session user_id index: %v", err)
+	}
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token)").Error; err != nil {
+		log.Printf("Warning: Failed to create session refresh_token index: %v", err)
+	}
 
 	return nil
 }

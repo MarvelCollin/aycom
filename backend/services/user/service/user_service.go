@@ -11,6 +11,7 @@ import (
 	"aycom/backend/services/user/proto"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
@@ -56,33 +57,67 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *proto.CreateUs
 		return nil, status.Error(codes.InvalidArgument, "Missing user information")
 	}
 	userProto := req.User
-	if userProto.Id == "" || userProto.Username == "" || userProto.Email == "" || userProto.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "Missing required user profile information")
+	if userProto.Username == "" || userProto.Email == "" || userProto.Name == "" || userProto.Password == "" {
+		return nil, status.Error(codes.InvalidArgument, "Missing required user profile information (incl. password)")
 	}
-	userID, err := uuid.Parse(userProto.Id)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid user ID format: %v", err)
-	}
+	userID := uuid.New()
+
 	existingUser, err := s.repo.FindUserByEmail(userProto.Email)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "User with this email already exists")
 	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("Error checking email existence: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to check email existence")
+	}
+
 	existingUser, err = s.repo.FindUserByUsername(userProto.Username)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "Username already taken")
 	}
-	user := &model.User{
-		ID:                userID,
-		Username:          userProto.Username,
-		Email:             userProto.Email,
-		Name:              userProto.Name,
-		Gender:            userProto.Gender,
-		ProfilePictureURL: userProto.ProfilePictureUrl,
-		BannerURL:         userProto.BannerUrl,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("Error checking username existence: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to check username existence")
 	}
-	// DateOfBirth, Bio, Location, Website, etc. can be mapped if needed
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userProto.Password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to process registration")
+	}
+
+	// Map proto User to model User, including new fields
+	user := &model.User{
+		ID:                    userID,
+		Username:              userProto.Username,
+		Email:                 userProto.Email,
+		Name:                  userProto.Name,
+		Gender:                userProto.Gender,
+		ProfilePictureURL:     userProto.ProfilePictureUrl,
+		BannerURL:             userProto.BannerUrl,
+		PasswordHash:          string(hashedPassword), // Store hashed password
+		SecurityQuestion:      userProto.SecurityQuestion,
+		SecurityAnswer:        userProto.SecurityAnswer, // Consider hashing this too?
+		SubscribeToNewsletter: userProto.SubscribeToNewsletter,
+		IsVerified:            false, // Default to not verified
+		CreatedAt:             time.Now(),
+		UpdatedAt:             time.Now(),
+		// DateOfBirth needs parsing if required by the model
+	}
+
+	// Optional: Parse DateOfBirth if your model.User expects time.Time
+	if userProto.DateOfBirth != "" {
+		dob, err := time.Parse("2006-01-02", userProto.DateOfBirth) // Adjust format if needed
+		if err == nil {
+			user.DateOfBirth = &dob
+		} else {
+			log.Printf("Warning: Could not parse date of birth '%s': %v", userProto.DateOfBirth, err)
+			// Decide if this should be a hard error or just a warning
+			// return nil, status.Error(codes.InvalidArgument, "Invalid date of birth format")
+		}
+	}
+
 	err = s.repo.CreateUser(user)
 	if err != nil {
 		log.Printf("Error creating user in repository: %v", err)

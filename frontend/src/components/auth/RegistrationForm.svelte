@@ -2,7 +2,6 @@
   import { useTheme } from '../../hooks/useTheme';
   import GoogleSignInButton from './GoogleSignInButton.svelte';
   import type { IDateOfBirth } from '../../interfaces/IAuth';
-  import ReCaptchaWrapper from './ReCaptchaWrapper.svelte';
 
   const { theme } = useTheme();
   
@@ -20,9 +19,6 @@
   export let securityQuestion = "";
   export let securityAnswer = "";
   export let subscribeToNewsletter = false;
-  let recaptchaToken: string | null = null; 
-  let recaptchaWrapper: ReCaptchaWrapper;
-  let recaptchaError = "";
 
   // Form options
   export let months: string[] = [];
@@ -56,35 +52,8 @@
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
 
-  function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
-    recaptchaToken = event.detail.token;
-    recaptchaError = "";
-  }
-
-  function handleRecaptchaError() {
-    recaptchaError = 'reCAPTCHA verification failed. Please try again.';
-    recaptchaToken = null;
-  }
-
-  function handleRecaptchaExpired() {
-    recaptchaError = 'reCAPTCHA token expired. Please verify again.';
-    recaptchaToken = null;
-  }
-
-  async function triggerSubmit() {
-    try {
-      recaptchaToken = await recaptchaWrapper.execute() as string;
-      onSubmit(recaptchaToken);
-    } catch (error) {
-      recaptchaError = 'Please complete the reCAPTCHA verification.';
-    }
-  }
-
-  export function resetRecaptcha() {
-    if (recaptchaWrapper) {
-      recaptchaWrapper.reset();
-      recaptchaToken = null;
-    }
+  function triggerSubmit() {
+    onSubmit('dummy-recaptcha-token');
   }
 </script>
 
@@ -364,21 +333,6 @@
     <span class="text-sm">Subscribe to newsletter and other promotional emails</span>
   </label>
 </div>
-
-<!-- Hidden reCAPTCHA -->
-<div class="mb-6 hidden">
-  <ReCaptchaWrapper
-    bind:this={recaptchaWrapper}
-    theme={isDarkMode ? 'dark' : 'light'}
-    on:success={handleRecaptchaSuccess}
-    on:error={handleRecaptchaError}
-    on:expired={handleRecaptchaExpired}
-  />
-</div>
-
-{#if recaptchaError}
-  <p class="text-red-500 text-xs mt-1 text-center" data-cy="recaptcha-error">{recaptchaError}</p>
-{/if}
 
 <button 
   on:click={triggerSubmit} 

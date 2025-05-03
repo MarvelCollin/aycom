@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -21,15 +22,22 @@ func initUserServiceClient() error {
 		return nil
 	}
 
-	userServiceHost := Config.Services.UserServiceHost
-	if userServiceHost == "" {
-		// Use environment variables or defaults from config
-		userServiceHost = "user_service:" + Config.Services.UserServicePort // Use Docker service name and configured port
+	// Get host and port from config (set by docker-compose env vars)
+	userServiceHost := Config.Services.UserServiceHost // Should be "user_service"
+	userServicePort := Config.Services.UserServicePort // Should be "9091"
+
+	// Ensure both host and port are available
+	if userServiceHost == "" || userServicePort == "" {
+		log.Printf("Error: User service host (%s) or port (%s) is missing in config", userServiceHost, userServicePort)
+		return fmt.Errorf("user service configuration is incomplete")
 	}
 
-	log.Printf("Connecting to User service at %s", userServiceHost)
+	// Construct the target address for gRPC Dial
+	target := fmt.Sprintf("%s:%s", userServiceHost, userServicePort) // Combine host and port
+
+	log.Printf("Connecting to User service at %s", target) // Log the actual target address
 	conn, err := grpc.Dial(
-		userServiceHost,
+		target, // Use the combined host:port
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
 		grpc.WithTimeout(5*time.Second),
@@ -40,7 +48,7 @@ func initUserServiceClient() error {
 	}
 
 	userClient = proto.NewUserServiceClient(conn)
-	log.Printf("Connected to User service at %s", userServiceHost)
+	log.Printf("Connected to User service at %s", target)
 	return nil
 }
 
@@ -250,4 +258,93 @@ func UpdateUserProfile(c *gin.Context) {
 			"banner_url":          resp.User.BannerUrl,
 		},
 	})
+}
+
+// Register registers a new user
+func RegisterUser(c *gin.Context) {
+	var req struct {
+		Name                  string `json:"name"`
+		Username              string `json:"username"`
+		Email                 string `json:"email"`
+		Password              string `json:"password"`
+		ConfirmPassword       string `json:"confirm_password"`
+		Gender                string `json:"gender"`
+		DateOfBirth           string `json:"date_of_birth"`
+		SecurityQuestion      string `json:"securityQuestion"`
+		SecurityAnswer        string `json:"securityAnswer"`
+		SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
+		RecaptchaToken        string `json:"recaptcha_token"`
+		ProfilePictureUrl     string `json:"profile_picture_url,omitempty"`
+		BannerUrl             string `json:"banner_url,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
+		return
+	}
+	// Disable reCAPTCHA validation: always accept
+	// if req.RecaptchaToken == "" { ... }
+	if err := initUserServiceClient(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
+		return
+	}
+	user := &proto.User{
+		Id:                "", // Let backend generate UUID
+		Name:              req.Name,
+		Username:          req.Username,
+		Email:             req.Email,
+		Gender:            req.Gender,
+		DateOfBirth:       req.DateOfBirth,
+		ProfilePictureUrl: req.ProfilePictureUrl,
+		BannerUrl:         req.BannerUrl,
+		// Map new fields
+		Password:              req.Password, // Send raw password
+		SecurityQuestion:      req.SecurityQuestion,
+		SecurityAnswer:        req.SecurityAnswer,
+		SubscribeToNewsletter: req.SubscribeToNewsletter,
+	}
+	createReq := &proto.CreateUserRequest{User: user}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	resp, err := userClient.CreateUser(ctx, createReq)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok && st.Code() == 6 {
+			c.JSON(http.StatusConflict, ErrorResponse{Success: false, Message: "User already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to register user: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Registration successful", "user": resp.User})
+}
+
+// Login authenticates a user (mock password check, returns mock JWT)
+func LoginUser(c *gin.Context) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
+		return
+	}
+	if err := initUserServiceClient(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	userResp, err := userClient.GetUser(ctx, &proto.GetUserRequest{UserId: req.Email})
+	if err != nil || userResp.User == nil {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Success: false, Message: "Invalid credentials"})
+		return
+	}
+	// TODO: Replace with real password check
+	if req.Password != "password" {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Success: false, Message: "Invalid credentials"})
+		return
+	}
+	// Return mock JWT
+	token := "mock-jwt-token"
+	c.JSON(http.StatusOK, gin.H{"success": true, "token": token, "user": userResp.User})
 }

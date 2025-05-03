@@ -64,7 +64,7 @@ func (s *UserSeeder) SeedUsers() error {
 	janeID := uuid.MustParse(getEnv("JANE_UUID", "c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13"))
 
 	type User struct {
-		ID                     uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+		ID                     uuid.UUID `gorm:"type:uuid;primary_key"`
 		Email                  string    `gorm:"size:255;uniqueIndex;not null"`
 		Name                   string    `gorm:"size:255;not null"`
 		Username               string    `gorm:"size:255;uniqueIndex;not null"`

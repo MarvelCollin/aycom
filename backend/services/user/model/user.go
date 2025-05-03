@@ -7,10 +7,11 @@ import (
 )
 
 type User struct {
-	ID                    uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	ID                    uuid.UUID  `gorm:"type:uuid;primaryKey"`
 	Username              string     `gorm:"unique;not null"`
 	Email                 string     `gorm:"unique;not null"`
 	Name                  string     `gorm:"not null"`
+	PasswordHash          string     `gorm:"not null"`
 	Gender                string     `gorm:"type:varchar(10)"`
 	DateOfBirth           *time.Time `gorm:"type:date"`
 	ProfilePictureURL     string     `gorm:"type:text"`

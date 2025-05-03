@@ -43,7 +43,7 @@ func (r *PostgresUserRepository) FindUserByID(id string) (*model.User, error) {
 	result := r.db.Where("id = ?", id).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, gorm.ErrRecordNotFound
 		}
 		return nil, result.Error
 	}
@@ -56,7 +56,7 @@ func (r *PostgresUserRepository) FindUserByEmail(email string) (*model.User, err
 	result := r.db.Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, gorm.ErrRecordNotFound
 		}
 		return nil, result.Error
 	}
@@ -69,7 +69,7 @@ func (r *PostgresUserRepository) FindUserByUsername(username string) (*model.Use
 	result := r.db.Where("username = ?", username).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, gorm.ErrRecordNotFound
 		}
 		return nil, result.Error
 	}
@@ -94,7 +94,7 @@ func (r *PostgresUserRepository) DeleteUser(id string) error {
 // Add Token and OAuthConnection structs
 
 type Token struct {
-	ID           string    `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	ID           string    `gorm:"type:uuid;primary_key"`
 	UserID       string    `gorm:"type:uuid;not null;index"`
 	RefreshToken string    `gorm:"type:text;not null;uniqueIndex"`
 	ExpiresAt    time.Time `gorm:"not null"`
@@ -102,7 +102,7 @@ type Token struct {
 }
 
 type OAuthConnection struct {
-	ID         string `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	ID         string `gorm:"type:uuid;primary_key"`
 	UserID     string `gorm:"type:uuid;not null;index"`
 	Provider   string `gorm:"size:50;not null;index:idx_oauth_provider_id"`
 	ProviderID string `gorm:"size:255;not null;index:idx_oauth_provider_id"`
@@ -188,6 +188,9 @@ func (r *PostgresUserAuthRepository) FindUserByEmail(email string) (*model.User,
 	var user model.User
 	result := r.db.Where("email = ?", email).First(&user)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, gorm.ErrRecordNotFound
+		}
 		return nil, result.Error
 	}
 	return &user, nil

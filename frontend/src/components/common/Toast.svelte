@@ -1,8 +1,12 @@
 <script lang="ts">
   import { toastStore } from '../../stores/toastStore';
-  import type { Toast, ToastType, ToastPosition } from '@interfaces/IToast';
+  import type { Toast, ToastType, ToastPosition } from '../../interfaces/IToast';
   import { fly } from 'svelte/transition';
-  import { InfoIcon, CheckCircleIcon, AlertTriangleIcon, XCircleIcon, XIcon } from 'svelte-feather-icons';
+  import InfoIcon from 'svelte-feather-icons/src/icons/InfoIcon.svelte';
+  import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
+  import AlertTriangleIcon from 'svelte-feather-icons/src/icons/AlertTriangleIcon.svelte';
+  import XCircleIcon from 'svelte-feather-icons/src/icons/XCircleIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
 
   let toasts: Toast[] = [];
   toastStore.subscribe((list) => {
@@ -59,7 +63,7 @@
                 class="inline-flex text-white rounded-md p-1 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 transition-colors"
               >
                 <span class="sr-only">Close</span>
-                <X size="18" />
+                <XIcon size="18" />
               </button>
             </div>
           </div>

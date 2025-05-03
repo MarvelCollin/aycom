@@ -162,16 +162,14 @@ export function useAuth() {
   const register = async (userData: IUserRegistration) => {
     try {
       const response = await fetchWithTimeout(
-        `${API_URL}/auth/register`, 
+        `${API_URL}/users/register`, 
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(userData)
         }
       );
-      
       const data = await response.json();
-      
       return {
         success: data.success,
         message: data.message || 'Registration successful! Check your email for verification code.'
@@ -267,80 +265,30 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Attempting login for:', email);
-      
-      // Use the consistent API_URL from the top of the file (no fallback here)
-      console.log('Using API URL:', API_URL);
-      
       const response = await fetchWithTimeout(
-        `${API_URL}/auth/login`,
+        `${API_URL}/users/login`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         }
       );
-      
-      console.log('Login response status:', response.status);
       const data = await response.json();
-      console.log('Login response data:', { 
-        success: data.success, 
-        hasToken: !!data.access_token,
-        userId: data.user_id
-      });
-      
-      if (data.success && data.access_token) {
-        const expiresAt = Date.now() + (data.expires_in * 1000);
-        const authState = {
+      if (data.success && data.token) {
+        // Set auth data (mock for now)
+        authStore.set({
           isAuthenticated: true,
-          userId: data.user_id,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          expiresAt
-        };
-        
-        console.log('Setting auth state:', { 
-          isAuthenticated: true,
-          userId: data.user_id,
-          hasToken: !!data.access_token,
-          tokenLength: data.access_token ? data.access_token.length : 0,
-          expiresAt
+          userId: data.user?.id || null,
+          accessToken: data.token,
+          refreshToken: null,
+          expiresAt: Date.now() + 3600 * 1000
         });
-        
-        // Set auth state in store
-        authStore.set(authState);
-        
-        // Also explicitly set auth data in localStorage as backup
-        localStorage.setItem('auth', JSON.stringify(authState));
-        
-        // Double-check that the token was saved correctly
-        setTimeout(() => {
-          try {
-            const storedAuth = localStorage.getItem('auth');
-            if (storedAuth) {
-              const parsed = JSON.parse(storedAuth);
-              console.log('Auth data saved in localStorage:', {
-                isAuthenticated: parsed.isAuthenticated,
-                hasToken: !!parsed.accessToken,
-                tokenLength: parsed.accessToken ? parsed.accessToken.length : 0
-              });
-            } else {
-              console.warn('No auth data found in localStorage after login');
-            }
-          } catch (err) {
-            console.error('Error checking localStorage after login:', err);
-          }
-        }, 100);
-        
-        return {
-          success: true,
-          message: data.message || 'Login successful!'
-        };
       }
-      
       return {
-        success: data.success || false,
-        message: data.message || 'Login failed. Please check your credentials.'
+        success: data.success,
+        message: data.message || (data.success ? 'Login successful!' : 'Login failed'),
+        token: data.token,
+        user: data.user
       };
     } catch (error) {
       console.error('Login error:', error);

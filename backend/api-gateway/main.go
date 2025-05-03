@@ -52,7 +52,7 @@ func main() {
 	handlers.InitServices()
 
 	// Set up router with all routes
-	r := router.SetupRouter()
+	r := router.SetupRouter(cfg)
 
 	// Create the server
 	server := &http.Server{

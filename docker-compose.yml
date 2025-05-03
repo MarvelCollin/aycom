@@ -83,6 +83,7 @@ services:
       dockerfile: ./services/thread/Dockerfile
     ports:
       - "9092:9092"
+      - "8082:8082"
     environment:
       - DB_HOST=thread_db
       - DB_PORT=5432
@@ -112,6 +113,8 @@ services:
     build:
       context: ./backend/event-bus
       dockerfile: Dockerfile
+    ports:
+      - "8000:8000" # Map host port 8000 to container port 8000
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - USER_SERVICE_HOST=user_service
@@ -146,7 +149,7 @@ services:
       - user_db_data:/var/lib/postgresql/data
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-kolin}"]
+      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-kolin} -d ${USER_DB_NAME:-user_db}"] # Explicitly check the correct database
       interval: 5s
       timeout: 5s
       retries: 5

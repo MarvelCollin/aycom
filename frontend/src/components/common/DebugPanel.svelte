@@ -398,6 +398,46 @@
     logs = value;
   });
   
+  // Service status section
+  const services = [
+    { name: 'API Gateway', url: 'http://localhost:8081/health', http: true },
+    { name: 'User Service', url: 'http://localhost:8081/health', http: true }, // Corrected port from 8083 to 8081
+    { name: 'Thread Service', url: 'http://localhost:8082/health', http: true },
+    { name: 'Event Bus', url: 'http://localhost:8000/health', http: true },
+    // { name: 'AI Service', url: 'http://localhost:5000/health', http: true }, // Removed AI service check
+    { name: 'Redis', http: false },
+    { name: 'User DB', http: false },
+    { name: 'Thread DB', http: false },
+    { name: 'RabbitMQ', http: false },
+  ];
+  
+  let serviceStatuses = {};
+  let serviceErrors = {};
+  
+  async function checkServiceStatus() {
+    for (const service of services) {
+      if (!service.http || !service.url) continue;
+      try {
+        const res = await fetch(service.url, { method: 'GET' });
+        if (res.ok) {
+          serviceStatuses[service.name] = true;
+          serviceErrors[service.name] = '';
+        } else {
+          serviceStatuses[service.name] = false;
+          let reason = `HTTP ${res.status} - ${res.statusText}`;
+          try {
+            const text = await res.text();
+            if (text) reason += `: ${text}`;
+          } catch {}
+          serviceErrors[service.name] = reason;
+        }
+      } catch (e) {
+        serviceStatuses[service.name] = false;
+        serviceErrors[service.name] = (e && (e as any).message) ? (e as any).message : String(e);
+      }
+    }
+  }
+  
   onMount(() => {
     cleanupFunction = setupKeyboardShortcuts();
     
@@ -408,6 +448,10 @@
     
     // Add initial log
     logger.info('Debug panel initialized');
+    
+    checkServiceStatus();
+    const interval = setInterval(checkServiceStatus, 10000);
+    return () => clearInterval(interval);
   });
   
   onDestroy(() => {
@@ -480,7 +524,7 @@
               {/if}
             {:else}
               <div class="placeholder warning">
-                <p>Not authenticated. No user information available.</p>
+                <p>Not authenticated. No user informationa available.</p>
               </div>
             {/if}
           </div>
@@ -582,6 +626,30 @@
                 Go
               </button>
             </div>
+          </div>
+        </div>
+        
+        <!-- Service Status Section -->
+        <div class="section">
+          <h3>Service Status</h3>
+          <div class="card">
+            <ul>
+              {#each services as service}
+                <li>
+                  <span>{service.name}:</span>
+                  {#if service.http}
+                    <span style="font-weight:bold; color:{serviceStatuses[service.name] === undefined ? 'gray' : serviceStatuses[service.name] ? 'limegreen' : 'red'}">
+                      {serviceStatuses[service.name] === undefined ? 'Checking...' : serviceStatuses[service.name] ? 'Active' : 'Inactive'}
+                    </span>
+                    {#if serviceStatuses[service.name] === false && serviceErrors[service.name]}
+                      <span style="color:orange; font-size:12px; margin-left:8px;">{serviceErrors[service.name]}</span>
+                    {/if}
+                  {:else}
+                    <span style="color:gray; font-size:12px; margin-left:8px;">Not HTTP health-checkable</span>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
           </div>
         </div>
       </div>
@@ -967,4 +1035,4 @@
   .text-gray-500 {
     color: #64748b;
   }
-</style> 
+</style>

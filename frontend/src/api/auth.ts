@@ -4,7 +4,7 @@ import { getAuthToken } from '../utils/auth';
 const API_BASE_URL = appConfig.api.baseUrl;
 
 export async function login(email: string, password: string) {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetch(`${API_BASE_URL}/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -22,7 +22,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function register(data: Record<string, any>) {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const response = await fetch(`${API_BASE_URL}/users/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),

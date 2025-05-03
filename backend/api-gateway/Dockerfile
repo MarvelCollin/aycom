@@ -19,6 +19,7 @@ RUN cd backend && go mod download
 RUN cd backend/api-gateway && go mod download
 
 # Copy application source
+ARG CACHEBUST=1
 COPY backend/api-gateway/ ./backend/api-gateway/
 
 # Build the application
@@ -41,7 +42,7 @@ RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/app .
 
 # (Optional) Copy Swagger docs if present
-COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
+# COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
 
 # Environment variables
 ENV GIN_MODE=debug

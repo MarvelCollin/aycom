@@ -7,6 +7,8 @@
   import appConfig from '../config/appConfig';
   import ReCaptchaWrapper from '../components/auth/ReCaptchaWrapper.svelte';
   import { getAuthToken } from '../utils/auth';
+  import DebugPanel from '../components/common/DebugPanel.svelte';
+  import { onMount } from 'svelte';
 
   const { login } = useAuth();
   
@@ -203,3 +205,5 @@
     Don't have an account? <a href="/register" class="text-blue-500 hover:underline" data-cy="register-link">Sign up</a>
   </p>
 </AuthLayout>
+
+<DebugPanel />

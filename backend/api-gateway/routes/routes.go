@@ -28,10 +28,17 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	auth.Use(handlers.RateLimitMiddleware)
 	{
 		auth.GET("/oauth-config", handlers.GetOAuthConfig)
-		auth.POST("/login", handlers.Login)
-		auth.POST("/register", handlers.Register)
-		auth.POST("/register-with-media", handlers.RegisterWithMedia)
-		auth.POST("/refresh", handlers.RefreshToken)
+		// auth.POST("/login", handlers.Login)
+		// auth.POST("/register", handlers.Register)
+		// auth.POST("/register-with-media", handlers.RegisterWithMedia)
+		// auth.POST("/refresh", handlers.RefreshToken)
+	}
+
+	// Public user registration and login
+	publicUsers := v1.Group("/users")
+	{
+		publicUsers.POST("/register", handlers.RegisterUser)
+		publicUsers.POST("/login", handlers.LoginUser)
 	}
 
 	// Protected routes - using JWT authentication middleware

@@ -1,5 +1,6 @@
 import os
 from flask import Flask, request, jsonify
+from flask_cors import CORS # Import CORS
 import logging
 
 # Configure logging
@@ -10,6 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app, resources={r"/health": {"origins": "http://localhost:3000"}}) # Enable CORS for /health from frontend origin
 
 @app.route("/health", methods=["GET"])
 def health_check():
@@ -37,4 +39,4 @@ if __name__ == "__main__":
     debug = os.environ.get("FLASK_ENV") == "development"
     
     logger.info(f"Starting AI service on port {port}, debug={debug}")
-    app.run(host="0.0.0.0", port=port, debug=debug) 
+    app.run(host="0.0.0.0", port=port, debug=debug)

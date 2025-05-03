@@ -39,6 +39,12 @@ message User {
   string banner_url = 11;
   string created_at = 12;
   string updated_at = 13;
+
+  // Added fields for registration
+  string password = 14; // Raw password sent from gateway, hashed by user service
+  string security_question = 15;
+  string security_answer = 16;
+  bool subscribe_to_newsletter = 17;
 }
 
 // GetUserRequest is used to request user information by ID
