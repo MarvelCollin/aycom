@@ -1,3 +1,8 @@
+// @title AYCOM API Gateway
+// @version 1.0
+// @description This is the API Gateway for the AYCOM platform.
+// @host localhost:8081
+// @BasePath /
 package main
 
 import (

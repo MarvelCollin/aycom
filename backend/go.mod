@@ -9,7 +9,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/streadway/amqp v1.1.0
 	golang.org/x/crypto v0.33.0
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.5

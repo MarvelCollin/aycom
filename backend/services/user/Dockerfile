@@ -1,19 +1,12 @@
 FROM golang:1.24-alpine AS builder
-
 WORKDIR /app
-
-RUN apk add --no-cache git
-
-COPY ../../../backend/go.mod ../../../backend/go.sum ./
+COPY . .
+WORKDIR /app/services/user
 RUN go mod download
-
-COPY ../../../backend ./backend
-WORKDIR /app/backend/services/user
-RUN go build -o user-service .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/user-service ./main.go
 
 FROM alpine:latest
+RUN apk --no-cache add ca-certificates
 WORKDIR /app
-RUN apk --no-cache add ca-certificates tzdata
-COPY --from=builder /app/backend/services/user/user-service .
-EXPOSE 9091
+COPY --from=builder /app/user-service .
 CMD ["./user-service"] 

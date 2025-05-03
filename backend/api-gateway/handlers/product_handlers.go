@@ -12,7 +12,6 @@ import (
 // @Description Returns a list of products
 // @Tags Products
 // @Produce json
-// @Success 200 {array} models.ProductResponse
 // @Router /api/v1/products [get]
 func ListProducts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
@@ -25,7 +24,6 @@ func ListProducts(c *gin.Context) {
 // @Tags Products
 // @Produce json
 // @Param id path string true "Product ID"
-// @Success 200 {object} models.ProductResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [get]
 func GetProduct(c *gin.Context) {
@@ -39,8 +37,6 @@ func GetProduct(c *gin.Context) {
 // @Tags Products
 // @Accept json
 // @Produce json
-// @Param request body models.CreateProductRequest true "Create product request"
-// @Success 201 {object} models.ProductResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v1/products [post]
 func CreateProduct(c *gin.Context) {
@@ -55,8 +51,6 @@ func CreateProduct(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Product ID"
-// @Param request body models.UpdateProductRequest true "Update product request"
-// @Success 200 {object} models.ProductResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v1/products/{id} [put]
 func UpdateProduct(c *gin.Context) {

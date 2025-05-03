@@ -49,8 +49,6 @@ func initUserServiceClient() error {
 // @Description Returns the profile of the authenticated user
 // @Tags Users
 // @Produce json
-// @Success 200 {object} models.UserProfileResponse
-// @Failure 401 {object} ErrorResponse
 // @Router /api/v1/users/profile [get]
 func GetUserProfile(c *gin.Context) {
 	// Get user ID from JWT token (set by auth middleware)
@@ -146,10 +144,6 @@ func GetUserProfile(c *gin.Context) {
 // @Tags Users
 // @Accept json
 // @Produce json
-// @Param request body models.UpdateUserProfileRequest true "Update profile request"
-// @Success 200 {object} models.UserProfileResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
 // @Router /api/v1/users/profile [put]
 func UpdateUserProfile(c *gin.Context) {
 	// Get user ID from JWT token (set by auth middleware)

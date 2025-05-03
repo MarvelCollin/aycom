@@ -5,6 +5,8 @@
   import GoogleSignInButton from '../components/auth/GoogleSignInButton.svelte';
   import { toastStore } from '../stores/toastStore';
   import appConfig from '../config/appConfig';
+  import ReCaptchaWrapper from '../components/auth/ReCaptchaWrapper.svelte';
+  import { getAuthToken } from '../utils/auth';
 
   const { login } = useAuth();
   
@@ -17,6 +19,26 @@
   let rememberMe = false;
   let error = "";
   let isLoading = false;
+  let recaptchaToken: string | null = null;
+  let recaptchaWrapper: ReCaptchaWrapper;
+  
+  function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
+    recaptchaToken = event.detail.token;
+  }
+
+  function handleRecaptchaError() {
+    recaptchaToken = null;
+  }
+
+  function handleRecaptchaExpired() {
+    recaptchaToken = null;
+  }
+
+  onMount(() => {
+    if (getAuthToken()) {
+      window.location.href = '/feed';
+    }
+  });
   
   async function handleSubmit() {
     let errorMessage = "";
@@ -26,7 +48,10 @@
       if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
       return;
     }
-    
+    if (!recaptchaToken) {
+      error = 'Please complete the reCAPTCHA verification.';
+      return;
+    }
     isLoading = true;
     error = "";
     
@@ -135,6 +160,25 @@
         />
         <span class="text-sm">Remember me</span>
       </label>
+    </div>
+    
+    <div class="mb-6 hidden">
+      <ReCaptchaWrapper
+        bind:this={recaptchaWrapper}
+        siteKey="6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA"
+        theme={isDarkMode ? 'dark' : 'light'}
+        on:success={handleRecaptchaSuccess}
+        on:error={handleRecaptchaError}
+        on:expired={handleRecaptchaExpired}
+      />
+    </div>
+    {#if error === 'Please complete the reCAPTCHA verification.'}
+      <p class="text-red-500 text-xs mt-1 text-center" data-cy="recaptcha-error">{error}</p>
+    {/if}
+    
+    <div class="mb-6 flex justify-between">
+      <a href="/" class="text-xs text-blue-500 hover:underline" data-cy="landing-link">Back to Landing Page</a>
+      <a href="/forgot-password" class="text-xs text-blue-500 hover:underline" data-cy="forgot-password">Forgot password?</a>
     </div>
     
     <button 

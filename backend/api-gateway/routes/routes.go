@@ -73,10 +73,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	// Payment routes
-	payments := protected.Group("/payments")
-	{
-		payments.POST("", handlers.CreatePayment)
-		payments.GET("/:id", handlers.GetPayment)
-		payments.GET("/history", handlers.GetPaymentHistory)
-	}
+	// payments := protected.Group("/payments")
+	// payments.POST("", handlers.CreatePayment)
+	// payments.GET(":id", handlers.GetPayment)
+	// payments.GET("/history", handlers.GetPaymentHistory)
 }

@@ -19,8 +19,6 @@ import (
 // @Tags Threads
 // @Accept json
 // @Produce json
-// @Param request body models.CreateThreadRequest true "Create thread request"
-// @Success 201 {object} models.ThreadResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v1/threads [post]
 func CreateThread(c *gin.Context) {
@@ -109,7 +107,6 @@ func CreateThread(c *gin.Context) {
 // @Tags Threads
 // @Produce json
 // @Param id path string true "Thread ID"
-// @Success 200 {object} models.ThreadResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/{id} [get]
 func GetThread(c *gin.Context) {
@@ -176,7 +173,6 @@ func GetThread(c *gin.Context) {
 // @Tags Threads
 // @Produce json
 // @Param id path string true "User ID"
-// @Success 200 {array} models.ThreadResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/user/{id} [get]
 func GetThreadsByUser(c *gin.Context) {
@@ -283,8 +279,6 @@ func GetThreadsByUser(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Thread ID"
-// @Param request body models.UpdateThreadRequest true "Update thread request"
-// @Success 200 {object} models.ThreadResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v1/threads/{id} [put]
 func UpdateThread(c *gin.Context) {
@@ -486,7 +480,6 @@ func DeleteThread(c *gin.Context) {
 // @Accept multipart/form-data
 // @Produce json
 // @Param file formData file true "Media file"
-// @Success 201 {object} models.ThreadMediaResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v1/threads/media [post]
 func UploadThreadMedia(c *gin.Context) {

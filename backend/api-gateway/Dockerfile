@@ -41,10 +41,10 @@ RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/app .
 
 # (Optional) Copy Swagger docs if present
-# COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
+COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs
 
 # Environment variables
-ENV GIN_MODE=release
+ENV GIN_MODE=debug
 
 # Switch to non-root user
 USER appuser

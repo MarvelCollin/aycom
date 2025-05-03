@@ -13,6 +13,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type OAuthConfigResponse struct {
+	Success bool                   `json:"success"`
+	Data    map[string]interface{} `json:"data"`
+}
+
 // @Summary User login
 // @Description Authenticates a user and returns tokens
 // @Tags Auth

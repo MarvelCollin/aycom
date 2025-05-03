@@ -18,7 +18,6 @@ type Trend struct {
 // @Description Returns trending topics
 // @Tags Trends
 // @Produce json
-// @Success 200 {array} models.TrendResponse
 // @Router /api/v1/trends [get]
 func GetTrends(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "5")

@@ -12,7 +12,7 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// Middleware
+	// Apply middleware first
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
 	r.Use(middleware.Logger())
@@ -59,12 +59,10 @@ func SetupRouter() *gin.Engine {
 	}
 
 	// Payment routes
-	payments := protected.Group("/payments")
-	{
-		payments.POST("", handlers.CreatePayment)
-		payments.GET("/:id", handlers.GetPayment)
-		payments.GET("/history", handlers.GetPaymentHistory)
-	}
+	// payments := protected.Group("/payments")
+	// payments.POST("", handlers.CreatePayment)
+	// payments.GET(":id", handlers.GetPayment)
+	// payments.GET("/history", handlers.GetPaymentHistory)
 
 	return r
 }
