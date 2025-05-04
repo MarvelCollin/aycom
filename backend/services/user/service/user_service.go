@@ -110,13 +110,29 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *proto.CreateUs
 
 	// Optional: Parse DateOfBirth if your model.User expects time.Time
 	if userProto.DateOfBirth != "" {
-		dob, err := time.Parse("2006-01-02", userProto.DateOfBirth) // Adjust format if needed
-		if err == nil {
-			user.DateOfBirth = &dob
-		} else {
-			log.Printf("Warning: Could not parse date of birth '%s': %v", userProto.DateOfBirth, err)
-			// Decide if this should be a hard error or just a warning
-			// return nil, status.Error(codes.InvalidArgument, "Invalid date of birth format")
+		// Try multiple date formats
+		formats := []string{
+			"2006-01-02", // YYYY-MM-DD
+			"1-2-2006",   // M-D-YYYY
+			"01-02-2006", // MM-DD-YYYY
+			"2006/01/02", // YYYY/MM/DD
+			"01/02/2006", // MM/DD/YYYY
+		}
+
+		var parsedDate time.Time
+		var parseErr error
+
+		for _, format := range formats {
+			parsedDate, parseErr = time.Parse(format, userProto.DateOfBirth)
+			if parseErr == nil {
+				user.DateOfBirth = &parsedDate
+				break
+			}
+		}
+
+		if parseErr != nil {
+			log.Printf("Warning: Could not parse date of birth '%s' with any supported format: %v", userProto.DateOfBirth, parseErr)
+			// Don't return an error, just continue without the date of birth
 		}
 	}
 

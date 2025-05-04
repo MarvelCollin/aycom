@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package community;
+
+option go_package = "aycom/backend/services/community/proto";
+
+import "google/protobuf/timestamp.proto";
+
+// Community service definition
+service CommunityService {
+  // Community management
+  rpc CreateCommunity (CreateCommunityRequest) returns (CommunityResponse);
+  rpc UpdateCommunity (UpdateCommunityRequest) returns (CommunityResponse);
+  rpc ApproveCommunity (ApproveCommunityRequest) returns (CommunityResponse);
+  rpc DeleteCommunity (DeleteCommunityRequest) returns (EmptyResponse);
+  rpc GetCommunityByID (GetCommunityByIDRequest) returns (CommunityResponse);
+  rpc ListCommunities (ListCommunitiesRequest) returns (ListCommunitiesResponse);
+
+  // Member management
+  rpc AddMember (AddMemberRequest) returns (MemberResponse);
+  rpc RemoveMember (RemoveMemberRequest) returns (EmptyResponse);
+  rpc ListMembers (ListMembersRequest) returns (ListMembersResponse);
+  rpc UpdateMemberRole (UpdateMemberRoleRequest) returns (MemberResponse);
+
+  // Community rules
+  rpc AddRule (AddRuleRequest) returns (RuleResponse);
+  rpc RemoveRule (RemoveRuleRequest) returns (EmptyResponse);
+  rpc ListRules (ListRulesRequest) returns (ListRulesResponse);
+
+  // Join requests
+  rpc RequestToJoin (RequestToJoinRequest) returns (JoinRequestResponse);
+  rpc ApproveJoinRequest (ApproveJoinRequestRequest) returns (JoinRequestResponse);
+  rpc RejectJoinRequest (RejectJoinRequestRequest) returns (JoinRequestResponse);
+  rpc ListJoinRequests (ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
+
+  // Chat
+  rpc CreateChat (CreateChatRequest) returns (ChatResponse);
+  rpc AddChatParticipant (AddChatParticipantRequest) returns (ChatParticipantResponse);
+  rpc RemoveChatParticipant (RemoveChatParticipantRequest) returns (EmptyResponse);
+  rpc ListChats (ListChatsRequest) returns (ListChatsResponse);
+  rpc ListChatParticipants (ListChatParticipantsRequest) returns (ListChatParticipantsResponse);
+
+  // Messages
+  rpc SendMessage (SendMessageRequest) returns (MessageResponse);
+  rpc DeleteMessage (DeleteMessageRequest) returns (EmptyResponse);
+  rpc UnsendMessage (UnsendMessageRequest) returns (EmptyResponse);
+  rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse);
+  rpc SearchMessages (SearchMessagesRequest) returns (ListMessagesResponse);
+}
+
+// --- Messages ---
+
+message EmptyResponse {}
+
+message Community {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string logo_url = 4;
+  string banner_url = 5;
+  string creator_id = 6;
+  bool is_approved = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message Member {
+  string community_id = 1;
+  string user_id = 2;
+  string role = 3;
+  google.protobuf.Timestamp joined_at = 4;
+}
+
+message Rule {
+  string id = 1;
+  string community_id = 2;
+  string rule_text = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message JoinRequest {
+  string id = 1;
+  string community_id = 2;
+  string user_id = 3;
+  string status = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message Chat {
+  string id = 1;
+  bool is_group = 2;
+  string name = 3;
+  string created_by = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message ChatParticipant {
+  string chat_id = 1;
+  string user_id = 2;
+  bool is_admin = 3;
+  google.protobuf.Timestamp joined_at = 4;
+}
+
+message Message {
+  string id = 1;
+  string chat_id = 2;
+  string sender_id = 3;
+  string content = 4;
+  string media_url = 5;
+  string media_type = 6;
+  google.protobuf.Timestamp sent_at = 7;
+  bool unsent = 8;
+  google.protobuf.Timestamp unsent_at = 9;
+  bool deleted_for_sender = 10;
+  bool deleted_for_all = 11;
+  string reply_to_message_id = 12;
+}
+
+// --- Request/Response messages for each RPC (examples) ---
+
+message CreateCommunityRequest { Community community = 1; }
+message CommunityResponse { Community community = 1; }
+message UpdateCommunityRequest { Community community = 1; }
+message ApproveCommunityRequest { string community_id = 1; }
+message DeleteCommunityRequest { string community_id = 1; }
+message GetCommunityByIDRequest { string community_id = 1; }
+message ListCommunitiesRequest { int32 offset = 1; int32 limit = 2; }
+message ListCommunitiesResponse { repeated Community communities = 1; }
+
+message AddMemberRequest { string community_id = 1; string user_id = 2; string role = 3; }
+message RemoveMemberRequest { string community_id = 1; string user_id = 2; }
+message ListMembersRequest { string community_id = 1; }
+message ListMembersResponse { repeated Member members = 1; }
+message UpdateMemberRoleRequest { string community_id = 1; string user_id = 2; string role = 3; }
+message MemberResponse { Member member = 1; }
+
+message AddRuleRequest { string community_id = 1; string rule_text = 2; }
+message RemoveRuleRequest { string rule_id = 1; }
+message ListRulesRequest { string community_id = 1; }
+message ListRulesResponse { repeated Rule rules = 1; }
+message RuleResponse { Rule rule = 1; }
+
+message RequestToJoinRequest { string community_id = 1; string user_id = 2; }
+message ApproveJoinRequestRequest { string join_request_id = 1; }
+message RejectJoinRequestRequest { string join_request_id = 1; }
+message ListJoinRequestsRequest { string community_id = 1; }
+message ListJoinRequestsResponse { repeated JoinRequest join_requests = 1; }
+message JoinRequestResponse { JoinRequest join_request = 1; }
+
+message CreateChatRequest { bool is_group = 1; string name = 2; repeated string participant_ids = 3; string created_by = 4; }
+message ChatResponse { Chat chat = 1; }
+message AddChatParticipantRequest { string chat_id = 1; string user_id = 2; bool is_admin = 3; }
+message RemoveChatParticipantRequest { string chat_id = 1; string user_id = 2; }
+message ListChatsRequest { string user_id = 1; }
+message ListChatsResponse { repeated Chat chats = 1; }
+message ListChatParticipantsRequest { string chat_id = 1; }
+message ListChatParticipantsResponse { repeated ChatParticipant participants = 1; }
+message ChatParticipantResponse { ChatParticipant participant = 1; }
+
+message SendMessageRequest {
+  string chat_id = 1;
+  string sender_id = 2;
+  string content = 3;
+  string media_url = 4;
+  string media_type = 5;
+  string reply_to_message_id = 6;
+}
+message MessageResponse { Message message = 1; }
+message DeleteMessageRequest { string message_id = 1; }
+message UnsendMessageRequest { string message_id = 1; }
+message ListMessagesRequest { string chat_id = 1; int32 offset = 2; int32 limit = 3; }
+message ListMessagesResponse { repeated Message messages = 1; }
+message SearchMessagesRequest { string chat_id = 1; string query = 2; int32 offset = 3; int32 limit = 4; } 

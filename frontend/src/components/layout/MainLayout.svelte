@@ -7,12 +7,18 @@
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
   import { createEventDispatcher } from 'svelte';
 
+  // User profile data properties
   export let username = "";
   export let displayName = "";
   export let avatar = "👤";
+  export let userId = "";
+  export let email = "";
+  export let isVerified = false;
+  export let joinDate = "";
+  
+  // Layout and content properties
   export let trends: ITrend[] = [];
   export let suggestedFollows: ISuggestedFollow[] = [];
-  
   export let showLeftSidebar = true;
   export let showRightSidebar = true;
 
@@ -33,6 +39,10 @@
         {username}
         {displayName}
         {avatar}
+        {userId}
+        {email}
+        {isVerified}
+        {joinDate}
         on:toggleComposeModal={handleToggleComposeModal}
       />
     </div>
@@ -48,8 +58,8 @@
       <div class="p-4">
         <RightSide 
           {isDarkMode}
-          {trends}
-          suggestedFollows={suggestedFollows}
+          trends={trends || []}
+          suggestedFollows={suggestedFollows || []}
         />
       </div>
     </div>

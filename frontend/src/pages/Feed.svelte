@@ -2,8 +2,6 @@
   import MainLayout from '../components/layout/MainLayout.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
   import TweetCard from '../components/social/TweetCard.svelte';
-  import Toast from '../components/common/Toast.svelte';
-  import DebugPanel from '../components/common/DebugPanel.svelte';
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
@@ -21,18 +19,30 @@
   // Accept the route prop for conditionally rendering content
   export let route: string;
 
-  // Get auth store methods
-  const { getAuthState } = useAuth();
+  // Get auth store methods - updated to include subscribe
+  const { getAuthState, subscribe } = useAuth();
   // Get theme store
   const { theme } = useTheme();
 
-  // Reactive declarations for auth and theme
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  // Subscribe to auth store
+  let authState: IAuthStore;
+  subscribe(state => {
+    authState = state;
+  });
+
+  // Reactive declarations for theme
   $: isDarkMode = $theme === 'dark';
-  // User information for sidebar
-  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
-  $: sidebarAvatar = '👤'; // Placeholder avatar
+  
+  // User profile data
+  let userDetails = {
+    username: '',
+    displayName: '',
+    avatar: '👤',
+    userId: '',
+    email: '',
+    isVerified: false,
+    joinDate: ''
+  };
 
   // State for tweets and compose modal
   let tweets: ITweet[] = [];
@@ -53,6 +63,68 @@
   // Suggested users to follow
   let suggestedUsers: ISuggestedFollow[] = [];
   let isSuggestedUsersLoading = true;
+
+  // Fetch user profile when authenticated
+  async function fetchUserProfile() {
+    if (!authState.isAuthenticated || !authState.accessToken) {
+      return;
+    }
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+      const token = authState.accessToken;
+      
+      logger.debug('Fetching user profile');
+      const response = await fetch(`${apiUrl}/users/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.user) {
+          logger.info('User profile fetched successfully');
+          userDetails = {
+            username: data.user.username || `user_${authState.userId?.substring(0, 4)}`,
+            displayName: data.user.displayName || `User ${authState.userId?.substring(0, 4)}`,
+            avatar: data.user.profilePictureUrl || '👤',
+            userId: data.user.id || authState.userId || '',
+            email: data.user.email || '',
+            isVerified: data.user.isVerified || false,
+            joinDate: data.user.createdAt ? new Date(data.user.createdAt).toLocaleDateString() : ''
+          };
+        }
+      } else {
+        logger.warn('Failed to fetch user profile', { status: response.status });
+        // Fallback to basic user info from auth state
+        userDetails = {
+          username: `user_${authState.userId?.substring(0, 4)}`,
+          displayName: `User ${authState.userId?.substring(0, 4)}`,
+          avatar: '👤',
+          userId: authState.userId || '',
+          email: '',
+          isVerified: false,
+          joinDate: ''
+        };
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+      logger.error('Error fetching user profile', { error: err });
+      toastStore.showToast('Failed to load user profile. Using default values.', 'warning');
+      
+      // Fallback to basic user info from auth state
+      userDetails = {
+        username: `user_${authState.userId?.substring(0, 4)}`,
+        displayName: `User ${authState.userId?.substring(0, 4)}`,
+        avatar: '👤',
+        userId: authState.userId || '',
+        email: '',
+        isVerified: false,
+        joinDate: ''
+      };
+    }
+  }
 
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
@@ -159,6 +231,9 @@
 
   onMount(async () => {
     logger.info('Feed component mounted');
+    if (authState.isAuthenticated) {
+      await fetchUserProfile();
+    }
     fetchTweets();
     fetchTrends();
     fetchSuggestedUsers();
@@ -167,6 +242,10 @@
   function toggleComposeModal() {
     logger.debug('Toggling compose modal', { currentState: showComposeModal });
     showComposeModal = !showComposeModal;
+    // Add a small delay before toggling to prevent render loops
+    setTimeout(() => {
+      showComposeModal = !showComposeModal;
+    }, 0);
   }
   
   function openThreadModal(tweet: ITweet) {
@@ -211,9 +290,9 @@
 </script>
 
 <MainLayout
-  username={sidebarUsername}
-  displayName={sidebarDisplayName}
-  avatar={sidebarAvatar}
+  username={userDetails.username}
+  displayName={userDetails.displayName}
+  avatar={userDetails.avatar}
   trends={trends}
   suggestedFollows={suggestedUsers}
   on:toggleComposeModal={toggleComposeModal}
@@ -238,14 +317,18 @@
     </div>
     
     {#if route === '/home' || route === '/feed'}
-      {#if authState.isAuthenticated && sidebarDisplayName}
+      {#if authState.isAuthenticated && userDetails.displayName}
         <div class="p-4 bg-blue-50 dark:bg-blue-900/30 mb-2">
           <div class="flex items-center">
             <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
-              <span>{sidebarAvatar}</span>
+              {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
+                <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
+              {:else}
+                <span>{userDetails.avatar}</span>
+              {/if}
             </div>
             <div>
-              <h2 class="font-bold text-lg dark:text-white">Welcome, {sidebarDisplayName}!</h2>
+              <h2 class="font-bold text-lg dark:text-white">Welcome, {userDetails.displayName}!</h2>
               <p class="text-sm text-gray-600 dark:text-gray-300">We're glad to see you today. Here's your feed.</p>
             </div>
           </div>
@@ -342,17 +425,11 @@
 {#if showComposeModal}
   <ComposeTweet 
     {isDarkMode}
-    on:close={toggleComposeModal}
+    on:close={() => { showComposeModal = false; }}
     on:tweet={handleNewTweet}
-    avatar={sidebarAvatar} 
+    avatar={userDetails.avatar} 
   />
 {/if}
-
-<!-- Toast notifications -->
-<Toast />
-
-<!-- Debug panel -->
-<DebugPanel />
 
 <style>
   /* Spinner animation */

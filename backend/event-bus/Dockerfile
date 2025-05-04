@@ -31,5 +31,8 @@ COPY --chown=appuser:appgroup --from=builder /app/event-bus .
 # Switch to the non-root user
 USER appuser
 
+# Expose port (if applicable)
+EXPOSE 8000
+
 # Set the entrypoint to run the binary
 ENTRYPOINT ["./event-bus"] 

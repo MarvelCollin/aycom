@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.25.3
-// source: proto/thread-service/proto/thread.proto
+// source: proto/thread.proto
 
 package proto
 
@@ -852,5 +852,5 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/thread-service/proto/thread.proto",
+	Metadata: "proto/thread.proto",
 }

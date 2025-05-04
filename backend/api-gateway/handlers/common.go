@@ -11,6 +11,7 @@ import (
 	// supabase "github.com/supabase-community/storage-go"
 	"net/http"
 
+	communityProto "aycom/backend/services/community/proto"
 	userProto "aycom/backend/services/user/proto"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,7 @@ var (
 	// supabaseClient    *supabase.Client
 	supabaseInitOnce   sync.Once
 	grpcClientInitOnce sync.Once
+	CommunityClient    communityProto.CommunityServiceClient
 )
 
 // ConnectionPool manages a pool of gRPC connections
@@ -188,6 +190,23 @@ func InitServices() {
 			threadConnPool = NewConnectionPool(Config.GetThreadServiceAddr(), 5, 20, 10*time.Second)
 			log.Printf("Thread service connection pool initialized for %s", Config.GetThreadServiceAddr())
 		}
+
+		// Initialize Community Service Client
+		communityServiceAddr := Config.GetCommunityServiceAddr()
+		log.Printf("Connecting to Community service at %s", communityServiceAddr)
+		communityConn, err := grpc.Dial(
+			communityServiceAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+			grpc.WithTimeout(5*time.Second),
+		)
+		if err != nil {
+			log.Fatalf("Failed to connect to Community service: %v", err)
+		} else {
+			CommunityClient = communityProto.NewCommunityServiceClient(communityConn)
+			log.Printf("Connected to Community service at %s", communityServiceAddr)
+		}
+
 		log.Println("gRPC clients initialization complete.")
 	})
 

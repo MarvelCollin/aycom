@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import ThemeToggle from '../common/ThemeToggle.svelte';
   import { useTheme } from '../../hooks/useTheme';
   import { useAuth } from '../../hooks/useAuth';
@@ -10,6 +10,10 @@
   export let username = "";
   export let displayName = "";
   export let avatar = "👤";
+  export let userId = getUserId() || '';
+  export let email = '';
+  export let isVerified = false;
+  export let joinDate = '';
   
   // Get theme from the store
   const { theme } = useTheme();
@@ -21,18 +25,21 @@
   
   // User profile data
   let userDetails = {
-    username: username || 'guest',
-    displayName: displayName || 'Guest User',
-    avatar: avatar,
-    userId: getUserId() || '',
-    email: '',
-    isVerified: false,
-    joinDate: ''
+    username,
+    displayName,
+    avatar,
+    userId,
+    email,
+    isVerified,
+    joinDate
   };
   
-  // Fetch user profile if authenticated
+  // Fetch user profile if authenticated and data is missing
   async function fetchUserProfile() {
     if (!isAuthenticated()) return;
+    
+    // If we already have username and displayName from props, don't fetch again
+    if (username && displayName && username !== 'guest') return;
     
     try {
       const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
@@ -95,6 +102,9 @@
   
   // Toggle user menu
   let showUserMenu = false;
+  let userMenuButton;
+  let userMenuDropdown;
+  
   function toggleUserMenu() {
     showUserMenu = !showUserMenu;
     
@@ -110,17 +120,46 @@
   }
   
   // Get current path for active state
-  let currentPath = window.location.pathname;
-  
-  // Import lifecycle functions
-  import { onMount } from 'svelte';
+  let currentPath = '';
   
   onMount(() => {
-    // Try to fetch user profile
-    if (isAuthenticated()) {
+    // Set current path
+    currentPath = window.location.pathname;
+    
+    // Only fetch user profile if needed (if props are not provided)
+    if (isAuthenticated() && (!username || !displayName || username === 'guest')) {
       fetchUserProfile();
     }
+    
+    // Close menu when clicking outside
+    const handleClickOutside = (event) => {
+      if (showUserMenu && userMenuDropdown && userMenuButton) {
+        if (!userMenuDropdown.contains(event.target) && !userMenuButton.contains(event.target)) {
+          showUserMenu = false;
+        }
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   });
+
+  // Update userDetails when props change
+  $: {
+    // Only update if props have real values
+    if (username && displayName && username !== 'guest') {
+      userDetails = {
+        ...userDetails,
+        username,
+        displayName,
+        avatar,
+        userId
+      };
+    }
+  }
 </script>
 
 <div class="flex flex-col h-full py-2 px-2 {isDarkMode ? 'text-white' : 'text-black'}">
@@ -134,7 +173,7 @@
   <!-- Navigation Menu -->
   <nav class="flex-1">
     <ul class="space-y-1">
-      {#each navigationItems as item}
+      {#each navigationItems as item (item.path)}
         <li>
           <a 
             href={item.path} 
@@ -213,8 +252,9 @@
   <div class="mt-4 px-3 mb-4 relative">
     <!-- User profile button with auth status indicator -->
     <button 
+      bind:this={userMenuButton}
       class="flex items-center w-full p-3 rounded-full relative {isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}"
-      on:click={toggleUserMenu}
+      on:click|stopPropagation={toggleUserMenu}
     >
       <!-- Auth indicator dot -->
       <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'}"></div>
@@ -240,7 +280,9 @@
     <!-- User Menu Dropdown -->
     {#if showUserMenu}
       <div 
-        class="absolute bottom-20 left-2 w-72 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
+        bind:this={userMenuDropdown}
+        class="fixed right-0 bottom-16 md:absolute md:bottom-20 md:left-2 w-72 rounded-xl shadow-lg border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-[9999] transform origin-bottom-left transition-transform duration-150 ease-out"
+        style="filter: drop-shadow(0 20px 13px rgb(0 0 0 / 0.2)); backface-visibility: hidden;"
       >
         <div class="py-3 px-4 border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'}">
           <div class="flex items-center mb-2">
@@ -291,8 +333,8 @@
         <div class="py-2">
           {#if isAuthenticated()}
             <button
-              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
-              on:click={handleLogout}
+              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'} transition-colors"
+              on:click|stopPropagation={handleLogout}
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -302,7 +344,7 @@
           {:else}
             <a
               href="/login"
-              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
+              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'} transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />

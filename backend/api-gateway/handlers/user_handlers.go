@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	userProto "aycom/backend/services/user/proto"
@@ -306,7 +308,7 @@ func RegisterUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Registration successful", "user": resp.User})
 }
 
-// Login authenticates a user (mock password check, returns mock JWT)
+// Login authenticates a user
 func LoginUser(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email"`
@@ -335,8 +337,29 @@ func LoginUser(c *gin.Context) {
 		return
 	}
 
-	token := "mock-jwt-token" // TODO: Replace with real JWT generation if needed
-	c.JSON(http.StatusOK, gin.H{"success": true, "token": token, "user": loginResp.User})
+	// Generate real JWT token instead of using mock token
+	accessToken, refreshToken, err := generateJWT(loginResp.User.Id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to generate authentication token"})
+		return
+	}
+
+	// Get JWT expiry from environment or use default
+	jwtExpiry := 3600 // Default 1 hour
+	if expiryStr := os.Getenv("JWT_EXPIRY"); expiryStr != "" {
+		if expiry, err := strconv.ParseInt(expiryStr, 10, 64); err == nil {
+			jwtExpiry = int(expiry)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"expires_in":    jwtExpiry,
+		"user_id":       loginResp.User.Id,
+		"user":          loginResp.User,
+	})
 }
 
 // GetUserByEmail retrieves a user by email from the User service via gRPC

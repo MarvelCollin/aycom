@@ -80,6 +80,47 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		products.DELETE("/:id", handlers.DeleteProduct)
 	}
 
+	// Community routes
+	communities := protected.Group("/communities")
+	{
+		communities.POST("", handlers.CreateCommunity)
+		communities.GET("", handlers.ListCommunities)
+		communities.GET(":id", handlers.GetCommunityByID)
+		communities.PUT(":id", handlers.UpdateCommunity)
+		communities.DELETE(":id", handlers.DeleteCommunity)
+		communities.POST(":id/approve", handlers.ApproveCommunity)
+
+		communities.POST(":id/members", handlers.AddMember)
+		communities.GET(":id/members", handlers.ListMembers)
+		communities.PUT(":id/members/:userId", handlers.UpdateMemberRole)
+		communities.DELETE(":id/members/:userId", handlers.RemoveMember)
+
+		communities.POST(":id/rules", handlers.AddRule)
+		communities.GET(":id/rules", handlers.ListRules)
+		communities.DELETE(":id/rules/:ruleId", handlers.RemoveRule)
+
+		communities.POST(":id/join-requests", handlers.RequestToJoin)
+		communities.GET(":id/join-requests", handlers.ListJoinRequests)
+		communities.POST(":id/join-requests/:requestId/approve", handlers.ApproveJoinRequest)
+		communities.POST(":id/join-requests/:requestId/reject", handlers.RejectJoinRequest)
+	}
+
+	// Chat routes
+	chats := protected.Group("/chats")
+	{
+		chats.POST("", handlers.CreateChat)
+		chats.GET("", handlers.ListChats)
+		chats.GET(":id/participants", handlers.ListChatParticipants)
+		chats.POST(":id/participants", handlers.AddChatParticipant)
+		chats.DELETE(":id/participants/:userId", handlers.RemoveChatParticipant)
+
+		chats.POST(":id/messages", handlers.SendMessage)
+		chats.GET(":id/messages", handlers.ListMessages)
+		chats.DELETE(":id/messages/:messageId", handlers.DeleteMessage)
+		chats.POST(":id/messages/:messageId/unsend", handlers.UnsendMessage)
+		chats.GET(":id/messages/search", handlers.SearchMessages)
+	}
+
 	// Payment routes
 	// payments := protected.Group("/payments")
 	// payments.POST("", handlers.CreatePayment)

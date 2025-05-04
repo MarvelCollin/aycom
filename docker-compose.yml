@@ -222,8 +222,59 @@ services:
           cpus: '0.3'
           memory: 512M
 
+  # Community Service - Community & Chat Management
+  community_service:
+    build:
+      context: ./backend
+      dockerfile: ./services/community/Dockerfile
+    ports:
+      - "9093:9093"
+    environment:
+      - DATABASE_HOST=community_db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${COMMUNITY_DB_USER:-kolin}
+      - DATABASE_PASSWORD=${COMMUNITY_DB_PASSWORD:-kolin}
+      - DATABASE_NAME=${COMMUNITY_DB_NAME:-community_db}
+      - DATABASE_URL=postgresql://${COMMUNITY_DB_USER:-kolin}:${COMMUNITY_DB_PASSWORD:-kolin}@community_db:5432/${COMMUNITY_DB_NAME:-community_db}
+      - COMMUNITY_SERVICE_PORT=9093
+      - JWT_SECRET=${JWT_SECRET:-wompwomp123}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    depends_on:
+      community_db:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
+  # Community Service Database
+  community_db:
+    image: postgres:14-alpine
+    ports:
+      - "5436:5432"
+    environment:
+      - POSTGRES_USER=${COMMUNITY_DB_USER:-kolin}
+      - POSTGRES_PASSWORD=${COMMUNITY_DB_PASSWORD:-kolin}
+      - POSTGRES_DB=${COMMUNITY_DB_NAME:-community_db}
+    volumes:
+      - community_db_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${COMMUNITY_DB_USER:-kolin} -d ${COMMUNITY_DB_NAME:-community_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+
 volumes:
   user_db_data:
   thread_db_data:
+  community_db_data:
   redis_data:
   rabbitmq_data:

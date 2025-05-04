@@ -265,6 +265,7 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log(`Attempting login for ${email} at ${API_URL}/users/login`);
       const response = await fetchWithTimeout(
         `${API_URL}/users/login`,
         {
@@ -274,20 +275,46 @@ export function useAuth() {
         }
       );
       const data = await response.json();
-      if (data.success && data.token) {
-        // Set auth data (mock for now)
-        authStore.set({
-          isAuthenticated: true,
-          userId: data.user?.id || null,
-          accessToken: data.token,
-          refreshToken: null,
-          expiresAt: Date.now() + 3600 * 1000
+      console.log('Login response (full):', JSON.stringify(data, null, 2));
+      
+      if (data.success) {
+        // Check for both token naming patterns since backends can vary
+        const accessToken = data.access_token || data.token;
+        const refreshToken = data.refresh_token || data.refreshToken;
+        const expiresIn = data.expires_in || 3600; // Default to 1 hour if not provided
+        const userId = data.user_id || (data.user ? data.user.id : null);
+        
+        console.log('Token data extracted:', { 
+          accessToken: accessToken || 'MISSING',
+          refreshToken: refreshToken || 'MISSING',
+          userId: userId || 'MISSING',
+          expiresIn
         });
+        
+        if (accessToken) {
+          // Set auth data with proper tokens
+          const authData = {
+            isAuthenticated: true,
+            userId: userId,
+            accessToken: accessToken,
+            refreshToken: refreshToken, 
+            expiresAt: Date.now() + (expiresIn * 1000)
+          };
+          console.log('Setting auth store with:', JSON.stringify(authData, null, 2));
+          authStore.set(authData);
+          
+          // Verify what was actually stored
+          const currentState = get(authStore);
+          console.log('Current auth state after setting:', JSON.stringify(currentState, null, 2));
+        } else {
+          console.error('Login response missing access token:', data);
+        }
       }
+      
       return {
         success: data.success,
         message: data.message || (data.success ? 'Login successful!' : 'Login failed'),
-        token: data.token,
+        token: data.access_token || data.token,
         user: data.user
       };
     } catch (error) {

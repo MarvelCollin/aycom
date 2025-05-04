@@ -6,12 +6,14 @@ import (
 )
 
 type ServiceConfig struct {
-	AuthServiceHost   string
-	AuthServicePort   string
-	UserServiceHost   string
-	UserServicePort   string
-	ThreadServiceHost string
-	ThreadServicePort string
+	AuthServiceHost      string
+	AuthServicePort      string
+	UserServiceHost      string
+	UserServicePort      string
+	ThreadServiceHost    string
+	ThreadServicePort    string
+	CommunityServiceHost string
+	CommunityServicePort string
 }
 
 type OAuthConfig struct {
@@ -34,12 +36,14 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Services: ServiceConfig{
-			AuthServiceHost:   getEnv("AUTH_SERVICE_HOST", "auth_service"),
-			AuthServicePort:   getEnv("AUTH_SERVICE_PORT", "9090"),
-			UserServiceHost:   getEnv("USER_SERVICE_HOST", "user_service"),
-			UserServicePort:   getEnv("USER_SERVICE_PORT", "9091"),
-			ThreadServiceHost: getEnv("THREAD_SERVICE_HOST", "thread_service"),
-			ThreadServicePort: getEnv("THREAD_SERVICE_PORT", "9092"),
+			AuthServiceHost:      getEnv("AUTH_SERVICE_HOST", "auth_service"),
+			AuthServicePort:      getEnv("AUTH_SERVICE_PORT", "9090"),
+			UserServiceHost:      getEnv("USER_SERVICE_HOST", "user_service"),
+			UserServicePort:      getEnv("USER_SERVICE_PORT", "9091"),
+			ThreadServiceHost:    getEnv("THREAD_SERVICE_HOST", "thread_service"),
+			ThreadServicePort:    getEnv("THREAD_SERVICE_PORT", "9092"),
+			CommunityServiceHost: getEnv("COMMUNITY_SERVICE_HOST", "community_service"),
+			CommunityServicePort: getEnv("COMMUNITY_SERVICE_PORT", "9093"),
 		},
 		OAuth: OAuthConfig{
 			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
@@ -69,6 +73,10 @@ func (c *Config) GetUserServiceAddr() string {
 
 func (c *Config) GetThreadServiceAddr() string {
 	return fmt.Sprintf("%s:%s", c.Services.ThreadServiceHost, c.Services.ThreadServicePort)
+}
+
+func (c *Config) GetCommunityServiceAddr() string {
+	return fmt.Sprintf("%s:%s", c.Services.CommunityServiceHost, c.Services.CommunityServicePort)
 }
 
 func getEnv(key, fallback string) string {

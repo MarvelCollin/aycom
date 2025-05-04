@@ -307,4 +307,73 @@ CREATE TABLE community_rules (
 );
 -- Relation: Many-to-One with communities (Many rules can belong to one community)
 
+-- CHAT SYSTEM
+
+-- Chat conversations (individual or group)
+CREATE TABLE chats (
+    chat_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    is_group BOOLEAN NOT NULL DEFAULT FALSE,
+    name VARCHAR(100), -- For group chats
+    created_by UUID NOT NULL, -- User who created the chat
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+-- Relations:
+-- 1. One-to-Many with chat_participants (A chat has many participants)
+-- 2. One-to-Many with messages (A chat has many messages)
+
+-- Chat participants (users in a chat)
+CREATE TABLE chat_participants (
+    chat_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE NOT NULL,
+    PRIMARY KEY (chat_id, user_id),
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+-- Relations:
+-- 1. Many-to-One with chats (Many participants in a chat)
+-- 2. Many-to-One with users (A user can be in many chats)
+
+-- Chat messages
+CREATE TABLE messages (
+    message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chat_id UUID NOT NULL,
+    sender_id UUID NOT NULL,
+    content TEXT,
+    media_url VARCHAR(512),
+    media_type VARCHAR(10) CHECK (media_type IN ('Image', 'GIF', 'Video')),
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    unsent BOOLEAN DEFAULT FALSE NOT NULL,
+    unsent_at TIMESTAMP WITH TIME ZONE,
+    deleted_for_sender BOOLEAN DEFAULT FALSE NOT NULL,
+    deleted_for_all BOOLEAN DEFAULT FALSE NOT NULL,
+    reply_to_message_id UUID,
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (reply_to_message_id) REFERENCES messages(message_id) ON DELETE SET NULL
+);
+-- Relations:
+-- 1. Many-to-One with chats (Many messages in a chat)
+-- 2. Many-to-One with users (Many messages sent by a user)
+-- 3. Optional self-reference for replies
+
+-- Index for searching messages
+CREATE INDEX idx_messages_content ON messages USING gin (to_tsvector('english', content));
+
+-- Track deleted conversations for users (soft delete)
+CREATE TABLE deleted_chats (
+    chat_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (chat_id, user_id),
+    FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+-- Relation: Many-to-Many between users and chats (tracks which user deleted which chat)
+
+-- Track message unsend window (for enforcing 1 minute unsend)
+CREATE INDEX idx_messages_sent_at ON messages(sent_at);
+
 --

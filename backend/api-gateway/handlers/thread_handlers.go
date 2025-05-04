@@ -177,7 +177,7 @@ func GetThread(c *gin.Context) {
 // @Router /api/v1/threads/user/{id} [get]
 func GetThreadsByUser(c *gin.Context) {
 	// Get user ID from URL or from token
-	userID := c.Param("userId")
+	userID := c.Param("id") // Changed from "userId" to "id" to match route definition
 	if userID == "" {
 		userIDAny, exists := c.Get("userId")
 		if !exists {
