@@ -17,18 +17,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
 
-	// Health check
-	router.GET("/health", handlers.HealthCheck)
-
-	// System status endpoints for service health checks
-	system := router.Group("/api/v1/system/status")
-	{
-		system.GET("/user", handlers.ProxyServiceHealthCheck("user_service", "9091"))
-		system.GET("/thread", handlers.ProxyServiceHealthCheck("thread_service", "9092"))
-		system.GET("/community", handlers.ProxyServiceHealthCheck("community_service", "9093"))
-		system.GET("/event-bus", handlers.ProxyServiceHealthCheck("event_bus", "8000"))
-	}
-
 	// API v1 group
 	v1 := router.Group("/api/v1")
 
@@ -39,9 +27,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.GET("/oauth-config", handlers.GetOAuthConfig)
 		auth.POST("/refresh-token", handlers.RefreshToken)
 		auth.POST("/login", handlers.Login)
-		// auth.POST("/register", handlers.Register)
-		// auth.POST("/register-with-media", handlers.RegisterWithMedia)
-		// auth.POST("/refresh", handlers.RefreshToken)
+		auth.POST("/verify-email", handlers.VerifyEmail)
+		auth.POST("/resend-verification", handlers.ResendVerification)
+		auth.POST("/google", handlers.GoogleLogin)
 	}
 
 	// Public user registration and login
@@ -50,6 +38,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.POST("/register", handlers.RegisterUser)
 		publicUsers.POST("/login", handlers.LoginUser)
 		publicUsers.POST("/by-email", handlers.GetUserByEmail)
+		publicUsers.GET("/check-username", handlers.CheckUsernameAvailability)
 	}
 
 	// Public thread routes
@@ -68,6 +57,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/profile", handlers.GetUserProfile)
 		users.GET("/me", handlers.GetUserProfile)
 		users.PUT("/profile", handlers.UpdateUserProfile)
+		users.POST("/:userId/follow", handlers.FollowUser)
+		users.POST("/:userId/unfollow", handlers.UnfollowUser)
+		users.GET("/:userId/followers", handlers.GetFollowers)
+		users.GET("/:userId/following", handlers.GetFollowing)
 	}
 
 	// Thread routes

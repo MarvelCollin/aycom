@@ -398,65 +398,6 @@
     logs = value;
   });
   
-  // Service status section
-  const services = [
-    { name: 'API Gateway', url: 'http://localhost:8083/health', http: true },
-    // Keep API Gateway proxied endpoints for reference
-    { name: 'User Service (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/user', http: true },
-    { name: 'Thread Service (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/thread', http: true },
-    { name: 'Community Service (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/community', http: true },
-    { name: 'Event Bus (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/event-bus', http: true },
-    // Add direct health check endpoints
-    { name: 'User Service (direct)', url: 'http://localhost:8081/health', http: true },
-    { name: 'Thread Service (direct)', url: 'http://localhost:9092/health', http: true },
-    { name: 'Community Service (direct)', url: 'http://localhost:9093/health', http: true },
-    { name: 'Event Bus (direct)', url: 'http://localhost:8000/health', http: true },
-    // { name: 'AI Service', url: 'http://localhost:5000/health', http: true }, // Removed AI service check
-    { name: 'Redis', http: false },
-    { name: 'User DB', http: false },
-    { name: 'Thread DB', http: false },
-    { name: 'RabbitMQ', http: false },
-  ];
-  
-  let serviceStatuses = {};
-  let serviceErrors = {};
-  
-  async function checkServiceStatus() {
-    for (const service of services) {
-      if (!service.http || !service.url) continue;
-      try {
-        console.log(`Checking service health: ${service.name} at ${service.url}`);
-        const res = await fetch(service.url, { 
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          // Don't use credentials for health checks
-          mode: 'cors' 
-        });
-        if (res.ok) {
-          serviceStatuses[service.name] = true;
-          serviceErrors[service.name] = '';
-          console.log(`Service ${service.name} is healthy`);
-        } else {
-          serviceStatuses[service.name] = false;
-          let reason = `HTTP ${res.status} - ${res.statusText}`;
-          try {
-            const text = await res.text();
-            if (text) reason += `: ${text}`;
-          } catch {}
-          serviceErrors[service.name] = reason;
-          console.log(`Service ${service.name} is unhealthy: ${reason}`);
-        }
-      } catch (e) {
-        serviceStatuses[service.name] = false;
-        serviceErrors[service.name] = (e && (e as any).message) ? (e as any).message : String(e);
-        console.log(`Error checking service ${service.name}:`, e);
-      }
-    }
-  }
-  
   onMount(() => {
     cleanupFunction = setupKeyboardShortcuts();
     
@@ -467,10 +408,6 @@
     
     // Add initial log
     logger.info('Debug panel initialized');
-    
-    checkServiceStatus();
-    const interval = setInterval(checkServiceStatus, 10000);
-    return () => clearInterval(interval);
   });
   
   onDestroy(() => {
@@ -645,30 +582,6 @@
                 Go
               </button>
             </div>
-          </div>
-        </div>
-        
-        <!-- Service Status Section -->
-        <div class="section">
-          <h3>Service Status</h3>
-          <div class="card">
-            <ul>
-              {#each services as service}
-                <li>
-                  <span>{service.name}:</span>
-                  {#if service.http}
-                    <span style="font-weight:bold; color:{serviceStatuses[service.name] === undefined ? 'gray' : serviceStatuses[service.name] ? 'limegreen' : 'red'}">
-                      {serviceStatuses[service.name] === undefined ? 'Checking...' : serviceStatuses[service.name] ? 'Active' : 'Inactive'}
-                    </span>
-                    {#if serviceStatuses[service.name] === false && serviceErrors[service.name]}
-                      <span style="color:orange; font-size:12px; margin-left:8px;">{serviceErrors[service.name]}</span>
-                    {/if}
-                  {:else}
-                    <span style="color:gray; font-size:12px; margin-left:8px;">Not HTTP health-checkable</span>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
           </div>
         </div>
       </div>

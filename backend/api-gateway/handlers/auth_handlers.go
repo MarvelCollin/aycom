@@ -435,3 +435,102 @@ func GetOAuthConfig(c *gin.Context) {
 		},
 	})
 }
+
+// VerifyEmail handles verification of a user's email
+// @Summary Verify Email
+// @Description Verifies a user's email with a verification code
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Router /api/v1/auth/verify-email [post]
+func VerifyEmail(c *gin.Context) {
+	var input struct {
+		Email            string `json:"email" binding:"required,email"`
+		VerificationCode string `json:"verification_code" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request format: " + err.Error(),
+		})
+		return
+	}
+
+	// TODO: Implement actual verification logic with user service
+	// For now, just return a success response for frontend testing
+	log.Printf("Email verification request received for: %s", input.Email)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"message":       "Email verification successful",
+		"access_token":  "dummy_access_token", // In a real implementation, you'd generate a token
+		"refresh_token": "dummy_refresh_token",
+		"user_id":       "user123",
+		"expires_in":    3600,
+	})
+}
+
+// ResendVerification handles resending verification code
+// @Summary Resend verification code
+// @Description Resends a verification code to the user's email
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Router /api/v1/auth/resend-verification [post]
+func ResendVerification(c *gin.Context) {
+	var input struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request format: " + err.Error(),
+		})
+		return
+	}
+
+	// TODO: Implement actual resend verification logic with user service
+	// For now, just return a success response for frontend testing
+	log.Printf("Verification code resend request for: %s", input.Email)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Verification code sent to your email",
+	})
+}
+
+// GoogleLogin handles login with Google OAuth
+// @Summary Google Login
+// @Description Logs in a user with Google OAuth token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Router /api/v1/auth/google [post]
+func GoogleLogin(c *gin.Context) {
+	var input struct {
+		TokenID string `json:"token_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request format: " + err.Error(),
+		})
+		return
+	}
+
+	// TODO: Implement actual Google login logic with user service
+	// For now, just return a success response for frontend testing
+	log.Printf("Google login request received with token: %s", input.TokenID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"message":       "Google login successful",
+		"access_token":  "dummy_access_token", // In a real implementation, you'd generate a token
+		"refresh_token": "dummy_refresh_token",
+		"user_id":       "user123",
+		"expires_in":    3600,
+	})
+}

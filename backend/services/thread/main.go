@@ -3,12 +3,13 @@ package main
 import (
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	handlers "aycom/backend/services/thread/api"
 	"aycom/backend/services/thread/db"
@@ -24,7 +25,7 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
@@ -63,9 +64,25 @@ func main() {
 		userServicePort := getEnv("USER_SERVICE_PORT", "9091")
 		userServiceAddr := userServiceHost + ":" + userServicePort
 
-		log.Printf("User service is at %s, but using mock client for now", userServiceAddr)
-		// TODO: Fix proto imports to establish real connection
-		userClient := service.NewUserClient(nil)
+		log.Printf("Connecting to User service at %s", userServiceAddr)
+
+		var userClient service.UserClient
+
+		// Try to establish a connection to the user service
+		userConn, err := grpc.Dial(
+			userServiceAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+			grpc.WithTimeout(5*time.Second),
+		)
+
+		if err != nil {
+			log.Printf("Warning: Failed to connect to User service: %v. Using mock client instead.", err)
+			userClient = service.NewUserClient(nil)
+		} else {
+			log.Printf("Successfully connected to User service at %s", userServiceAddr)
+			userClient = service.NewUserClient(userConn)
+		}
 
 		// Initialize services with the new repositories
 		threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)
@@ -96,27 +113,6 @@ func main() {
 		log.Printf("Thread service started on port %s, environment: %s", port, environment)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
-		}
-	}()
-
-	// Health check endpoint
-	go func() {
-		defer wg.Done()
-		healthPort := getEnv("HEALTH_PORT", "8082")
-		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", getEnv("CORS_ORIGIN", "http://localhost:3000"))
-			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK"))
-		})
-		log.Printf("Thread service health endpoint started on port %s", healthPort)
-		if err := http.ListenAndServe(":"+healthPort, nil); err != nil {
-			log.Fatalf("Failed to start health server: %v", err)
 		}
 	}()
 

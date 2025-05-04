@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 
@@ -25,7 +24,7 @@ import (
 func main() {
 	_ = godotenv.Load(".env")
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
@@ -85,44 +84,6 @@ func main() {
 		log.Printf("User service started on port %s", port)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		healthPort := getEnv("HEALTH_PORT", "8081")
-		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-			// Add CORS headers
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type")
-
-			// Handle preflight OPTIONS request
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			// Ensure proper HTTP response
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-
-			// Return JSON response
-			_, err := w.Write([]byte(`{"status":"OK","service":"user_service"}`))
-			if err != nil {
-				log.Printf("Error writing health check response: %v", err)
-			}
-		})
-		log.Printf("User service health endpoint started on port %s", healthPort)
-
-		// Use a properly configured HTTP server
-		server := &http.Server{
-			Addr:    ":" + healthPort,
-			Handler: nil, // Use default ServeMux
-		}
-
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatalf("Failed to start health endpoint: %v", err)
 		}
 	}()
 

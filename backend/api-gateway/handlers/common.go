@@ -266,7 +266,7 @@ func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {
 		serviceHost := serviceName
 
 		// For local development, services are on localhost
-		if Config.Environment == "development" {
+		if Config.Server.CORSOrigin == "*" || os.Getenv("ENVIRONMENT") == "development" {
 			serviceHost = "localhost"
 		}
 

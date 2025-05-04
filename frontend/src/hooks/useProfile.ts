@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { IUser, IUserProfile, IUserUpdateRequest } from '../interfaces/IUser';
-import { getAuthToken } from '../utils/auth';
+import * as userApi from '../api/user';
 
 export function useProfile() {
   const profile = writable<IUserProfile | null>(null);
@@ -9,30 +9,13 @@ export function useProfile() {
   
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
 
-  async function fetchProfile(userId: string): Promise<boolean> {
+  async function fetchProfile(): Promise<boolean> {
     loading.set(true);
     error.set(null);
 
     try {
-      const token = getAuthToken();
-      
-      const endpoint = userId === 'me' 
-        ? `${API_BASE_URL}/users/profile` 
-        : `${API_BASE_URL}/users/${userId}`;
-      
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch profile: ${response.status}`);
-      }
-      
-      const data = await response.json();
+      // Use the getProfile API function
+      const data = await userApi.getProfile();
       
       if (data && data.user) {
         const userData = data.user;
@@ -75,22 +58,8 @@ export function useProfile() {
     error.set(null);
 
     try {
-      const token = getAuthToken();
-      
-      const response = await fetch(`${API_BASE_URL}/users/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify(data)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to update profile: ${response.status}`);
-      }
-      
-      const responseData = await response.json();
+      // Use the updateProfile API function
+      const responseData = await userApi.updateProfile(data);
       
       // Update the local profile with the new data
       const currentProfile = get(profile);
@@ -280,9 +249,9 @@ export function useProfile() {
   }
 
   return {
-    profile,
-    loading,
-    error,
+    profile: { subscribe: profile.subscribe },
+    loading: { subscribe: loading.subscribe },
+    error: { subscribe: error.subscribe },
     fetchProfile,
     updateProfile,
     checkUsernameAvailability,

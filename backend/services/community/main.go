@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 
@@ -23,7 +22,7 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
@@ -64,27 +63,6 @@ func main() {
 		log.Printf("Community service started on port %s", port)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
-		}
-	}()
-
-	// Health check endpoint
-	go func() {
-		defer wg.Done()
-		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"OK"}`))
-		})
-		log.Println("Community service health endpoint started on port 9093")
-		if err := http.ListenAndServe(":9093", nil); err != nil {
-			log.Fatalf("Failed to start health endpoint: %v", err)
 		}
 	}()
 

@@ -60,7 +60,6 @@ services:
       dockerfile: ./services/user/Dockerfile
     ports:
       - "9091:9091"
-      - "8081:8081"
     environment:
       - DATABASE_HOST=user_db
       - DATABASE_PORT=5432
@@ -70,7 +69,6 @@ services:
       - DATABASE_URL=postgresql://${USER_DB_USER:-kolin}:${USER_DB_PASSWORD:-kolin}@user_db:5432/${USER_DB_NAME:-user_db}
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - ENVIRONMENT=${ENVIRONMENT:-development}
-      - HEALTH_PORT=8081
     depends_on:
       user_db:
         condition: service_healthy
@@ -88,7 +86,6 @@ services:
       dockerfile: ./services/thread/Dockerfile
     ports:
       - "9092:9092"
-      - "8082:8082"
     environment:
       - DATABASE_HOST=thread_db
       - DATABASE_PORT=5432
@@ -118,8 +115,6 @@ services:
     build:
       context: ./backend/event-bus
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000" # Map host port 8000 to container port 8000
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - USER_SERVICE_HOST=user_service
