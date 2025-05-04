@@ -242,10 +242,6 @@
   function toggleComposeModal() {
     logger.debug('Toggling compose modal', { currentState: showComposeModal });
     showComposeModal = !showComposeModal;
-    // Add a small delay before toggling to prevent render loops
-    setTimeout(() => {
-      showComposeModal = !showComposeModal;
-    }, 0);
   }
   
   function openThreadModal(tweet: ITweet) {

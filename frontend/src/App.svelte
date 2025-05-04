@@ -18,6 +18,7 @@
   import './styles/src/interaction.css';
   import './styles/src/layout-flex.css';
   import './styles/src/responsive.css';
+  import './styles/src/dark-mode.css';
   
   import Router from './base/Router.svelte';
   import ThemeProvider from './components/common/ThemeProvider.svelte';

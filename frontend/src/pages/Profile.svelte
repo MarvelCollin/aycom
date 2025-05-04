@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { useProfile } from '../hooks/useProfile';
+  import { useTheme } from '../hooks/useTheme';
   import type { IUserUpdateRequest, IUser } from '../interfaces/IUser';
   
   // Get profile management functions from the hook
@@ -15,6 +16,10 @@
     getFollowers,
     getFollowing
   } = useProfile();
+  
+  // Get theme information
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
   
   let editMode = false;
   let followers: IUser[] = [];
@@ -40,7 +45,7 @@
     // Initialize form data with current profile
     if ($profile) {
       formData = {
-        name: $profile.name || '',
+        name: $profile.displayName || '',
         username: $profile.username || '',
         bio: $profile.bio || '',
         location: $profile.location || '',
@@ -64,7 +69,7 @@
     // Reset form data when entering edit mode
     if (editMode && $profile) {
       formData = {
-        name: $profile.name || '',
+        name: $profile.displayName || '',
         username: $profile.username || '',
         bio: $profile.bio || '',
         location: $profile.location || '',
@@ -98,7 +103,7 @@
 </script>
 
 <svelte:head>
-  <title>{$profile ? $profile.name : 'Profile'} | AYCOM</title>
+  <title>{$profile ? $profile.displayName : 'Profile'} | AYCOM</title>
 </svelte:head>
 
 <div class="profile-container">
@@ -108,16 +113,16 @@
     <div class="error-message">{$error}</div>
   {:else if $profile}
     <!-- Profile Banner -->
-    <div class="profile-banner" style="background-image: url({$profile.banner || 'https://via.placeholder.com/1500x300'})">
+    <div class="profile-banner {isDarkMode ? 'profile-banner-dark' : ''}" style="background-image: url({$profile.banner || 'https://via.placeholder.com/1500x300'})">
       {#if editMode}
         <button class="edit-banner-btn">Update Banner</button>
       {/if}
     </div>
     
     <!-- Profile Header -->
-    <div class="profile-header">
+    <div class="profile-header {isDarkMode ? 'profile-header-dark' : ''}">
       <div class="profile-picture-container">
-        <img src={$profile.profile_picture || 'https://via.placeholder.com/150'} alt="{$profile.name}'s profile" class="profile-picture" />
+        <img src={$profile.avatar || 'https://via.placeholder.com/150'} alt="{$profile.displayName}'s profile" class="profile-picture {isDarkMode ? 'profile-avatar-dark' : ''}" />
         {#if editMode}
           <button class="edit-picture-btn">Update Picture</button>
         {/if}
@@ -134,66 +139,66 @@
     </div>
     
     <!-- Profile Info -->
-    <div class="profile-info">
+    <div class="profile-info {isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}">
       {#if editMode}
         <div class="edit-form">
           <div class="form-group">
-            <label for="name">Name</label>
-            <input id="name" type="text" bind:value={formData.name} maxlength="50" />
+            <label for="name" class="{isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Name</label>
+            <input id="name" type="text" bind:value={formData.name} maxlength="50" class="{isDarkMode ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}" />
           </div>
           
           <div class="form-group">
-            <label for="username">Username</label>
-            <input id="username" type="text" bind:value={formData.username} maxlength="15" />
+            <label for="username" class="{isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Username</label>
+            <input id="username" type="text" bind:value={formData.username} maxlength="15" class="{isDarkMode ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}" />
           </div>
           
           <div class="form-group">
-            <label for="bio">Bio</label>
-            <textarea id="bio" bind:value={formData.bio} maxlength="160"></textarea>
+            <label for="bio" class="{isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Bio</label>
+            <textarea id="bio" bind:value={formData.bio} maxlength="160" class="{isDarkMode ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}"></textarea>
           </div>
           
           <div class="form-group">
-            <label for="location">Location</label>
-            <input id="location" type="text" bind:value={formData.location} maxlength="30" />
+            <label for="location" class="{isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Location</label>
+            <input id="location" type="text" bind:value={formData.location} maxlength="30" class="{isDarkMode ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}" />
           </div>
           
           <div class="form-group">
-            <label for="website">Website</label>
-            <input id="website" type="url" bind:value={formData.website} placeholder="https://" />
+            <label for="website" class="{isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Website</label>
+            <input id="website" type="url" bind:value={formData.website} placeholder="https://" class="{isDarkMode ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}" />
           </div>
         </div>
       {:else}
         <div class="profile-details">
-          <h1 class="profile-name">{$profile.name} {#if $profile.verified}<span class="verified-badge">✓</span>{/if}</h1>
-          <p class="profile-username">@{$profile.username}</p>
+          <h1 class="profile-name {isDarkMode ? 'text-white' : 'text-gray-900'}">{$profile.displayName} {#if $profile.verified}<span class="verified-badge">✓</span>{/if}</h1>
+          <p class="profile-username {isDarkMode ? 'text-gray-400' : 'text-gray-600'}">@{$profile.username}</p>
           
           {#if $profile.bio}
-            <p class="profile-bio">{$profile.bio}</p>
+            <p class="profile-bio {isDarkMode ? 'profile-bio-dark' : ''}">{$profile.bio}</p>
           {/if}
           
-          <div class="profile-metadata">
+          <div class="profile-metadata {isDarkMode ? 'text-gray-400' : 'text-gray-600'}">
             {#if $profile.location}
               <span class="location"><i class="icon-location"></i> {$profile.location}</span>
             {/if}
             
             {#if $profile.website}
-              <span class="website"><i class="icon-link"></i> <a href={$profile.website} target="_blank" rel="noopener">{$profile.website.replace(/^https?:\/\//, '')}</a></span>
+              <span class="website"><i class="icon-link"></i> <a href={$profile.website} target="_blank" rel="noopener" class="{isDarkMode ? 'text-blue-400' : 'text-blue-600'}">{$profile.website.replace(/^https?:\/\//, '')}</a></span>
             {/if}
             
-            <span class="join-date"><i class="icon-calendar"></i> Joined {new Date($profile.joined_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+            <span class="join-date"><i class="icon-calendar"></i> Joined {new Date($profile.joinDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
           </div>
           
-          <div class="profile-stats">
-            <button class="stat-item" on:click={loadFollowing}>
-              <span class="stat-value">{$profile.following_count}</span>
+          <div class="profile-stats {isDarkMode ? 'profile-stats-dark' : ''}">
+            <button class="stat-item {isDarkMode ? 'profile-stat-item-dark' : ''}" on:click={loadFollowing}>
+              <span class="stat-value {isDarkMode ? 'profile-stat-value-dark' : ''}">{$profile.followingCount}</span>
               <span class="stat-label">Following</span>
             </button>
-            <button class="stat-item" on:click={loadFollowers}>
-              <span class="stat-value">{$profile.followers_count}</span>
+            <button class="stat-item {isDarkMode ? 'profile-stat-item-dark' : ''}" on:click={loadFollowers}>
+              <span class="stat-value {isDarkMode ? 'profile-stat-value-dark' : ''}">{$profile.followerCount}</span>
               <span class="stat-label">Followers</span>
             </button>
-            <div class="stat-item">
-              <span class="stat-value">{$profile.tweets_count}</span>
+            <div class="stat-item {isDarkMode ? 'profile-stat-item-dark' : ''}">
+              <span class="stat-value {isDarkMode ? 'profile-stat-value-dark' : ''}">{$profile.tweetsCount}</span>
               <span class="stat-label">Posts</span>
             </div>
           </div>
@@ -213,9 +218,9 @@
             <ul class="user-list">
               {#each followers as user}
                 <li class="user-item">
-                  <img src={user.profile_picture} alt="{user.name}'s profile" class="user-avatar" />
+                  <img src={user.avatar} alt="{user.displayName}'s profile" class="user-avatar" />
                   <div class="user-info">
-                    <div class="user-name">{user.name} {#if user.verified}<span class="verified-badge">✓</span>{/if}</div>
+                    <div class="user-name">{user.displayName} {#if user.verified}<span class="verified-badge">✓</span>{/if}</div>
                     <div class="user-username">@{user.username}</div>
                   </div>
                   <button class="follow-btn" on:click={() => handleFollowToggle(user.id, user.isFollowing)}>
@@ -240,9 +245,9 @@
             <ul class="user-list">
               {#each following as user}
                 <li class="user-item">
-                  <img src={user.profile_picture} alt="{user.name}'s profile" class="user-avatar" />
+                  <img src={user.avatar} alt="{user.displayName}'s profile" class="user-avatar" />
                   <div class="user-info">
-                    <div class="user-name">{user.name} {#if user.verified}<span class="verified-badge">✓</span>{/if}</div>
+                    <div class="user-name">{user.displayName} {#if user.verified}<span class="verified-badge">✓</span>{/if}</div>
                     <div class="user-username">@{user.username}</div>
                   </div>
                   <button class="follow-btn" on:click={() => handleFollowToggle(user.id, user.isFollowing)}>
