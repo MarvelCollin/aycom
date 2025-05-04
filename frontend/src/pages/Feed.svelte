@@ -75,7 +75,7 @@
       const token = authState.accessToken;
       
       logger.debug('Fetching user profile');
-      const response = await fetch(`${apiUrl}/users/profile`, {
+      const response = await fetch(`${apiUrl}/users/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -84,23 +84,25 @@
       if (response.ok) {
         const data = await response.json();
         if (data && data.user) {
-          logger.info('User profile fetched successfully');
+          logger.info('User profile fetched successfully', data.user);
           userDetails = {
-            username: data.user.username || `user_${authState.userId?.substring(0, 4)}`,
-            displayName: data.user.displayName || `User ${authState.userId?.substring(0, 4)}`,
-            avatar: data.user.profilePictureUrl || '👤',
+            username: data.user.username || '',
+            displayName: data.user.name || data.user.displayName || '',
+            avatar: data.user.profile_picture_url || '👤',
             userId: data.user.id || authState.userId || '',
             email: data.user.email || '',
             isVerified: data.user.isVerified || false,
-            joinDate: data.user.createdAt ? new Date(data.user.createdAt).toLocaleDateString() : ''
+            joinDate: data.user.created_at ? new Date(data.user.created_at).toLocaleDateString() : ''
           };
+          
+          logger.debug('User details updated', userDetails);
         }
       } else {
         logger.warn('Failed to fetch user profile', { status: response.status });
-        // Fallback to basic user info from auth state
+        // Fallback to basic user info from auth store
         userDetails = {
-          username: `user_${authState.userId?.substring(0, 4)}`,
-          displayName: `User ${authState.userId?.substring(0, 4)}`,
+          username: authState.username || '',
+          displayName: authState.displayName || 'User',
           avatar: '👤',
           userId: authState.userId || '',
           email: '',
@@ -115,8 +117,8 @@
       
       // Fallback to basic user info from auth state
       userDetails = {
-        username: `user_${authState.userId?.substring(0, 4)}`,
-        displayName: `User ${authState.userId?.substring(0, 4)}`,
+        username: authState.username || '',
+        displayName: authState.displayName || 'User',
         avatar: '👤',
         userId: authState.userId || '',
         email: '',
@@ -131,9 +133,9 @@
     logger.debug('Converting thread to tweet', { threadId: thread.thread_id });
     return {
       id: thread.thread_id,
-      username: thread.user?.username || `user_${thread.user_id.substring(0, 4)}`,
-      displayName: thread.user?.display_name || `User ${thread.user_id.substring(0, 4)}`,
-      avatar: thread.user?.avatar_url || '👤',
+      username: thread.user?.username || '',
+      displayName: thread.user?.display_name || thread.user?.name || '',
+      avatar: thread.user?.avatar_url || thread.user?.profile_picture_url || '👤',
       content: thread.content,
       timestamp: thread.created_at,
       likes: thread.likes?.length || 0,
@@ -314,18 +316,18 @@
     
     {#if route === '/home' || route === '/feed'}
       {#if authState.isAuthenticated && userDetails.displayName}
-        <div class="p-4 bg-blue-50 dark:bg-blue-900/30 mb-2">
+        <div class="p-4 bg-blue-50 dark:bg-blue-900/30 mb-2 welcome-section">
           <div class="flex items-center">
-            <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
+            <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0 border-2 {isDarkMode ? 'border-gray-600' : 'border-gray-200'} avatar-container">
               {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
                 <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
               {:else}
-                <span>{userDetails.avatar}</span>
+                <span class="text-lg {isDarkMode ? 'text-white' : 'text-gray-700'} avatar-placeholder">{userDetails.avatar}</span>
               {/if}
             </div>
             <div>
-              <h2 class="font-bold text-lg dark:text-white">Welcome, {userDetails.displayName}!</h2>
-              <p class="text-sm text-gray-600 dark:text-gray-300">We're glad to see you today. Here's your feed.</p>
+              <h2 class="font-bold text-lg {isDarkMode ? 'text-white' : 'text-gray-900'}">Welcome, {userDetails.displayName}!</h2>
+              <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">We're glad to see you today. Here's your feed.</p>
             </div>
           </div>
         </div>

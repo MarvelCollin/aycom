@@ -113,11 +113,16 @@ const createAuthStore = () => {
       
       if (data.success && data.access_token) {
         const expiresAt = Date.now() + (data.expires_in * 1000);
+        // Get current state to preserve username and displayName
+        const currentState = get(authStore);
+        
         const newState: AuthState = {
           isAuthenticated: true,
           userId: data.user_id,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
+          username: currentState.username || null,
+          displayName: currentState.displayName || null,
           expiresAt
         };
         logger.info('Token refreshed successfully', { 
@@ -430,11 +435,15 @@ export function useAuth() {
         const refreshToken = data.refresh_token || data.refreshToken;
         const expiresIn = data.expires_in || 3600; // Default to 1 hour if not provided
         const userId = data.user_id || (data.user ? data.user.id : null);
+        const username = data.user ? (data.user.username || '') : '';
+        const displayName = data.user ? (data.user.name || data.user.displayName || '') : '';
         
         logger.debug('Token data extracted', { 
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
           hasUserId: !!userId,
+          username,
+          displayName,
           tokenPrefix: accessToken ? accessToken.substring(0, 10) : 'NONE'
         });
         
@@ -442,9 +451,11 @@ export function useAuth() {
           // Set auth data with proper tokens
           const authData = {
             isAuthenticated: true,
-            userId: userId,
-            accessToken: accessToken,
-            refreshToken: refreshToken, 
+            userId,
+            username,
+            displayName,
+            accessToken,
+            refreshToken, 
             expiresAt: Date.now() + (expiresIn * 1000)
           };
           logger.info('Setting auth store with new login data');
@@ -455,6 +466,8 @@ export function useAuth() {
           logger.debug('Auth state set successfully', { 
             isAuthenticated: currentState.isAuthenticated,
             hasUserId: !!currentState.userId,
+            username: currentState.username,
+            displayName: currentState.displayName,
             tokenPrefix: currentState.accessToken ? currentState.accessToken.substring(0, 10) : 'NONE'
           });
           

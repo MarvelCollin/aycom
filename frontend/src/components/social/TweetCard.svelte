@@ -58,7 +58,7 @@
 </script>
 
 <div 
-  class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''} border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'} hover:bg-opacity-50 {isDarkMode ? 'hover:bg-gray-900 bg-black text-white' : 'hover:bg-gray-50 bg-white text-black'} transition-colors cursor-pointer"
+  class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''} border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'} hover:bg-opacity-50 {isDarkMode ? 'hover:bg-gray-800 bg-gray-900 text-white' : 'hover:bg-gray-50 bg-white text-black'} transition-colors cursor-pointer"
   on:click={handleClick}
   on:keydown={(e) => e.key === 'Enter' && handleClick()}
   role="button"
@@ -70,24 +70,24 @@
         {#if typeof tweet.avatar === 'string' && tweet.avatar.startsWith('http')}
           <img src={tweet.avatar} alt={tweet.username} class="w-full h-full object-cover" />
         {:else}
-          <div class="text-xl">{tweet.avatar}</div>
+          <div class="text-xl {isDarkMode ? 'text-gray-100' : ''}">{tweet.avatar}</div>
         {/if}
       </div>
       
       <div class="flex-1 min-w-0">
         <div class="flex items-center">
           <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5">{tweet.displayName}</span>
-          <span class="text-gray-500 text-sm truncate">@{tweet.username}</span>
-          <span class="text-gray-500 mx-1.5">·</span>
-          <span class="text-gray-500 text-sm">{formatTimestamp(tweet.timestamp)}</span>
+          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{tweet.username}</span>
+          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
+          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimestamp(tweet.timestamp)}</span>
         </div>
         
-        <div class="tweet-content my-2 {isDarkMode ? 'text-white' : 'text-black'}">
+        <div class="tweet-content my-2 {isDarkMode ? 'text-gray-100' : 'text-black'}">
           <p>{tweet.content}</p>
         </div>
         
         {#if tweet.media && tweet.media.length > 0}
-          <div class="media-container mt-2 rounded-xl overflow-hidden">
+          <div class="media-container mt-2 rounded-xl overflow-hidden {isDarkMode ? 'border border-gray-700' : ''}">
             {#if tweet.media.length === 1}
               <div class="single-media h-64 w-full">
                 {#if tweet.media[0].type === 'Image'}
@@ -120,9 +120,9 @@
           </div>
         {/if}
         
-        <div class="flex justify-between mt-3 text-gray-500">
+        <div class="flex justify-between mt-3 {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
           <div class="flex items-center">
-            <button class="tweet-action-btn flex items-center hover:text-blue-500" on:click|stopPropagation={handleReply}>
+            <button class="tweet-action-btn flex items-center {isDarkMode ? 'bg-black hover:bg-blue-500/10' : 'hover:bg-blue-100'} hover:text-blue-500 rounded-full p-2 transition-all" on:click|stopPropagation={handleReply}>
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
@@ -130,7 +130,7 @@
             </button>
           </div>
           <div class="flex items-center">
-            <button class="tweet-action-btn flex items-center hover:text-green-500" on:click|stopPropagation={handleRetweet}>
+            <button class="tweet-action-btn flex items-center {isDarkMode ? 'bg-black hover:bg-green-500/10' : 'hover:bg-green-100'} hover:text-green-500 rounded-full p-2 transition-all" on:click|stopPropagation={handleRetweet}>
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
@@ -138,7 +138,7 @@
             </button>
           </div>
           <div class="flex items-center">
-            <button class="tweet-action-btn flex items-center hover:text-red-500" on:click|stopPropagation={handleLike}>
+            <button class="tweet-action-btn flex items-center {isDarkMode ? 'bg-black hover:bg-red-500/10' : 'hover:bg-red-100'} hover:text-red-500 rounded-full p-2 transition-all" on:click|stopPropagation={handleLike}>
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
@@ -146,7 +146,7 @@
             </button>
           </div>
           <div class="flex items-center">
-            <div class="flex items-center">
+            <div class="flex items-center p-2 rounded-full {isDarkMode ? 'bg-black hover:bg-gray-700' : 'hover:bg-gray-100'} transition-all">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -164,14 +164,16 @@
   .tweet-card {
     padding: 0.5rem 0;
   }
+  
+  .tweet-card-dark {
+    background-color: #1a202c; /* Match with gray-900 */
+  }
 
   .tweet-avatar-container {
     flex-shrink: 0;
   }
   
   .tweet-action-btn {
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
     transition: all 0.2s;
   }
   
