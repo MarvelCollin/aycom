@@ -11,6 +11,7 @@ export interface IMedia {
 // Tweet/Post interface
 export interface ITweet {
   id: number;
+  threadId?: string;
   username: string;
   displayName: string;
   avatar: string;

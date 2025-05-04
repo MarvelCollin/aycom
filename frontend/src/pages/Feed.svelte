@@ -80,13 +80,11 @@
       displayName: displayName,
       content: content,
       timestamp: thread.created_at ? new Date(thread.created_at).toISOString() : new Date().toISOString(),
-      isPinned: thread.is_pinned || false,
-      metrics: {
-        likes: thread.metrics?.likes || 0,
-        replies: thread.metrics?.replies || 0,
-        reposts: thread.metrics?.reposts || 0,
+      avatar: '👤', // Add default avatar
+      likes: thread.metrics?.likes || 0,
+      replies: thread.metrics?.replies || 0,
+      reposts: thread.metrics?.reposts || 0,
       views: thread.view_count?.toString() || '0',
-      },
       media: thread.media || []
     };
   }
@@ -100,8 +98,9 @@
     }
     
     if (!authState.isAuthenticated || !authState.userId) {
-      logger.warn('User not authenticated, aborting tweet fetch');
+      logger.warn('User not authenticated or missing userId, aborting tweet fetch');
       isLoading = false;
+      error = 'Please log in to view your feed';
       return;
     }
     
@@ -109,9 +108,9 @@
     error = null;
     
     try {
-      // Fetch threads from API
-      logger.debug('Making API call to getThreadsByUser', { userId: 'me', page, limit });
-      const response = await getThreadsByUser('me');
+      // Fetch threads from API using the current user's ID
+      logger.debug('Making API call to getThreadsByUser', { userId: authState.userId, page, limit });
+      const response = await getThreadsByUser(authState.userId);
       
       if (response && response.threads) {
         logger.info(`Received ${response.threads.length} threads from API`);
@@ -258,7 +257,7 @@
     
     {#if route === '/home' || route === '/feed'}
       {#if authState.isAuthenticated && sidebarDisplayName}
-        <div class="p-4 bg-blue-50 bg-blue-900/30 mb-2">
+        <div class="p-4 mb-2">
           <div class="flex items-center">
             <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
               <span>{sidebarAvatar}</span>

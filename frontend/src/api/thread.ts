@@ -1,4 +1,4 @@
-import { getAuthToken } from '../utils/auth';
+import { getAuthToken, getUserId } from '../utils/auth';
 import appConfig from '../config/appConfig';
 
 const API_BASE_URL = appConfig.api.baseUrl;
@@ -68,13 +68,18 @@ export async function getThreadsByUser(userId: string) {
   const token = getAuthToken();
   
   try {
+    // If userId is 'me', get the actual user ID from auth
+    if (userId === 'me') {
+      const currentUserId = getUserId();
+      if (!currentUserId) {
+        throw new Error('User ID is required');
+      }
+      userId = currentUserId;
+    }
+    
     console.log(`Fetching threads for user: ${userId}, token exists: ${!!token}`);
     
-    // Handle special 'me' userId
-    const endpoint = userId === 'me' 
-      ? `${API_BASE_URL}/threads/user/me`
-      : `${API_BASE_URL}/threads/user/${userId}`;
-      
+    const endpoint = `${API_BASE_URL}/threads/user/${userId}`;
     console.log(`Making request to: ${endpoint}`);
     
     const response = await fetch(endpoint, {
