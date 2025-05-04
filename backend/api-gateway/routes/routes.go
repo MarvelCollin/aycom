@@ -20,6 +20,15 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Health check
 	router.GET("/health", handlers.HealthCheck)
 
+	// System status endpoints for service health checks
+	system := router.Group("/api/v1/system/status")
+	{
+		system.GET("/user", handlers.ProxyServiceHealthCheck("user_service", "9091"))
+		system.GET("/thread", handlers.ProxyServiceHealthCheck("thread_service", "9092"))
+		system.GET("/community", handlers.ProxyServiceHealthCheck("community_service", "9093"))
+		system.GET("/event-bus", handlers.ProxyServiceHealthCheck("event_bus", "8000"))
+	}
+
 	// API v1 group
 	v1 := router.Group("/api/v1")
 
@@ -29,7 +38,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		auth.GET("/oauth-config", handlers.GetOAuthConfig)
 		auth.POST("/refresh-token", handlers.RefreshToken)
-		// auth.POST("/login", handlers.Login)
+		auth.POST("/login", handlers.Login)
 		// auth.POST("/register", handlers.Register)
 		// auth.POST("/register-with-media", handlers.RegisterWithMedia)
 		// auth.POST("/refresh", handlers.RefreshToken)
@@ -43,9 +52,15 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.POST("/by-email", handlers.GetUserByEmail)
 	}
 
+	// Public thread routes
+	publicThreads := v1.Group("/threads")
+	{
+		publicThreads.GET("", handlers.GetAllThreads)
+	}
+
 	// Protected routes - using JWT authentication middleware
 	protected := v1.Group("")
-	protected.Use(middleware.AuthMiddleware)
+	protected.Use(middleware.JWTAuth(string(handlers.GetJWTSecret())))
 
 	// User routes
 	users := protected.Group("/users")
@@ -60,6 +75,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		threads.POST("", handlers.CreateThread)
 		threads.GET("/:id", handlers.GetThread)
+		threads.GET("/user/me", handlers.GetThreadsByUser)
 		threads.GET("/user/:id", handlers.GetThreadsByUser)
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
@@ -121,6 +137,18 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		chats.DELETE(":id/messages/:messageId", handlers.DeleteMessage)
 		chats.POST(":id/messages/:messageId/unsend", handlers.UnsendMessage)
 		chats.GET(":id/messages/search", handlers.SearchMessages)
+
+		// WebSocket endpoint for real-time chat
+		chats.GET(":id/ws", handlers.HandleCommunityChat)
+	}
+
+	// Notification routes
+	notifications := protected.Group("/notifications")
+	{
+		notifications.GET("", handlers.GetUserNotifications)
+		notifications.POST("/:id/read", handlers.MarkNotificationAsRead)
+		// WebSocket endpoint for real-time notifications
+		notifications.GET("/ws", handlers.HandleNotificationsWebSocket)
 	}
 
 	// Payment routes

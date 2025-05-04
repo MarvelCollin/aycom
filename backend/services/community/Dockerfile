@@ -1,41 +1,49 @@
 FROM golang:1.24-alpine AS builder
 
-# Build context is ./backend
-
-WORKDIR /app # Base for the backend code
-
-# Copy root go.mod and go.sum first
-COPY go.mod go.sum ./
-# RUN go mod download # Download root deps
-
-# Copy service-specific go.mod and go.sum
-COPY services/community/go.mod services/community/go.sum ./services/community/
-# Change to service directory
-WORKDIR /app/services/community
-
-# Copy the rest of the backend source code
 WORKDIR /app
+
+# Install necessary tools
+RUN apk add --no-cache git
+
+# Copy Go module files first for better caching
+COPY go.mod go.sum ./
+COPY services/community/go.mod services/community/go.sum ./services/community/
+
+# Copy entire codebase
 COPY . .
 
-# Download dependencies AFTER all code is copied
-RUN go mod download
-# Sync vendor directory AFTER download
-RUN go mod vendor
-
-# Build the service from its directory
+# Build from community service directory
 WORKDIR /app/services/community
-# Assuming proto is generated locally before build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/community-service ./main.go
 
-# --- Final Stage ---
+# Clean any existing vendor directory and ensure dependencies are properly downloaded
+RUN rm -rf vendor && \
+    go mod tidy && \
+    go mod download
+
+# Build the service with explicit flag to ignore vendor
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /app/community-service .
+
+# Final stage
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates # Add CA certs
-# Add non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-WORKDIR /app # Use /app as final WORKDIR for consistency
+
+# Add certificates and create non-root user
+RUN apk --no-cache add ca-certificates && \
+    addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
+
+WORKDIR /app
+
 # Copy binary from builder
 COPY --from=builder --chown=appuser:appgroup /app/community-service .
-# Switch to non-root user
+
+# Set environment variables
+ENV PORT=9093
+
+# Use non-root user
 USER appuser
+
+# Expose ports
 EXPOSE 9093
+
+# Start the service
 CMD ["./community-service"] 

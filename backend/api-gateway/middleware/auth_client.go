@@ -43,7 +43,7 @@ type AuthClient struct {
 // NewAuthClient creates a new auth client
 func NewAuthClient(cfg *config.Config) *AuthClient {
 	return &AuthClient{
-		baseURL: fmt.Sprintf("http://%s", cfg.GetAuthServiceAddr()),
+		baseURL: fmt.Sprintf("http://%s", cfg.Services.UserService),
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},

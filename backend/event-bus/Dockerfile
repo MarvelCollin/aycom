@@ -2,37 +2,44 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Install git and build dependencies
-RUN apk add --no-cache git ca-certificates
+# Install necessary tools
+RUN apk add --no-cache git
 
-# Copy the event-bus directory
+# Copy Go module files first for better caching
 COPY go.mod go.sum ./
-RUN go mod download
 
+# Copy entire codebase
 COPY . .
 
-# Build the binary
-RUN go build -o event-bus .
+# Clean any existing vendor directory and ensure dependencies are properly downloaded
+RUN rm -rf vendor && \
+    go mod tidy && \
+    go mod download
 
-# Final stage: create a clean image
+# Build the service with explicit flag to ignore vendor
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /app/event-bus .
+
+# Final stage
 FROM alpine:latest
 
-# Create a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Add certificates and create non-root user
+RUN apk --no-cache add ca-certificates && \
+    addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Copy necessary certificates
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Copy binary from builder
+COPY --from=builder --chown=appuser:appgroup /app/event-bus .
 
-# Copy the binary from the builder stage
-COPY --chown=appuser:appgroup --from=builder /app/event-bus .
+# Set environment variables
+ENV PORT=8000
 
-# Switch to the non-root user
+# Use non-root user
 USER appuser
 
-# Expose port (if applicable)
+# Expose ports
 EXPOSE 8000
 
-# Set the entrypoint to run the binary
-ENTRYPOINT ["./event-bus"] 
+# Start the service
+CMD ["./event-bus"] 

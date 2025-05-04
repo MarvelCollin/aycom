@@ -176,33 +176,46 @@ func GetThread(c *gin.Context) {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/user/{id} [get]
 func GetThreadsByUser(c *gin.Context) {
-	// Get user ID from URL or from token
-	userID := c.Param("id") // Changed from "userId" to "id" to match route definition
-	if userID == "" {
-		userIDAny, exists := c.Get("userId")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{
-				Success: false,
-				Message: "User ID not found in token",
-				Code:    "UNAUTHORIZED",
-			})
-			return
-		}
-
-		var ok bool
-		userID, ok = userIDAny.(string)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Invalid User ID format in token",
-				Code:    "INTERNAL_ERROR",
-			})
-			return
-		}
+	// Get authenticated user ID from token
+	authenticatedUserID, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
 	}
 
-	// Use the userID variable here to avoid unused variable warning
-	log.Printf("Getting threads for user: %s", userID)
+	authenticatedUserIDStr, ok := authenticatedUserID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get user ID from URL path parameter
+	userID := c.Param("id")
+
+	// Handle the "me" parameter to use the authenticated user's ID
+	if userID == "me" {
+		userID = authenticatedUserIDStr
+		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
+	}
+
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "User ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	log.Printf("Getting threads for user: %s (authenticated as: %s)", userID, authenticatedUserIDStr)
 
 	// Get pagination parameters
 	page := 1
@@ -541,4 +554,80 @@ func UploadThreadMedia(c *gin.Context) {
 		"code":    http.StatusNotImplemented,
 		"message": "Media upload functionality is not yet implemented",
 	})
+}
+
+// GetAllThreads returns all threads
+// @Summary Get all threads
+// @Description Returns all threads with pagination
+// @Tags Threads
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Results per page (default: 20)"
+// @Success 200 {object} threadProto.ThreadsResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/threads [get]
+func GetAllThreads(c *gin.Context) {
+	// Get pagination parameters
+	page := 1
+	limit := 20
+
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
+			page = val
+		}
+	}
+
+	limitStr := c.Query("limit")
+	if limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 && val <= 100 {
+			limit = val
+		}
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service using GetThreadsByUser with empty user ID to get all threads
+	resp, err := client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
+		UserId: "", // Empty string to indicate we want all threads
+		Page:   int32(page),
+		Limit:  int32(limit),
+	})
+
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to get threads: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

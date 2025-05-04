@@ -1,12 +1,8 @@
 package handlers
 
 import (
-	communityProto "aycom/backend/services/community/proto"
-
 	"github.com/gin-gonic/gin"
 )
-
-func InitCommunityClient(client communityProto.CommunityServiceClient) {}
 
 func CreateCommunity(c *gin.Context)  {}
 func UpdateCommunity(c *gin.Context)  {}

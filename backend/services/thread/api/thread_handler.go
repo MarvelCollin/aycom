@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 
 	"aycom/backend/services/thread/model"
 	"aycom/backend/services/thread/proto"
@@ -14,7 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ThreadHandler implements the gRPC service for threads
+// ThreadHandler handles gRPC requests for the Thread service
 type ThreadHandler struct {
 	proto.UnimplementedThreadServiceServer
 	threadService      service.ThreadService
@@ -22,15 +23,17 @@ type ThreadHandler struct {
 	interactionService service.InteractionService
 	pollService        service.PollService
 	interactionRepo    repository.InteractionRepository
+	userClient         service.UserClient
 }
 
-// NewThreadHandler creates a new thread handler
+// NewThreadHandler creates a new ThreadHandler instance
 func NewThreadHandler(
 	threadService service.ThreadService,
 	replyService service.ReplyService,
 	interactionService service.InteractionService,
 	pollService service.PollService,
 	interactionRepo repository.InteractionRepository,
+	userClient service.UserClient,
 ) *ThreadHandler {
 	return &ThreadHandler{
 		threadService:      threadService,
@@ -38,6 +41,7 @@ func NewThreadHandler(
 		interactionService: interactionService,
 		pollService:        pollService,
 		interactionRepo:    interactionRepo,
+		userClient:         userClient,
 	}
 }
 
@@ -260,6 +264,19 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 		repostCount, err := h.interactionRepo.CountThreadReposts(threadID)
 		if err == nil {
 			response.RepostCount = repostCount
+		}
+	}
+
+	// Fetch user information if available
+	if h.userClient != nil {
+		userInfo, err := h.userClient.GetUserById(ctx, thread.UserID.String())
+		if err == nil && userInfo != nil {
+			// As a workaround, embed user info in the content field since proto doesn't have the User field
+			log.Printf("User info retrieved for %s (username: %s) - embedding in content as workaround",
+				userInfo.Id, userInfo.Username)
+
+			// Format: [USER:username@displayName]content
+			response.Content = "[USER:" + userInfo.Username + "@" + userInfo.DisplayName + "]" + response.Content
 		}
 	}
 

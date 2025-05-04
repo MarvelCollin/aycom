@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ITrend, ISuggestedFollow } from "../../interfaces/ISocialMedia";
+  import ComposeTweet from "../social/ComposeTweet.svelte";
 
   export let trends: ITrend[] = [];
   export let suggestedFollows: ISuggestedFollow[] = [];
@@ -26,8 +27,8 @@
     <h2 class="sidebar-title text-xl font-bold">What's happening</h2>
     {#if trends.length > 0}
       <ul>
-        {#each trends as trend, i}
-          <li class="py-3 {i < trends.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
+        {#each trends as trend}
+          <li class="py-3 {trends.indexOf(trend) !== trends.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
             <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.category}</p>
             <p class="font-semibold {isDarkMode ? 'text-white' : 'text-black'} my-0.5">{trend.title}</p>
             <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.postCount} posts</p>
@@ -50,8 +51,8 @@
     <h2 class="sidebar-title text-xl font-bold">Who to follow</h2>
     {#if suggestedFollows.length > 0}
       <ul>
-        {#each suggestedFollows as follow, i}
-          <li class="flex items-center gap-3 py-3 {i < suggestedFollows.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
+        {#each suggestedFollows as follow}
+          <li class="flex items-center gap-3 py-3 {suggestedFollows.indexOf(follow) !== suggestedFollows.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
             <div class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex-shrink-0 flex items-center justify-center">
               {#if typeof follow.avatar === 'string' && follow.avatar.startsWith('http')}
                 <img src={follow.avatar} alt={follow.username} class="w-full h-full object-cover" />

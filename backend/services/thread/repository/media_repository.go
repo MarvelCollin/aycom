@@ -3,10 +3,10 @@ package repository
 import (
 	"errors"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
 )
 
 // MediaRepository defines the methods for media-related database operations
@@ -54,7 +54,6 @@ func (r *PostgresMediaRepository) FindMediaByID(id string) (*model.Media, error)
 	return &media, nil
 }
 
-// FindMediaByThreadID finds all media records for a specific thread
 func (r *PostgresMediaRepository) FindMediaByThreadID(threadID string) ([]*model.Media, error) {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -69,7 +68,6 @@ func (r *PostgresMediaRepository) FindMediaByThreadID(threadID string) ([]*model
 	return media, nil
 }
 
-// FindMediaByReplyID finds all media records for a specific reply
 func (r *PostgresMediaRepository) FindMediaByReplyID(replyID string) ([]*model.Media, error) {
 	replyUUID, err := uuid.Parse(replyID)
 	if err != nil {
@@ -84,7 +82,6 @@ func (r *PostgresMediaRepository) FindMediaByReplyID(replyID string) ([]*model.M
 	return media, nil
 }
 
-// DeleteMedia deletes a media record
 func (r *PostgresMediaRepository) DeleteMedia(id string) error {
 	mediaID, err := uuid.Parse(id)
 	if err != nil {

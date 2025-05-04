@@ -282,6 +282,7 @@ message ThreadResponse {
   optional google.protobuf.Timestamp scheduled_at = 19;
   optional string community_id = 20;
   optional bool is_advertisement = 21;
+  optional User user = 22; // User information
 }
 
 // ThreadsResponse message
@@ -341,4 +342,15 @@ message PollOptionResult {
   string text = 2;
   int64 vote_count = 3;
   double percentage = 4;
+}
+
+// User message represents user information within thread responses
+message User {
+  string id = 1;
+  string username = 2;
+  string display_name = 3;
+  string email = 4;
+  string avatar_url = 5;
+  string bio = 6;
+  bool is_verified = 7;
 } 

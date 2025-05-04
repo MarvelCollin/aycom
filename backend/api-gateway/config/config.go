@@ -3,85 +3,183 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
-type ServiceConfig struct {
-	AuthServiceHost      string
-	AuthServicePort      string
-	UserServiceHost      string
-	UserServicePort      string
-	ThreadServiceHost    string
-	ThreadServicePort    string
-	CommunityServiceHost string
-	CommunityServicePort string
-}
-
-type OAuthConfig struct {
-	GoogleClientID     string
-	GoogleClientSecret string
-}
-
-type SupabaseConfig struct {
-	URL     string
-	AnonKey string
-}
-
+// Config holds all configuration for the API Gateway
 type Config struct {
-	Services  ServiceConfig
+	Server    ServerConfig
+	Auth      AuthConfig
+	Services  ServicesConfig
+	RateLimit RateLimitConfig
 	OAuth     OAuthConfig
-	Supabase  SupabaseConfig
-	JWTSecret string
+	WebSocket WebSocketConfig
 }
 
+// ServerConfig holds server-related configuration
+type ServerConfig struct {
+	Port         string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	CORSOrigin   string
+}
+
+// AuthConfig holds authentication-related configuration
+type AuthConfig struct {
+	JWTSecret            string
+	AccessTokenDuration  time.Duration
+	RefreshTokenDuration time.Duration
+	CookieDomain         string
+	CookieSecure         bool
+}
+
+// OAuthConfig holds OAuth provider configuration
+type OAuthConfig struct {
+	GoogleClientID string
+}
+
+// ServicesConfig holds the addresses of all microservices
+type ServicesConfig struct {
+	UserService      string
+	ThreadService    string
+	CommunityService string
+}
+
+// RateLimitConfig holds rate limiting configuration
+type RateLimitConfig struct {
+	Limit    int64
+	Burst    int
+	Duration time.Duration
+}
+
+// WebSocketConfig holds WebSocket-related configuration
+type WebSocketConfig struct {
+	ReadBufferSize       int
+	WriteBufferSize      int
+	SendBufferSize       int
+	ReadDeadlineTimeout  time.Duration
+	WriteDeadlineTimeout time.Duration
+	PingInterval         time.Duration
+	MaxMessageSize       int
+}
+
+// LoadConfig loads configuration from environment variables
 func LoadConfig() (*Config, error) {
+	// Get service host and port variables
+	userServiceHost := getEnv("USER_SERVICE_HOST", "localhost")
+	userServicePort := getEnv("USER_SERVICE_PORT", "9091")
+	threadServiceHost := getEnv("THREAD_SERVICE_HOST", "localhost")
+	threadServicePort := getEnv("THREAD_SERVICE_PORT", "9092")
+	communityServiceHost := getEnv("COMMUNITY_SERVICE_HOST", "localhost")
+	communityServicePort := getEnv("COMMUNITY_SERVICE_PORT", "9093")
+
 	cfg := &Config{
-		Services: ServiceConfig{
-			AuthServiceHost:      getEnv("AUTH_SERVICE_HOST", "auth_service"),
-			AuthServicePort:      getEnv("AUTH_SERVICE_PORT", "9090"),
-			UserServiceHost:      getEnv("USER_SERVICE_HOST", "user_service"),
-			UserServicePort:      getEnv("USER_SERVICE_PORT", "9091"),
-			ThreadServiceHost:    getEnv("THREAD_SERVICE_HOST", "thread_service"),
-			ThreadServicePort:    getEnv("THREAD_SERVICE_PORT", "9092"),
-			CommunityServiceHost: getEnv("COMMUNITY_SERVICE_HOST", "community_service"),
-			CommunityServicePort: getEnv("COMMUNITY_SERVICE_PORT", "9093"),
+		Server: ServerConfig{
+			Port:         getEnv("PORT", "8081"),
+			ReadTimeout:  getDurationEnv("READ_TIMEOUT", 10*time.Second),
+			WriteTimeout: getDurationEnv("WRITE_TIMEOUT", 10*time.Second),
+			CORSOrigin:   getEnv("CORS_ORIGIN", "*"),
+		},
+		Auth: AuthConfig{
+			JWTSecret:            getEnv("JWT_SECRET", "your-secret-key"),
+			AccessTokenDuration:  getDurationEnv("ACCESS_TOKEN_DURATION", 15*time.Minute),
+			RefreshTokenDuration: getDurationEnv("REFRESH_TOKEN_DURATION", 7*24*time.Hour),
+			CookieDomain:         getEnv("COOKIE_DOMAIN", "localhost"),
+			CookieSecure:         getBoolEnv("COOKIE_SECURE", false),
+		},
+		Services: ServicesConfig{
+			UserService:      fmt.Sprintf("%s:%s", userServiceHost, userServicePort),
+			ThreadService:    fmt.Sprintf("%s:%s", threadServiceHost, threadServicePort),
+			CommunityService: fmt.Sprintf("%s:%s", communityServiceHost, communityServicePort),
+		},
+		RateLimit: RateLimitConfig{
+			Limit:    getInt64Env("RATE_LIMIT", 10),
+			Burst:    getIntEnv("RATE_BURST", 20),
+			Duration: getDurationEnv("RATE_DURATION", time.Minute),
 		},
 		OAuth: OAuthConfig{
-			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
-			GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+			GoogleClientID: getEnv("GOOGLE_CLIENT_ID", ""),
 		},
-		Supabase: SupabaseConfig{
-			URL:     getEnv("SUPABASE_URL", ""),
-			AnonKey: getEnv("SUPABASE_ANON_KEY", ""),
+		WebSocket: WebSocketConfig{
+			ReadBufferSize:       getIntEnv("WS_READ_BUFFER_SIZE", 1024),
+			WriteBufferSize:      getIntEnv("WS_WRITE_BUFFER_SIZE", 1024),
+			SendBufferSize:       getIntEnv("WS_SEND_BUFFER_SIZE", 256),
+			ReadDeadlineTimeout:  getDurationEnv("WS_READ_DEADLINE", 60*time.Second),
+			WriteDeadlineTimeout: getDurationEnv("WS_WRITE_DEADLINE", 10*time.Second),
+			PingInterval:         getDurationEnv("WS_PING_INTERVAL", 54*time.Second),
+			MaxMessageSize:       getIntEnv("WS_MAX_MESSAGE_SIZE", 4096),
 		},
-		JWTSecret: getEnv("JWT_SECRET", "default-secret-key"),
-	}
-
-	if cfg.Supabase.URL == "" || cfg.Supabase.AnonKey == "" {
-		return nil, fmt.Errorf("SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set")
 	}
 
 	return cfg, nil
 }
 
-func (c *Config) GetAuthServiceAddr() string {
-	return fmt.Sprintf("%s:%s", c.Services.AuthServiceHost, c.Services.AuthServicePort)
-}
-
-func (c *Config) GetUserServiceAddr() string {
-	return fmt.Sprintf("%s:%s", c.Services.UserServiceHost, c.Services.UserServicePort)
-}
-
-func (c *Config) GetThreadServiceAddr() string {
-	return fmt.Sprintf("%s:%s", c.Services.ThreadServiceHost, c.Services.ThreadServicePort)
-}
-
-func (c *Config) GetCommunityServiceAddr() string {
-	return fmt.Sprintf("%s:%s", c.Services.CommunityServiceHost, c.Services.CommunityServicePort)
-}
-
-func getEnv(key, fallback string) string {
-	if value, exists := os.LookupEnv(key); exists {
+// Helper functions for loading environment variables with defaults
+func getEnv(key, defaultVal string) string {
+	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return fallback
+	return defaultVal
+}
+
+func getIntEnv(key string, defaultVal int) int {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultVal
+	}
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		fmt.Printf("Warning: Invalid int value for %s: %s, using default: %d\n", key, valueStr, defaultVal)
+		return defaultVal
+	}
+	return value
+}
+
+func getInt64Env(key string, defaultVal int64) int64 {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultVal
+	}
+
+	value, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		fmt.Printf("Warning: Invalid int64 value for %s: %s, using default: %d\n", key, valueStr, defaultVal)
+		return defaultVal
+	}
+	return value
+}
+
+func getBoolEnv(key string, defaultVal bool) bool {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultVal
+	}
+
+	value, err := strconv.ParseBool(valueStr)
+	if err != nil {
+		fmt.Printf("Warning: Invalid bool value for %s: %s, using default: %v\n", key, valueStr, defaultVal)
+		return defaultVal
+	}
+	return value
+}
+
+func getDurationEnv(key string, defaultVal time.Duration) time.Duration {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultVal
+	}
+
+	value, err := time.ParseDuration(valueStr)
+	if err != nil {
+		fmt.Printf("Warning: Invalid duration value for %s: %s, using default: %v\n", key, valueStr, defaultVal)
+		return defaultVal
+	}
+	return value
+}
+
+// GetAuthServiceAddr returns the address of the auth service
+func (c *Config) GetAuthServiceAddr() string {
+	return c.Services.UserService
 }

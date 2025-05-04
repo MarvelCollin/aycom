@@ -177,6 +177,7 @@ func Login(c *gin.Context) {
 		UserId:       loginResp.User.Id,
 		TokenType:    "Bearer",
 		ExpiresIn:    int64(accessExpiry),
+		User:         loginResp.User,
 	})
 }
 

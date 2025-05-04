@@ -6,30 +6,36 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the code
+# Copy entire codebase
 COPY . .
 
-# Set environment variables
-ENV NODE_ENV=development
+# Build the application
+RUN npm run build
 
-# Create a non-root user
+# Final stage
 FROM node:18-alpine
 
-# Create a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Add certificates and create non-root user
+RUN apk --no-cache add ca-certificates && \
+    addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Copy built app from builder stage
-COPY --from=builder --chown=appuser:appgroup /app ./
+# Copy necessary files from builder
+COPY --from=builder --chown=appuser:appgroup /app/package*.json ./
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /app/public ./public
+COPY --from=builder --chown=appuser:appgroup /app/vite.config.ts ./
 
-# Set permissions
-RUN chown -R appuser:appgroup /app
+# Set environment variables
+ENV NODE_ENV=production
 
-# Use the non-root user
+# Use non-root user
 USER appuser
 
-# Expose the port
+# Expose ports
 EXPOSE 3000
 
 # Start the application

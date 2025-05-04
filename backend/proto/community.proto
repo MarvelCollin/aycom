@@ -1,0 +1,288 @@
+syntax = "proto3";
+
+package community;
+
+option go_package = "aycom/backend/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Community service definition
+service CommunityService {
+  // Community management
+  rpc CreateCommunity (CreateCommunityRequest) returns (CommunityResponse) {}
+  rpc GetCommunity (GetCommunityRequest) returns (CommunityResponse) {}
+  rpc UpdateCommunity (UpdateCommunityRequest) returns (CommunityResponse) {}
+  rpc DeleteCommunity (DeleteCommunityRequest) returns (DeleteCommunityResponse) {}
+  rpc ListCommunities (ListCommunitiesRequest) returns (ListCommunitiesResponse) {}
+  rpc ApproveCommunity (ApproveCommunityRequest) returns (CommunityResponse) {}
+
+  // Community membership
+  rpc JoinCommunity (JoinCommunityRequest) returns (JoinCommunityResponse) {}
+  rpc LeaveCommunity (LeaveCommunityRequest) returns (LeaveCommunityResponse) {}
+  rpc ListMembers (ListMembersRequest) returns (ListMembersResponse) {}
+  rpc UpdateMemberRole (UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse) {}
+
+  // Chat operations
+  rpc CreateChat (CreateChatRequest) returns (ChatResponse) {}
+  rpc GetChat (GetChatRequest) returns (ChatResponse) {}
+  rpc ListChats (ListChatsRequest) returns (ListChatsResponse) {}
+  rpc AddChatParticipant (AddChatParticipantRequest) returns (AddChatParticipantResponse) {}
+  rpc RemoveChatParticipant (RemoveChatParticipantRequest) returns (RemoveChatParticipantResponse) {}
+  rpc ListChatParticipants (ListChatParticipantsRequest) returns (ListChatParticipantsResponse) {}
+  
+  // Message operations
+  rpc SendMessage (SendMessageRequest) returns (MessageResponse) {}
+  rpc GetMessage (GetMessageRequest) returns (MessageResponse) {}
+  rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse) {}
+  rpc DeleteMessage (DeleteMessageRequest) returns (DeleteMessageResponse) {}
+  rpc MarkMessageAsRead (MarkMessageAsReadRequest) returns (google.protobuf.Empty) {}
+  rpc UnsendMessage (UnsendMessageRequest) returns (google.protobuf.Empty) {}
+  rpc SearchMessages (SearchMessagesRequest) returns (ListMessagesResponse) {}
+}
+
+// Community Requests/Responses
+message CreateCommunityRequest {
+  string name = 1;
+  string description = 2;
+  string logo_url = 3;
+  string banner_url = 4;
+  string creator_id = 5;
+}
+
+message GetCommunityRequest {
+  string community_id = 1;
+}
+
+message UpdateCommunityRequest {
+  string community_id = 1;
+  string name = 2;
+  string description = 3;
+  string logo_url = 4;
+  string banner_url = 5;
+}
+
+message DeleteCommunityRequest {
+  string community_id = 1;
+}
+
+message DeleteCommunityResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListCommunitiesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListCommunitiesResponse {
+  repeated CommunityResponse communities = 1;
+  int32 total = 2;
+}
+
+message ApproveCommunityRequest {
+  string community_id = 1;
+  string admin_id = 2;
+}
+
+message CommunityResponse {
+  string community_id = 1;
+  string name = 2;
+  string description = 3;
+  string logo_url = 4;
+  string banner_url = 5;
+  string creator_id = 6;
+  bool is_approved = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// Membership Requests/Responses
+message JoinCommunityRequest {
+  string community_id = 1;
+  string user_id = 2;
+}
+
+message JoinCommunityResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message LeaveCommunityRequest {
+  string community_id = 1;
+  string user_id = 2;
+}
+
+message LeaveCommunityResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListMembersRequest {
+  string community_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListMembersResponse {
+  repeated MemberResponse members = 1;
+  int32 total = 2;
+}
+
+message UpdateMemberRoleRequest {
+  string community_id = 1;
+  string user_id = 2;
+  string role = 3;
+}
+
+message UpdateMemberRoleResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MemberResponse {
+  string user_id = 1;
+  string community_id = 2;
+  string role = 3;
+  google.protobuf.Timestamp joined_at = 4;
+}
+
+// Chat Requests/Responses
+message CreateChatRequest {
+  string name = 1;
+  string description = 2;
+  string creator_id = 3;
+  string community_id = 4;
+  bool is_group_chat = 5;
+  repeated string participant_ids = 6;
+}
+
+message ChatResponse {
+  string chat_id = 1;
+  string name = 2;
+  string description = 3;
+  string creator_id = 4;
+  string community_id = 5;
+  bool is_group_chat = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message GetChatRequest {
+  string chat_id = 1;
+}
+
+message ListChatsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListChatsResponse {
+  repeated ChatResponse chats = 1;
+  int32 total = 2;
+}
+
+message AddChatParticipantRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  string added_by = 3;
+}
+
+message AddChatParticipantResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RemoveChatParticipantRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  string removed_by = 3;
+}
+
+message RemoveChatParticipantResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListChatParticipantsRequest {
+  string chat_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListChatParticipantsResponse {
+  repeated ParticipantResponse participants = 1;
+  int32 total = 2;
+}
+
+message ParticipantResponse {
+  string user_id = 1;
+  string chat_id = 2;
+  google.protobuf.Timestamp joined_at = 3;
+}
+
+// Message Requests/Responses
+message SendMessageRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  string content = 3;
+}
+
+message MessageResponse {
+  string message_id = 1;
+  string chat_id = 2;
+  string sender_id = 3;
+  string content = 4;
+  bool is_edited = 5;
+  bool is_deleted = 6;
+  int64 timestamp = 7;
+  bool is_read = 8;
+}
+
+message GetMessageRequest {
+  string message_id = 1;
+  string chat_id = 2;
+}
+
+message ListMessagesRequest {
+  string chat_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListMessagesResponse {
+  repeated MessageResponse messages = 1;
+  int32 total = 2;
+}
+
+message DeleteMessageRequest {
+  string message_id = 1;
+  string chat_id = 2;
+  string user_id = 3;
+}
+
+message DeleteMessageResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MarkMessageAsReadRequest {
+  string message_id = 1;
+  string chat_id = 2;
+  string user_id = 3;
+}
+
+message UnsendMessageRequest {
+  string message_id = 1;
+  string chat_id = 2;
+  string user_id = 3;
+}
+
+message SearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+} 

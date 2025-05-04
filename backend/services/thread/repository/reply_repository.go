@@ -3,10 +3,10 @@ package repository
 import (
 	"errors"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
 )
 
 // ReplyRepository defines the methods for reply-related database operations
@@ -76,7 +76,6 @@ func (r *PostgresReplyRepository) FindRepliesByThreadID(threadID string, page, l
 	return replies, nil
 }
 
-// FindRepliesByParentID finds all replies for a specific parent reply
 func (r *PostgresReplyRepository) FindRepliesByParentID(parentReplyID string, page, limit int) ([]*model.Reply, error) {
 	parentUUID, err := uuid.Parse(parentReplyID)
 	if err != nil {
@@ -97,12 +96,10 @@ func (r *PostgresReplyRepository) FindRepliesByParentID(parentReplyID string, pa
 	return replies, nil
 }
 
-// UpdateReply updates an existing reply
 func (r *PostgresReplyRepository) UpdateReply(reply *model.Reply) error {
 	return r.db.Save(reply).Error
 }
 
-// DeleteReply deletes a reply by its ID
 func (r *PostgresReplyRepository) DeleteReply(id string) error {
 	replyID, err := uuid.Parse(id)
 	if err != nil {

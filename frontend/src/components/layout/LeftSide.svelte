@@ -1,58 +1,57 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import ThemeToggle from '../common/ThemeToggle.svelte';
   import { useTheme } from '../../hooks/useTheme';
   import { useAuth } from '../../hooks/useAuth';
   import { isAuthenticated, getUserId } from '../../utils/auth';
   import { toastStore } from '../../stores/toastStore';
-  import { createLoggerWithPrefix } from '../../utils/logger';
 
   // Props
   export let username = "";
   export let displayName = "";
   export let avatar = "👤";
-  export let userId = getUserId() || '';
-  export let email = '';
-  export let isVerified = false;
-  export let joinDate = '';
   
   // Get theme from the store
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
   
   // Get auth state
-  const { getAuthState, logout } = useAuth();
+  const { getAuthState, logout, getAuthToken } = useAuth();
   let authState = getAuthState();
   
   // User profile data
   let userDetails = {
-    username,
-    displayName,
-    avatar,
-    userId,
-    email,
-    isVerified,
-    joinDate
+    username: username || 'guest',
+    displayName: displayName || 'Guest User',
+    avatar: avatar,
+    userId: getUserId() || '',
+    email: '',
+    isVerified: false,
+    joinDate: ''
   };
   
-  // Create a logger for this component
-  const logger = createLoggerWithPrefix('LeftSide');
-  
+  // Fetch user profile if authenticated
   async function fetchUserProfile() {
     if (!isAuthenticated()) return;
     
-    if (username && displayName && username !== 'guest') return;
-    
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
-      const token = authState.accessToken;
+      const token = getAuthToken();
       
-      if (!token) return;
+      if (!token) {
+        console.warn('No auth token available for profile fetch');
+        return;
+      }
+      
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
+      console.log('Fetching profile from:', apiUrl);
       
       const response = await fetch(`${apiUrl}/users/profile`, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
       
       if (response.ok) {
@@ -60,13 +59,24 @@
         if (data && data.user) {
           userDetails = {
             username: data.user.username || username,
-            displayName: data.user.displayName || displayName,
-            avatar: data.user.profilePictureUrl || avatar,
+            displayName: data.user.name || displayName,
+            avatar: data.user.profile_picture_url || avatar,
             userId: data.user.id || getUserId() || '',
             email: data.user.email || '',
-            isVerified: data.user.isVerified || false,
-            joinDate: data.user.createdAt ? new Date(data.user.createdAt).toLocaleDateString() : ''
+            isVerified: data.user.is_verified || false,
+            joinDate: data.user.created_at ? new Date(data.user.created_at).toLocaleDateString() : ''
           };
+          console.log('Profile loaded successfully:', userDetails);
+        }
+      } else {
+        // Handle error responses
+        const errorText = await response.text();
+        console.error(`Failed to load profile: ${response.status}`, errorText);
+        
+        // If unauthorized, the token might be invalid - clear it
+        if (response.status === 401) {
+          console.warn('Unauthorized access - token may be invalid');
+          // Don't clear auth data here to avoid logout loops
         }
       }
     } catch (err) {
@@ -104,36 +114,13 @@
   
   // Toggle user menu
   let showUserMenu = false;
-  let userMenuButton;
-  let userMenuDropdown;
-  
   function toggleUserMenu() {
     showUserMenu = !showUserMenu;
-    
-    // Log status for debugging
-    logger.debug(`User menu toggled: ${showUserMenu}`);
     
     // If we're showing the menu and authenticated, update user details
     if (showUserMenu && isAuthenticated()) {
       fetchUserProfile();
     }
-  }
-  
-  // Add event listener on click outside when the menu is open
-  function setupClickOutsideListener() {
-    const handleClickOutside = (event) => {
-      if (showUserMenu && userMenuDropdown && userMenuButton) {
-        if (!userMenuDropdown.contains(event.target) && !userMenuButton.contains(event.target)) {
-          showUserMenu = false;
-        }
-      }
-    };
-    
-    document.addEventListener('click', handleClickOutside);
-    
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
   }
   
   // Handle compose tweet modal action
@@ -142,38 +129,17 @@
   }
   
   // Get current path for active state
-  let currentPath = '';
+  let currentPath = window.location.pathname;
+  
+  // Import lifecycle functions
+  import { onMount } from 'svelte';
   
   onMount(() => {
-    // Set current path
-    currentPath = window.location.pathname;
-    
-    // Only fetch user profile if needed (if props are not provided)
-    if (isAuthenticated() && (!username || !displayName || username === 'guest')) {
+    // Try to fetch user profile
+    if (isAuthenticated()) {
       fetchUserProfile();
     }
-    
-    // Use the new click outside listener setup function
-    const cleanupClickOutside = setupClickOutsideListener();
-    
-    return () => {
-      cleanupClickOutside();
-    };
   });
-
-  // Update userDetails when props change
-  $: {
-    // Only update if props have real values
-    if (username && displayName && username !== 'guest') {
-      userDetails = {
-        ...userDetails,
-        username,
-        displayName,
-        avatar,
-        userId
-      };
-    }
-  }
 </script>
 
 <div class="flex flex-col h-full py-2 px-2 {isDarkMode ? 'text-white' : 'text-black'}">
@@ -187,7 +153,7 @@
   <!-- Navigation Menu -->
   <nav class="flex-1">
     <ul class="space-y-1">
-      {#each navigationItems as item (item.path)}
+      {#each navigationItems as item}
         <li>
           <a 
             href={item.path} 
@@ -266,30 +232,24 @@
   <div class="mt-4 px-3 mb-4 relative">
     <!-- User profile button with auth status indicator -->
     <button 
-      bind:this={userMenuButton}
-      class="flex items-center w-full p-3 rounded-full relative transition-colors {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'hover:bg-gray-200'}"
-      on:click={(e) => {
-        e.stopPropagation();
-        toggleUserMenu();
-      }}
-      aria-expanded={showUserMenu}
-      aria-controls="user-menu-dropdown"
+      class="flex items-center w-full p-3 rounded-full relative {isDarkMode ? 'bg-gray-800 hover:bg-gray-800' : 'hover:bg-gray-200'}"
+      on:click={toggleUserMenu}
     >
       <!-- Auth indicator dot -->
-      <div class="absolute -top-1 -right-1 w-5 h-5 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'} z-10 shadow-md"></div>
+      <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'}"></div>
       
-      <div class="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 shadow {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center border-2 {isDarkMode ? 'border-gray-600' : 'border-gray-200'}">
+      <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden">
         {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
           <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
         {:else}
-          <span class="text-lg font-medium {isDarkMode ? 'text-white' : 'text-gray-700'}">{userDetails.avatar}</span>
+          <span class="text-lg">{userDetails.avatar}</span>
         {/if}
       </div>
       <div class="hidden md:block ml-3 flex-1 text-left">
-        <p class="font-bold text-sm {isDarkMode ? 'text-white' : 'text-black'}">{userDetails.displayName || 'User'}</p>
-        <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{userDetails.username || 'user'}</p>
+        <p class="font-bold text-sm {isDarkMode ? 'text-white' : 'text-black'}">{userDetails.displayName}</p>
+        <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{userDetails.username}</p>
       </div>
-      <div class="hidden md:flex ml-1">
+      <div class="hidden md:flex">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 {isDarkMode ? 'text-gray-300' : 'text-gray-700'}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
         </svg>
@@ -299,21 +259,15 @@
     <!-- User Menu Dropdown -->
     {#if showUserMenu}
       <div 
-        bind:this={userMenuDropdown}
-        id="user-menu-dropdown"
-        class="fixed right-0 bottom-16 md:absolute md:bottom-full md:left-0 md:mb-2 w-72 rounded-xl shadow-lg border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-[9999] transform origin-bottom-left transition-all duration-200 ease-out"
-        style="filter: drop-shadow(0 20px 13px rgb(0 0 0 / 0.2)); backface-visibility: hidden;"
-        role="menu"
-        aria-orientation="vertical"
-        aria-labelledby="user-menu-button"
+        class="absolute bottom-20 left-2 w-72 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
       >
         <div class="py-3 px-4 border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'}">
           <div class="flex items-center mb-2">
-            <div class="w-12 h-12 rounded-full overflow-hidden shadow {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center mr-3 border-2 {isDarkMode ? 'border-gray-600' : 'border-gray-200'}">
+            <div class="w-12 h-12 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden mr-3">
               {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
                 <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
               {:else}
-                <span class="text-lg font-medium {isDarkMode ? 'text-white' : 'text-gray-700'}">{userDetails.avatar}</span>
+                <span class="text-lg">{userDetails.avatar}</span>
               {/if}
             </div>
             
@@ -356,8 +310,8 @@
         <div class="py-2">
           {#if isAuthenticated()}
             <button
-              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'} transition-colors"
-              on:click|stopPropagation={handleLogout}
+              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
+              on:click={handleLogout}
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -367,7 +321,7 @@
           {:else}
             <a
               href="/login"
-              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'} transition-colors"
+              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
@@ -380,40 +334,3 @@
     {/if}
   </div>
 </div>
-
-<style>
-  /* Custom styling for the auth status indicator */
-  .absolute {
-    position: absolute;
-  }
-
-  /* Add subtle pulse animation to the auth indicator when authenticated */
-  button:hover .absolute {
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-    }
-    70% {
-      box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-    }
-  }
-
-  /* User Menu Dropdown Animation */
-  [bind\:this=userMenuDropdown] {
-    opacity: 1;
-    transform: translateY(0);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-  }
-
-  [bind\:this=userMenuDropdown].hidden {
-    opacity: 0;
-    transform: translateY(10px);
-    pointer-events: none;
-  }
-</style>

@@ -45,11 +45,8 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Make the config available to handlers
-	handlers.Config = cfg
-
-	// Initialize services
-	handlers.InitServices()
+	// Initialize handlers with configuration
+	handlers.InitHandlers(cfg)
 
 	// Set up router with all routes
 	r := router.SetupRouter(cfg)

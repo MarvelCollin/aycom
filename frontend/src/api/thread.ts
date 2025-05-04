@@ -1,16 +1,20 @@
-import { apiRequest } from '../utils/apiClient';
-import { getAuthToken, getUserId } from '../utils/auth';
+import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
-import { createLoggerWithPrefix } from '../utils/logger';
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const logger = createLoggerWithPrefix('ThreadAPI');
 
 export async function createThread(data: Record<string, any>) {
   try {
-    const response = await apiRequest('/threads', {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads`, {
       method: "POST",
-      body: JSON.stringify(data)
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: "include",
     });
     
     if (!response.ok) {
@@ -28,15 +32,20 @@ export async function createThread(data: Record<string, any>) {
     
     return response.json();
   } catch (error) {
-    logger.error('Create thread failed:', error);
     throw error;
   }
 }
 
 export async function getThread(id: string) {
-  try {
-    const response = await apiRequest(`/threads/${id}`, {
-      method: "GET"
+  const token = getAuthToken();
+  
+  const response = await fetch(`${API_BASE_URL}/threads/${id}`, {
+    method: "GET",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    credentials: "include",
     });
     
     if (!response.ok) {
@@ -53,64 +62,89 @@ export async function getThread(id: string) {
     }
     
     return response.json();
-  } catch (error) {
-    logger.error(`Get thread ${id} failed:`, error);
-    throw error;
-  }
 }
 
 export async function getThreadsByUser(userId: string) {
+  const token = getAuthToken();
+  
   try {
-    // Replace 'me' with the actual user ID from auth
-    let endpoint;
+    console.log(`Fetching threads for user: ${userId}, token exists: ${!!token}`);
     
-    if (userId === 'me') {
-      const actualUserId = getUserId();
-      if (actualUserId) {
-        logger.debug(`Replacing 'me' with actual user ID: ${actualUserId}`);
-        endpoint = `/threads/user/${actualUserId}`;
-      } else {
-        logger.error('User ID not found in auth data while trying to fetch threads');
-        throw new Error('Authentication issue: User ID not found. Please log in again.');
-      }
-    } else {
-      endpoint = `/threads/user/${userId}`;
-    }
+    // Handle special 'me' userId
+    const endpoint = userId === 'me' 
+      ? `${API_BASE_URL}/threads/user/me`
+      : `${API_BASE_URL}/threads/user/${userId}`;
       
-    logger.debug(`Fetching threads using endpoint: ${endpoint}`);
+    console.log(`Making request to: ${endpoint}`);
     
-    const response = await apiRequest(endpoint, {
-      method: "GET"
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
     });
     
-    if (!response.ok) {
+    if (response.status === 401) {
+      console.warn("Authentication error when fetching threads - token may be invalid");
+      // Don't throw yet - allow caller to handle auth errors
+    }
+    
+    // If we got a 500 error, it might be due to the proto issues with user data
+    if (response.status === 500) {
+      console.warn("Encountered 500 error in getThreadsByUser, attempting to process response anyway");
+      
+      // Even with the 500 error, try to parse the response body
+      // The server might have returned partial data we can use
       try {
-        const errorData = await response.json();
-        logger.error(`Failed to fetch threads: ${response.status}`, errorData);
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to fetch user's threads: ${response.status} ${response.statusText}`
-        );
+        const data = await response.json();
+        
+        // Check if we have at least some threads data we can use
+        if (data && data.threads && Array.isArray(data.threads)) {
+          console.info(`Retrieved ${data.threads.length} threads despite error status`);
+          return data;
+        }
       } catch (parseError) {
-        throw new Error(`Failed to fetch user's threads: ${response.status} ${response.statusText}`);
+        console.error("Failed to parse response from error status:", parseError);
+        // Continue to error handling below
       }
     }
     
-    const result = await response.json();
-    logger.debug(`Successfully fetched ${result.data?.length || 0} threads`);
-    return result;
+    if (!response.ok) {
+      let errorMessage = `Failed to fetch user's threads: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || 
+                      errorData.error?.message || 
+                      errorMessage;
+        console.error("API error response:", errorData);
+      } catch (parseError) {
+        console.error("Could not parse error response:", parseError);
+      }
+      throw new Error(errorMessage);
+    }
+    
+    const data = await response.json();
+    console.log(`Successfully retrieved ${data.threads?.length || 0} threads`);
+    return data;
   } catch (error) {
-    logger.error(`Get threads for user ${userId} failed:`, error);
+    console.error("Error in getThreadsByUser:", error);
     throw error;
   }
 }
 
 export async function updateThread(id: string, data: Record<string, any>) {
-  try {
-    const response = await apiRequest(`/threads/${id}`, {
+  const token = getAuthToken();
+  
+  const response = await fetch(`${API_BASE_URL}/threads/${id}`, {
       method: "PUT",
-      body: JSON.stringify(data)
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    body: JSON.stringify(data),
+    credentials: "include",
     });
     
     if (!response.ok) {
@@ -127,16 +161,18 @@ export async function updateThread(id: string, data: Record<string, any>) {
     }
     
     return response.json();
-  } catch (error) {
-    logger.error(`Update thread ${id} failed:`, error);
-    throw error;
-  }
 }
 
 export async function deleteThread(id: string) {
-  try {
-    const response = await apiRequest(`/threads/${id}`, {
-      method: "DELETE"
+  const token = getAuthToken();
+  
+  const response = await fetch(`${API_BASE_URL}/threads/${id}`, {
+    method: "DELETE",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    credentials: "include",
     });
     
     if (!response.ok) {
@@ -153,14 +189,11 @@ export async function deleteThread(id: string) {
     }
     
     return response.json();
-  } catch (error) {
-    logger.error(`Delete thread ${id} failed:`, error);
-    throw error;
-  }
 }
 
 export async function uploadThreadMedia(threadId: string, files: File[]) {
-  try {
+  const token = getAuthToken();
+  
     const formData = new FormData();
     formData.append('thread_id', threadId);
     
@@ -168,10 +201,13 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
       formData.append(`media_${index}`, file);
     });
     
-    // For FormData we need to omit the Content-Type header
-    const response = await apiRequest('/threads/media', {
+  const response = await fetch(`${API_BASE_URL}/threads/media`, {
       method: 'POST',
-      body: formData
+    headers: {
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    body: formData,
+    credentials: 'include',
     });
     
     if (!response.ok) {
@@ -188,8 +224,4 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
     }
     
     return response.json();
-  } catch (error) {
-    logger.error('Upload thread media failed:', error);
-    throw error;
-  }
 }

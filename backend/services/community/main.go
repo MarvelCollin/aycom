@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 
@@ -22,7 +23,7 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
@@ -37,17 +38,24 @@ func main() {
 			log.Fatalf("Failed to run migrations: %v", err)
 		}
 
+		// Initialize repositories
 		communityRepo := repository.NewCommunityRepository(dbConn)
 		memberRepo := repository.NewCommunityMemberRepository(dbConn)
 		joinRequestRepo := repository.NewCommunityJoinRequestRepository(dbConn)
 		ruleRepo := repository.NewCommunityRuleRepository(dbConn)
 		chatRepo := repository.NewChatRepository(dbConn)
-		chatParticipantRepo := repository.NewChatParticipantRepository(dbConn)
 		messageRepo := repository.NewMessageRepository(dbConn)
+		participantRepo := repository.NewParticipantRepository(dbConn)
 		deletedChatRepo := repository.NewDeletedChatRepository(dbConn)
 
+		// Initialize the services
 		communityService := service.NewCommunityService(communityRepo, memberRepo, joinRequestRepo, ruleRepo)
-		chatService := service.NewChatService(chatRepo, chatParticipantRepo, messageRepo, deletedChatRepo)
+		chatService := service.NewChatService(
+			chatRepo,
+			participantRepo,
+			messageRepo,
+			deletedChatRepo,
+		)
 
 		handler := api.NewCommunityHandler(communityService, chatService)
 
@@ -56,6 +64,27 @@ func main() {
 		log.Printf("Community service started on port %s", port)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
+	// Health check endpoint
+	go func() {
+		defer wg.Done()
+		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"OK"}`))
+		})
+		log.Println("Community service health endpoint started on port 9093")
+		if err := http.ListenAndServe(":9093", nil); err != nil {
+			log.Fatalf("Failed to start health endpoint: %v", err)
 		}
 	}()
 

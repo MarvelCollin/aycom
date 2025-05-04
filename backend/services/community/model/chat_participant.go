@@ -7,9 +7,14 @@ import (
 )
 
 type ChatParticipant struct {
-	ChatID    uuid.UUID  `gorm:"type:uuid;primaryKey;column:chat_id"`
-	UserID    uuid.UUID  `gorm:"type:uuid;primaryKey;column:user_id"`
-	JoinedAt  time.Time  `gorm:"autoCreateTime"`
-	IsAdmin   bool       `gorm:"default:false;not null"`
-	DeletedAt *time.Time `gorm:"index"`
+	ID        uuid.UUID `gorm:"primaryKey;column:id"`
+	ChatID    uuid.UUID `gorm:"column:chat_id"`
+	UserID    uuid.UUID `gorm:"column:user_id"`
+	JoinedAt  time.Time `gorm:"column:joined_at"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (p *ChatParticipant) TableName() string {
+	return "chat_participants"
 }

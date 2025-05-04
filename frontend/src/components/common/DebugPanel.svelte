@@ -3,11 +3,6 @@
   import { writable } from 'svelte/store';
   import { useAuth } from '../../hooks/useAuth';
   import { getAuthData } from '../../utils/auth';
-  import appConfig from '../../config/appConfig';
-  import { getThreadsByUser, getThread } from '../../api/thread';
-  
-  // Get API URL from app config
-  const API_URL = appConfig.api.baseUrl;
   
   // Get auth state
   const { getAuthState, subscribe } = useAuth();
@@ -34,7 +29,7 @@
     } else {
       authState = getAuthState(); // Fallback to hook state if no localStorage data
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error loading auth data from storage:', err);
     authState = getAuthState(); // Fallback on error
   }
@@ -94,8 +89,6 @@
     if (typeof document !== 'undefined') {
       if (panelVisible) {
         document.body.classList.add('debug-panel-open');
-        // Force dark theme for the panel
-        document.documentElement.classList.add('dark-theme');
       } else {
         document.body.classList.remove('debug-panel-open');
       }
@@ -237,7 +230,7 @@
   let userProfileInfo = null;
   
   async function fetchUserProfile() {
-    if (!authState || !authState.isAuthenticated || !authState.userId) {
+    if (!authState.isAuthenticated || !authState.userId) {
       logger.warn('Cannot fetch user profile - not authenticated', null, { showToast: true });
       logMessages.update(logs => [
         { level: LogLevel.WARN, message: 'Cannot fetch user profile - not authenticated', timestamp: new Date() },
@@ -253,32 +246,21 @@
         ...logs
       ]);
       
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
-      
-      // Make sure we have a token - use the latest from authState
-      const token = authState.accessToken;
-      
-      if (!token) {
-        logger.error('Missing access token for API request', null, { showToast: true });
-        logMessages.update(logs => [
-          { level: LogLevel.ERROR, message: 'Missing access token for API request', timestamp: new Date() },
-          ...logs
-        ]);
-        return;
-      }
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
       
       // Log API request details for debugging
       logger.debug('API Request Details', { 
         url: `${apiUrl}/users/profile`,
-        headers: { 'Authorization': `Bearer ${token.substring(0, 10)}...` },
-        tokenLength: token ? token.length : 0
+        headers: { 'Authorization': `Bearer ${authState.accessToken}` },
+        tokenInfo: {
+          accessToken: authState.accessToken ? authState.accessToken.substring(0, 10) + '...' : null,
+          tokenLength: authState.accessToken ? authState.accessToken.length : 0
+        }
       });
       
       const response = await fetch(`${apiUrl}/users/profile`, {
-        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${authState.accessToken}`
         }
       });
       
@@ -291,160 +273,23 @@
           ...logs
         ]);
       } else {
-        let errorDetail = '';
-        try {
-          const errorResponse = await response.json();
-          errorDetail = `: ${JSON.stringify(errorResponse)}`;
-        } catch (e) {
-          const errorText = await response.text();
-          errorDetail = errorText ? `: ${errorText}` : '';
-        }
-        
-        logger.error(`Failed to fetch user profile (${response.status} ${response.statusText})${errorDetail}`, { 
+        const errorText = await response.text();
+        logger.error('Failed to fetch user profile', { 
           status: response.status, 
-          statusText: response.statusText
+          statusText: response.statusText,
+          responseBody: errorText
         }, { showToast: true });
-        
         logMessages.update(logs => [
-          { level: LogLevel.ERROR, message: `Failed to fetch user profile. Status: ${response.status}. Details: ${errorDetail || response.statusText}`, timestamp: new Date() },
+          { level: LogLevel.ERROR, message: `Failed to fetch user profile. Status: ${response.status}. Details: ${errorText}`, timestamp: new Date() },
           ...logs
         ]);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Error fetching user profile', { error: err }, { showToast: true });
       logMessages.update(logs => [
-        { level: LogLevel.ERROR, message: `Error fetching user profile: ${errorMessage}`, timestamp: new Date(), stack: err instanceof Error ? err.stack : undefined },
+        { level: LogLevel.ERROR, message: `Error fetching user profile: ${err}`, timestamp: new Date() },
         ...logs
       ]);
-    }
-  }
-  
-  // Thread debugging section
-  let threadDebugInfo = {
-    userId: 'me',
-    threadId: '',
-    response: null as any,
-    error: null as string | null,
-    loading: false,
-    rawResponse: '',
-    status: ''
-  };
-  
-  async function testGetThreadsByUser() {
-    threadDebugInfo.loading = true;
-    threadDebugInfo.error = null;
-    threadDebugInfo.response = null;
-    threadDebugInfo.rawResponse = '';
-    threadDebugInfo.status = 'Loading...';
-    
-    try {
-      logger.info(`Testing getThreadsByUser API with userId: ${threadDebugInfo.userId}`);
-      
-      // Make a direct fetch for more detailed error information
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
-      const token = authState.accessToken;
-      
-      const response = await fetch(`${apiUrl}/threads/user/${threadDebugInfo.userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      threadDebugInfo.status = `${response.status} ${response.statusText}`;
-      
-      try {
-        const responseText = await response.text();
-        threadDebugInfo.rawResponse = responseText;
-        
-        if (responseText && responseText.trim()) {
-          try {
-            const responseJson = JSON.parse(responseText);
-            threadDebugInfo.response = responseJson;
-          } catch (parseError) {
-            logger.warn('Response is not valid JSON', { responseText });
-          }
-        }
-      } catch (textError) {
-        threadDebugInfo.rawResponse = 'Failed to get response text: ' + (textError instanceof Error ? textError.message : String(textError));
-      }
-      
-      if (!response.ok) {
-        threadDebugInfo.error = `Request failed with status: ${response.status} ${response.statusText}`;
-        logger.error(threadDebugInfo.error, { response: threadDebugInfo.rawResponse });
-      } else {
-        logger.info('API call successful', { response: threadDebugInfo.response });
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      threadDebugInfo.error = errorMessage;
-      threadDebugInfo.status = 'Error';
-      logger.error('API call threw an exception', { error: err });
-    } finally {
-      threadDebugInfo.loading = false;
-    }
-  }
-  
-  async function testGetThread() {
-    if (!threadDebugInfo.threadId) {
-      threadDebugInfo.error = 'Please enter a thread ID';
-      return;
-    }
-    
-    threadDebugInfo.loading = true;
-    threadDebugInfo.error = null;
-    threadDebugInfo.response = null;
-    threadDebugInfo.rawResponse = '';
-    threadDebugInfo.status = 'Loading...';
-    
-    try {
-      logger.info(`Testing getThread API with threadId: ${threadDebugInfo.threadId}`);
-      
-      // Make a direct fetch for more detailed error information
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
-      const token = authState.accessToken;
-      
-      const response = await fetch(`${apiUrl}/threads/${threadDebugInfo.threadId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      threadDebugInfo.status = `${response.status} ${response.statusText}`;
-      
-      try {
-        const responseText = await response.text();
-        threadDebugInfo.rawResponse = responseText;
-        
-        if (responseText && responseText.trim()) {
-          try {
-            const responseJson = JSON.parse(responseText);
-            threadDebugInfo.response = responseJson;
-          } catch (parseError) {
-            logger.warn('Response is not valid JSON', { responseText });
-          }
-        }
-      } catch (textError) {
-        threadDebugInfo.rawResponse = 'Failed to get response text: ' + (textError instanceof Error ? textError.message : String(textError));
-      }
-      
-      if (!response.ok) {
-        threadDebugInfo.error = `Request failed with status: ${response.status} ${response.statusText}`;
-        logger.error(threadDebugInfo.error, { response: threadDebugInfo.rawResponse });
-      } else {
-        logger.info('API call successful', { response: threadDebugInfo.response });
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      threadDebugInfo.error = errorMessage;
-      threadDebugInfo.status = 'Error';
-      logger.error('API call threw an exception', { error: err });
-    } finally {
-      threadDebugInfo.loading = false;
     }
   }
   
@@ -555,10 +400,17 @@
   
   // Service status section
   const services = [
-    { name: 'API Gateway', url: 'http://localhost:8081/health', http: true },
-    { name: 'User Service', url: 'http://localhost:8081/health', http: true }, // Corrected port from 8083 to 8081
-    { name: 'Thread Service', url: 'http://localhost:8082/health', http: true },
-    { name: 'Event Bus', url: 'http://localhost:8000/health', http: true },
+    { name: 'API Gateway', url: 'http://localhost:8083/health', http: true },
+    // Keep API Gateway proxied endpoints for reference
+    { name: 'User Service (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/user', http: true },
+    { name: 'Thread Service (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/thread', http: true },
+    { name: 'Community Service (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/community', http: true },
+    { name: 'Event Bus (via Gateway)', url: 'http://localhost:8083/api/v1/system/status/event-bus', http: true },
+    // Add direct health check endpoints
+    { name: 'User Service (direct)', url: 'http://localhost:8081/health', http: true },
+    { name: 'Thread Service (direct)', url: 'http://localhost:9092/health', http: true },
+    { name: 'Community Service (direct)', url: 'http://localhost:9093/health', http: true },
+    { name: 'Event Bus (direct)', url: 'http://localhost:8000/health', http: true },
     // { name: 'AI Service', url: 'http://localhost:5000/health', http: true }, // Removed AI service check
     { name: 'Redis', http: false },
     { name: 'User DB', http: false },
@@ -573,10 +425,20 @@
     for (const service of services) {
       if (!service.http || !service.url) continue;
       try {
-        const res = await fetch(service.url, { method: 'GET' });
+        console.log(`Checking service health: ${service.name} at ${service.url}`);
+        const res = await fetch(service.url, { 
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          // Don't use credentials for health checks
+          mode: 'cors' 
+        });
         if (res.ok) {
           serviceStatuses[service.name] = true;
           serviceErrors[service.name] = '';
+          console.log(`Service ${service.name} is healthy`);
         } else {
           serviceStatuses[service.name] = false;
           let reason = `HTTP ${res.status} - ${res.statusText}`;
@@ -585,10 +447,12 @@
             if (text) reason += `: ${text}`;
           } catch {}
           serviceErrors[service.name] = reason;
+          console.log(`Service ${service.name} is unhealthy: ${reason}`);
         }
       } catch (e) {
         serviceStatuses[service.name] = false;
         serviceErrors[service.name] = (e && (e as any).message) ? (e as any).message : String(e);
+        console.log(`Error checking service ${service.name}:`, e);
       }
     }
   }
@@ -625,35 +489,6 @@
     logger.warn = originalWarn;
     logger.error = originalError;
   });
-
-  let apiResponse = {};
-  let loading = false;
-  let error: string | null = null;
-
-  // Function to test auth API and show the raw response
-  async function testAuthApi() {
-    loading = true;
-    error = null;
-    try {
-      const emailInput = document.getElementById('debug-email') as HTMLInputElement;
-      const passwordInput = document.getElementById('debug-password') as HTMLInputElement;
-      
-      const response = await fetch(`${API_URL}/users/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: emailInput?.value || '', 
-          password: passwordInput?.value || '' 
-        })
-      });
-      apiResponse = await response.json();
-    } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
-      console.error('Debug API call failed:', err);
-    } finally {
-      loading = false;
-    }
-  }
 </script>
 
 <!-- Debug icon button -->
@@ -684,69 +519,27 @@
       
       <!-- Simple content -->
       <div class="debug-panel-content">
-        <!-- Current User Section -->
         <div class="section">
           <h3>Current User</h3>
           <div class="card">
             {#if authState.isAuthenticated}
               <h4>Auth Status: <span class="auth-status-authenticated">Authenticated</span></h4>
-              <table class="user-info-table">
-                <thead>
-                  <tr>
-                    <th>Property</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>User ID</td>
-                    <td>{authState.userId || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td>Token Expires</td>
-                    <td>{authState.expiresAt ? new Date(authState.expiresAt).toLocaleString() : 'N/A'}</td>
-                  </tr>
-                </tbody>
-              </table>
-
+              <div class="code-block">
+                <pre>{JSON.stringify({
+                  userId: authState.userId,
+                  isAuthenticated: authState.isAuthenticated,
+                  tokenExpires: authState.expiresAt ? new Date(authState.expiresAt).toLocaleString() : null
+                }, null, 2)}</pre>
+              </div>
               <button class="debug-btn green" on:click={fetchUserProfile}>
                 Refresh User Data
               </button>
               
               {#if userProfileInfo}
                 <h4 class="mt-4">User Profile</h4>
-                <table class="user-info-table">
-                  <thead>
-                    <tr>
-                      <th>Property</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each Object.entries(userProfileInfo) as [key, value]}
-                      <tr>
-                        <td>{key}</td>
-                        <td>
-                          {#if key.toLowerCase().includes('picture') && value && typeof value === 'string'}
-                            <img src={value} alt="Profile" class="profile-thumbnail" />
-                          {:else if key.toLowerCase().includes('at') && typeof value === 'string' && !isNaN(Date.parse(value))}
-                            {new Date(value as string).toLocaleString()}
-                          {:else if typeof value === 'object'}
-                            <pre class="code-block">{JSON.stringify(value, null, 2)}</pre>
-                          {:else}
-                            {value || 'N/A'}
-                          {/if}
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-                
-                <!-- Raw data toggle button -->
-                <details class="mt-2">
-                  <summary class="cursor-pointer text-blue-500">Show Raw Profile Data</summary>
-                  <pre class="code-block mt-2">{JSON.stringify(userProfileInfo, null, 2)}</pre>
-                </details>
+                <div class="code-block">
+                  <pre>{JSON.stringify(userProfileInfo, null, 2)}</pre>
+                </div>
               {/if}
             {:else}
               <div class="placeholder warning">
@@ -878,35 +671,6 @@
             </ul>
           </div>
         </div>
-
-        <div class="section">
-          <h3>Auth Debugging</h3>
-          
-          <div class="auth-state">
-            <h4>Current Auth State:</h4>
-            <pre>{JSON.stringify(authState, null, 2)}</pre>
-          </div>
-        
-          <div class="api-test">
-            <h4>Test Auth API:</h4>
-            <div class="form-group">
-              <input id="debug-email" type="email" placeholder="Email" />
-              <input id="debug-password" type="password" placeholder="Password" />
-              <button on:click={testAuthApi} disabled={loading}>
-                {loading ? 'Loading...' : 'Test Login API'}
-              </button>
-            </div>
-            
-            {#if error}
-              <div class="error">Error: {error}</div>
-            {/if}
-            
-            {#if Object.keys(apiResponse).length > 0}
-              <h4>Raw API Response:</h4>
-              <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
-            {/if}
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -927,7 +691,7 @@
     justify-content: center;
   }
   
-  /* Debug Panel Container - Dark Theme */
+  /* Debug Panel Container */
   .debug-panel {
     width: 100%;
     max-width: 700px;
@@ -1289,90 +1053,5 @@
   
   .text-gray-500 {
     color: #64748b;
-  }
-  
-  .user-info-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1rem 0;
-    font-size: 0.9rem;
-  }
-  
-  .user-info-table th,
-  .user-info-table td {
-    padding: 8px 12px;
-    text-align: left;
-    border-bottom: 1px solid #334155;
-  }
-  
-  .user-info-table th {
-    background-color: #2d3748;
-    font-weight: 600;
-  }
-  
-  .user-info-table tr:hover {
-    background-color: #233042;
-  }
-  
-  .profile-thumbnail {
-    max-width: 80px;
-    max-height: 80px;
-    border-radius: 50%;
-  }
-  
-  .mt-4 {
-    margin-top: 1rem;
-  }
-
-  .debug-panel {
-    background-color: #1a202c;
-    border: 1px solid #2d3748;
-    border-radius: 4px;
-    padding: 1rem;
-    margin: 1rem 0;
-    font-family: monospace;
-  }
-  
-  pre {
-    background-color: #0d1117;
-    padding: 0.5rem;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-  
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  
-  input, button {
-    padding: 0.5rem;
-  }
-  
-  button {
-    background-color: #4285f4;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  button:disabled {
-    background-color: #566573;
-    cursor: not-allowed;
-  }
-  
-  .error {
-    color: #f56565;
-    margin: 0.5rem 0;
-  }
-  
-  /* Ensure simplified panel is dark */
-  .simplified {
-    background-color: #0f172a;
-    color: #e2e8f0;
   }
 </style>

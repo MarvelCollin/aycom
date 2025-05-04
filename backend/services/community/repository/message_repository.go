@@ -2,64 +2,196 @@ package repository
 
 import (
 	"aycom/backend/services/community/model"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-type MessageRepository interface {
-	Create(message *model.Message) error
-	FindByID(id uuid.UUID) (*model.Message, error)
-	FindByChat(chatID uuid.UUID, offset, limit int) ([]*model.Message, error)
-	FindByUser(userID uuid.UUID, offset, limit int) ([]*model.Message, error)
-	SearchInChat(chatID uuid.UUID, query string, offset, limit int) ([]*model.Message, error)
-	Update(message *model.Message) error
-	Delete(id uuid.UUID) error
+// MessageDBModel represents a message in the database
+type MessageDBModel struct {
+	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;column:message_id"`
+	ChatID    uuid.UUID  `gorm:"type:uuid;not null;column:chat_id"`
+	SenderID  uuid.UUID  `gorm:"type:uuid;not null;column:sender_id"`
+	Content   string     `gorm:"type:text;not null"`
+	SentAt    time.Time  `gorm:"not null;autoCreateTime"`
+	IsRead    bool       `gorm:"default:false"`
+	IsEdited  bool       `gorm:"default:false"`
+	IsDeleted bool       `gorm:"default:false"`
+	DeletedAt *time.Time `gorm:"index"`
 }
 
+// TableName sets the table name for the message model
+func (MessageDBModel) TableName() string {
+	return "chat_messages"
+}
+
+// GormMessageRepository implements model.MessageRepository
 type GormMessageRepository struct {
 	db *gorm.DB
 }
 
-func NewMessageRepository(db *gorm.DB) MessageRepository {
+// NewMessageRepository creates a new message repository
+func NewMessageRepository(db *gorm.DB) model.MessageRepository {
 	return &GormMessageRepository{db: db}
 }
 
-func (r *GormMessageRepository) Create(message *model.Message) error {
-	return r.db.Create(message).Error
+// SaveMessage saves a message to the database
+func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
+	msgID, err := uuid.Parse(message.ID)
+	if err != nil {
+		return err
+	}
+
+	chatID, err := uuid.Parse(message.ChatID)
+	if err != nil {
+		return err
+	}
+
+	senderID, err := uuid.Parse(message.SenderID)
+	if err != nil {
+		return err
+	}
+
+	dbMessage := &MessageDBModel{
+		ID:        msgID,
+		ChatID:    chatID,
+		SenderID:  senderID,
+		Content:   message.Content,
+		SentAt:    message.Timestamp,
+		IsRead:    message.IsRead,
+		IsEdited:  message.IsEdited,
+		IsDeleted: message.IsDeleted,
+	}
+
+	return r.db.Create(dbMessage).Error
 }
 
-func (r *GormMessageRepository) FindByID(id uuid.UUID) (*model.Message, error) {
-	var message model.Message
-	err := r.db.First(&message, "message_id = ?", id).Error
+// FindMessageByID finds a message by ID
+func (r *GormMessageRepository) FindMessageByID(messageID string) (*model.MessageDTO, error) {
+	msgID, err := uuid.Parse(messageID)
 	if err != nil {
 		return nil, err
 	}
-	return &message, nil
+
+	var dbMessage MessageDBModel
+	err = r.db.First(&dbMessage, "message_id = ?", msgID).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.MessageDTO{
+		ID:        dbMessage.ID.String(),
+		ChatID:    dbMessage.ChatID.String(),
+		SenderID:  dbMessage.SenderID.String(),
+		Content:   dbMessage.Content,
+		Timestamp: dbMessage.SentAt,
+		IsRead:    dbMessage.IsRead,
+		IsEdited:  dbMessage.IsEdited,
+		IsDeleted: dbMessage.IsDeleted,
+	}, nil
 }
 
-func (r *GormMessageRepository) FindByChat(chatID uuid.UUID, offset, limit int) ([]*model.Message, error) {
-	var messages []*model.Message
-	err := r.db.Where("chat_id = ?", chatID).Order("sent_at ASC").Offset(offset).Limit(limit).Find(&messages).Error
-	return messages, err
+// FindMessagesByChatID finds messages by chat ID
+func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offset int) ([]*model.MessageDTO, error) {
+	chatUUID, err := uuid.Parse(chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	var dbMessages []MessageDBModel
+	err = r.db.Where("chat_id = ?", chatUUID).
+		Order("sent_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&dbMessages).Error
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]*model.MessageDTO, len(dbMessages))
+	for i, dbMessage := range dbMessages {
+		messages[i] = &model.MessageDTO{
+			ID:        dbMessage.ID.String(),
+			ChatID:    dbMessage.ChatID.String(),
+			SenderID:  dbMessage.SenderID.String(),
+			Content:   dbMessage.Content,
+			Timestamp: dbMessage.SentAt,
+			IsRead:    dbMessage.IsRead,
+			IsEdited:  dbMessage.IsEdited,
+			IsDeleted: dbMessage.IsDeleted,
+		}
+	}
+
+	return messages, nil
 }
 
-func (r *GormMessageRepository) FindByUser(userID uuid.UUID, offset, limit int) ([]*model.Message, error) {
-	var messages []*model.Message
-	err := r.db.Where("sender_id = ?", userID).Order("sent_at DESC").Offset(offset).Limit(limit).Find(&messages).Error
-	return messages, err
+// MarkMessageAsRead marks a message as read
+func (r *GormMessageRepository) MarkMessageAsRead(messageID, userID string) error {
+	msgID, err := uuid.Parse(messageID)
+	if err != nil {
+		return err
+	}
+
+	return r.db.Model(&MessageDBModel{}).
+		Where("message_id = ?", msgID).
+		Update("is_read", true).
+		Error
 }
 
-func (r *GormMessageRepository) SearchInChat(chatID uuid.UUID, query string, offset, limit int) ([]*model.Message, error) {
-	var messages []*model.Message
-	err := r.db.Where("chat_id = ? AND content ILIKE ?", chatID, "%"+query+"%").Order("sent_at ASC").Offset(offset).Limit(limit).Find(&messages).Error
-	return messages, err
+// DeleteMessage deletes a message from the database
+func (r *GormMessageRepository) DeleteMessage(messageID string) error {
+	msgID, err := uuid.Parse(messageID)
+	if err != nil {
+		return err
+	}
+
+	return r.db.Delete(&MessageDBModel{}, "message_id = ?", msgID).Error
 }
 
-func (r *GormMessageRepository) Update(message *model.Message) error {
-	return r.db.Save(message).Error
+// UnsendMessage marks a message as deleted but doesn't remove it
+func (r *GormMessageRepository) UnsendMessage(messageID string) error {
+	msgID, err := uuid.Parse(messageID)
+	if err != nil {
+		return err
+	}
+
+	return r.db.Model(&MessageDBModel{}).
+		Where("message_id = ?", msgID).
+		Update("is_deleted", true).
+		Error
 }
 
-func (r *GormMessageRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&model.Message{}, "message_id = ?", id).Error
+// SearchMessages searches for messages by content
+func (r *GormMessageRepository) SearchMessages(chatID, query string, limit, offset int) ([]*model.MessageDTO, error) {
+	chatUUID, err := uuid.Parse(chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	var dbMessages []MessageDBModel
+	err = r.db.Where("chat_id = ? AND content LIKE ?", chatUUID, "%"+query+"%").
+		Order("sent_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&dbMessages).Error
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]*model.MessageDTO, len(dbMessages))
+	for i, dbMessage := range dbMessages {
+		messages[i] = &model.MessageDTO{
+			ID:        dbMessage.ID.String(),
+			ChatID:    dbMessage.ChatID.String(),
+			SenderID:  dbMessage.SenderID.String(),
+			Content:   dbMessage.Content,
+			Timestamp: dbMessage.SentAt,
+			IsRead:    dbMessage.IsRead,
+			IsEdited:  dbMessage.IsEdited,
+			IsDeleted: dbMessage.IsDeleted,
+		}
+	}
+
+	return messages, nil
 }

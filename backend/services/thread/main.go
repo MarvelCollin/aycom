@@ -58,6 +58,15 @@ func main() {
 		interactionRepo := repository.NewInteractionRepository(dbConn)
 		pollRepo := repository.NewPollRepository(dbConn)
 
+		// Initialize user client for fetching user data
+		userServiceHost := getEnv("USER_SERVICE_HOST", "user_service")
+		userServicePort := getEnv("USER_SERVICE_PORT", "9091")
+		userServiceAddr := userServiceHost + ":" + userServicePort
+
+		log.Printf("User service is at %s, but using mock client for now", userServiceAddr)
+		// TODO: Fix proto imports to establish real connection
+		userClient := service.NewUserClient(nil)
+
 		// Initialize services with the new repositories
 		threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)
 		replyService := service.NewReplyService(replyRepo, threadRepo, mediaRepo)
@@ -65,7 +74,14 @@ func main() {
 		pollService := service.NewPollService(pollRepo)
 
 		// Initialize the gRPC handler
-		handler := handlers.NewThreadHandler(threadService, replyService, interactionService, pollService, interactionRepo)
+		handler := handlers.NewThreadHandler(
+			threadService,
+			replyService,
+			interactionService,
+			pollService,
+			interactionRepo,
+			userClient, // Pass the user client to the handler
+		)
 
 		// Configure gRPC server with potential TLS settings
 		var opts []grpc.ServerOption
