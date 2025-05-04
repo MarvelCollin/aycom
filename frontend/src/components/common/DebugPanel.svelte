@@ -4,6 +4,7 @@
   import { useAuth } from '../../hooks/useAuth';
   import { getAuthData } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
+  import { getThreadsByUser, getThread } from '../../api/thread';
   
   // Get API URL from app config
   const API_URL = appConfig.api.baseUrl;
@@ -93,6 +94,8 @@
     if (typeof document !== 'undefined') {
       if (panelVisible) {
         document.body.classList.add('debug-panel-open');
+        // Force dark theme for the panel
+        document.documentElement.classList.add('dark-theme');
       } else {
         document.body.classList.remove('debug-panel-open');
       }
@@ -317,6 +320,134 @@
     }
   }
   
+  // Thread debugging section
+  let threadDebugInfo = {
+    userId: 'me',
+    threadId: '',
+    response: null as any,
+    error: null as string | null,
+    loading: false,
+    rawResponse: '',
+    status: ''
+  };
+  
+  async function testGetThreadsByUser() {
+    threadDebugInfo.loading = true;
+    threadDebugInfo.error = null;
+    threadDebugInfo.response = null;
+    threadDebugInfo.rawResponse = '';
+    threadDebugInfo.status = 'Loading...';
+    
+    try {
+      logger.info(`Testing getThreadsByUser API with userId: ${threadDebugInfo.userId}`);
+      
+      // Make a direct fetch for more detailed error information
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+      const token = authState.accessToken;
+      
+      const response = await fetch(`${apiUrl}/threads/user/${threadDebugInfo.userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      threadDebugInfo.status = `${response.status} ${response.statusText}`;
+      
+      try {
+        const responseText = await response.text();
+        threadDebugInfo.rawResponse = responseText;
+        
+        if (responseText && responseText.trim()) {
+          try {
+            const responseJson = JSON.parse(responseText);
+            threadDebugInfo.response = responseJson;
+          } catch (parseError) {
+            logger.warn('Response is not valid JSON', { responseText });
+          }
+        }
+      } catch (textError) {
+        threadDebugInfo.rawResponse = 'Failed to get response text: ' + (textError instanceof Error ? textError.message : String(textError));
+      }
+      
+      if (!response.ok) {
+        threadDebugInfo.error = `Request failed with status: ${response.status} ${response.statusText}`;
+        logger.error(threadDebugInfo.error, { response: threadDebugInfo.rawResponse });
+      } else {
+        logger.info('API call successful', { response: threadDebugInfo.response });
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      threadDebugInfo.error = errorMessage;
+      threadDebugInfo.status = 'Error';
+      logger.error('API call threw an exception', { error: err });
+    } finally {
+      threadDebugInfo.loading = false;
+    }
+  }
+  
+  async function testGetThread() {
+    if (!threadDebugInfo.threadId) {
+      threadDebugInfo.error = 'Please enter a thread ID';
+      return;
+    }
+    
+    threadDebugInfo.loading = true;
+    threadDebugInfo.error = null;
+    threadDebugInfo.response = null;
+    threadDebugInfo.rawResponse = '';
+    threadDebugInfo.status = 'Loading...';
+    
+    try {
+      logger.info(`Testing getThread API with threadId: ${threadDebugInfo.threadId}`);
+      
+      // Make a direct fetch for more detailed error information
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+      const token = authState.accessToken;
+      
+      const response = await fetch(`${apiUrl}/threads/${threadDebugInfo.threadId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      threadDebugInfo.status = `${response.status} ${response.statusText}`;
+      
+      try {
+        const responseText = await response.text();
+        threadDebugInfo.rawResponse = responseText;
+        
+        if (responseText && responseText.trim()) {
+          try {
+            const responseJson = JSON.parse(responseText);
+            threadDebugInfo.response = responseJson;
+          } catch (parseError) {
+            logger.warn('Response is not valid JSON', { responseText });
+          }
+        }
+      } catch (textError) {
+        threadDebugInfo.rawResponse = 'Failed to get response text: ' + (textError instanceof Error ? textError.message : String(textError));
+      }
+      
+      if (!response.ok) {
+        threadDebugInfo.error = `Request failed with status: ${response.status} ${response.statusText}`;
+        logger.error(threadDebugInfo.error, { response: threadDebugInfo.rawResponse });
+      } else {
+        logger.info('API call successful', { response: threadDebugInfo.response });
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      threadDebugInfo.error = errorMessage;
+      threadDebugInfo.status = 'Error';
+      logger.error('API call threw an exception', { error: err });
+    } finally {
+      threadDebugInfo.loading = false;
+    }
+  }
+  
   // Debug keyboard shortcuts handler
   function setupKeyboardShortcuts() {
     let konamiSequence = '';
@@ -497,24 +628,27 @@
 
   let apiResponse = {};
   let loading = false;
-  let error = null;
+  let error: string | null = null;
 
   // Function to test auth API and show the raw response
   async function testAuthApi() {
     loading = true;
     error = null;
     try {
+      const emailInput = document.getElementById('debug-email') as HTMLInputElement;
+      const passwordInput = document.getElementById('debug-password') as HTMLInputElement;
+      
       const response = await fetch(`${API_URL}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          email: document.getElementById('debug-email').value, 
-          password: document.getElementById('debug-password').value 
+          email: emailInput?.value || '', 
+          password: passwordInput?.value || '' 
         })
       });
       apiResponse = await response.json();
-    } catch (err) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : String(err);
       console.error('Debug API call failed:', err);
     } finally {
       loading = false;
@@ -550,6 +684,7 @@
       
       <!-- Simple content -->
       <div class="debug-panel-content">
+        <!-- Current User Section -->
         <div class="section">
           <h3>Current User</h3>
           <div class="card">
@@ -792,7 +927,7 @@
     justify-content: center;
   }
   
-  /* Debug Panel Container */
+  /* Debug Panel Container - Dark Theme */
   .debug-panel {
     width: 100%;
     max-width: 700px;
@@ -1167,16 +1302,16 @@
   .user-info-table td {
     padding: 8px 12px;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid #334155;
   }
   
   .user-info-table th {
-    background-color: var(--accent-color-light);
+    background-color: #2d3748;
     font-weight: 600;
   }
   
   .user-info-table tr:hover {
-    background-color: var(--hover-color);
+    background-color: #233042;
   }
   
   .profile-thumbnail {
@@ -1190,8 +1325,8 @@
   }
 
   .debug-panel {
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
+    background-color: #1a202c;
+    border: 1px solid #2d3748;
     border-radius: 4px;
     padding: 1rem;
     margin: 1rem 0;
@@ -1199,7 +1334,7 @@
   }
   
   pre {
-    background-color: #eee;
+    background-color: #0d1117;
     padding: 0.5rem;
     overflow-x: auto;
     white-space: pre-wrap;
@@ -1226,12 +1361,18 @@
   }
   
   button:disabled {
-    background-color: #ccc;
+    background-color: #566573;
     cursor: not-allowed;
   }
   
   .error {
-    color: red;
+    color: #f56565;
     margin: 0.5rem 0;
+  }
+  
+  /* Ensure simplified panel is dark */
+  .simplified {
+    background-color: #0f172a;
+    color: #e2e8f0;
   }
 </style>

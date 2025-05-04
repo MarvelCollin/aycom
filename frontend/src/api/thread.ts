@@ -1,5 +1,5 @@
 import { apiRequest } from '../utils/apiClient';
-import { getAuthToken } from '../utils/auth';
+import { getAuthToken, getUserId } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
 
@@ -61,9 +61,21 @@ export async function getThread(id: string) {
 
 export async function getThreadsByUser(userId: string) {
   try {
-    // Always use /threads/user/{id} format, even when userId is 'me'
-    // The backend will interpret 'me' appropriately
-    const endpoint = `/threads/user/${userId}`;
+    // Replace 'me' with the actual user ID from auth
+    let endpoint;
+    
+    if (userId === 'me') {
+      const actualUserId = getUserId();
+      if (actualUserId) {
+        logger.debug(`Replacing 'me' with actual user ID: ${actualUserId}`);
+        endpoint = `/threads/user/${actualUserId}`;
+      } else {
+        logger.error('User ID not found in auth data while trying to fetch threads');
+        throw new Error('Authentication issue: User ID not found. Please log in again.');
+      }
+    } else {
+      endpoint = `/threads/user/${userId}`;
+    }
       
     logger.debug(`Fetching threads using endpoint: ${endpoint}`);
     
@@ -74,6 +86,7 @@ export async function getThreadsByUser(userId: string) {
     if (!response.ok) {
       try {
         const errorData = await response.json();
+        logger.error(`Failed to fetch threads: ${response.status}`, errorData);
         throw new Error(
           errorData.message || 
           errorData.error?.message || 
@@ -84,7 +97,9 @@ export async function getThreadsByUser(userId: string) {
       }
     }
     
-    return response.json();
+    const result = await response.json();
+    logger.debug(`Successfully fetched ${result.data?.length || 0} threads`);
+    return result;
   } catch (error) {
     logger.error(`Get threads for user ${userId} failed:`, error);
     throw error;

@@ -7,7 +7,7 @@ const logger = createLoggerWithPrefix('UserAPI');
 
 export async function getProfile() {
   try {
-    const response = await apiRequest('/users/profile', {
+    const response = await apiRequest('/users/me', {
       method: "GET"
     });
     

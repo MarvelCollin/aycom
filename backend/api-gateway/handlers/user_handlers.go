@@ -23,8 +23,24 @@ import (
 // @Router /api/v1/users/profile [get]
 func GetUserProfile(c *gin.Context) {
 	// Get user ID from JWT token (set by auth middleware)
-	userID, exists := c.Get("userID")
+	var userIDStr string
+	var exists bool
+
+	// Try both possible context keys (userID and userId)
+	if userID, ok := c.Get("userId"); ok {
+		userIDStr = userID.(string)
+		exists = true
+		log.Printf("GetUserProfile Handler: Retrieved userId from context: %s", userIDStr)
+	} else if userID, ok := c.Get("userID"); ok {
+		userIDStr = userID.(string)
+		exists = true
+		log.Printf("GetUserProfile Handler: Retrieved userID from context: %s", userIDStr)
+	} else {
+		exists = false
+	}
+
 	if !exists {
+		log.Printf("GetUserProfile Handler: Failed to get userId or userID from context")
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
 			Success: false,
 			Message: "User not authenticated",
@@ -32,8 +48,6 @@ func GetUserProfile(c *gin.Context) {
 		})
 		return
 	}
-	userIDStr := userID.(string)
-	log.Printf("GetUserProfile Handler: Retrieved userID from context: %s", userIDStr)
 
 	// Validate UUID
 	if _, err := uuid.Parse(userIDStr); err != nil {
@@ -131,8 +145,24 @@ func GetUserProfile(c *gin.Context) {
 // @Router /api/v1/users/profile [put]
 func UpdateUserProfile(c *gin.Context) {
 	// Get user ID from JWT token (set by auth middleware)
-	userID, exists := c.Get("userID")
+	var userIDStr string
+	var exists bool
+
+	// Try both possible context keys (userID and userId)
+	if userID, ok := c.Get("userId"); ok {
+		userIDStr = userID.(string)
+		exists = true
+		log.Printf("UpdateUserProfile Handler: Retrieved userId from context: %s", userIDStr)
+	} else if userID, ok := c.Get("userID"); ok {
+		userIDStr = userID.(string)
+		exists = true
+		log.Printf("UpdateUserProfile Handler: Retrieved userID from context: %s", userIDStr)
+	} else {
+		exists = false
+	}
+
 	if !exists {
+		log.Printf("UpdateUserProfile Handler: Failed to get userId or userID from context")
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
 			Success: false,
 			Message: "User not authenticated",
@@ -140,8 +170,6 @@ func UpdateUserProfile(c *gin.Context) {
 		})
 		return
 	}
-	userIDStr := userID.(string)
-	log.Printf("UpdateUserProfile Handler: Retrieved userID from context: %s", userIDStr)
 
 	// Validate UUID
 	if _, err := uuid.Parse(userIDStr); err != nil {
@@ -180,6 +208,8 @@ func UpdateUserProfile(c *gin.Context) {
 		})
 		return
 	}
+
+	log.Printf("UpdateUserProfile Handler: Updating profile for user %s with name: %s", userIDStr, input.Name)
 
 	// Create update request
 	req := &userProto.UpdateUserRequest{
@@ -231,6 +261,8 @@ func UpdateUserProfile(c *gin.Context) {
 		log.Printf("Error updating user profile: %v", err)
 		return
 	}
+
+	log.Printf("UpdateUserProfile Handler: Successfully updated profile for user %s", userIDStr)
 
 	// Return successful response with updated user profile
 	c.JSON(http.StatusOK, gin.H{
@@ -319,7 +351,10 @@ func LoginUser(c *gin.Context) {
 		return
 	}
 
+	log.Printf("LoginUser handler: Login attempt for email: %s", req.Email)
+
 	if UserClient == nil {
+		log.Printf("LoginUser handler: User service unavailable")
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
 		return
 	}
@@ -333,16 +368,22 @@ func LoginUser(c *gin.Context) {
 	}
 	loginResp, err := UserClient.LoginUser(ctx, loginReq)
 	if err != nil || loginResp.User == nil {
+		log.Printf("LoginUser handler: Authentication failed for %s: %v", req.Email, err)
 		c.JSON(http.StatusUnauthorized, ErrorResponse{Success: false, Message: "Invalid credentials"})
 		return
 	}
 
+	log.Printf("LoginUser handler: Login successful for user ID: %s", loginResp.User.Id)
+
 	// Generate real JWT token instead of using mock token
 	accessToken, refreshToken, err := generateJWT(loginResp.User.Id)
 	if err != nil {
+		log.Printf("LoginUser handler: Failed to generate JWT: %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to generate authentication token"})
 		return
 	}
+
+	log.Printf("LoginUser handler: JWT generated successfully, access token prefix: %s", accessToken[:10])
 
 	// Get JWT expiry from environment or use default
 	jwtExpiry := 3600 // Default 1 hour
@@ -352,14 +393,17 @@ func LoginUser(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success":       true,
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"expires_in":    jwtExpiry,
 		"user_id":       loginResp.User.Id,
 		"user":          loginResp.User,
-	})
+	}
+
+	log.Printf("LoginUser handler: Sending successful response with token and user data")
+	c.JSON(http.StatusOK, response)
 }
 
 // GetUserByEmail retrieves a user by email from the User service via gRPC
