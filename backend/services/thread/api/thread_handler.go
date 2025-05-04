@@ -275,9 +275,16 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 			log.Printf("User info retrieved for %s (username: %s) - embedding in content as workaround",
 				userInfo.Id, userInfo.Username)
 
-			// Format: [USER:username@displayName]content
-			response.Content = "[USER:" + userInfo.Username + "@" + userInfo.DisplayName + "]" + response.Content
+			// Format: [USER:username@displayName@profilePictureUrl]content
+			// Include profile picture URL in the metadata for frontend to use
+			response.Content = "[USER:" + userInfo.Username + "@" + userInfo.DisplayName + "@" + userInfo.ProfilePictureUrl + "]" + response.Content
+		} else {
+			log.Printf("Could not fetch user info for thread %s by user %s: %v",
+				thread.ThreadID.String(), thread.UserID.String(), err)
 		}
+	} else {
+		log.Printf("No user client available - thread %s by user %s will not have user details",
+			thread.ThreadID.String(), thread.UserID.String())
 	}
 
 	return response, nil

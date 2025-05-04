@@ -61,16 +61,44 @@
     let username = 'anonymous';
     let displayName = 'User';
     let content = thread.content || '';
+    let profilePicture = '';
     
     if (typeof content === 'string') {
-      const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
-      const match = content.match(userMetadataRegex);
+      // Look for enhanced user metadata that includes profile picture
+      // Format: [USER:username@displayName@profileUrl]content
+      const enhancedMetadataRegex = /^\[USER:([^@\]]+)@([^@\]]+)@([^\]]+)\](.*)/;
+      const match = enhancedMetadataRegex.exec(content);
       
       if (match) {
         username = match[1] || username;
         displayName = match[2] || displayName;
-        content = match[3] || '';
+        profilePicture = match[3] || '';
+        content = match[4] || '';
+      } else {
+        // Try the old format without profile picture
+        const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
+        const basicMatch = content.match(userMetadataRegex);
+        
+        if (basicMatch) {
+          username = basicMatch[1] || username;
+          displayName = basicMatch[2] || displayName;
+          content = basicMatch[3] || '';
+        }
       }
+    }
+
+    // Safe date conversion with fallback
+    let timestamp = new Date().toISOString();
+    try {
+      if (thread.created_at) {
+        const date = new Date(thread.created_at);
+        // Check if date is valid before converting to ISO string
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      }
+    } catch (error) {
+      console.warn("Invalid date format in thread:", thread.created_at);
     }
     
     return {
@@ -79,8 +107,8 @@
       username: username,
       displayName: displayName,
       content: content,
-      timestamp: thread.created_at ? new Date(thread.created_at).toISOString() : new Date().toISOString(),
-      avatar: '👤', // Add default avatar
+      timestamp: timestamp,
+      avatar: profilePicture || '👤', // Use real profile picture or fallback to emoji
       likes: thread.metrics?.likes || 0,
       replies: thread.metrics?.replies || 0,
       reposts: thread.metrics?.reposts || 0,

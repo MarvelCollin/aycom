@@ -29,94 +29,125 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		port := getEnv("PORT", "9092")
-		listener, err := net.Listen("tcp", ":"+port)
-		if err != nil {
-			log.Fatalf("Failed to listen: %v", err)
+
+		// Initialize thread service
+		initThreadService()
+	}()
+
+	wg.Wait()
+}
+
+// initThreadService initializes and starts the thread gRPC service
+func initThreadService() {
+	port := getEnv("PORT", "9092")
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+
+	// Initialize database connection
+	dbConn := db.InitDB()
+
+	// Run database migrations
+	if err := db.RunMigrations(dbConn); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Seed database if in development mode
+	environment := getEnv("ENVIRONMENT", "development")
+	if environment == "development" {
+		if err := db.SeedDatabase(dbConn); err != nil {
+			log.Printf("Warning: Failed to seed database: %v", err)
 		}
+	}
 
-		// Initialize database connection
-		dbConn := db.InitDB()
+	// Initialize repositories using the new structure
+	threadRepo := repository.NewThreadRepository(dbConn)
+	mediaRepo := repository.NewMediaRepository(dbConn)
+	hashtagRepo := repository.NewHashtagRepository(dbConn)
+	replyRepo := repository.NewReplyRepository(dbConn)
+	interactionRepo := repository.NewInteractionRepository(dbConn)
+	pollRepo := repository.NewPollRepository(dbConn)
 
-		// Run database migrations
-		if err := db.RunMigrations(dbConn); err != nil {
-			log.Fatalf("Failed to run migrations: %v", err)
-		}
+	// Initialize user client for fetching user data
+	userClient := connectToUserService()
 
-		// Seed database if in development mode
-		environment := getEnv("ENVIRONMENT", "development")
-		if environment == "development" {
-			if err := db.SeedDatabase(dbConn); err != nil {
-				log.Printf("Warning: Failed to seed database: %v", err)
-			}
-		}
+	// Initialize services with the new repositories
+	threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)
+	replyService := service.NewReplyService(replyRepo, threadRepo, mediaRepo)
+	interactionService := service.NewInteractionService(interactionRepo)
+	pollService := service.NewPollService(pollRepo)
 
-		// Initialize repositories using the new structure
-		threadRepo := repository.NewThreadRepository(dbConn)
-		mediaRepo := repository.NewMediaRepository(dbConn)
-		hashtagRepo := repository.NewHashtagRepository(dbConn)
-		replyRepo := repository.NewReplyRepository(dbConn)
-		interactionRepo := repository.NewInteractionRepository(dbConn)
-		pollRepo := repository.NewPollRepository(dbConn)
+	// Initialize the gRPC handler
+	handler := handlers.NewThreadHandler(
+		threadService,
+		replyService,
+		interactionService,
+		pollService,
+		interactionRepo,
+		userClient, // Pass the user client to the handler
+	)
 
-		// Initialize user client for fetching user data
-		userServiceHost := getEnv("USER_SERVICE_HOST", "user_service")
-		userServicePort := getEnv("USER_SERVICE_PORT", "9091")
-		userServiceAddr := userServiceHost + ":" + userServicePort
+	// Configure gRPC server with potential TLS settings
+	var opts []grpc.ServerOption
+	tlsEnabled := getEnv("TLS_ENABLED", "false") == "true"
+	if tlsEnabled {
+		// TLS configuration would go here if needed
+		log.Println("TLS is enabled but not configured. Please update the code to configure TLS.")
+	}
 
-		log.Printf("Connecting to User service at %s", userServiceAddr)
+	grpcServer := grpc.NewServer(opts...)
+	proto.RegisterThreadServiceServer(grpcServer, handler)
+	log.Printf("Thread service started on port %s, environment: %s", port, environment)
+	if err := grpcServer.Serve(listener); err != nil {
+		log.Fatalf("Failed to serve: %v", err)
+	}
+}
 
-		var userClient service.UserClient
+// connectToUserService establishes a connection to the user service with retries
+func connectToUserService() service.UserClient {
+	userServiceHost := getEnv("USER_SERVICE_HOST", "user_service")
+	userServicePort := getEnv("USER_SERVICE_PORT", "9091")
+	userServiceAddr := userServiceHost + ":" + userServicePort
 
-		// Try to establish a connection to the user service
-		userConn, err := grpc.Dial(
+	log.Printf("Connecting to User service at %s", userServiceAddr)
+
+	// Retry parameters
+	maxRetries := 5
+	retryDelay := 2 * time.Second
+
+	// Try to connect with retries
+	var userConn *grpc.ClientConn
+	var err error
+	var userClient service.UserClient
+
+	for i := 0; i < maxRetries; i++ {
+		log.Printf("Attempting to connect to User service at %s (attempt %d/%d)", userServiceAddr, i+1, maxRetries)
+
+		userConn, err = grpc.Dial(
 			userServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithBlock(),
 			grpc.WithTimeout(5*time.Second),
 		)
 
-		if err != nil {
-			log.Printf("Warning: Failed to connect to User service: %v. Using mock client instead.", err)
-			userClient = service.NewUserClient(nil)
-		} else {
+		if err == nil {
 			log.Printf("Successfully connected to User service at %s", userServiceAddr)
 			userClient = service.NewUserClient(userConn)
+			return userClient
 		}
 
-		// Initialize services with the new repositories
-		threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)
-		replyService := service.NewReplyService(replyRepo, threadRepo, mediaRepo)
-		interactionService := service.NewInteractionService(interactionRepo)
-		pollService := service.NewPollService(pollRepo)
+		log.Printf("Failed to connect to User service (attempt %d/%d): %v", i+1, maxRetries, err)
 
-		// Initialize the gRPC handler
-		handler := handlers.NewThreadHandler(
-			threadService,
-			replyService,
-			interactionService,
-			pollService,
-			interactionRepo,
-			userClient, // Pass the user client to the handler
-		)
-
-		// Configure gRPC server with potential TLS settings
-		var opts []grpc.ServerOption
-		tlsEnabled := getEnv("TLS_ENABLED", "false") == "true"
-		if tlsEnabled {
-			// TLS configuration would go here if needed
-			log.Println("TLS is enabled but not configured. Please update the code to configure TLS.")
+		if i < maxRetries-1 {
+			log.Printf("Retrying in %v...", retryDelay)
+			time.Sleep(retryDelay)
 		}
+	}
 
-		grpcServer := grpc.NewServer(opts...)
-		proto.RegisterThreadServiceServer(grpcServer, handler)
-		log.Printf("Thread service started on port %s, environment: %s", port, environment)
-		if err := grpcServer.Serve(listener); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
-		}
-	}()
-
-	wg.Wait()
+	log.Printf("CRITICAL: Could not connect to User service after %d attempts: %v", maxRetries, err)
+	log.Printf("Thread service will not be able to retrieve real user data!")
+	return nil
 }
 
 // getEnv retrieves an environment variable value or returns a default if not set

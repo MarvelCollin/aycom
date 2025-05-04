@@ -9,6 +9,8 @@
   import { createThread, uploadThreadMedia } from '../../api/thread';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
+  import { getAuthToken } from '../../utils/auth';
+  import appConfig from '../../config/appConfig';
   
   // Create a logger for this component
   const logger = createLoggerWithPrefix('ComposeTweet');
@@ -29,21 +31,45 @@
   // Load available categories
   async function loadCategories() {
     try {
-      // This would be implemented in a real application
-      // For now, we'll use some mock data
+      // Replace mock data with API call
+      // For now create a simple API-like approach to fetch the data from the API Gateway
+      const response = await fetch(`${appConfig.api.baseUrl}/categories`, {
+        method: "GET",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`
+        },
+        credentials: "include",
+      });
+      
+      // If API is not implemented yet, use these categories as fallback
+      if (!response.ok) {
+        logger.warn('Categories API not available yet, using default categories');
+        availableCategories = [
+          { id: "1", name: "Technology" },
+          { id: "2", name: "News" },
+          { id: "3", name: "Sports" },
+          { id: "4", name: "Entertainment" },
+          { id: "5", name: "Politics" },
+          { id: "6", name: "Science" },
+          { id: "7", name: "Health" },
+          { id: "8", name: "Business" }
+        ];
+      } else {
+        const data = await response.json();
+        availableCategories = data.categories || [];
+      }
+      
+      logger.debug('Loaded categories', { count: availableCategories.length });
+    } catch (error) {
+      logger.error('Failed to load categories', { error });
+      // Fallback to default categories on error
       availableCategories = [
         { id: "1", name: "Technology" },
         { id: "2", name: "News" },
         { id: "3", name: "Sports" },
-        { id: "4", name: "Entertainment" },
-        { id: "5", name: "Politics" },
-        { id: "6", name: "Science" },
-        { id: "7", name: "Health" },
-        { id: "8", name: "Business" }
+        { id: "4", name: "Entertainment" }
       ];
-      logger.debug('Loaded available categories', { count: availableCategories.length });
-    } catch (error) {
-      logger.error('Failed to load categories', { error });
     }
   }
   
@@ -70,89 +96,53 @@
     }
   }
   
-  async function postTweet() {
-    if (newTweet.trim() === '') return;
-    
-    logger.info('Posting new tweet', { 
-      contentLength: newTweet.length, 
-      filesCount: files.length,
-      replyPermission,
-      categories
-    });
+  async function handlePost() {
+    if (newTweet.trim() === '' && files.length === 0) {
+      errorMessage = 'Your tweet cannot be empty';
+      return;
+    }
     
     isPosting = true;
     errorMessage = '';
     
     try {
-      // Check authentication first
-      const authData = localStorage.getItem('auth');
-      if (!authData) {
-        logger.error('Authentication required', { error: 'No authentication data found' }, { showToast: true });
-        errorMessage = 'You must be logged in to post. Please log in and try again.';
-        isPosting = false;
-        return;
-      }
-      
-      try {
-        const auth = JSON.parse(authData);
-        if (!auth.accessToken) {
-          logger.error('Authentication required', { error: 'No access token found' }, { showToast: true });
-          errorMessage = 'Your session is invalid. Please log in again.';
-          isPosting = false;
-          return;
-        }
-        
-        logger.debug('Auth token available for request', { tokenExists: !!auth.accessToken });
-      } catch (parseError) {
-        logger.error('Authentication error', { error: parseError }, { showToast: true });
-        errorMessage = 'Authentication error. Please log in again.';
-        isPosting = false;
-        return;
-      }
-      
-      // Convert replyPermission to match backend format
-      const whoCanReply = replyPermission === 'everyone' 
-        ? 'Everyone' 
-        : replyPermission === 'following' 
-          ? 'Accounts You Follow' 
-          : 'Verified Accounts';
-      
-      // Prepare thread data
-      const threadData = {
+      // Prepare data
+      const data = {
         content: newTweet,
-        who_can_reply: whoCanReply,
-        categories: categories // Using the array of category names directly
+        hashtags: categories,
       };
       
-      logger.debug('Creating thread', threadData);
+      logger.debug('Posting tweet with data:', data);
       
-      // Post the thread
-      const createdThread = await createThread(threadData);
-      logger.info('Thread created successfully', { threadId: createdThread.thread_id });
+      // Post to backend
+      const response = await createThread(data);
       
-      // If there are files, upload them
-      if (files.length > 0 && createdThread.thread_id) {
-        logger.debug('Uploading media files', { count: files.length, threadId: createdThread.thread_id });
-        await uploadThreadMedia(createdThread.thread_id, files);
-        logger.info('Media uploaded successfully');
+      // Log the entire response to debug date issues
+      logger.debug('Thread creation response:', response);
+      
+      // Handle media uploads if present
+      if (files.length > 0 && response.id) {
+        try {
+          logger.debug(`Uploading ${files.length} media files for thread ${response.id}`);
+          await uploadThreadMedia(response.id, files);
+        } catch (uploadError) {
+          logger.error('Error uploading media:', uploadError);
+          toastStore.showToast('Your post was created but media upload failed', 'warning');
+        }
       }
       
-      // Reset form
+      // Clear form
       newTweet = '';
       files = [];
       categories = [];
-      categoryInput = '';
-      replyPermission = 'everyone';
       
       // Notify parent
-      dispatch('tweet', threadData);
-      dispatch('close');
-      
-      // Show success message
-      logger.info('Tweet posted successfully', null, { showToast: true });
+      dispatch('tweet', response);
+      toastStore.showToast('Your post was created successfully', 'success');
     } catch (error) {
-      console.error('Error posting tweet:', error);
-      toastStore.showToast('Failed to post tweet. Please try again.', 'error');
+      logger.error('Error creating tweet:', error);
+      errorMessage = error instanceof Error ? error.message : 'Failed to create tweet';
+      toastStore.showToast(errorMessage, 'error');
     } finally {
       isPosting = false;
     }
@@ -345,7 +335,7 @@
               {/if}
             </div>
             <button 
-              on:click={postTweet}
+              on:click={handlePost}
               class="compose-submit-btn"
               disabled={newTweet.trim() === '' || wordCount > maxWords || isPosting}
             >

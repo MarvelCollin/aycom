@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24.2-alpine AS builder
 
 WORKDIR /app
 
@@ -9,6 +9,9 @@ RUN apk add --no-cache git
 COPY go.mod go.sum ./
 COPY services/thread/go.mod services/thread/go.sum ./services/thread/
 
+# Set up the directory structure for Go modules
+RUN mkdir -p services/user/proto
+
 # Copy entire codebase
 COPY . .
 
@@ -18,10 +21,10 @@ WORKDIR /app/services/thread
 # Clean any existing vendor directory and ensure dependencies are properly downloaded
 RUN rm -rf vendor && \
     go mod tidy && \
-    go mod download
+    go mod vendor
 
-# Build the service with explicit flag to ignore vendor
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /app/thread-service .
+# Build the service using vendor directory
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /app/thread-service .
 
 # Final stage
 FROM alpine:latest
