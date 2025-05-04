@@ -3,8 +3,9 @@ package handlers
 import (
 	"context"
 
-	"aycom/backend/services/thread/db"
+	"aycom/backend/services/thread/model"
 	"aycom/backend/services/thread/proto"
+	"aycom/backend/services/thread/repository"
 	"aycom/backend/services/thread/service"
 
 	"google.golang.org/grpc/codes"
@@ -20,6 +21,7 @@ type ThreadHandler struct {
 	replyService       service.ReplyService
 	interactionService service.InteractionService
 	pollService        service.PollService
+	interactionRepo    repository.InteractionRepository
 }
 
 // NewThreadHandler creates a new thread handler
@@ -28,12 +30,14 @@ func NewThreadHandler(
 	replyService service.ReplyService,
 	interactionService service.InteractionService,
 	pollService service.PollService,
+	interactionRepo repository.InteractionRepository,
 ) *ThreadHandler {
 	return &ThreadHandler{
 		threadService:      threadService,
 		replyService:       replyService,
 		interactionService: interactionService,
 		pollService:        pollService,
+		interactionRepo:    interactionRepo,
 	}
 }
 
@@ -60,11 +64,6 @@ func (h *ThreadHandler) GetThreadById(ctx context.Context, req *proto.GetThreadR
 		return nil, err
 	}
 
-	// Increment view count
-	go func() {
-		_ = h.threadService.IncrementViewCount(context.Background(), req.ThreadId)
-	}()
-
 	// Convert thread to response
 	response, err := h.convertThreadToResponse(ctx, thread)
 	if err != nil {
@@ -77,7 +76,7 @@ func (h *ThreadHandler) GetThreadById(ctx context.Context, req *proto.GetThreadR
 // GetThreadsByUser retrieves threads by a user with pagination
 func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *proto.GetThreadsByUserRequest) (*proto.ThreadsResponse, error) {
 	// Get threads
-	threads, totalCount, err := h.threadService.GetThreadsByUserID(ctx, req.UserId, int(req.Page), int(req.Limit))
+	threads, err := h.threadService.GetThreadsByUserID(ctx, req.UserId, int(req.Page), int(req.Limit))
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +93,7 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *proto.GetThre
 
 	return &proto.ThreadsResponse{
 		Threads:    threadResponses,
-		TotalCount: int32(totalCount),
+		TotalCount: int32(len(threads)),
 		Page:       req.Page,
 		Limit:      req.Limit,
 	}, nil
@@ -217,7 +216,7 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *proto.GetPollRe
 }
 
 // Helper function to convert a Thread model to a ThreadResponse proto
-func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *db.Thread) (*proto.ThreadResponse, error) {
+func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *model.Thread) (*proto.ThreadResponse, error) {
 	// Create a basic response with available data
 	response := &proto.ThreadResponse{
 		Id:        thread.ThreadID.String(),
@@ -248,24 +247,19 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *db.
 	response.IsAdvertisement = &isAd
 
 	// Get thread stats
-	replyCount, likeCount, repostCount, err := h.threadService.GetThreadStats(ctx, thread.ThreadID.String())
-	if err == nil {
-		// Convert int32 to int64
-		response.ReplyCount = int64(replyCount)
-		response.LikeCount = int64(likeCount)
-		response.RepostCount = int64(repostCount)
-	}
+	if h.interactionRepo != nil {
+		threadID := thread.ThreadID.String()
 
-	// Add media if available
-	if len(thread.Media) > 0 {
-		response.Media = make([]*proto.MediaResponse, 0, len(thread.Media))
-		for _, media := range thread.Media {
-			mediaResp := &proto.MediaResponse{
-				Id:   media.MediaID.String(),
-				Type: media.Type,
-				Url:  media.URL,
-			}
-			response.Media = append(response.Media, mediaResp)
+		// Calculate like count
+		likeCount, err := h.interactionRepo.CountThreadLikes(threadID)
+		if err == nil {
+			response.LikeCount = likeCount
+		}
+
+		// Calculate repost count
+		repostCount, err := h.interactionRepo.CountThreadReposts(threadID)
+		if err == nil {
+			response.RepostCount = repostCount
 		}
 	}
 

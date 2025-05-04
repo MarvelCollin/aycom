@@ -23,4 +23,15 @@ func RegisterAuthRoutes(router *gin.RouterGroup) {
 			authorized.POST("/logout", handlers.Logout)
 		}
 	}
+
+	// User authentication routes
+	api := router.Group("/api/v1")
+	authGroup := api.Group("/auth")
+	{
+		authGroup.POST("/register", handlers.Register)
+		authGroup.POST("/login", handlers.Login) // Add Login route
+		// authGroup.POST("/refresh", handlers.RefreshToken)
+		// authGroup.POST("/logout", handlers.Logout)
+		// Add other auth routes like verification, password reset, etc.
+	}
 }

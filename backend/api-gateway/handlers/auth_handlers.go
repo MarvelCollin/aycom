@@ -6,16 +6,60 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	userProto "aycom/backend/services/user/proto" // Assuming config is needed for service address
+
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// Remove global var userClient and initUserServiceClient function
+
 type OAuthConfigResponse struct {
 	Success bool                   `json:"success"`
 	Data    map[string]interface{} `json:"data"`
+}
+
+// generateJWT generates access and refresh tokens for a user
+func generateJWT(userID string) (accessToken string, refreshToken string, err error) {
+	jwtSecret := []byte(os.Getenv("JWT_SECRET")) // Use env var for secret
+	if len(jwtSecret) == 0 {
+		jwtSecret = []byte("default-secret-key") // Fallback if not set
+		log.Println("Warning: JWT_SECRET environment variable not set, using default.")
+	}
+
+	// Generate Access Token (e.g., 1 hour expiry)
+	accessClaims := jwt.MapClaims{
+		"user_id": userID,
+		"exp":     time.Now().Add(time.Hour * 1).Unix(),
+		"iat":     time.Now().Unix(),
+	}
+	accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessToken, err = accessTokenJWT.SignedString(jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Generate Refresh Token (e.g., 7 days expiry)
+	refreshClaims := jwt.MapClaims{
+		"user_id": userID,
+		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(),
+		"iat":     time.Now().Unix(),
+	}
+	refreshTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshToken, err = refreshTokenJWT.SignedString(jwtSecret)
+	if err != nil {
+		// Log error, but maybe still return access token?
+		log.Printf("Error generating refresh token: %v", err)
+		// Depending on policy, might return access token only or error out completely
+		return accessToken, "", err // Error out if refresh fails
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 // @Summary User login
@@ -26,6 +70,9 @@ type OAuthConfigResponse struct {
 // @Param request body models.LoginRequest true "Login request"
 // @Success 200 {object} AuthServiceResponse
 // @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
 // @Router /api/v1/auth/login [post]
 func Login(c *gin.Context) {
 	var req models.LoginRequest
@@ -37,21 +84,21 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	conn, err := authConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
+	// Use the globally initialized UserClient from handlers/common.go
+	if UserClient == nil { // Access UserClient directly from handlers package
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to authentication service",
+			Message: "User service client not initialized",
+			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer authConnPool.Put(conn)
 
-	client := proto.NewAuthServiceClient(conn)
+	// Call User Service LoginUser RPC
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := client.Login(ctx, &proto.LoginRequest{
+	loginResp, err := UserClient.LoginUser(ctx, &userProto.LoginUserRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -68,31 +115,44 @@ func Login(c *gin.Context) {
 			case codes.NotFound, codes.Unauthenticated:
 				c.JSON(http.StatusUnauthorized, ErrorResponse{
 					Success: false,
-					Message: "Invalid email or password",
+					Message: "Invalid email or password", // Keep message generic for security
 				})
 			default:
+				log.Printf("gRPC Error during login for %s: %v", req.Email, statusErr.Message())
 				c.JSON(http.StatusInternalServerError, ErrorResponse{
 					Success: false,
-					Message: "Authentication service error: " + statusErr.Message(),
+					Message: "Authentication service error",
 				})
 			}
 		} else {
+			log.Printf("Unknown Error during login for %s: %v", req.Email, err)
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Success: false,
-				Message: "Internal server error: " + err.Error(),
+				Message: "Internal server error during login",
 			})
 		}
+		return
+	}
+
+	// Authentication successful, generate JWT tokens
+	accessToken, refreshToken, err := generateJWT(loginResp.User.Id)
+	if err != nil {
+		log.Printf("Error generating JWT for user %s: %v", loginResp.User.Id, err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to generate authentication tokens",
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, AuthServiceResponse{
 		Success:      true,
 		Message:      "Login successful",
-		AccessToken:  response.AccessToken,
-		RefreshToken: response.RefreshToken,
-		UserId:       response.UserId,
-		TokenType:    response.TokenType,
-		ExpiresIn:    response.ExpiresIn,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		UserId:       loginResp.User.Id,
+		TokenType:    "Bearer",
+		// ExpiresIn:    3600, // Corresponds to access token expiry (1 hour)
 	})
 }
 

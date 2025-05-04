@@ -22,6 +22,12 @@ service UserService {
   
   // Update user verification status
   rpc UpdateUserVerificationStatus (UpdateUserVerificationStatusRequest) returns (UpdateUserVerificationStatusResponse) {}
+
+  // Authenticate a user
+  rpc LoginUser (LoginUserRequest) returns (LoginUserResponse) {}
+
+  // Get user by email
+  rpc GetUserByEmail (GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
 }
 
 // User contains user information
@@ -103,4 +109,25 @@ message UpdateUserVerificationStatusRequest {
 message UpdateUserVerificationStatusResponse {
   bool success = 1;
   string message = 2;
+}
+
+// Request for user login
+message LoginUserRequest {
+  string email = 1;
+  string password = 2;
+}
+
+// Response for user login, containing user details if successful
+message LoginUserResponse {
+  User user = 1; // Return the full user object on successful login
+}
+
+// Request for getting user by email
+message GetUserByEmailRequest {
+  string email = 1;
+}
+
+// Response for getting user by email
+message GetUserByEmailResponse {
+  User user = 1;
 } 

@@ -11,6 +11,8 @@ import (
 	// supabase "github.com/supabase-community/storage-go"
 	"net/http"
 
+	userProto "aycom/backend/services/user/proto"
+
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,11 +25,13 @@ var Config *config.Config
 var (
 	authConnPool      *ConnectionPool
 	threadConnPool    *ConnectionPool
+	UserClient        userProto.UserServiceClient
 	connPoolInitOnce  sync.Once
 	requestRateLimits = make(map[string]*RateLimiter)
 	rateLimiterMutex  sync.RWMutex
 	// supabaseClient    *supabase.Client
-	supabaseInitOnce sync.Once
+	supabaseInitOnce   sync.Once
+	grpcClientInitOnce sync.Once
 )
 
 // ConnectionPool manages a pool of gRPC connections
@@ -152,17 +156,42 @@ func (r *RateLimiter) Allow() bool {
 	return true
 }
 
-// InitServices initializes connection pools and services
+// InitServices initializes connection pools and gRPC clients
 func InitServices() {
-	// Initialize connection pools
-	connPoolInitOnce.Do(func() {
+	// Use grpcClientInitOnce to initialize all clients together
+	grpcClientInitOnce.Do(func() {
+		log.Println("Initializing gRPC clients...")
+
+		// Initialize User Service Client
+		userServiceAddr := Config.GetUserServiceAddr()
+		log.Printf("Connecting to User service at %s", userServiceAddr)
+		userConn, err := grpc.Dial(
+			userServiceAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+			grpc.WithTimeout(5*time.Second),
+		)
+		if err != nil {
+			log.Fatalf("Failed to connect to User service: %v", err)
+		} else {
+			UserClient = userProto.NewUserServiceClient(userConn)
+			log.Printf("Connected to User service at %s", userServiceAddr)
+			// Note: Consider how to handle connection closure (e.g., defer conn.Close() in main)
+		}
+
+		// Initialize Auth Service Client (using pool for example)
 		authConnPool = NewConnectionPool(Config.GetAuthServiceAddr(), 5, 20, 10*time.Second)
+		log.Printf("Auth service connection pool initialized for %s", Config.GetAuthServiceAddr())
+
+		// Initialize Thread Service Client (using pool for example)
 		if Config.GetThreadServiceAddr() != "" {
 			threadConnPool = NewConnectionPool(Config.GetThreadServiceAddr(), 5, 20, 10*time.Second)
+			log.Printf("Thread service connection pool initialized for %s", Config.GetThreadServiceAddr())
 		}
+		log.Println("gRPC clients initialization complete.")
 	})
 
-	// Initialize Supabase client
+	// Initialize Supabase client (kept separate as it's not gRPC)
 	supabaseInitOnce.Do(func() {
 		if Config.Supabase.URL != "" && Config.Supabase.AnonKey != "" {
 			// supabaseClient = supabase.NewClient(Config.Supabase.URL, Config.Supabase.AnonKey, nil)

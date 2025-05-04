@@ -1,29 +1,25 @@
 # Builder stage
 FROM golang:1.24-alpine AS builder
 
-# Install build dependencies including protobuf compiler
-RUN apk add --no-cache git protobuf protobuf-dev
+# Install only necessary build tools (git for dependencies)
+RUN apk add --no-cache git
 
-# Set working directory
 WORKDIR /app
 
-# First, copy over module files and proto directories
-COPY backend/go.mod backend/go.sum ./backend/
-COPY backend/services/thread/proto/ ./backend/services/thread/proto/
-COPY backend/services/user/proto/ ./backend/services/user/proto/
-COPY backend/proto/ ./backend/proto/
-COPY backend/api-gateway/go.sum ./backend/api-gateway/
+# Copy root go module files FIRST (relative to ./backend context)
+COPY go.mod go.sum /app/
+# Download root dependencies
+RUN cd /app && go mod download
 
-# Install dependencies
-RUN cd backend && go mod download
-RUN cd backend/api-gateway && go mod download
+# Copy the rest of the source code from the context (./backend)
+# This will include the pre-generated .pb.go files
+COPY . /app
 
-# Copy application source
-ARG CACHEBUST=1
-COPY backend/api-gateway/ ./backend/api-gateway/
+# Tidy and download specific dependencies for the api-gateway module
+RUN cd /app/api-gateway && go mod tidy && go mod download
 
-# Build the application
-RUN cd backend/api-gateway && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o app .
+# Build the application from within its directory
+RUN cd /app/api-gateway && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o app .
 
 # Final stage
 FROM alpine:latest
@@ -39,7 +35,7 @@ WORKDIR /app
 RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 
 # Copy binary from builder
-COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/app .
+COPY --from=builder --chown=appuser:appgroup /app/api-gateway/app .
 
 # (Optional) Copy Swagger docs if present
 # COPY --from=builder --chown=appuser:appgroup /app/backend/api-gateway/docs ./docs

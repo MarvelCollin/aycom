@@ -1,67 +1,94 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"sync"
 
+	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
+
 	handlers "aycom/backend/services/thread/api"
 	"aycom/backend/services/thread/db"
 	"aycom/backend/services/thread/proto"
+	"aycom/backend/services/thread/repository"
 	"aycom/backend/services/thread/service"
-
-	"google.golang.org/grpc"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 func main() {
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found or cannot be loaded: %v", err)
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "9092"
-		}
+		port := getEnv("PORT", "9092")
 		listener, err := net.Listen("tcp", ":"+port)
 		if err != nil {
 			log.Fatalf("Failed to listen: %v", err)
 		}
-		dsn := fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			getEnv("DB_HOST", "thread_db"),
-			getEnv("DB_PORT", "5432"),
-			getEnv("DB_USER", "kolin"),
-			getEnv("DB_PASSWORD", "kolin"),
-			getEnv("DB_NAME", "thread_db"),
-		)
-		dbConn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			log.Fatalf("Failed to connect to database: %v", err)
+
+		// Initialize database connection
+		dbConn := db.InitDB()
+
+		// Run database migrations
+		if err := db.RunMigrations(dbConn); err != nil {
+			log.Fatalf("Failed to run migrations: %v", err)
 		}
-		threadRepo := db.NewThreadRepository(dbConn)
-		mediaRepo := db.NewMediaRepository(dbConn)
-		hashtagRepo := db.NewHashtagRepository(dbConn)
-		mentionRepo := db.NewMentionRepository(dbConn)
-		threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, mentionRepo)
-		handler := handlers.NewThreadHandler(threadService, nil, nil, nil)
-		grpcServer := grpc.NewServer()
+
+		// Seed database if in development mode
+		environment := getEnv("ENVIRONMENT", "development")
+		if environment == "development" {
+			if err := db.SeedDatabase(dbConn); err != nil {
+				log.Printf("Warning: Failed to seed database: %v", err)
+			}
+		}
+
+		// Initialize repositories using the new structure
+		threadRepo := repository.NewThreadRepository(dbConn)
+		mediaRepo := repository.NewMediaRepository(dbConn)
+		hashtagRepo := repository.NewHashtagRepository(dbConn)
+		replyRepo := repository.NewReplyRepository(dbConn)
+		interactionRepo := repository.NewInteractionRepository(dbConn)
+		pollRepo := repository.NewPollRepository(dbConn)
+
+		// Initialize services with the new repositories
+		threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)
+		replyService := service.NewReplyService(replyRepo, threadRepo, mediaRepo)
+		interactionService := service.NewInteractionService(interactionRepo)
+		pollService := service.NewPollService(pollRepo)
+
+		// Initialize the gRPC handler
+		handler := handlers.NewThreadHandler(threadService, replyService, interactionService, pollService, interactionRepo)
+
+		// Configure gRPC server with potential TLS settings
+		var opts []grpc.ServerOption
+		tlsEnabled := getEnv("TLS_ENABLED", "false") == "true"
+		if tlsEnabled {
+			// TLS configuration would go here if needed
+			log.Println("TLS is enabled but not configured. Please update the code to configure TLS.")
+		}
+
+		grpcServer := grpc.NewServer(opts...)
 		proto.RegisterThreadServiceServer(grpcServer, handler)
-		log.Printf("Thread service started on port %s", port)
+		log.Printf("Thread service started on port %s, environment: %s", port, environment)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
+	// Health check endpoint
 	go func() {
 		defer wg.Done()
+		healthPort := getEnv("HEALTH_PORT", "8082")
 		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			w.Header().Set("Access-Control-Allow-Origin", getEnv("CORS_ORIGIN", "http://localhost:3000"))
 			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 			if r.Method == http.MethodOptions {
@@ -71,13 +98,16 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("OK"))
 		})
-		log.Println("Thread service health endpoint started on :8082")
-		http.ListenAndServe(":8082", nil)
+		log.Printf("Thread service health endpoint started on port %s", healthPort)
+		if err := http.ListenAndServe(":"+healthPort, nil); err != nil {
+			log.Fatalf("Failed to start health server: %v", err)
+		}
 	}()
 
 	wg.Wait()
 }
 
+// getEnv retrieves an environment variable value or returns a default if not set
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value

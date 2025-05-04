@@ -25,6 +25,8 @@ type UserService interface {
 	UpdateUserProfile(ctx context.Context, req *proto.UpdateUserRequest) (*model.User, error)
 	UpdateUserVerificationStatus(ctx context.Context, req *proto.UpdateUserVerificationStatusRequest) error
 	DeleteUser(ctx context.Context, id string) error
+	LoginUser(ctx context.Context, req *proto.LoginUserRequest) (*model.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 }
 
 // userService implements the UserService interface
@@ -233,4 +235,49 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 		return status.Error(codes.Internal, "Failed to delete user")
 	}
 	return nil
+}
+
+// LoginUser authenticates a user based on email and password
+func (s *userService) LoginUser(ctx context.Context, req *proto.LoginUserRequest) (*model.User, error) {
+	if req.Email == "" || req.Password == "" {
+		return nil, status.Error(codes.InvalidArgument, "Email and password are required")
+	}
+
+	// Find user by email
+	user, err := s.repo.FindUserByEmail(req.Email)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Errorf(codes.NotFound, "User with email %s not found", req.Email)
+		}
+		log.Printf("Error finding user by email %s for login: %v", req.Email, err)
+		return nil, status.Error(codes.Internal, "Failed to retrieve user")
+	}
+
+	// Compare the provided password with the stored hash
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	if err != nil {
+		// If err is bcrypt.ErrMismatchedHashAndPassword, it's an invalid password
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return nil, status.Error(codes.Unauthenticated, "Invalid credentials")
+		}
+		// Log other bcrypt errors
+		log.Printf("Error comparing password hash for user %s: %v", req.Email, err)
+		return nil, status.Error(codes.Internal, "Authentication error")
+	}
+
+	// Password is correct, return user model (excluding password hash ideally, but returning full model for now)
+	return user, nil
+}
+
+// GetUserByEmail gets a user by their email
+func (s *userService) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
+	user, err := s.repo.FindUserByEmail(email)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Errorf(codes.NotFound, "User with email %s not found", email)
+		}
+		log.Printf("Error finding user by email %s: %v", email, err)
+		return nil, status.Error(codes.Internal, "Failed to retrieve user")
+	}
+	return user, nil
 }

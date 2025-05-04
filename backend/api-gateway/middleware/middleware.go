@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -57,7 +59,20 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("userId", claims["sub"])
+		// Log the extracted user ID for debugging
+		userIdClaim := claims["user_id"]
+		log.Printf("JWT Middleware: Extracted user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+
+		// Ensure the claim is a string before setting
+		userIdStr, ok := userIdClaim.(string)
+		if !ok {
+			log.Printf("JWT Middleware: user_id claim is not a string: %v", userIdClaim)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			c.Abort()
+			return
+		}
+
+		c.Set("userId", userIdStr)
 		c.Next()
 	}
 }

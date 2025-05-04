@@ -93,3 +93,50 @@ func (h *UserHandler) UpdateUserVerificationStatus(ctx context.Context, req *pro
 	}
 	return &proto.UpdateUserVerificationStatusResponse{Success: true, Message: "Verification status updated"}, nil
 }
+
+// LoginUser handles user authentication
+func (h *UserHandler) LoginUser(ctx context.Context, req *proto.LoginUserRequest) (*proto.LoginUserResponse, error) {
+	user, err := h.svc.LoginUser(ctx, req)
+	if err != nil {
+		// Error already logged and mapped to gRPC status in service layer
+		return nil, err
+	}
+
+	// Convert model.User to proto.User (ensure you have a helper or do it manually)
+	// For now, assuming a direct mapping, excluding sensitive fields like PasswordHash
+	userProto := &proto.User{
+		Id:       user.ID.String(),
+		Username: user.Username,
+		Email:    user.Email,
+		Name:     user.Name,
+		Gender:   user.Gender,
+		// DateOfBirth needs careful handling for nil and formatting
+		// DateOfBirth:       formatTimePointer(user.DateOfBirth, "2006-01-02"),
+		ProfilePictureUrl: user.ProfilePictureURL,
+		BannerUrl:         user.BannerURL,
+		// SecurityQuestion:    user.SecurityQuestion, // Maybe exclude?
+		// SecurityAnswer:        user.SecurityAnswer, // Definitely exclude
+		// SubscribeToNewsletter: user.SubscribeToNewsletter,
+		// IsVerified:            user.IsVerified, // Consider if needed in response
+		// CreatedAt:             user.CreatedAt.Format(time.RFC3339),
+		// UpdatedAt:             user.UpdatedAt.Format(time.RFC3339),
+	}
+	// Add DOB formatting logic if needed
+	if user.DateOfBirth != nil {
+		userProto.DateOfBirth = user.DateOfBirth.Format("2006-01-02")
+	}
+
+	return &proto.LoginUserResponse{User: userProto}, nil
+}
+
+// GetUserByEmail handles the GetUserByEmail gRPC request
+func (h *UserHandler) GetUserByEmail(ctx context.Context, req *proto.GetUserByEmailRequest) (*proto.GetUserByEmailResponse, error) {
+	if req.Email == "" {
+		return nil, status.Error(codes.InvalidArgument, "Email is required")
+	}
+	user, err := h.svc.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, err
+	}
+	return &proto.GetUserByEmailResponse{User: mapUserModelToProto(user)}, nil
+}

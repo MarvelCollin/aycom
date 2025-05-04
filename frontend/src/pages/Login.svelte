@@ -50,10 +50,10 @@
       if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
       return;
     }
-    if (!recaptchaToken) {
-      error = 'Please complete the reCAPTCHA verification.';
-      return;
-    }
+    // if (!recaptchaToken) {
+    //   error = 'Please complete the reCAPTCHA verification.';
+    //   return;
+    // }
     isLoading = true;
     error = "";
     
@@ -164,7 +164,7 @@
       </label>
     </div>
     
-    <div class="mb-6 hidden">
+    <!-- <div class="mb-6 hidden">
       <ReCaptchaWrapper
         bind:this={recaptchaWrapper}
         siteKey="6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA"
@@ -173,10 +173,10 @@
         on:error={handleRecaptchaError}
         on:expired={handleRecaptchaExpired}
       />
-    </div>
-    {#if error === 'Please complete the reCAPTCHA verification.'}
+    </div> -->
+    <!-- {#if error === 'Please complete the reCAPTCHA verification.'}
       <p class="text-red-500 text-xs mt-1 text-center" data-cy="recaptcha-error">{error}</p>
-    {/if}
+    {/if} -->
     
     <div class="mb-6 flex justify-between">
       <a href="/" class="text-xs text-blue-500 hover:underline" data-cy="landing-link">Back to Landing Page</a>

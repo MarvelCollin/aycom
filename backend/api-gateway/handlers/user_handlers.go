@@ -2,55 +2,16 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
 
-	"aycom/backend/services/user/proto"
+	userProto "aycom/backend/services/user/proto"
 
 	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/status"
 )
-
-var userClient proto.UserServiceClient
-
-func initUserServiceClient() error {
-	if userClient != nil {
-		return nil
-	}
-
-	// Get host and port from config (set by docker-compose env vars)
-	userServiceHost := Config.Services.UserServiceHost // Should be "user_service"
-	userServicePort := Config.Services.UserServicePort // Should be "9091"
-
-	// Ensure both host and port are available
-	if userServiceHost == "" || userServicePort == "" {
-		log.Printf("Error: User service host (%s) or port (%s) is missing in config", userServiceHost, userServicePort)
-		return fmt.Errorf("user service configuration is incomplete")
-	}
-
-	// Construct the target address for gRPC Dial
-	target := fmt.Sprintf("%s:%s", userServiceHost, userServicePort) // Combine host and port
-
-	log.Printf("Connecting to User service at %s", target) // Log the actual target address
-	conn, err := grpc.Dial(
-		target, // Use the combined host:port
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-		grpc.WithTimeout(5*time.Second),
-	)
-	if err != nil {
-		log.Printf("Failed to connect to User service: %v", err)
-		return err
-	}
-
-	userClient = proto.NewUserServiceClient(conn)
-	log.Printf("Connected to User service at %s", target)
-	return nil
-}
 
 // GetUserProfile retrieves the user's profile from the User service via gRPC
 // @Summary Get user profile
@@ -69,28 +30,41 @@ func GetUserProfile(c *gin.Context) {
 		})
 		return
 	}
+	userIDStr := userID.(string)
+	log.Printf("GetUserProfile Handler: Retrieved userID from context: %s", userIDStr)
 
-	// Initialize user service client if needed
-	if err := initUserServiceClient(); err != nil {
+	// Validate UUID
+	if _, err := uuid.Parse(userIDStr); err != nil {
+		log.Printf("GetUserProfile Handler: Invalid UUID format for userID: %s", userIDStr)
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid user ID format",
+			Code:    "INVALID_USER_ID",
+		})
+		return
+	}
+
+	// Use the globally initialized UserClient from handlers/common.go
+	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
 			Success: false,
-			Message: "User service is currently unavailable",
+			Message: "User service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
 
 	// Create request with user ID from token
-	req := &proto.GetUserRequest{
-		UserId: userID.(string),
+	req := &userProto.GetUserRequest{
+		UserId: userIDStr,
 	}
 
 	// Set reasonable timeout for gRPC call
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call User service's GetUser method
-	resp, err := userClient.GetUser(ctx, req)
+	// Call User service's GetUser method using the global client
+	resp, err := UserClient.GetUser(ctx, req)
 	if err != nil {
 		// Handle gRPC errors
 		st, ok := status.FromError(err)
@@ -164,12 +138,25 @@ func UpdateUserProfile(c *gin.Context) {
 		})
 		return
 	}
+	userIDStr := userID.(string)
+	log.Printf("UpdateUserProfile Handler: Retrieved userID from context: %s", userIDStr)
 
-	// Initialize user service client if needed
-	if err := initUserServiceClient(); err != nil {
+	// Validate UUID
+	if _, err := uuid.Parse(userIDStr); err != nil {
+		log.Printf("UpdateUserProfile Handler: Invalid UUID format for userID: %s", userIDStr)
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Invalid user ID format",
+			Code:    "INVALID_USER_ID",
+		})
+		return
+	}
+
+	// Use the globally initialized UserClient from handlers/common.go
+	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
 			Success: false,
-			Message: "User service is currently unavailable",
+			Message: "User service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
@@ -193,8 +180,8 @@ func UpdateUserProfile(c *gin.Context) {
 	}
 
 	// Create update request
-	req := &proto.UpdateUserRequest{
-		UserId:            userID.(string),
+	req := &userProto.UpdateUserRequest{
+		UserId:            userIDStr,
 		Name:              input.Name,
 		ProfilePictureUrl: input.ProfilePictureURL,
 		BannerUrl:         input.BannerURL,
@@ -205,8 +192,8 @@ func UpdateUserProfile(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call User service's UpdateUser method
-	resp, err := userClient.UpdateUser(ctx, req)
+	// Call User service's UpdateUser method using the global client
+	resp, err := UserClient.UpdateUser(ctx, req)
 	if err != nil {
 		// Handle gRPC errors
 		st, ok := status.FromError(err)
@@ -281,13 +268,14 @@ func RegisterUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
 		return
 	}
-	// Disable reCAPTCHA validation: always accept
-	// if req.RecaptchaToken == "" { ... }
-	if err := initUserServiceClient(); err != nil {
+
+	// Use the globally initialized UserClient from handlers/common.go
+	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
 		return
 	}
-	user := &proto.User{
+
+	user := &userProto.User{
 		Id:                "", // Let backend generate UUID
 		Name:              req.Name,
 		Username:          req.Username,
@@ -302,10 +290,10 @@ func RegisterUser(c *gin.Context) {
 		SecurityAnswer:        req.SecurityAnswer,
 		SubscribeToNewsletter: req.SubscribeToNewsletter,
 	}
-	createReq := &proto.CreateUserRequest{User: user}
+	createReq := &userProto.CreateUserRequest{User: user}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
-	resp, err := userClient.CreateUser(ctx, createReq)
+	resp, err := UserClient.CreateUser(ctx, createReq)
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == 6 {
@@ -328,23 +316,59 @@ func LoginUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
 		return
 	}
-	if err := initUserServiceClient(); err != nil {
+
+	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
-	userResp, err := userClient.GetUser(ctx, &proto.GetUserRequest{UserId: req.Email})
-	if err != nil || userResp.User == nil {
+
+	loginReq := &userProto.LoginUserRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	}
+	loginResp, err := UserClient.LoginUser(ctx, loginReq)
+	if err != nil || loginResp.User == nil {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{Success: false, Message: "Invalid credentials"})
 		return
 	}
-	// TODO: Replace with real password check
-	if req.Password != "password" {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Success: false, Message: "Invalid credentials"})
+
+	token := "mock-jwt-token" // TODO: Replace with real JWT generation if needed
+	c.JSON(http.StatusOK, gin.H{"success": true, "token": token, "user": loginResp.User})
+}
+
+// GetUserByEmail retrieves a user by email from the User service via gRPC
+func GetUserByEmail(c *gin.Context) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Email == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Email is required",
+		})
 		return
 	}
-	// Return mock JWT
-	token := "mock-jwt-token"
-	c.JSON(http.StatusOK, gin.H{"success": true, "token": token, "user": userResp.User})
+
+	if UserClient == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Success: false,
+			Message: "User service unavailable",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	grpcReq := &userProto.GetUserByEmailRequest{Email: req.Email}
+	resp, err := UserClient.GetUserByEmail(ctx, grpcReq)
+	if err != nil || resp.User == nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Success: false, Message: "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "user": resp.User})
 }

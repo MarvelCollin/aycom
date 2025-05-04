@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -22,6 +23,7 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load(".env")
 	var wg sync.WaitGroup
 	wg.Add(2)
 

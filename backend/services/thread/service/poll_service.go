@@ -5,19 +5,21 @@ import (
 	"errors"
 	"time"
 
-	"aycom/backend/services/thread/db"
-	"aycom/backend/services/thread/proto"
-
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gorm.io/gorm"
+
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/proto"
+	"aycom/backend/services/thread/repository"
 )
 
 // PollService defines the interface for poll operations
 type PollService interface {
-	CreatePoll(ctx context.Context, threadID string, req *proto.PollInfo) (*db.Poll, error)
-	GetPollByID(ctx context.Context, pollID string) (*db.Poll, error)
-	GetPollByThreadID(ctx context.Context, threadID string) (*db.Poll, error)
+	CreatePoll(ctx context.Context, threadID string, req *proto.PollInfo) (*model.Poll, []*model.PollOption, error)
+	GetPollByID(ctx context.Context, pollID string) (*model.Poll, []*model.PollOption, error)
+	GetPollByThreadID(ctx context.Context, threadID string) (*model.Poll, []*model.PollOption, error)
 	AddVoteToPoll(ctx context.Context, pollID, optionID, userID string) error
 	GetPollResults(ctx context.Context, pollID string, userID *string) (*PollResults, error)
 }
@@ -45,27 +47,27 @@ type PollOptionResult struct {
 
 // pollService implements the PollService interface
 type pollService struct {
-	pollRepo db.PollRepository
+	pollRepo repository.PollRepository
 }
 
 // NewPollService creates a new poll service
-func NewPollService(pollRepo db.PollRepository) PollService {
+func NewPollService(pollRepo repository.PollRepository) PollService {
 	return &pollService{
 		pollRepo: pollRepo,
 	}
 }
 
 // CreatePoll creates a new poll for a thread
-func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *proto.PollInfo) (*db.Poll, error) {
+func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *proto.PollInfo) (*model.Poll, []*model.PollOption, error) {
 	// Validate required fields
 	if threadID == "" || req.Question == "" || len(req.Options) < 2 {
-		return nil, status.Error(codes.InvalidArgument, "Thread ID, question, and at least 2 options are required")
+		return nil, nil, status.Error(codes.InvalidArgument, "Thread ID, question, and at least 2 options are required")
 	}
 
 	// Parse thread ID
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
 	}
 
 	// Set closing time if not provided
@@ -79,7 +81,7 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *prot
 
 	// Create poll
 	pollID := uuid.New()
-	poll := &db.Poll{
+	poll := &model.Poll{
 		PollID:     pollID,
 		ThreadID:   threadUUID,
 		Question:   req.Question,
@@ -91,90 +93,73 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *prot
 
 	// Create poll in database
 	if err := s.pollRepo.CreatePoll(poll); err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create poll: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "Failed to create poll: %v", err)
 	}
 
 	// Create poll options
-	pollOptions := make([]db.PollOption, 0, len(req.Options))
-	modelPointers := make([]*db.PollOption, 0, len(req.Options))
+	pollOptions := make([]*model.PollOption, 0, len(req.Options))
 	for _, optionText := range req.Options {
-		option := &db.PollOption{
+		option := &model.PollOption{
 			OptionID:  uuid.New(),
 			PollID:    pollID,
 			Text:      optionText,
 			CreatedAt: time.Now(),
 		}
-		modelPointers = append(modelPointers, option)
-		pollOptions = append(pollOptions, *option)
+		pollOptions = append(pollOptions, option)
 	}
 
 	// Create poll options in database
-	if err := s.pollRepo.CreatePollOptions(modelPointers); err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create poll options: %v", err)
+	if err := s.pollRepo.CreatePollOptions(pollOptions); err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "Failed to create poll options: %v", err)
 	}
 
-	// Load options into poll
-	poll.Options = pollOptions
-
-	return poll, nil
+	return poll, pollOptions, nil
 }
 
 // GetPollByID retrieves a poll by its ID
-func (s *pollService) GetPollByID(ctx context.Context, pollID string) (*db.Poll, error) {
+func (s *pollService) GetPollByID(ctx context.Context, pollID string) (*model.Poll, []*model.PollOption, error) {
 	if pollID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Poll ID is required")
+		return nil, nil, status.Error(codes.InvalidArgument, "Poll ID is required")
 	}
 
 	poll, err := s.pollRepo.FindPollByID(pollID)
 	if err != nil {
-		if errors.Is(err, db.ErrPollNotFound) {
-			return nil, status.Errorf(codes.NotFound, "Poll with ID %s not found", pollID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, status.Errorf(codes.NotFound, "Poll with ID %s not found", pollID)
 		}
-		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
 	}
 
 	// Load options
-	optionPointers, err := s.pollRepo.FindPollOptionsByPollID(pollID)
+	options, err := s.pollRepo.FindPollOptionsByPollID(pollID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
 	}
 
-	options := make([]db.PollOption, len(optionPointers))
-	for i, opt := range optionPointers {
-		options[i] = *opt
-	}
-	poll.Options = options
-
-	return poll, nil
+	return poll, options, nil
 }
 
 // GetPollByThreadID retrieves a poll by thread ID
-func (s *pollService) GetPollByThreadID(ctx context.Context, threadID string) (*db.Poll, error) {
+func (s *pollService) GetPollByThreadID(ctx context.Context, threadID string) (*model.Poll, []*model.PollOption, error) {
 	if threadID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
+		return nil, nil, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
 
 	poll, err := s.pollRepo.FindPollByThreadID(threadID)
 	if err != nil {
-		if errors.Is(err, db.ErrPollNotFound) {
-			return nil, status.Errorf(codes.NotFound, "Poll for thread with ID %s not found", threadID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, status.Errorf(codes.NotFound, "Poll for thread with ID %s not found", threadID)
 		}
-		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
 	}
 
 	// Load options
-	optionPointers, err := s.pollRepo.FindPollOptionsByPollID(poll.PollID.String())
+	options, err := s.pollRepo.FindPollOptionsByPollID(poll.PollID.String())
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
+		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
 	}
 
-	options := make([]db.PollOption, len(optionPointers))
-	for i, opt := range optionPointers {
-		options[i] = *opt
-	}
-	poll.Options = options
-
-	return poll, nil
+	return poll, options, nil
 }
 
 // AddVoteToPoll adds a vote to a poll option
@@ -203,7 +188,7 @@ func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userI
 	// Check if poll exists
 	poll, err := s.pollRepo.FindPollByID(pollID)
 	if err != nil {
-		if errors.Is(err, db.ErrPollNotFound) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return status.Errorf(codes.NotFound, "Poll with ID %s not found", pollID)
 		}
 		return status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
@@ -222,7 +207,11 @@ func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userI
 
 	// Check if user has already voted
 	existingVote, err := s.pollRepo.FindVoteByUserAndPoll(userID, pollID)
-	if err == nil && existingVote != nil {
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to check if user has voted: %v", err)
+	}
+
+	if existingVote != nil {
 		// Delete existing vote
 		if err := s.pollRepo.DeleteVote(userID, pollID); err != nil {
 			return status.Errorf(codes.Internal, "Failed to delete existing vote: %v", err)
@@ -230,7 +219,7 @@ func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userI
 	}
 
 	// Create new vote
-	vote := &db.PollVote{
+	vote := &model.PollVote{
 		VoteID:    uuid.New(),
 		PollID:    pollUUID,
 		OptionID:  optionUUID,
@@ -254,7 +243,7 @@ func (s *pollService) GetPollResults(ctx context.Context, pollID string, userID 
 	// Get poll
 	poll, err := s.pollRepo.FindPollByID(pollID)
 	if err != nil {
-		if errors.Is(err, db.ErrPollNotFound) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, "Poll with ID %s not found", pollID)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
@@ -321,6 +310,3 @@ func (s *pollService) GetPollResults(ctx context.Context, pollID string, userID 
 
 	return results, nil
 }
-
-// Add ErrPollNotFound to repository package to properly handle not found errors
-var ErrPollNotFound = errors.New("poll not found")

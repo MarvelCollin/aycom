@@ -39,6 +39,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		publicUsers.POST("/register", handlers.RegisterUser)
 		publicUsers.POST("/login", handlers.LoginUser)
+		publicUsers.POST("/by-email", handlers.GetUserByEmail)
 	}
 
 	// Protected routes - using JWT authentication middleware

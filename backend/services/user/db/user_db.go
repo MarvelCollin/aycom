@@ -39,6 +39,11 @@ func (r *PostgresUserRepository) CreateUser(user *model.User) error {
 
 // FindUserByID finds a user by their ID
 func (r *PostgresUserRepository) FindUserByID(id string) (*model.User, error) {
+	// Check if id is a valid UUID
+	_, err := uuid.Parse(id)
+	if err != nil {
+		return nil, errors.New("invalid UUID format for user ID")
+	}
 	var user model.User
 	result := r.db.Where("id = ?", id).First(&user)
 	if result.Error != nil {
