@@ -1,50 +1,45 @@
 # Base image for building the application
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24-alpine
 
 WORKDIR /app
 
-# Install necessary tools
-RUN apk add --no-cache git
+# Install necessary tools and Air for hot reloading
+RUN apk add --no-cache git && \
+    go install github.com/air-verse/air@latest
 
-# Copy Go module files first for better caching
+# Copy Go module files for dependency caching
 COPY go.mod go.sum ./
-COPY services/user/go.mod services/user/go.sum ./services/user/
 
-# Copy entire codebase
-COPY . .
+# Only prepare directories - actual code will be mounted via volume in development
+RUN mkdir -p services/user
 
-# Build from user service directory
+# Set up for Air in development mode
 WORKDIR /app/services/user
 
-# Clean any existing vendor directory and ensure dependencies are properly downloaded
-RUN rm -rf vendor && \
-    go mod tidy && \
-    go mod download
-
-# Build the service with explicit flag to ignore vendor
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /app/user-service .
-
-# Final stage
-FROM alpine:latest
-
-# Add certificates and create non-root user
-RUN apk --no-cache add ca-certificates && \
-    addgroup -S appgroup && \
-    adduser -S appuser -G appgroup
-
-WORKDIR /app
-
-# Copy binary from builder
-COPY --from=builder --chown=appuser:appgroup /app/user-service .
+# Create default Air config
+RUN touch .air.toml && \
+    echo 'root = "."' > .air.toml && \
+    echo 'tmp_dir = "tmp"' >> .air.toml && \
+    echo '[build]' >> .air.toml && \
+    echo '  cmd = "go build -o ./tmp/main ."' >> .air.toml && \
+    echo '  bin = "./tmp/main"' >> .air.toml && \
+    echo '  delay = 1000' >> .air.toml && \
+    echo '  exclude_dir = ["assets", "tmp", "vendor"]' >> .air.toml && \
+    echo '  include_ext = ["go", "tpl", "tmpl", "html"]' >> .air.toml && \
+    echo '  kill_delay = "0s"' >> .air.toml && \
+    echo '  log = "build-errors.log"' >> .air.toml && \
+    echo '  stop_on_error = true' >> .air.toml && \
+    echo '[screen]' >> .air.toml && \
+    echo '  clear_on_rebuild = true' >> .air.toml
 
 # Set environment variables
 ENV PORT=9091
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GO111MODULE=on
 
-# Use non-root user
-USER appuser
-
-# Expose ports
+# Expose port
 EXPOSE 9091
 
-# Start the service
-CMD ["./user-service"] 
+# Use Air for hot reloading in development
+CMD ["air", "-c", ".air.toml"] 

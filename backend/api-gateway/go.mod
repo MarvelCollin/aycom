@@ -1,6 +1,6 @@
 module aycom/backend/api-gateway
 
-go 1.21.6
+go 1.24.2
 
 require (
 	aycom/backend/services/community v0.0.0-00010101000000-000000000000
@@ -13,7 +13,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	google.golang.org/grpc v1.72.0
-	google.golang.org/protobuf v1.36.6
 )
 
 require (
@@ -42,6 +41,7 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -49,4 +49,4 @@ replace (
 	aycom/backend/services/community => ../services/community
 	aycom/backend/services/thread => ../services/thread
 	aycom/backend/services/user => ../services/user
-) 
+)

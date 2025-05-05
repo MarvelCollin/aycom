@@ -10,6 +10,8 @@ services:
       - VITE_API_BASE_URL=http://localhost:8083/api/v1
       - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - VITE_RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -42,11 +44,20 @@ services:
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+    volumes:
+      - ./backend:/app
+      - api_gateway_go_mod_cache:/go/pkg/mod
+      - api_gateway_go_build_cache:/root/.cache/go-build
     depends_on:
       - user_service
       - thread_service
       - community_service
     restart: always
+    command: >
+      sh -c "cd /app/api-gateway && 
+             go mod tidy && 
+             go mod download && 
+             air -c .air.toml"
     deploy:
       resources:
         limits:
@@ -69,10 +80,19 @@ services:
       - DATABASE_URL=postgresql://${USER_DB_USER:-kolin}:${USER_DB_PASSWORD:-kolin}@user_db:5432/${USER_DB_NAME:-user_db}
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      - ./backend:/app
+      - user_service_go_mod_cache:/go/pkg/mod
+      - user_service_go_build_cache:/root/.cache/go-build
     depends_on:
       user_db:
         condition: service_healthy
     restart: always
+    command: >
+      sh -c "cd /app/services/user && 
+             go mod tidy && 
+             go mod download && 
+             air -c .air.toml"
     deploy:
       resources:
         limits:
@@ -98,12 +118,21 @@ services:
       - USER_SERVICE_PORT=9091
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      - ./backend:/app
+      - thread_service_go_mod_cache:/go/pkg/mod
+      - thread_service_go_build_cache:/root/.cache/go-build
     depends_on:
       thread_db:
         condition: service_healthy
       user_service:
         condition: service_started
     restart: always
+    command: >
+      sh -c "cd /app/services/thread && 
+             go mod tidy && 
+             go mod download && 
+             air -c .air.toml"
     deploy:
       resources:
         limits:
@@ -113,8 +142,8 @@ services:
   # Event Bus Service
   event_bus:
     build:
-      context: ./backend/event-bus
-      dockerfile: Dockerfile
+      context: ./backend
+      dockerfile: event-bus/Dockerfile
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - USER_SERVICE_HOST=user_service
@@ -122,6 +151,10 @@ services:
       - THREAD_SERVICE_HOST=thread_service
       - THREAD_SERVICE_PORT=9092
       - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      - ./backend:/app
+      - event_bus_go_mod_cache:/go/pkg/mod
+      - event_bus_go_build_cache:/root/.cache/go-build
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -130,6 +163,11 @@ services:
       thread_service:
         condition: service_started
     restart: always
+    command: >
+      sh -c "cd /app/event-bus && 
+             go mod tidy && 
+             go mod download && 
+             air -c .air.toml"
     deploy:
       resources:
         limits:
@@ -239,10 +277,19 @@ services:
       - COMMUNITY_SERVICE_PORT=9093
       - JWT_SECRET=${JWT_SECRET:-wompwomp123}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      - ./backend:/app
+      - community_service_go_mod_cache:/go/pkg/mod
+      - community_service_go_build_cache:/root/.cache/go-build
     depends_on:
       community_db:
         condition: service_healthy
     restart: always
+    command: >
+      sh -c "cd /app/services/community && 
+             go mod tidy && 
+             go mod download && 
+             air -c .air.toml"
     deploy:
       resources:
         limits:
@@ -278,3 +325,13 @@ volumes:
   community_db_data:
   redis_data:
   rabbitmq_data:
+  api_gateway_go_mod_cache:
+  api_gateway_go_build_cache:
+  user_service_go_mod_cache:
+  user_service_go_build_cache:
+  thread_service_go_mod_cache:
+  thread_service_go_build_cache:
+  community_service_go_mod_cache:
+  community_service_go_build_cache:
+  event_bus_go_mod_cache:
+  event_bus_go_build_cache:
