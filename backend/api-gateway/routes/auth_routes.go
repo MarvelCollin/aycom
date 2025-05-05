@@ -1,37 +1,28 @@
 package routes
 
 import (
-	"aycom/backend/api-gateway/handlers"
-	"aycom/backend/api-gateway/middleware"
-
 	"github.com/gin-gonic/gin"
 )
 
+// RegisterAuthRoutes registers additional auth routes if needed.
+// Note: Primary auth routes are already defined in routes.go - use this function
+// only for special cases or extensions not covered in the main routes.
 func RegisterAuthRoutes(router *gin.RouterGroup) {
-	auth := router.Group("/auth")
-	{
-		auth.POST("/login", handlers.Login)
-		auth.POST("/register", handlers.Register)
-		auth.POST("/refresh-token", handlers.RefreshToken)
-		// auth.POST("/verify-email", handlers.VerifyEmail)
-		// auth.POST("/resend-verification", handlers.ResendVerificationCode)
-		// auth.POST("/google", handlers.GoogleAuth)
+	// Example for additional auth routes that aren't in main routes.go
+	// Uncomment and customize as needed:
 
-		authorized := auth.Group("")
-		authorized.Use(middleware.AuthMiddleware)
+	/*
+		auth := router.Group("/auth")
 		{
-			authorized.POST("/logout", handlers.Logout)
-		}
-	}
+			// Add any specialized auth routes here - ensure they don't duplicate routes.go
 
-	// User authentication routes
-	api := router.Group("/api/v1")
-	authGroup := api.Group("/auth")
-	{
-		authGroup.POST("/register", handlers.Register)
-		authGroup.POST("/login", handlers.Login) // Add Login route
-		// authGroup.POST("/refresh", handlers.RefreshToken)
-		// authGroup.POST("/logout", handlers.Logout)
-		// Add other auth routes like verification, password reset, etc.
-	}
+			// Protected auth routes
+			authorized := auth.Group("")
+			authorized.Use(middleware.AuthMiddleware)
+			{
+				authorized.POST("/logout", handlers.Logout)
+				// Add other protected auth routes
+			}
+		}
+	*/
 }

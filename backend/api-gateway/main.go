@@ -86,32 +86,31 @@ func main() {
 
 // loadEnvFile loads the .env file from the project root or current directory
 func loadEnvFile() {
-	// Try loading .env from the absolute project root path first (with explicit file path)
-	rootEnvPath := "C:\\BINUS\\TPA\\Web\\AYCOM\\.env"
-	err := godotenv.Load(rootEnvPath)
+	// Try loading .env from current directory first
+	err := godotenv.Load()
 	if err == nil {
-		log.Printf("Loaded .env from %s", rootEnvPath)
+		log.Println("Loaded .env file from current directory")
 		return
 	}
 
-	// If that fails, try to load .env from current directory
-	err = godotenv.Load()
+	// Try project root directory (parent of api-gateway directory)
+	parentDir := ".."
+	parentEnvPath := filepath.Join(parentDir, ".env")
+	err = godotenv.Load(parentEnvPath)
 	if err == nil {
-		log.Println("Loaded .env from current directory")
+		log.Printf("Loaded .env from %s", parentEnvPath)
 		return
 	}
 
-	// Try project root directory (2 levels up from api-gateway directory)
-	dir, _ := os.Getwd()
-	rootDir := filepath.Dir(filepath.Dir(dir))
-	rootEnvPath = filepath.Join(rootDir, ".env")
-
+	// Try 2 levels up (from backend/api-gateway to root)
+	rootDir := filepath.Join(parentDir, "..")
+	rootEnvPath := filepath.Join(rootDir, ".env")
 	err = godotenv.Load(rootEnvPath)
 	if err == nil {
 		log.Printf("Loaded .env from %s", rootEnvPath)
 		return
 	}
 
-	// If all attempts fail, log a warning
+	// Log error and continue with environment variables
 	log.Println("Warning: .env file not found, using environment variables")
 }

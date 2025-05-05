@@ -11,7 +11,6 @@ import (
 	communityProto "aycom/backend/proto/community"
 	userProto "aycom/backend/proto/user"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -43,137 +42,77 @@ type GRPCCommunityServiceClient struct {
 	userClient userProto.UserServiceClient
 }
 
-// MockCommunityServiceClient is a mock implementation for testing
-type MockCommunityServiceClient struct {
-	messages map[string][]Message // chatID -> messages
-	users    map[string]bool      // userID -> exists
-}
-
 // Global instance of the community service client
 var communityServiceClient CommunityServiceClient
 
 // InitCommunityServiceClient initializes the community service client
 func InitCommunityServiceClient(cfg *config.Config) {
-	// Try to connect to the real services first
+	// Connect to services
 	communityAddr := cfg.Services.CommunityService
 	userAddr := cfg.Services.UserService
 
-	log.Printf("Attempting to connect to Community service at %s and User service at %s", communityAddr, userAddr)
+	log.Printf("Connecting to Community service at %s and User service at %s", communityAddr, userAddr)
 
-	// Connect to Community service
-	communityConn, err := grpc.Dial(communityAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-		grpc.WithTimeout(5*time.Second),
-	)
-	if err != nil {
-		log.Printf("CRITICAL: Failed to connect to Community service: %v", err)
-		// Continue to try User service anyway
+	// Connect to Community service with retry mechanism
+	var communityConn *grpc.ClientConn
+	var communityErr error
+	for i := 0; i < 5; i++ {
+		communityConn, communityErr = grpc.Dial(
+			communityAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+			grpc.WithTimeout(5*time.Second),
+		)
+		if communityErr == nil {
+			break
+		}
+		retryDelay := time.Duration(i+1) * time.Second
+		log.Printf("Failed to connect to Community service (attempt %d/5): %v. Retrying in %v...",
+			i+1, communityErr, retryDelay)
+		time.Sleep(retryDelay)
+	}
+	if communityErr != nil {
+		log.Fatalf("CRITICAL: Failed to connect to Community service after multiple attempts: %v", communityErr)
 	}
 
-	// Connect to User service for user validation
-	userConn, err := grpc.Dial(userAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-		grpc.WithTimeout(5*time.Second),
-	)
-	if err != nil {
-		log.Printf("CRITICAL: Failed to connect to User service: %v", err)
-		// Continue anyway
+	// Connect to User service with retry mechanism
+	var userConn *grpc.ClientConn
+	var userErr error
+	for i := 0; i < 5; i++ {
+		userConn, userErr = grpc.Dial(
+			userAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+			grpc.WithTimeout(5*time.Second),
+		)
+		if userErr == nil {
+			break
+		}
+		retryDelay := time.Duration(i+1) * time.Second
+		log.Printf("Failed to connect to User service (attempt %d/5): %v. Retrying in %v...",
+			i+1, userErr, retryDelay)
+		time.Sleep(retryDelay)
+	}
+	if userErr != nil {
+		log.Fatalf("CRITICAL: Failed to connect to User service after multiple attempts: %v", userErr)
 	}
 
-	// Create clients with whatever connections we have
-	var communityClient communityProto.CommunityServiceClient
-	var userClient userProto.UserServiceClient
+	// Create clients with connections
+	communityClient := communityProto.NewCommunityServiceClient(communityConn)
+	userClient := userProto.NewUserServiceClient(userConn)
 
-	if communityConn != nil {
-		communityClient = communityProto.NewCommunityServiceClient(communityConn)
-		log.Printf("Successfully connected to Community service at %s", communityAddr)
-	}
-
-	if userConn != nil {
-		userClient = userProto.NewUserServiceClient(userConn)
-		log.Printf("Successfully connected to User service at %s", userAddr)
-	}
+	log.Printf("Successfully connected to Community service at %s", communityAddr)
+	log.Printf("Successfully connected to User service at %s", userAddr)
 
 	communityServiceClient = &GRPCCommunityServiceClient{
 		client:     communityClient,
 		userClient: userClient,
 	}
-}
 
-// NewMockCommunityServiceClient creates a new mock community service client
-func NewMockCommunityServiceClient() *MockCommunityServiceClient {
-	return &MockCommunityServiceClient{
-		messages: make(map[string][]Message),
-		users:    map[string]bool{"mock-user-1": true, "mock-user-2": true},
-	}
+	log.Println("Community service client initialized successfully")
 }
 
 // SendMessage implements CommunityServiceClient
-func (m *MockCommunityServiceClient) SendMessage(chatID, userID, content string) (string, error) {
-	// Validate user exists
-	if !m.users[userID] {
-		return "", fmt.Errorf("user %s not found", userID)
-	}
-
-	messageID := uuid.New().String()
-	message := Message{
-		ID:        messageID,
-		ChatID:    chatID,
-		SenderID:  userID,
-		Content:   content,
-		Timestamp: time.Now(),
-		IsRead:    false,
-		IsEdited:  false,
-		IsDeleted: false,
-	}
-
-	if _, ok := m.messages[chatID]; !ok {
-		m.messages[chatID] = []Message{}
-	}
-	m.messages[chatID] = append(m.messages[chatID], message)
-
-	log.Printf("[MOCK] Message sent - ID: %s, Chat: %s, User: %s, Content: %s",
-		messageID, chatID, userID, content)
-
-	return messageID, nil
-}
-
-// MarkMessageAsRead implements CommunityServiceClient
-func (m *MockCommunityServiceClient) MarkMessageAsRead(chatID, messageID, userID string) error {
-	log.Printf("[MOCK] Message marked as read - ID: %s, Chat: %s, User: %s",
-		messageID, chatID, userID)
-	return nil
-}
-
-// GetMessages implements CommunityServiceClient
-func (m *MockCommunityServiceClient) GetMessages(chatID string, limit, offset int) ([]Message, error) {
-	messages, ok := m.messages[chatID]
-	if !ok {
-		return []Message{}, nil
-	}
-
-	if offset >= len(messages) {
-		return []Message{}, nil
-	}
-
-	end := offset + limit
-	if end > len(messages) {
-		end = len(messages)
-	}
-
-	return messages[offset:end], nil
-}
-
-// ValidateUser implements CommunityServiceClient
-func (m *MockCommunityServiceClient) ValidateUser(userID string) (bool, error) {
-	exists := m.users[userID]
-	log.Printf("[MOCK] User validation - ID: %s, Exists: %v", userID, exists)
-	return exists, nil
-}
-
-// SendMessage implements CommunityServiceClient for the gRPC version
 func (c *GRPCCommunityServiceClient) SendMessage(chatID, userID, content string) (string, error) {
 	if c.client == nil {
 		return "", fmt.Errorf("community service client not initialized")
@@ -205,7 +144,7 @@ func (c *GRPCCommunityServiceClient) SendMessage(chatID, userID, content string)
 	return resp.Message.Id, nil
 }
 
-// MarkMessageAsRead implements CommunityServiceClient for the gRPC version
+// MarkMessageAsRead implements CommunityServiceClient
 func (c *GRPCCommunityServiceClient) MarkMessageAsRead(chatID, messageID, userID string) error {
 	if c.client == nil {
 		return fmt.Errorf("community service client not initialized")
@@ -221,7 +160,7 @@ func (c *GRPCCommunityServiceClient) MarkMessageAsRead(chatID, messageID, userID
 	return err
 }
 
-// GetMessages implements CommunityServiceClient for the gRPC version
+// GetMessages implements CommunityServiceClient
 func (c *GRPCCommunityServiceClient) GetMessages(chatID string, limit, offset int) ([]Message, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("community service client not initialized")
@@ -256,7 +195,7 @@ func (c *GRPCCommunityServiceClient) GetMessages(chatID string, limit, offset in
 	return messages, nil
 }
 
-// ValidateUser implements CommunityServiceClient for the gRPC version
+// ValidateUser implements CommunityServiceClient
 func (c *GRPCCommunityServiceClient) ValidateUser(userID string) (bool, error) {
 	if c.userClient == nil {
 		return false, fmt.Errorf("user service client not initialized")

@@ -3,9 +3,7 @@ module aycom/backend/api-gateway
 go 1.24.2
 
 require (
-	aycom/backend/services/community v0.0.0-00010101000000-000000000000
-	aycom/backend/services/thread v0.0.0-00010101000000-000000000000
-	aycom/backend/services/user v0.0.0
+	aycom/backend/proto v0.0.0-00010101000000-000000000000
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -46,6 +44,7 @@ require (
 )
 
 replace (
+	aycom/backend/proto => ../proto
 	aycom/backend/services/community => ../services/community
 	aycom/backend/services/thread => ../services/thread
 	aycom/backend/services/user => ../services/user

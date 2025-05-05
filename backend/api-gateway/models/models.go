@@ -21,6 +21,12 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type GoogleLoginRequest struct {
+	TokenID string `json:"token_id" binding:"required"`
+	Email   string `json:"email,omitempty"`
+	Name    string `json:"name,omitempty"`
+}
+
 type VerifyEmailRequest struct {
 	Email            string `json:"email" binding:"required,email"`
 	VerificationCode string `json:"verification_code" binding:"required"`

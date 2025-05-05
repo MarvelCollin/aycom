@@ -50,7 +50,7 @@ This section lists all the HTTP endpoints defined in the API Gateway (`backend/a
 
 *   `GET /`: Retrieves current trending topics.
 
-**Products (`/products`)** (Currently mock implementations)
+**Products (`/products`)** (Implemented with basic functionality)
 
 *   `GET /`: Lists available products.
 *   `GET /:id`: Retrieves a specific product by its ID.

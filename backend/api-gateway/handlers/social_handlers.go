@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
-	threadProto "aycom/backend/services/thread/proto"
+	threadProto "aycom/backend/proto/thread"
+	userProto "aycom/backend/proto/user"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
@@ -71,9 +73,28 @@ func FollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// TODO: Implement actual follow logic with user service
-	// For now, just return success for frontend testing
-	log.Printf("User %s following user %s", currentUserID, targetUserID)
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// First, check if both users exist
+	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: targetUserID,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Target user not found",
+		})
+		log.Printf("Error following user: target user %s not found: %v", targetUserID, err)
+		return
+	}
+
+	// TODO: In a real implementation, you would call a service to create a follow relationship
+	// For now, we'll just return a success response
+
+	log.Printf("User %s successfully followed user %s", currentUserID, targetUserID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -108,9 +129,28 @@ func UnfollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// TODO: Implement actual unfollow logic with user service
-	// For now, just return success for frontend testing
-	log.Printf("User %s unfollowing user %s", currentUserID, targetUserID)
+	// First, check if both users exist
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Verify target user exists
+	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: targetUserID,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Target user not found",
+		})
+		log.Printf("Error unfollowing user: target user %s not found: %v", targetUserID, err)
+		return
+	}
+
+	// TODO: In a real implementation, you would call a service to remove the follow relationship
+	// For now, we'll just return a success response
+
+	log.Printf("User %s successfully unfollowed user %s", currentUserID, targetUserID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -138,42 +178,36 @@ func GetFollowers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	// TODO: Implement actual get followers logic with user service
-	// For now, just return dummy data for frontend testing
-	log.Printf("Getting followers for user %s, page %d, limit %d", targetUserID, page, limit)
+	// In a real implementation, you would:
+	// 1. Call the appropriate service to get followers
+	// 2. Process the response and return it to the client
 
-	// Create dummy followers
-	followers := []gin.H{
-		{
-			"id":              "follower1",
-			"name":            "Follower One",
-			"username":        "follower1",
-			"profile_picture": "https://via.placeholder.com/150",
-			"verified":        true,
-			"is_following":    false,
-		},
-		{
-			"id":              "follower2",
-			"name":            "Follower Two",
-			"username":        "follower2",
-			"profile_picture": "https://via.placeholder.com/150",
-			"verified":        false,
-			"is_following":    true,
-		},
+	// For now, we'll return mock data
+	var followers []gin.H
+	for i := 1; i <= 5; i++ {
+		followers = append(followers, gin.H{
+			"id":                  fmt.Sprintf("user_%d", i),
+			"username":            fmt.Sprintf("follower%d", i),
+			"name":                fmt.Sprintf("Follower %d", i),
+			"profile_picture_url": fmt.Sprintf("https://example.com/profile_%d.jpg", i),
+			"is_following":        i%2 == 0, // Alternating true/false for demonstration
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":   true,
-		"followers": followers,
-		"page":      page,
-		"limit":     limit,
-		"total":     2,
+		"success": true,
+		"data": gin.H{
+			"followers": followers,
+			"page":      page,
+			"limit":     limit,
+			"total":     5,
+		},
 	})
 }
 
 // GetFollowing returns the users a user is following
 // @Summary Get following
-// @Description Gets a list of users a user is following
+// @Description Gets a list of users that a user is following
 // @Tags Users
 // @Produce json
 // @Router /api/v1/users/{userId}/following [get]
@@ -191,36 +225,30 @@ func GetFollowing(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	// TODO: Implement actual get following logic with user service
-	// For now, just return dummy data for frontend testing
-	log.Printf("Getting following for user %s, page %d, limit %d", targetUserID, page, limit)
+	// In a real implementation, you would:
+	// 1. Call the appropriate service to get users the target user is following
+	// 2. Process the response and return it to the client
 
-	// Create dummy following list
-	following := []gin.H{
-		{
-			"id":              "following1",
-			"name":            "Following One",
-			"username":        "following1",
-			"profile_picture": "https://via.placeholder.com/150",
-			"verified":        true,
-			"is_following":    true,
-		},
-		{
-			"id":              "following2",
-			"name":            "Following Two",
-			"username":        "following2",
-			"profile_picture": "https://via.placeholder.com/150",
-			"verified":        false,
-			"is_following":    true,
-		},
+	// For now, we'll return mock data
+	var following []gin.H
+	for i := 1; i <= 5; i++ {
+		following = append(following, gin.H{
+			"id":                  fmt.Sprintf("user_%d", i+10),
+			"username":            fmt.Sprintf("followed%d", i),
+			"name":                fmt.Sprintf("Followed User %d", i),
+			"profile_picture_url": fmt.Sprintf("https://example.com/profile_%d.jpg", i+10),
+			"is_following":        true, // All are being followed
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":   true,
-		"following": following,
-		"page":      page,
-		"limit":     limit,
-		"total":     2,
+		"success": true,
+		"data": gin.H{
+			"following": following,
+			"page":      page,
+			"limit":     limit,
+			"total":     5,
+		},
 	})
 }
 
@@ -699,9 +727,9 @@ func RepostThread(c *gin.Context) {
 
 	// Call thread service
 	_, err = client.RepostThread(ctx, &threadProto.RepostThreadRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-		Content:  request.Content,
+		ThreadId:     threadID,
+		UserId:       userID,
+		AddedContent: &request.Content,
 	})
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -763,11 +791,11 @@ func RemoveRepost(c *gin.Context) {
 	}
 
 	// Get thread ID from URL
-	repostID := c.Param("id")
-	if repostID == "" {
+	threadID := c.Param("id")
+	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
-			Message: "Repost ID is required",
+			Message: "Thread ID is required",
 			Code:    "INVALID_REQUEST",
 		})
 		return
@@ -794,7 +822,7 @@ func RemoveRepost(c *gin.Context) {
 
 	// Call thread service
 	_, err = client.RemoveRepost(ctx, &threadProto.RemoveRepostRequest{
-		RepostId: repostID,
+		ThreadId: threadID,
 		UserId:   userID,
 	})
 	if err != nil {

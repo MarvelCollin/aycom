@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	threadProto "aycom/backend/services/thread/proto"
+	threadProto "aycom/backend/proto/thread"
 
 	"github.com/gin-gonic/gin"
 )
@@ -60,10 +60,10 @@ func fetchTrends() []Trend {
 	trends := make([]Trend, 0, len(resp.Hashtags))
 	for _, hashtag := range resp.Hashtags {
 		trends = append(trends, Trend{
-			ID:        hashtag.Id,
+			ID:        hashtag.Name,
 			Category:  "Hashtag",
-			Title:     "#" + hashtag.Text,
-			PostCount: int(hashtag.ThreadCount),
+			Title:     "#" + hashtag.Name,
+			PostCount: int(hashtag.Count),
 		})
 	}
 

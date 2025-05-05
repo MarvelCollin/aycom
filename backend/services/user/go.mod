@@ -8,7 +8,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	golang.org/x/crypto v0.37.0
 	google.golang.org/grpc v1.72.0
-	google.golang.org/protobuf v1.36.6
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.26.0
 )
@@ -25,6 +24,7 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 )
 
 replace aycom/backend/proto => ../../proto

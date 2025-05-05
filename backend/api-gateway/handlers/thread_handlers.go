@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	threadProto "aycom/backend/services/thread/proto"
+	threadProto "aycom/backend/proto/thread"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
