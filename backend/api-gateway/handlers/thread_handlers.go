@@ -585,6 +585,19 @@ func GetAllThreads(c *gin.Context) {
 		}
 	}
 
+	// Optional authentication check
+	// If the user is authenticated, we'll include their ID for personalized data
+	// If not, we'll still show threads but without personalized data
+	userID := ""
+	if userIDVal, exists := c.Get("userId"); exists {
+		if userIDStr, ok := userIDVal.(string); ok {
+			userID = userIDStr
+			log.Printf("Authenticated user %s is viewing threads", userID)
+		}
+	} else {
+		log.Printf("Anonymous user is viewing threads")
+	}
+
 	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
@@ -604,9 +617,9 @@ func GetAllThreads(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service using GetThreadsByUser with empty user ID to get all threads
+	// Using GetThreadsByUser with empty user ID as a workaround since GetAllThreads has protobuf issues
 	resp, err := client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
-		UserId: "", // Empty string to indicate we want all threads
+		UserId: "",
 		Page:   int32(page),
 		Limit:  int32(limit),
 	})
@@ -628,6 +641,10 @@ func GetAllThreads(c *gin.Context) {
 		}
 		return
 	}
+
+	// If user is authenticated, we could enrich the response with personalized data
+	// like whether the user has liked, bookmarked, etc. each thread
+	// This would require additional service calls for each thread
 
 	c.JSON(http.StatusOK, resp)
 }

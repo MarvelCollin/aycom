@@ -85,7 +85,8 @@ func initThreadService() {
 		interactionService,
 		pollService,
 		interactionRepo,
-		userClient, // Pass the user client to the handler
+		userClient,  // Pass the user client to the handler
+		hashtagRepo, // Pass the hashtag repository
 	)
 
 	// Configure gRPC server with potential TLS settings

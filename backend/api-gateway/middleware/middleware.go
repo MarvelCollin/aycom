@@ -132,6 +132,67 @@ func JWTAuth(secret string) gin.HandlerFunc {
 	}
 }
 
+// OptionalJWTAuth middleware for optional JWT authentication
+// If the user is authenticated, set the userId in the context
+// If not, allow the request to continue anyway
+func OptionalJWTAuth(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		log.Printf("Processing optional JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
+
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			log.Printf("No Authorization header found for %s %s - continuing as anonymous", c.Request.Method, c.Request.URL.Path)
+			c.Next()
+			return
+		}
+
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			log.Printf("Invalid Authorization header format: %s - continuing as anonymous", authHeader[:min(len(authHeader), 30)])
+			c.Next()
+			return
+		}
+
+		token := parts[1]
+		if token == "" {
+			log.Printf("Empty token provided - continuing as anonymous")
+			c.Next()
+			return
+		}
+
+		claims := jwt.MapClaims{}
+
+		parsedToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+			// Check signing method
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(secret), nil
+		})
+
+		if err != nil || !parsedToken.Valid {
+			log.Printf("JWT parse error or invalid token - continuing as anonymous")
+			c.Next()
+			return
+		}
+
+		// Extract user ID from token
+		userIdClaim := claims["user_id"]
+		userIdStr, ok := userIdClaim.(string)
+		if !ok {
+			log.Printf("JWT Middleware: user_id claim is not a string: %v - continuing as anonymous", userIdClaim)
+			c.Next()
+			return
+		}
+
+		// Set both userID and userId for compatibility
+		c.Set("userId", userIdStr)
+		c.Set("userID", userIdStr)
+		log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
+		c.Next()
+	}
+}
+
 // Helper function to get the minimum of two ints
 func min(a, b int) int {
 	if a < b {

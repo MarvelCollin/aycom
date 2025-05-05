@@ -15,6 +15,7 @@ type ThreadRepository interface {
 	CreateThread(thread *model.Thread) error
 	FindThreadByID(id string) (*model.Thread, error)
 	FindThreadsByUserID(userID string, page, limit int) ([]*model.Thread, error)
+	FindAllThreads(page, limit int) ([]*model.Thread, error)
 	UpdateThread(thread *model.Thread) error
 	DeleteThread(id string) error
 }
@@ -66,6 +67,21 @@ func (r *PostgresThreadRepository) FindThreadsByUserID(userID string, page, limi
 	offset := (page - 1) * limit
 	result := r.db.Where("user_id = ?", userUUID).
 		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&threads)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return threads, nil
+}
+
+// FindAllThreads finds all threads with pagination
+func (r *PostgresThreadRepository) FindAllThreads(page, limit int) ([]*model.Thread, error) {
+	var threads []*model.Thread
+	offset := (page - 1) * limit
+	result := r.db.Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&threads)

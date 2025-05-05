@@ -17,6 +17,7 @@ type ReplyRepository interface {
 	FindRepliesByParentID(parentReplyID string, page, limit int) ([]*model.Reply, error)
 	UpdateReply(reply *model.Reply) error
 	DeleteReply(id string) error
+	CountRepliesByParentID(parentID string) (int, error)
 }
 
 // PostgresReplyRepository is the PostgreSQL implementation of ReplyRepository
@@ -107,4 +108,13 @@ func (r *PostgresReplyRepository) DeleteReply(id string) error {
 	}
 
 	return r.db.Delete(&model.Reply{}, "reply_id = ?", replyID).Error
+}
+
+func (r *PostgresReplyRepository) CountRepliesByParentID(parentID string) (int, error) {
+	var count int64
+	err := r.db.Model(&model.Reply{}).Where("parent_reply_id = ?", parentID).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }

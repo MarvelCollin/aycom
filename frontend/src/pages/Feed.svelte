@@ -1,3 +1,5 @@
+<!-- This will act like Home Page - jantan lupa bro  -->
+
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
@@ -9,16 +11,14 @@
   import { useTheme } from '../hooks/useTheme';
   import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
-  import { getThreadsByUser } from '../api/thread';
+  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads } from '../api/thread';
   import { getTrends } from '../api/trends';
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
 
-  // Create a logger for this component
   const logger = createLoggerWithPrefix('Feed');
 
-  // Accept the route prop for conditionally rendering content
   export let route: string;
 
   // Get auth store methods
@@ -113,7 +113,10 @@
       replies: thread.metrics?.replies || 0,
       reposts: thread.metrics?.reposts || 0,
       views: thread.view_count?.toString() || '0',
-      media: thread.media || []
+      media: thread.media || [],
+      isLiked: false,
+      isReposted: false,
+      isBookmarked: false
     };
   }
 
@@ -125,20 +128,31 @@
       tweets = [];
     }
     
-    if (!authState.isAuthenticated || !authState.userId) {
-      logger.warn('User not authenticated or missing userId, aborting tweet fetch');
-      isLoading = false;
-      error = 'Please log in to view your feed';
-      return;
-    }
-    
+    // Remove the authentication check to allow viewing without login
     isLoading = true;
     error = null;
     
     try {
-      // Fetch threads from API using the current user's ID
-      logger.debug('Making API call to getThreadsByUser', { userId: authState.userId, page, limit });
-      const response = await getThreadsByUser(authState.userId);
+      let response;
+      
+      // If we're on the personal profile page and logged in, get only user's threads
+      // Otherwise, get the global feed with all threads
+      if (route === '/profile' && authState.isAuthenticated && authState.userId) {
+        if (!authState.userId) {
+          throw new Error('User ID is required for profile page');
+        }
+        logger.debug('Fetching user\'s own threads for profile page');
+        response = await getThreadsByUser(authState.userId);
+      } else if (route === '/profile' && !authState.isAuthenticated) {
+        // Handle case where user tries to view profile but isn't logged in
+        isLoading = false;
+        error = 'Please log in to view your profile';
+        return;
+      } else {
+        // For home/feed page, get all threads
+        logger.debug('Fetching global feed for home page');
+        response = await getAllThreads(page, limit);
+      }
       
       if (response && response.threads) {
         logger.info(`Received ${response.threads.length} threads from API`);
@@ -237,22 +251,100 @@
     openThreadModal(event.detail);
   }
   
-  function handleTweetLike(event: CustomEvent) {
+  async function handleTweetLike(event: CustomEvent) {
     const tweetId = event.detail;
-    logger.info('Like tweet action', { tweetId }, { showToast: true });
-    // TODO: Implement like functionality with API
+    logger.info('Like tweet action', { tweetId });
+    
+    try {
+      // Call the like API
+      await likeThread(tweetId);
+      toastStore.showToast('Tweet liked', 'success');
+      
+      // Update the likes count in the UI
+      tweets = tweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return {
+            ...tweet,
+            likes: (tweet.likes || 0) + 1,
+            isLiked: true
+          };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      logger.error('Failed to like tweet', { error });
+      toastStore.showToast('Failed to like tweet', 'error');
+    }
   }
   
-  function handleTweetRepost(event: CustomEvent) {
+  async function handleTweetRepost(event: CustomEvent) {
     const tweetId = event.detail;
-    logger.info('Repost tweet action', { tweetId }, { showToast: true });
-    // TODO: Implement repost functionality with API
+    logger.info('Repost tweet action', { tweetId });
+    
+    try {
+      // Call the repost API
+      await repostThread(tweetId);
+      toastStore.showToast('Tweet reposted', 'success');
+      
+      // Update the reposts count in the UI
+      tweets = tweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return {
+            ...tweet,
+            reposts: (tweet.reposts || 0) + 1,
+            isReposted: true
+          };
+        }
+        return tweet;
+      });
+      
+      // Refresh the feed to show the repost
+      fetchTweets(true);
+    } catch (error) {
+      logger.error('Failed to repost tweet', { error });
+      toastStore.showToast('Failed to repost tweet', 'error');
+    }
   }
   
-  function handleTweetReply(event: CustomEvent) {
+  async function handleTweetReply(event: CustomEvent) {
     const tweetId = event.detail;
-    logger.info('Reply to tweet action', { tweetId }, { showToast: true });
-    // TODO: Implement reply functionality with API
+    logger.info('Reply to tweet action', { tweetId });
+    
+    // Find the tweet to reply to
+    const tweetToReply = tweets.find(t => t.id === tweetId);
+    if (!tweetToReply) {
+      logger.error('Tweet not found', { tweetId });
+      return;
+    }
+    
+    // Store the tweet to reply to and open the compose modal
+    selectedTweet = tweetToReply;
+    showComposeModal = true;
+  }
+  
+  async function handleTweetBookmark(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Bookmark tweet action', { tweetId });
+    
+    try {
+      // Call the bookmark API
+      await bookmarkThread(tweetId);
+      toastStore.showToast('Tweet bookmarked', 'success');
+      
+      // Update the UI to show bookmarked state
+      tweets = tweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return {
+            ...tweet,
+            isBookmarked: true
+          };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      logger.error('Failed to bookmark tweet', { error });
+      toastStore.showToast('Failed to bookmark tweet', 'error');
+    }
   }
 </script>
 
@@ -284,7 +376,24 @@
     </div>
     
     {#if route === '/home' || route === '/feed'}
-      {#if authState.isAuthenticated && sidebarDisplayName}
+      {#if !authState.isAuthenticated}
+        <div class="p-4 mb-2 bg-blue-50 dark:bg-blue-900 rounded-md">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="font-bold text-lg dark:text-white">Welcome to AYCOM!</h2>
+              <p class="text-sm text-gray-600 dark:text-gray-300">Sign in to post and interact with threads.</p>
+            </div>
+            <div class="flex space-x-2">
+              <a href="/login" class="px-4 py-2 bg-transparent border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white rounded transition-colors">
+                Log in
+              </a>
+              <a href="/register" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                Sign up
+              </a>
+            </div>
+          </div>
+        </div>
+      {:else if authState.isAuthenticated && sidebarDisplayName}
         <div class="p-4 mb-2">
           <div class="flex items-center">
             <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
@@ -327,10 +436,15 @@
           <TweetCard 
             {tweet}
             {isDarkMode}
+            isAuthenticated={authState.isAuthenticated}
+            isLiked={tweet.isLiked || false}
+            isReposted={tweet.isReposted || false}
+            isBookmarked={tweet.isBookmarked || false}
             on:click={handleTweetClick}
             on:like={handleTweetLike}
             on:repost={handleTweetRepost}
             on:reply={handleTweetReply}
+            on:bookmark={handleTweetBookmark}
           />
         {/each}
         
@@ -390,7 +504,8 @@
     {isDarkMode}
     on:close={toggleComposeModal}
     on:tweet={handleNewTweet}
-    avatar={sidebarAvatar} 
+    avatar={sidebarAvatar}
+    replyTo={selectedTweet}
   />
 {/if}
 

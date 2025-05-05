@@ -17,6 +17,7 @@ type HashtagRepository interface {
 	AddHashtagToThread(threadID string, hashtagID string) error
 	RemoveHashtagFromThread(threadID string, hashtagID string) error
 	GetTrendingHashtags(limit int) ([]*model.Hashtag, error)
+	CountThreadsWithHashtag(hashtagID string) (int, error)
 }
 
 // PostgresHashtagRepository is the PostgreSQL implementation of HashtagRepository
@@ -135,4 +136,23 @@ func (r *PostgresHashtagRepository) GetTrendingHashtags(limit int) ([]*model.Has
 	}
 
 	return hashtags, nil
+}
+
+// CountThreadsWithHashtag returns the number of threads that use this hashtag
+func (r *PostgresHashtagRepository) CountThreadsWithHashtag(hashtagID string) (int, error) {
+	hashtagUUID, err := uuid.Parse(hashtagID)
+	if err != nil {
+		return 0, errors.New("invalid UUID format for hashtag ID")
+	}
+
+	var count int64
+	result := r.db.Model(&model.ThreadHashtag{}).
+		Where("hashtag_id = ?", hashtagUUID).
+		Count(&count)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return int(count), nil
 }

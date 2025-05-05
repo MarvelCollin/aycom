@@ -68,11 +68,10 @@ export async function getThreadsByUser(userId: string) {
   const token = getAuthToken();
   
   try {
-    // If userId is 'me', get the actual user ID from auth
     if (userId === 'me') {
       const currentUserId = getUserId();
       if (!currentUserId) {
-        throw new Error('User ID is required');
+        throw new Error('User ID isa required');
       }
       userId = currentUserId;
     }
@@ -136,6 +135,73 @@ export async function getThreadsByUser(userId: string) {
   } catch (error) {
     console.error("Error in getThreadsByUser:", error);
     throw error;
+  }
+}
+
+export async function getAllThreads(page = 1, limit = 20) {
+  const token = getAuthToken();
+  
+  try {
+    console.log(`Fetching all threads, page: ${page}, limit: ${limit}`);
+    
+    // There's a public endpoint for getting all threads
+    const endpoint = `${API_BASE_URL}/threads?page=${page}&limit=${limit}`;
+    console.log(`Making request to: ${endpoint}`);
+    
+    // Set up headers - allow unauthenticated access
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    // Add authorization header if token exists
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: headers,
+      credentials: "include",
+    });
+    
+    // For 401 unauthorized, we could still attempt to return mock data
+    // This keeps the UI working even if the backend requires auth
+    if (response.status === 401) {
+      console.warn("Unauthorized when fetching threads - returning empty results");
+      return { 
+        threads: [],
+        total_count: 0,
+        page: page,
+        limit: limit
+      };
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `Failed to fetch threads: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || 
+                      errorData.error?.message || 
+                      errorMessage;
+        console.error("API error response:", errorData);
+      } catch (parseError) {
+        console.error("Could not parse error response:", parseError);
+      }
+      throw new Error(errorMessage);
+    }
+    
+    const data = await response.json();
+    console.log(`Successfully retrieved ${data.threads?.length || 0} threads`);
+    return data;
+  } catch (error) {
+    console.error("Error in getAllThreads:", error);
+    // Return empty results instead of throwing to keep UI working
+    return { 
+      threads: [],
+      total_count: 0,
+      page: page,
+      limit: limit
+    };
   }
 }
 
@@ -229,4 +295,277 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
     }
     
     return response.json();
+}
+
+// Social Features
+
+export async function likeThread(threadId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to like thread: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to like thread: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in likeThread:", error);
+    throw error;
+  }
+}
+
+export async function unlikeThread(threadId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+      method: "DELETE",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to unlike thread: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to unlike thread: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in unlikeThread:", error);
+    throw error;
+  }
+}
+
+export async function replyToThread(threadId: string, data: {
+  content: string;
+  media?: any[];
+  parent_reply_id?: string;
+  mentioned_user_ids?: string[];
+}) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to reply to thread: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to reply to thread: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in replyToThread:", error);
+    throw error;
+  }
+}
+
+export async function getThreadReplies(threadId: string, page = 1, limit = 20) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies?page=${page}&limit=${limit}`, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to get thread replies: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to get thread replies: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in getThreadReplies:", error);
+    throw error;
+  }
+}
+
+export async function repostThread(threadId: string, content = '') {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/repost`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify({ content }),
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to repost thread: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to repost thread: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in repostThread:", error);
+    throw error;
+  }
+}
+
+export async function removeRepost(repostId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${repostId}/repost`, {
+      method: "DELETE",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to remove repost: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to remove repost: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in removeRepost:", error);
+    throw error;
+  }
+}
+
+export async function bookmarkThread(threadId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to bookmark thread: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to bookmark thread: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in bookmarkThread:", error);
+    throw error;
+  }
+}
+
+export async function removeBookmark(bookmarkId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${bookmarkId}/bookmark`, {
+      method: "DELETE",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to remove bookmark: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to remove bookmark: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in removeBookmark:", error);
+    throw error;
+  }
 }

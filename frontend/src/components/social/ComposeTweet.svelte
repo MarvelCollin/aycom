@@ -6,17 +6,19 @@
     SmileIcon, 
     MapPinIcon
   } from 'svelte-feather-icons';
-  import { createThread, uploadThreadMedia } from '../../api/thread';
+  import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { getAuthToken } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
+  import type { ITweet } from '../../interfaces/ISocialMedia';
   
   // Create a logger for this component
   const logger = createLoggerWithPrefix('ComposeTweet');
   
   export let avatar = "👤";
   export let isDarkMode = false;
+  export let replyTo: ITweet | null = null; // Add proper typing for the tweet being replied to
   
   let newTweet = '';
   let files: File[] = [];
@@ -27,6 +29,10 @@
   let errorMessage = '';
   let availableCategories: Array<{id: string, name: string}> = [];
   const maxWords = 280;
+  
+  // Additional UI state for reply mode
+  $: isReplyMode = replyTo !== null;
+  $: modalTitle = isReplyMode ? 'Reply to Tweet' : 'New Post';
   
   // Load available categories
   async function loadCategories() {
@@ -106,29 +112,61 @@
     errorMessage = '';
     
     try {
-      // Prepare data
-      const data = {
-        content: newTweet,
-        hashtags: categories,
-      };
+      let response;
       
-      logger.debug('Posting tweet with data:', data);
-      
-      // Post to backend
-      const response = await createThread(data);
-      
-      // Log the entire response to debug date issues
-      logger.debug('Thread creation response:', response);
-      
-      // Handle media uploads if present
-      if (files.length > 0 && response.id) {
-        try {
-          logger.debug(`Uploading ${files.length} media files for thread ${response.id}`);
-          await uploadThreadMedia(response.id, files);
-        } catch (uploadError) {
-          logger.error('Error uploading media:', uploadError);
-          toastStore.showToast('Your post was created but media upload failed', 'warning');
+      // Check if we're replying to a tweet or creating a new one
+      if (isReplyMode && replyTo) {
+        // Prepare reply data
+        const replyData = {
+          content: newTweet,
+          mentioned_user_ids: categories, // Use categories for mentions in replies
+          media: files.length > 0 ? files.map(file => ({
+            type: file.type.startsWith('image/') ? 'image' : 'video',
+            url: URL.createObjectURL(file)
+          })) : []
+        };
+        
+        logger.debug('Posting reply with data:', replyData);
+        
+        // Call the reply API
+        response = await replyToThread(replyTo.id.toString(), replyData);
+        
+        // Optional: Upload media if API doesn't support direct upload in reply
+        if (files.length > 0 && response.id) {
+          try {
+            logger.debug(`Uploading ${files.length} media files for reply ${response.id}`);
+            await uploadThreadMedia(response.id, files);
+          } catch (uploadError) {
+            logger.error('Error uploading media for reply:', uploadError);
+            toastStore.showToast('Your reply was created but media upload failed', 'warning');
+          }
         }
+        
+        toastStore.showToast('Your reply was posted successfully', 'success');
+      } else {
+        // Prepare thread data
+        const data = {
+          content: newTweet,
+          hashtags: categories,
+        };
+        
+        logger.debug('Posting tweet with data:', data);
+        
+        // Post to backend
+        response = await createThread(data);
+        
+        // Handle media uploads if present
+        if (files.length > 0 && response.id) {
+          try {
+            logger.debug(`Uploading ${files.length} media files for thread ${response.id}`);
+            await uploadThreadMedia(response.id, files);
+          } catch (uploadError) {
+            logger.error('Error uploading media:', uploadError);
+            toastStore.showToast('Your post was created but media upload failed', 'warning');
+          }
+        }
+        
+        toastStore.showToast('Your post was created successfully', 'success');
       }
       
       // Clear form
@@ -138,10 +176,9 @@
       
       // Notify parent
       dispatch('tweet', response);
-      toastStore.showToast('Your post was created successfully', 'success');
     } catch (error) {
-      logger.error('Error creating tweet:', error);
-      errorMessage = error instanceof Error ? error.message : 'Failed to create tweet';
+      logger.error('Error creating tweet/reply:', error);
+      errorMessage = error instanceof Error ? error.message : 'Failed to create post';
       toastStore.showToast(errorMessage, 'error');
     } finally {
       isPosting = false;
@@ -197,10 +234,33 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
-      <span class="text-gray-600 dark:text-gray-300">New Post</span>
+      <span class="text-gray-600 dark:text-gray-300">{modalTitle}</span>
       <div style="width:2.5rem"></div>
     </div>
     <div class="modal-body {isDarkMode ? 'bg-gray-900' : 'bg-white'}">
+      {#if isReplyMode && replyTo}
+        <div class="reply-to-container mb-3 p-3 {isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-200'} border rounded-lg">
+          <div class="flex items-start">
+            <div class="flex-shrink-0 mr-2">
+              {#if typeof replyTo.avatar === 'string' && replyTo.avatar.startsWith('http')}
+                <img src={replyTo.avatar} alt={replyTo.username} class="w-8 h-8 rounded-full" />
+              {:else}
+                <div class="w-8 h-8 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center">
+                  {replyTo.avatar || '👤'}
+                </div>
+              {/if}
+            </div>
+            <div class="flex-1 min-w-0 text-sm">
+              <div class="flex items-center">
+                <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{replyTo.displayName || 'User'}</span>
+                <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} truncate">@{replyTo.username || 'user'}</span>
+              </div>
+              <p class="text-sm truncate {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">{replyTo.content}</p>
+            </div>
+          </div>
+        </div>
+      {/if}
+      
       <div class="flex mb-4">
         <div class="w-12 h-12 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-4 overflow-hidden flex-shrink-0">
           <span>{avatar}</span>

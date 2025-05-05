@@ -20,6 +20,7 @@ type ThreadService interface {
 	CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*model.Thread, error)
 	GetThreadByID(ctx context.Context, threadID string) (*model.Thread, error)
 	GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, error)
+	GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error)
 	UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*model.Thread, error)
 	DeleteThread(ctx context.Context, threadID, userID string) error
 }
@@ -173,10 +174,6 @@ func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*mo
 
 // GetThreadsByUserID retrieves threads by user ID with pagination
 func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, error) {
-	if userID == "" {
-		return nil, status.Error(codes.InvalidArgument, "User ID is required")
-	}
-
 	// Default pagination values if not provided
 	if page <= 0 {
 		page = 1
@@ -185,7 +182,29 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 		limit = 10
 	}
 
+	// If userID is empty, get all threads instead
+	if userID == "" {
+		return s.GetAllThreads(ctx, page, limit)
+	}
+
 	threads, err := s.threadRepo.FindThreadsByUserID(userID, page, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve threads: %v", err)
+	}
+
+	return threads, nil
+}
+
+// GetAllThreads retrieves all threads with pagination
+func (s *threadService) GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	threads, err := s.threadRepo.FindAllThreads(page, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve threads: %v", err)
 	}

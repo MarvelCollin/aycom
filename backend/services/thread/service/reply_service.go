@@ -22,6 +22,7 @@ type ReplyService interface {
 	GetRepliesByThreadID(ctx context.Context, threadID string, page, limit int) ([]*model.Reply, error)
 	UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*model.Reply, error)
 	DeleteReply(ctx context.Context, replyID, userID string) error
+	CountRepliesByParentID(ctx context.Context, parentID string) (int, error)
 }
 
 // replyService implements the ReplyService interface
@@ -230,4 +231,18 @@ func (s *replyService) DeleteReply(ctx context.Context, replyID, userID string) 
 	}
 
 	return nil
+}
+
+// CountRepliesByParentID counts replies by parent ID
+func (s *replyService) CountRepliesByParentID(ctx context.Context, parentID string) (int, error) {
+	if parentID == "" {
+		return 0, status.Error(codes.InvalidArgument, "Parent ID is required")
+	}
+
+	count, err := s.replyRepo.CountRepliesByParentID(parentID)
+	if err != nil {
+		return 0, status.Errorf(codes.Internal, "Failed to count replies: %v", err)
+	}
+
+	return count, nil
 }

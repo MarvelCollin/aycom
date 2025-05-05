@@ -22,6 +22,9 @@ export interface ITweet {
   reposts: number;
   views: string;
   media?: IMedia[];
+  isLiked?: boolean;
+  isReposted?: boolean;
+  isBookmarked?: boolean;
 }
 
 // Trend interface

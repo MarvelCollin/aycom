@@ -43,8 +43,15 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	// Public thread routes
 	publicThreads := v1.Group("/threads")
+	publicThreads.Use(middleware.OptionalJWTAuth(string(handlers.GetJWTSecret())))
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
+	}
+
+	// Public trends route
+	publicTrends := v1.Group("/trends")
+	{
+		publicTrends.GET("", handlers.GetTrends)
 	}
 
 	// Protected routes - using JWT authentication middleware
@@ -73,12 +80,16 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
 		threads.POST("/media", handlers.UploadThreadMedia)
-	}
 
-	// Trend routes
-	trends := protected.Group("/trends")
-	{
-		trends.GET("", handlers.GetTrends)
+		// Social interaction routes
+		threads.POST("/:id/like", handlers.LikeThread)
+		threads.DELETE("/:id/like", handlers.UnlikeThread)
+		threads.POST("/:id/replies", handlers.ReplyToThread)
+		threads.GET("/:id/replies", handlers.GetThreadReplies)
+		threads.POST("/:id/repost", handlers.RepostThread)
+		threads.DELETE("/:id/repost", handlers.RemoveRepost)
+		threads.POST("/:id/bookmark", handlers.BookmarkThread)
+		threads.DELETE("/:id/bookmark", handlers.RemoveBookmark)
 	}
 
 	// Product routes
@@ -140,13 +151,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		notifications.GET("", handlers.GetUserNotifications)
 		notifications.POST("/:id/read", handlers.MarkNotificationAsRead)
-		// WebSocket endpoint for real-time notifications
 		notifications.GET("/ws", handlers.HandleNotificationsWebSocket)
 	}
 
-	// Payment routes
-	// payments := protected.Group("/payments")
-	// payments.POST("", handlers.CreatePayment)
-	// payments.GET(":id", handlers.GetPayment)
-	// payments.GET("/history", handlers.GetPaymentHistory)
 }

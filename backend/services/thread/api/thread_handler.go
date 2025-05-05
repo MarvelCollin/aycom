@@ -24,6 +24,7 @@ type ThreadHandler struct {
 	pollService        service.PollService
 	interactionRepo    repository.InteractionRepository
 	userClient         service.UserClient
+	hashtagRepo        repository.HashtagRepository
 }
 
 // NewThreadHandler creates a new ThreadHandler instance
@@ -34,6 +35,7 @@ func NewThreadHandler(
 	pollService service.PollService,
 	interactionRepo repository.InteractionRepository,
 	userClient service.UserClient,
+	hashtagRepo repository.HashtagRepository,
 ) *ThreadHandler {
 	return &ThreadHandler{
 		threadService:      threadService,
@@ -42,6 +44,7 @@ func NewThreadHandler(
 		pollService:        pollService,
 		interactionRepo:    interactionRepo,
 		userClient:         userClient,
+		hashtagRepo:        hashtagRepo,
 	}
 }
 
@@ -103,6 +106,33 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *proto.GetThre
 	}, nil
 }
 
+// GetAllThreads retrieves all threads with pagination
+func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *proto.GetThreadsByUserRequest) (*proto.ThreadsResponse, error) {
+	// Note: Using GetThreadsByUserRequest as a temporary workaround since GetAllThreadsRequest is undefined
+	// Get threads using the service layer method
+	threads, err := h.threadService.GetAllThreads(ctx, int(req.Page), int(req.Limit))
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert threads to response
+	threadResponses := make([]*proto.ThreadResponse, 0, len(threads))
+	for _, thread := range threads {
+		response, err := h.convertThreadToResponse(ctx, thread)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to convert thread to response: %v", err)
+		}
+		threadResponses = append(threadResponses, response)
+	}
+
+	return &proto.ThreadsResponse{
+		Threads:    threadResponses,
+		TotalCount: int32(len(threads)),
+		Page:       req.Page,
+		Limit:      req.Limit,
+	}, nil
+}
+
 // UpdateThread updates a thread
 func (h *ThreadHandler) UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*proto.ThreadResponse, error) {
 	thread, err := h.threadService.UpdateThread(ctx, req)
@@ -131,74 +161,164 @@ func (h *ThreadHandler) DeleteThread(ctx context.Context, req *proto.DeleteThrea
 
 // CreateReply creates a new reply to a thread or another reply
 func (h *ThreadHandler) CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*proto.ReplyResponse, error) {
-	// Implementation will be added when ReplyService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the reply service to create a reply
+	reply, err := h.replyService.CreateReply(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to response
+	response, err := h.convertReplyToResponse(ctx, reply)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
+	}
+
+	return response, nil
 }
 
 // GetRepliesByThread retrieves replies to a thread with pagination
 func (h *ThreadHandler) GetRepliesByThread(ctx context.Context, req *proto.GetRepliesByThreadRequest) (*proto.RepliesResponse, error) {
-	// Implementation will be added when ReplyService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Get replies using the reply service
+	replies, err := h.replyService.GetRepliesByThreadID(ctx, req.ThreadId, int(req.Page), int(req.Limit))
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert replies to response format
+	replyResponses := make([]*proto.ReplyResponse, 0, len(replies))
+	for _, reply := range replies {
+		response, err := h.convertReplyToResponse(ctx, reply)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
+		}
+		replyResponses = append(replyResponses, response)
+	}
+
+	// Calculate total count (could be optimized with a separate count query)
+	totalCount := len(replies)
+
+	return &proto.RepliesResponse{
+		Replies:    replyResponses,
+		TotalCount: int32(totalCount),
+		Page:       req.Page,
+		Limit:      req.Limit,
+	}, nil
 }
 
 // UpdateReply updates a reply
 func (h *ThreadHandler) UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*proto.ReplyResponse, error) {
-	// Implementation will be added when ReplyService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the reply service to update the reply
+	reply, err := h.replyService.UpdateReply(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to response
+	response, err := h.convertReplyToResponse(ctx, reply)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
+	}
+
+	return response, nil
 }
 
 // DeleteReply deletes a reply
 func (h *ThreadHandler) DeleteReply(ctx context.Context, req *proto.DeleteReplyRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when ReplyService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the reply service to delete the reply
+	err := h.replyService.DeleteReply(ctx, req.ReplyId, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // LikeThread adds a like to a thread
 func (h *ThreadHandler) LikeThread(ctx context.Context, req *proto.LikeThreadRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to like the thread
+	err := h.interactionService.LikeThread(ctx, req.UserId, req.ThreadId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // UnlikeThread removes a like from a thread
 func (h *ThreadHandler) UnlikeThread(ctx context.Context, req *proto.UnlikeThreadRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to unlike the thread
+	err := h.interactionService.UnlikeThread(ctx, req.UserId, req.ThreadId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // LikeReply adds a like to a reply
 func (h *ThreadHandler) LikeReply(ctx context.Context, req *proto.LikeReplyRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to like the reply
+	err := h.interactionService.LikeReply(ctx, req.UserId, req.ReplyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // UnlikeReply removes a like from a reply
 func (h *ThreadHandler) UnlikeReply(ctx context.Context, req *proto.UnlikeReplyRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to unlike the reply
+	err := h.interactionService.UnlikeReply(ctx, req.UserId, req.ReplyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // RepostThread reposts a thread
 func (h *ThreadHandler) RepostThread(ctx context.Context, req *proto.RepostThreadRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to repost the thread
+	err := h.interactionService.RepostThread(ctx, req.UserId, req.ThreadId, &req.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // RemoveRepost removes a repost
 func (h *ThreadHandler) RemoveRepost(ctx context.Context, req *proto.RemoveRepostRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to remove the repost
+	err := h.interactionService.RemoveRepost(ctx, req.UserId, req.RepostId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // BookmarkThread bookmarks a thread
 func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *proto.BookmarkThreadRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to bookmark the thread
+	err := h.interactionService.BookmarkThread(ctx, req.UserId, req.ThreadId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // RemoveBookmark removes a bookmark
 func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *proto.RemoveBookmarkRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when InteractionService is created
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Call the interaction service to remove the bookmark
+	err := h.interactionService.RemoveBookmark(ctx, req.UserId, req.BookmarkId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // CreatePoll creates a poll for a thread
@@ -217,6 +337,52 @@ func (h *ThreadHandler) VotePoll(ctx context.Context, req *proto.VotePollRequest
 func (h *ThreadHandler) GetPollResults(ctx context.Context, req *proto.GetPollResultsRequest) (*proto.PollResultsResponse, error) {
 	// Implementation will be added when PollService is created
 	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+}
+
+// GetTrendingHashtags returns the most popular hashtags
+func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *proto.GetThreadsByUserRequest) (*proto.ThreadsResponse, error) {
+	// Note: Using GetThreadsByUserRequest and ThreadsResponse as a temporary workaround
+	// since GetTrendingHashtagsRequest and GetTrendingHashtagsResponse are undefined
+
+	log.Printf("GetTrendingHashtags called with limit: %d", req.Limit)
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 10 // Default limit
+	}
+
+	// Get trending hashtags from repository
+	hashtags, err := h.hashtagRepo.GetTrendingHashtags(limit)
+	if err != nil {
+		log.Printf("Error getting trending hashtags: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to get trending hashtags: %v", err)
+	}
+
+	// Convert hashtags to thread responses as a workaround
+	threadResponses := make([]*proto.ThreadResponse, 0, len(hashtags))
+	for _, hashtag := range hashtags {
+		// Get thread count for this hashtag
+		count, err := h.hashtagRepo.CountThreadsWithHashtag(hashtag.HashtagID.String())
+		if err != nil {
+			log.Printf("Error counting threads for hashtag %s: %v", hashtag.Text, err)
+			// Continue with count 0 rather than failing the whole request
+			count = 0
+		}
+
+		// Create a dummy thread response containing hashtag information
+		threadResponses = append(threadResponses, &proto.ThreadResponse{
+			Id:         hashtag.HashtagID.String(),
+			Content:    hashtag.Text,
+			ReplyCount: int64(count), // Using ReplyCount to store thread count
+		})
+	}
+
+	return &proto.ThreadsResponse{
+		Threads:    threadResponses,
+		TotalCount: int32(len(hashtags)),
+		Page:       1,
+		Limit:      int32(limit),
+	}, nil
 }
 
 // Helper function to convert a Thread model to a ThreadResponse proto
@@ -285,6 +451,59 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 	} else {
 		log.Printf("No user client available - thread %s by user %s will not have user details",
 			thread.ThreadID.String(), thread.UserID.String())
+	}
+
+	return response, nil
+}
+
+// Helper function to convert a Reply model to a ReplyResponse proto
+func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model.Reply) (*proto.ReplyResponse, error) {
+	// Create a basic response with available data
+	response := &proto.ReplyResponse{
+		Id:        reply.ReplyID.String(),
+		ThreadId:  reply.ThreadID.String(),
+		UserId:    reply.UserID.String(),
+		Content:   reply.Content,
+		CreatedAt: timestamppb.New(reply.CreatedAt),
+		UpdatedAt: timestamppb.New(reply.UpdatedAt),
+	}
+
+	// Set parent ID if exists
+	if reply.ParentReplyID != nil {
+		response.ParentId = reply.ParentReplyID.String()
+	}
+
+	// Get reply stats if interaction repo is available
+	if h.interactionRepo != nil {
+		replyID := reply.ReplyID.String()
+
+		// Calculate like count
+		likeCount, err := h.interactionRepo.CountReplyLikes(replyID)
+		if err == nil {
+			response.LikeCount = likeCount
+		}
+
+		// Calculate reply count (for nested replies)
+		replyCount, err := h.replyService.CountRepliesByParentID(ctx, replyID)
+		if err == nil {
+			response.ReplyCount = int64(replyCount)
+		}
+	}
+
+	// Fetch user information if available
+	if h.userClient != nil {
+		userInfo, err := h.userClient.GetUserById(ctx, reply.UserID.String())
+		if err == nil && userInfo != nil {
+			log.Printf("User info retrieved for reply %s by user %s (username: %s)",
+				reply.ReplyID.String(), userInfo.Id, userInfo.Username)
+
+			// As a workaround, embed user info in the content field
+			// Format: [USER:username@displayName@profilePictureUrl]content
+			response.Content = "[USER:" + userInfo.Username + "@" + userInfo.DisplayName + "@" + userInfo.ProfilePictureUrl + "]" + response.Content
+		} else {
+			log.Printf("Could not fetch user info for reply %s by user %s: %v",
+				reply.ReplyID.String(), reply.UserID.String(), err)
+		}
 	}
 
 	return response, nil
