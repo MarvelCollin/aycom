@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	threadProto "aycom/backend/services/thread/proto"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,25 +28,43 @@ var (
 	cacheExpiration = 10 * time.Minute
 )
 
-// fetchTrends retrieves trending topics
-// For now, this uses a simplified approach since the real trending data API is not fully implemented
+// fetchTrends retrieves trending topics from the thread service
 func fetchTrends() []Trend {
-	log.Println("Fetching trending topics - using simplified implementation")
+	log.Println("Fetching trending hashtags from thread service")
 
-	// In a real implementation, this would call the thread service's API
-	// to fetch actual trending hashtags and topics
-	//
-	// For now, we provide a set of realistic trending topics with
-	// minimal mock data until the thread service API is fully implemented
-	trends := []Trend{}
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		log.Printf("Failed to connect to thread service: %v", err)
+		return []Trend{} // Return empty trends on error
+	}
+	defer threadConnPool.Put(conn)
 
-	// Randomize post counts slightly to make the trends appear dynamic
-	// This simulates real changing data until the backend implementation is complete
-	for i := range trends {
-		// Vary by up to ±10%
-		variation := float64(trends[i].PostCount) * 0.1
-		randomOffset := int(variation * (0.5 - float64(time.Now().UnixNano()%100)/100.0))
-		trends[i].PostCount += randomOffset
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service to get trending hashtags
+	resp, err := client.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{
+		Limit: 20, // Request more than we need to have a good selection
+	})
+	if err != nil {
+		log.Printf("Failed to get trending hashtags: %v", err)
+		return []Trend{} // Return empty trends on error
+	}
+
+	// Convert hashtag responses to trends
+	trends := make([]Trend, 0, len(resp.Hashtags))
+	for _, hashtag := range resp.Hashtags {
+		trends = append(trends, Trend{
+			ID:        hashtag.Id,
+			Category:  "Hashtag",
+			Title:     "#" + hashtag.Text,
+			PostCount: int(hashtag.ThreadCount),
+		})
 	}
 
 	return trends

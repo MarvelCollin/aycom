@@ -246,7 +246,7 @@ message BookmarkThreadRequest {
 
 // RemoveBookmarkRequest message
 message RemoveBookmarkRequest {
-  string bookmark_id = 1;
+  string thread_id = 1;
   string user_id = 2;
 }
 

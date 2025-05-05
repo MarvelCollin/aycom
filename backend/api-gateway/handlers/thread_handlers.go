@@ -617,11 +617,10 @@ func GetAllThreads(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Using GetThreadsByUser with empty user ID as a workaround since GetAllThreads has protobuf issues
-	resp, err := client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
-		UserId: "",
-		Page:   int32(page),
-		Limit:  int32(limit),
+	// Use the proper GetAllThreads method instead of the workaround
+	resp, err := client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
+		Page:  int32(page),
+		Limit: int32(limit),
 	})
 
 	if err != nil {

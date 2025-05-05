@@ -107,8 +107,7 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *proto.GetThre
 }
 
 // GetAllThreads retrieves all threads with pagination
-func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *proto.GetThreadsByUserRequest) (*proto.ThreadsResponse, error) {
-	// Note: Using GetThreadsByUserRequest as a temporary workaround since GetAllThreadsRequest is undefined
+func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *proto.GetAllThreadsRequest) (*proto.ThreadsResponse, error) {
 	// Get threads using the service layer method
 	threads, err := h.threadService.GetAllThreads(ctx, int(req.Page), int(req.Limit))
 	if err != nil {
@@ -313,7 +312,7 @@ func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *proto.BookmarkT
 // RemoveBookmark removes a bookmark
 func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *proto.RemoveBookmarkRequest) (*emptypb.Empty, error) {
 	// Call the interaction service to remove the bookmark
-	err := h.interactionService.RemoveBookmark(ctx, req.UserId, req.BookmarkId)
+	err := h.interactionService.RemoveBookmark(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		return nil, err
 	}
@@ -340,10 +339,7 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *proto.GetPollRe
 }
 
 // GetTrendingHashtags returns the most popular hashtags
-func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *proto.GetThreadsByUserRequest) (*proto.ThreadsResponse, error) {
-	// Note: Using GetThreadsByUserRequest and ThreadsResponse as a temporary workaround
-	// since GetTrendingHashtagsRequest and GetTrendingHashtagsResponse are undefined
-
+func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *proto.GetTrendingHashtagsRequest) (*proto.GetTrendingHashtagsResponse, error) {
 	log.Printf("GetTrendingHashtags called with limit: %d", req.Limit)
 
 	limit := int(req.Limit)
@@ -358,8 +354,8 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *proto.GetT
 		return nil, status.Errorf(codes.Internal, "Failed to get trending hashtags: %v", err)
 	}
 
-	// Convert hashtags to thread responses as a workaround
-	threadResponses := make([]*proto.ThreadResponse, 0, len(hashtags))
+	// Convert hashtags to HashtagResponse objects
+	hashtagResponses := make([]*proto.HashtagResponse, 0, len(hashtags))
 	for _, hashtag := range hashtags {
 		// Get thread count for this hashtag
 		count, err := h.hashtagRepo.CountThreadsWithHashtag(hashtag.HashtagID.String())
@@ -369,19 +365,16 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *proto.GetT
 			count = 0
 		}
 
-		// Create a dummy thread response containing hashtag information
-		threadResponses = append(threadResponses, &proto.ThreadResponse{
-			Id:         hashtag.HashtagID.String(),
-			Content:    hashtag.Text,
-			ReplyCount: int64(count), // Using ReplyCount to store thread count
+		// Create a hashtag response
+		hashtagResponses = append(hashtagResponses, &proto.HashtagResponse{
+			Id:          hashtag.HashtagID.String(),
+			Text:        hashtag.Text,
+			ThreadCount: int64(count),
 		})
 	}
 
-	return &proto.ThreadsResponse{
-		Threads:    threadResponses,
-		TotalCount: int32(len(hashtags)),
-		Page:       1,
-		Limit:      int32(limit),
+	return &proto.GetTrendingHashtagsResponse{
+		Hashtags: hashtagResponses,
 	}, nil
 }
 

@@ -273,9 +273,80 @@
     toggleComposeModal();
   }
   
+  // Update tweet reply count in the UI
+  function updateTweetReplyCount(tweetId: string, count: number) {
+    tweets = tweets.map(tweet => {
+      if (String(tweet.id) === String(tweetId)) {
+        return {
+          ...tweet,
+          replies: count
+        };
+      }
+      return tweet;
+    });
+  }
+  
   // Handle tweet actions
   function handleTweetClick(event: CustomEvent) {
     openThreadModal(event.detail);
+  }
+  
+  // Find a tweet by ID in any of our data structures
+  function findTweetById(tweetId: string | number): ITweet | undefined {
+    // Convert to string for consistent comparison
+    const id = String(tweetId);
+    
+    // First check main tweets array
+    let foundTweet = tweets.find(t => String(t.id) === id);
+    if (foundTweet) return foundTweet;
+    
+    // Check in replies
+    for (const [parentId, replies] of repliesMap.entries()) {
+      foundTweet = replies.find(r => String(r.id) === id);
+      if (foundTweet) return foundTweet;
+    }
+    
+    // Check in nested replies
+    for (const [parentId, replies] of nestedRepliesMap.entries()) {
+      foundTweet = replies.find(r => String(r.id) === id);
+      if (foundTweet) return foundTweet;
+    }
+    
+    return undefined;
+  }
+  
+  async function handleTweetReply(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Reply to tweet action', { tweetId });
+    
+    // Find the tweet to reply to
+    const tweetToReply = findTweetById(tweetId);
+    
+    if (!tweetToReply) {
+      logger.error('Tweet not found for reply', { tweetId });
+      toastStore.showToast('Cannot find the tweet to reply to. Please try again.', 'error');
+      
+      // Try to load replies for this tweet ID in case it exists but we don't have it loaded
+      if (typeof tweetId === 'string' || typeof tweetId === 'number') {
+        try {
+          await getThreadReplies(String(tweetId));
+          // Retry finding the tweet after loading replies
+          const retryFindTweet = findTweetById(tweetId);
+          if (retryFindTweet) {
+            selectedTweet = retryFindTweet;
+            showComposeModal = true;
+            return;
+          }
+        } catch (error) {
+          logger.error('Failed to load replies for tweet', { tweetId, error });
+        }
+      }
+      return;
+    }
+    
+    // Store the tweet to reply to and open the compose modal
+    selectedTweet = tweetToReply;
+    showComposeModal = true;
   }
   
   async function handleTweetLike(event: CustomEvent) {
@@ -373,22 +444,6 @@
     }
   }
   
-  async function handleTweetReply(event: CustomEvent) {
-    const tweetId = event.detail;
-    logger.info('Reply to tweet action', { tweetId });
-    
-    // Find the tweet to reply to
-    const tweetToReply = tweets.find(t => t.id === tweetId);
-    if (!tweetToReply) {
-      logger.error('Tweet not found', { tweetId });
-      return;
-    }
-    
-    // Store the tweet to reply to and open the compose modal
-    selectedTweet = tweetToReply;
-    showComposeModal = true;
-  }
-  
   async function handleTweetBookmark(event: CustomEvent) {
     const tweetId = event.detail;
     logger.info('Bookmark tweet action', { tweetId });
@@ -458,28 +513,70 @@
   // Function to load nested replies
   async function loadNestedReplies(replyId: string) {
     try {
+      // Check if we already have data for this reply (avoid duplicate requests)
+      if (nestedRepliesMap.has(String(replyId)) && nestedRepliesMap.get(String(replyId))?.length > 0) {
+        logger.debug(`Using cached nested replies for reply ${replyId}`);
+        return; // Use cached data
+      }
+
+      // Set an empty array first to show loading state
+      nestedRepliesMap.set(String(replyId), []);
+      
+      // Force a refresh to show loading state
+      tweets = [...tweets];
+      
+      logger.info(`Loading nested replies for reply: ${replyId}`);
+      
       // Call the API to get replies for this reply
       const response = await getThreadReplies(replyId);
       
-      if (response && response.replies) {
+      if (response && response.replies && response.replies.length > 0) {
         logger.info(`Received ${response.replies.length} nested replies from API for reply ${replyId}`);
         
         // Convert replies to tweet format
         const convertedReplies = response.replies.map(reply => threadToTweet(reply));
         
-        // Store in the nested replies map
-        nestedRepliesMap.set(replyId, convertedReplies);
+        // Store in the nested replies map (using string keys)
+        nestedRepliesMap.set(String(replyId), convertedReplies);
         
         // Force a refresh to trigger UI update
         tweets = [...tweets];
       } else {
         logger.info(`No nested replies received for reply ${replyId}`);
-        nestedRepliesMap.set(replyId, []);
+        nestedRepliesMap.set(String(replyId), []);
+        
+        // Force a refresh to trigger UI update
+        tweets = [...tweets];
       }
     } catch (error) {
       logger.error('Failed to load nested replies', { error, replyId });
-      nestedRepliesMap.set(replyId, []);
+      nestedRepliesMap.set(String(replyId), []);
+      
+      // Show error toast
+      toastStore.showToast('Failed to load nested replies. Please try again.', 'error');
+      
+      // Force a refresh to update UI
+      tweets = [...tweets];
     }
+  }
+
+  // Function to check if a thread ID exists within our nested replies structure
+  function findThreadInNestedReplies(threadId: string): boolean {
+    // First check in the main repliesMap
+    for (const [parentId, replies] of repliesMap.entries()) {
+      if (replies.some(reply => String(reply.id) === String(threadId))) {
+        return true;
+      }
+    }
+    
+    // Then check in the nestedRepliesMap
+    for (const [parentId, replies] of nestedRepliesMap.entries()) {
+      if (replies.some(reply => String(reply.id) === String(threadId))) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   // Modify the handleLoadReplies function to check if it's a nested reply request
@@ -487,48 +584,55 @@
     const threadId = event.detail;
     logger.info('Loading replies for thread', { threadId });
     
-    // Check if this is a request for a reply that's already in our repliesMap
-    // If so, this is a nested reply request
-    let isNestedReply = false;
-    
-    // Look through all replies in the repliesMap to see if this is a nested reply
-    for (const [parentId, replies] of repliesMap.entries()) {
-      if (replies.some(reply => reply.id === threadId)) {
-        isNestedReply = true;
-        break;
-      }
-    }
+    // Check if this is a request for a reply that's already in our reply maps
+    const isNestedReply = findThreadInNestedReplies(String(threadId));
     
     if (isNestedReply) {
       // Handle as a nested reply
-      await loadNestedReplies(threadId);
+      await loadNestedReplies(String(threadId));
       return;
     }
     
     try {
+      // Set an empty array first to show loading state if we don't already have replies
+      if (!repliesMap.has(String(threadId))) {
+        repliesMap.set(String(threadId), []);
+        // Force a refresh to show loading state
+        tweets = [...tweets];
+      }
+      
+      logger.info(`Fetching replies for thread ID: ${threadId}`);
+      
       // Call the API to get replies for this thread
       const response = await getThreadReplies(threadId);
       
-      if (response && response.replies) {
+      if (response && response.replies && response.replies.length > 0) {
         logger.info(`Received ${response.replies.length} replies from API`);
         
         // Convert replies to tweet format
         const convertedReplies = response.replies.map(reply => threadToTweet(reply));
         
-        // Store in the replies map
-        repliesMap.set(threadId, convertedReplies);
+        // Store in the replies map using string keys
+        repliesMap.set(String(threadId), convertedReplies);
         
-        // Force a refresh of the tweets array to trigger UI update
-        tweets = [...tweets];
+        // Update the reply count in the UI
+        updateTweetReplyCount(String(threadId), convertedReplies.length);
       } else {
+        // Handle the case when there are no replies
         logger.info('No replies received from API');
-        repliesMap.set(threadId, []);
+        repliesMap.set(String(threadId), []);
+        
+        // Ensure the UI shows no replies
+        updateTweetReplyCount(String(threadId), 0);
       }
+      
+      // Force a refresh of the tweets array to trigger UI update
+      tweets = [...tweets];
     } catch (error) {
       logger.error('Failed to load replies', { error });
       toastStore.showToast('Failed to load replies. Please try again.', 'error');
       // Set empty array to avoid continuous loading attempts
-      repliesMap.set(threadId, []);
+      repliesMap.set(String(threadId), []);
     }
   }
 </script>
@@ -627,6 +731,7 @@
             isBookmarked={tweet.isBookmarked || false}
             inReplyToTweet={tweet.replyTo || null}
             replies={repliesMap.get(tweet.id) || []}
+            nestedRepliesMap={nestedRepliesMap}
             nestingLevel={0}
             on:click={handleTweetClick}
             on:like={handleTweetLike}

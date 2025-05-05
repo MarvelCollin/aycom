@@ -923,7 +923,7 @@ func BookmarkThread(c *gin.Context) {
 // @Description Removes a bookmark for a thread
 // @Tags Social
 // @Produce json
-// @Param id path string true "Bookmark ID"
+// @Param id path string true "Thread ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -950,12 +950,12 @@ func RemoveBookmark(c *gin.Context) {
 		return
 	}
 
-	// Get bookmark ID from URL
-	bookmarkID := c.Param("id")
-	if bookmarkID == "" {
+	// Get thread ID from URL
+	threadID := c.Param("id")
+	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
-			Message: "Bookmark ID is required",
+			Message: "Thread ID is required",
 			Code:    "INVALID_REQUEST",
 		})
 		return
@@ -982,8 +982,8 @@ func RemoveBookmark(c *gin.Context) {
 
 	// Call thread service
 	_, err = client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
-		BookmarkId: bookmarkID,
-		UserId:     userID,
+		ThreadId: threadID,
+		UserId:   userID,
 	})
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
