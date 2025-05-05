@@ -213,6 +213,8 @@ func InitHandlers(cfg *config.Config) {
 
 	// Initialize services in the correct order
 	InitGRPCServices()
+	InitUserServiceClient(cfg)
+	InitThreadServiceClient(cfg)
 	InitCommunityServiceClient(cfg)
 	InitWebsocketServices() // This must be after setting Config
 }

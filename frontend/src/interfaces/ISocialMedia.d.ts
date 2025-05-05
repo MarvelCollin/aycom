@@ -6,15 +6,16 @@ export interface IMedia {
   url: string;
   type: string;
   media_id?: string;
+  alt?: string;
 }
 
 // Tweet/Post interface
 export interface ITweet {
-  id: number;
+  id: number | string;
   threadId?: string;
   username: string;
   displayName: string;
-  avatar: string;
+  avatar: string | null;
   content: string;
   timestamp: string;
   likes: number;
@@ -30,6 +31,20 @@ export interface ITweet {
   isAdvertisement?: boolean;
   communityId?: string | null;
   communityName?: string | null;
+  
+  createdAt?: string;
+  authorId?: string;
+  authorName?: string;
+  authorUsername?: string;
+  authorAvatar?: string | null;
+  verified?: boolean;
+  likesCount?: number;
+  commentsCount?: number;
+  repostsCount?: number;
+  viewsCount?: string;
+  poll?: any | null;
+  quoteTweet?: any | null;
+  replyingTo?: any | null;
 }
 
 // Trend interface

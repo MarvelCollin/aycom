@@ -5,7 +5,8 @@ import AuthLayout from '../components/layout/AuthLayout.svelte';
 import ReCaptchaWrapper from '../components/auth/ReCaptchaWrapper.svelte';
 import { toastStore } from '../stores/toastStore';
 import { getAuthToken } from '../utils/auth';
-import appConfig from '../config/appConfig';
+import { getSecurityQuestion, verifySecurityAnswer, resetPassword } from '../api/passwordReset';
+import { handleApiError } from '../utils/common';
 
 let step = 1;
 let email = '';
@@ -40,23 +41,16 @@ async function handleEmailSubmit() {
   }
   isLoading = true;
   try {
-    const res = await fetch(`${appConfig.api.baseUrl}/auth/forgot-password-question`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, recaptcha_token: recaptchaToken })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      emailError = data.message || 'Invalid email or account is banned.';
-    } else {
-      securityQuestion = data.security_question;
-      oldPasswordHash = data.old_password_hash;
-      step = 2;
-    }
-  } catch (e) {
-    emailError = 'Server error.';
+    const result = await getSecurityQuestion(email, recaptchaToken);
+    securityQuestion = result.securityQuestion;
+    oldPasswordHash = result.oldPasswordHash;
+    step = 2;
+  } catch (error) {
+    const errorResponse = handleApiError(error);
+    emailError = errorResponse.message;
+  } finally {
+    isLoading = false;
   }
-  isLoading = false;
 }
 
 async function handleAnswerSubmit() {
@@ -67,21 +61,14 @@ async function handleAnswerSubmit() {
   }
   isLoading = true;
   try {
-    const res = await fetch(`${appConfig.api.baseUrl}/auth/forgot-password-verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, answer: securityAnswer })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      answerError = data.message || 'Incorrect answer.';
-    } else {
-      step = 3;
-    }
-  } catch (e) {
-    answerError = 'Server error.';
+    await verifySecurityAnswer(email, securityAnswer);
+    step = 3;
+  } catch (error) {
+    const errorResponse = handleApiError(error);
+    answerError = errorResponse.message;
+  } finally {
+    isLoading = false;
   }
-  isLoading = false;
 }
 
 async function handlePasswordSubmit() {
@@ -96,22 +83,15 @@ async function handlePasswordSubmit() {
   }
   isLoading = true;
   try {
-    const res = await fetch(`${appConfig.api.baseUrl}/auth/forgot-password-reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, new_password: newPassword })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      newPasswordError = data.message || 'Failed to reset password.';
-    } else {
-      toastStore.showToast('Password reset successful. Please login.', 'success');
-      window.location.href = '/login';
-    }
-  } catch (e) {
-    newPasswordError = 'Server error.';
+    const result = await resetPassword(email, newPassword);
+    toastStore.showToast(result.message || 'Password reset successful. Please login.', 'success');
+    window.location.href = '/login';
+  } catch (error) {
+    const errorResponse = handleApiError(error);
+    newPasswordError = errorResponse.message;
+  } finally {
+    isLoading = false;
   }
-  isLoading = false;
 }
 
 function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {

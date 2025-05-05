@@ -1,7 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExploreFilters');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   
@@ -24,11 +26,13 @@
   
   // Handle filter change
   function handleFilterChange(filter: 'all' | 'following' | 'verified') {
+    logger.debug('Search filter changed', { from: searchFilter, to: filter });
     dispatch('filterChange', filter);
   }
   
   // Handle category change
   function handleCategoryChange(category: string) {
+    logger.debug('Category filter changed', { from: selectedCategory, to: category });
     dispatch('categoryChange', category);
   }
 </script>

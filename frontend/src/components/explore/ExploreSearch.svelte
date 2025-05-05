@@ -1,7 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExploreSearch');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   
@@ -26,34 +28,48 @@
   
   // Handle search input
   function handleSearchInput(event) {
-    dispatch('input', event.target.value);
+    const value = event.target.value;
+    logger.debug('Search input changed', { value });
+    dispatch('input', event);
   }
   
   // Handle search execution
   function executeSearch() {
+    logger.debug('Search executed', { query: searchQuery });
     dispatch('search');
   }
   
   // Handle search field focus
   function handleFocus() {
+    logger.debug('Search field focused');
     dispatch('focus');
   }
   
   // Handle search keystroke
   function handleKeydown(event) {
     if (event.key === 'Enter') {
+      logger.debug('Search triggered via Enter key', { query: searchQuery });
       dispatch('search');
     }
   }
   
   // Handle selection of a recent search
   function selectRecentSearch(search: string) {
+    logger.debug('Recent search selected', { search });
     dispatch('selectRecentSearch', search);
   }
   
   // Clear recent searches
   function clearRecentSearches() {
+    logger.debug('Recent searches cleared');
     dispatch('clearRecentSearches');
+  }
+  
+  // Log when recommendations are loaded
+  $: {
+    if (!isLoadingRecommendations && recommendedProfiles.length > 0) {
+      logger.debug('Profile recommendations loaded', { count: recommendedProfiles.length });
+    }
   }
 </script>
 

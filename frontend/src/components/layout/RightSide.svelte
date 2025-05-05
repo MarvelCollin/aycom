@@ -5,6 +5,12 @@
   export let trends: ITrend[] = [];
   export let suggestedFollows: ISuggestedFollow[] = [];
   export let isDarkMode: boolean = false;
+
+  function navigateTo(path) {
+    console.log(`Navigating to: ${path}`);
+    // Implement actual navigation logic here when paths are created
+    // window.location.href = path;
+  }
 </script>
 
 <div class="search-container {isDarkMode ? 'search-dark' : ''} sticky top-0 z-10 pb-3 bg-inherit">
@@ -54,11 +60,13 @@
         {#each suggestedFollows as follow}
           <li class="flex items-center gap-3 py-3 {suggestedFollows.indexOf(follow) !== suggestedFollows.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
             <div class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex-shrink-0 flex items-center justify-center">
-              {#if typeof follow.avatar === 'string' && follow.avatar.startsWith('http')}
-                <img src={follow.avatar} alt={follow.username} class="w-full h-full object-cover" />
-              {:else}
-                <div class="flex items-center justify-center w-full h-full text-lg">{follow.avatar || '👤'}</div>
-              {/if}
+              <div class="flex items-center justify-center w-full h-full text-lg">
+                {#if follow.avatar && !follow.avatar.includes('👤')}
+                  <img src={follow.avatar} alt={follow.username} class="w-full h-full object-cover rounded-full" />
+                {:else}
+                  <img src="https://secure.gravatar.com/avatar/0?d=mp" alt={follow.username} class="w-full h-full object-cover rounded-full" />
+                {/if}
+              </div>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center">
@@ -90,14 +98,14 @@
   </div>
 </div>
 
-<div class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-xs">
-  <div class="flex flex-wrap gap-2">
-    <a href="#" class="hover:underline">Terms of Service</a>
-    <a href="#" class="hover:underline">Privacy Policy</a>
-    <a href="#" class="hover:underline">Cookie Policy</a>
-    <a href="#" class="hover:underline">Accessibility</a>
-    <a href="#" class="hover:underline">Ads info</a>
-    <a href="#" class="hover:underline">More</a>
+<div class="mt-4 text-center">
+  <div class="flex flex-wrap text-xs justify-between text-gray-500 dark:text-gray-400">
+    <button class="hover:underline mb-2" on:click={() => navigateTo('/terms')}>Terms of Service</button>
+    <button class="hover:underline mb-2" on:click={() => navigateTo('/privacy')}>Privacy Policy</button>
+    <button class="hover:underline mb-2" on:click={() => navigateTo('/cookies')}>Cookie Policy</button>
+    <button class="hover:underline mb-2" on:click={() => navigateTo('/accessibility')}>Accessibility</button>
+    <button class="hover:underline mb-2" on:click={() => navigateTo('/ads')}>Ads Info</button>
+    <button class="hover:underline mb-2" on:click={() => navigateTo('/about')}>About</button>
   </div>
-  <p class="mt-2">© {new Date().getFullYear()} AYCOM</p>
+  <p class="text-xs mt-2 text-gray-500 dark:text-gray-400">© 2023 AYCOM, Inc.</p>
 </div>

@@ -4,4 +4,7 @@ export * from './thread';
 export * from './trends';
 export * from './suggestions';
 export * from './community';
-export * from './chat'; 
+export * from './chat';
+export * from './categories';
+export * from './passwordReset';
+export * from './notifications'; 

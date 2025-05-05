@@ -2,7 +2,9 @@
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   import CommunityCard from './CommunityCard.svelte';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExploreCommunityResults');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   
@@ -24,17 +26,32 @@
   
   // Handle join request
   function handleJoinRequest(event) {
-    dispatch('joinRequest', event.detail);
+    const communityId = event.detail;
+    logger.debug('Join community request initiated', { communityId });
+    dispatch('joinRequest', communityId);
   }
   
   // Handle communities per page change
   function handleCommunitiesPerPageChange(perPage) {
+    logger.debug('Changing communities per page', { from: communitiesPerPage, to: perPage });
     dispatch('communitiesPerPageChange', perPage);
   }
   
   // Handle load more
   function handleLoadMore() {
+    logger.debug('Loading more community results');
     dispatch('loadMore');
+  }
+  
+  // Log when community results change
+  $: {
+    if (!isLoading) {
+      if (communityResults.length > 0) {
+        logger.debug('Community results loaded', { count: communityResults.length });
+      } else {
+        logger.debug('No community results found');
+      }
+    }
   }
 </script>
 

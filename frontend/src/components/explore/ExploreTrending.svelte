@@ -2,7 +2,9 @@
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   import type { ITrend } from '../../interfaces/ISocialMedia';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExploreTrending');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   
@@ -15,7 +17,19 @@
   
   // Load trending hashtags
   function loadTrendingThreads(hashtag: string) {
+    logger.debug('Loading trending hashtag', { hashtag });
     dispatch('loadTrending', hashtag);
+  }
+  
+  // Log when trends are loaded
+  $: {
+    if (!isTrendsLoading) {
+      if (trends.length > 0) {
+        logger.debug('Trends loaded', { count: trends.length });
+      } else {
+        logger.debug('No trends available');
+      }
+    }
   }
 </script>
 

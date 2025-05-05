@@ -946,7 +946,7 @@ func BookmarkThread(c *gin.Context) {
 	})
 }
 
-// RemoveBookmark handles the API request to remove a bookmark
+// RemoveThreadBookmark handles the API request to remove a bookmark
 // @Summary Remove a bookmark
 // @Description Removes a bookmark for a thread
 // @Tags Social
@@ -956,7 +956,7 @@ func BookmarkThread(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/{id}/bookmark [delete]
-func RemoveBookmark(c *gin.Context) {
+func RemoveThreadBookmark(c *gin.Context) {
 	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {

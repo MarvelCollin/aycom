@@ -10,14 +10,14 @@ import (
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
+	"aycom/backend/proto/thread"
 	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/proto"
 	"aycom/backend/services/thread/repository"
 )
 
 // PollService defines the interface for poll operations
 type PollService interface {
-	CreatePoll(ctx context.Context, threadID string, req *proto.PollInfo) (*model.Poll, []*model.PollOption, error)
+	CreatePoll(ctx context.Context, threadID string, req *thread.PollRequest) (*model.Poll, []*model.PollOption, error)
 	GetPollByID(ctx context.Context, pollID string) (*model.Poll, []*model.PollOption, error)
 	GetPollByThreadID(ctx context.Context, threadID string) (*model.Poll, []*model.PollOption, error)
 	AddVoteToPoll(ctx context.Context, pollID, optionID, userID string) error
@@ -58,7 +58,7 @@ func NewPollService(pollRepo repository.PollRepository) PollService {
 }
 
 // CreatePoll creates a new poll for a thread
-func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *proto.PollInfo) (*model.Poll, []*model.PollOption, error) {
+func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *thread.PollRequest) (*model.Poll, []*model.PollOption, error) {
 	// Validate required fields
 	if threadID == "" || req.Question == "" || len(req.Options) < 2 {
 		return nil, nil, status.Error(codes.InvalidArgument, "Thread ID, question, and at least 2 options are required")

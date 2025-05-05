@@ -1,0 +1,10 @@
+FROM swaggerapi/swagger-ui:latest
+
+# Copy OpenAPI specification to container
+COPY ./docs/swagger.json /usr/share/nginx/html/swagger.json
+
+# Set environment variables for Swagger UI
+ENV SWAGGER_JSON=/usr/share/nginx/html/swagger.json
+ENV BASE_URL=/swagger
+
+EXPOSE 8080 

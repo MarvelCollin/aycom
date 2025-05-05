@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"aycom/backend/event-bus/publisher"
 
@@ -11,20 +12,63 @@ import (
 
 // OrderEventHandler handles order-related events
 type OrderEventHandler struct {
-	channel   *amqp.Channel
 	publisher publisher.EventPublisher
+	conn      *amqp.Connection
+	channel   *amqp.Channel
 }
 
 // NewOrderEventHandler creates a new order event handler
-func NewOrderEventHandler(ch *amqp.Channel, pub publisher.EventPublisher) *OrderEventHandler {
+func NewOrderEventHandler(pub publisher.EventPublisher) *OrderEventHandler {
 	return &OrderEventHandler{
-		channel:   ch,
 		publisher: pub,
 	}
 }
 
 // Start initializes the order event handler and starts consuming messages
 func (h *OrderEventHandler) Start() error {
+	// Create a direct connection to RabbitMQ for consuming
+	var err error
+	retries := 0
+	maxRetries := 5
+
+	for retries < maxRetries {
+		// Connect to RabbitMQ for consuming
+		h.conn, err = amqp.Dial(getEnvFromHandler("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
+		if err == nil {
+			break
+		}
+		retries++
+		log.Printf("Failed to connect to RabbitMQ for consuming (attempt %d/%d): %v",
+			retries, maxRetries, err)
+		time.Sleep(time.Duration(retries) * time.Second)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// Create a channel
+	h.channel, err = h.conn.Channel()
+	if err != nil {
+		h.conn.Close()
+		return err
+	}
+
+	// Declare the exchange (in case it doesn't exist yet)
+	err = h.channel.ExchangeDeclare(
+		"events", // name
+		"topic",  // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
+	)
+	if err != nil {
+		h.cleanup()
+		return err
+	}
+
 	// Declare a queue for order events
 	q, err := h.channel.QueueDeclare(
 		"order_events", // name
@@ -35,6 +79,7 @@ func (h *OrderEventHandler) Start() error {
 		nil,            // arguments
 	)
 	if err != nil {
+		h.cleanup()
 		return err
 	}
 
@@ -47,6 +92,7 @@ func (h *OrderEventHandler) Start() error {
 		nil,       // arguments
 	)
 	if err != nil {
+		h.cleanup()
 		return err
 	}
 
@@ -61,106 +107,103 @@ func (h *OrderEventHandler) Start() error {
 		nil,    // args
 	)
 	if err != nil {
+		h.cleanup()
 		return err
 	}
 
-	// Process incoming messages
-	for msg := range msgs {
-		log.Printf("Received order event with routing key: %s", msg.RoutingKey)
+	// Set up a channel to handle connection closure
+	closeChan := h.conn.NotifyClose(make(chan *amqp.Error, 1))
 
-		// Parse event
-		var event publisher.Event
-		if err := json.Unmarshal(msg.Body, &event); err != nil {
-			log.Printf("Error unmarshaling event: %v", err)
-			continue
+	// Create a goroutine to handle messages
+	go func() {
+		for {
+			select {
+			case msg, ok := <-msgs:
+				if !ok {
+					log.Println("Consumer channel closed, exiting consumer loop")
+					return
+				}
+				h.processMessage(msg)
+			case err := <-closeChan:
+				log.Printf("RabbitMQ connection closed: %v, attempting to reconnect...", err)
+				// Attempt to reconnect after a delay
+				time.Sleep(time.Second)
+				if err := h.reconnect(); err != nil {
+					log.Printf("Failed to reconnect: %v", err)
+					return
+				}
+				return // Exit this goroutine as reconnect will start a new one
+			}
 		}
+	}()
 
-		// Process based on routing key
-		switch msg.RoutingKey {
-		case "order.created":
-			h.handleOrderCreated(event)
-		case "order.updated":
-			h.handleOrderUpdated(event)
-		case "order.canceled":
-			h.handleOrderCanceled(event)
-		case "order.completed":
-			h.handleOrderCompleted(event)
-		default:
-			log.Printf("Unhandled order event type: %s", msg.RoutingKey)
-		}
+	log.Println("Order event handler started successfully")
+	return nil
+}
+
+// reconnect attempts to reestablish the RabbitMQ connection and restarts consumption
+func (h *OrderEventHandler) reconnect() error {
+	h.cleanup()
+	return h.Start()
+}
+
+// cleanup closes the channel and connection
+func (h *OrderEventHandler) cleanup() {
+	if h.channel != nil {
+		h.channel.Close()
+	}
+	if h.conn != nil {
+		h.conn.Close()
+	}
+}
+
+// processMessage handles an individual message
+func (h *OrderEventHandler) processMessage(msg amqp.Delivery) {
+	log.Printf("Received order event with routing key: %s", msg.RoutingKey)
+
+	// Parse event
+	var event publisher.Event
+	if err := json.Unmarshal(msg.Body, &event); err != nil {
+		log.Printf("Error unmarshaling event: %v", err)
+		return
 	}
 
-	return nil
+	// Process based on routing key
+	switch msg.RoutingKey {
+	case "order.created":
+		h.handleOrderCreated(event)
+	case "order.updated":
+		h.handleOrderUpdated(event)
+	case "order.completed":
+		h.handleOrderCompleted(event)
+	default:
+		log.Printf("Unhandled order event type: %s", msg.RoutingKey)
+	}
 }
 
 // handleOrderCreated processes order created events
 func (h *OrderEventHandler) handleOrderCreated(event publisher.Event) {
 	log.Printf("Processing order created event: %v", event)
-
 	// Process the event as needed
-
-	// Publish notification about new order
-	notificationEvent := publisher.Event{
-		Type:   "notification.new_order",
-		Source: "event_bus",
-		Data:   event.Data,
-	}
-
-	if err := h.publisher.PublishEvent("notification.new_order", notificationEvent); err != nil {
-		log.Printf("Error publishing new order notification: %v", err)
-	}
-
-	// Trigger inventory update
-	inventoryEvent := publisher.Event{
-		Type:   "inventory.reserve",
-		Source: "event_bus",
-		Data:   event.Data,
-	}
-
-	if err := h.publisher.PublishEvent("inventory.reserve", inventoryEvent); err != nil {
-		log.Printf("Error publishing inventory reserve event: %v", err)
-	}
 }
 
 // handleOrderUpdated processes order updated events
 func (h *OrderEventHandler) handleOrderUpdated(event publisher.Event) {
 	log.Printf("Processing order updated event: %v", event)
-
 	// Process the event as needed
-}
-
-// handleOrderCanceled processes order canceled events
-func (h *OrderEventHandler) handleOrderCanceled(event publisher.Event) {
-	log.Printf("Processing order canceled event: %v", event)
-
-	// Process the event as needed
-
-	// Trigger inventory release
-	inventoryEvent := publisher.Event{
-		Type:   "inventory.release",
-		Source: "event_bus",
-		Data:   event.Data,
-	}
-
-	if err := h.publisher.PublishEvent("inventory.release", inventoryEvent); err != nil {
-		log.Printf("Error publishing inventory release event: %v", err)
-	}
 }
 
 // handleOrderCompleted processes order completed events
 func (h *OrderEventHandler) handleOrderCompleted(event publisher.Event) {
 	log.Printf("Processing order completed event: %v", event)
-
 	// Process the event as needed
-
-	// Publish notification about completed order
-	notificationEvent := publisher.Event{
-		Type:   "notification.order_completed",
-		Source: "event_bus",
-		Data:   event.Data,
-	}
-
-	if err := h.publisher.PublishEvent("notification.order_completed", notificationEvent); err != nil {
-		log.Printf("Error publishing order completed notification: %v", err)
-	}
 }
+
+// getEnvFromHandler gets an environment variable with fallback
+// Using the function from user_handler.go
+// func getEnvFromHandler(key, fallback string) string {
+// 	if val, exists := os.LookupEnv(key); exists {
+// 		return val
+// 	}
+// 	return fallback
+// }

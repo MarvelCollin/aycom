@@ -99,10 +99,8 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 	}
 
 	return &thread.ThreadsResponse{
-		Threads:    threadResponses,
-		TotalCount: int32(len(threads)),
-		Page:       req.Page,
-		Limit:      req.Limit,
+		Threads: threadResponses,
+		Total:   int32(len(threads)),
 	}, nil
 }
 
@@ -125,10 +123,8 @@ func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *thread.GetAllThr
 	}
 
 	return &thread.ThreadsResponse{
-		Threads:    threadResponses,
-		TotalCount: int32(len(threads)),
-		Page:       req.Page,
-		Limit:      req.Limit,
+		Threads: threadResponses,
+		Total:   int32(len(threads)),
 	}, nil
 }
 
@@ -197,10 +193,8 @@ func (h *ThreadHandler) GetRepliesByThread(ctx context.Context, req *thread.GetR
 	totalCount := len(replies)
 
 	return &thread.RepliesResponse{
-		Replies:    replyResponses,
-		TotalCount: int32(totalCount),
-		Page:       req.Page,
-		Limit:      req.Limit,
+		Replies: replyResponses,
+		Total:   int32(totalCount),
 	}, nil
 }
 
@@ -279,7 +273,12 @@ func (h *ThreadHandler) UnlikeReply(ctx context.Context, req *thread.UnlikeReply
 // RepostThread reposts a thread
 func (h *ThreadHandler) RepostThread(ctx context.Context, req *thread.RepostThreadRequest) (*emptypb.Empty, error) {
 	// Call the interaction service to repost the thread
-	err := h.interactionService.RepostThread(ctx, req.UserId, req.ThreadId, &req.Content)
+	var content *string
+	if req.AddedContent != nil {
+		content = req.AddedContent
+	}
+
+	err := h.interactionService.RepostThread(ctx, req.UserId, req.ThreadId, content)
 	if err != nil {
 		return nil, err
 	}
@@ -367,9 +366,8 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.Get
 
 		// Create a hashtag response
 		hashtagResponses = append(hashtagResponses, &thread.HashtagResponse{
-			Id:          hashtag.HashtagID.String(),
-			Text:        hashtag.Text,
-			ThreadCount: int64(count),
+			Name:  hashtag.Text,
+			Count: int64(count),
 		})
 	}
 

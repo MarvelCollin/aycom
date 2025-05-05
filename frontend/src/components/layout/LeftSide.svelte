@@ -5,11 +5,13 @@
   import { useAuth } from '../../hooks/useAuth';
   import { isAuthenticated, getUserId } from '../../utils/auth';
   import { toastStore } from '../../stores/toastStore';
+  import { getProfile } from '../../api/user';
+  import { getUserProfile } from '../../utils/common';
 
   // Props
   export let username = "";
   export let displayName = "";
-  export let avatar = "👤";
+  export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   
   // Get theme from the store
   const { theme } = useTheme();
@@ -30,55 +32,22 @@
     joinDate: ''
   };
   
-  // Fetch user profile if authenticated
+  // Fetch user profile
   async function fetchUserProfile() {
     if (!isAuthenticated()) return;
     
     try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        console.warn('No auth token available for profile fetch');
-        return;
-      }
-      
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
-      console.log('Fetching profile from:', apiUrl);
-      
-      const response = await fetch(`${apiUrl}/users/profile`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.user) {
-          userDetails = {
-            username: data.user.username || username,
-            displayName: data.user.name || displayName,
-            avatar: data.user.profile_picture_url || avatar,
-            userId: data.user.id || getUserId() || '',
-            email: data.user.email || '',
-            isVerified: data.user.is_verified || false,
-            joinDate: data.user.created_at ? new Date(data.user.created_at).toLocaleDateString() : ''
-          };
-          console.log('Profile loaded successfully:', userDetails);
-        }
-      } else {
-        // Handle error responses
-        const errorText = await response.text();
-        console.error(`Failed to load profile: ${response.status}`, errorText);
-        
-        // If unauthorized, the token might be invalid - clear it
-        if (response.status === 401) {
-          console.warn('Unauthorized access - token may be invalid');
-          // Don't clear auth data here to avoid logout loops
-        }
-      }
+      const profileData = await getUserProfile(authState);
+      userDetails = {
+        username: profileData.username || username,
+        displayName: profileData.displayName || displayName,
+        avatar: profileData.avatar || avatar,
+        userId: profileData.userId || getUserId() || '',
+        email: profileData.email || '',
+        isVerified: profileData.isVerified || false,
+        joinDate: profileData.createdAt ? new Date(profileData.createdAt).toLocaleDateString() : ''
+      };
+      console.log('Profile loaded successfully:', userDetails);
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
       toastStore.showToast('Failed to load user profile. Please try again.', 'error');

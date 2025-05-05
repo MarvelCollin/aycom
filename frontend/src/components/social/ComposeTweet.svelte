@@ -7,16 +7,18 @@
     MapPinIcon
   } from 'svelte-feather-icons';
   import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
+  import { getCategories } from '../../api/categories';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { getAuthToken } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
   import type { ITweet } from '../../interfaces/ISocialMedia';
+  import { generateFilePreview, handleApiError } from '../../utils/common';
   
   // Create a logger for this component
   const logger = createLoggerWithPrefix('ComposeTweet');
   
-  export let avatar = "👤";
+  export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   export let isDarkMode = false;
   export let replyTo: ITweet | null = null; // Add proper typing for the tweet being replied to
   
@@ -37,45 +39,18 @@
   // Load available categories
   async function loadCategories() {
     try {
-      // Replace mock data with API call
-      // For now create a simple API-like approach to fetch the data from the API Gateway
-      const response = await fetch(`${appConfig.api.baseUrl}/categories`, {
-        method: "GET",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${getAuthToken()}`
-        },
-        credentials: "include",
-      });
-      
-      // If API is not implemented yet, use these categories as fallback
-      if (!response.ok) {
-        logger.warn('Categories API not available yet, using default categories');
-        availableCategories = [
-          { id: "1", name: "Technology" },
-          { id: "2", name: "News" },
-          { id: "3", name: "Sports" },
-          { id: "4", name: "Entertainment" },
-          { id: "5", name: "Politics" },
-          { id: "6", name: "Science" },
-          { id: "7", name: "Health" },
-          { id: "8", name: "Business" }
-        ];
+      const data = await getCategories();
+      if (data.success) {
+        availableCategories = data.categories;
       } else {
-        const data = await response.json();
-        availableCategories = data.categories || [];
+        // Default categories already included in the API response
+        availableCategories = data.categories;
       }
       
       logger.debug('Loaded categories', { count: availableCategories.length });
     } catch (error) {
       logger.error('Failed to load categories', { error });
-      // Fallback to default categories on error
-      availableCategories = [
-        { id: "1", name: "Technology" },
-        { id: "2", name: "News" },
-        { id: "3", name: "Sports" },
-        { id: "4", name: "Entertainment" }
-      ];
+      // Fallback handled by the API
     }
   }
   
@@ -120,10 +95,7 @@
         const replyData = {
           content: newTweet,
           mentioned_user_ids: categories, // Use categories for mentions in replies
-          media: files.length > 0 ? files.map(file => ({
-            type: file.type.startsWith('image/') ? 'image' : 'video',
-            url: URL.createObjectURL(file)
-          })) : []
+          media: files.length > 0 ? files.map(file => getFilePreview(file)) : []
         };
         
         logger.debug('Posting reply with data:', replyData);
@@ -178,7 +150,8 @@
       dispatch('tweet', response);
     } catch (error) {
       logger.error('Error creating tweet/reply:', error);
-      errorMessage = error instanceof Error ? error.message : 'Failed to create post';
+      const errorResponse = handleApiError(error);
+      errorMessage = errorResponse.message;
       toastStore.showToast(errorMessage, 'error');
     } finally {
       isPosting = false;
@@ -192,6 +165,11 @@
       files = newFiles;
       logger.debug('Files selected', { count: files.length, types: files.map(f => f.type) });
     }
+  }
+
+  // Preview files that have been added
+  function getFilePreview(file: File) {
+    return generateFilePreview(file);
   }
 
   function removeFile(index: number) {
@@ -246,7 +224,7 @@
                 <img src={replyTo.avatar} alt={replyTo.username} class="w-8 h-8 rounded-full" />
               {:else}
                 <div class="w-8 h-8 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center">
-                  {replyTo.avatar || '👤'}
+                  {replyTo.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'}
                 </div>
               {/if}
             </div>

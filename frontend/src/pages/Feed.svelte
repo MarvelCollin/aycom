@@ -16,6 +16,7 @@
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
+  import { getUserProfile } from '../utils/common';
 
   const logger = createLoggerWithPrefix('Feed');
 
@@ -27,10 +28,12 @@
   // Reactive declarations for auth and theme
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
   $: isDarkMode = $theme === 'dark';
-  // User information for sidebar
-  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
-  $: sidebarAvatar = '👤'; // Placeholder avatar
+  
+  // User profile data
+  let username = '';
+  let displayName = '';
+  let avatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar image URL
+  let isLoadingProfile = true;
 
   // State for tweets and compose modal
   let tweetsForYou: ITweet[] = [];
@@ -118,7 +121,7 @@
       displayName: displayName,
       content: content,
       timestamp: timestamp,
-      avatar: profilePicture || '👤', // Use real profile picture or fallback to emoji
+      avatar: profilePicture || thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp', // Real image URL fallback
       likes: thread.like_count || thread.metrics?.likes || 0,
       replies: thread.reply_count || thread.metrics?.replies || 0,
       reposts: thread.repost_count || thread.metrics?.reposts || 0,
@@ -142,6 +145,22 @@
       return false;
     }
     return true;
+  }
+  
+  // Fetch user profile data using the common utility
+  async function fetchUserProfile() {
+    isLoadingProfile = true;
+    try {
+      const profileData = await getUserProfile(authState);
+      username = profileData.username;
+      displayName = profileData.displayName;
+      avatar = profileData.avatar;
+      logger.debug('Profile loaded successfully', { username });
+    } catch (error) {
+      logger.error('Error fetching user profile:', error);
+    } finally {
+      isLoadingProfile = false;
+    }
   }
 
   // Function to fetch tweets for the "For You" tab
@@ -195,7 +214,7 @@
               displayName: 'Advertisement',
               content: 'Sponsored Content',
               timestamp: new Date().toISOString(),
-              avatar: '📢',
+              avatar: '/assets/ad-icon.png', // Use proper ad icon path
               likes: 0,
               replies: 0,
               reposts: 0,
@@ -275,7 +294,7 @@
               displayName: 'Advertisement',
               content: 'Sponsored Content',
               timestamp: new Date().toISOString(),
-              avatar: '📢',
+              avatar: '/assets/ad-icon.png', // Use proper ad icon path
               likes: 0,
               replies: 0,
               reposts: 0,
@@ -363,12 +382,22 @@
   }
 
   onMount(async () => {
-    logger.info('Feed component mounted');
-    if (authState.isAuthenticated) {
-      fetchTweetsForYou();
-      fetchTrends();
-      fetchSuggestedUsers();
-    }
+    if (!checkAuth()) return;
+    
+    // Load user profile first
+    await fetchUserProfile();
+    
+    // Then fetch tweets, trends, etc.
+    fetchTweetsForYou();
+    fetchTweetsFollowing();
+    
+    // Fetch trends and suggestions in parallel
+    Promise.all([
+      fetchTrends(),
+      fetchSuggestedUsers()
+    ]).catch(error => {
+      logger.error('Error fetching additional data:', error);
+    });
   });
 
   // Note for the backend: these functions are placeholders that need to be implemented
@@ -513,9 +542,9 @@
 </script>
 
 <MainLayout
-  username={sidebarUsername}
-  displayName={sidebarDisplayName}
-  avatar={sidebarAvatar}
+  username={username}
+  displayName={displayName}
+  avatar={avatar}
   trends={trends}
   suggestedFollows={suggestedUsers}
   on:toggleComposeModal={toggleComposeModal}
@@ -566,7 +595,7 @@
       <div class="p-4 border-b border-gray-200 dark:border-gray-800">
         <div class="flex">
           <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
-            <span>{sidebarAvatar}</span>
+            <span>{avatar}</span>
           </div>
           <div class="flex-1">
             <div 
@@ -736,7 +765,7 @@
     {isDarkMode}
     on:close={toggleComposeModal}
     on:tweet={handleNewTweet}
-    avatar={sidebarAvatar}
+    avatar={avatar}
     replyTo={selectedTweet}
   />
 {/if}

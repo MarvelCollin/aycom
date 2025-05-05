@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import type { ITweet } from '../../interfaces/ISocialMedia.d.ts';
   import { toastStore } from '../../stores/toastStore';
+  import { formatTimeAgo, processUserMetadata } from '../../utils/common';
 
   export let tweet: ITweet;
   export let isDarkMode: boolean = false;
@@ -45,17 +46,17 @@
     }
     
     if (typeof processedTweet.content === 'string') {
-      const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
-      const match = processedTweet.content.match(userMetadataRegex);
+      const processed = processUserMetadata(processedTweet.content);
       
-      if (match) {
-        // Extract username and displayName from the content
-        processedTweet.username = match[1] || processedTweet.username;
-        processedTweet.displayName = match[2] || processedTweet.displayName;
-        
-        // Set the actual content without the metadata
-        processedTweet.content = match[3] || '';
+      if (processed.username) {
+        processedTweet.username = processed.username;
       }
+      
+      if (processed.displayName) {
+        processedTweet.displayName = processed.displayName;
+      }
+      
+      processedTweet.content = processed.content;
     }
     
     return processedTweet;
@@ -257,7 +258,7 @@
           <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5">{processedTweet.displayName || 'User'}</span>
           <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{processedTweet.username || 'user'}</span>
           <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
-          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimestamp(processedTweet.timestamp)}</span>
+          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(processedTweet.timestamp)}</span>
         </div>
         
         <div class="tweet-content my-2 {isDarkMode ? 'text-gray-100' : 'text-black'}">
@@ -439,7 +440,7 @@
                   <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5">{reply.displayName || 'User'}</span>
                   <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{reply.username || 'user'}</span>
                   <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
-                  <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimestamp(reply.timestamp)}</span>
+                  <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(reply.timestamp)}</span>
                 </div>
                 <div class="my-2 {isDarkMode ? 'text-gray-100' : 'text-black'}">
                   <p>{reply.content || ''}</p>

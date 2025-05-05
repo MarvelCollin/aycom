@@ -2,7 +2,9 @@
   import { createEventDispatcher } from 'svelte';
   import ProfileCard from './ProfileCard.svelte';
   import { useTheme } from '../../hooks/useTheme';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExplorePeopleResults');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   
@@ -25,20 +27,36 @@
   
   // Handle follow user
   function handleFollow(event) {
-    dispatch('follow', event.detail);
+    const userId = event.detail;
+    logger.debug('Follow request initiated', { userId });
+    dispatch('follow', userId);
   }
   
   // Handle people per page change
   function handlePeoplePerPageChange(perPage) {
+    logger.debug('Changing people per page', { from: peoplePerPage, to: perPage });
     dispatch('peoplePerPageChange', perPage);
   }
   
   // Handle load more
   function handleLoadMore() {
+    logger.debug('Loading more people results');
     dispatch('loadMore');
+  }
+  
+  // Log when people results change
+  $: {
+    if (!isLoading) {
+      if (peopleResults.length > 0) {
+        logger.debug('People results loaded', { count: peopleResults.length });
+      } else {
+        logger.debug('No people results found');
+      }
+    }
   }
 </script>
 
+<!-- Rest of the component remains the same -->
 <div class="p-4">
   <!-- Pagination options -->
   <div class="mb-4 flex justify-end">

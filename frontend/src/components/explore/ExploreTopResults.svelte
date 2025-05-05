@@ -3,7 +3,9 @@
   import ProfileCard from './ProfileCard.svelte';
   import ThreadCard from './ThreadCard.svelte';
   import type { IMedia } from '../../interfaces/ISocialMedia';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExploreTopResults');
   const dispatch = createEventDispatcher();
   
   // Props with proper type definitions
@@ -38,7 +40,15 @@
   
   // Handle follow user
   function handleFollow(event) {
-    dispatch('follow', event.detail);
+    const userId = event.detail;
+    logger.debug('Follow request initiated', { userId });
+    dispatch('follow', userId);
+  }
+  
+  // Handle view all
+  function handleViewAll(section: string) {
+    logger.debug('View all clicked', { section });
+    dispatch('viewAll', section);
   }
 </script>
 
@@ -64,7 +74,7 @@
       <div class="mb-6">
         <div class="flex justify-between items-center mb-3">
           <h3 class="font-bold text-lg">People</h3>
-          <button class="text-blue-500 text-sm" on:click={() => dispatch('viewAll', 'people')}>
+          <button class="text-blue-500 text-sm" on:click={() => handleViewAll('people')}>
             View all
           </button>
         </div>

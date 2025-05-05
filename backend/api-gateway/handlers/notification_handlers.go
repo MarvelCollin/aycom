@@ -3,9 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"log"
+	"net/http"
 	"sync"
 	"time"
 
+	"aycom/backend/api-gateway/models"
+
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -203,4 +207,182 @@ func broadcastNotificationToUser(userID string, notification Notification) {
 		// Failed to send message, client might be disconnected
 		log.Printf("Failed to send notification to user %s", userID)
 	}
+}
+
+// GetMentionNotifications handles fetching mention notifications for the current user
+// @Summary Get mention notifications
+// @Description Get notifications where the user is mentioned
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number for pagination"
+// @Param limit query int false "Number of results per page"
+// @Success 200 {object} models.NotificationsResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/notifications/mentions [get]
+func GetMentionNotifications(c *gin.Context) {
+	// Get current user ID from JWT token
+	_, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// TODO: Get mention notifications from notification service
+	// Placeholder implementation
+	c.JSON(http.StatusOK, gin.H{
+		"notifications": []gin.H{},
+		"pagination": gin.H{
+			"total":   0,
+			"page":    1,
+			"limit":   10,
+			"hasMore": false,
+		},
+	})
+}
+
+// MarkAllNotificationsAsRead marks all notifications for the current user as read
+// @Summary Mark all notifications as read
+// @Description Mark all notifications for the current user as read
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.SuccessResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/notifications/read-all [post]
+func MarkAllNotificationsAsRead(c *gin.Context) {
+	// Get current user ID from JWT token
+	_, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// TODO: Mark all notifications as read for this user
+	// Placeholder implementation
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "All notifications marked as read",
+	})
+}
+
+// DeleteNotification deletes a notification
+// @Summary Delete a notification
+// @Description Delete a specific notification by ID
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Param id path string true "Notification ID"
+// @Success 200 {object} models.SuccessResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/notifications/{id} [delete]
+func DeleteNotification(c *gin.Context) {
+	// Get notification ID from path
+	notificationID := c.Param("id")
+	if notificationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Notification ID is required"})
+		return
+	}
+
+	// Get current user ID from JWT token
+	_, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// TODO: Delete notification
+	// Placeholder implementation
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Notification deleted",
+	})
+}
+
+// UpdateNotificationSettings updates the notification settings for the user
+// @Summary Update notification settings
+// @Description Update the notification settings for the current user
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.SuccessResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/notifications/settings [post]
+func UpdateNotificationSettings(c *gin.Context) {
+	// Get current user ID from JWT token
+	_, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// TODO: Implement actual settings update
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Notification settings updated successfully",
+	})
+}
+
+// UpdateNotificationStatus updates the read status of a notification
+// @Summary Update notification status
+// @Description Update the read status of a specific notification
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Param id path string true "Notification ID"
+// @Success 200 {object} models.SuccessResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/notifications/{id}/status [post]
+func UpdateNotificationStatus(c *gin.Context) {
+	// Get current user ID from JWT token
+	_, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// TODO: Implement actual status update
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Notification status updated successfully",
+	})
+}
+
+// GetNotificationPreferences gets the user's notification preferences
+// @Summary Get notification preferences
+// @Description Get the notification preferences for the current user
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.NotificationPreferencesResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/notifications/preferences [get]
+func GetNotificationPreferences(c *gin.Context) {
+	// Get current user ID from JWT token
+	_, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// TODO: Implement getting preferences from service
+	prefs := models.NotificationPreferences{
+		Likes:          true,
+		Comments:       true,
+		Follows:        true,
+		Mentions:       true,
+		DirectMessages: true,
+	}
+
+	c.JSON(http.StatusOK, models.NotificationPreferencesResponse{
+		Preferences: prefs,
+	})
 }

@@ -9,7 +9,7 @@
 
   export let username = "";
   export let displayName = "";
-  export let avatar = "👤";
+  export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   export let trends: ITrend[] = [];
   export let suggestedFollows: ISuggestedFollow[] = [];
   

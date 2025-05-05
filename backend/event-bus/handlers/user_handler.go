@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"aycom/backend/event-bus/publisher"
 
@@ -12,20 +13,64 @@ import (
 
 // UserEventHandler handles user-related events
 type UserEventHandler struct {
-	channel   *amqp.Channel
 	publisher publisher.EventPublisher
+	conn      *amqp.Connection
+	channel   *amqp.Channel
 }
 
 // NewUserEventHandler creates a new user event handler
-func NewUserEventHandler(ch *amqp.Channel, pub publisher.EventPublisher) *UserEventHandler {
+func NewUserEventHandler(pub publisher.EventPublisher) *UserEventHandler {
 	return &UserEventHandler{
-		channel:   ch,
 		publisher: pub,
 	}
 }
 
 // Start initializes the user event handler and starts consuming messages
 func (h *UserEventHandler) Start() error {
+	// Create a direct connection to RabbitMQ for consuming
+	// This is separate from the publisher's connection
+	var err error
+	retries := 0
+	maxRetries := 5
+
+	for retries < maxRetries {
+		// Connect to RabbitMQ for consuming
+		h.conn, err = amqp.Dial(getEnvFromHandler("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
+		if err == nil {
+			break
+		}
+		retries++
+		log.Printf("Failed to connect to RabbitMQ for consuming (attempt %d/%d): %v",
+			retries, maxRetries, err)
+		time.Sleep(time.Duration(retries) * time.Second)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// Create a channel
+	h.channel, err = h.conn.Channel()
+	if err != nil {
+		h.conn.Close()
+		return err
+	}
+
+	// Declare the exchange (in case it doesn't exist yet)
+	err = h.channel.ExchangeDeclare(
+		"events", // name
+		"topic",  // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
+	)
+	if err != nil {
+		h.cleanup()
+		return err
+	}
+
 	// Declare a queue for user events
 	q, err := h.channel.QueueDeclare(
 		"user_events", // name
@@ -36,6 +81,7 @@ func (h *UserEventHandler) Start() error {
 		nil,           // arguments
 	)
 	if err != nil {
+		h.cleanup()
 		return err
 	}
 
@@ -48,6 +94,7 @@ func (h *UserEventHandler) Start() error {
 		nil,      // arguments
 	)
 	if err != nil {
+		h.cleanup()
 		return err
 	}
 
@@ -62,34 +109,78 @@ func (h *UserEventHandler) Start() error {
 		nil,    // args
 	)
 	if err != nil {
+		h.cleanup()
 		return err
 	}
 
-	// Process incoming messages
-	for msg := range msgs {
-		log.Printf("Received user event with routing key: %s", msg.RoutingKey)
+	// Set up a channel to handle connection closure
+	closeChan := h.conn.NotifyClose(make(chan *amqp.Error, 1))
 
-		// Parse event
-		var event publisher.Event
-		if err := json.Unmarshal(msg.Body, &event); err != nil {
-			log.Printf("Error unmarshaling event: %v", err)
-			continue
+	// Create a goroutine to handle messages
+	go func() {
+		for {
+			select {
+			case msg, ok := <-msgs:
+				if !ok {
+					log.Println("Consumer channel closed, exiting consumer loop")
+					return
+				}
+				h.processMessage(msg)
+			case err := <-closeChan:
+				log.Printf("RabbitMQ connection closed: %v, attempting to reconnect...", err)
+				// Attempt to reconnect after a delay
+				time.Sleep(time.Second)
+				if err := h.reconnect(); err != nil {
+					log.Printf("Failed to reconnect: %v", err)
+					return
+				}
+				return // Exit this goroutine as reconnect will start a new one
+			}
 		}
+	}()
 
-		// Process based on routing key
-		switch msg.RoutingKey {
-		case "user.created":
-			h.handleUserCreated(event)
-		case "user.updated":
-			h.handleUserUpdated(event)
-		case "user.deleted":
-			h.handleUserDeleted(event)
-		default:
-			log.Printf("Unhandled user event type: %s", msg.RoutingKey)
-		}
+	log.Println("User event handler started successfully")
+	return nil
+}
+
+// reconnect attempts to reestablish the RabbitMQ connection and restarts consumption
+func (h *UserEventHandler) reconnect() error {
+	h.cleanup()
+	return h.Start()
+}
+
+// cleanup closes the channel and connection
+func (h *UserEventHandler) cleanup() {
+	if h.channel != nil {
+		h.channel.Close()
+	}
+	if h.conn != nil {
+		h.conn.Close()
+	}
+}
+
+// processMessage handles an individual message
+func (h *UserEventHandler) processMessage(msg amqp.Delivery) {
+	log.Printf("Received user event with routing key: %s", msg.RoutingKey)
+
+	// Parse event
+	var event publisher.Event
+	if err := json.Unmarshal(msg.Body, &event); err != nil {
+		log.Printf("Error unmarshaling event: %v", err)
+		return
 	}
 
-	return nil
+	// Process based on routing key
+	switch msg.RoutingKey {
+	case "user.created":
+		h.handleUserCreated(event)
+	case "user.updated":
+		h.handleUserUpdated(event)
+	case "user.deleted":
+		h.handleUserDeleted(event)
+	default:
+		log.Printf("Unhandled user event type: %s", msg.RoutingKey)
+	}
 }
 
 // handleUserCreated processes user created events

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   
+  const logger = createLoggerWithPrefix('ExploreTabs');
   const dispatch = createEventDispatcher();
   
   // Props
@@ -8,6 +10,7 @@
   
   // Handle tab change
   function handleTabChange(tab: 'top' | 'latest' | 'people' | 'media' | 'communities') {
+    logger.debug('Tab changed', { from: activeTab, to: tab });
     dispatch('tabChange', tab);
   }
 </script>

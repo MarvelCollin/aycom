@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  
+  const logger = createLoggerWithPrefix('ExploreMediaResults');
+  
   // Props
   export let mediaResults: Array<{
     id: string;
@@ -10,6 +14,17 @@
     media_id?: string;
   }> = [];
   export let isLoading = false;
+  
+  // Log when media results change
+  $: {
+    if (!isLoading) {
+      if (mediaResults.length > 0) {
+        logger.debug('Media results loaded', { count: mediaResults.length });
+      } else {
+        logger.debug('No media results found');
+      }
+    }
+  }
 </script>
 
 <div class="p-4">

@@ -1,8 +1,16 @@
 <script lang="ts">
   import { LogLevel, setGlobalLogLevel, logger } from '../../utils/logger';
-  import { writable } from 'svelte/store';
+  import { writable, get } from 'svelte/store';
   import { useAuth } from '../../hooks/useAuth';
   import { getAuthData } from '../../utils/auth';
+  import { useTheme } from '../../hooks/useTheme';
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { toastStore } from '../../stores/toastStore';
+  import { getProfile } from '../../api/user';
+  import appConfig from '../../config/appConfig';
+  
+  // API URL from app config
+  const apiUrl = appConfig.api.baseUrl;
   
   // Get auth state
   const { getAuthState, subscribe } = useAuth();
@@ -226,64 +234,37 @@
     }
   }
   
-  // Fetch user profile
+  // Fetch user profile for debug purposes
   let userProfileInfo = null;
   
   async function fetchUserProfile() {
-    if (!authState.isAuthenticated || !authState.userId) {
-      logger.warn('Cannot fetch user profile - not authenticated', null, { showToast: true });
+    if (!authState.isAuthenticated) {
+      logger.warn('Not authenticated - cannot fetch profile');
       logMessages.update(logs => [
-        { level: LogLevel.WARN, message: 'Cannot fetch user profile - not authenticated', timestamp: new Date() },
+        { level: LogLevel.WARN, message: 'Not authenticated - cannot fetch profile', timestamp: new Date() },
         ...logs
       ]);
       return;
     }
     
     try {
-      logger.info('Fetching user profile...', null, { showToast: true });
-      logMessages.update(logs => [
-        { level: LogLevel.INFO, message: 'Fetching user profile...', timestamp: new Date() },
-        ...logs
-      ]);
-      
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
-      
       // Log API request details for debugging
       logger.debug('API Request Details', { 
         url: `${apiUrl}/users/profile`,
-        headers: { 'Authorization': `Bearer ${authState.accessToken}` },
         tokenInfo: {
           accessToken: authState.accessToken ? authState.accessToken.substring(0, 10) + '...' : null,
           tokenLength: authState.accessToken ? authState.accessToken.length : 0
         }
       });
       
-      const response = await fetch(`${apiUrl}/users/profile`, {
-        headers: {
-          'Authorization': `Bearer ${authState.accessToken}`
-        }
-      });
+      const response = await getProfile();
       
-      if (response.ok) {
-        const data = await response.json();
-        userProfileInfo = data;
-        logger.info('User profile fetched successfully', { profileData: data }, { showToast: true });
-        logMessages.update(logs => [
-          { level: LogLevel.INFO, message: `User profile fetched successfully: ${JSON.stringify(data)}`, timestamp: new Date() },
-          ...logs
-        ]);
-      } else {
-        const errorText = await response.text();
-        logger.error('Failed to fetch user profile', { 
-          status: response.status, 
-          statusText: response.statusText,
-          responseBody: errorText
-        }, { showToast: true });
-        logMessages.update(logs => [
-          { level: LogLevel.ERROR, message: `Failed to fetch user profile. Status: ${response.status}. Details: ${errorText}`, timestamp: new Date() },
-          ...logs
-        ]);
-      }
+      userProfileInfo = response;
+      logger.info('User profile fetched successfully', { profileData: response }, { showToast: true });
+      logMessages.update(logs => [
+        { level: LogLevel.INFO, message: `User profile fetched successfully: ${JSON.stringify(response)}`, timestamp: new Date() },
+        ...logs
+      ]);
     } catch (err) {
       logger.error('Error fetching user profile', { error: err }, { showToast: true });
       logMessages.update(logs => [
@@ -430,12 +411,12 @@
 
 <!-- Debug icon button -->
 <button 
-  class="fixed bottom-4 left-4 z-50 bg-gray-700 text-white p-2 rounded-full shadow-lg opacity-30 hover:opacity-100 transition-opacity"
   on:click={togglePanel}
-  title="Toggle Debug Panel"
+  class="fixed bottom-4 right-4 bg-gray-700 text-white p-3 rounded-full shadow-lg z-50 hover:bg-gray-600"
+  aria-label="Toggle Debug Panel"
 >
   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+    <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
   </svg>
 </button>
 
@@ -709,14 +690,6 @@
   pre {
     margin: 0;
     white-space: pre-wrap;
-  }
-  
-  code {
-    font-family: monospace;
-    background-color: #0f172a;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-size: 12px;
   }
   
   /* Placeholders */

@@ -110,62 +110,50 @@ func CreateThread(c *gin.Context) {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/threads/{id} [get]
 func GetThread(c *gin.Context) {
-	// Get thread ID from URL
+	// Get thread ID from path parameter
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Thread ID is required")
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+	// Get current user ID from JWT token (if available)
+	userID, exists := c.Get("userID")
+	var userIDStr string
+	if exists {
+		userIDStr = userID.(string)
+	}
+
+	// Check if the service client is initialized
+	if threadServiceClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	resp, err := client.GetThreadById(ctx, &threadProto.GetThreadRequest{
-		ThreadId: threadID,
-	})
+	// Call the service client method
+	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+		// Handle errors
+		st, ok := status.FromError(err)
+		if ok {
+			// Map gRPC status code to HTTP status code
+			switch st.Code() {
+			case 5: // Not found
+				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
+			default:
+				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve thread: "+st.Message())
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to get thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while retrieving thread")
 		}
+		log.Printf("Error retrieving thread: %v", err)
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	// Return successful response with thread
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"thread": thread,
+	})
 }
 
 // @Summary Get threads by user

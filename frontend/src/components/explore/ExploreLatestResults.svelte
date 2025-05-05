@@ -1,5 +1,8 @@
 <script lang="ts">
   import ThreadCard from './ThreadCard.svelte';
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  
+  const logger = createLoggerWithPrefix('ExploreLatestResults');
   
   // Props
   export let latestThreads: Array<{
@@ -18,6 +21,17 @@
     avatar?: string;
   }> = [];
   export let isLoading = false;
+  
+  // Log when threads are received or empty
+  $: {
+    if (!isLoading) {
+      if (latestThreads.length > 0) {
+        logger.debug('Latest threads loaded', { count: latestThreads.length });
+      } else {
+        logger.debug('No latest threads found');
+      }
+    }
+  }
 </script>
 
 <div class="divide-y divide-gray-200 dark:divide-gray-800">

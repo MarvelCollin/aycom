@@ -14,7 +14,6 @@ import (
 	"aycom/backend/event-bus/publisher"
 
 	"github.com/joho/godotenv"
-	"github.com/streadway/amqp"
 )
 
 func main() {
@@ -32,42 +31,25 @@ func main() {
 
 	fmt.Println("Event bus service starting...")
 
-	// Connect to RabbitMQ
-	conn, err := amqp.Dial(cfg.RabbitMQURL)
+	// Create publisher with connection management
+	pub, err := publisher.NewEventPublisher(cfg.RabbitMQURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
-
-	// Create a channel
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	// Declare the exchange
-	err = ch.ExchangeDeclare(
-		"events", // name
-		"topic",  // type
-		true,     // durable
-		false,    // auto-deleted
-		false,    // internal
-		false,    // no-wait
-		nil,      // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare an exchange: %v", err)
+		log.Printf("Warning: Initial connection to RabbitMQ failed: %v", err)
+		log.Println("The system will continue to attempt reconnection in the background")
 	}
 
-	// Initialize event publisher
-	pub := publisher.NewEventPublisher(ch)
+	// Make sure to close the publisher when the application exits
+	defer func() {
+		if err := pub.Close(); err != nil {
+			log.Printf("Error closing publisher: %v", err)
+		}
+	}()
 
 	// Initialize and start event handlers
 	var wg sync.WaitGroup
 
 	// Start user event handler
-	userHandler := handlers.NewUserEventHandler(ch, pub)
+	userHandler := handlers.NewUserEventHandler(pub)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -78,7 +60,7 @@ func main() {
 	}()
 
 	// Start order event handler
-	orderHandler := handlers.NewOrderEventHandler(ch, pub)
+	orderHandler := handlers.NewOrderEventHandler(pub)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -89,7 +71,7 @@ func main() {
 	}()
 
 	// Start product event handler
-	productHandler := handlers.NewProductEventHandler(ch, pub)
+	productHandler := handlers.NewProductEventHandler(pub)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
