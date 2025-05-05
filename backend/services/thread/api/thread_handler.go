@@ -416,9 +416,25 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 	isAd := thread.IsAdvertisement
 	response.IsAdvertisement = &isAd
 
+	// Fetch media for this thread - implement in appropriate repository if needed
+	// This is left as a TODO since we don't have direct access to thread.Media
+	// response.Media = ...
+
+	// Fetch poll for this thread - implement in appropriate repository if needed
+	// This is left as a TODO since we don't have direct access to thread.Poll
+	// response.Poll = ...
+
 	// Get thread stats
 	if h.interactionRepo != nil {
 		threadID := thread.ThreadID.String()
+
+		// Calculate reply count - if available through replyRepo
+		// We don't have CountRepliesByThreadID in ReplyService, so maybe use replyRepo directly
+		// For now we'll leave it at 0
+		// replyCount, err := h.replyService.CountRepliesByThreadID(ctx, threadID)
+		// if err == nil {
+		//     response.ReplyCount = replyCount
+		// }
 
 		// Calculate like count
 		likeCount, err := h.interactionRepo.CountThreadLikes(threadID)
@@ -431,6 +447,27 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 		if err == nil {
 			response.RepostCount = repostCount
 		}
+
+		// Calculate bookmark count
+		bookmarkCount, err := h.interactionRepo.CountThreadBookmarks(threadID)
+		if err == nil {
+			// Store in ViewCount since BookmarkCount might not exist in this proto version
+			response.ViewCount = bookmarkCount
+
+			// For newer proto versions that have BookmarkCount field:
+			// Commented out until proto definitions are synced properly
+			// response.BookmarkCount = bookmarkCount
+
+			log.Printf("Thread %s has %d bookmarks (stored in ViewCount field)", threadID, bookmarkCount)
+		}
+
+		// Check if thread is liked by user
+		// This would need the current user ID, which we don't have in this context
+		// If needed, add a parameter for current user ID and implement this
+
+		// Check if thread is bookmarked by user
+		// This would need the current user ID, which we don't have in this context
+		// If needed, add a parameter for current user ID and implement this
 	}
 
 	// Fetch user information if available

@@ -32,6 +32,7 @@ type InteractionRepository interface {
 	RemoveBookmark(userID, threadID string) error
 	IsThreadBookmarkedByUser(userID, threadID string) (bool, error)
 	GetUserBookmarks(userID string, page, limit int) ([]*model.Thread, error)
+	CountThreadBookmarks(threadID string) (int64, error)
 }
 
 // PostgresInteractionRepository implements the InteractionRepository interface
@@ -296,4 +297,16 @@ func (r *PostgresInteractionRepository) GetUserBookmarks(userID string, page, li
 	}
 
 	return threads, nil
+}
+
+// CountThreadBookmarks counts the number of bookmarks for a thread
+func (r *PostgresInteractionRepository) CountThreadBookmarks(threadID string) (int64, error) {
+	threadUUID, err := uuid.Parse(threadID)
+	if err != nil {
+		return 0, errors.New("invalid UUID format for thread ID")
+	}
+
+	var count int64
+	r.db.Model(&model.Bookmark{}).Where("thread_id = ?", threadUUID).Count(&count)
+	return count, nil
 }

@@ -303,29 +303,61 @@ export async function likeThread(threadId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include",
-    });
+    if (!token) {
+      console.error("No auth token available for liking thread");
+      throw new Error("Authentication required");
+    }
     
-    if (!response.ok) {
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
       try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to like thread: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to like thread: ${response.status} ${response.statusText}`);
+        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to like thread: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to like thread: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
       }
     }
     
-    return response.json();
+    throw new Error("Failed to like thread after multiple attempts");
   } catch (error) {
     console.error("Error in likeThread:", error);
     throw error;
@@ -336,29 +368,61 @@ export async function unlikeThread(threadId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
-      method: "DELETE",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include",
-    });
+    if (!token) {
+      console.error("No auth token available for unliking thread");
+      throw new Error("Authentication required");
+    }
     
-    if (!response.ok) {
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
       try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to unlike thread: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to unlike thread: ${response.status} ${response.statusText}`);
+        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+          method: "DELETE",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to unlike thread: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to unlike thread: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
       }
     }
     
-    return response.json();
+    throw new Error("Failed to unlike thread after multiple attempts");
   } catch (error) {
     console.error("Error in unlikeThread:", error);
     throw error;
@@ -374,63 +438,137 @@ export async function replyToThread(threadId: string, data: {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify(data),
-      credentials: "include",
-    });
+    if (!token) {
+      console.error("No auth token available for replying to thread");
+      throw new Error("Authentication required");
+    }
     
-    if (!response.ok) {
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
       try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to reply to thread: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to reply to thread: ${response.status} ${response.statusText}`);
+        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify(data),
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to reply to thread: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to reply to thread: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
       }
     }
     
-    return response.json();
+    throw new Error("Failed to reply to thread after multiple attempts");
   } catch (error) {
     console.error("Error in replyToThread:", error);
     throw error;
   }
 }
 
-export async function getThreadReplies(threadId: string, page = 1, limit = 20) {
+export async function getThreadReplies(threadId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies?page=${page}&limit=${limit}`, {
-      method: "GET",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include",
-    });
+    // Set up headers - allow unauthenticated access but add auth if available
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
     
-    if (!response.ok) {
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
       try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to get thread replies: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to get thread replies: ${response.status} ${response.statusText}`);
+        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies`, {
+          method: "GET",
+          headers: headers,
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // If 401 unauthorized, we could return empty results
+        if (response.status === 401) {
+          console.warn("Unauthorized when fetching replies - returning empty results");
+          return { 
+            replies: [],
+            total_count: 0
+          };
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to fetch replies: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to fetch replies: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
       }
     }
     
-    return response.json();
+    throw new Error("Failed to fetch replies after multiple attempts");
   } catch (error) {
     console.error("Error in getThreadReplies:", error);
     throw error;
@@ -508,62 +646,163 @@ export async function bookmarkThread(threadId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include",
-    });
+    if (!token) {
+      console.error("No auth token available for bookmarking thread");
+      throw new Error("Authentication required");
+    }
     
-    if (!response.ok) {
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
       try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to bookmark thread: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to bookmark thread: ${response.status} ${response.statusText}`);
+        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to bookmark thread: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to bookmark thread: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
       }
     }
     
-    return response.json();
+    throw new Error("Failed to bookmark thread after multiple attempts");
   } catch (error) {
     console.error("Error in bookmarkThread:", error);
     throw error;
   }
 }
 
-export async function removeBookmark(bookmarkId: string) {
+export async function removeBookmark(threadId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${bookmarkId}/bookmark`, {
-      method: "DELETE",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include",
-    });
+    if (!token) {
+      console.error("No auth token available for removing bookmark");
+      throw new Error("Authentication required");
+    }
     
-    if (!response.ok) {
+    console.log(`Attempting to remove bookmark for thread: ${threadId}`);
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
       try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to remove bookmark: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to remove bookmark: ${response.status} ${response.statusText}`);
+        // Ensure we're sending DELETE request to the correct endpoint
+        const endpoint = `${API_BASE_URL}/threads/${threadId}/bookmark`;
+        console.log(`Sending DELETE request to endpoint: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
+          method: "DELETE",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        // Log the response status
+        console.log(`Remove bookmark response status: ${response.status}`);
+        
+        if (response.ok) {
+          console.log("Successfully removed bookmark");
+          // Try to parse JSON, but handle case where response might be empty
+          try {
+            return await response.json();
+          } catch (jsonError) {
+            console.log("Empty response body from remove bookmark");
+            return { success: true };
+          }
+        }
+        
+        // Try to get response text for better debugging
+        let responseText = '';
+        try {
+          responseText = await response.text();
+          console.error(`Error response from server: ${responseText}`);
+        } catch (textError) {
+          console.error("Could not read response text");
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          console.log(`Server error (${response.status}), retrying...`);
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          let errorMessage = `Failed to remove bookmark: ${response.status} ${response.statusText}`;
+          
+          // Try to parse the response text as JSON if possible
+          if (responseText) {
+            try {
+              const errorData = JSON.parse(responseText);
+              errorMessage = errorData.message || 
+                            errorData.error?.message || 
+                            errorMessage;
+            } catch (e) {
+              // If not valid JSON, use the raw text in the error
+              errorMessage = `${errorMessage}. Response: ${responseText}`;
+            }
+          }
+          
+          throw new Error(errorMessage);
+        } catch (parseError) {
+          throw new Error(`Failed to remove bookmark: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          console.log(`Network error, retrying (${retries + 1}/${maxRetries})...`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
       }
     }
     
-    return response.json();
+    throw new Error("Failed to remove bookmark after multiple attempts");
   } catch (error) {
     console.error("Error in removeBookmark:", error);
     throw error;

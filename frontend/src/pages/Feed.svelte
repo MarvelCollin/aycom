@@ -11,7 +11,7 @@
   import { useTheme } from '../hooks/useTheme';
   import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
-  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads } from '../api/thread';
+  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads, getThreadReplies } from '../api/thread';
   import { getTrends } from '../api/trends';
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
@@ -53,6 +53,10 @@
   // Suggested users to follow
   let suggestedUsers: ISuggestedFollow[] = [];
   let isSuggestedUsersLoading = true;
+
+  // Add nestedRepliesMap to track replies at different levels
+  let repliesMap = new Map();
+  let nestedRepliesMap = new Map(); // For storing replies to replies
 
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
@@ -109,14 +113,16 @@
       content: content,
       timestamp: timestamp,
       avatar: profilePicture || '👤', // Use real profile picture or fallback to emoji
-      likes: thread.metrics?.likes || 0,
-      replies: thread.metrics?.replies || 0,
-      reposts: thread.metrics?.reposts || 0,
-      views: thread.view_count?.toString() || '0',
+      likes: thread.like_count || thread.metrics?.likes || 0,
+      replies: thread.reply_count || thread.metrics?.replies || 0,
+      reposts: thread.repost_count || thread.metrics?.reposts || 0,
+      bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
+      views: '0', // We're temporarily using view_count for bookmarks, so display 0 for now
       media: thread.media || [],
-      isLiked: false,
-      isReposted: false,
-      isBookmarked: false
+      isLiked: thread.is_liked || false,
+      isReposted: thread.is_repost || false,
+      isBookmarked: thread.is_bookmarked || false,
+      replyTo: null // Will be populated later if this is a reply
     };
   }
 
@@ -156,13 +162,34 @@
       
       if (response && response.threads) {
         logger.info(`Received ${response.threads.length} threads from API`);
-        const newTweets = response.threads.map(threadToTweet);
+        
+        // Process threads to identify replies and link them to parent threads
+        const threadsMap = new Map();
+        
+        // First, convert all threads to tweets and create a map
+        const convertedThreads = response.threads.map(thread => {
+          const tweet = threadToTweet(thread);
+          threadsMap.set(tweet.threadId, tweet);
+          return tweet;
+        });
+        
+        // Then, process replies by linking them to parent threads
+        for (const thread of response.threads) {
+          if (thread.parent_thread_id && threadsMap.has(thread.parent_thread_id)) {
+            const replyTweet = threadsMap.get(thread.thread_id || thread.id);
+            const parentTweet = threadsMap.get(thread.parent_thread_id);
+            
+            if (replyTweet && parentTweet) {
+              replyTweet.replyTo = parentTweet;
+            }
+          }
+        }
         
         // If first page, replace tweets, otherwise append
-        tweets = page === 1 ? newTweets : [...tweets, ...newTweets];
+        tweets = page === 1 ? convertedThreads : [...tweets, ...convertedThreads];
         
         // Check if there are more threads to load
-        hasMore = newTweets.length === limit;
+        hasMore = convertedThreads.length === limit;
         page++;
         
         logger.debug('Updated tweets state', { 
@@ -256,6 +283,13 @@
     logger.info('Like tweet action', { tweetId });
     
     try {
+      // Find the current tweet to check if it's already liked
+      const currentTweet = tweets.find(t => t.id === tweetId);
+      if (!currentTweet) {
+        logger.error('Tweet not found for like action', { tweetId });
+        return;
+      }
+      
       // Call the like API
       await likeThread(tweetId);
       toastStore.showToast('Tweet liked', 'success');
@@ -274,6 +308,39 @@
     } catch (error) {
       logger.error('Failed to like tweet', { error });
       toastStore.showToast('Failed to like tweet', 'error');
+    }
+  }
+  
+  async function handleTweetUnlike(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Unlike tweet action', { tweetId });
+    
+    try {
+      // Find the current tweet
+      const currentTweet = tweets.find(t => t.id === tweetId);
+      if (!currentTweet) {
+        logger.error('Tweet not found for unlike action', { tweetId });
+        return;
+      }
+      
+      // Call the unlike API
+      await unlikeThread(tweetId);
+      toastStore.showToast('Tweet unliked', 'success');
+      
+      // Update the likes count in the UI
+      tweets = tweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return {
+            ...tweet,
+            likes: Math.max(0, (tweet.likes || 0) - 1), // Ensure likes don't go below 0
+            isLiked: false
+          };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      logger.error('Failed to unlike tweet', { error });
+      toastStore.showToast('Failed to unlike tweet', 'error');
     }
   }
   
@@ -327,15 +394,23 @@
     logger.info('Bookmark tweet action', { tweetId });
     
     try {
+      // Find the current tweet
+      const currentTweet = tweets.find(t => t.id === tweetId);
+      if (!currentTweet) {
+        logger.error('Tweet not found for bookmark action', { tweetId });
+        return;
+      }
+      
       // Call the bookmark API
       await bookmarkThread(tweetId);
       toastStore.showToast('Tweet bookmarked', 'success');
       
-      // Update the UI to show bookmarked state
+      // Update the UI to show bookmarked state and update bookmark count
       tweets = tweets.map(tweet => {
         if (tweet.id === tweetId) {
           return {
             ...tweet,
+            bookmarks: (tweet.bookmarks || 0) + 1,
             isBookmarked: true
           };
         }
@@ -344,6 +419,116 @@
     } catch (error) {
       logger.error('Failed to bookmark tweet', { error });
       toastStore.showToast('Failed to bookmark tweet', 'error');
+    }
+  }
+
+  async function handleRemoveBookmark(event: CustomEvent) {
+    const tweetId = event.detail;
+    logger.info('Remove bookmark action', { tweetId });
+    
+    try {
+      // Find the current tweet
+      const currentTweet = tweets.find(t => t.id === tweetId);
+      if (!currentTweet) {
+        logger.error('Tweet not found for remove bookmark action', { tweetId });
+        return;
+      }
+      
+      // Call the remove bookmark API
+      await removeBookmark(tweetId);
+      toastStore.showToast('Bookmark removed', 'success');
+      
+      // Update the UI to show unbookmarked state and update bookmark count
+      tweets = tweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return {
+            ...tweet,
+            bookmarks: Math.max(0, (tweet.bookmarks || 0) - 1), // Ensure bookmarks don't go below 0
+            isBookmarked: false
+          };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      logger.error('Failed to remove bookmark', { error });
+      toastStore.showToast('Failed to remove bookmark', 'error');
+    }
+  }
+
+  // Function to load nested replies
+  async function loadNestedReplies(replyId: string) {
+    try {
+      // Call the API to get replies for this reply
+      const response = await getThreadReplies(replyId);
+      
+      if (response && response.replies) {
+        logger.info(`Received ${response.replies.length} nested replies from API for reply ${replyId}`);
+        
+        // Convert replies to tweet format
+        const convertedReplies = response.replies.map(reply => threadToTweet(reply));
+        
+        // Store in the nested replies map
+        nestedRepliesMap.set(replyId, convertedReplies);
+        
+        // Force a refresh to trigger UI update
+        tweets = [...tweets];
+      } else {
+        logger.info(`No nested replies received for reply ${replyId}`);
+        nestedRepliesMap.set(replyId, []);
+      }
+    } catch (error) {
+      logger.error('Failed to load nested replies', { error, replyId });
+      nestedRepliesMap.set(replyId, []);
+    }
+  }
+
+  // Modify the handleLoadReplies function to check if it's a nested reply request
+  async function handleLoadReplies(event: CustomEvent) {
+    const threadId = event.detail;
+    logger.info('Loading replies for thread', { threadId });
+    
+    // Check if this is a request for a reply that's already in our repliesMap
+    // If so, this is a nested reply request
+    let isNestedReply = false;
+    
+    // Look through all replies in the repliesMap to see if this is a nested reply
+    for (const [parentId, replies] of repliesMap.entries()) {
+      if (replies.some(reply => reply.id === threadId)) {
+        isNestedReply = true;
+        break;
+      }
+    }
+    
+    if (isNestedReply) {
+      // Handle as a nested reply
+      await loadNestedReplies(threadId);
+      return;
+    }
+    
+    try {
+      // Call the API to get replies for this thread
+      const response = await getThreadReplies(threadId);
+      
+      if (response && response.replies) {
+        logger.info(`Received ${response.replies.length} replies from API`);
+        
+        // Convert replies to tweet format
+        const convertedReplies = response.replies.map(reply => threadToTweet(reply));
+        
+        // Store in the replies map
+        repliesMap.set(threadId, convertedReplies);
+        
+        // Force a refresh of the tweets array to trigger UI update
+        tweets = [...tweets];
+      } else {
+        logger.info('No replies received from API');
+        repliesMap.set(threadId, []);
+      }
+    } catch (error) {
+      logger.error('Failed to load replies', { error });
+      toastStore.showToast('Failed to load replies. Please try again.', 'error');
+      // Set empty array to avoid continuous loading attempts
+      repliesMap.set(threadId, []);
     }
   }
 </script>
@@ -440,11 +625,17 @@
             isLiked={tweet.isLiked || false}
             isReposted={tweet.isReposted || false}
             isBookmarked={tweet.isBookmarked || false}
+            inReplyToTweet={tweet.replyTo || null}
+            replies={repliesMap.get(tweet.id) || []}
+            nestingLevel={0}
             on:click={handleTweetClick}
             on:like={handleTweetLike}
+            on:unlike={handleTweetUnlike}
             on:repost={handleTweetRepost}
             on:reply={handleTweetReply}
             on:bookmark={handleTweetBookmark}
+            on:removeBookmark={handleRemoveBookmark}
+            on:loadReplies={handleLoadReplies}
           />
         {/each}
         

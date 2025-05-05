@@ -21,6 +21,30 @@ func RunMigrations(db *gorm.DB) error {
 		return err
 	}
 
+	// Fix the likes table structure - drop the table first
+	log.Println("Checking if likes table needs fixes...")
+	if db.Migrator().HasTable(&model.Like{}) {
+		// Check if there's a not-null constraint on reply_id
+		var count int64
+		db.Raw("SELECT count(*) FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name WHERE tc.table_name = 'likes' AND ccu.column_name = 'reply_id' AND tc.constraint_type = 'PRIMARY KEY'").Count(&count)
+
+		if count > 0 {
+			log.Println("Fixing likes table structure...")
+			// Drop old table
+			if err := db.Migrator().DropTable(&model.Like{}); err != nil {
+				log.Printf("Failed to drop likes table: %v", err)
+				return err
+			}
+
+			// Create it with new structure
+			if err := db.Migrator().CreateTable(&model.Like{}); err != nil {
+				log.Printf("Failed to recreate likes table: %v", err)
+				return err
+			}
+			log.Println("Successfully fixed likes table structure")
+		}
+	}
+
 	// Run migrations for all thread-related models
 	err = db.AutoMigrate(
 		// Base entities

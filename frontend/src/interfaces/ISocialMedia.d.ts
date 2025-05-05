@@ -20,11 +20,13 @@ export interface ITweet {
   likes: number;
   replies: number;
   reposts: number;
+  bookmarks: number;
   views: string;
   media?: IMedia[];
   isLiked?: boolean;
   isReposted?: boolean;
   isBookmarked?: boolean;
+  replyTo?: ITweet | null;
 }
 
 // Trend interface
