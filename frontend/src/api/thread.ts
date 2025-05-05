@@ -519,6 +519,7 @@ export async function getThreadReplies(threadId: string) {
     
     while (retries <= maxRetries) {
       try {
+        console.log(`Fetching replies for thread ${threadId}`);
         const response = await fetch(`${API_BASE_URL}/threads/${threadId}/replies`, {
           method: "GET",
           headers: headers,
@@ -526,7 +527,32 @@ export async function getThreadReplies(threadId: string) {
         });
         
         if (response.ok) {
-          return response.json();
+          const data = await response.json();
+          console.log(`Thread replies data for thread ${threadId}:`, data);
+          
+          // Check if we have user data properly included
+          if (data.replies && data.replies.length > 0) {
+            // Check the first reply's structure
+            const firstReply = data.replies[0];
+            console.log(`First reply structure from API:`, firstReply);
+            
+            // Add user data fields if they're missing but can be derived from nested structures
+            data.replies = data.replies.map(reply => {
+              // Check if reply has a valid user field
+              if (reply.user) {
+                // Ensure user data is accessible from top level of the reply object as well
+                return {
+                  ...reply,
+                  author_username: reply.user.username,
+                  author_name: reply.user.name,
+                  author_avatar: reply.user.profile_picture_url,
+                };
+              }
+              return reply;
+            });
+          }
+          
+          return data;
         }
         
         // If server error, try again

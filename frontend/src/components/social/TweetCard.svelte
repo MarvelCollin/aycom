@@ -32,9 +32,21 @@
   // Format: [USER:username@displayName]content
   $: processedTweet = processTweetContent(tweet);
   
+  // Store processed replies separately to avoid infinite reactive updates
+  $: processedReplies = replies.map(reply => processTweetContent(reply));
+  
   function processTweetContent(originalTweet: ITweet): ITweet {
     // Create a copy of the tweet to avoid mutating the original
     const processedTweet = { ...originalTweet };
+    
+    // First try to use author fields if available (from API response)
+    if (processedTweet.authorUsername) {
+      processedTweet.username = processedTweet.authorUsername;
+    }
+    
+    if (processedTweet.authorName) {
+      processedTweet.displayName = processedTweet.authorName;
+    }
     
     // Check if the tweet already has a valid username (not 'anonymous' or 'unknown')
     // If so, we can assume it's already been processed
@@ -57,6 +69,16 @@
       }
       
       processedTweet.content = processed.content;
+    }
+    
+    // If we still don't have a username and displayName, use fallbacks
+    if (!processedTweet.username || processedTweet.username === 'anonymous' || processedTweet.username === 'unknown') {
+      console.log('Using fallback for username in tweet:', processedTweet.id);
+      processedTweet.username = 'user';
+    }
+    
+    if (!processedTweet.displayName) {
+      processedTweet.displayName = 'User';
     }
     
     return processedTweet;
@@ -164,7 +186,10 @@
     showReplies = !showReplies;
     if (showReplies) {
       // Always load replies when expanding, regardless of current reply count
+      console.log('Loading replies for tweet:', processedTweet.id);
       dispatch('loadReplies', processedTweet.id);
+    } else {
+      console.log('Hiding replies for tweet:', processedTweet.id);
     }
   }
 
@@ -281,7 +306,7 @@
               </div>
             {:else if processedTweet.media.length > 1}
               <div class="media-grid grid gap-1" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                {#each processedTweet.media.slice(0, 4) as media, index}
+                {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
                   <div class="media-item h-40">
                     {#if media.type === 'Image'}
                       <img src={media.url} alt="Media" class="h-full w-full object-cover" />
@@ -401,7 +426,10 @@
       </div>
     {:else}
       <!-- Display replies -->
-      {#each replies as reply (reply.id)}
+      {#each processedReplies as reply, index (reply.id || `reply-${reply.timestamp}-${reply.username}-${index}`)}
+        {#if index === 0}
+          {console.log('First reply data:', reply)}
+        {/if}
         <!-- Render each reply as a nested TweetCard if not exceeding max nesting level -->
         {#if nestingLevel < MAX_NESTING_LEVEL}
           <svelte:self 
@@ -443,7 +471,13 @@
                   <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(reply.timestamp)}</span>
                 </div>
                 <div class="my-2 {isDarkMode ? 'text-gray-100' : 'text-black'}">
-                  <p>{reply.content || ''}</p>
+                  <p>{reply.content || 'No content available'}</p>
+                  
+                  {#if reply.media && reply.media.length > 0}
+                    <div class="mt-2 rounded-lg overflow-hidden">
+                      <img src={reply.media[0].url} alt="Media" class="h-40 w-full object-cover" />
+                    </div>
+                  {/if}
                 </div>
                 <div class="flex text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-2">
                   <button class="flex items-center mr-4 hover:text-blue-500 p-1 rounded-full {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'}" on:click|stopPropagation={() => dispatch('reply', reply.id)}>
@@ -481,7 +515,7 @@
   </div>
 {/if}
 
-<!-- Add "View replies" or "Reply" message for all tweets, regardless of reply count -->
+<!-- Show "View replies" or "Reply" message for all tweets, regardless of reply count -->
 {#if nestingLevel === 0}
   <div class="mt-1 mb-2 ml-14">
     <button 
@@ -504,7 +538,7 @@
       {#if processedTweet.replies > 0}
         {showReplies ? 'Hide' : 'View'} {processedTweet.replies} {processedTweet.replies === 1 ? 'reply' : 'replies'}
       {:else}
-        {showReplies ? 'Hide thread' : 'View thread'}
+        {showReplies ? 'Hide thread' : 'Reply to thread'}
       {/if}
     </button>
   </div>

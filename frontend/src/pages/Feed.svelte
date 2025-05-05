@@ -69,23 +69,46 @@
 
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
+    // Check if we have debugging enabled
+    const debug = false;
+    if (debug) {
+      console.log('Converting thread to tweet:', thread);
+    }
+    
     // Default values
     let username = 'anonymous';
     let displayName = 'User';
     let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
     let content = thread.content || '';
     
-    // Get user data directly from thread fields
-    if (thread.username) {
+    // Get author data from all possible locations
+    // First try direct author fields
+    if (thread.author_username) {
+      username = thread.author_username;
+    } else if (thread.authorUsername) {
+      username = thread.authorUsername;
+    } else if (thread.username) {
       username = thread.username;
     }
     
-    if (thread.display_name) {
+    if (thread.author_name) {
+      displayName = thread.author_name;
+    } else if (thread.authorName) {
+      displayName = thread.authorName;
+    } else if (thread.display_name) {
       displayName = thread.display_name;
+    } else if (thread.displayName) {
+      displayName = thread.displayName;
     }
     
-    if (thread.profile_picture_url) {
+    if (thread.author_avatar) {
+      profilePicture = thread.author_avatar;
+    } else if (thread.authorAvatar) {
+      profilePicture = thread.authorAvatar;
+    } else if (thread.profile_picture_url) {
       profilePicture = thread.profile_picture_url;
+    } else if (thread.avatar) {
+      profilePicture = thread.avatar;
     }
     
     // Fallback: if user data is not directly in the thread, check for embedded content format
@@ -122,9 +145,14 @@
         if (!isNaN(date.getTime())) {
           timestamp = date.toISOString();
         }
+      } else if (thread.timestamp) {
+        const date = new Date(thread.timestamp);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
       }
     } catch (error) {
-      console.warn("Invalid date format in thread:", thread.created_at);
+      console.warn("Invalid date format in thread:", thread.created_at || thread.timestamp);
     }
     
     return {
@@ -147,7 +175,12 @@
       replyTo: null, // Will be populated later if this is a reply
       isAdvertisement: thread.is_advertisement || false,
       communityId: thread.community_id || null,
-      communityName: thread.community_name || null
+      communityName: thread.community_name || null,
+      // Include additional fields for replies
+      authorId: thread.author_id || thread.authorId,
+      authorName: thread.author_name || thread.authorName || displayName,
+      authorUsername: thread.author_username || thread.authorUsername || username,
+      authorAvatar: thread.author_avatar || thread.authorAvatar || profilePicture
     };
   }
 
@@ -547,22 +580,11 @@
     showComposeModal = true;
   }
   
-  // Other tweet action handlers would be similar - updating both arrays
-  // For brevity, I'm not including all of them
-
-  // Get the current tweets array based on active tab
-  $: currentTweets = activeTab === 'for-you' ? tweetsForYou : tweetsFollowing;
-  $: isLoading = activeTab === 'for-you' ? isLoadingForYou : isLoadingFollowing;
-  $: error = activeTab === 'for-you' ? errorForYou : errorFollowing;
-  $: hasMore = activeTab === 'for-you' ? hasMoreForYou : hasMoreFollowing;
-  
-  // Function to load more tweets based on active tab
-  function loadMoreTweets() {
-    if (activeTab === 'for-you') {
-      fetchTweetsForYou();
-    } else {
-      fetchTweetsFollowing();
-    }
+  // Load replies for a specific thread
+  async function handleLoadReplies(event: CustomEvent) {
+    const threadId = event.detail;
+    logger.debug(`Loading replies for thread: ${threadId}`);
+    await fetchRepliesForThread(threadId);
   }
 
   // Function to fetch replies for a given thread
@@ -572,17 +594,44 @@
     try {
       const response = await getThreadReplies(threadId);
       
-      if (response && response.replies) {
+      if (response && response.replies && response.replies.length > 0) {
         logger.info(`Received ${response.replies.length} replies for thread ${threadId}`);
         
-        // Convert replies to tweets
+        // Debug the raw reply data structure
+        console.log('Sample reply structure for thread', threadId, ':', response.replies[0]);
+        
+        // Create a more detailed mapping for replies that properly extracts user data
         const convertedReplies = response.replies.map(reply => {
-          const tweetReply = threadToTweet(reply);
-          // Set the replyTo to indicate this is a reply to a specific thread
-          // We don't have the full parent tweet data here, so we'll use null
-          // The UI can use threadId to look up the parent if needed
-          tweetReply.replyTo = null;
-          return tweetReply;
+          // Extract core data
+          const replyData = reply.reply || reply;
+          
+          // Handle user data which might be nested or at the top level
+          const userData = reply.user || {};
+          
+          // Build a comprehensive reply object that ensures all fields are populated
+          const enrichedReply = {
+            id: replyData.id,
+            thread_id: replyData.thread_id || threadId,
+            content: replyData.content || '',
+            created_at: replyData.created_at || new Date().toISOString(),
+            author_id: userData.id || replyData.user_id,
+            author_username: userData.username || reply.author_username,
+            author_name: userData.name || reply.author_name,
+            author_avatar: userData.profile_picture_url || reply.author_avatar,
+            parent_id: replyData.parent_id,
+            metrics: {
+              likes: reply.likes_count || 0,
+              replies: 0 // Replies to replies not tracked yet
+            }
+          };
+          
+          const convertedReply = threadToTweet(enrichedReply);
+          
+          // Ensure the parent references are set properly
+          convertedReply.replyTo = threadId;
+          (convertedReply as any).parentReplyId = replyData.parent_id;
+          
+          return convertedReply;
         });
         
         // Store replies in the map for the thread
@@ -590,10 +639,11 @@
         
         // Process nested replies (replies to replies)
         convertedReplies.forEach(reply => {
-          if (reply.parentReplyId) {
+          const parentId = (reply as any).parentReplyId;
+          if (parentId) {
             // If this reply has a parent that is not the main thread
-            const parentReplies = nestedRepliesMap.get(reply.parentReplyId) || [];
-            nestedRepliesMap.set(reply.parentReplyId, [...parentReplies, reply]);
+            const parentReplies = nestedRepliesMap.get(parentId) || [];
+            nestedRepliesMap.set(parentId, [...parentReplies, reply]);
           }
         });
         
@@ -615,10 +665,19 @@
     }
   }
 
-  // Handle loading thread replies
-  function handleLoadReplies(threadId: string) {
-    logger.debug(`Loading replies for thread: ${threadId}`);
-    fetchRepliesForThread(threadId);
+  // Get the current tweets array based on active tab
+  $: currentTweets = activeTab === 'for-you' ? tweetsForYou : tweetsFollowing;
+  $: isLoading = activeTab === 'for-you' ? isLoadingForYou : isLoadingFollowing;
+  $: error = activeTab === 'for-you' ? errorForYou : errorFollowing;
+  $: hasMore = activeTab === 'for-you' ? hasMoreForYou : hasMoreFollowing;
+  
+  // Function to load more tweets based on active tab
+  function loadMoreTweets() {
+    if (activeTab === 'for-you') {
+      fetchTweetsForYou();
+    } else {
+      fetchTweetsFollowing();
+    }
   }
 </script>
 
@@ -816,7 +875,7 @@
               on:reply={handleTweetReply}
               on:bookmark={() => {}}
               on:removeBookmark={() => {}}
-              on:loadReplies={() => {}}
+              on:loadReplies={handleLoadReplies}
             />
           {/if}
         {/each}

@@ -94,6 +94,8 @@
         // Prepare reply data
         const replyData = {
           content: newTweet,
+          thread_id: replyTo.threadId || replyTo.id,
+          parent_id: replyTo.id,
           mentioned_user_ids: categories, // Use categories for mentions in replies
           media: files.length > 0 ? files.map(file => getFilePreview(file)) : []
         };
