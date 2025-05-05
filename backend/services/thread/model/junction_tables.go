@@ -11,5 +11,3 @@ type ThreadHashtag struct {
 	HashtagID uuid.UUID  `gorm:"type:uuid;primaryKey;column:hashtag_id"`
 	DeletedAt *time.Time `gorm:"index"`
 }
-
-// ThreadCategory moved to category.go

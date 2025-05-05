@@ -289,7 +289,7 @@ func (h *ThreadHandler) RepostThread(ctx context.Context, req *thread.RepostThre
 // RemoveRepost removes a repost
 func (h *ThreadHandler) RemoveRepost(ctx context.Context, req *thread.RemoveRepostRequest) (*emptypb.Empty, error) {
 	// Call the interaction service to remove the repost
-	err := h.interactionService.RemoveRepost(ctx, req.UserId, req.RepostId)
+	err := h.interactionService.RemoveRepost(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		return nil, err
 	}
@@ -377,108 +377,84 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.Get
 }
 
 // Helper function to convert a Thread model to a ThreadResponse proto
-func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *model.Thread) (*thread.ThreadResponse, error) {
-	// Create a basic response with available data
+func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {
+	// Create the nested Thread structure
+	protoThread := &thread.Thread{
+		Id:        threadModel.ThreadID.String(),
+		UserId:    threadModel.UserID.String(),
+		Content:   threadModel.Content,
+		CreatedAt: timestamppb.New(threadModel.CreatedAt),
+		UpdatedAt: timestamppb.New(threadModel.UpdatedAt),
+	}
+
+	// Set optional fields
+	if threadModel.IsPinned {
+		protoThread.IsPinned = &threadModel.IsPinned
+	}
+
+	if threadModel.WhoCanReply != "" {
+		protoThread.WhoCanReply = &threadModel.WhoCanReply
+	}
+
+	if threadModel.ScheduledAt != nil {
+		protoThread.ScheduledAt = timestamppb.New(*threadModel.ScheduledAt)
+	}
+
+	if threadModel.CommunityID != nil {
+		communityId := threadModel.CommunityID.String()
+		protoThread.CommunityId = &communityId
+	}
+
+	if threadModel.IsAdvertisement {
+		protoThread.IsAdvertisement = &threadModel.IsAdvertisement
+	}
+
+	// Create the full response with the thread and its stats
 	response := &thread.ThreadResponse{
-		Id:        thread.ThreadID.String(),
-		ThreadId:  thread.ThreadID.String(),
-		UserId:    thread.UserID.String(),
-		Content:   thread.Content,
-		CreatedAt: timestamppb.New(thread.CreatedAt),
-		UpdatedAt: timestamppb.New(thread.UpdatedAt),
+		Thread: protoThread,
 	}
-
-	// Set optional fields properly
-	isPinned := thread.IsPinned
-	response.IsPinned = &isPinned
-
-	whoCanReply := thread.WhoCanReply
-	response.WhoCanReply = &whoCanReply
-
-	if thread.ScheduledAt != nil {
-		response.ScheduledAt = timestamppb.New(*thread.ScheduledAt)
-	}
-
-	if thread.CommunityID != nil {
-		communityID := thread.CommunityID.String()
-		response.CommunityId = &communityID
-	}
-
-	isAd := thread.IsAdvertisement
-	response.IsAdvertisement = &isAd
-
-	// Fetch media for this thread - implement in appropriate repository if needed
-	// This is left as a TODO since we don't have direct access to thread.Media
-	// response.Media = ...
-
-	// Fetch poll for this thread - implement in appropriate repository if needed
-	// This is left as a TODO since we don't have direct access to thread.Poll
-	// response.Poll = ...
 
 	// Get thread stats
 	if h.interactionRepo != nil {
-		threadID := thread.ThreadID.String()
-
-		// Calculate reply count - if available through replyRepo
-		// We don't have CountRepliesByThreadID in ReplyService, so maybe use replyRepo directly
-		// For now we'll leave it at 0
-		// replyCount, err := h.replyService.CountRepliesByThreadID(ctx, threadID)
-		// if err == nil {
-		//     response.ReplyCount = replyCount
-		// }
+		threadID := threadModel.ThreadID.String()
 
 		// Calculate like count
 		likeCount, err := h.interactionRepo.CountThreadLikes(threadID)
 		if err == nil {
-			response.LikeCount = likeCount
+			response.LikesCount = likeCount
 		}
 
 		// Calculate repost count
 		repostCount, err := h.interactionRepo.CountThreadReposts(threadID)
 		if err == nil {
-			response.RepostCount = repostCount
+			response.RepostsCount = repostCount
 		}
 
 		// Calculate bookmark count
 		bookmarkCount, err := h.interactionRepo.CountThreadBookmarks(threadID)
 		if err == nil {
-			// Store in ViewCount since BookmarkCount might not exist in this proto version
-			response.ViewCount = bookmarkCount
-
-			// For newer proto versions that have BookmarkCount field:
-			// Commented out until proto definitions are synced properly
-			// response.BookmarkCount = bookmarkCount
-
-			log.Printf("Thread %s has %d bookmarks (stored in ViewCount field)", threadID, bookmarkCount)
+			response.BookmarkCount = bookmarkCount
+			// Also set ViewCount for backward compatibility
+			protoThread.ViewCount = bookmarkCount
 		}
-
-		// Check if thread is liked by user
-		// This would need the current user ID, which we don't have in this context
-		// If needed, add a parameter for current user ID and implement this
-
-		// Check if thread is bookmarked by user
-		// This would need the current user ID, which we don't have in this context
-		// If needed, add a parameter for current user ID and implement this
 	}
 
 	// Fetch user information if available
 	if h.userClient != nil {
-		userInfo, err := h.userClient.GetUserById(ctx, thread.UserID.String())
+		userInfo, err := h.userClient.GetUserById(ctx, threadModel.UserID.String())
 		if err == nil && userInfo != nil {
-			// As a workaround, embed user info in the content field since proto doesn't have the User field
-			log.Printf("User info retrieved for %s (username: %s) - embedding in content as workaround",
-				userInfo.Id, userInfo.Username)
-
-			// Format: [USER:username@displayName@profilePictureUrl]content
-			// Include profile picture URL in the metadata for frontend to use
-			response.Content = "[USER:" + userInfo.Username + "@" + userInfo.DisplayName + "@" + userInfo.ProfilePictureUrl + "]" + response.Content
+			// Create User object for the thread
+			response.User = &thread.User{
+				Id:                userInfo.Id,
+				Name:              userInfo.DisplayName,
+				Username:          userInfo.Username,
+				ProfilePictureUrl: userInfo.ProfilePictureUrl,
+				IsVerified:        userInfo.IsVerified,
+			}
 		} else {
 			log.Printf("Could not fetch user info for thread %s by user %s: %v",
-				thread.ThreadID.String(), thread.UserID.String(), err)
+				threadModel.ThreadID.String(), threadModel.UserID.String(), err)
 		}
-	} else {
-		log.Printf("No user client available - thread %s by user %s will not have user details",
-			thread.ThreadID.String(), thread.UserID.String())
 	}
 
 	return response, nil
@@ -486,8 +462,8 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, thread *mod
 
 // Helper function to convert a Reply model to a ReplyResponse proto
 func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model.Reply) (*thread.ReplyResponse, error) {
-	// Create a basic response with available data
-	response := &thread.ReplyResponse{
+	// Create the nested Reply structure
+	protoReply := &thread.Reply{
 		Id:        reply.ReplyID.String(),
 		ThreadId:  reply.ThreadID.String(),
 		UserId:    reply.UserID.String(),
@@ -498,7 +474,12 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 
 	// Set parent ID if exists
 	if reply.ParentReplyID != nil {
-		response.ParentId = reply.ParentReplyID.String()
+		protoReply.ParentId = reply.ParentReplyID.String()
+	}
+
+	// Create the full response with the reply and its stats
+	response := &thread.ReplyResponse{
+		Reply: protoReply,
 	}
 
 	// Get reply stats if interaction repo is available
@@ -508,13 +489,7 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 		// Calculate like count
 		likeCount, err := h.interactionRepo.CountReplyLikes(replyID)
 		if err == nil {
-			response.LikeCount = likeCount
-		}
-
-		// Calculate reply count (for nested replies)
-		replyCount, err := h.replyService.CountRepliesByParentID(ctx, replyID)
-		if err == nil {
-			response.ReplyCount = int64(replyCount)
+			response.LikesCount = likeCount
 		}
 	}
 
@@ -525,9 +500,14 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 			log.Printf("User info retrieved for reply %s by user %s (username: %s)",
 				reply.ReplyID.String(), userInfo.Id, userInfo.Username)
 
-			// As a workaround, embed user info in the content field
-			// Format: [USER:username@displayName@profilePictureUrl]content
-			response.Content = "[USER:" + userInfo.Username + "@" + userInfo.DisplayName + "@" + userInfo.ProfilePictureUrl + "]" + response.Content
+			// Create User object for the reply
+			response.User = &thread.User{
+				Id:                userInfo.Id,
+				Name:              userInfo.DisplayName,
+				Username:          userInfo.Username,
+				ProfilePictureUrl: userInfo.ProfilePictureUrl,
+				IsVerified:        userInfo.IsVerified,
+			}
 		} else {
 			log.Printf("Could not fetch user info for reply %s by user %s: %v",
 				reply.ReplyID.String(), reply.UserID.String(), err)
