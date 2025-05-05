@@ -1,0 +1,117 @@
+swagger: '2.0'
+info:
+  title: AYCOM API
+  description: This is the API Gateway for the AYCOM platform.
+  version: 1.0.0
+host: localhost:8083
+basePath: /api/v1
+schemes:
+  - http
+  - https
+securityDefinitions:
+  BearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: Type "Bearer" followed by a space and JWT token.
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticates a user and returns tokens
+      tags:
+        - Auth
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: user
+          description: User credentials
+          required: true
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+                example: user@example.com
+              password:
+                type: string
+                example: password123
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/AuthResponse'
+        '401':
+          description: Unauthorized
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Invalid credentials
+  
+  /trends:
+    get:
+      summary: Get trending topics
+      description: Returns trending topics
+      tags:
+        - Trends
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: object
+            properties:
+              trends:
+                type: array
+                items:
+                  $ref: '#/definitions/Trend'
+
+definitions:
+  AuthResponse:
+    type: object
+    properties:
+      access_token:
+        type: string
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      refresh_token:
+        type: string
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      token_type:
+        type: string
+        example: Bearer
+      expires_in:
+        type: integer
+        example: 3600
+      user_id:
+        type: string
+        example: 123e4567-e89b-12d3-a456-426614174000
+      success:
+        type: boolean
+        example: true
+      message:
+        type: string
+        example: Login successful
+      user:
+        type: object
+
+  Trend:
+    type: object
+    properties:
+      id:
+        type: string
+        example: trend123
+      title:
+        type: string
+        example: #WebDevelopment
+      category:
+        type: string
+        example: Technology
+      post_count:
+        type: integer
+        example: 1250

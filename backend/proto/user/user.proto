@@ -4,8 +4,6 @@ package user;
 
 option go_package = "aycom/backend/proto/user";
 
-import "google/protobuf/timestamp.proto";
-
 // User service definition
 service UserService {
   // Get user by ID

@@ -6,10 +6,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - ./.env
     environment:
       - VITE_API_BASE_URL=http://localhost:8083/api/v1
-      - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - VITE_RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
     volumes:
@@ -31,6 +31,8 @@ services:
       dockerfile: api-gateway/Dockerfile
     ports:
       - "8083:8081"
+    env_file:
+      - ./.env
     environment:
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
@@ -38,12 +40,6 @@ services:
       - THREAD_SERVICE_PORT=9092
       - COMMUNITY_SERVICE_HOST=community_service
       - COMMUNITY_SERVICE_PORT=9093
-      - JWT_SECRET=${JWT_SECRET:-wompwomp123}
-      - TLS_ENABLED=${TLS_ENABLED:-false}
-      - ENVIRONMENT=${ENVIRONMENT:-development}
-      - SUPABASE_URL=${SUPABASE_URL:-}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
     volumes:
       - ./backend:/app
       - api_gateway_go_mod_cache:/go/pkg/mod
@@ -71,15 +67,12 @@ services:
       dockerfile: ./services/user/Dockerfile
     ports:
       - "9091:9091"
+    env_file:
+      - ./.env
     environment:
       - DATABASE_HOST=user_db
       - DATABASE_PORT=5432
-      - DATABASE_USER=${USER_DB_USER:-kolin}
-      - DATABASE_PASSWORD=${USER_DB_PASSWORD:-kolin}
-      - DATABASE_NAME=${USER_DB_NAME:-user_db}
       - DATABASE_URL=postgresql://${USER_DB_USER:-kolin}:${USER_DB_PASSWORD:-kolin}@user_db:5432/${USER_DB_NAME:-user_db}
-      - JWT_SECRET=${JWT_SECRET:-wompwomp123}
-      - ENVIRONMENT=${ENVIRONMENT:-development}
     volumes:
       - ./backend:/app
       - user_service_go_mod_cache:/go/pkg/mod
@@ -106,18 +99,13 @@ services:
       dockerfile: ./services/thread/Dockerfile
     ports:
       - "9092:9092"
+    env_file:
+      - ./.env
     environment:
       - DATABASE_HOST=thread_db
       - DATABASE_PORT=5432
-      - DATABASE_USER=${THREAD_DB_USER:-kolin}
-      - DATABASE_PASSWORD=${THREAD_DB_PASSWORD:-kolin}
-      - DATABASE_NAME=${THREAD_DB_NAME:-thread_db}
       - DATABASE_URL=postgresql://${THREAD_DB_USER:-kolin}:${THREAD_DB_PASSWORD:-kolin}@thread_db:5432/${THREAD_DB_NAME:-thread_db}
-      - THREAD_SERVICE_PORT=9092
       - USER_SERVICE_HOST=user_service
-      - USER_SERVICE_PORT=9091
-      - JWT_SECRET=${JWT_SECRET:-wompwomp123}
-      - ENVIRONMENT=${ENVIRONMENT:-development}
     volumes:
       - ./backend:/app
       - thread_service_go_mod_cache:/go/pkg/mod
@@ -144,13 +132,14 @@ services:
     build:
       context: ./backend
       dockerfile: event-bus/Dockerfile
+    env_file:
+      - ./.env
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - USER_SERVICE_HOST=user_service
       - USER_SERVICE_PORT=9091
       - THREAD_SERVICE_HOST=thread_service
       - THREAD_SERVICE_PORT=9092
-      - ENVIRONMENT=${ENVIRONMENT:-development}
     volumes:
       - ./backend:/app
       - event_bus_go_mod_cache:/go/pkg/mod

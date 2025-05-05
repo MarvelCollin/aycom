@@ -37,9 +37,11 @@
   }
 
   onMount(() => {
-    if (getAuthToken()) {
-      window.location.href = '/feed';
-    }
+    const token = getAuthToken();
+    console.log('Login page - Auth token exists:', !!token, 'Current path:', window.location.pathname);
+    
+    // Let the Router handle redirects rather than doing it directly
+    // No need to redirect here as Router will handle it based on authentication state
   });
   
   async function handleSubmit() {
@@ -64,7 +66,11 @@
       if (result.success) {
         // Add a small delay to ensure auth state is fully updated before redirect
         setTimeout(() => {
-          window.location.href = '/feed';
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/feed') {
+            console.log('Login successful, redirecting to feed');
+            window.location.href = '/feed';
+          }
         }, 100);
       } else {
         errorMessage = result.message || "Login failed. Please check your credentials.";

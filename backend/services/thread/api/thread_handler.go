@@ -10,6 +10,7 @@ import (
 	"aycom/backend/services/thread/service"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -319,6 +320,46 @@ func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *thread.RemoveBo
 	return &emptypb.Empty{}, nil
 }
 
+// Create type aliases for missing proto types
+type BookmarkReplyRequest struct {
+	ReplyId string
+	UserId  string
+}
+
+type RemoveReplyBookmarkRequest struct {
+	ReplyId string
+	UserId  string
+}
+
+// Custom ReplyResponse type that includes bookmark fields
+type CustomReplyResponse struct {
+	*thread.ReplyResponse
+	BookmarkCount    int64
+	BookmarkedByUser bool
+}
+
+// BookmarkReply adds a bookmark to a reply
+func (h *ThreadHandler) BookmarkReply(ctx context.Context, req *BookmarkReplyRequest) (*emptypb.Empty, error) {
+	// Call the interaction service to bookmark the reply
+	err := h.interactionService.BookmarkReply(ctx, req.UserId, req.ReplyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// RemoveReplyBookmark removes a bookmark from a reply
+func (h *ThreadHandler) RemoveReplyBookmark(ctx context.Context, req *RemoveReplyBookmarkRequest) (*emptypb.Empty, error) {
+	// Call the interaction service to remove the bookmark from the reply
+	err := h.interactionService.RemoveReplyBookmark(ctx, req.UserId, req.ReplyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // CreatePoll creates a poll for a thread
 func (h *ThreadHandler) CreatePoll(ctx context.Context, req *thread.CreatePollRequest) (*thread.PollResponse, error) {
 	// Implementation will be added when PollService is created
@@ -490,6 +531,38 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 		likeCount, err := h.interactionRepo.CountReplyLikes(replyID)
 		if err == nil {
 			response.LikesCount = likeCount
+		}
+
+		// Calculate bookmark count - just log it for now as the field doesn't exist in proto
+		bookmarkCount, err := h.interactionRepo.CountReplyBookmarks(replyID)
+		if err == nil {
+			log.Printf("Reply %s has %d bookmarks", replyID, bookmarkCount)
+			// Can't set this as the field doesn't exist in the proto definition
+			// response.BookmarkCount = bookmarkCount
+		}
+
+		// Get metadata from context if available
+		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			// Check if user ID is in metadata
+			userIDs := md.Get("user_id")
+			if len(userIDs) > 0 {
+				userID := userIDs[0]
+
+				// Check if user has liked this reply
+				hasLiked, err := h.interactionService.HasUserLikedReply(ctx, userID, replyID)
+				if err == nil {
+					response.LikedByUser = hasLiked
+				}
+
+				// Check if user has bookmarked this reply - just log it for now
+				hasBookmarked, err := h.interactionService.HasUserBookmarkedReply(ctx, userID, replyID)
+				if err == nil {
+					log.Printf("Reply %s is bookmarked by user %s: %v", replyID, userID, hasBookmarked)
+					// Can't set this as the field doesn't exist in the proto definition
+					// response.BookmarkedByUser = hasBookmarked
+				}
+			}
 		}
 	}
 

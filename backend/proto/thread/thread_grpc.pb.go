@@ -38,6 +38,8 @@ const (
 	ThreadService_RemoveRepost_FullMethodName        = "/thread.ThreadService/RemoveRepost"
 	ThreadService_BookmarkThread_FullMethodName      = "/thread.ThreadService/BookmarkThread"
 	ThreadService_RemoveBookmark_FullMethodName      = "/thread.ThreadService/RemoveBookmark"
+	ThreadService_BookmarkReply_FullMethodName       = "/thread.ThreadService/BookmarkReply"
+	ThreadService_RemoveReplyBookmark_FullMethodName = "/thread.ThreadService/RemoveReplyBookmark"
 	ThreadService_CreatePoll_FullMethodName          = "/thread.ThreadService/CreatePoll"
 	ThreadService_VotePoll_FullMethodName            = "/thread.ThreadService/VotePoll"
 	ThreadService_GetPollResults_FullMethodName      = "/thread.ThreadService/GetPollResults"
@@ -71,6 +73,8 @@ type ThreadServiceClient interface {
 	RemoveRepost(ctx context.Context, in *RemoveRepostRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	BookmarkThread(ctx context.Context, in *BookmarkThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	RemoveBookmark(ctx context.Context, in *RemoveBookmarkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	BookmarkReply(ctx context.Context, in *BookmarkReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RemoveReplyBookmark(ctx context.Context, in *RemoveReplyBookmarkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Poll operations
 	CreatePoll(ctx context.Context, in *CreatePollRequest, opts ...grpc.CallOption) (*PollResponse, error)
 	VotePoll(ctx context.Context, in *VotePollRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -267,6 +271,26 @@ func (c *threadServiceClient) RemoveBookmark(ctx context.Context, in *RemoveBook
 	return out, nil
 }
 
+func (c *threadServiceClient) BookmarkReply(ctx context.Context, in *BookmarkReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ThreadService_BookmarkReply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *threadServiceClient) RemoveReplyBookmark(ctx context.Context, in *RemoveReplyBookmarkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ThreadService_RemoveReplyBookmark_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *threadServiceClient) CreatePoll(ctx context.Context, in *CreatePollRequest, opts ...grpc.CallOption) (*PollResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PollResponse)
@@ -334,6 +358,8 @@ type ThreadServiceServer interface {
 	RemoveRepost(context.Context, *RemoveRepostRequest) (*emptypb.Empty, error)
 	BookmarkThread(context.Context, *BookmarkThreadRequest) (*emptypb.Empty, error)
 	RemoveBookmark(context.Context, *RemoveBookmarkRequest) (*emptypb.Empty, error)
+	BookmarkReply(context.Context, *BookmarkReplyRequest) (*emptypb.Empty, error)
+	RemoveReplyBookmark(context.Context, *RemoveReplyBookmarkRequest) (*emptypb.Empty, error)
 	// Poll operations
 	CreatePoll(context.Context, *CreatePollRequest) (*PollResponse, error)
 	VotePoll(context.Context, *VotePollRequest) (*emptypb.Empty, error)
@@ -403,6 +429,12 @@ func (UnimplementedThreadServiceServer) BookmarkThread(context.Context, *Bookmar
 }
 func (UnimplementedThreadServiceServer) RemoveBookmark(context.Context, *RemoveBookmarkRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveBookmark not implemented")
+}
+func (UnimplementedThreadServiceServer) BookmarkReply(context.Context, *BookmarkReplyRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BookmarkReply not implemented")
+}
+func (UnimplementedThreadServiceServer) RemoveReplyBookmark(context.Context, *RemoveReplyBookmarkRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveReplyBookmark not implemented")
 }
 func (UnimplementedThreadServiceServer) CreatePoll(context.Context, *CreatePollRequest) (*PollResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreatePoll not implemented")
@@ -761,6 +793,42 @@ func _ThreadService_RemoveBookmark_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ThreadService_BookmarkReply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BookmarkReplyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).BookmarkReply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_BookmarkReply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).BookmarkReply(ctx, req.(*BookmarkReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ThreadService_RemoveReplyBookmark_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveReplyBookmarkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).RemoveReplyBookmark(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_RemoveReplyBookmark_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).RemoveReplyBookmark(ctx, req.(*RemoveReplyBookmarkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ThreadService_CreatePoll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreatePollRequest)
 	if err := dec(in); err != nil {
@@ -911,6 +979,14 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveBookmark",
 			Handler:    _ThreadService_RemoveBookmark_Handler,
+		},
+		{
+			MethodName: "BookmarkReply",
+			Handler:    _ThreadService_BookmarkReply_Handler,
+		},
+		{
+			MethodName: "RemoveReplyBookmark",
+			Handler:    _ThreadService_RemoveReplyBookmark_Handler,
 		},
 		{
 			MethodName: "CreatePoll",

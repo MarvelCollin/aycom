@@ -2,9 +2,10 @@ FROM golang:1.24-alpine
 
 WORKDIR /app
 
-# Install necessary tools and Air for hot reloading
+# Install necessary tools, Air for hot reloading, and swag for Swagger docs
 RUN apk add --no-cache git && \
-    go install github.com/air-verse/air@latest
+    go install github.com/air-verse/air@latest && \
+    go install github.com/swaggo/swag/cmd/swag@latest
 
 # Copy Go module files for dependency caching
 COPY go.mod go.sum ./

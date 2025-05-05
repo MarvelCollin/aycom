@@ -3,6 +3,7 @@
   import type { ITweet } from '../../interfaces/ISocialMedia.d.ts';
   import { toastStore } from '../../stores/toastStore';
   import { formatTimeAgo, processUserMetadata } from '../../utils/common';
+  import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark } from '../../api/thread';
 
   export let tweet: ITweet;
   export let isDarkMode: boolean = false;
@@ -235,6 +236,104 @@
 
   function handleNestedRepost(event) {
     dispatch('repost', event.detail);
+  }
+
+  // Function to show login modal if not authenticated
+  function showLoginModal() {
+    toastStore.showToast('You need to be logged in to perform this action', 'error');
+  }
+
+  // Event handlers for reply interactions
+  async function handleLikeReply(replyId: any) {
+    try {
+      if (!isAuthenticated) {
+        showLoginModal();
+        return;
+      }
+
+      const reply = replies.find(r => r.id === replyId);
+      if (!reply) return;
+
+      // Optimistically update UI
+      reply.isLiked = true;
+      
+      // Call API
+      await likeReply(String(replyId));
+    } catch (error) {
+      console.error('Error liking reply:', error);
+      // Revert optimistic update on error
+      const reply = replies.find(r => r.id === replyId);
+      if (reply) reply.isLiked = false;
+    }
+  }
+
+  async function handleUnlikeReply(replyId: any) {
+    try {
+      if (!isAuthenticated) {
+        showLoginModal();
+        return;
+      }
+
+      const reply = replies.find(r => r.id === replyId);
+      if (!reply) return;
+
+      // Optimistically update UI
+      reply.isLiked = false;
+      
+      // Call API
+      await unlikeReply(String(replyId));
+    } catch (error) {
+      console.error('Error unliking reply:', error);
+      // Revert optimistic update on error
+      const reply = replies.find(r => r.id === replyId);
+      if (reply) reply.isLiked = true;
+    }
+  }
+
+  async function handleBookmarkReply(replyId: any) {
+    try {
+      if (!isAuthenticated) {
+        showLoginModal();
+        return;
+      }
+
+      const reply = replies.find(r => r.id === replyId);
+      if (!reply) return;
+
+      // Optimistically update UI
+      reply.isBookmarked = true;
+      
+      // Call API
+      await bookmarkReply(String(replyId));
+    } catch (error) {
+      console.error('Error bookmarking reply:', error);
+      // Revert optimistic update on error
+      const reply = replies.find(r => r.id === replyId);
+      if (reply) reply.isBookmarked = false;
+    }
+  }
+
+  async function handleUnbookmarkReply(replyId: any) {
+    try {
+      if (!isAuthenticated) {
+        showLoginModal();
+        return;
+      }
+
+      const reply = replies.find(r => r.id === replyId);
+      if (!reply) return;
+
+      // Optimistically update UI
+      reply.isBookmarked = false;
+      
+      // Call API
+      await removeReplyBookmark(String(replyId));
+    } catch (error) {
+      console.error('Error unbookmarking reply:', error);
+      // Revert optimistic update on error
+      const reply = replies.find(r => r.id === replyId);
+      if (reply) reply.isBookmarked = true;
+    }
   }
 </script>
 
@@ -484,19 +583,43 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
-                    <span class="reply-count">{isNaN(reply.replies) ? 0 : reply.replies}</span>
+                    <span>Reply</span>
                   </button>
-                  <button class="flex items-center mr-4 hover:text-red-500 p-1 rounded-full {isDarkMode ? 'dark-btn hover:bg-red-900/30' : 'light-btn hover:bg-red-100'}" on:click|stopPropagation={() => reply.isLiked ? dispatch('unlike', reply.id) : dispatch('like', reply.id)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill={reply.isLiked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                    {isNaN(reply.likes) ? 0 : reply.likes}
+                  
+                  <!-- Like/Unlike button for replies -->
+                  <button class="flex items-center mr-4 p-1 rounded-full {reply.isLiked ? 'text-red-500' : ''} {isDarkMode ? 'dark-btn hover:bg-red-900/30 hover:text-red-500' : 'light-btn hover:bg-red-100 hover:text-red-500'}" 
+                    on:click|stopPropagation={(e) => {
+                      e.preventDefault();
+                      reply.isLiked ? handleUnlikeReply(reply.id) : handleLikeReply(reply.id);
+                    }}>
+                    {#if reply.isLiked}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
+                      </svg>
+                    {:else}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    {/if}
+                    <span>Like</span>
                   </button>
-                  <button class="flex items-center mr-4 hover:text-blue-500 p-1 rounded-full {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'}" on:click|stopPropagation={() => reply.isBookmarked ? dispatch('removeBookmark', reply.id) : dispatch('bookmark', reply.id)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill={reply.isBookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                    </svg>
-                    {isNaN(reply.bookmarks) ? 0 : reply.bookmarks}
+                  
+                  <!-- Bookmark/Unbookmark button for replies -->
+                  <button class="flex items-center mr-4 p-1 rounded-full {reply.isBookmarked ? 'text-blue-500' : ''} {isDarkMode ? 'dark-btn hover:bg-blue-900/30 hover:text-blue-500' : 'light-btn hover:bg-blue-100 hover:text-blue-500'}" 
+                    on:click|stopPropagation={(e) => {
+                      e.preventDefault();
+                      reply.isBookmarked ? handleUnbookmarkReply(reply.id) : handleBookmarkReply(reply.id);
+                    }}>
+                    {#if reply.isBookmarked}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+                      </svg>
+                    {:else}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      </svg>
+                    {/if}
+                    <span>Save</span>
                   </button>
                 </div>
               </div>

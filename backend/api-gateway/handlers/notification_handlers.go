@@ -165,47 +165,41 @@ func broadcastNotificationToUser(userID string, notification Notification) {
 	// Get WebSocket manager instance
 	wsManager := GetWebSocketManager()
 
-	// Check if user has any active connections
-	wsManager.mutex.RLock()
-	clientID, exists := wsManager.userToClient[userID]
-	wsManager.mutex.RUnlock()
+	// For now, we don't have a direct way to send to specific users
+	// This is a simplified implementation - we'd need to modify WebSocketManager
+	// to support direct user notifications
+	log.Printf("Would send notification to user %s: %v", userID, notification)
 
-	if !exists {
-		return
-	}
+	// Find any clients for this user in any chat rooms
+	for _, client := range wsManager.clients {
+		if client.UserID == userID {
+			// Create a notification message
+			notificationMessage := struct {
+				Type         string      `json:"type"`
+				Notification interface{} `json:"notification"`
+			}{
+				Type:         "notification",
+				Notification: notification,
+			}
 
-	// Get the client connection
-	wsManager.mutex.RLock()
-	client, exists := wsManager.clients[clientID]
-	wsManager.mutex.RUnlock()
+			// Serialize the message
+			messageData, err := json.Marshal(notificationMessage)
+			if err != nil {
+				log.Printf("Error serializing notification message: %v", err)
+				continue
+			}
 
-	if !exists {
-		return
-	}
-
-	// Create a notification message
-	notificationMessage := struct {
-		Type         string      `json:"type"`
-		Notification interface{} `json:"notification"`
-	}{
-		Type:         "notification",
-		Notification: notification,
-	}
-
-	// Serialize the message
-	messageData, err := json.Marshal(notificationMessage)
-	if err != nil {
-		log.Printf("Error serializing notification message: %v", err)
-		return
-	}
-
-	// Send the notification to the client
-	select {
-	case client.Send <- messageData:
-		// Message sent successfully
-	default:
-		// Failed to send message, client might be disconnected
-		log.Printf("Failed to send notification to user %s", userID)
+			// Send the notification to the client
+			select {
+			case client.Send <- messageData:
+				// Message sent successfully
+				log.Printf("Sent notification to user %s", userID)
+			default:
+				// Failed to send message, channel might be full
+				log.Printf("Failed to send notification to user %s", userID)
+			}
+			break // Send to only one client per user
+		}
 	}
 }
 

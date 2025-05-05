@@ -55,6 +55,7 @@ func (s *UserSeeder) SeedUsers() error {
 	dob1, _ := time.Parse("2006-01-02", "1990-01-01")
 	dob2, _ := time.Parse("2006-01-02", "1995-05-15")
 	dob3, _ := time.Parse("2006-01-02", "1997-08-22")
+	dob4, _ := time.Parse("2006-01-02", "1992-03-10")
 
 	adminHash, _ := bcrypt.GenerateFromPassword([]byte(s.config.AdminPassword), bcrypt.DefaultCost)
 	userHash, _ := bcrypt.GenerateFromPassword([]byte(s.config.RegularUserPwd), bcrypt.DefaultCost)
@@ -62,6 +63,7 @@ func (s *UserSeeder) SeedUsers() error {
 	adminID := uuid.MustParse(getEnv("ADMIN_UUID", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"))
 	johnID := uuid.MustParse(getEnv("JOHN_UUID", "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12"))
 	janeID := uuid.MustParse(getEnv("JANE_UUID", "c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13"))
+	samID := uuid.MustParse(getEnv("SAM_UUID", "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14"))
 
 	type User struct {
 		ID                     uuid.UUID `gorm:"type:uuid;primary_key"`
@@ -133,6 +135,24 @@ func (s *UserSeeder) SeedUsers() error {
 			SecurityQuestion:       "What city were you born in?",
 			SecurityAnswer:         "New York",
 			NewsletterSubscription: true,
+			JoinedAt:               now,
+			CreatedAt:              now,
+			UpdatedAt:              now,
+		},
+		{
+			ID:                     samID,
+			Email:                  "sam@example.com",
+			Name:                   "Sam Smith",
+			Username:               "samsmith",
+			PasswordHash:           string(userHash),
+			PasswordSalt:           "",
+			VerificationCode:       nil,
+			IsActivated:            true,
+			Gender:                 "Male",
+			DateOfBirth:            dob4,
+			SecurityQuestion:       "What is your favorite color?",
+			SecurityAnswer:         "Blue",
+			NewsletterSubscription: false,
 			JoinedAt:               now,
 			CreatedAt:              now,
 			UpdatedAt:              now,

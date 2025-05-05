@@ -2,19 +2,16 @@ package routes
 
 import (
 	"aycom/backend/api-gateway/config"
-	_ "aycom/backend/api-gateway/docs" // Import swagger docs
+	_ "aycom/backend/api-gateway/docs"
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterRoutes sets up all the routes for the API Gateway
-// @Summary All API Gateway Routes
-// @Description Register all routes for the AYCOM platform API Gateway
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Set the config for handlers
-	handlers.Config = cfg
+	handlers.AppConfig = cfg
 
 	// Add global middleware
 	router.Use(middleware.Logger())
@@ -95,6 +92,16 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.DELETE("/:id/repost", handlers.RemoveRepost)
 		threads.POST("/:id/bookmark", handlers.BookmarkThread)
 		threads.DELETE("/:id/bookmark", handlers.RemoveThreadBookmark) // Changed to match renamed function
+	}
+
+	// Reply routes - new group
+	replies := protected.Group("/replies")
+	{
+		replies.POST("/:id/like", handlers.LikeReply)
+		replies.DELETE("/:id/like", handlers.UnlikeReply)
+		replies.POST("/:id/bookmark", handlers.BookmarkReply)
+		replies.DELETE("/:id/bookmark", handlers.RemoveReplyBookmark)
+		replies.POST("/:id/replies", handlers.ReplyToThread) // Reusing the same handler for reply-to-reply
 	}
 
 	// Product routes

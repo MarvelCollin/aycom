@@ -32,6 +32,8 @@ service ThreadService {
   rpc RemoveRepost(RemoveRepostRequest) returns (google.protobuf.Empty);
   rpc BookmarkThread(BookmarkThreadRequest) returns (google.protobuf.Empty);
   rpc RemoveBookmark(RemoveBookmarkRequest) returns (google.protobuf.Empty);
+  rpc BookmarkReply(BookmarkReplyRequest) returns (google.protobuf.Empty);
+  rpc RemoveReplyBookmark(RemoveReplyBookmarkRequest) returns (google.protobuf.Empty);
 
   // Poll operations
   rpc CreatePoll(CreatePollRequest) returns (PollResponse);
@@ -285,6 +287,8 @@ message ReplyResponse {
   repeated string mentioned_user_ids = 5;
   User parent_user = 6;
   optional string parent_content = 7;
+  int64 bookmark_count = 8;
+  bool bookmarked_by_user = 9;
 }
 
 // RepliesResponse message
@@ -341,4 +345,16 @@ message GetTrendingHashtagsRequest {
 // GetTrendingHashtagsResponse message
 message GetTrendingHashtagsResponse {
   repeated HashtagResponse hashtags = 1;
+}
+
+// BookmarkReplyRequest message
+message BookmarkReplyRequest {
+  string reply_id = 1;
+  string user_id = 2;
+}
+
+// RemoveReplyBookmarkRequest message
+message RemoveReplyBookmarkRequest {
+  string reply_id = 1;
+  string user_id = 2;
 } 

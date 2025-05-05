@@ -21,6 +21,34 @@ type Product struct {
 	UpdatedAt   string  `json:"updated_at,omitempty"`
 }
 
+// ProductsResponse represents a response containing multiple products
+type ProductsResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Products []Product `json:"products"`
+		Total    int       `json:"total"`
+	} `json:"data"`
+}
+
+// ProductResponse represents a response containing a single product
+type ProductResponse struct {
+	Success bool    `json:"success"`
+	Data    Product `json:"data"`
+}
+
+// ProductCreateResponse represents a response when creating a product
+type ProductCreateResponse struct {
+	Success bool    `json:"success"`
+	Data    Product `json:"data"`
+	Message string  `json:"message"`
+}
+
+// DeleteResponse represents a generic success response
+type DeleteResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // ProductHandlers contains all product-related handlers
 
 // @Summary List products
@@ -30,7 +58,7 @@ type Product struct {
 // @Param page query int false "Page number"
 // @Param limit query int false "Items per page"
 // @Param category query string false "Filter by category"
-// @Success 200 {array} Product
+// @Success 200 {object} ProductsResponse
 // @Router /api/v1/products [get]
 func ListProducts(c *gin.Context) {
 	// In a real implementation, you would call the product service via gRPC
@@ -72,7 +100,7 @@ func ListProducts(c *gin.Context) {
 // @Tags Products
 // @Produce json
 // @Param id path string true "Product ID"
-// @Success 200 {object} Product
+// @Success 200 {object} ProductResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [get]
 func GetProduct(c *gin.Context) {
@@ -111,7 +139,7 @@ func GetProduct(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param product body Product true "Product information"
-// @Success 201 {object} Product
+// @Success 201 {object} ProductCreateResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v1/products [post]
 func CreateProduct(c *gin.Context) {
@@ -157,7 +185,7 @@ func CreateProduct(c *gin.Context) {
 // @Produce json
 // @Param id path string true "Product ID"
 // @Param product body Product true "Product information"
-// @Success 200 {object} Product
+// @Success 200 {object} ProductCreateResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [put]
@@ -201,7 +229,7 @@ func UpdateProduct(c *gin.Context) {
 // @Tags Products
 // @Produce json
 // @Param id path string true "Product ID"
-// @Success 200 {object} gin.H
+// @Success 200 {object} DeleteResponse
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v1/products/{id} [delete]
 func DeleteProduct(c *gin.Context) {

@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// Config stores the application configuration
-var Config *config.Config
+// AppConfig stores the application configuration
+var AppConfig *config.Config
 
 // Connection pools and global variables
 var (
@@ -164,7 +164,7 @@ func InitGRPCServices() {
 		log.Println("Initializing gRPC clients...")
 
 		// Initialize User Service Client
-		userServiceAddr := Config.Services.UserService
+		userServiceAddr := AppConfig.Services.UserService
 		log.Printf("Connecting to User service at %s", userServiceAddr)
 		userConn, err := grpc.Dial(
 			userServiceAddr,
@@ -180,14 +180,14 @@ func InitGRPCServices() {
 		}
 
 		// Initialize Thread Service Client (using pool for example)
-		if Config.Services.ThreadService != "" {
+		if AppConfig.Services.ThreadService != "" {
 			// Create connection pool with shorter timeouts
-			threadConnPool = NewConnectionPool(Config.Services.ThreadService, 5, 20, 3*time.Second)
-			log.Printf("Thread service connection pool initialized for %s", Config.Services.ThreadService)
+			threadConnPool = NewConnectionPool(AppConfig.Services.ThreadService, 5, 20, 3*time.Second)
+			log.Printf("Thread service connection pool initialized for %s", AppConfig.Services.ThreadService)
 		}
 
 		// Initialize Community Service Client
-		communityServiceAddr := Config.Services.CommunityService
+		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
 		communityConn, err := grpc.Dial(
 			communityServiceAddr,
@@ -209,7 +209,7 @@ func InitGRPCServices() {
 // InitHandlers initializes the handlers package with configuration
 func InitHandlers(cfg *config.Config) {
 	// Set the global configuration first
-	Config = cfg
+	AppConfig = cfg
 
 	// Initialize services in the correct order
 	InitGRPCServices()
@@ -268,7 +268,7 @@ func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {
 		serviceHost := serviceName
 
 		// For local development, services are on localhost
-		if Config.Server.CORSOrigin == "*" || os.Getenv("ENVIRONMENT") == "development" {
+		if AppConfig.Server.CORSOrigin == "*" || os.Getenv("ENVIRONMENT") == "development" {
 			serviceHost = "localhost"
 		}
 

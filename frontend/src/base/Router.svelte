@@ -33,8 +33,8 @@
          route === '/bookmarks' ||
          route === '/communities' ||
          route === '/profile')) {
-      window.history.replaceState({}, '', '/');
-      route = '/';
+      window.history.replaceState({}, '', '/login');
+      route = '/login';
     }
     
     if (isAuthenticated && 
@@ -81,7 +81,11 @@
 
 <main>
   {#if route === '/'}
-    <Feed />
+    {#if isAuthenticated}
+      <Feed />
+    {:else}
+      <Login />
+    {/if}
   {:else if route === '/login'}
     <Login />
   {:else if route === '/register'}

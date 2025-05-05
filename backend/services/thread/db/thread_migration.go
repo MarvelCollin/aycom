@@ -45,6 +45,44 @@ func RunMigrations(db *gorm.DB) error {
 		}
 	}
 
+	// Fix the bookmarks table structure to support reply bookmarks
+	log.Println("Checking if bookmarks table needs updates for reply support...")
+	if db.Migrator().HasTable(&model.Bookmark{}) {
+		// Check if the table has a reply_id column
+		hasReplyIDColumn := db.Migrator().HasColumn(&model.Bookmark{}, "reply_id")
+
+		if !hasReplyIDColumn {
+			log.Println("Updating bookmarks table to support reply bookmarks...")
+
+			// Add reply_id column if it doesn't exist
+			if err := db.Exec("ALTER TABLE bookmarks ADD COLUMN reply_id UUID NULL").Error; err != nil {
+				log.Printf("Failed to add reply_id column to bookmarks table: %v", err)
+				return err
+			}
+
+			// We need to modify the primary key constraint to work with replies
+			// First drop the primary key
+			if err := db.Exec("ALTER TABLE bookmarks DROP CONSTRAINT IF EXISTS bookmarks_pkey").Error; err != nil {
+				log.Printf("Failed to drop primary key from bookmarks table: %v", err)
+				return err
+			}
+
+			// Add new primary key constraint
+			if err := db.Exec("ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_pkey PRIMARY KEY (user_id, thread_id)").Error; err != nil {
+				log.Printf("Failed to add new primary key to bookmarks table: %v", err)
+				return err
+			}
+
+			// Create a unique index for reply bookmarks to ensure uniqueness when reply_id is used
+			if err := db.Exec("CREATE UNIQUE INDEX idx_bookmarks_user_reply ON bookmarks (user_id, reply_id) WHERE reply_id IS NOT NULL").Error; err != nil {
+				log.Printf("Failed to create unique index for reply bookmarks: %v", err)
+				return err
+			}
+
+			log.Println("Successfully updated bookmarks table to support reply bookmarks")
+		}
+	}
+
 	// Run migrations for all thread-related models
 	err = db.AutoMigrate(
 		// Base entities

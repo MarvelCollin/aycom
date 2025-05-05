@@ -1106,3 +1106,381 @@ func GetThreadsFromFollowing(c *gin.Context) {
 		"limit":   limit,
 	})
 }
+
+// LikeReply handles the API request to like a reply
+// @Summary Like a reply
+// @Description Adds a like to a reply
+// @Tags Social
+// @Produce json
+// @Param id path string true "Reply ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/like [post]
+func LikeReply(c *gin.Context) {
+	// Get user ID from token
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get reply ID from URL
+	replyID := c.Param("id")
+	if replyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	_, err = client.LikeReply(ctx, &threadProto.LikeReplyRequest{
+		ReplyId: replyID,
+		UserId:  userID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to like reply: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Reply liked successfully",
+	})
+}
+
+// UnlikeReply handles the API request to unlike a reply
+// @Summary Unlike a reply
+// @Description Removes a like from a reply
+// @Tags Social
+// @Produce json
+// @Param id path string true "Reply ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/like [delete]
+func UnlikeReply(c *gin.Context) {
+	// Get user ID from token
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get reply ID from URL
+	replyID := c.Param("id")
+	if replyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	_, err = client.UnlikeReply(ctx, &threadProto.UnlikeReplyRequest{
+		ReplyId: replyID,
+		UserId:  userID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to unlike reply: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Reply unliked successfully",
+	})
+}
+
+// BookmarkReply handles the API request to bookmark a reply
+// @Summary Bookmark a reply
+// @Description Adds a bookmark for a reply
+// @Tags Social
+// @Produce json
+// @Param id path string true "Reply ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/bookmark [post]
+func BookmarkReply(c *gin.Context) {
+	// Get user ID from token
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get reply ID from URL
+	replyID := c.Param("id")
+	if replyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	_, err = client.BookmarkReply(ctx, &threadProto.BookmarkReplyRequest{
+		ReplyId: replyID,
+		UserId:  userID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to bookmark reply: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Reply bookmarked successfully",
+	})
+}
+
+// RemoveReplyBookmark handles the API request to remove a bookmark from a reply
+// @Summary Remove a reply bookmark
+// @Description Removes a bookmark for a reply
+// @Tags Social
+// @Produce json
+// @Param id path string true "Reply ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/bookmark [delete]
+func RemoveReplyBookmark(c *gin.Context) {
+	// Get user ID from token
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get reply ID from URL
+	replyID := c.Param("id")
+	if replyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	_, err = client.RemoveReplyBookmark(ctx, &threadProto.RemoveReplyBookmarkRequest{
+		ReplyId: replyID,
+		UserId:  userID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to remove reply bookmark: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Reply bookmark removed successfully",
+	})
+}
+
+// GetThreadsFromFollowing gets threads from users the current user follows

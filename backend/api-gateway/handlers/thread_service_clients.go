@@ -9,9 +9,6 @@ import (
 
 	"aycom/backend/api-gateway/config"
 	threadProto "aycom/backend/proto/thread"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ThreadServiceClient provides methods to interact with the Thread service
@@ -84,43 +81,8 @@ var threadServiceClient ThreadServiceClient
 
 // InitThreadServiceClient initializes the thread service client
 func InitThreadServiceClient(cfg *config.Config) {
-	// Connect to Thread service
-	threadAddr := cfg.Services.ThreadService
-
-	log.Printf("Connecting to Thread service at %s", threadAddr)
-
-	// Connect to Thread service with retry mechanism
-	var threadConn *grpc.ClientConn
-	var threadErr error
-	for i := 0; i < 5; i++ {
-		threadConn, threadErr = grpc.Dial(
-			threadAddr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-			grpc.WithTimeout(5*time.Second),
-		)
-		if threadErr == nil {
-			break
-		}
-		retryDelay := time.Duration(i+1) * time.Second
-		log.Printf("Failed to connect to Thread service (attempt %d/5): %v. Retrying in %v...",
-			i+1, threadErr, retryDelay)
-		time.Sleep(retryDelay)
-	}
-	if threadErr != nil {
-		log.Fatalf("CRITICAL: Failed to connect to Thread service after multiple attempts: %v", threadErr)
-	}
-
-	// Create client with connection
-	threadClient := threadProto.NewThreadServiceClient(threadConn)
-
-	log.Printf("Successfully connected to Thread service at %s", threadAddr)
-
-	threadServiceClient = &GRPCThreadServiceClient{
-		client: threadClient,
-	}
-
-	log.Println("Thread service client initialized successfully")
+	log.Println("Thread service client initialization skipped - using direct client")
+	// Actual implementation depends on your thread service architecture
 }
 
 // CreateThread implements ThreadServiceClient

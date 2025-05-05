@@ -9,7 +9,6 @@ package user
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	_ "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -902,7 +901,7 @@ var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/user/user.proto\x12\x04user\x1a\x1fgoogle/protobuf/timestamp.proto\"\x97\x04\n" +
+	"\x15proto/user/user.proto\x12\x04user\"\x97\x04\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +

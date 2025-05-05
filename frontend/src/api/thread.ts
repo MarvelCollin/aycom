@@ -1048,3 +1048,263 @@ export async function getThreadsByHashtag(
     throw error;
   }
 }
+
+export async function likeReply(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error("No auth token available for liking reply");
+      throw new Error("Authentication required");
+    }
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to like reply: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to like reply: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+    
+    throw new Error("Failed to like reply after multiple attempts");
+  } catch (error) {
+    console.error("Error in likeReply:", error);
+    throw error;
+  }
+}
+
+export async function unlikeReply(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error("No auth token available for unliking reply");
+      throw new Error("Authentication required");
+    }
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
+          method: "DELETE",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to unlike reply: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to unlike reply: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+    
+    throw new Error("Failed to unlike reply after multiple attempts");
+  } catch (error) {
+    console.error("Error in unlikeReply:", error);
+    throw error;
+  }
+}
+
+export async function bookmarkReply(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error("No auth token available for bookmarking reply");
+      throw new Error("Authentication required");
+    }
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/replies/${replyId}/bookmark`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to bookmark reply: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to bookmark reply: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+    
+    throw new Error("Failed to bookmark reply after multiple attempts");
+  } catch (error) {
+    console.error("Error in bookmarkReply:", error);
+    throw error;
+  }
+}
+
+export async function removeReplyBookmark(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error("No auth token available for removing reply bookmark");
+      throw new Error("Authentication required");
+    }
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/replies/${replyId}/bookmark`, {
+          method: "DELETE",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          return response.json();
+        }
+        
+        // If server error, try again
+        if (response.status >= 500 && retries < maxRetries) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        
+        // Handle error response
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to remove reply bookmark: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to remove reply bookmark: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // If network error and we can retry, do so
+        if (retries < maxRetries) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+    
+    throw new Error("Failed to remove reply bookmark after multiple attempts");
+  } catch (error) {
+    console.error("Error in removeReplyBookmark:", error);
+    throw error;
+  }
+}

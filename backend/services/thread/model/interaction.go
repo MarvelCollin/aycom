@@ -25,6 +25,7 @@ type Repost struct {
 type Bookmark struct {
 	UserID    uuid.UUID  `gorm:"type:uuid;not null;column:user_id;primaryKey"`
 	ThreadID  uuid.UUID  `gorm:"type:uuid;not null;column:thread_id;primaryKey"`
+	ReplyID   *uuid.UUID `gorm:"type:uuid;column:reply_id"`
 	CreatedAt time.Time  `gorm:"autoCreateTime"`
 	DeletedAt *time.Time `gorm:"index"`
 }

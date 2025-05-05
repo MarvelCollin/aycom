@@ -187,7 +187,13 @@
   // Authentication check
   function checkAuth() {
     if (!authState.isAuthenticated) {
-      toastStore.showToast('You need to log in to access the feed', 'warning');
+      logger.info('User not authenticated, redirecting to login page');
+      
+      // Only redirect if we're not already on the login page
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login') {
+        window.location.href = '/login';
+      }
       return false;
     }
     return true;
@@ -283,7 +289,11 @@
               isReposted: false,
               isBookmarked: false,
               replyTo: null,
-              isAdvertisement: true
+              isAdvertisement: true,
+              authorId: '',
+              authorName: 'Advertisement',
+              authorUsername: 'advertisement',
+              authorAvatar: '/assets/ad-icon.png'
             });
           }
         });
@@ -363,7 +373,11 @@
               isReposted: false,
               isBookmarked: false,
               replyTo: null,
-              isAdvertisement: true
+              isAdvertisement: true,
+              authorId: '',
+              authorName: 'Advertisement',
+              authorUsername: 'advertisement',
+              authorAvatar: '/assets/ad-icon.png'
             });
           }
         });
@@ -440,7 +454,13 @@
   }
 
   onMount(async () => {
-    if (!checkAuth()) return;
+    console.log('Feed page - Auth state:', authState.isAuthenticated, 'Current path:', window.location.pathname);
+    
+    // Let the Router handle redirects rather than doing it directly
+    if (!authState.isAuthenticated) {
+      logger.info('User not authenticated, letting Router handle the redirect');
+      return;
+    }
     
     // Load user profile first
     await fetchUserProfile();
@@ -628,7 +648,7 @@
           const convertedReply = threadToTweet(enrichedReply);
           
           // Ensure the parent references are set properly
-          convertedReply.replyTo = threadId;
+          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
           (convertedReply as any).parentReplyId = replyData.parent_id;
           
           return convertedReply;
@@ -710,26 +730,6 @@
       </div>
     </div>
     
-    <!-- Authentication Check Banner -->
-    {#if !authState.isAuthenticated}
-      <div class="p-4 mb-2 rounded-md mx-4 mt-4 auth-banner">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="font-bold text-lg {isDarkMode ? 'text-white' : 'text-gray-800'}">Welcome to AYCOM!</h2>
-            <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Sign in to post and interact with threads.</p>
-          </div>
-          <div class="flex space-x-2">
-            <a href="/login" class="px-4 py-2 bg-transparent border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white rounded transition-colors">
-              Log in
-            </a>
-            <a href="/register" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
-              Sign up
-            </a>
-          </div>
-        </div>
-      </div>
-    {/if}
-    
     <!-- Compose Tweet Form - Only visible for authenticated users -->
     {#if authState.isAuthenticated}
       <div class="p-4 border-b feed-container">
@@ -798,11 +798,6 @@
             Try Again
           </button>
         </div>
-      <!-- Authentication required message -->
-      {:else if !authState.isAuthenticated}
-        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-          <p class="mb-4">Please login to see your personalized feed</p>
-        </div>
       <!-- Empty state -->
       {:else if currentTweets.length === 0 && !isLoading}
         <div class="p-8 text-center text-gray-500 dark:text-gray-400">
@@ -840,7 +835,7 @@
               <div class="flex space-x-3">
                 <div class="flex-shrink-0">
                   <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                    {tweet.avatar}
+                    <img src={tweet.avatar} alt="Advertisement" class="w-8 h-8 object-cover rounded-full" />
                   </div>
                 </div>
                 <div class="flex-1">

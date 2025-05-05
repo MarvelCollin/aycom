@@ -34,6 +34,11 @@ type InteractionService interface {
 	RemoveBookmark(ctx context.Context, userID, threadID string) error
 	HasUserBookmarked(ctx context.Context, userID, threadID string) (bool, error)
 	GetUserBookmarks(ctx context.Context, userID string, page, limit int) ([]*Thread, int64, error)
+	
+	// Reply bookmark operations
+	BookmarkReply(ctx context.Context, userID, replyID string) error
+	RemoveReplyBookmark(ctx context.Context, userID, replyID string) error
+	HasUserBookmarkedReply(ctx context.Context, userID, replyID string) (bool, error)
 }
 
 // interactionService implements the InteractionService interface
@@ -327,4 +332,61 @@ func (s *interactionService) GetUserBookmarks(ctx context.Context, userID string
 	totalCount := int64(len(threads)) // Temporary solution
 
 	return threads, totalCount, nil
+}
+
+// BookmarkReply bookmarks a reply
+func (s *interactionService) BookmarkReply(ctx context.Context, userID, replyID string) error {
+	if userID == "" || replyID == "" {
+		return status.Error(codes.InvalidArgument, "User ID and Reply ID are required")
+	}
+
+	// Check if user has already bookmarked this reply
+	hasBookmarked, err := s.interactionRepo.IsReplyBookmarkedByUser(userID, replyID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to check if user has bookmarked reply: %v", err)
+	}
+
+	if hasBookmarked {
+		return status.Error(codes.AlreadyExists, "User has already bookmarked this reply")
+	}
+
+	// Add bookmark
+	if err := s.interactionRepo.BookmarkReply(userID, replyID); err != nil {
+		return status.Errorf(codes.Internal, "Failed to bookmark reply: %v", err)
+	}
+
+	return nil
+}
+
+// RemoveReplyBookmark removes a bookmark from a reply
+func (s *interactionService) RemoveReplyBookmark(ctx context.Context, userID, replyID string) error {
+	if userID == "" || replyID == "" {
+		return status.Error(codes.InvalidArgument, "User ID and Reply ID are required")
+	}
+
+	// Check if user has bookmarked this reply
+	hasBookmarked, err := s.interactionRepo.IsReplyBookmarkedByUser(userID, replyID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to check if user has bookmarked reply: %v", err)
+	}
+
+	if !hasBookmarked {
+		return status.Error(codes.NotFound, "User has not bookmarked this reply")
+	}
+
+	// Remove bookmark
+	if err := s.interactionRepo.RemoveReplyBookmark(userID, replyID); err != nil {
+		return status.Errorf(codes.Internal, "Failed to remove reply bookmark: %v", err)
+	}
+
+	return nil
+}
+
+// HasUserBookmarkedReply checks if a user has bookmarked a reply
+func (s *interactionService) HasUserBookmarkedReply(ctx context.Context, userID, replyID string) (bool, error) {
+	if userID == "" || replyID == "" {
+		return false, status.Error(codes.InvalidArgument, "User ID and Reply ID are required")
+	}
+
+	return s.interactionRepo.IsReplyBookmarkedByUser(userID, replyID)
 }

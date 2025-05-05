@@ -24,40 +24,6 @@ const (
 	MaxMessageSize = 4096
 )
 
-// Create a websocket upgrader based on configuration
-func createUpgrader() websocket.Upgrader {
-	return websocket.Upgrader{
-		ReadBufferSize:  Config.WebSocket.ReadBufferSize,
-		WriteBufferSize: Config.WebSocket.WriteBufferSize,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins in development; restrict in production
-		},
-	}
-}
-
-var (
-	wsManager     *WebSocketManager
-	wsManagerOnce sync.Once
-	upgrader      websocket.Upgrader // This will be initialized in InitWebsocketServices
-)
-
-// InitWebsocketServices initializes all service WebSocket clients
-func InitWebsocketServices() {
-	log.Println("Initializing WebSocket service clients...")
-
-	// Initialize the WebSocket manager
-	wsManager := GetWebSocketManager()
-	if wsManager == nil {
-		log.Println("Creating new WebSocket manager")
-		// Initialize a new WebSocket manager when needed
-	}
-
-	// Initialize the upgrader with the configuration
-	upgrader = createUpgrader()
-
-	log.Println("WebSocket service clients initialized successfully")
-}
-
 // WebSocketManager manages WebSocket connections and message broadcasting
 type WebSocketManager struct {
 	clients      map[string]*Client
@@ -86,6 +52,27 @@ type BroadcastMessage struct {
 	UserID  string
 }
 
+var (
+	wsManager     *WebSocketManager
+	wsManagerOnce sync.Once
+)
+
+// Global WebSocket upgrader instance
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  ReadBufferSize,
+	WriteBufferSize: WriteBufferSize,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins in development; restrict in production
+	},
+}
+
+// InitWebsocketServices initializes all service WebSocket clients
+func InitWebsocketServices() {
+	log.Println("Initializing WebSocket service clients...")
+	GetWebSocketManager() // Initialize singleton
+	log.Println("WebSocket service clients initialized successfully")
+}
+
 // NewWebSocketManager creates a new WebSocket manager
 func NewWebSocketManager() *WebSocketManager {
 	manager := &WebSocketManager{
@@ -95,14 +82,15 @@ func NewWebSocketManager() *WebSocketManager {
 		register:     make(chan *Client),
 		unregister:   make(chan *Client),
 		broadcast:    make(chan BroadcastMessage),
+		mutex:        sync.RWMutex{},
 	}
 
-	go manager.run()
+	go manager.Run()
 	return manager
 }
 
-// run starts the WebSocket manager
-func (manager *WebSocketManager) run() {
+// Run starts the WebSocket manager
+func (manager *WebSocketManager) Run() {
 	for {
 		select {
 		case client := <-manager.register:
@@ -118,6 +106,7 @@ func (manager *WebSocketManager) run() {
 				manager.chatRooms[client.ChatID][client.ID] = true
 			}
 			manager.mutex.Unlock()
+			log.Printf("Client %s connected", client.ID)
 
 		case client := <-manager.unregister:
 			manager.mutex.Lock()
@@ -136,6 +125,7 @@ func (manager *WebSocketManager) run() {
 				}
 
 				close(client.Send)
+				log.Printf("Client %s disconnected", client.ID)
 			}
 			manager.mutex.Unlock()
 
@@ -146,6 +136,7 @@ func (manager *WebSocketManager) run() {
 					if client, found := manager.clients[clientID]; found {
 						select {
 						case client.Send <- message.Message:
+							// Message sent successfully
 						default:
 							manager.mutex.RUnlock()
 							manager.mutex.Lock()

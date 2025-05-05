@@ -33,6 +33,12 @@ type InteractionRepository interface {
 	IsThreadBookmarkedByUser(userID, threadID string) (bool, error)
 	GetUserBookmarks(userID string, page, limit int) ([]*model.Thread, error)
 	CountThreadBookmarks(threadID string) (int64, error)
+
+	// Reply bookmark methods
+	BookmarkReply(userID, replyID string) error
+	RemoveReplyBookmark(userID, replyID string) error
+	IsReplyBookmarkedByUser(userID, replyID string) (bool, error)
+	CountReplyBookmarks(replyID string) (int64, error)
 }
 
 // PostgresInteractionRepository implements the InteractionRepository interface
@@ -308,5 +314,71 @@ func (r *PostgresInteractionRepository) CountThreadBookmarks(threadID string) (i
 
 	var count int64
 	r.db.Model(&model.Bookmark{}).Where("thread_id = ?", threadUUID).Count(&count)
+	return count, nil
+}
+
+// BookmarkReply adds a bookmark to a reply
+func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) error {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return errors.New("invalid UUID format for user ID")
+	}
+
+	replyUUID, err := uuid.Parse(replyID)
+	if err != nil {
+		return errors.New("invalid UUID format for reply ID")
+	}
+
+	bookmark := model.Bookmark{
+		UserID:  userUUID,
+		ReplyID: &replyUUID,
+		// ThreadID is required by the model, so we use a zero UUID
+		ThreadID: uuid.Nil,
+	}
+
+	return r.db.Create(&bookmark).Error
+}
+
+// RemoveReplyBookmark removes a bookmark from a reply
+func (r *PostgresInteractionRepository) RemoveReplyBookmark(userID, replyID string) error {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return errors.New("invalid UUID format for user ID")
+	}
+
+	replyUUID, err := uuid.Parse(replyID)
+	if err != nil {
+		return errors.New("invalid UUID format for reply ID")
+	}
+
+	return r.db.Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).Delete(&model.Bookmark{}).Error
+}
+
+// IsReplyBookmarkedByUser checks if a reply is bookmarked by a specific user
+func (r *PostgresInteractionRepository) IsReplyBookmarkedByUser(userID, replyID string) (bool, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, errors.New("invalid UUID format for user ID")
+	}
+
+	replyUUID, err := uuid.Parse(replyID)
+	if err != nil {
+		return false, errors.New("invalid UUID format for reply ID")
+	}
+
+	var count int64
+	r.db.Model(&model.Bookmark{}).Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).Count(&count)
+	return count > 0, nil
+}
+
+// CountReplyBookmarks counts the number of bookmarks for a reply
+func (r *PostgresInteractionRepository) CountReplyBookmarks(replyID string) (int64, error) {
+	replyUUID, err := uuid.Parse(replyID)
+	if err != nil {
+		return 0, errors.New("invalid UUID format for reply ID")
+	}
+
+	var count int64
+	r.db.Model(&model.Bookmark{}).Where("reply_id = ?", replyUUID).Count(&count)
 	return count, nil
 }

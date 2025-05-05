@@ -13,6 +13,26 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Config for WebSocket parameters
+var WebSocketConfig = struct {
+	MaxMessageSize       int
+	SendBufferSize       int
+	ReadDeadlineTimeout  time.Duration
+	WriteDeadlineTimeout time.Duration
+	PingInterval         time.Duration
+}{
+	MaxMessageSize:       4096,
+	SendBufferSize:       256,
+	ReadDeadlineTimeout:  60 * time.Second,
+	WriteDeadlineTimeout: 10 * time.Second,
+	PingInterval:         30 * time.Second,
+}
+
+// SetCommunityServiceClient sets the client for use across handler functions
+func SetCommunityServiceClient(client CommunityServiceClient) {
+	communityServiceClient = client
+}
+
 // ChatMessage represents a message sent over WebSocket
 type ChatMessage struct {
 	Type      string    `json:"type"`
@@ -42,7 +62,8 @@ func HandleCommunityChat(c *gin.Context) {
 	}
 
 	// Validate user exists
-	isValid, err := communityServiceClient.ValidateUser(userID.(string))
+	client := GetCommunityServiceClient()
+	isValid, err := client.ValidateUser(userID.(string))
 	if err != nil {
 		log.Printf("Error validating user: %v", err)
 		SendErrorResponse(c, http.StatusInternalServerError, "server_error", "Failed to validate user")
@@ -62,22 +83,22 @@ func HandleCommunityChat(c *gin.Context) {
 	}
 
 	// Create client and register with WebSocket manager
-	client := &Client{
+	wsClient := &Client{
 		ID:         uuid.New().String(),
 		UserID:     userID.(string),
 		Connection: conn,
 		ChatID:     chatID,
-		Send:       make(chan []byte, Config.WebSocket.SendBufferSize),
+		Send:       make(chan []byte, WebSocketConfig.SendBufferSize),
 		Manager:    GetWebSocketManager(),
 	}
 
 	// Register client with the WebSocket manager
 	manager := GetWebSocketManager()
-	manager.register <- client
+	manager.register <- wsClient
 
 	// Start goroutines for reading and writing
-	go communityChatReadPump(client)
-	go communityChatWritePump(client)
+	go communityChatReadPump(wsClient)
+	go communityChatWritePump(wsClient)
 }
 
 // communityChatReadPump reads messages from the WebSocket connection
@@ -88,10 +109,10 @@ func communityChatReadPump(c *Client) {
 		c.Connection.Close()
 	}()
 
-	c.Connection.SetReadLimit(int64(Config.WebSocket.MaxMessageSize))
-	c.Connection.SetReadDeadline(time.Now().Add(Config.WebSocket.ReadDeadlineTimeout))
+	c.Connection.SetReadLimit(int64(WebSocketConfig.MaxMessageSize))
+	c.Connection.SetReadDeadline(time.Now().Add(WebSocketConfig.ReadDeadlineTimeout))
 	c.Connection.SetPongHandler(func(string) error {
-		c.Connection.SetReadDeadline(time.Now().Add(Config.WebSocket.ReadDeadlineTimeout))
+		c.Connection.SetReadDeadline(time.Now().Add(WebSocketConfig.ReadDeadlineTimeout))
 		return nil
 	})
 
@@ -122,7 +143,7 @@ func communityChatReadPump(c *Client) {
 
 // communityChatWritePump writes messages to the WebSocket connection
 func communityChatWritePump(c *Client) {
-	ticker := time.NewTicker(Config.WebSocket.PingInterval)
+	ticker := time.NewTicker(WebSocketConfig.PingInterval)
 	defer func() {
 		ticker.Stop()
 		c.Connection.Close()
@@ -131,7 +152,7 @@ func communityChatWritePump(c *Client) {
 	for {
 		select {
 		case message, ok := <-c.Send:
-			c.Connection.SetWriteDeadline(time.Now().Add(Config.WebSocket.WriteDeadlineTimeout))
+			c.Connection.SetWriteDeadline(time.Now().Add(WebSocketConfig.WriteDeadlineTimeout))
 			if !ok {
 				c.Connection.WriteMessage(websocket.CloseMessage, []byte{})
 				return
@@ -203,7 +224,8 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 // processTextMessage handles text messages
 func processTextMessage(message ChatMessage) ([]byte, error) {
 	// Save the message to the database
-	msgID, err := communityServiceClient.SendMessage(
+	client := GetCommunityServiceClient()
+	msgID, err := client.SendMessage(
 		message.ChatID,
 		message.UserID,
 		message.Content,
@@ -249,7 +271,8 @@ func processTypingIndicator(message ChatMessage) ([]byte, error) {
 // processReadReceipt handles read receipts
 func processReadReceipt(message ChatMessage) ([]byte, error) {
 	// Update the read status in the database
-	err := communityServiceClient.MarkMessageAsRead(
+	client := GetCommunityServiceClient()
+	err := client.MarkMessageAsRead(
 		message.ChatID,
 		message.UserID,
 		message.MessageID,

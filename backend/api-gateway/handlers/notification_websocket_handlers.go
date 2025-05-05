@@ -39,7 +39,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 		ID:         uuid.New().String(),
 		UserID:     userID.(string),
 		Connection: conn,
-		Send:       make(chan []byte, Config.WebSocket.SendBufferSize),
+		Send:       make(chan []byte, AppConfig.WebSocket.SendBufferSize),
 	}
 
 	// Register with WebSocket manager
@@ -78,10 +78,10 @@ func (c *NotificationClient) notificationReadPump(wsClient *Client) {
 		c.Connection.Close()
 	}()
 
-	c.Connection.SetReadLimit(int64(Config.WebSocket.MaxMessageSize))
-	c.Connection.SetReadDeadline(time.Now().Add(Config.WebSocket.ReadDeadlineTimeout))
+	c.Connection.SetReadLimit(int64(AppConfig.WebSocket.MaxMessageSize))
+	c.Connection.SetReadDeadline(time.Now().Add(AppConfig.WebSocket.ReadDeadlineTimeout))
 	c.Connection.SetPongHandler(func(string) error {
-		c.Connection.SetReadDeadline(time.Now().Add(Config.WebSocket.ReadDeadlineTimeout))
+		c.Connection.SetReadDeadline(time.Now().Add(AppConfig.WebSocket.ReadDeadlineTimeout))
 		return nil
 	})
 
@@ -101,7 +101,7 @@ func (c *NotificationClient) notificationReadPump(wsClient *Client) {
 
 // notificationWritePump writes messages to the notification WebSocket connection
 func (c *NotificationClient) notificationWritePump() {
-	ticker := time.NewTicker(Config.WebSocket.PingInterval)
+	ticker := time.NewTicker(AppConfig.WebSocket.PingInterval)
 	defer func() {
 		ticker.Stop()
 		c.Connection.Close()
@@ -110,7 +110,7 @@ func (c *NotificationClient) notificationWritePump() {
 	for {
 		select {
 		case message, ok := <-c.Send:
-			c.Connection.SetWriteDeadline(time.Now().Add(Config.WebSocket.WriteDeadlineTimeout))
+			c.Connection.SetWriteDeadline(time.Now().Add(AppConfig.WebSocket.WriteDeadlineTimeout))
 			if !ok {
 				c.Connection.WriteMessage(websocket.CloseMessage, []byte{})
 				return
@@ -134,7 +134,7 @@ func (c *NotificationClient) notificationWritePump() {
 			}
 
 		case <-ticker.C:
-			c.Connection.SetWriteDeadline(time.Now().Add(Config.WebSocket.WriteDeadlineTimeout))
+			c.Connection.SetWriteDeadline(time.Now().Add(AppConfig.WebSocket.WriteDeadlineTimeout))
 			if err := c.Connection.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

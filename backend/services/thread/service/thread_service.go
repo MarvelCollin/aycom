@@ -319,3 +319,14 @@ func (s *threadService) DeleteThread(ctx context.Context, threadID, userID strin
 
 	return nil
 }
+
+// Request/response types needed for the service implementation
+type BookmarkReplyRequest struct {
+	ReplyId string
+	UserId  string
+}
+
+type RemoveReplyBookmarkRequest struct {
+	ReplyId string
+	UserId  string
+}
