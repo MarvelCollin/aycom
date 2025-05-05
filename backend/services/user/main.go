@@ -14,10 +14,10 @@ import (
 
 	// "gorm.io/gorm/logger" // Commented out logger import
 
+	"aycom/backend/proto/user"
 	handlers "aycom/backend/services/user/api"
 	"aycom/backend/services/user/db"
 	"aycom/backend/services/user/model"
-	"aycom/backend/services/user/proto"
 	"aycom/backend/services/user/service"
 )
 
@@ -80,7 +80,7 @@ func main() {
 		svc := service.NewUserService(repo)
 		handler := handlers.NewUserHandler(svc)
 		grpcServer := grpc.NewServer()
-		proto.RegisterUserServiceServer(grpcServer, handler)
+		user.RegisterUserServiceServer(grpcServer, handler)
 		log.Printf("User service started on port %s", port)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)

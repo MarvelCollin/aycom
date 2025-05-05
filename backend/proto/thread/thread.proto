@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package thread;
 
-option go_package = "aycom/backend/services/thread/proto";
+option go_package = "aycom/backend/proto/thread";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
@@ -10,33 +10,33 @@ import "google/protobuf/empty.proto";
 // Thread Service definition
 service ThreadService {
   // Thread operations
-  rpc CreateThread (CreateThreadRequest) returns (ThreadResponse);
-  rpc GetThreadById (GetThreadRequest) returns (ThreadResponse);
-  rpc GetThreadsByUser (GetThreadsByUserRequest) returns (ThreadsResponse);
-  rpc GetAllThreads (GetAllThreadsRequest) returns (ThreadsResponse);
-  rpc UpdateThread (UpdateThreadRequest) returns (ThreadResponse);
-  rpc DeleteThread (DeleteThreadRequest) returns (google.protobuf.Empty);
+  rpc CreateThread(CreateThreadRequest) returns (ThreadResponse);
+  rpc GetThreadById(GetThreadRequest) returns (ThreadResponse);
+  rpc GetThreadsByUser(GetThreadsByUserRequest) returns (ThreadsResponse);
+  rpc GetAllThreads(GetAllThreadsRequest) returns (ThreadsResponse);
+  rpc UpdateThread(UpdateThreadRequest) returns (ThreadResponse);
+  rpc DeleteThread(DeleteThreadRequest) returns (google.protobuf.Empty);
 
   // Reply operations
-  rpc CreateReply (CreateReplyRequest) returns (ReplyResponse);
-  rpc GetRepliesByThread (GetRepliesByThreadRequest) returns (RepliesResponse);
-  rpc UpdateReply (UpdateReplyRequest) returns (ReplyResponse);
-  rpc DeleteReply (DeleteReplyRequest) returns (google.protobuf.Empty);
+  rpc CreateReply(CreateReplyRequest) returns (ReplyResponse);
+  rpc GetRepliesByThread(GetRepliesByThreadRequest) returns (RepliesResponse);
+  rpc UpdateReply(UpdateReplyRequest) returns (ReplyResponse);
+  rpc DeleteReply(DeleteReplyRequest) returns (google.protobuf.Empty);
 
   // Interaction operations
-  rpc LikeThread (LikeThreadRequest) returns (google.protobuf.Empty);
-  rpc UnlikeThread (UnlikeThreadRequest) returns (google.protobuf.Empty);
-  rpc LikeReply (LikeReplyRequest) returns (google.protobuf.Empty);
-  rpc UnlikeReply (UnlikeReplyRequest) returns (google.protobuf.Empty);
-  rpc RepostThread (RepostThreadRequest) returns (google.protobuf.Empty);
-  rpc RemoveRepost (RemoveRepostRequest) returns (google.protobuf.Empty);
-  rpc BookmarkThread (BookmarkThreadRequest) returns (google.protobuf.Empty);
-  rpc RemoveBookmark (RemoveBookmarkRequest) returns (google.protobuf.Empty);
+  rpc LikeThread(LikeThreadRequest) returns (google.protobuf.Empty);
+  rpc UnlikeThread(UnlikeThreadRequest) returns (google.protobuf.Empty);
+  rpc LikeReply(LikeReplyRequest) returns (google.protobuf.Empty);
+  rpc UnlikeReply(UnlikeReplyRequest) returns (google.protobuf.Empty);
+  rpc RepostThread(RepostThreadRequest) returns (google.protobuf.Empty);
+  rpc RemoveRepost(RemoveRepostRequest) returns (google.protobuf.Empty);
+  rpc BookmarkThread(BookmarkThreadRequest) returns (google.protobuf.Empty);
+  rpc RemoveBookmark(RemoveBookmarkRequest) returns (google.protobuf.Empty);
 
   // Poll operations
-  rpc CreatePoll (CreatePollRequest) returns (PollResponse);
-  rpc VotePoll (VotePollRequest) returns (google.protobuf.Empty);
-  rpc GetPollResults (GetPollResultsRequest) returns (PollResultsResponse);
+  rpc CreatePoll(CreatePollRequest) returns (PollResponse);
+  rpc VotePoll(VotePollRequest) returns (google.protobuf.Empty);
+  rpc GetPollResults(GetPollResultsRequest) returns (PollResultsResponse);
 
   // Trending hashtags
   rpc GetTrendingHashtags(GetTrendingHashtagsRequest) returns (GetTrendingHashtagsResponse);
@@ -66,13 +66,6 @@ message Media {
   string type = 3; // "image", "video", etc.
 }
 
-// MediaResponse message
-message MediaResponse {
-  string id = 1;
-  string url = 2;
-  string type = 3;
-}
-
 // Poll message
 message Poll {
   string id = 1;
@@ -80,14 +73,6 @@ message Poll {
   repeated PollOption options = 3;
   google.protobuf.Timestamp end_time = 4;
   bool is_anonymous = 5;
-}
-
-// PollInfo message
-message PollInfo {
-  string question = 1;
-  repeated string options = 2;
-  google.protobuf.Timestamp end_time = 3;
-  bool is_anonymous = 4;
 }
 
 // Poll option message
@@ -229,12 +214,12 @@ message UnlikeReplyRequest {
 message RepostThreadRequest {
   string thread_id = 1;
   string user_id = 2;
-  string content = 3; // Optional content to add to the repost
+  optional string added_content = 3;
 }
 
 // RemoveRepostRequest message
 message RemoveRepostRequest {
-  string repost_id = 1;
+  string thread_id = 1;
   string user_id = 2;
 }
 
@@ -253,8 +238,7 @@ message RemoveBookmarkRequest {
 // CreatePollRequest message
 message CreatePollRequest {
   string thread_id = 1;
-  string user_id = 2;
-  PollRequest poll = 3;
+  PollRequest poll = 2;
 }
 
 // VotePollRequest message
@@ -271,113 +255,90 @@ message GetPollResultsRequest {
 
 // ThreadResponse message
 message ThreadResponse {
-  string id = 1;
-  string thread_id = 2;
-  string user_id = 3;
-  string content = 4;
-  repeated MediaResponse media = 5;
-  google.protobuf.Timestamp created_at = 6;
-  google.protobuf.Timestamp updated_at = 7;
-  int64 reply_count = 8;
-  int64 like_count = 9;
-  int64 repost_count = 10;
-  int64 view_count = 11;
-  optional Poll poll = 12;
-  optional string parent_thread_id = 13; // For reposts
-  optional bool is_repost = 14;
-  optional bool is_liked = 15;
-  optional bool is_bookmarked = 16;
-  optional bool is_pinned = 17;
-  optional string who_can_reply = 18;
-  optional google.protobuf.Timestamp scheduled_at = 19;
-  optional string community_id = 20;
-  optional bool is_advertisement = 21;
-  optional User user = 22; // User information
-  int64 bookmark_count = 23;
+  Thread thread = 1;
+  User user = 2;
+  int64 likes_count = 3;
+  int64 replies_count = 4;
+  int64 reposts_count = 5;
+  bool liked_by_user = 6;
+  bool reposted_by_user = 7;
+  bool bookmarked_by_user = 8;
+  optional PollResponse poll = 9;
+  repeated string hashtags = 10;
+  repeated string mentioned_user_ids = 11;
+  optional string community_name = 12;
+  int64 bookmark_count = 13;
 }
 
 // ThreadsResponse message
 message ThreadsResponse {
   repeated ThreadResponse threads = 1;
-  int32 total_count = 2;
-  int32 page = 3;
-  int32 limit = 4;
+  int32 total = 2;
 }
 
 // ReplyResponse message
 message ReplyResponse {
-  string id = 1;
-  string thread_id = 2;
-  string user_id = 3;
-  string content = 4;
-  repeated Media media = 5;
-  string parent_id = 6; // Optional, for replies to replies
-  google.protobuf.Timestamp created_at = 7;
-  google.protobuf.Timestamp updated_at = 8;
-  int64 like_count = 9;
-  int64 reply_count = 10;
-  optional bool is_liked = 11;
+  Reply reply = 1;
+  User user = 2;
+  int64 likes_count = 3;
+  bool liked_by_user = 4;
+  repeated string mentioned_user_ids = 5;
+  User parent_user = 6;
+  optional string parent_content = 7;
 }
 
 // RepliesResponse message
 message RepliesResponse {
   repeated ReplyResponse replies = 1;
-  int32 total_count = 2;
-  int32 page = 3;
-  int32 limit = 4;
+  int32 total = 2;
 }
 
 // PollResponse message
 message PollResponse {
-  string id = 1;
-  string thread_id = 2;
-  string question = 3;
-  repeated PollOption options = 4;
-  google.protobuf.Timestamp end_time = 5;
-  bool is_anonymous = 6;
-  optional string voted_option_id = 7; // The option the requesting user voted for, if any
+  Poll poll = 1;
+  repeated PollOptionResult results = 2;
+  int64 total_votes = 3;
+  optional string user_vote_option_id = 4;
+  bool has_ended = 5;
 }
 
 // PollResultsResponse message
 message PollResultsResponse {
-  string id = 1;
-  string question = 2;
-  repeated PollOptionResult results = 3;
-  int64 total_votes = 4;
-  bool is_ended = 5;
+  repeated PollOptionResult results = 1;
+  int64 total_votes = 2;
+  optional string user_vote_option_id = 3;
+  bool has_ended = 4;
 }
 
 // PollOptionResult message
 message PollOptionResult {
-  string id = 1;
+  string option_id = 1;
   string text = 2;
-  int64 vote_count = 3;
-  double percentage = 4;
+  int64 votes = 3;
+  float percentage = 4;
 }
 
-// User message represents user information within thread responses
+// User message - minimal info needed for thread/reply display
 message User {
   string id = 1;
-  string username = 2;
-  string display_name = 3;
-  string email = 4;
-  string avatar_url = 5;
-  string bio = 6;
-  bool is_verified = 7;
+  string name = 2;
+  string username = 3;
+  string profile_picture_url = 4;
+  bool is_verified = 5;
 }
 
-// Define HashtagResponse for trending hashtags
+// HashtagResponse message
 message HashtagResponse {
-  string id = 1;
-  string text = 2;
-  int64 thread_count = 3;
+  string name = 1;
+  int64 count = 2;
 }
 
-// Define request and response for trending hashtags
+// GetTrendingHashtagsRequest message
 message GetTrendingHashtagsRequest {
   int32 limit = 1;
 }
 
+// GetTrendingHashtagsResponse message
 message GetTrendingHashtagsResponse {
   repeated HashtagResponse hashtags = 1;
 } 

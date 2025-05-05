@@ -9,9 +9,9 @@ import (
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 
+	"aycom/backend/proto/community"
 	"aycom/backend/services/community/api"
 	"aycom/backend/services/community/db"
-	"aycom/backend/services/community/proto"
 	"aycom/backend/services/community/repository"
 	"aycom/backend/services/community/service"
 )
@@ -59,7 +59,7 @@ func main() {
 		handler := api.NewCommunityHandler(communityService, chatService)
 
 		grpcServer := grpc.NewServer()
-		proto.RegisterCommunityServiceServer(grpcServer, handler)
+		community.RegisterCommunityServiceServer(grpcServer, handler)
 		log.Printf("Community service started on port %s", port)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"aycom/backend/api-gateway/config"
-	communityProto "aycom/backend/services/community/proto"
-	userProto "aycom/backend/services/user/proto"
+	"aycom/backend/proto/community"
+	"aycom/backend/proto/user"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
@@ -26,13 +26,13 @@ var Config *config.Config
 var (
 	authConnPool       *ConnectionPool
 	threadConnPool     *ConnectionPool
-	UserClient         userProto.UserServiceClient
+	UserClient         user.UserServiceClient
 	connPoolInitOnce   sync.Once
 	requestRateLimits  = make(map[string]*RateLimiter)
 	rateLimiterMutex   sync.RWMutex
 	supabaseInitOnce   sync.Once
 	grpcClientInitOnce sync.Once
-	CommunityClient    communityProto.CommunityServiceClient
+	CommunityClient    community.CommunityServiceClient
 )
 
 // ConnectionPool manages a pool of gRPC connections
@@ -176,7 +176,7 @@ func InitGRPCServices() {
 		if err != nil {
 			log.Fatalf("Failed to connect to User service: %v", err)
 		} else {
-			UserClient = userProto.NewUserServiceClient(userConn)
+			UserClient = user.NewUserServiceClient(userConn)
 			log.Printf("Connected to User service at %s", userServiceAddr)
 		}
 
@@ -198,7 +198,7 @@ func InitGRPCServices() {
 		if err != nil {
 			log.Fatalf("Failed to connect to Community service: %v", err)
 		} else {
-			CommunityClient = communityProto.NewCommunityServiceClient(communityConn)
+			CommunityClient = community.NewCommunityServiceClient(communityConn)
 			log.Printf("Connected to Community service at %s", communityServiceAddr)
 		}
 

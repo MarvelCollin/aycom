@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	userProto "aycom/backend/services/user/proto"
+	userProto "aycom/backend/proto/user"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"

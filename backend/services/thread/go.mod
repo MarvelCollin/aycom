@@ -3,6 +3,7 @@ module aycom/backend/services/thread
 go 1.24.2
 
 require (
+	aycom/backend/proto v0.0.0-00010101000000-000000000000
 	aycom/backend/services/user v0.0.0-00010101000000-000000000000
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
@@ -28,3 +29,4 @@ require (
 )
 
 replace aycom/backend/services/user => ../user
+replace aycom/backend/proto => ../../proto

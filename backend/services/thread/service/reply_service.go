@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"aycom/backend/proto/thread"
 	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/proto"
 	"aycom/backend/services/thread/repository"
 
 	"github.com/google/uuid"
@@ -17,10 +17,10 @@ import (
 
 // ReplyService defines the interface for reply operations
 type ReplyService interface {
-	CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*model.Reply, error)
+	CreateReply(ctx context.Context, req *thread.CreateReplyRequest) (*model.Reply, error)
 	GetReplyByID(ctx context.Context, replyID string) (*model.Reply, error)
 	GetRepliesByThreadID(ctx context.Context, threadID string, page, limit int) ([]*model.Reply, error)
-	UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*model.Reply, error)
+	UpdateReply(ctx context.Context, req *thread.UpdateReplyRequest) (*model.Reply, error)
 	DeleteReply(ctx context.Context, replyID, userID string) error
 	CountRepliesByParentID(ctx context.Context, parentID string) (int, error)
 }
@@ -46,7 +46,7 @@ func NewReplyService(
 }
 
 // CreateReply creates a new reply to a thread or another reply
-func (s *replyService) CreateReply(ctx context.Context, req *proto.CreateReplyRequest) (*model.Reply, error) {
+func (s *replyService) CreateReply(ctx context.Context, req *thread.CreateReplyRequest) (*model.Reply, error) {
 	// Validate required fields
 	if req.ThreadId == "" || req.UserId == "" || req.Content == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID, User ID, and content are required")
@@ -163,7 +163,7 @@ func (s *replyService) GetRepliesByThreadID(ctx context.Context, threadID string
 }
 
 // UpdateReply updates a reply
-func (s *replyService) UpdateReply(ctx context.Context, req *proto.UpdateReplyRequest) (*model.Reply, error) {
+func (s *replyService) UpdateReply(ctx context.Context, req *thread.UpdateReplyRequest) (*model.Reply, error) {
 	if req.ReplyId == "" || req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID and User ID are required")
 	}

@@ -2,32 +2,32 @@ syntax = "proto3";
 
 package user;
 
-option go_package = "aycom/backend/services/user/proto";
+option go_package = "aycom/backend/proto/user";
 
 import "google/protobuf/timestamp.proto";
 
 // User service definition
 service UserService {
   // Get user by ID
-  rpc GetUser (GetUserRequest) returns (GetUserResponse) {}
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
   
   // Register a new user
-  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse) {}
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {}
   
   // Update user information
-  rpc UpdateUser (UpdateUserRequest) returns (UpdateUserResponse) {}
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {}
   
   // Delete a user
-  rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse) {}
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
   
   // Update user verification status
-  rpc UpdateUserVerificationStatus (UpdateUserVerificationStatusRequest) returns (UpdateUserVerificationStatusResponse) {}
+  rpc UpdateUserVerificationStatus(UpdateUserVerificationStatusRequest) returns (UpdateUserVerificationStatusResponse) {}
 
   // Authenticate a user
-  rpc LoginUser (LoginUserRequest) returns (LoginUserResponse) {}
+  rpc LoginUser(LoginUserRequest) returns (LoginUserResponse) {}
 
   // Get user by email
-  rpc GetUserByEmail (GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
 }
 
 // User contains user information

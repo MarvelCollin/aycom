@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
+	"aycom/backend/proto/user"
 	"aycom/backend/services/user/db"
 	"aycom/backend/services/user/model"
-	"aycom/backend/services/user/proto"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -19,13 +19,13 @@ import (
 
 // UserService defines the methods for user-related operations
 type UserService interface {
-	CreateUserProfile(ctx context.Context, req *proto.CreateUserRequest) (*model.User, error)
+	CreateUserProfile(ctx context.Context, req *user.CreateUserRequest) (*model.User, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
-	UpdateUserProfile(ctx context.Context, req *proto.UpdateUserRequest) (*model.User, error)
-	UpdateUserVerificationStatus(ctx context.Context, req *proto.UpdateUserVerificationStatusRequest) error
+	UpdateUserProfile(ctx context.Context, req *user.UpdateUserRequest) (*model.User, error)
+	UpdateUserVerificationStatus(ctx context.Context, req *user.UpdateUserVerificationStatusRequest) error
 	DeleteUser(ctx context.Context, id string) error
-	LoginUser(ctx context.Context, req *proto.LoginUserRequest) (*model.User, error)
+	LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 }
 
@@ -54,7 +54,7 @@ func NewUserService(repo db.UserRepository) UserService {
 
 // CreateUserProfile creates a new user profile in the system
 // Renamed from CreateUser, accepts proto request
-func (s *userService) CreateUserProfile(ctx context.Context, req *proto.CreateUserRequest) (*model.User, error) {
+func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUserRequest) (*model.User, error) {
 	if req.User == nil {
 		return nil, status.Error(codes.InvalidArgument, "Missing user information")
 	}
@@ -157,7 +157,7 @@ func (s *userService) GetUserByUsername(ctx context.Context, username string) (*
 
 // UpdateUserProfile updates a user's profile information
 // Accepts proto request
-func (s *userService) UpdateUserProfile(ctx context.Context, req *proto.UpdateUserRequest) (*model.User, error) {
+func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUserRequest) (*model.User, error) {
 	// Validate User ID
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required for update")
@@ -208,7 +208,7 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *proto.UpdateUs
 
 // UpdateUserVerificationStatus updates a user's verification status
 // Accepts proto request
-func (s *userService) UpdateUserVerificationStatus(ctx context.Context, req *proto.UpdateUserVerificationStatusRequest) error {
+func (s *userService) UpdateUserVerificationStatus(ctx context.Context, req *user.UpdateUserVerificationStatusRequest) error {
 	// Validate User ID
 	if req.UserId == "" {
 		return status.Error(codes.InvalidArgument, "User ID is required for verification update")
@@ -238,7 +238,7 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 }
 
 // LoginUser authenticates a user based on email and password
-func (s *userService) LoginUser(ctx context.Context, req *proto.LoginUserRequest) (*model.User, error) {
+func (s *userService) LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error) {
 	if req.Email == "" || req.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email and password are required")
 	}
@@ -249,27 +249,23 @@ func (s *userService) LoginUser(ctx context.Context, req *proto.LoginUserRequest
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, status.Errorf(codes.NotFound, "User with email %s not found", req.Email)
 		}
-		log.Printf("Error finding user by email %s for login: %v", req.Email, err)
-		return nil, status.Error(codes.Internal, "Failed to retrieve user")
+		log.Printf("Error finding user by email %s: %v", req.Email, err)
+		return nil, status.Error(codes.Internal, "Failed to process login")
 	}
 
-	// Compare the provided password with the stored hash
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
-	if err != nil {
-		// If err is bcrypt.ErrMismatchedHashAndPassword, it's an invalid password
-		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-			return nil, status.Error(codes.Unauthenticated, "Invalid credentials")
-		}
-		// Log other bcrypt errors
-		log.Printf("Error comparing password hash for user %s: %v", req.Email, err)
-		return nil, status.Error(codes.Internal, "Authentication error")
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		return nil, status.Error(codes.Unauthenticated, "Invalid credentials")
 	}
 
-	// Password is correct, return user model (excluding password hash ideally, but returning full model for now)
+	// Log successful login to console (consider structured logging)
+	log.Printf("User %s (%s) logged in successfully", user.Username, user.ID)
+
+	// Return user data
 	return user, nil
 }
 
-// GetUserByEmail gets a user by their email
+// GetUserByEmail gets a user by their email address
 func (s *userService) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	user, err := s.repo.FindUserByEmail(email)
 	if err != nil {

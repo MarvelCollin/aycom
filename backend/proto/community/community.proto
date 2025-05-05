@@ -2,50 +2,50 @@ syntax = "proto3";
 
 package community;
 
-option go_package = "aycom/backend/services/community/proto";
+option go_package = "aycom/backend/proto/community";
 
 import "google/protobuf/timestamp.proto";
 
 // Community service definition
 service CommunityService {
   // Community management
-  rpc CreateCommunity (CreateCommunityRequest) returns (CommunityResponse);
-  rpc UpdateCommunity (UpdateCommunityRequest) returns (CommunityResponse);
-  rpc ApproveCommunity (ApproveCommunityRequest) returns (CommunityResponse);
-  rpc DeleteCommunity (DeleteCommunityRequest) returns (EmptyResponse);
-  rpc GetCommunityByID (GetCommunityByIDRequest) returns (CommunityResponse);
-  rpc ListCommunities (ListCommunitiesRequest) returns (ListCommunitiesResponse);
+  rpc CreateCommunity(CreateCommunityRequest) returns (CommunityResponse);
+  rpc UpdateCommunity(UpdateCommunityRequest) returns (CommunityResponse);
+  rpc ApproveCommunity(ApproveCommunityRequest) returns (CommunityResponse);
+  rpc DeleteCommunity(DeleteCommunityRequest) returns (EmptyResponse);
+  rpc GetCommunityByID(GetCommunityByIDRequest) returns (CommunityResponse);
+  rpc ListCommunities(ListCommunitiesRequest) returns (ListCommunitiesResponse);
 
   // Member management
-  rpc AddMember (AddMemberRequest) returns (MemberResponse);
-  rpc RemoveMember (RemoveMemberRequest) returns (EmptyResponse);
-  rpc ListMembers (ListMembersRequest) returns (ListMembersResponse);
-  rpc UpdateMemberRole (UpdateMemberRoleRequest) returns (MemberResponse);
+  rpc AddMember(AddMemberRequest) returns (MemberResponse);
+  rpc RemoveMember(RemoveMemberRequest) returns (EmptyResponse);
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (MemberResponse);
 
   // Community rules
-  rpc AddRule (AddRuleRequest) returns (RuleResponse);
-  rpc RemoveRule (RemoveRuleRequest) returns (EmptyResponse);
-  rpc ListRules (ListRulesRequest) returns (ListRulesResponse);
+  rpc AddRule(AddRuleRequest) returns (RuleResponse);
+  rpc RemoveRule(RemoveRuleRequest) returns (EmptyResponse);
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
 
   // Join requests
-  rpc RequestToJoin (RequestToJoinRequest) returns (JoinRequestResponse);
-  rpc ApproveJoinRequest (ApproveJoinRequestRequest) returns (JoinRequestResponse);
-  rpc RejectJoinRequest (RejectJoinRequestRequest) returns (JoinRequestResponse);
-  rpc ListJoinRequests (ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
+  rpc RequestToJoin(RequestToJoinRequest) returns (JoinRequestResponse);
+  rpc ApproveJoinRequest(ApproveJoinRequestRequest) returns (JoinRequestResponse);
+  rpc RejectJoinRequest(RejectJoinRequestRequest) returns (JoinRequestResponse);
+  rpc ListJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
 
   // Chat
-  rpc CreateChat (CreateChatRequest) returns (ChatResponse);
-  rpc AddChatParticipant (AddChatParticipantRequest) returns (ChatParticipantResponse);
-  rpc RemoveChatParticipant (RemoveChatParticipantRequest) returns (EmptyResponse);
-  rpc ListChats (ListChatsRequest) returns (ListChatsResponse);
-  rpc ListChatParticipants (ListChatParticipantsRequest) returns (ListChatParticipantsResponse);
+  rpc CreateChat(CreateChatRequest) returns (ChatResponse);
+  rpc AddChatParticipant(AddChatParticipantRequest) returns (ChatParticipantResponse);
+  rpc RemoveChatParticipant(RemoveChatParticipantRequest) returns (EmptyResponse);
+  rpc ListChats(ListChatsRequest) returns (ListChatsResponse);
+  rpc ListChatParticipants(ListChatParticipantsRequest) returns (ListChatParticipantsResponse);
 
   // Messages
-  rpc SendMessage (SendMessageRequest) returns (MessageResponse);
-  rpc DeleteMessage (DeleteMessageRequest) returns (EmptyResponse);
-  rpc UnsendMessage (UnsendMessageRequest) returns (EmptyResponse);
-  rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse);
-  rpc SearchMessages (SearchMessagesRequest) returns (ListMessagesResponse);
+  rpc SendMessage(SendMessageRequest) returns (MessageResponse);
+  rpc DeleteMessage(DeleteMessageRequest) returns (EmptyResponse);
+  rpc UnsendMessage(UnsendMessageRequest) returns (EmptyResponse);
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+  rpc SearchMessages(SearchMessagesRequest) returns (ListMessagesResponse);
 }
 
 // --- Messages ---
@@ -117,7 +117,7 @@ message Message {
   string reply_to_message_id = 12;
 }
 
-// --- Request/Response messages for each RPC (examples) ---
+// --- Request/Response messages for each RPC ---
 
 message CreateCommunityRequest { Community community = 1; }
 message CommunityResponse { Community community = 1; }

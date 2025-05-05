@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"aycom/backend/api-gateway/config"
-	communityProto "aycom/backend/services/community/proto"
-	userProto "aycom/backend/services/user/proto"
+	communityProto "aycom/backend/proto/community"
+	userProto "aycom/backend/proto/user"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"

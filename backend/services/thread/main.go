@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"aycom/backend/proto/thread"
 	handlers "aycom/backend/services/thread/api"
 	"aycom/backend/services/thread/db"
-	"aycom/backend/services/thread/proto"
 	"aycom/backend/services/thread/repository"
 	"aycom/backend/services/thread/service"
 )
@@ -98,7 +98,7 @@ func initThreadService() {
 	}
 
 	grpcServer := grpc.NewServer(opts...)
-	proto.RegisterThreadServiceServer(grpcServer, handler)
+	thread.RegisterThreadServiceServer(grpcServer, handler)
 	log.Printf("Thread service started on port %s, environment: %s", port, environment)
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve: %v", err)

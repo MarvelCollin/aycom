@@ -3,6 +3,7 @@ module aycom/backend/services/community
 go 1.24.2
 
 require (
+	aycom/backend/proto v0.0.0-00010101000000-000000000000
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	google.golang.org/grpc v1.72.0
@@ -25,3 +26,5 @@ require (
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 )
+
+replace aycom/backend/proto => ../../proto

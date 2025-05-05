@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.25.3
-// source: proto/community.proto
+// source: proto/community/community.proto
 
-package proto
+package community
 
 import (
 	context "context"
@@ -1121,5 +1121,5 @@ var CommunityService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/community.proto",
+	Metadata: "proto/community/community.proto",
 }

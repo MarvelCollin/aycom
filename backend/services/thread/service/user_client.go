@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	userProto "aycom/backend/services/user/proto"
+	"aycom/backend/proto/user"
 
 	"google.golang.org/grpc"
 )
@@ -28,7 +28,7 @@ type UserInfo struct {
 
 // realUserClient implements the real UserClient interface using gRPC
 type realUserClient struct {
-	client userProto.UserServiceClient
+	client user.UserServiceClient
 }
 
 // NewUserClient creates a new user client
@@ -40,7 +40,7 @@ func NewUserClient(conn *grpc.ClientConn) UserClient {
 
 	log.Println("Creating real User Service client with gRPC connection")
 	return &realUserClient{
-		client: userProto.NewUserServiceClient(conn),
+		client: user.NewUserServiceClient(conn),
 	}
 }
 
@@ -49,7 +49,7 @@ func (c *realUserClient) GetUserById(ctx context.Context, userId string) (*UserI
 	log.Printf("Fetching real user data for user ID: %s", userId)
 
 	// Make the actual gRPC call to the user service
-	response, err := c.client.GetUser(ctx, &userProto.GetUserRequest{
+	response, err := c.client.GetUser(ctx, &user.GetUserRequest{
 		UserId: userId,
 	})
 

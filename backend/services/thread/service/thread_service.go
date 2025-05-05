@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"aycom/backend/proto/thread"
 	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/proto"
 	"aycom/backend/services/thread/repository"
 
 	"github.com/google/uuid"
@@ -17,11 +17,11 @@ import (
 
 // ThreadService defines the interface for thread operations
 type ThreadService interface {
-	CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*model.Thread, error)
+	CreateThread(ctx context.Context, req *thread.CreateThreadRequest) (*model.Thread, error)
 	GetThreadByID(ctx context.Context, threadID string) (*model.Thread, error)
 	GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, error)
 	GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error)
-	UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*model.Thread, error)
+	UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*model.Thread, error)
 	DeleteThread(ctx context.Context, threadID, userID string) error
 }
 
@@ -49,7 +49,7 @@ func NewThreadService(
 }
 
 // CreateThread creates a new thread
-func (s *threadService) CreateThread(ctx context.Context, req *proto.CreateThreadRequest) (*model.Thread, error) {
+func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThreadRequest) (*model.Thread, error) {
 	// Validate required fields
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
@@ -213,7 +213,7 @@ func (s *threadService) GetAllThreads(ctx context.Context, page, limit int) ([]*
 }
 
 // UpdateThread updates a thread
-func (s *threadService) UpdateThread(ctx context.Context, req *proto.UpdateThreadRequest) (*model.Thread, error) {
+func (s *threadService) UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*model.Thread, error) {
 	if req.ThreadId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
