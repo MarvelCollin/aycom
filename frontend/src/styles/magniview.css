@@ -51,6 +51,20 @@
   --text-primary: #f9fafb;
   --text-secondary: #e5e7eb;
   --border-color: #4b5563;
+  
+  /* Extended dark theme variables */
+  --dark-bg-surface: #1f2937;
+  --dark-bg-surface-lighter: #374151;
+  --dark-bg-surface-darker: #111827;
+  --dark-bg-overlay: rgba(0, 0, 0, 0.5);
+  --dark-text-primary: #f9fafb;
+  --dark-text-secondary: #d1d5db;
+  --dark-text-muted: #9ca3af;
+  --dark-border-subtle: #4b5563;
+  --dark-border-strong: #6b7280;
+  --dark-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --dark-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --dark-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
 }
 
 body {
@@ -87,33 +101,407 @@ body {
   background-color: #1f2937;
 }
 
-/* Responsive utilities */
+/* Extended Dark Mode Background Variations */
+.dark\:bg-black\/80 {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+.dark\:bg-black\/90 {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+.dark\:bg-gray-950 {
+  background-color: #030712;
+}
+
+.dark\:bg-gray-925 {
+  background-color: #0a0f1a;
+}
+
+.dark\:bg-gray-910 {
+  background-color: #111621;
+}
+
+.dark\:bg-gray-900\/80 {
+  background-color: rgba(17, 24, 39, 0.8);
+}
+
+.dark\:bg-gray-900\/95 {
+  background-color: rgba(17, 24, 39, 0.95);
+}
+
+.dark\:bg-blue-900\/20 {
+  background-color: rgba(30, 58, 138, 0.2);
+}
+
+.dark\:bg-blue-950 {
+  background-color: #172554;
+}
+
+.dark\:bg-blue-950\/90 {
+  background-color: rgba(23, 37, 84, 0.9);
+}
+
+/* Advanced Dark Mode Text Colors */
+.dark\:text-gray-50 {
+  color: #f9fafb;
+}
+
+.dark\:text-gray-100 {
+  color: #f3f4f6;
+}
+
+.dark\:text-gray-200 {
+  color: #e5e7eb;
+}
+
+.dark\:text-gray-300 {
+  color: #d1d5db;
+}
+
+.dark\:text-gray-400 {
+  color: #9ca3af;
+}
+
+.dark\:text-blue-300 {
+  color: #93c5fd;
+}
+
+.dark\:text-blue-400 {
+  color: #60a5fa;
+}
+
+/* Dark Mode Gradient Backgrounds */
+.dark\:bg-gradient-to-r-dark-blue {
+  background: linear-gradient(to right, #0f172a, #1e3a8a);
+}
+
+.dark\:bg-gradient-to-tr-dark-blue {
+  background: linear-gradient(to top right, #0f172a, #1e3a8a);
+}
+
+.dark\:bg-gradient-to-br-gray-blue {
+  background: linear-gradient(to bottom right, #1f2937, #1e3a8a);
+}
+
+.dark\:bg-gradient-radial-dark {
+  background: radial-gradient(circle at center, #1f2937, #111827);
+}
+
+/* Dark Mode Component Styles */
+.dark-card {
+  background-color: #1f2937;
+  border: 1px solid #374151;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.dark-card-hover {
+  background-color: #1f2937;
+  border: 1px solid #374151;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+.dark-card-hover:hover {
+  background-color: #263244;
+}
+
+.dark-container {
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  padding: 1rem;
+  border-radius: 0.75rem;
+}
+
+.dark-sidebar {
+  background-color: #111827;
+  border-right: 1px solid #1f2937;
+}
+
+.dark-header {
+  background-color: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid #1f2937;
+}
+
+.dark-footer {
+  background-color: #111827;
+  border-top: 1px solid #1f2937;
+}
+
+/* Glass Morphism for Dark Mode */
+.dark-glass {
+  background: rgba(31, 41, 55, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(63, 63, 70, 0.3);
+}
+
+.dark-glass-heavy {
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(63, 63, 70, 0.4);
+}
+
+/* Dark Mode Shadow Variations */
+.dark\:shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+}
+
+.dark\:shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+.dark\:shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+}
+
+.dark\:shadow-blue {
+  box-shadow: 0 4px 14px 0 rgba(29, 78, 216, 0.3);
+}
+
+/* Social Media App Specific Styles */
+.dark-tweet-card {
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
+  padding: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+.dark-tweet-card:hover {
+  background-color: #1f2937;
+}
+
+.dark-thread-container {
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+}
+
+.dark-profile-card {
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.dark-profile-header {
+  background: linear-gradient(to right, #1e3a8a, #111827);
+  height: 8rem;
+  position: relative;
+}
+
+.dark-tag {
+  background-color: #1f2937;
+  color: #60a5fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+}
+
+.dark-badge {
+  background-color: #1e3a8a;
+  color: #bfdbfe;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* Custom Scrollbar for Dark Mode */
+.dark-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1f2937;
+}
+
+.dark-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+  border-radius: 20px;
+}
+
+/* Responsive Layout Utilities */
+.responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+
 @media (min-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .sm\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
   .sm\: {
     /* Small screen breakpoint */
   }
 }
 
 @media (min-width: 768px) {
+  .responsive-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
   .md\: {
     /* Medium screen breakpoint */
   }
 }
 
 @media (min-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  
   .lg\: {
     /* Large screen breakpoint */
   }
 }
 
 @media (min-width: 1280px) {
+  .responsive-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  
+  .xl\:grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  
   .xl\: {
     /* Extra large screen breakpoint */
   }
 }
 
 @media (min-width: 1536px) {
+  .responsive-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  
+  .\2xl\:grid-cols-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  
   .\2xl\: {
     /* 2xl screen breakpoint */
+  }
+}
+
+/* Responsive Content Container */
+.content-container {
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 640px) {
+  .content-container {
+    max-width: 640px;
+  }
+}
+
+@media (min-width: 768px) {
+  .content-container {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content-container {
+    max-width: 1024px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .content-container {
+    max-width: 1280px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .content-container {
+    max-width: 1536px;
+  }
+}
+
+/* Social Media App Layout */
+.social-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  min-height: 100vh;
+}
+
+@media (min-width: 768px) {
+  .social-layout {
+    grid-template-columns: 275px 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .social-layout {
+    grid-template-columns: 275px 1fr;
+  }
+}
+
+@media (min-width: 1280px) {
+  .social-layout {
+    grid-template-columns: 275px 1fr 350px;
+  }
+}
+
+/* Responsive Visibility Classes */
+.hide-on-mobile {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .hide-on-mobile {
+    display: initial;
+  }
+  
+  .show-on-mobile {
+    display: none;
+  }
+}
+
+.hide-on-desktop {
+  display: initial;
+}
+
+@media (min-width: 1024px) {
+  .hide-on-desktop {
+    display: none;
+  }
+  
+  .show-on-desktop {
+    display: initial;
   }
 }

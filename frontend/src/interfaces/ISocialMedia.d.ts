@@ -27,6 +27,9 @@ export interface ITweet {
   isReposted?: boolean;
   isBookmarked?: boolean;
   replyTo?: ITweet | null;
+  isAdvertisement?: boolean;
+  communityId?: string | null;
+  communityName?: string | null;
 }
 
 // Trend interface

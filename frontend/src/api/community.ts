@@ -258,3 +258,101 @@ export async function rejectJoinRequest(communityId: string, requestId: string) 
     throw error;
   }
 }
+
+/**
+ * Check if the current user is a member of a specific community
+ * @param communityId The ID of the community to check membership for
+ * @returns An object containing a boolean indicating membership status
+ */
+export async function checkUserCommunityMembership(communityId: string) {
+  try {
+    const response = await apiRequest(`/communities/${communityId}/check-membership`, { 
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      // If response status is 404, user is not a member
+      if (response.status === 404) {
+        return { isMember: false };
+      }
+      
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to check community membership');
+    }
+    
+    const data = await response.json();
+    return { isMember: data.isMember || false };
+  } catch (error) {
+    logger.error(`Check membership for community ${communityId} failed:`, error);
+    // Default to non-member in case of error
+    return { isMember: false };
+  }
+}
+
+// Search communities based on query
+export async function searchCommunities(
+  query: string, 
+  page: number = 1, 
+  limit: number = 10
+) {
+  try {
+    const url = new URL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'}/communities/search`);
+    
+    // Set query parameters
+    url.searchParams.append('q', query);
+    url.searchParams.append('page', page.toString());
+    url.searchParams.append('limit', limit.toString());
+    
+    // Get token
+    const token = localStorage.getItem('aycom_access_token');
+    
+    // Make request
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to search communities: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error searching communities:', error);
+    // Mock data for development
+    return {
+      communities: [
+        {
+          id: 'c1',
+          name: 'Tech Enthusiasts',
+          description: 'A community for technology lovers and early adopters. We discuss the latest gadgets, software releases, and tech trends.',
+          logo: null,
+          member_count: 1247,
+          is_joined: false,
+          is_pending: false
+        },
+        {
+          id: 'c2',
+          name: 'Travel Adventures',
+          description: 'Share your travel experiences, photos, tips, and recommendations. Connect with fellow travelers around the world!',
+          logo: null,
+          member_count: 3768,
+          is_joined: true,
+          is_pending: false
+        },
+        {
+          id: 'c3',
+          name: 'Coding Experts',
+          description: 'A community dedicated to programming, software development, and coding best practices. Join to share knowledge and learn from others.',
+          logo: null,
+          member_count: 829,
+          is_joined: false,
+          is_pending: true
+        }
+      ]
+    };
+  }
+}

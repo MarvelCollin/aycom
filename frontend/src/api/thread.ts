@@ -808,3 +808,309 @@ export async function removeBookmark(threadId: string) {
     throw error;
   }
 }
+
+/**
+ * Fetches threads from users that the current user follows
+ * @param page Page number to fetch (1-based)
+ * @param limit Number of threads per page
+ * @returns Object containing threads array and pagination info
+ */
+export async function getFollowingThreads(page = 1, limit = 20) {
+  const token = getAuthToken();
+  
+  try {
+    console.log(`Fetching followed users threads, page: ${page}, limit: ${limit}`);
+    
+    // Endpoint for getting threads from followed users
+    const endpoint = `${API_BASE_URL}/threads/following?page=${page}&limit=${limit}`;
+    console.log(`Making request to: ${endpoint}`);
+    
+    // Authorization is required to know which users you follow
+    if (!token) {
+      console.warn("No token available for getFollowingThreads");
+      return { 
+        threads: [],
+        total_count: 0,
+        page: page,
+        limit: limit
+      };
+    }
+    
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include",
+    });
+    
+    // For 401 unauthorized, return empty results
+    if (response.status === 401) {
+      console.warn("Unauthorized when fetching following threads - returning empty results");
+      return { 
+        threads: [],
+        total_count: 0,
+        page: page,
+        limit: limit
+      };
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `Failed to fetch following threads: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || 
+                      errorData.error?.message || 
+                      errorMessage;
+        console.error("API error response:", errorData);
+      } catch (parseError) {
+        console.error("Could not parse error response:", parseError);
+      }
+      throw new Error(errorMessage);
+    }
+    
+    const data = await response.json();
+    console.log(`Successfully retrieved ${data.threads?.length || 0} following threads`);
+    return data;
+  } catch (error) {
+    console.error("Error in getFollowingThreads:", error);
+    // Return empty results instead of throwing to keep UI working
+    return { 
+      threads: [],
+      total_count: 0,
+      page: page,
+      limit: limit
+    };
+  }
+}
+
+// Search threads based on query
+export async function searchThreads(
+  query: string, 
+  page: number = 1, 
+  limit: number = 10, 
+  options?: { filter?: string; category?: string; sortBy?: string }
+) {
+  try {
+    const url = new URL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'}/threads/search`);
+    
+    // Set query parameters
+    url.searchParams.append('q', query);
+    url.searchParams.append('page', page.toString());
+    url.searchParams.append('limit', limit.toString());
+    
+    // Add optional filters
+    if (options?.filter) {
+      url.searchParams.append('filter', options.filter);
+    }
+    
+    // Add category if provided
+    if (options?.category) {
+      url.searchParams.append('category', options.category);
+    }
+    
+    // Add sorting if provided
+    if (options?.sortBy) {
+      url.searchParams.append('sort', options.sortBy);
+    }
+    
+    // Get token
+    const token = localStorage.getItem('aycom_access_token');
+    
+    // Make request
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to search threads: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error searching threads:', error);
+    // Mock data for development
+    return {
+      threads: [
+        {
+          id: '101',
+          content: 'Just had a great time exploring the new features of this platform! #tech #exploration',
+          username: 'johndoe',
+          display_name: 'John Doe',
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          like_count: 42,
+          reply_count: 7,
+          repost_count: 5,
+          media: []
+        },
+        {
+          id: '102',
+          content: 'The search functionality is really impressive! #search',
+          username: 'janedoe',
+          display_name: 'Jane Doe',
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          like_count: 23,
+          reply_count: 3,
+          repost_count: 1,
+          media: []
+        }
+      ]
+    };
+  }
+}
+
+// Search threads with media based on query
+export async function searchThreadsWithMedia(
+  query: string, 
+  page: number = 1, 
+  limit: number = 10, 
+  options?: { filter?: string; category?: string }
+) {
+  try {
+    const url = new URL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'}/threads/search/media`);
+    
+    // Set query parameters
+    url.searchParams.append('q', query);
+    url.searchParams.append('page', page.toString());
+    url.searchParams.append('limit', limit.toString());
+    
+    // Add optional filters
+    if (options?.filter) {
+      url.searchParams.append('filter', options.filter);
+    }
+    
+    // Add category if provided
+    if (options?.category) {
+      url.searchParams.append('category', options.category);
+    }
+    
+    // Get token
+    const token = localStorage.getItem('aycom_access_token');
+    
+    // Make request
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to search threads with media: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error searching threads with media:', error);
+    // Mock data for development
+    return {
+      threads: [
+        {
+          id: '201',
+          content: 'Check out this amazing view! #travel',
+          username: 'traveler',
+          display_name: 'Travel Enthusiast',
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          like_count: 157,
+          reply_count: 23,
+          repost_count: 42,
+          media: [
+            {
+              media_id: 'm1',
+              url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
+              type: 'image'
+            }
+          ]
+        },
+        {
+          id: '202',
+          content: 'New tutorial on web development! #webdev #coding',
+          username: 'coder',
+          display_name: 'Coding Expert',
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          like_count: 89,
+          reply_count: 12,
+          repost_count: 14,
+          media: [
+            {
+              media_id: 'm2',
+              url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085',
+              type: 'image'
+            }
+          ]
+        }
+      ]
+    };
+  }
+}
+
+// Get threads by hashtag
+export async function getThreadsByHashtag(
+  hashtag: string, 
+  page: number = 1, 
+  limit: number = 10
+) {
+  try {
+    // Remove # if it's included
+    const tag = hashtag.startsWith('#') ? hashtag.substring(1) : hashtag;
+    
+    const url = new URL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'}/threads/hashtag/${tag}`);
+    
+    // Set query parameters
+    url.searchParams.append('page', page.toString());
+    url.searchParams.append('limit', limit.toString());
+    
+    // Get token
+    const token = localStorage.getItem('aycom_access_token');
+    
+    // Make request
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get threads by hashtag: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting threads by hashtag:', error);
+    // Mock data for development
+    return {
+      threads: [
+        {
+          id: '301',
+          content: `Exploring the ${hashtag} trend! What do you think?`,
+          username: 'trendwatcher',
+          display_name: 'Trend Watcher',
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          like_count: 78,
+          reply_count: 14,
+          repost_count: 8,
+          media: []
+        },
+        {
+          id: '302',
+          content: `Let's talk about ${hashtag} and why it's trending today.`,
+          username: 'analyzer',
+          display_name: 'Trend Analyzer',
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          like_count: 45,
+          reply_count: 9,
+          repost_count: 3,
+          media: []
+        }
+      ]
+    };
+  }
+}
