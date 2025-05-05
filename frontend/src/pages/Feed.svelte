@@ -633,17 +633,17 @@
   <!-- Content Area -->
   <div class="min-h-screen border-x feed-container">
     <!-- Header with Tabs -->
-    <div class="sticky top-0 z-10 header-tabs">
+    <div class="sticky top-0 z-10 header-tabs border-b {isDarkMode ? 'bg-black border-gray-800' : 'bg-white border-gray-200'}">
       <!-- Tabs -->
       <div class="flex justify-between">
         <button 
-          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'for-you' ? 'tab-active' : ''}"
+          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'for-you' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
           on:click={() => handleTabChange('for-you')}
         >
           For you
         </button>
         <button 
-          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''}"
+          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
           on:click={() => handleTabChange('following')}
         >
           Following
@@ -913,7 +913,7 @@
 
   .tab-active {
     color: var(--accent-color);
-    border-color: var(--accent-color);
+    border-bottom: 2px solid var(--accent-color);
   }
 
   .tweet-list {

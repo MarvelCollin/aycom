@@ -7,12 +7,13 @@ const createThemeStore = () => {
   // Get stored theme or user's preferred color scheme
   const getInitialTheme = (): ThemeType => {
     try {
+      // First check localStorage
       const storedTheme = localStorage.getItem('theme') as ThemeType;
-      if (storedTheme) {
+      if (storedTheme && (storedTheme === 'light' || storedTheme === 'dark')) {
         return storedTheme;
       }
       
-      // Check user's preferred color scheme
+      // Then check system preference
       if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         return 'dark';
       }
@@ -27,9 +28,28 @@ const createThemeStore = () => {
   // Create the writable store with the initial theme
   const theme = writable<ThemeType>('light');
   
+  // Function to apply theme to DOM - moved here before it's used
+  const applyThemeToDOM = (themeValue: ThemeType) => {
+    if (typeof document === 'undefined') return;
+    
+    // Apply to document element
+    document.documentElement.classList.remove('light', 'dark', 'light-theme', 'dark-theme', 'light-mode', 'dark-mode');
+    document.documentElement.classList.add(themeValue, `${themeValue}-theme`, `${themeValue}-mode`);
+    document.documentElement.setAttribute('data-theme', themeValue);
+    
+    // Apply to body element as well
+    document.body.setAttribute('data-theme', themeValue);
+  };
+  
   // Initialize when in browser
   if (typeof window !== 'undefined') {
-    theme.set(getInitialTheme());
+    const initialTheme = getInitialTheme();
+    theme.set(initialTheme);
+
+    // Apply theme classes immediately
+    if (typeof document !== 'undefined') {
+      applyThemeToDOM(initialTheme);
+    }
   }
   
   // Listen for system preference changes
@@ -41,7 +61,9 @@ const createThemeStore = () => {
       
       // Only update based on system preference if user hasn't explicitly set a theme
       if (!currentTheme) {
-        theme.set(event.matches ? 'dark' : 'light');
+        const newTheme = event.matches ? 'dark' : 'light';
+        theme.set(newTheme);
+        applyThemeToDOM(newTheme);
       }
     };
     
@@ -63,8 +85,7 @@ const createThemeStore = () => {
         
         // Update document with the theme class
         if (typeof document !== 'undefined') {
-          document.documentElement.classList.remove('light', 'dark');
-          document.documentElement.classList.add(value);
+          applyThemeToDOM(value);
         }
       } catch (error) {
         console.error('Error setting theme:', error);
@@ -92,8 +113,7 @@ const createThemeStore = () => {
         
         // Update document with the theme class
         if (typeof document !== 'undefined') {
-          document.documentElement.classList.remove('light', 'dark');
-          document.documentElement.classList.add(newValue);
+          applyThemeToDOM(newValue);
         }
       } catch (error) {
         console.error('Error updating theme:', error);

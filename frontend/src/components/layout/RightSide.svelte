@@ -81,7 +81,7 @@
               </div>
               <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{follow.username}</p>
             </div>
-            <button class="btn-follow {isDarkMode ? 'btn-follow-dark' : ''} rounded-full text-sm font-bold bg-black text-white dark:bg-white dark:text-black px-4 py-1.5 hover:bg-opacity-90 transition-colors">
+            <button class="follow-button rounded-full text-sm font-bold px-4 py-1.5 transition-colors {isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}">
               Follow
             </button>
           </li>
@@ -98,8 +98,8 @@
   </div>
 </div>
 
-<div class="mt-4 text-center">
-  <div class="flex flex-wrap text-xs justify-between text-gray-500 dark:text-gray-400">
+<div class="mt-4 text-center footer-links {isDarkMode ? 'footer-dark' : ''}">
+  <div class="flex flex-wrap text-xs justify-between {isDarkMode ? 'text-gray-500' : 'text-gray-500'}">
     <button class="hover:underline mb-2" on:click={() => navigateTo('/terms')}>Terms of Service</button>
     <button class="hover:underline mb-2" on:click={() => navigateTo('/privacy')}>Privacy Policy</button>
     <button class="hover:underline mb-2" on:click={() => navigateTo('/cookies')}>Cookie Policy</button>
@@ -107,5 +107,44 @@
     <button class="hover:underline mb-2" on:click={() => navigateTo('/ads')}>Ads Info</button>
     <button class="hover:underline mb-2" on:click={() => navigateTo('/about')}>About</button>
   </div>
-  <p class="text-xs mt-2 text-gray-500 dark:text-gray-400">© 2023 AYCOM, Inc.</p>
+  <p class="text-xs mt-2 {isDarkMode ? 'text-gray-500' : 'text-gray-500'}">© 2023 AYCOM, Inc.</p>
 </div>
+
+<style>
+  /* Dark mode styling */
+  .sidebar {
+    background-color: #f7f9fa;
+    border: 1px solid #eff3f4;
+    padding: 1rem;
+  }
+  
+  .sidebar-dark {
+    background-color: #16181c;
+    border: 1px solid #2f3336;
+  }
+  
+  .search-input {
+    padding: 0.75rem 1rem 0.75rem 3rem;
+    outline: none;
+  }
+  
+  .search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #536471;
+  }
+  
+  .footer-links button {
+    transition: color 0.2s;
+  }
+  
+  .footer-dark button:hover {
+    color: #e5e7eb;
+  }
+  
+  .follow-button {
+    transition: background-color 0.2s ease;
+  }
+</style>

@@ -22,7 +22,7 @@
 
 <button 
   on:click={toggleTheme} 
-  class="theme-toggle {buttonSizeClass} rounded-full flex items-center justify-center transition-all duration-300 ease-in-out {$theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} shadow-md"
+  class="theme-toggle {buttonSizeClass} rounded-full flex items-center justify-center transition-all duration-300 ease-in-out {$theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 border border-gray-700' : 'bg-white hover:bg-gray-100 border border-gray-200'} shadow-md"
   aria-label="Toggle theme"
 >
   {#if $theme === 'dark'}
@@ -61,5 +61,15 @@
   
   .theme-toggle:hover svg {
     transform: rotate(15deg);
+  }
+
+  /* Define light mode colors */
+  :global(.light-theme) .theme-toggle {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Define dark mode colors */
+  :global(.dark-theme) .theme-toggle {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 </style>
