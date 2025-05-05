@@ -93,7 +93,8 @@ const createThemeStore = () => {
     },
     // Add update method to the store
     update: (callback: (value: ThemeType) => ThemeType) => {
-      let currentValue: ThemeType;
+      // Initialize with a default value to satisfy TypeScript
+      let currentValue: ThemeType = 'light';
       
       // Get current value
       const unsubscribe = theme.subscribe((value) => {

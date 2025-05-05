@@ -6,6 +6,7 @@
   import { isAuthenticated, getUserId } from '../../utils/auth';
   import { toastStore } from '../../stores/toastStore';
   import { getProfile } from '../../api/user';
+  import { onMount } from 'svelte';
 
   // Props
   export let username = "";
@@ -20,6 +21,10 @@
   const { getAuthState, logout, getAuthToken } = useAuth();
   let authState = getAuthState();
   
+  // Add debug flag
+  let debugging = false;
+  let apiResponse = null;
+  
   // User profile data
   let userDetails = {
     username: username || 'guest',
@@ -33,12 +38,20 @@
   
   // Fetch user profile
   async function fetchUserProfile() {
-    if (!isAuthenticated()) return;
+    if (!isAuthenticated()) {
+      console.log('User not authenticated, skipping profile fetch');
+      return;
+    }
     
+    console.log('Fetching user profile...');
     try {
       const response = await getProfile();
-      if (response && response.user) {
-        const userData = response.user;
+      apiResponse = response; // Store for debugging
+      
+      // Check for both possible response structures (direct or nested)
+      const userData = response.user || (response.data && response.data.user);
+      
+      if (userData) {
         userDetails = {
           username: userData.username || username,
           displayName: userData.name || userData.display_name || displayName,
@@ -48,12 +61,25 @@
           isVerified: userData.is_verified || false,
           joinDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : ''
         };
+        
+        // Update the component props in case they're used elsewhere
+        username = userDetails.username;
+        displayName = userDetails.displayName;
+        avatar = userDetails.avatar;
+        
+        console.log('Profile loaded successfully:', userDetails);
+      } else {
+        console.warn('Response received but no user data found in:', response);
       }
-      console.log('Profile loaded successfully:', userDetails);
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
       toastStore.showToast('Failed to load user profile. Please try again.', 'error');
     }
+  }
+  
+  // Toggle debug info
+  function toggleDebug() {
+    debugging = !debugging;
   }
   
   // Handle logout
@@ -100,14 +126,27 @@
   // Get current path for active state
   let currentPath = window.location.pathname;
   
-  // Import lifecycle functions
-  import { onMount } from 'svelte';
-  
   onMount(() => {
     // Try to fetch user profile
     if (isAuthenticated()) {
+      console.log('User is authenticated, fetching profile on mount');
       fetchUserProfile();
+    } else {
+      console.log('User is not authenticated on mount');
     }
+    
+    // Set up polling to check authentication and refresh profile
+    const intervalId = setInterval(() => {
+      if (isAuthenticated() && userDetails.username === 'guest') {
+        console.log('User is authenticated but still shows as guest, refreshing profile');
+        fetchUserProfile();
+      }
+    }, 5000); // Check every 5 seconds
+    
+    // Return cleanup function
+    return () => {
+      clearInterval(intervalId);
+    };
   });
 </script>
 
@@ -199,6 +238,7 @@
     <button 
       class="flex items-center w-full p-3 rounded-full relative {isDarkMode ? 'bg-gray-800 hover:bg-gray-800' : 'hover:bg-gray-200'}"
       on:click={toggleUserMenu}
+      on:dblclick={toggleDebug}
     >
       <!-- Auth indicator dot -->
       <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'}"></div>
@@ -268,6 +308,24 @@
                   Joined {userDetails.joinDate}
                 </div>
               {/if}
+            </div>
+          {/if}
+          
+          <!-- Debug info (double-click user profile to toggle) -->
+          {#if debugging}
+            <div class="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto max-h-36">
+              <p class="font-bold">Debug Info:</p>
+              <p>Auth state: {isAuthenticated() ? 'Authenticated' : 'Not authenticated'}</p>
+              <p>User ID: {getUserId() || 'Not found'}</p>
+              <p>Has token: {!!getAuthToken()}</p>
+              <p>API response:</p>
+              <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
+              <button 
+                class="mt-1 bg-blue-500 text-white px-2 py-1 rounded text-xs"
+                on:click|stopPropagation={() => fetchUserProfile()}
+              >
+                Refresh Profile
+              </button>
             </div>
           {/if}
         </div>
