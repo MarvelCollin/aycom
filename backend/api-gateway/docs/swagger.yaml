@@ -15,9 +15,738 @@ securityDefinitions:
     in: header
     description: Type "Bearer" followed by a space and JWT token.
 paths:
+  /ping:
+    get:
+      summary: Health check
+      description: Returns pong if server is alive
+      tags: [Health]
+      produces: [text/plain]
+      responses:
+        '200':
+          description: Pong
+          schema:
+            type: string
+            example: pong
+  /hello:
+    get:
+      summary: Greet user
+      description: Returns a hello message
+      tags: [Greeting]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Hello, world!
   /auth/login:
     post:
       summary: User login
+      description: Authenticates a user and returns tokens
+      tags: [Auth]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: body
+          name: user
+          required: true
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+              password:
+                type: string
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/AuthResponse'
+        '401':
+          description: Unauthorized
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+  /auth/refresh-token:
+    post:
+      summary: Refresh token
+      tags: [Auth]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/AuthResponse'
+  /auth/oauth-config:
+    get:
+      summary: Get OAuth config
+      tags: [Auth]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: object
+  /auth/verify-email:
+    post:
+      summary: Verify email
+      tags: [Auth]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /auth/resend-verification:
+    post:
+      summary: Resend verification
+      tags: [Auth]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /auth/google:
+    post:
+      summary: Google login
+      tags: [Auth]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/register:
+    post:
+      summary: Register user
+      tags: [Users]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/login:
+    post:
+      summary: Login user
+      tags: [Users]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/by-email:
+    post:
+      summary: Get user by email
+      tags: [Users]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/check-username:
+    get:
+      summary: Check username availability
+      tags: [Users]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/search:
+    get:
+      summary: Search users
+      tags: [Users]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/suggestions:
+    get:
+      summary: Get user suggestions
+      tags: [Users]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/profile:
+    get:
+      summary: Get user profile
+      tags: [Users]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update user profile
+      tags: [Users]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/me:
+    get:
+      summary: Get current user profile
+      tags: [Users]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /users/{userId}/follow:
+    post:
+      summary: Follow user
+      tags: [Users]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /users/{userId}/unfollow:
+    post:
+      summary: Unfollow user
+      tags: [Users]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /users/{userId}/followers:
+    get:
+      summary: Get followers
+      tags: [Users]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /users/{userId}/following:
+    get:
+      summary: Get following
+      tags: [Users]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /users/recommendations:
+    get:
+      summary: Get user recommendations
+      tags: [Users]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /threads:
+    get:
+      summary: Get all threads
+      tags: [Threads]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create thread
+      tags: [Threads]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /threads/search:
+    get:
+      summary: Search threads
+      tags: [Threads]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /threads/{id}:
+    get:
+      summary: Get thread by id
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update thread
+      tags: [Threads]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete thread
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /threads/user/me:
+    get:
+      summary: Get threads by current user
+      tags: [Threads]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /threads/user/{id}:
+    get:
+      summary: Get threads by user id
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /threads/following:
+    get:
+      summary: Get threads from following
+      tags: [Threads]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /threads/{id}/like:
+    post:
+      summary: Like thread
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Unlike thread
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /threads/{id}/replies:
+    post:
+      summary: Reply to thread
+      tags: [Threads]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    get:
+      summary: Get thread replies
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /threads/{id}/repost:
+    post:
+      summary: Repost thread
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Remove repost
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /threads/{id}/bookmark:
+    post:
+      summary: Bookmark thread
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Remove thread bookmark
+      tags: [Threads]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /replies/{id}/like:
+    post:
+      summary: Like reply
+      tags: [Replies]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Unlike reply
+      tags: [Replies]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /replies/{id}/bookmark:
+    post:
+      summary: Bookmark reply
+      tags: [Replies]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Remove reply bookmark
+      tags: [Replies]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /replies/{id}/replies:
+    post:
+      summary: Reply to reply
+      tags: [Replies]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities:
+    get:
+      summary: List communities
+      tags: [Communities]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create community
+      tags: [Communities]
+      consumes: [application/json]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /communities/{id}:
+    get:
+      summary: Get community by id
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update community
+      tags: [Communities]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete community
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/approve:
+    post:
+      summary: Approve community
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/search:
+    get:
+      summary: Search communities
+      tags: [Communities]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/members:
+    get:
+      summary: List community members
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Add community member
+      tags: [Communities]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/members/{userId}:
+    put:
+      summary: Update member role
+      tags: [Communities]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+        - in: path
+          name: userId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Remove community member
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+        - in: path
+          name: userId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/rules:
+    get:
+      summary: List community rules
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Add community rule
+      tags: [Communities]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/rules/{ruleId}:
+    delete:
+      summary: Remove community rule
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+        - in: path
+          name: ruleId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/join-requests:
+    get:
+      summary: List join requests
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Request to join
+      tags: [Communities]
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /communities/{id}/join-requests/{requestId}/approve:
+    post:
+      summary: Approve join request
+      tags: [Communities]
+      produces: [application/json]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          type: string
+        - in: path
+          name: requestId
+          required: true
+          type: string
+      responses:
+        '200':
+          description: OK
+  /trends:
+    get:
+      summary: Get trending topics
+      tags: [Trends]
+      produces: [application/json]
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: object
+            properties:
+              trends:
+                type: array
+                items:
+                  $ref: '#/definitions/Trend'
+
       description: Authenticates a user and returns tokens
       tags:
         - Auth
