@@ -28,12 +28,11 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	auth.Use(handlers.RateLimitMiddleware)
 	{
 		auth.POST("/refresh-token", handlers.RefreshToken)
-		// Additional routes should use handlers that exist or be commented out
-		// auth.GET("/oauth-config", handlers.GetOAuthConfig)
-		// auth.POST("/login", handlers.Login)
-		// auth.POST("/verify-email", handlers.VerifyEmail)
-		// auth.POST("/resend-verification", handlers.ResendVerification)
-		// auth.POST("/google", handlers.GoogleLogin)
+		auth.GET("/oauth-config", handlers.GetOAuthConfig)
+		auth.POST("/login", handlers.Login)
+		auth.POST("/verify-email", handlers.VerifyEmail)
+		auth.POST("/resend-verification", handlers.ResendVerification)
+		auth.POST("/google", handlers.GoogleLogin)
 	}
 
 	// Public user registration and login
@@ -42,8 +41,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.POST("/register", handlers.RegisterUser)
 		publicUsers.POST("/login", handlers.LoginUser)
 		publicUsers.POST("/by-email", handlers.GetUserByEmail)
-		// publicUsers.GET("/check-username", handlers.CheckUsernameAvailability)
+		publicUsers.GET("/check-username", handlers.CheckUsernameAvailability)
 		publicUsers.GET("/search", handlers.SearchUsers)
+		publicUsers.GET("/suggestions", handlers.GetUserSuggestions)
 	}
 
 	// Public thread routes
@@ -55,10 +55,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	// Public trends route
-	publicTrends := v1.Group("/trends")
-	{
-		publicTrends.GET("", handlers.GetTrends)
-	}
+	v1.Group("/trends").GET("", handlers.GetTrends)
 
 	// Protected routes - using JWT authentication middleware
 	protected := v1.Group("")
@@ -86,6 +83,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.GET("/user/:id", handlers.GetThreadsByUser)
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
+		threads.GET("/following", handlers.GetThreadsFromFollowing)
 		// threads.POST("/media", handlers.UploadThreadMedia)
 
 		// Social interaction routes
@@ -102,14 +100,14 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Product routes
 	// Comment out until implemented
 	/*
-	products := protected.Group("/products")
-	{
-		products.GET("", handlers.ListProducts)
-		products.GET("/:id", handlers.GetProduct)
-		products.POST("", handlers.CreateProduct)
-		products.PUT("/:id", handlers.UpdateProduct)
-		products.DELETE("/:id", handlers.DeleteProduct)
-	}
+		products := protected.Group("/products")
+		{
+			products.GET("", handlers.ListProducts)
+			products.GET("/:id", handlers.GetProduct)
+			products.POST("", handlers.CreateProduct)
+			products.PUT("/:id", handlers.UpdateProduct)
+			products.DELETE("/:id", handlers.DeleteProduct)
+		}
 	*/
 
 	// Community routes

@@ -18,12 +18,15 @@
 @import url("./src/keyframes.css");
 @import url("./src/transform.css");
 @import url("./src/transition.css");
+@import url("./src/dark-mode.css");
+@import url("./src/responsive-layout.css");
 
 /* Interaction utilities */
 @import url("./src/interaction.css");
 
 /* Responsive utilities */
 @import url("./src/responsive.css");
+
 
 /* Base styles */
 :root {

@@ -68,7 +68,7 @@ type WebSocketConfig struct {
 func LoadConfig() (*Config, error) {
 	// Get service host and port variables
 	userServiceHost := getEnv("USER_SERVICE_HOST", "localhost")
-	userServicePort := getEnv("USER_SERVICE_PORT", "9091")
+	userServicePort := getEnv("USER_SERVICE_PORT", "50052")
 	threadServiceHost := getEnv("THREAD_SERVICE_HOST", "localhost")
 	threadServicePort := getEnv("THREAD_SERVICE_PORT", "9092")
 	communityServiceHost := getEnv("COMMUNITY_SERVICE_HOST", "localhost")
@@ -76,7 +76,7 @@ func LoadConfig() (*Config, error) {
 
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:         getEnv("PORT", "8081"),
+			Port:         getEnv("API_GATEWAY_PORT", "8083"),
 			ReadTimeout:  getDurationEnv("READ_TIMEOUT", 10*time.Second),
 			WriteTimeout: getDurationEnv("WRITE_TIMEOUT", 10*time.Second),
 			CORSOrigin:   getEnv("CORS_ORIGIN", "*"),
@@ -182,4 +182,45 @@ func getDurationEnv(key string, defaultVal time.Duration) time.Duration {
 // GetAuthServiceAddr returns the address of the auth service
 func (c *Config) GetAuthServiceAddr() string {
 	return c.Services.UserService
+}
+
+// GetDefaultConfig returns a default configuration
+func GetDefaultConfig() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Port:         getEnv("API_GATEWAY_PORT", "8083"),
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			CORSOrigin:   "*",
+		},
+		Auth: AuthConfig{
+			JWTSecret:            getEnv("JWT_SECRET", "default-secret-key-for-development"),
+			AccessTokenDuration:  15 * time.Minute,
+			RefreshTokenDuration: 7 * 24 * time.Hour,
+			CookieDomain:         "localhost",
+			CookieSecure:         false,
+		},
+		Services: ServicesConfig{
+			UserService:      fmt.Sprintf("%s:%s", getEnv("USER_SERVICE_HOST", "localhost"), getEnv("USER_SERVICE_PORT", "50052")),
+			ThreadService:    fmt.Sprintf("%s:%s", getEnv("THREAD_SERVICE_HOST", "localhost"), getEnv("THREAD_SERVICE_PORT", "9092")),
+			CommunityService: fmt.Sprintf("%s:%s", getEnv("COMMUNITY_SERVICE_HOST", "localhost"), getEnv("COMMUNITY_SERVICE_PORT", "9093")),
+		},
+		RateLimit: RateLimitConfig{
+			Limit:    100,
+			Burst:    20,
+			Duration: time.Minute,
+		},
+		OAuth: OAuthConfig{
+			GoogleClientID: getEnv("GOOGLE_CLIENT_ID", ""),
+		},
+		WebSocket: WebSocketConfig{
+			ReadBufferSize:       1024,
+			WriteBufferSize:      1024,
+			SendBufferSize:       256,
+			ReadDeadlineTimeout:  60 * time.Second,
+			WriteDeadlineTimeout: 10 * time.Second,
+			PingInterval:         54 * time.Second,
+			MaxMessageSize:       4096,
+		},
+	}
 }

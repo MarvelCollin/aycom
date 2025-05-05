@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	userProto "aycom/backend/proto/user"
@@ -350,4 +352,125 @@ func generateJWT(userID string) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+// GetUserSuggestions returns suggested users for the current user to follow
+// @Summary Get user suggestions
+// @Description Get a list of suggested users to follow
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param limit query int false "Number of suggestions to fetch"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/users/suggestions [get]
+func GetUserSuggestions(c *gin.Context) {
+	// Get current user ID from JWT token (if authenticated)
+	userID := ""
+	userIDAny, exists := c.Get("userId")
+	if exists {
+		userID, _ = userIDAny.(string)
+	}
+
+	// Get limit parameter
+	limitStr := c.DefaultQuery("limit", "3")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 3 // Default limit
+	}
+
+	log.Printf("Fetching user suggestions for user %s, limit: %d", userID, limit)
+
+	// Check if user service is available
+	if UserClient == nil {
+		log.Printf("User service unavailable, returning mock suggestions")
+		returnMockSuggestions(c, limit)
+		return
+	}
+
+	// Since there's no specific GetUserRecommendations RPC,
+	// we'll return mock data but in a production environment
+	// you would implement this endpoint in the UserService
+	log.Printf("No GetUserRecommendations RPC available, returning mock data")
+	returnMockSuggestions(c, limit)
+}
+
+// Helper function to return mock user suggestions
+func returnMockSuggestions(c *gin.Context, limit int) {
+	var suggestedUsers []gin.H
+
+	// Create mock suggested users
+	for i := 1; i <= limit; i++ {
+		suggestedUsers = append(suggestedUsers, gin.H{
+			"id":             fmt.Sprintf("user_%d", i),
+			"username":       fmt.Sprintf("suggested_user%d", i),
+			"display_name":   fmt.Sprintf("Suggested User %d", i),
+			"avatar_url":     fmt.Sprintf("https://example.com/avatar%d.jpg", i),
+			"verified":       i%3 == 0, // Every third user is verified
+			"follower_count": 100 + i*10,
+			"is_following":   false,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": suggestedUsers,
+	})
+}
+
+// CheckUsernameAvailability checks if a username is available
+// @Summary Check username availability
+// @Description Checks if a username is available for registration
+// @Tags Users
+// @Produce json
+// @Param username query string true "Username to check"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /api/v1/users/check-username [get]
+func CheckUsernameAvailability(c *gin.Context) {
+	username := c.Query("username")
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Username parameter is required",
+			"code":    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Check if the service client is initialized
+	if userServiceClient == nil {
+		// Return mock response if service is unavailable
+		available := true
+		if username == "admin" || username == "test" || username == "user" {
+			available = false
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":   true,
+			"available": available,
+		})
+		return
+	}
+
+	// Call the service client method
+	available, err := userServiceClient.CheckUsernameAvailability(username)
+	if err != nil {
+		// Return mock response on error
+		mockAvailable := true
+		if username == "admin" || username == "test" || username == "user" {
+			mockAvailable = false
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":   true,
+			"available": mockAvailable,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"available": available,
+	})
 }

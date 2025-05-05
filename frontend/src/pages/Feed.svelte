@@ -201,7 +201,7 @@
         });
         
         // Insert advertisements
-        const tweetsWithAds = [];
+        const tweetsWithAds: ITweet[] = [];
         convertedThreads.forEach((tweet, index) => {
           tweetsWithAds.push(tweet);
           
@@ -281,7 +281,7 @@
         let convertedThreads = response.threads.map(thread => threadToTweet(thread));
         
         // Insert advertisements
-        const tweetsWithAds = [];
+        const tweetsWithAds: ITweet[] = [];
         convertedThreads.forEach((tweet, index) => {
           tweetsWithAds.push(tweet);
           
@@ -550,19 +550,19 @@
   on:toggleComposeModal={toggleComposeModal}
 >
   <!-- Content Area -->
-  <div class="min-h-screen border-x border-gray-200 dark:border-gray-800">
+  <div class="min-h-screen border-x feed-container">
     <!-- Header with Tabs -->
-    <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+    <div class="sticky top-0 z-10 header-tabs">
       <!-- Tabs -->
       <div class="flex justify-between">
         <button 
-          class="flex-1 py-4 text-center font-medium {activeTab === 'for-you' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}"
+          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'for-you' ? 'tab-active' : ''}"
           on:click={() => handleTabChange('for-you')}
         >
           For you
         </button>
         <button 
-          class="flex-1 py-4 text-center font-medium {activeTab === 'following' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}"
+          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''}"
           on:click={() => handleTabChange('following')}
         >
           Following
@@ -572,11 +572,11 @@
     
     <!-- Authentication Check Banner -->
     {#if !authState.isAuthenticated}
-      <div class="p-4 mb-2 bg-blue-50 dark:bg-blue-900/30 rounded-md mx-4 mt-4">
+      <div class="p-4 mb-2 rounded-md mx-4 mt-4 auth-banner">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="font-bold text-lg dark:text-white">Welcome to AYCOM!</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-300">Sign in to post and interact with threads.</p>
+            <h2 class="font-bold text-lg {isDarkMode ? 'text-white' : 'text-gray-800'}">Welcome to AYCOM!</h2>
+            <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Sign in to post and interact with threads.</p>
           </div>
           <div class="flex space-x-2">
             <a href="/login" class="px-4 py-2 bg-transparent border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white rounded transition-colors">
@@ -592,18 +592,19 @@
     
     <!-- Compose Tweet Form - Only visible for authenticated users -->
     {#if authState.isAuthenticated}
-      <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+      <div class="p-4 border-b feed-container">
         <div class="flex">
           <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
             <span>{avatar}</span>
           </div>
           <div class="flex-1">
-            <div 
-              class="w-full min-h-[40px] px-4 py-2 rounded-3xl border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+            <button 
+              class="w-full min-h-[40px] px-4 py-2 rounded-3xl border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
               on:click={toggleComposeModal}
+              aria-label="Compose new post"
             >
               What's happening?
-            </div>
+            </button>
             <div class="flex mt-2 -ml-2">
               <button class="p-2 text-primary rounded-full hover:bg-primary/10">
                 <span class="sr-only">Add image</span>
@@ -628,7 +629,7 @@
     {/if}
     
     <!-- Tweet List -->
-    <div>
+    <div class="tweet-list">
       <!-- Loading state when first loading tab -->
       {#if isLoading && currentTweets.length === 0}
         <div class="space-y-4 p-4">
@@ -690,7 +691,7 @@
         </div>
       <!-- Tweets list -->
       {:else}
-        {#each currentTweets as tweet (tweet.id)}
+        {#each currentTweets as tweet, index (tweet.id || `tweet-${index}`)}
           {#if tweet.isAdvertisement}
             <div class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
               <div class="flex items-center text-xs text-gray-500 mb-2">
@@ -777,6 +778,71 @@
 <DebugPanel />
 
 <style>
+  /* Theme colors */
+  :global(.theme-light) {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f8fa;
+    --bg-tertiary: #ebeef0;
+    --bg-overlay: rgba(255, 255, 255, 0.9);
+    --border-color: #e1e8ed;
+    --text-primary: #14171a;
+    --text-secondary: #657786;
+    --text-tertiary: #aab8c2;
+    --accent-color: #1d9bf0;
+    --accent-hover: #1a8cd8;
+    --error-color: #e0245e;
+    --success-color: #17bf63;
+  }
+
+  :global(.theme-dark) {
+    --bg-primary: #000000;
+    --bg-secondary: #15181c;
+    --bg-tertiary: #212327;
+    --bg-overlay: rgba(0, 0, 0, 0.9);
+    --border-color: #2f3336;
+    --text-primary: #ffffff;
+    --text-secondary: #8899a6;
+    --text-tertiary: #66757f;
+    --accent-color: #1d9bf0;
+    --accent-hover: #1a8cd8;
+    --error-color: #e0245e;
+    --success-color: #17bf63;
+  }
+
+  /* Apply theme variables to specific elements */
+  .feed-container {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+  }
+
+  .header-tabs {
+    background-color: var(--bg-overlay);
+    backdrop-filter: blur(12px);
+    border-color: var(--border-color);
+  }
+
+  .tab-button {
+    color: var(--text-secondary);
+  }
+
+  .tab-button:hover {
+    color: var(--text-primary);
+  }
+
+  .tab-active {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+  }
+
+  .tweet-list {
+    background-color: var(--bg-primary);
+  }
+
+  .auth-banner {
+    background-color: var(--bg-secondary);
+  }
+
   /* Skeleton loading animation */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }

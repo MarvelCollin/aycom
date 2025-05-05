@@ -1,14 +1,24 @@
-import { apiRequest } from '../utils/apiClient';
+import { getAuthToken } from '../utils/auth';
+import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
 
+const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('ChatAPI');
 
 export async function createChat(data: Record<string, any>) {
   try {
-    const response = await apiRequest('/chats', {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to create chat');
@@ -22,7 +32,17 @@ export async function createChat(data: Record<string, any>) {
 
 export async function listChats() {
   try {
-    const response = await apiRequest('/chats', { method: 'GET' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list chats');
@@ -36,7 +56,17 @@ export async function listChats() {
 
 export async function listChatParticipants(chatId: string) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/participants`, { method: 'GET' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list chat participants');
@@ -50,10 +80,18 @@ export async function listChatParticipants(chatId: string) {
 
 export async function addChatParticipant(chatId: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/participants`, {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to add chat participant');
@@ -67,7 +105,16 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
 
 export async function removeChatParticipant(chatId: string, userId: string) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/participants/${userId}`, { method: 'DELETE' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to remove chat participant');
@@ -81,10 +128,18 @@ export async function removeChatParticipant(chatId: string, userId: string) {
 
 export async function sendMessage(chatId: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/messages`, {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to send message');
@@ -98,7 +153,17 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
 
 export async function listMessages(chatId: string) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/messages`, { method: 'GET' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list messages');
@@ -112,7 +177,16 @@ export async function listMessages(chatId: string) {
 
 export async function deleteMessage(chatId: string, messageId: string) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/messages/${messageId}`, { method: 'DELETE' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/${messageId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to delete message');
@@ -126,7 +200,16 @@ export async function deleteMessage(chatId: string, messageId: string) {
 
 export async function unsendMessage(chatId: string, messageId: string) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/messages/${messageId}/unsend`, { method: 'POST' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/${messageId}/unsend`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to unsend message');
@@ -140,7 +223,17 @@ export async function unsendMessage(chatId: string, messageId: string) {
 
 export async function searchMessages(chatId: string, query: string) {
   try {
-    const response = await apiRequest(`/chats/${chatId}/messages/search?query=${encodeURIComponent(query)}`, { method: 'GET' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/search?query=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to search messages');

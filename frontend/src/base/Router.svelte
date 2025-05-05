@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import Home from '../pages/Home.svelte';
-  import Landing from '../pages/Landing.svelte';
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
-  import Profile from '../pages/Profile.svelte';
   import GoogleCallback from '../pages/GoogleCallback.svelte';
+  import Explore from '../pages/Explore.svelte';
+  import Message from '../pages/Message.svelte';
+  import Notification from '../pages/Notification.svelte';
+  import Bookmarks from '../pages/Bookmarks.svelte';
+  import Communities from '../pages/Communities.svelte';
+  import ForgotPassword from '../pages/ForgotPassword.svelte';
   import appConfig from '../config/appConfig';
   
   let route = '/';
@@ -23,11 +26,12 @@
     }
     
     if (!isAuthenticated && 
-        (route === '/home' || 
-         route === '/feed' ||
+        (route === '/feed' ||
          route === '/explore' || 
          route === '/notifications' || 
          route === '/messages' || 
+         route === '/bookmarks' ||
+         route === '/communities' ||
          route === '/profile')) {
       window.history.replaceState({}, '', '/');
       route = '/';
@@ -77,21 +81,29 @@
 
 <main>
   {#if route === '/'}
-    <Landing />
+    <Feed />
   {:else if route === '/login'}
     <Login />
   {:else if route === '/register'}
     <Register />
-  {:else if route === '/home'}
-    <Feed {route} />
+  {:else if route === '/forgot-password'}
+    <ForgotPassword />
   {:else if route === '/feed'}
-    <Feed {route} />
+    <Feed />
   {:else if route === '/google/' || route === '/google'}
     <GoogleCallback />
   {:else if route === '/profile'}
-    <Profile />
-  {:else if route === '/explore' || route === '/notifications' || route === '/messages'}
-    <Feed {route} />
+    <Feed />
+  {:else if route === '/explore'}
+    <Explore />
+  {:else if route === '/notifications'}
+    <Notification />
+  {:else if route === '/messages'}
+    <Message />
+  {:else if route === '/bookmarks'}
+    <Bookmarks />
+  {:else if route === '/communities'}
+    <Communities />
   {:else}
     <div class="not-found">
       <h1>404 - Page Not Found</h1>

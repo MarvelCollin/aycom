@@ -1,14 +1,24 @@
-import { apiRequest } from '../utils/apiClient';
+import { getAuthToken } from '../utils/auth';
+import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
 
+const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
 
 export async function createCommunity(data: Record<string, any>) {
   try {
-    const response = await apiRequest('/communities', {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/communities`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to create community');
@@ -22,7 +32,17 @@ export async function createCommunity(data: Record<string, any>) {
 
 export async function listCommunities() {
   try {
-    const response = await apiRequest('/communities', { method: 'GET' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/communities`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list communities');
@@ -36,7 +56,17 @@ export async function listCommunities() {
 
 export async function getCommunityById(id: string) {
   try {
-    const response = await apiRequest(`/communities/${id}`, { method: 'GET' });
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/communities/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to get community');
@@ -50,9 +80,14 @@ export async function getCommunityById(id: string) {
 
 export async function updateCommunity(id: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/communities/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/communities/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
     if (!response.ok) {
       const errorData = await response.json();
@@ -67,7 +102,13 @@ export async function updateCommunity(id: string, data: Record<string, any>) {
 
 export async function deleteCommunity(id: string) {
   try {
-    const response = await apiRequest(`/communities/${id}`, { method: 'DELETE' });
+    const response = await fetch(`${API_BASE_URL}/communities/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to delete community');
@@ -81,7 +122,13 @@ export async function deleteCommunity(id: string) {
 
 export async function approveCommunity(id: string) {
   try {
-    const response = await apiRequest(`/communities/${id}/approve`, { method: 'POST' });
+    const response = await fetch(`${API_BASE_URL}/communities/${id}/approve`, {
+      method: 'POST',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to approve community');
@@ -95,9 +142,14 @@ export async function approveCommunity(id: string) {
 
 export async function addMember(communityId: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/members`, {
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/members`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
     if (!response.ok) {
       const errorData = await response.json();
@@ -112,7 +164,13 @@ export async function addMember(communityId: string, data: Record<string, any>) 
 
 export async function listMembers(communityId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/members`, { method: 'GET' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/members`, {
+      method: 'GET',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list members');
@@ -126,9 +184,14 @@ export async function listMembers(communityId: string) {
 
 export async function updateMemberRole(communityId: string, userId: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/members/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/members/${userId}`, {
       method: 'PUT',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
     if (!response.ok) {
       const errorData = await response.json();
@@ -143,7 +206,13 @@ export async function updateMemberRole(communityId: string, userId: string, data
 
 export async function removeMember(communityId: string, userId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/members/${userId}`, { method: 'DELETE' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/members/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to remove member');
@@ -157,9 +226,14 @@ export async function removeMember(communityId: string, userId: string) {
 
 export async function addRule(communityId: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/rules`, {
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/rules`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
     if (!response.ok) {
       const errorData = await response.json();
@@ -174,7 +248,13 @@ export async function addRule(communityId: string, data: Record<string, any>) {
 
 export async function listRules(communityId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/rules`, { method: 'GET' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/rules`, {
+      method: 'GET',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list rules');
@@ -188,7 +268,13 @@ export async function listRules(communityId: string) {
 
 export async function removeRule(communityId: string, ruleId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/rules/${ruleId}`, { method: 'DELETE' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/rules/${ruleId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to remove rule');
@@ -202,9 +288,14 @@ export async function removeRule(communityId: string, ruleId: string) {
 
 export async function requestToJoin(communityId: string, data: Record<string, any>) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/join-requests`, {
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/join-requests`, {
       method: 'POST',
-      body: JSON.stringify(data)
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      body: JSON.stringify(data),
+      credentials: 'include'
     });
     if (!response.ok) {
       const errorData = await response.json();
@@ -219,7 +310,13 @@ export async function requestToJoin(communityId: string, data: Record<string, an
 
 export async function listJoinRequests(communityId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/join-requests`, { method: 'GET' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/join-requests`, {
+      method: 'GET',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list join requests');
@@ -233,7 +330,13 @@ export async function listJoinRequests(communityId: string) {
 
 export async function approveJoinRequest(communityId: string, requestId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/join-requests/${requestId}/approve`, { method: 'POST' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/join-requests/${requestId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to approve join request');
@@ -247,7 +350,13 @@ export async function approveJoinRequest(communityId: string, requestId: string)
 
 export async function rejectJoinRequest(communityId: string, requestId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/join-requests/${requestId}/reject`, { method: 'POST' });
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/join-requests/${requestId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to reject join request');
@@ -266,8 +375,12 @@ export async function rejectJoinRequest(communityId: string, requestId: string) 
  */
 export async function checkUserCommunityMembership(communityId: string) {
   try {
-    const response = await apiRequest(`/communities/${communityId}/check-membership`, { 
-      method: 'GET'
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/check-membership`, {
+      method: 'GET',
+      headers: {
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
     });
     
     if (!response.ok) {
@@ -296,7 +409,7 @@ export async function searchCommunities(
   limit: number = 10
 ) {
   try {
-    const url = new URL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'}/communities/search`);
+    const url = new URL(`${API_BASE_URL}/communities/search`);
     
     // Set query parameters
     url.searchParams.append('q', query);
@@ -304,15 +417,16 @@ export async function searchCommunities(
     url.searchParams.append('limit', limit.toString());
     
     // Get token
-    const token = localStorage.getItem('aycom_access_token');
+    const token = getAuthToken();
     
     // Make request
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json'
-      }
+      },
+      credentials: 'include'
     });
     
     if (!response.ok) {

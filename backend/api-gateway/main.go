@@ -42,7 +42,9 @@ func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		log.Printf("Warning: Failed to load configuration: %v. Using default configuration.", err)
+		// Use default configuration instead of failing
+		cfg = config.GetDefaultConfig()
 	}
 
 	// Initialize handlers with configuration
@@ -60,6 +62,7 @@ func main() {
 	// Start the server in a goroutine
 	go func() {
 		fmt.Printf("API Gateway started on port: %s\n", port)
+		fmt.Printf("Swagger UI available at: http://localhost:%s/swagger/index.html\n", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}

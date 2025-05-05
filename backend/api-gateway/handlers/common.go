@@ -94,8 +94,7 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 		defer cancel()
 
 		conn, err := grpc.DialContext(ctx, p.serviceAddr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock())
+			grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 		if err != nil {
 			return nil, err
@@ -170,11 +169,11 @@ func InitGRPCServices() {
 		userConn, err := grpc.Dial(
 			userServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-			grpc.WithTimeout(5*time.Second),
+			// Don't block on connection, allowing the gateway to start even if services are down
+			grpc.WithTimeout(3*time.Second),
 		)
 		if err != nil {
-			log.Fatalf("Failed to connect to User service: %v", err)
+			log.Printf("Warning: Failed to connect to User service: %v", err)
 		} else {
 			UserClient = user.NewUserServiceClient(userConn)
 			log.Printf("Connected to User service at %s", userServiceAddr)
@@ -182,7 +181,8 @@ func InitGRPCServices() {
 
 		// Initialize Thread Service Client (using pool for example)
 		if Config.Services.ThreadService != "" {
-			threadConnPool = NewConnectionPool(Config.Services.ThreadService, 5, 20, 10*time.Second)
+			// Create connection pool with shorter timeouts
+			threadConnPool = NewConnectionPool(Config.Services.ThreadService, 5, 20, 3*time.Second)
 			log.Printf("Thread service connection pool initialized for %s", Config.Services.ThreadService)
 		}
 
@@ -192,11 +192,11 @@ func InitGRPCServices() {
 		communityConn, err := grpc.Dial(
 			communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-			grpc.WithTimeout(5*time.Second),
+			// Don't block on connection, allowing the gateway to start even if services are down
+			grpc.WithTimeout(3*time.Second),
 		)
 		if err != nil {
-			log.Fatalf("Failed to connect to Community service: %v", err)
+			log.Printf("Warning: Failed to connect to Community service: %v", err)
 		} else {
 			CommunityClient = community.NewCommunityServiceClient(communityConn)
 			log.Printf("Connected to Community service at %s", communityServiceAddr)
