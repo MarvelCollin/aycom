@@ -16,7 +16,7 @@
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import { getUserProfile } from '../utils/common';
+  import { getProfile } from '../api/user';
 
   const logger = createLoggerWithPrefix('Feed');
 
@@ -69,14 +69,27 @@
 
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
-    // Process content field if it contains user metadata
-    // Format: [USER:username@displayName]content
+    // Default values
     let username = 'anonymous';
     let displayName = 'User';
+    let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
     let content = thread.content || '';
-    let profilePicture = '';
     
-    if (typeof content === 'string') {
+    // Get user data directly from thread fields
+    if (thread.username) {
+      username = thread.username;
+    }
+    
+    if (thread.display_name) {
+      displayName = thread.display_name;
+    }
+    
+    if (thread.profile_picture_url) {
+      profilePicture = thread.profile_picture_url;
+    }
+    
+    // Fallback: if user data is not directly in the thread, check for embedded content format
+    if (username === 'anonymous' && typeof content === 'string') {
       // Look for enhanced user metadata that includes profile picture
       // Format: [USER:username@displayName@profileUrl]content
       const enhancedMetadataRegex = /^\[USER:([^@\]]+)@([^@\]]+)@([^\]]+)\](.*)/;
@@ -85,7 +98,7 @@
       if (match) {
         username = match[1] || username;
         displayName = match[2] || displayName;
-        profilePicture = match[3] || '';
+        profilePicture = match[3] || profilePicture;
         content = match[4] || '';
       } else {
         // Try the old format without profile picture
@@ -121,7 +134,7 @@
       displayName: displayName,
       content: content,
       timestamp: timestamp,
-      avatar: profilePicture || thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp', // Real image URL fallback
+      avatar: profilePicture,
       likes: thread.like_count || thread.metrics?.likes || 0,
       replies: thread.reply_count || thread.metrics?.replies || 0,
       reposts: thread.repost_count || thread.metrics?.reposts || 0,
@@ -147,17 +160,29 @@
     return true;
   }
   
-  // Fetch user profile data using the common utility
+  // Fetch user profile data using the API directly
   async function fetchUserProfile() {
     isLoadingProfile = true;
     try {
-      const profileData = await getUserProfile(authState);
-      username = profileData.username;
-      displayName = profileData.displayName;
-      avatar = profileData.avatar;
-      logger.debug('Profile loaded successfully', { username });
+      const response = await getProfile();
+      if (response && response.user) {
+        username = response.user.username || '';
+        displayName = response.user.name || response.user.display_name || username;
+        avatar = response.user.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+        logger.debug('Profile loaded successfully', { username });
+      } else {
+        logger.warn('No user data received from API');
+        // Set default values
+        username = 'user';
+        displayName = 'Guest User';
+        avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+      }
     } catch (error) {
       logger.error('Error fetching user profile:', error);
+      // Set default values
+      username = 'user';
+      displayName = 'Guest User';
+      avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
     } finally {
       isLoadingProfile = false;
     }
@@ -538,6 +563,62 @@
     } else {
       fetchTweetsFollowing();
     }
+  }
+
+  // Function to fetch replies for a given thread
+  async function fetchRepliesForThread(threadId: string) {
+    logger.debug(`Fetching replies for thread: ${threadId}`);
+    
+    try {
+      const response = await getThreadReplies(threadId);
+      
+      if (response && response.replies) {
+        logger.info(`Received ${response.replies.length} replies for thread ${threadId}`);
+        
+        // Convert replies to tweets
+        const convertedReplies = response.replies.map(reply => {
+          const tweetReply = threadToTweet(reply);
+          // Set the replyTo to indicate this is a reply to a specific thread
+          // We don't have the full parent tweet data here, so we'll use null
+          // The UI can use threadId to look up the parent if needed
+          tweetReply.replyTo = null;
+          return tweetReply;
+        });
+        
+        // Store replies in the map for the thread
+        repliesMap.set(threadId, convertedReplies);
+        
+        // Process nested replies (replies to replies)
+        convertedReplies.forEach(reply => {
+          if (reply.parentReplyId) {
+            // If this reply has a parent that is not the main thread
+            const parentReplies = nestedRepliesMap.get(reply.parentReplyId) || [];
+            nestedRepliesMap.set(reply.parentReplyId, [...parentReplies, reply]);
+          }
+        });
+        
+        // Trigger reactivity update
+        repliesMap = repliesMap;
+        nestedRepliesMap = nestedRepliesMap;
+        
+        logger.debug(`Replies loaded for thread ${threadId}`, { count: convertedReplies.length });
+      } else {
+        logger.warn(`No replies returned for thread ${threadId}`);
+        repliesMap.set(threadId, []);
+        repliesMap = repliesMap;
+      }
+    } catch (error) {
+      logger.error(`Error fetching replies for thread ${threadId}:`, error);
+      toastStore.showToast('Failed to load replies. Please try again.', 'error');
+      repliesMap.set(threadId, []);
+      repliesMap = repliesMap;
+    }
+  }
+
+  // Handle loading thread replies
+  function handleLoadReplies(threadId: string) {
+    logger.debug(`Loading replies for thread: ${threadId}`);
+    fetchRepliesForThread(threadId);
   }
 </script>
 

@@ -150,9 +150,44 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
+	// Create response with user data clearly exposed
+	threadData := map[string]interface{}{
+		"id":            thread.ID,
+		"thread_id":     thread.ID,
+		"content":       thread.Content,
+		"user_id":       thread.UserID,
+		"created_at":    thread.CreatedAt,
+		"updated_at":    thread.UpdatedAt,
+		"like_count":    thread.LikeCount,
+		"reply_count":   thread.ReplyCount,
+		"repost_count":  thread.RepostCount,
+		"is_liked":      thread.IsLiked,
+		"is_repost":     thread.IsReposted,
+		"is_bookmarked": thread.IsBookmarked,
+		// Include user data directly
+		"username":            thread.Username,
+		"display_name":        thread.DisplayName,
+		"profile_picture_url": thread.ProfilePicture,
+	}
+
+	// Add media if available
+	if len(thread.Media) > 0 {
+		media := make([]map[string]interface{}, len(thread.Media))
+		for i, m := range thread.Media {
+			media[i] = map[string]interface{}{
+				"id":   m.ID,
+				"type": m.Type,
+				"url":  m.URL,
+			}
+		}
+		threadData["media"] = media
+	} else {
+		threadData["media"] = []interface{}{}
+	}
+
 	// Return successful response with thread
 	SendSuccessResponse(c, http.StatusOK, gin.H{
-		"thread": thread,
+		"thread": threadData,
 	})
 }
 
@@ -203,25 +238,21 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Getting threads for user: %s (authenticated as: %s)", userID, authenticatedUserIDStr)
-
 	// Get pagination parameters
 	page := 1
-	limit := 10
+	limit := 20
 
 	pageStr := c.Query("page")
 	if pageStr != "" {
-		pageInt, err := strconv.Atoi(pageStr)
-		if err == nil && pageInt > 0 {
-			page = pageInt
+		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
+			page = val
 		}
 	}
 
 	limitStr := c.Query("limit")
 	if limitStr != "" {
-		limitInt, err := strconv.Atoi(limitStr)
-		if err == nil && limitInt > 0 && limitInt <= 50 {
-			limit = limitInt
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 && val <= 100 {
+			limit = val
 		}
 	}
 
@@ -271,7 +302,60 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	// Transform the response to include user data properly
+	threads := make([]map[string]interface{}, len(resp.Threads))
+	for i, t := range resp.Threads {
+		thread := map[string]interface{}{
+			"id":             t.Thread.Id,
+			"thread_id":      t.Thread.Id,
+			"content":        t.Thread.Content,
+			"user_id":        t.Thread.UserId,
+			"created_at":     t.Thread.CreatedAt.AsTime(),
+			"updated_at":     t.Thread.UpdatedAt.AsTime(),
+			"like_count":     t.LikesCount,
+			"reply_count":    t.RepliesCount,
+			"repost_count":   t.RepostsCount,
+			"bookmark_count": t.BookmarkCount,
+			"view_count":     t.Thread.ViewCount, // For backward compatibility
+			"is_liked":       t.LikedByUser,
+			"is_repost":      t.RepostedByUser,
+			"is_bookmarked":  t.BookmarkedByUser,
+			// Default user values
+			"username":            "anonymous",
+			"display_name":        "User",
+			"profile_picture_url": "",
+		}
+
+		// Add user data if available
+		if t.User != nil {
+			thread["username"] = t.User.Username
+			thread["display_name"] = t.User.Name
+			thread["profile_picture_url"] = t.User.ProfilePictureUrl
+			thread["is_verified"] = t.User.IsVerified
+		}
+
+		// Add media if available
+		if len(t.Thread.Media) > 0 {
+			media := make([]map[string]interface{}, len(t.Thread.Media))
+			for j, m := range t.Thread.Media {
+				media[j] = map[string]interface{}{
+					"id":   m.Id,
+					"type": m.Type,
+					"url":  m.Url,
+				}
+			}
+			thread["media"] = media
+		} else {
+			thread["media"] = []interface{}{}
+		}
+
+		threads[i] = thread
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"threads": threads,
+		"total":   resp.Total,
+	})
 }
 
 // @Summary Update thread
@@ -629,9 +713,59 @@ func GetAllThreads(c *gin.Context) {
 		return
 	}
 
-	// If user is authenticated, we could enrich the response with personalized data
-	// like whether the user has liked, bookmarked, etc. each thread
-	// This would require additional service calls for each thread
+	// Transform the response to include user data properly
+	// This ensures the frontend receives the user information directly
+	threads := make([]map[string]interface{}, len(resp.Threads))
+	for i, t := range resp.Threads {
+		thread := map[string]interface{}{
+			"id":             t.Thread.Id,
+			"thread_id":      t.Thread.Id,
+			"content":        t.Thread.Content,
+			"user_id":        t.Thread.UserId,
+			"created_at":     t.Thread.CreatedAt.AsTime(),
+			"updated_at":     t.Thread.UpdatedAt.AsTime(),
+			"like_count":     t.LikesCount,
+			"reply_count":    t.RepliesCount,
+			"repost_count":   t.RepostsCount,
+			"bookmark_count": t.BookmarkCount,
+			"view_count":     t.Thread.ViewCount, // For backward compatibility
+			"is_liked":       t.LikedByUser,
+			"is_repost":      t.RepostedByUser,
+			"is_bookmarked":  t.BookmarkedByUser,
+			// Default user values
+			"username":            "anonymous",
+			"display_name":        "User",
+			"profile_picture_url": "",
+		}
 
-	c.JSON(http.StatusOK, resp)
+		// Add user data if available
+		if t.User != nil {
+			thread["username"] = t.User.Username
+			thread["display_name"] = t.User.Name
+			thread["profile_picture_url"] = t.User.ProfilePictureUrl
+			thread["is_verified"] = t.User.IsVerified
+		}
+
+		// Add media if available
+		if len(t.Thread.Media) > 0 {
+			media := make([]map[string]interface{}, len(t.Thread.Media))
+			for j, m := range t.Thread.Media {
+				media[j] = map[string]interface{}{
+					"id":   m.Id,
+					"type": m.Type,
+					"url":  m.Url,
+				}
+			}
+			thread["media"] = media
+		} else {
+			thread["media"] = []interface{}{}
+		}
+
+		threads[i] = thread
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"threads": threads,
+		"total":   resp.Total,
+	})
 }

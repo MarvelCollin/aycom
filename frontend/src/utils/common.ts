@@ -1,79 +1,9 @@
 import { toastStore } from '../stores/toastStore';
 import type { IAuthStore } from '../interfaces/IAuth';
 import type { IMedia } from '../interfaces/ISocialMedia';
-import { getProfile } from '../api/user';
 import { createLoggerWithPrefix } from './logger';
 
 const logger = createLoggerWithPrefix('common-utils');
-
-// User profile cache to avoid excessive API calls
-let userProfileCache: {
-  username: string;
-  displayName: string;
-  avatar: string;
-  userId: string;
-  email?: string;
-  isVerified?: boolean;
-  createdAt?: string;
-} | null = null;
-
-/**
- * Fetch user profile data from the API or cache
- * @param authState Current auth state 
- * @param forceRefresh If true, will fetch from API even if cache exists
- * @returns User profile data
- */
-export async function getUserProfile(authState: IAuthStore, forceRefresh = false) {
-  // If we have cached data and don't need to refresh, return it
-  if (userProfileCache && !forceRefresh) {
-    return userProfileCache;
-  }
-  
-  // Default fallback values based on user ID
-  const defaultProfile = {
-    username: authState?.userId ? `user_${authState.userId.substring(0, 4)}` : 'guest',
-    displayName: authState?.userId ? `User ${authState.userId.substring(0, 4)}` : 'Guest User',
-    avatar: 'https://secure.gravatar.com/avatar/0?d=mp',
-    userId: authState?.userId || '',
-    email: '',
-    isVerified: false,
-    createdAt: ''
-  };
-  
-  // If not authenticated, return default values
-  if (!authState?.isAuthenticated) {
-    return defaultProfile;
-  }
-  
-  try {
-    logger.debug('Fetching user profile from API');
-    const response = await getProfile();
-    
-    if (response && response.user) {
-      const profile = {
-        username: response.user.username || defaultProfile.username,
-        displayName: response.user.name || response.user.username || defaultProfile.displayName,
-        avatar: response.user.profile_picture_url || defaultProfile.avatar,
-        userId: response.user.id || authState.userId || '',
-        email: response.user.email || '',
-        isVerified: response.user.is_verified || false,
-        createdAt: response.user.created_at || ''
-      };
-      
-      // Update cache
-      userProfileCache = profile;
-      logger.debug('User profile fetched successfully', { username: profile.username });
-      
-      return profile;
-    }
-    
-    logger.warn('No user data returned from API');
-    return defaultProfile;
-  } catch (error) {
-    logger.error('Failed to fetch user profile', error);
-    return defaultProfile;
-  }
-}
 
 /**
  * Format a timestamp as a relative time (e.g., "2h", "3d")

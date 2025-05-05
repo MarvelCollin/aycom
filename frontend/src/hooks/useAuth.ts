@@ -2,9 +2,10 @@ import { writable, get } from 'svelte/store';
 import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse, IAuthStore } from '../interfaces/IAuth';
 import { setAuthData, clearAuthData, getAuthToken } from '../utils/auth';
 import * as authApi from '../api/auth';
+import appConfig from '../config/appConfig';
 
-// Use a consistent API URL with port 8083 (matches API Gateway in docker-compose.yml)
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
+// Use the API base URL from appConfig
+const API_URL = appConfig.api.baseUrl;
 const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
 
 interface AuthState extends IAuthStore {

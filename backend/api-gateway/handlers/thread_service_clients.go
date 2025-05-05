@@ -372,24 +372,33 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 		return nil, err
 	}
 
-	// Create custom Thread objects from the Reply objects
+	// Process the replies
 	replies := make([]*Thread, len(resp.Replies))
 	for i, replyResp := range resp.Replies {
-		if replyResp == nil || replyResp.Reply == nil {
+		if replyResp.Reply == nil {
+			// Skip invalid replies
 			continue
 		}
 
 		reply := replyResp.Reply
-		user := replyResp.User
 
-		username := ""
-		displayName := ""
-		profilePicURL := ""
+		// Get user data
+		username := "anonymous"
+		displayName := "User"
+		profilePicURL := "https://secure.gravatar.com/avatar/0?d=mp" // Default avatar
 
-		if user != nil {
-			username = user.Username
-			displayName = user.Name
-			profilePicURL = user.ProfilePictureUrl
+		// Use user data from response if available
+		if replyResp.User != nil {
+			user := replyResp.User
+			if user.Username != "" {
+				username = user.Username
+			}
+			if user.Name != "" {
+				displayName = user.Name
+			}
+			if user.ProfilePictureUrl != "" {
+				profilePicURL = user.ProfilePictureUrl
+			}
 		}
 
 		// Create a Thread object with the Reply data
@@ -545,6 +554,9 @@ func convertProtoToThread(t any) *Thread {
 			CreatedAt: v.CreatedAt.AsTime(),
 			UpdatedAt: v.UpdatedAt.AsTime(),
 			ParentID:  "", // No parent for regular threads
+			// Default values for user data if not available
+			Username:    "anonymous",
+			DisplayName: "User",
 		}
 
 		// Convert media
@@ -565,12 +577,28 @@ func convertProtoToThread(t any) *Thread {
 		}
 
 		thread = &Thread{
-			ID:        v.Thread.Id,
-			Content:   v.Thread.Content,
-			UserID:    v.Thread.UserId,
-			CreatedAt: v.Thread.CreatedAt.AsTime(),
-			UpdatedAt: v.Thread.UpdatedAt.AsTime(),
-			ParentID:  "", // No parent for regular threads
+			ID:           v.Thread.Id,
+			Content:      v.Thread.Content,
+			UserID:       v.Thread.UserId,
+			CreatedAt:    v.Thread.CreatedAt.AsTime(),
+			UpdatedAt:    v.Thread.UpdatedAt.AsTime(),
+			ParentID:     "", // No parent for regular threads
+			LikeCount:    int(v.LikesCount),
+			ReplyCount:   int(v.RepliesCount),
+			RepostCount:  int(v.RepostsCount),
+			IsLiked:      v.LikedByUser,
+			IsReposted:   v.RepostedByUser,
+			IsBookmarked: v.BookmarkedByUser,
+			// Default values for user data if User not available
+			Username:    "anonymous",
+			DisplayName: "User",
+		}
+
+		// Set user data if available
+		if v.User != nil {
+			thread.Username = v.User.Username
+			thread.DisplayName = v.User.Name
+			thread.ProfilePicture = v.User.ProfilePictureUrl
 		}
 
 		// Convert media

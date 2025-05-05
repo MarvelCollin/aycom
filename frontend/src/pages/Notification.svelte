@@ -6,7 +6,7 @@
   import type { IAuthStore } from '../interfaces/IAuth';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import { checkAuth as validateAuth, formatTimeAgo, handleApiError, getUserProfile } from '../utils/common';
+  import { checkAuth as validateAuth, formatTimeAgo, handleApiError } from '../utils/common';
   import { getNotifications, getMentions, markNotificationAsRead } from '../api/notifications';
   import { getProfile } from '../api/user';
   
@@ -60,11 +60,18 @@
   async function fetchUserProfile() {
     isLoadingProfile = true;
     try {
-      const profileData = await getUserProfile(authState);
-      username = profileData.username;
-      displayName = profileData.displayName;
-      avatar = profileData.avatar;
-      logger.debug('Profile loaded', { username });
+      const response = await getProfile();
+      if (response && response.user) {
+        const userData = response.user;
+        username = userData.username || `user_${authState.userId?.substring(0, 4)}`;
+        displayName = userData.name || userData.display_name || `User ${authState.userId?.substring(0, 4)}`;
+        avatar = userData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+        logger.debug('Profile loaded', { username });
+      } else {
+        logger.warn('No user data received from API');
+        username = `user_${authState.userId?.substring(0, 4)}`;
+        displayName = `User ${authState.userId?.substring(0, 4)}`;
+      }
     } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error('Error fetching user profile:', errorResponse);

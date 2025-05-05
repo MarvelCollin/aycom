@@ -89,19 +89,7 @@ export function useProfile() {
   // Function to check if a username is available
   async function checkUsernameAvailability(username: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/check-username?username=${encodeURIComponent(username)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to check username: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data.available;
+      return await userApi.checkUsernameAvailability(username);
     } catch (err) {
       console.error('Failed to check username availability:', err);
       return false;
@@ -111,30 +99,20 @@ export function useProfile() {
   // Function to follow a user
   async function followUser(userId: string): Promise<boolean> {
     try {
-      const token = getAuthToken();
-      
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/follow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to follow user: ${response.status}`);
-      }
+      const success = await userApi.followUser(userId);
       
       // Update followers count in the profile
-      const currentProfile = get(profile);
-      if (currentProfile) {
-        profile.set({
-          ...currentProfile,
-          followers_count: currentProfile.followers_count + 1
-        });
+      if (success) {
+        const currentProfile = get(profile);
+        if (currentProfile) {
+          profile.set({
+            ...currentProfile,
+            followers_count: currentProfile.followers_count + 1
+          });
+        }
       }
       
-      return true;
+      return success;
     } catch (err) {
       console.error('Failed to follow user:', err);
       return false;
@@ -144,30 +122,20 @@ export function useProfile() {
   // Function to unfollow a user
   async function unfollowUser(userId: string): Promise<boolean> {
     try {
-      const token = getAuthToken();
-      
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/unfollow`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to unfollow user: ${response.status}`);
-      }
+      const success = await userApi.unfollowUser(userId);
       
       // Update followers count in the profile
-      const currentProfile = get(profile);
-      if (currentProfile && currentProfile.followers_count > 0) {
-        profile.set({
-          ...currentProfile,
-          followers_count: currentProfile.followers_count - 1
-        });
+      if (success) {
+        const currentProfile = get(profile);
+        if (currentProfile && currentProfile.followers_count > 0) {
+          profile.set({
+            ...currentProfile,
+            followers_count: currentProfile.followers_count - 1
+          });
+        }
       }
       
-      return true;
+      return success;
     } catch (err) {
       console.error('Failed to unfollow user:', err);
       return false;
@@ -177,34 +145,7 @@ export function useProfile() {
   // Function to get followers list
   async function getFollowers(userId: string, page = 1, limit = 20): Promise<IUser[]> {
     try {
-      const token = getAuthToken();
-      
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/followers?page=${page}&limit=${limit}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to get followers: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.followers) {
-        return data.followers.map((follower: any) => ({
-          id: follower.id,
-          name: follower.name || follower.display_name,
-          username: follower.username,
-          profile_picture: follower.profile_picture_url || '👤',
-          verified: follower.verified || false,
-          isFollowing: follower.is_following || false
-        }));
-      }
-      
-      return [];
+      return await userApi.getFollowers(userId, page, limit);
     } catch (err) {
       console.error('Failed to get followers:', err);
       return [];
@@ -214,34 +155,7 @@ export function useProfile() {
   // Function to get following list
   async function getFollowing(userId: string, page = 1, limit = 20): Promise<IUser[]> {
     try {
-      const token = getAuthToken();
-      
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/following?page=${page}&limit=${limit}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to get following: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.following) {
-        return data.following.map((following: any) => ({
-          id: following.id,
-          name: following.name || following.display_name,
-          username: following.username,
-          profile_picture: following.profile_picture_url || '👤',
-          verified: following.verified || false,
-          isFollowing: true
-        }));
-      }
-      
-      return [];
+      return await userApi.getFollowing(userId, page, limit);
     } catch (err) {
       console.error('Failed to get following list:', err);
       return [];

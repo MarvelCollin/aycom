@@ -6,7 +6,6 @@
   import { isAuthenticated, getUserId } from '../../utils/auth';
   import { toastStore } from '../../stores/toastStore';
   import { getProfile } from '../../api/user';
-  import { getUserProfile } from '../../utils/common';
 
   // Props
   export let username = "";
@@ -37,16 +36,19 @@
     if (!isAuthenticated()) return;
     
     try {
-      const profileData = await getUserProfile(authState);
-      userDetails = {
-        username: profileData.username || username,
-        displayName: profileData.displayName || displayName,
-        avatar: profileData.avatar || avatar,
-        userId: profileData.userId || getUserId() || '',
-        email: profileData.email || '',
-        isVerified: profileData.isVerified || false,
-        joinDate: profileData.createdAt ? new Date(profileData.createdAt).toLocaleDateString() : ''
-      };
+      const response = await getProfile();
+      if (response && response.user) {
+        const userData = response.user;
+        userDetails = {
+          username: userData.username || username,
+          displayName: userData.name || userData.display_name || displayName,
+          avatar: userData.profile_picture_url || avatar,
+          userId: userData.id || getUserId() || '',
+          email: userData.email || '',
+          isVerified: userData.is_verified || false,
+          joinDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : ''
+        };
+      }
       console.log('Profile loaded successfully:', userDetails);
     } catch (err) {
       console.error('Failed to fetch user profile:', err);

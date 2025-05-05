@@ -48,10 +48,150 @@ export async function updateProfile(data: Record<string, any>) {
   return response.json();
 }
 
+// Added functions from useProfile.ts
+export async function checkUsernameAvailability(username: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/check-username?username=${encodeURIComponent(username)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to check username: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.available;
+  } catch (err) {
+    console.error('Failed to check username availability:', err);
+    return false;
+  }
+}
+
+export async function followUser(userId: string): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/follow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to follow user: ${response.status}`);
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Failed to follow user:', err);
+    return false;
+  }
+}
+
+export async function unfollowUser(userId: string): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/unfollow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to unfollow user: ${response.status}`);
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Failed to unfollow user:', err);
+    return false;
+  }
+}
+
+export async function getFollowers(userId: string, page = 1, limit = 20): Promise<any[]> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/followers?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get followers: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.followers) {
+      return data.followers.map((follower: any) => ({
+        id: follower.id,
+        name: follower.name || follower.display_name,
+        username: follower.username,
+        profile_picture: follower.profile_picture_url || '👤',
+        verified: follower.verified || false,
+        isFollowing: follower.is_following || false
+      }));
+    }
+    
+    return [];
+  } catch (err) {
+    console.error('Failed to get followers:', err);
+    return [];
+  }
+}
+
+export async function getFollowing(userId: string, page = 1, limit = 20): Promise<any[]> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/following?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get following: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.following) {
+      return data.following.map((following: any) => ({
+        id: following.id,
+        name: following.name || following.display_name,
+        username: following.username,
+        profile_picture: following.profile_picture_url || '👤',
+        verified: following.verified || false,
+        isFollowing: true
+      }));
+    }
+    
+    return [];
+  } catch (err) {
+    console.error('Failed to get following list:', err);
+    return [];
+  }
+}
+
 // Search users functionality
 export async function searchUsers(query: string, page: number = 1, limit: number = 10, options?: any) {
   try {
-    const url = new URL(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'}/users/search`);
+    const url = new URL(`${API_BASE_URL}/users/search`);
     
     // Set query parameters
     url.searchParams.append('q', query);
@@ -71,13 +211,13 @@ export async function searchUsers(query: string, page: number = 1, limit: number
     }
     
     // Get token
-    const token = localStorage.getItem('aycom_access_token');
+    const token = getAuthToken();
     
     // Make request
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json'
       }
     });
