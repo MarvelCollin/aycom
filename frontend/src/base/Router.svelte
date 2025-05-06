@@ -11,6 +11,7 @@
   import Communities from '../pages/Communities.svelte';
   import ForgotPassword from '../pages/ForgotPassword.svelte';
   import appConfig from '../config/appConfig';
+  import OwnProfile from '../pages/OwnProfile.svelte';
   
   let route = '/';
   let isAuthenticated = false; 
@@ -97,10 +98,10 @@
   {:else if route === '/google/' || route === '/google'}
     <GoogleCallback />
   {:else if route === '/profile'}
-    <Feed />
+    <OwnProfile />
   {:else if route === '/explore'}
     <Explore />
-  {:else if route === '/notifications'}
+{:else if route === '/notifications'}
     <Notification />
   {:else if route === '/messages'}
     <Message />

@@ -1523,3 +1523,189 @@ func SearchSocialUsers(c *gin.Context) {
 		"limit": limit,
 	})
 }
+
+// @Summary Pin reply to profile
+// @Description Pins a reply to the user's profile
+// @Tags Social
+// @Produce json
+// @Param id path string true "Reply ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/pin [post]
+func PinReply(c *gin.Context) {
+	// Get user ID from token
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get reply ID from URL
+	replyID := c.Param("id")
+	if replyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	_, err = client.PinReply(ctx, &threadProto.PinReplyRequest{
+		ReplyId: replyID,
+		UserId:  userID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to pin reply: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Reply pinned successfully",
+	})
+}
+
+// @Summary Unpin reply from profile
+// @Description Unpins a reply from the user's profile
+// @Tags Social
+// @Produce json
+// @Param id path string true "Reply ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/pin [delete]
+func UnpinReply(c *gin.Context) {
+	// Get user ID from token
+	userIDAny, exists := c.Get("userId")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Success: false,
+			Message: "User ID not found in token",
+			Code:    "UNAUTHORIZED",
+		})
+		return
+	}
+
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Invalid User ID format in token",
+			Code:    "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	// Get reply ID from URL
+	replyID := c.Param("id")
+	if replyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	_, err = client.UnpinReply(ctx, &threadProto.UnpinReplyRequest{
+		ReplyId: replyID,
+		UserId:  userID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to unpin reply: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Reply unpinned successfully",
+	})
+}

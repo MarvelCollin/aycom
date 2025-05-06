@@ -291,4 +291,97 @@ export async function uploadBanner(file: File) {
     }
   }
   return response.json();
+}
+
+// Pin and unpin threads/replies
+export async function pinThread(threadId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/profile/pin-thread/${threadId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to pin thread: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to pin thread:', err);
+    throw err;
+  }
+}
+
+export async function unpinThread(threadId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/profile/unpin-thread/${threadId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to unpin thread: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to unpin thread:', err);
+    throw err;
+  }
+}
+
+export async function pinReply(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/profile/pin-reply/${replyId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to pin reply: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to pin reply:', err);
+    throw err;
+  }
+}
+
+export async function unpinReply(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/profile/unpin-reply/${replyId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to unpin reply: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to unpin reply:', err);
+    throw err;
+  }
 } 

@@ -38,6 +38,17 @@ type ThreadServiceClient interface {
 	GetUserBookmarks(userID string, page, limit int) ([]*Thread, error)
 	SearchUserBookmarks(userID, query string, page, limit int) ([]*Thread, error)
 
+	// New user content operations
+	GetRepliesByUser(userID string, page, limit int) ([]*Thread, error)
+	GetLikedThreadsByUser(userID string, page, limit int) ([]*Thread, error)
+	GetMediaByUser(userID string, page, limit int) ([]Media, error)
+
+	// Pinning operations
+	PinThread(threadID, userID string) error
+	UnpinThread(threadID, userID string) error
+	PinReply(replyID, userID string) error
+	UnpinReply(replyID, userID string) error
+
 	// Trending operations
 	GetTrendingHashtags(limit int) ([]string, error)
 }
@@ -496,6 +507,109 @@ func (c *GRPCThreadServiceClient) GetTrendingHashtags(limit int) ([]string, erro
 	}
 
 	return hashtags, nil
+}
+
+// GetRepliesByUser implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) GetRepliesByUser(userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// This is a mock implementation - in a real system, you would call the actual
+	// thread service with a method like GetRepliesByUser that returns this info
+	// For now, we'll just return an empty list to avoid errors
+	return []*Thread{}, nil
+}
+
+// GetLikedThreadsByUser implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) GetLikedThreadsByUser(userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// This is a mock implementation - in a real system, you would call the actual
+	// thread service with a method like GetLikedThreadsByUser
+	// For now, we'll just return an empty list to avoid errors
+	return []*Thread{}, nil
+}
+
+// GetMediaByUser implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) GetMediaByUser(userID string, page, limit int) ([]Media, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// This is a mock implementation
+	// For now, we'll just return an empty list to avoid errors
+	return []Media{}, nil
+}
+
+// PinThread implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) PinThread(threadID, userID string) error {
+	if c.client == nil {
+		return fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Mock implementation
+	return nil
+}
+
+// UnpinThread implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) UnpinThread(threadID, userID string) error {
+	if c.client == nil {
+		return fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Mock implementation
+	return nil
+}
+
+// PinReply implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) PinReply(replyID, userID string) error {
+	if c.client == nil {
+		return fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Mock implementation
+	return nil
+}
+
+// UnpinReply implements ThreadServiceClient
+func (c *GRPCThreadServiceClient) UnpinReply(replyID, userID string) error {
+	if c.client == nil {
+		return fmt.Errorf("thread service client not initialized")
+	}
+
+	// In a real implementation, this context would be used for the gRPC call
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Mock implementation
+	return nil
 }
 
 // Helper function to convert proto thread to Thread struct

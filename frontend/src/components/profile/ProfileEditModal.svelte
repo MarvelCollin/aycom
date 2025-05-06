@@ -4,11 +4,25 @@
   import { uploadProfilePicture, uploadBanner } from '../../api/user';
   import { toastStore } from '../../stores/toastStore';
   import type { IUserProfile } from '../../interfaces/IUser';
+  import { useTheme } from '../../hooks/useTheme';
+  
+  const dispatch = createEventDispatcher();
+  const { theme } = useTheme();
+  
+  // Reactive declarations
+  $: isDarkMode = $theme === 'dark';
   
   export let profile: IUserProfile | null = null;
   export let isOpen = false;
   
-  const dispatch = createEventDispatcher();
+  // Local form data that we can safely bind to
+  let formData = {
+    displayName: '',
+    bio: '',
+    email: '',
+    dateOfBirth: '',
+    gender: ''
+  };
   
   let profilePictureFile: File | null = null;
   let bannerFile: File | null = null;
@@ -16,6 +30,17 @@
   let bannerPreview: string | null = null;
   let isUploading = false;
   let errorMessage = '';
+  
+  // Initialize form data when profile changes
+  $: if (profile) {
+    formData = {
+      displayName: profile.displayName || '',
+      bio: profile.bio || '',
+      email: profile.email || '',
+      dateOfBirth: profile.dateOfBirth || '',
+      gender: profile.gender || ''
+    };
+  }
   
   onMount(() => {
     if (profile) {
@@ -63,6 +88,19 @@
   }
   
   async function handleSave() {
+    // If we have form changes, update those as well
+    if (profile) {
+      // Update profile with form data
+      if (formData.displayName !== profile.displayName || 
+          formData.bio !== profile.bio ||
+          formData.email !== profile.email ||
+          formData.dateOfBirth !== profile.dateOfBirth ||
+          formData.gender !== profile.gender) {
+        // Dispatch event to parent to handle the profile update
+        dispatch('updateProfile', formData);
+      }
+    }
+    
     if (!profilePictureFile && !bannerFile) {
       dispatch('close');
       return;
@@ -111,211 +149,198 @@
   }
 </script>
 
-<div class={`modal ${isOpen ? 'active' : ''}`}>
-  <div class="modal-backdrop" on:click={handleClose}></div>
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>Edit Profile Media</h2>
-      <button class="close-btn" on:click={handleClose}>&times;</button>
-    </div>
-    
-    <div class="modal-body">
-      {#if errorMessage}
-        <div class="error-message">{errorMessage}</div>
-      {/if}
-      
-      <div class="media-section">
-        <h3>Profile Picture</h3>
-        <div class="profile-picture-preview">
-          {#if profilePicturePreview}
-            <img src={profilePicturePreview} alt="Profile Preview" />
-            <button class="remove-btn" on:click={removeProfilePicture}>Remove</button>
-          {:else}
-            <div class="placeholder">No profile picture selected</div>
-          {/if}
-        </div>
-        <input 
-          type="file" 
-          id="profilePicture" 
-          accept="image/*" 
-          on:change={handleProfilePictureChange}
-        />
+<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" on:click={handleClose}>
+  <div 
+    class="bg-white dark:bg-gray-900 rounded-xl w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto"
+    on:click|stopPropagation
+  >
+    <!-- Header -->
+    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div class="flex items-center gap-4">
+        <button on:click={handleClose} class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        <h2 class="text-xl font-bold dark:text-white">Edit profile</h2>
       </div>
       
-      <div class="media-section">
-        <h3>Banner</h3>
-        <div class="banner-preview">
-          {#if bannerPreview}
-            <img src={bannerPreview} alt="Banner Preview" />
-            <button class="remove-btn" on:click={removeBanner}>Remove</button>
-          {:else}
-            <div class="placeholder">No banner selected</div>
-          {/if}
-        </div>
-        <input 
-          type="file" 
-          id="banner" 
-          accept="image/*" 
-          on:change={handleBannerChange}
-        />
-      </div>
-    </div>
-    
-    <div class="modal-footer">
-      <button class="cancel-btn" on:click={handleClose} disabled={isUploading}>Cancel</button>
-      <button class="save-btn" on:click={handleSave} disabled={isUploading}>
-        {isUploading ? 'Saving...' : 'Save Changes'}
+      <button 
+        class="py-1.5 px-4 bg-blue-500 text-white font-bold rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        disabled={isUploading}
+        on:click={handleSave}
+      >
+        {#if isUploading}
+          <span class="flex items-center gap-2">
+            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Saving
+          </span>
+        {:else}
+          Save
+        {/if}
       </button>
     </div>
+    
+    <!-- Banner image -->
+    <div class="relative h-48">
+      <div class="absolute inset-0 overflow-hidden">
+        {#if bannerPreview}
+          <img 
+            src={bannerPreview} 
+            alt="Banner preview" 
+            class="w-full h-full object-cover"
+          />
+        {:else}
+          <div class="w-full h-full bg-blue-500"></div>
+        {/if}
+      </div>
+      
+      <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+        <label class="flex flex-col items-center justify-center cursor-pointer">
+          <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span class="text-white font-medium mt-1">Add banner photo</span>
+          <input 
+            type="file" 
+            accept="image/*" 
+            class="hidden" 
+            on:change={handleBannerChange}
+          />
+        </label>
+      </div>
+    </div>
+    
+    <!-- Profile picture -->
+    <div class="px-4 -mt-16 mb-4 relative z-10">
+      <div class="relative inline-block">
+        <div class="border-4 border-white dark:border-gray-900 rounded-full overflow-hidden">
+          {#if profilePicturePreview}
+            <img 
+              src={profilePicturePreview} 
+              alt="Profile preview" 
+              class="w-32 h-32 object-cover"
+            />
+          {:else}
+            <div class="w-32 h-32 flex items-center justify-center bg-blue-200 dark:bg-blue-700 text-4xl font-bold">
+              {formData.displayName.charAt(0).toUpperCase()}
+            </div>
+          {/if}
+        </div>
+        
+        <label class="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 cursor-pointer">
+          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <input 
+            type="file" 
+            accept="image/*" 
+            class="hidden" 
+            on:change={handleProfilePictureChange}
+          />
+        </label>
+      </div>
+    </div>
+    
+    <!-- Form fields -->
+    <form class="p-4 space-y-4" on:submit|preventDefault={handleSave}>
+      <!-- Display name -->
+      <div>
+        <label for="displayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Display name
+        </label>
+        <input 
+          type="text" 
+          id="displayName"
+          bind:value={formData.displayName}
+          maxlength="50"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          placeholder="Your display name"
+        />
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 text-right">
+          {formData.displayName.length}/50
+        </p>
+      </div>
+      
+      <!-- Bio -->
+      <div>
+        <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Bio
+        </label>
+        <textarea 
+          id="bio"
+          bind:value={formData.bio}
+          maxlength="160"
+          rows="3"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+          placeholder="Tell us about yourself"
+        ></textarea>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 text-right">
+          {formData.bio.length}/160
+        </p>
+      </div>
+      
+      <!-- Email -->
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Email
+        </label>
+        <input 
+          type="email" 
+          id="email"
+          bind:value={formData.email}
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          placeholder="Your email address"
+        />
+      </div>
+      
+      <!-- Date of birth -->
+      <div>
+        <label for="dateOfBirth" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Date of birth
+        </label>
+        <input 
+          type="date" 
+          id="dateOfBirth"
+          bind:value={formData.dateOfBirth}
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+        />
+      </div>
+      
+      <!-- Gender -->
+      <div>
+        <label for="gender" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Gender
+        </label>
+        <select 
+          id="gender"
+          bind:value={formData.gender}
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+        >
+          <option value="">Prefer not to say</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </form>
   </div>
 </div>
 
 <style>
-  .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: none;
-    z-index: 1000;
+  /* Only native CSS for backgrounds as requested */
+  :global(:root) {
+    --bg-color: #ffffff;
+    --bg-secondary: #f7f9fa;
   }
-  
-  .modal.active {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .modal-backdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-  }
-  
-  .modal-content {
-    position: relative;
-    background-color: #fff;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 500px;
-    z-index: 1001;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-  
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    border-bottom: 1px solid #e1e1e1;
-  }
-  
-  .modal-header h2 {
-    margin: 0;
-    font-size: 1.2rem;
-  }
-  
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-  }
-  
-  .modal-body {
-    padding: 16px;
-  }
-  
-  .media-section {
-    margin-bottom: 24px;
-  }
-  
-  .media-section h3 {
-    margin-top: 0;
-    margin-bottom: 8px;
-    font-size: 1rem;
-  }
-  
-  .profile-picture-preview, .banner-preview {
-    margin-bottom: 12px;
-    position: relative;
-  }
-  
-  .profile-picture-preview img {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-  
-  .banner-preview img {
-    width: 100%;
-    height: 120px;
-    object-fit: cover;
-    border-radius: 4px;
-  }
-  
-  .placeholder {
-    padding: 16px;
-    background-color: #f5f5f5;
-    border-radius: 4px;
-    text-align: center;
-    color: #666;
-  }
-  
-  .remove-btn {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background-color: rgba(255, 255, 255, 0.8);
-    border: none;
-    border-radius: 4px;
-    padding: 4px 8px;
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-  
-  .error-message {
-    background-color: #fee;
-    color: #d33;
-    padding: 8px;
-    border-radius: 4px;
-    margin-bottom: 16px;
-  }
-  
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 16px;
-    border-top: 1px solid #e1e1e1;
-  }
-  
-  button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  
-  .cancel-btn {
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-  }
-  
-  .save-btn {
-    background-color: #1da1f2;
-    color: white;
-    border: none;
+
+  :global([data-theme="dark"]) {
+    --bg-color: #000000;
+    --bg-secondary: #16181c;
   }
 </style> 

@@ -14,12 +14,17 @@ export interface IUserProfile {
   bio?: string;
   avatar?: string;
   banner?: string;
+  profile_picture?: string;
+  background_banner_url?: string;
   verified: boolean;
   followerCount: number;
   followingCount: number;
   joinDate: string;
   location?: string;
   website?: string;
+  email?: string;
+  dateOfBirth?: string;
+  gender?: string;
 }
 
 export interface IUserUpdateRequest {

@@ -1309,3 +1309,208 @@ export async function removeReplyBookmark(replyId: string) {
     throw error;
   }
 }
+
+// User thread functions
+export async function getUserThreads(userId: string, page: number = 1, limit: number = 10) {
+  try {
+    const token = getAuthToken();
+    let actualUserId = userId;
+    
+    // If 'me' is specified, get the actual user ID
+    if (userId === 'me') {
+      const currentUserId = getUserId();
+      console.log('Current user ID from auth:', currentUserId);
+      
+      if (!currentUserId) {
+        throw new Error('User ID is required');
+      }
+      actualUserId = currentUserId;
+    }
+    
+    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}?page=${page}&limit=${limit}`;
+    console.log(`Making request to: ${endpoint}`);
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      // Handle different error types
+      if (response.status === 400) {
+        let errorMessage = `Bad request when getting user threads`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error("API error response:", errorData);
+        } catch (parseError) {
+          console.error("Could not parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
+      }
+      throw new Error(`Failed to get user threads: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Error getting user threads:', err);
+    throw err;
+  }
+}
+
+export async function getUserReplies(userId: string, page: number = 1, limit: number = 10) {
+  try {
+    const token = getAuthToken();
+    let actualUserId = userId;
+    
+    // If 'me' is specified, get the actual user ID
+    if (userId === 'me') {
+      const currentUserId = getUserId();
+      console.log('Current user ID from auth:', currentUserId);
+      
+      if (!currentUserId) {
+        throw new Error('User ID is required');
+      }
+      actualUserId = currentUserId;
+    }
+    
+    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/replies?page=${page}&limit=${limit}`;
+    console.log(`Making request to: ${endpoint}`);
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      // Handle different error types
+      if (response.status === 400) {
+        let errorMessage = `Bad request when getting user replies`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error("API error response:", errorData);
+        } catch (parseError) {
+          console.error("Could not parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
+      }
+      throw new Error(`Failed to get user replies: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Error getting user replies:', err);
+    throw err;
+  }
+}
+
+export async function getUserLikedThreads(userId: string, page: number = 1, limit: number = 10) {
+  try {
+    const token = getAuthToken();
+    let actualUserId = userId;
+    
+    // If 'me' is specified, get the actual user ID
+    if (userId === 'me') {
+      const currentUserId = getUserId();
+      console.log('Current user ID from auth:', currentUserId);
+      
+      if (!currentUserId) {
+        throw new Error('User ID is required');
+      }
+      actualUserId = currentUserId;
+    }
+    
+    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/likes?page=${page}&limit=${limit}`;
+    console.log(`Making request to: ${endpoint}`);
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      // Handle different error types
+      if (response.status === 400) {
+        let errorMessage = `Bad request when getting user liked threads`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error("API error response:", errorData);
+        } catch (parseError) {
+          console.error("Could not parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
+      }
+      throw new Error(`Failed to get user liked threads: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Error getting user liked threads:', err);
+    throw err;
+  }
+}
+
+export async function getUserMedia(userId: string, page: number = 1, limit: number = 10) {
+  try {
+    const token = getAuthToken();
+    let actualUserId = userId;
+    
+    // If 'me' is specified, get the actual user ID
+    if (userId === 'me') {
+      const currentUserId = getUserId();
+      console.log('Current user ID from auth:', currentUserId);
+      
+      if (!currentUserId) {
+        throw new Error('User ID is required');
+      }
+      actualUserId = currentUserId;
+    }
+    
+    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/media?page=${page}&limit=${limit}`;
+    console.log(`Making request to: ${endpoint}`);
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      // Handle different error types
+      if (response.status === 400) {
+        let errorMessage = `Bad request when getting user media`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error("API error response:", errorData);
+        } catch (parseError) {
+          console.error("Could not parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
+      }
+      throw new Error(`Failed to get user media: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Error getting user media:', err);
+    throw err;
+  }
+}

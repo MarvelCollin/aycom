@@ -79,10 +79,15 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.GET("/:id", handlers.GetThread)
 		threads.GET("/user/me", handlers.GetThreadsByUser)
 		threads.GET("/user/:id", handlers.GetThreadsByUser)
+		threads.GET("/user/:id/replies", handlers.GetUserReplies)
+		threads.GET("/user/:id/likes", handlers.GetUserLikedThreads)
+		threads.GET("/user/:id/media", handlers.GetUserMedia)
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
 		threads.GET("/following", handlers.GetThreadsFromFollowing)
 		threads.POST("/media", handlers.UploadThreadMedia)
+		threads.POST("/:id/pin", handlers.PinThread)
+		threads.DELETE("/:id/pin", handlers.UnpinThread)
 
 		// Social interaction routes
 		threads.POST("/:id/like", handlers.LikeThread)
@@ -103,6 +108,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		replies.POST("/:id/bookmark", handlers.BookmarkReply)
 		replies.DELETE("/:id/bookmark", handlers.RemoveReplyBookmark)
 		replies.POST("/:id/replies", handlers.ReplyToThread) // Reusing the same handler for reply-to-reply
+		replies.POST("/:id/pin", handlers.PinReply)
+		replies.DELETE("/:id/pin", handlers.UnpinReply)
 	}
 
 	// Product routes
