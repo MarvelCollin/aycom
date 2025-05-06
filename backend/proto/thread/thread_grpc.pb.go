@@ -20,30 +20,37 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ThreadService_CreateThread_FullMethodName        = "/thread.ThreadService/CreateThread"
-	ThreadService_GetThreadById_FullMethodName       = "/thread.ThreadService/GetThreadById"
-	ThreadService_GetThreadsByUser_FullMethodName    = "/thread.ThreadService/GetThreadsByUser"
-	ThreadService_GetAllThreads_FullMethodName       = "/thread.ThreadService/GetAllThreads"
-	ThreadService_UpdateThread_FullMethodName        = "/thread.ThreadService/UpdateThread"
-	ThreadService_DeleteThread_FullMethodName        = "/thread.ThreadService/DeleteThread"
-	ThreadService_CreateReply_FullMethodName         = "/thread.ThreadService/CreateReply"
-	ThreadService_GetRepliesByThread_FullMethodName  = "/thread.ThreadService/GetRepliesByThread"
-	ThreadService_UpdateReply_FullMethodName         = "/thread.ThreadService/UpdateReply"
-	ThreadService_DeleteReply_FullMethodName         = "/thread.ThreadService/DeleteReply"
-	ThreadService_LikeThread_FullMethodName          = "/thread.ThreadService/LikeThread"
-	ThreadService_UnlikeThread_FullMethodName        = "/thread.ThreadService/UnlikeThread"
-	ThreadService_LikeReply_FullMethodName           = "/thread.ThreadService/LikeReply"
-	ThreadService_UnlikeReply_FullMethodName         = "/thread.ThreadService/UnlikeReply"
-	ThreadService_RepostThread_FullMethodName        = "/thread.ThreadService/RepostThread"
-	ThreadService_RemoveRepost_FullMethodName        = "/thread.ThreadService/RemoveRepost"
-	ThreadService_BookmarkThread_FullMethodName      = "/thread.ThreadService/BookmarkThread"
-	ThreadService_RemoveBookmark_FullMethodName      = "/thread.ThreadService/RemoveBookmark"
-	ThreadService_BookmarkReply_FullMethodName       = "/thread.ThreadService/BookmarkReply"
-	ThreadService_RemoveReplyBookmark_FullMethodName = "/thread.ThreadService/RemoveReplyBookmark"
-	ThreadService_CreatePoll_FullMethodName          = "/thread.ThreadService/CreatePoll"
-	ThreadService_VotePoll_FullMethodName            = "/thread.ThreadService/VotePoll"
-	ThreadService_GetPollResults_FullMethodName      = "/thread.ThreadService/GetPollResults"
-	ThreadService_GetTrendingHashtags_FullMethodName = "/thread.ThreadService/GetTrendingHashtags"
+	ThreadService_CreateThread_FullMethodName          = "/thread.ThreadService/CreateThread"
+	ThreadService_GetThreadById_FullMethodName         = "/thread.ThreadService/GetThreadById"
+	ThreadService_GetThreadsByUser_FullMethodName      = "/thread.ThreadService/GetThreadsByUser"
+	ThreadService_GetAllThreads_FullMethodName         = "/thread.ThreadService/GetAllThreads"
+	ThreadService_UpdateThread_FullMethodName          = "/thread.ThreadService/UpdateThread"
+	ThreadService_DeleteThread_FullMethodName          = "/thread.ThreadService/DeleteThread"
+	ThreadService_CreateReply_FullMethodName           = "/thread.ThreadService/CreateReply"
+	ThreadService_GetRepliesByThread_FullMethodName    = "/thread.ThreadService/GetRepliesByThread"
+	ThreadService_UpdateReply_FullMethodName           = "/thread.ThreadService/UpdateReply"
+	ThreadService_DeleteReply_FullMethodName           = "/thread.ThreadService/DeleteReply"
+	ThreadService_GetRepliesByUser_FullMethodName      = "/thread.ThreadService/GetRepliesByUser"
+	ThreadService_GetLikedThreadsByUser_FullMethodName = "/thread.ThreadService/GetLikedThreadsByUser"
+	ThreadService_GetMediaByUser_FullMethodName        = "/thread.ThreadService/GetMediaByUser"
+	ThreadService_LikeThread_FullMethodName            = "/thread.ThreadService/LikeThread"
+	ThreadService_UnlikeThread_FullMethodName          = "/thread.ThreadService/UnlikeThread"
+	ThreadService_LikeReply_FullMethodName             = "/thread.ThreadService/LikeReply"
+	ThreadService_UnlikeReply_FullMethodName           = "/thread.ThreadService/UnlikeReply"
+	ThreadService_RepostThread_FullMethodName          = "/thread.ThreadService/RepostThread"
+	ThreadService_RemoveRepost_FullMethodName          = "/thread.ThreadService/RemoveRepost"
+	ThreadService_BookmarkThread_FullMethodName        = "/thread.ThreadService/BookmarkThread"
+	ThreadService_RemoveBookmark_FullMethodName        = "/thread.ThreadService/RemoveBookmark"
+	ThreadService_BookmarkReply_FullMethodName         = "/thread.ThreadService/BookmarkReply"
+	ThreadService_RemoveReplyBookmark_FullMethodName   = "/thread.ThreadService/RemoveReplyBookmark"
+	ThreadService_PinThread_FullMethodName             = "/thread.ThreadService/PinThread"
+	ThreadService_UnpinThread_FullMethodName           = "/thread.ThreadService/UnpinThread"
+	ThreadService_PinReply_FullMethodName              = "/thread.ThreadService/PinReply"
+	ThreadService_UnpinReply_FullMethodName            = "/thread.ThreadService/UnpinReply"
+	ThreadService_CreatePoll_FullMethodName            = "/thread.ThreadService/CreatePoll"
+	ThreadService_VotePoll_FullMethodName              = "/thread.ThreadService/VotePoll"
+	ThreadService_GetPollResults_FullMethodName        = "/thread.ThreadService/GetPollResults"
+	ThreadService_GetTrendingHashtags_FullMethodName   = "/thread.ThreadService/GetTrendingHashtags"
 )
 
 // ThreadServiceClient is the client API for ThreadService service.
@@ -64,6 +71,10 @@ type ThreadServiceClient interface {
 	GetRepliesByThread(ctx context.Context, in *GetRepliesByThreadRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
 	UpdateReply(ctx context.Context, in *UpdateReplyRequest, opts ...grpc.CallOption) (*ReplyResponse, error)
 	DeleteReply(ctx context.Context, in *DeleteReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// User content operations
+	GetRepliesByUser(ctx context.Context, in *GetRepliesByUserRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
+	GetLikedThreadsByUser(ctx context.Context, in *GetLikedThreadsByUserRequest, opts ...grpc.CallOption) (*ThreadsResponse, error)
+	GetMediaByUser(ctx context.Context, in *GetMediaByUserRequest, opts ...grpc.CallOption) (*GetMediaByUserResponse, error)
 	// Interaction operations
 	LikeThread(ctx context.Context, in *LikeThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UnlikeThread(ctx context.Context, in *UnlikeThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -75,6 +86,10 @@ type ThreadServiceClient interface {
 	RemoveBookmark(ctx context.Context, in *RemoveBookmarkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	BookmarkReply(ctx context.Context, in *BookmarkReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	RemoveReplyBookmark(ctx context.Context, in *RemoveReplyBookmarkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PinThread(ctx context.Context, in *PinThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnpinThread(ctx context.Context, in *UnpinThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	PinReply(ctx context.Context, in *PinReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnpinReply(ctx context.Context, in *UnpinReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Poll operations
 	CreatePoll(ctx context.Context, in *CreatePollRequest, opts ...grpc.CallOption) (*PollResponse, error)
 	VotePoll(ctx context.Context, in *VotePollRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -191,6 +206,36 @@ func (c *threadServiceClient) DeleteReply(ctx context.Context, in *DeleteReplyRe
 	return out, nil
 }
 
+func (c *threadServiceClient) GetRepliesByUser(ctx context.Context, in *GetRepliesByUserRequest, opts ...grpc.CallOption) (*RepliesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepliesResponse)
+	err := c.cc.Invoke(ctx, ThreadService_GetRepliesByUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *threadServiceClient) GetLikedThreadsByUser(ctx context.Context, in *GetLikedThreadsByUserRequest, opts ...grpc.CallOption) (*ThreadsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ThreadsResponse)
+	err := c.cc.Invoke(ctx, ThreadService_GetLikedThreadsByUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *threadServiceClient) GetMediaByUser(ctx context.Context, in *GetMediaByUserRequest, opts ...grpc.CallOption) (*GetMediaByUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMediaByUserResponse)
+	err := c.cc.Invoke(ctx, ThreadService_GetMediaByUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *threadServiceClient) LikeThread(ctx context.Context, in *LikeThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -291,6 +336,46 @@ func (c *threadServiceClient) RemoveReplyBookmark(ctx context.Context, in *Remov
 	return out, nil
 }
 
+func (c *threadServiceClient) PinThread(ctx context.Context, in *PinThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ThreadService_PinThread_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *threadServiceClient) UnpinThread(ctx context.Context, in *UnpinThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ThreadService_UnpinThread_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *threadServiceClient) PinReply(ctx context.Context, in *PinReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ThreadService_PinReply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *threadServiceClient) UnpinReply(ctx context.Context, in *UnpinReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ThreadService_UnpinReply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *threadServiceClient) CreatePoll(ctx context.Context, in *CreatePollRequest, opts ...grpc.CallOption) (*PollResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PollResponse)
@@ -349,6 +434,10 @@ type ThreadServiceServer interface {
 	GetRepliesByThread(context.Context, *GetRepliesByThreadRequest) (*RepliesResponse, error)
 	UpdateReply(context.Context, *UpdateReplyRequest) (*ReplyResponse, error)
 	DeleteReply(context.Context, *DeleteReplyRequest) (*emptypb.Empty, error)
+	// User content operations
+	GetRepliesByUser(context.Context, *GetRepliesByUserRequest) (*RepliesResponse, error)
+	GetLikedThreadsByUser(context.Context, *GetLikedThreadsByUserRequest) (*ThreadsResponse, error)
+	GetMediaByUser(context.Context, *GetMediaByUserRequest) (*GetMediaByUserResponse, error)
 	// Interaction operations
 	LikeThread(context.Context, *LikeThreadRequest) (*emptypb.Empty, error)
 	UnlikeThread(context.Context, *UnlikeThreadRequest) (*emptypb.Empty, error)
@@ -360,6 +449,10 @@ type ThreadServiceServer interface {
 	RemoveBookmark(context.Context, *RemoveBookmarkRequest) (*emptypb.Empty, error)
 	BookmarkReply(context.Context, *BookmarkReplyRequest) (*emptypb.Empty, error)
 	RemoveReplyBookmark(context.Context, *RemoveReplyBookmarkRequest) (*emptypb.Empty, error)
+	PinThread(context.Context, *PinThreadRequest) (*emptypb.Empty, error)
+	UnpinThread(context.Context, *UnpinThreadRequest) (*emptypb.Empty, error)
+	PinReply(context.Context, *PinReplyRequest) (*emptypb.Empty, error)
+	UnpinReply(context.Context, *UnpinReplyRequest) (*emptypb.Empty, error)
 	// Poll operations
 	CreatePoll(context.Context, *CreatePollRequest) (*PollResponse, error)
 	VotePoll(context.Context, *VotePollRequest) (*emptypb.Empty, error)
@@ -406,6 +499,15 @@ func (UnimplementedThreadServiceServer) UpdateReply(context.Context, *UpdateRepl
 func (UnimplementedThreadServiceServer) DeleteReply(context.Context, *DeleteReplyRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteReply not implemented")
 }
+func (UnimplementedThreadServiceServer) GetRepliesByUser(context.Context, *GetRepliesByUserRequest) (*RepliesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRepliesByUser not implemented")
+}
+func (UnimplementedThreadServiceServer) GetLikedThreadsByUser(context.Context, *GetLikedThreadsByUserRequest) (*ThreadsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLikedThreadsByUser not implemented")
+}
+func (UnimplementedThreadServiceServer) GetMediaByUser(context.Context, *GetMediaByUserRequest) (*GetMediaByUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMediaByUser not implemented")
+}
 func (UnimplementedThreadServiceServer) LikeThread(context.Context, *LikeThreadRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LikeThread not implemented")
 }
@@ -435,6 +537,18 @@ func (UnimplementedThreadServiceServer) BookmarkReply(context.Context, *Bookmark
 }
 func (UnimplementedThreadServiceServer) RemoveReplyBookmark(context.Context, *RemoveReplyBookmarkRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveReplyBookmark not implemented")
+}
+func (UnimplementedThreadServiceServer) PinThread(context.Context, *PinThreadRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PinThread not implemented")
+}
+func (UnimplementedThreadServiceServer) UnpinThread(context.Context, *UnpinThreadRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnpinThread not implemented")
+}
+func (UnimplementedThreadServiceServer) PinReply(context.Context, *PinReplyRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PinReply not implemented")
+}
+func (UnimplementedThreadServiceServer) UnpinReply(context.Context, *UnpinReplyRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnpinReply not implemented")
 }
 func (UnimplementedThreadServiceServer) CreatePoll(context.Context, *CreatePollRequest) (*PollResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreatePoll not implemented")
@@ -649,6 +763,60 @@ func _ThreadService_DeleteReply_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ThreadService_GetRepliesByUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRepliesByUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).GetRepliesByUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_GetRepliesByUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).GetRepliesByUser(ctx, req.(*GetRepliesByUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ThreadService_GetLikedThreadsByUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLikedThreadsByUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).GetLikedThreadsByUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_GetLikedThreadsByUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).GetLikedThreadsByUser(ctx, req.(*GetLikedThreadsByUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ThreadService_GetMediaByUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMediaByUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).GetMediaByUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_GetMediaByUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).GetMediaByUser(ctx, req.(*GetMediaByUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ThreadService_LikeThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LikeThreadRequest)
 	if err := dec(in); err != nil {
@@ -829,6 +997,78 @@ func _ThreadService_RemoveReplyBookmark_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ThreadService_PinThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PinThreadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).PinThread(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_PinThread_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).PinThread(ctx, req.(*PinThreadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ThreadService_UnpinThread_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnpinThreadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).UnpinThread(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_UnpinThread_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).UnpinThread(ctx, req.(*UnpinThreadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ThreadService_PinReply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PinReplyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).PinReply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_PinReply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).PinReply(ctx, req.(*PinReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ThreadService_UnpinReply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnpinReplyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).UnpinReply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_UnpinReply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).UnpinReply(ctx, req.(*UnpinReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ThreadService_CreatePoll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreatePollRequest)
 	if err := dec(in); err != nil {
@@ -949,6 +1189,18 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ThreadService_DeleteReply_Handler,
 		},
 		{
+			MethodName: "GetRepliesByUser",
+			Handler:    _ThreadService_GetRepliesByUser_Handler,
+		},
+		{
+			MethodName: "GetLikedThreadsByUser",
+			Handler:    _ThreadService_GetLikedThreadsByUser_Handler,
+		},
+		{
+			MethodName: "GetMediaByUser",
+			Handler:    _ThreadService_GetMediaByUser_Handler,
+		},
+		{
 			MethodName: "LikeThread",
 			Handler:    _ThreadService_LikeThread_Handler,
 		},
@@ -987,6 +1239,22 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveReplyBookmark",
 			Handler:    _ThreadService_RemoveReplyBookmark_Handler,
+		},
+		{
+			MethodName: "PinThread",
+			Handler:    _ThreadService_PinThread_Handler,
+		},
+		{
+			MethodName: "UnpinThread",
+			Handler:    _ThreadService_UnpinThread_Handler,
+		},
+		{
+			MethodName: "PinReply",
+			Handler:    _ThreadService_PinReply_Handler,
+		},
+		{
+			MethodName: "UnpinReply",
+			Handler:    _ThreadService_UnpinReply_Handler,
 		},
 		{
 			MethodName: "CreatePoll",

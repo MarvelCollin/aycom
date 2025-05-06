@@ -13,7 +13,7 @@
   $: isDarkMode = $theme === 'dark';
   
   export let profile: IUserProfile | null = null;
-  export let isOpen = false;
+  export const isOpen = true;
   
   // Local form data that we can safely bind to
   let formData = {
@@ -147,28 +147,50 @@
   function handleClose() {
     dispatch('close');
   }
+  
+  // Keyboard event handler for modal
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      handleClose();
+    }
+  }
 </script>
 
-<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" on:click={handleClose}>
+<div 
+  class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" 
+  on:click={handleClose}
+  on:keydown={handleKeyDown}
+  role="dialog" 
+  aria-modal="true"
+  aria-labelledby="modal-title"
+  tabindex="0"
+>
   <div 
     class="bg-white dark:bg-gray-900 rounded-xl w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto"
     on:click|stopPropagation
+    on:keydown|stopPropagation
+    role="document"
   >
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
       <div class="flex items-center gap-4">
-        <button on:click={handleClose} class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+        <button 
+          on:click={handleClose} 
+          class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+          aria-label="Close modal"
+        >
           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
-        <h2 class="text-xl font-bold dark:text-white">Edit profile</h2>
+        <h2 id="modal-title" class="text-xl font-bold dark:text-white">Edit profile</h2>
       </div>
       
       <button 
         class="py-1.5 px-4 bg-blue-500 text-white font-bold rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         disabled={isUploading}
         on:click={handleSave}
+        aria-label="Save profile changes"
       >
         {#if isUploading}
           <span class="flex items-center gap-2">

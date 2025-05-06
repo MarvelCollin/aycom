@@ -765,11 +765,6 @@
     text-align: center;
   }
 
-  .nested-reply-indicator-container {
-    position: relative;
-    z-index: 1;
-  }
-
   /* Show reply thread lines to visually connect nested comments */
   .replies-container {
     position: relative;
@@ -784,12 +779,6 @@
     width: 2px;
     background-color: currentColor;
     opacity: 0.2;
-  }
-
-  .reply-thread-button {
-    border: 1px solid;
-    border-color: transparent;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   .has-replies {

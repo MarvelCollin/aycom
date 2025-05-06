@@ -23,6 +23,11 @@ service ThreadService {
   rpc UpdateReply(UpdateReplyRequest) returns (ReplyResponse);
   rpc DeleteReply(DeleteReplyRequest) returns (google.protobuf.Empty);
 
+  // User content operations
+  rpc GetRepliesByUser(GetRepliesByUserRequest) returns (RepliesResponse);
+  rpc GetLikedThreadsByUser(GetLikedThreadsByUserRequest) returns (ThreadsResponse);
+  rpc GetMediaByUser(GetMediaByUserRequest) returns (GetMediaByUserResponse);
+
   // Interaction operations
   rpc LikeThread(LikeThreadRequest) returns (google.protobuf.Empty);
   rpc UnlikeThread(UnlikeThreadRequest) returns (google.protobuf.Empty);
@@ -34,6 +39,10 @@ service ThreadService {
   rpc RemoveBookmark(RemoveBookmarkRequest) returns (google.protobuf.Empty);
   rpc BookmarkReply(BookmarkReplyRequest) returns (google.protobuf.Empty);
   rpc RemoveReplyBookmark(RemoveReplyBookmarkRequest) returns (google.protobuf.Empty);
+  rpc PinThread(PinThreadRequest) returns (google.protobuf.Empty);
+  rpc UnpinThread(UnpinThreadRequest) returns (google.protobuf.Empty);
+  rpc PinReply(PinReplyRequest) returns (google.protobuf.Empty);
+  rpc UnpinReply(UnpinReplyRequest) returns (google.protobuf.Empty);
 
   // Poll operations
   rpc CreatePoll(CreatePollRequest) returns (PollResponse);
@@ -357,4 +366,64 @@ message BookmarkReplyRequest {
 message RemoveReplyBookmarkRequest {
   string reply_id = 1;
   string user_id = 2;
+}
+
+// PinThreadRequest message
+message PinThreadRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// UnpinThreadRequest message
+message UnpinThreadRequest {
+  string thread_id = 1;
+  string user_id = 2;
+}
+
+// PinReplyRequest message
+message PinReplyRequest {
+  string reply_id = 1;
+  string user_id = 2;
+}
+
+// UnpinReplyRequest message
+message UnpinReplyRequest {
+  string reply_id = 1;
+  string user_id = 2;
+}
+
+// GetRepliesByUserRequest message
+message GetRepliesByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+// GetLikedThreadsByUserRequest message
+message GetLikedThreadsByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+// GetMediaByUserRequest message
+message GetMediaByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+// GetMediaByUserResponse message
+message GetMediaByUserResponse {
+  repeated MediaItem media = 1;
+  int32 total = 2;
+}
+
+// MediaItem message for user media
+message MediaItem {
+  string id = 1;
+  string thread_id = 2;
+  string url = 3;
+  string type = 4;
+  google.protobuf.Timestamp created_at = 5;
 } 

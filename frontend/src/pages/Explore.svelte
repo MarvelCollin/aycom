@@ -727,20 +727,5 @@
 </MainLayout>
 
 <style>
-  /* Tab styles */
-  .tab-active {
-    color: rgb(29, 155, 240);
-    font-weight: 600;
-  }
-  
-  .tab-active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background-color: rgb(29, 155, 240);
-    border-radius: 9999px;
-  }
+  /* No unused styles */
 </style>

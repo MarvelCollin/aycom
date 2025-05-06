@@ -656,6 +656,7 @@
       on:click={() => showPicturePreview = false}
       on:keydown={(e) => e.key === 'Escape' && (showPicturePreview = false)}
       role="dialog"
+      aria-modal="true"
       aria-label="Profile picture preview"
       tabindex="0"
     >
