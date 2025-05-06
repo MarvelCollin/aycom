@@ -378,14 +378,7 @@ func convertProtoToUser(u *userProto.User) *User {
 		FollowingCount: 0,
 		IsFollowing:    false,
 		CreatedAt:      createdAt,
-	}
-
-	// Handle optional proto fields that may not exist in the generated code
-	// This is safer than directly accessing fields that may not exist
-	if u != nil {
-		// Use reflection or manually check if field exists
-		// For now, we set IsVerified to false as a default
-		result.IsVerified = false
+		IsVerified:     false, // Default value
 	}
 
 	return result

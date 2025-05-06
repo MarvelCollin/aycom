@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"aycom/backend/api-gateway/config"
@@ -41,7 +40,6 @@ type communityCommunicationClient struct {
 
 // Global instance of the community service client
 var communityServiceClient CommunityServiceClient
-var communityClientOnce sync.Once
 
 // GetCommunityServiceClient returns the current community service client
 func GetCommunityServiceClient() CommunityServiceClient {
@@ -68,8 +66,8 @@ func InitCommunityServiceClient(cfg *config.Config) {
 		log.Println("Warning: Community gRPC client not available, using fallback implementation")
 		// Create a fallback implementation or retry connection
 		communityServiceAddr := cfg.Services.CommunityService
-		conn, err := grpc.Dial(
-			communityServiceAddr,
+
+		conn, err := grpc.NewClient(communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 		if err != nil {

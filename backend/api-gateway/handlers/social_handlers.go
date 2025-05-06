@@ -1566,30 +1566,18 @@ func PinReply(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if the thread service client is available
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	_, err = client.PinReply(ctx, &threadProto.PinReplyRequest{
-		ReplyId: replyID,
-		UserId:  userID,
-	})
+	// Use the interface implementation
+	err := threadServiceClient.PinReply(replyID, userID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
@@ -1659,30 +1647,18 @@ func UnpinReply(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if the thread service client is available
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	_, err = client.UnpinReply(ctx, &threadProto.UnpinReplyRequest{
-		ReplyId: replyID,
-		UserId:  userID,
-	})
+	// Use the interface implementation
+	err := threadServiceClient.UnpinReply(replyID, userID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError

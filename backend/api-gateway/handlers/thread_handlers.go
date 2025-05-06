@@ -894,32 +894,18 @@ func GetUserReplies(c *gin.Context) {
 		}
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if thread service client is initialized
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service - since there's no direct endpoint for user replies,
-	// we'll get them through a custom RPC call
-	resp, err := client.GetRepliesByUser(ctx, &threadProto.GetRepliesByUserRequest{
-		UserId: userID,
-		Page:   int32(page),
-		Limit:  int32(limit),
-	})
+	// Call the GetRepliesByUser method on our interface implementation
+	replies, err := threadServiceClient.GetRepliesByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
@@ -942,61 +928,47 @@ func GetUserReplies(c *gin.Context) {
 	}
 
 	// Transform the response to include user data properly
-	replies := make([]map[string]interface{}, len(resp.Replies))
-	for i, r := range resp.Replies {
-		reply := map[string]interface{}{
-			"id":             r.Reply.Id,
-			"reply_id":       r.Reply.Id,
-			"thread_id":      r.Reply.ThreadId,
-			"content":        r.Reply.Content,
-			"user_id":        r.Reply.UserId,
-			"created_at":     r.Reply.CreatedAt.AsTime(),
-			"updated_at":     r.Reply.UpdatedAt.AsTime(),
-			"like_count":     r.LikesCount,
-			"is_liked":       r.LikedByUser,
-			"is_bookmarked":  r.BookmarkedByUser,
-			"is_pinned":      r.Reply.IsPinned,
+	replyItems := make([]map[string]interface{}, len(replies))
+	for i, reply := range replies {
+		replyItem := map[string]interface{}{
+			"id":            reply.ID,
+			"reply_id":      reply.ID,
+			"thread_id":     reply.ParentID,
+			"content":       reply.Content,
+			"user_id":       reply.UserID,
+			"created_at":    reply.CreatedAt,
+			"updated_at":    reply.UpdatedAt,
+			"like_count":    reply.LikeCount,
+			"is_liked":      reply.IsLiked,
+			"is_bookmarked": reply.IsBookmarked,
 			// Default user values
-			"username":            "anonymous",
-			"display_name":        "User",
-			"profile_picture_url": "",
-			"thread_author":       "unknown" // Original thread author
-		}
-
-		// Add user data if available
-		if r.User != nil {
-			reply["username"] = r.User.Username
-			reply["display_name"] = r.User.Name
-			reply["profile_picture_url"] = r.User.ProfilePictureUrl
-			reply["is_verified"] = r.User.IsVerified
-		}
-
-		// Add thread author data if available
-		if r.ThreadAuthor != nil {
-			reply["thread_author"] = r.ThreadAuthor.Username
+			"username":            reply.Username,
+			"display_name":        reply.DisplayName,
+			"profile_picture_url": reply.ProfilePicture,
+			"thread_author":       "unknown", // Original thread author
 		}
 
 		// Add media if available
-		if len(r.Reply.Media) > 0 {
-			media := make([]map[string]interface{}, len(r.Reply.Media))
-			for j, m := range r.Reply.Media {
+		if len(reply.Media) > 0 {
+			media := make([]map[string]interface{}, len(reply.Media))
+			for j, m := range reply.Media {
 				media[j] = map[string]interface{}{
-					"id":   m.Id,
+					"id":   m.ID,
 					"type": m.Type,
-					"url":  m.Url,
+					"url":  m.URL,
 				}
 			}
-			reply["media"] = media
+			replyItem["media"] = media
 		} else {
-			reply["media"] = []interface{}{}
+			replyItem["media"] = []interface{}{}
 		}
 
-		replies[i] = reply
+		replyItems[i] = replyItem
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"replies": replies,
-		"total":   resp.Total,
+		"replies": replyItems,
+		"total":   len(replies),
 	})
 }
 
@@ -1069,31 +1041,18 @@ func GetUserLikedThreads(c *gin.Context) {
 		}
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if thread service client is initialized
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	resp, err := client.GetLikedThreadsByUser(ctx, &threadProto.GetLikedThreadsByUserRequest{
-		UserId: userID,
-		Page:   int32(page),
-		Limit:  int32(limit),
-	})
+	// Call the GetLikedThreadsByUser method on our interface implementation
+	threads, err := threadServiceClient.GetLikedThreadsByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
@@ -1116,58 +1075,48 @@ func GetUserLikedThreads(c *gin.Context) {
 	}
 
 	// Transform the response to include user data properly
-	threads := make([]map[string]interface{}, len(resp.Threads))
-	for i, t := range resp.Threads {
-		thread := map[string]interface{}{
-			"id":             t.Thread.Id,
-			"thread_id":      t.Thread.Id,
-			"content":        t.Thread.Content,
-			"user_id":        t.Thread.UserId,
-			"created_at":     t.Thread.CreatedAt.AsTime(),
-			"updated_at":     t.Thread.UpdatedAt.AsTime(),
-			"like_count":     t.LikesCount,
-			"reply_count":    t.RepliesCount,
-			"repost_count":   t.RepostsCount,
-			"bookmark_count": t.BookmarkCount,
-			"view_count":     t.Thread.ViewCount,
-			"is_liked":       true, // Since these are liked threads
-			"is_repost":      t.RepostedByUser,
-			"is_bookmarked":  t.BookmarkedByUser,
-			// Default user values
-			"username":            "anonymous",
-			"display_name":        "User",
-			"profile_picture_url": "",
-		}
-
-		// Add user data if available
-		if t.User != nil {
-			thread["username"] = t.User.Username
-			thread["display_name"] = t.User.Name
-			thread["profile_picture_url"] = t.User.ProfilePictureUrl
-			thread["is_verified"] = t.User.IsVerified
+	threadItems := make([]map[string]interface{}, len(threads))
+	for i, thread := range threads {
+		threadItem := map[string]interface{}{
+			"id":            thread.ID,
+			"thread_id":     thread.ID,
+			"content":       thread.Content,
+			"user_id":       thread.UserID,
+			"created_at":    thread.CreatedAt,
+			"updated_at":    thread.UpdatedAt,
+			"like_count":    thread.LikeCount,
+			"reply_count":   thread.ReplyCount,
+			"repost_count":  thread.RepostCount,
+			"is_liked":      true, // Since these are liked threads
+			"is_repost":     thread.IsReposted,
+			"is_bookmarked": thread.IsBookmarked,
+			// User data
+			"username":            thread.Username,
+			"display_name":        thread.DisplayName,
+			"profile_picture_url": thread.ProfilePicture,
 		}
 
 		// Add media if available
-		if len(t.Thread.Media) > 0 {
-			media := make([]map[string]interface{}, len(t.Thread.Media))
-			for j, m := range t.Thread.Media {
+		if len(thread.Media) > 0 {
+			media := make([]map[string]interface{}, len(thread.Media))
+			for j, m := range thread.Media {
 				media[j] = map[string]interface{}{
-					"id":   m.Id,
+					"id":   m.ID,
 					"type": m.Type,
-					"url":  m.Url,
+					"url":  m.URL,
 				}
 			}
-			thread["media"] = media
+			threadItem["media"] = media
 		} else {
-			thread["media"] = []interface{}{}
+			threadItem["media"] = []interface{}{}
 		}
 
-		threads[i] = thread
+		threadItems[i] = threadItem
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"threads": threads,
-		"total":   resp.Total,
+		"threads": threadItems,
+		"total":   len(threads),
 	})
 }
 
@@ -1240,31 +1189,18 @@ func GetUserMedia(c *gin.Context) {
 		}
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if thread service client is initialized
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	resp, err := client.GetMediaByUser(ctx, &threadProto.GetMediaByUserRequest{
-		UserId: userID,
-		Page:   int32(page),
-		Limit:  int32(limit),
-	})
+	// Call the GetMediaByUser method on our interface implementation
+	mediaItems, err := threadServiceClient.GetMediaByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
@@ -1287,22 +1223,19 @@ func GetUserMedia(c *gin.Context) {
 	}
 
 	// Transform the response to include media data properly
-	mediaItems := make([]map[string]interface{}, len(resp.Media))
-	for i, m := range resp.Media {
-		mediaItem := map[string]interface{}{
-			"id":        m.Id,
-			"thread_id": m.ThreadId,
-			"url":       m.Url,
+	mediaResponse := make([]map[string]interface{}, len(mediaItems))
+	for i, m := range mediaItems {
+		mediaResponse[i] = map[string]interface{}{
+			"id":        m.ID,
+			"thread_id": m.Thumbnail, // Use the thumbnail field to store thread_id
+			"url":       m.URL,
 			"type":      m.Type,
-			"created_at": m.CreatedAt.AsTime(),
 		}
-
-		mediaItems[i] = mediaItem
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"media": mediaItems,
-		"total": resp.Total,
+		"media": mediaResponse,
+		"total": len(mediaItems),
 	})
 }
 
@@ -1348,30 +1281,18 @@ func PinThread(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if thread service client is initialized
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	_, err = client.PinThread(ctx, &threadProto.PinThreadRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
+	// Call the PinThread method on our interface implementation
+	err := threadServiceClient.PinThread(threadID, userID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
@@ -1441,30 +1362,18 @@ func UnpinThread(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
+	// Check if thread service client is initialized
+	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
+			Message: "Thread service client not initialized",
 			Code:    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
-
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	_, err = client.UnpinThread(ctx, &threadProto.UnpinThreadRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
+	// Call the UnpinThread method on our interface implementation
+	err := threadServiceClient.UnpinThread(threadID, userID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError

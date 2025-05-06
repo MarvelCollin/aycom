@@ -24,13 +24,8 @@ var AppConfig *config.Config
 
 // Connection pools and global variables
 var (
-	authConnPool       *ConnectionPool
 	threadConnPool     *ConnectionPool
 	UserClient         user.UserServiceClient
-	connPoolInitOnce   sync.Once
-	requestRateLimits  = make(map[string]*RateLimiter)
-	rateLimiterMutex   sync.RWMutex
-	supabaseInitOnce   sync.Once
 	grpcClientInitOnce sync.Once
 	CommunityClient    community.CommunityServiceClient
 )
@@ -93,9 +88,12 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 		defer cancel()
 
-		conn, err := grpc.DialContext(ctx, p.serviceAddr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()))
+		opts := []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+		}
 
+		conn, err := grpc.DialContext(ctx, p.serviceAddr, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -166,12 +164,15 @@ func InitGRPCServices() {
 		// Initialize User Service Client
 		userServiceAddr := AppConfig.Services.UserService
 		log.Printf("Connecting to User service at %s", userServiceAddr)
-		userConn, err := grpc.Dial(
-			userServiceAddr,
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		userConn, err := grpc.DialContext(ctx, userServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			// Don't block on connection, allowing the gateway to start even if services are down
-			grpc.WithTimeout(3*time.Second),
+			grpc.WithBlock(),
 		)
+
 		if err != nil {
 			log.Printf("Warning: Failed to connect to User service: %v", err)
 		} else {
@@ -189,12 +190,15 @@ func InitGRPCServices() {
 		// Initialize Community Service Client
 		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
-		communityConn, err := grpc.Dial(
-			communityServiceAddr,
+
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel2()
+
+		communityConn, err := grpc.DialContext(ctx2, communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			// Don't block on connection, allowing the gateway to start even if services are down
-			grpc.WithTimeout(3*time.Second),
+			grpc.WithBlock(),
 		)
+
 		if err != nil {
 			log.Printf("Warning: Failed to connect to Community service: %v", err)
 		} else {

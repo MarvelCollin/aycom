@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"aycom/backend/api-gateway/utils"
-	"aycom/backend/proto/user"
 	userProto "aycom/backend/proto/user"
 
 	"github.com/dgrijalva/jwt-go"
@@ -567,14 +566,14 @@ func UploadProfileMedia(c *gin.Context) {
 	}
 
 	// Update user profile in the database with the new URL
-	var updateRequest user.UpdateUserRequest
+	var updateRequest userProto.UpdateUserRequest
 	if mediaType == "profile_picture" {
-		updateRequest = user.UpdateUserRequest{
+		updateRequest = userProto.UpdateUserRequest{
 			UserId:            userIDStr,
 			ProfilePictureUrl: url,
 		}
 	} else { // banner
-		updateRequest = user.UpdateUserRequest{
+		updateRequest = userProto.UpdateUserRequest{
 			UserId:    userIDStr,
 			BannerUrl: url,
 		}
