@@ -39,7 +39,8 @@ func main() {
 
 // initThreadService initializes and starts the thread gRPC service
 func initThreadService() {
-	port := getEnv("PORT", "9092")
+	// port := getEnv("PORT", "9092")
+	port := "9092"
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
