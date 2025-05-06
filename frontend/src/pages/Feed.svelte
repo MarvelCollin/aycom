@@ -974,10 +974,6 @@
     background-color: var(--bg-primary);
   }
 
-  .auth-banner {
-    background-color: var(--bg-secondary);
-  }
-
   /* Skeleton loading animation */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }

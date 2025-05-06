@@ -31,41 +31,49 @@
       }
     }
   }
+  
+  // Handle hashtag click
+  function handleHashtagClick(hashtag: string) {
+    dispatch('hashtagClick', hashtag);
+  }
+  
+  // Handle view thread by hashtag
+  function viewThreadsByHashtag(hashtag: string) {
+    dispatch('viewThreads', hashtag);
+  }
 </script>
 
-<div class="p-4">
-  <h2 class="text-xl font-bold mb-4">Trending</h2>
+<div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4">
+  <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-800">
+    <h2 class="font-bold text-xl">Trending Now</h2>
+  </div>
   
-  {#if isTrendsLoading}
-    <div class="animate-pulse space-y-4">
-      {#each Array(10) as _}
-        <div class="flex space-x-4">
-          <div class="flex-1 space-y-2 py-1">
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/4"></div>
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
+  {#if trends.length > 0}
+    <div class="divide-y divide-gray-200 dark:divide-gray-800">
+      {#each trends as trend, i}
+        <div class="py-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <button 
+                class="text-blue-500 font-medium hover:underline"
+                on:click={() => viewThreadsByHashtag(trend.title)}
+              >
+                #{trend.title}
+              </button>
+              <p class="text-sm text-gray-500 dark:text-gray-400">{trend.postCount || 0} posts</p>
+              {#if trend.category && trend.category !== 'Trending'}
+                <span class="mt-1 inline-block px-2 py-0.5 bg-gray-200 dark:bg-gray-800 rounded-full text-xs">
+                  {trend.category}
+                </span>
+              {/if}
+            </div>
+            <span class="text-gray-500 dark:text-gray-400 text-sm">#{i + 1}</span>
           </div>
         </div>
       {/each}
     </div>
-  {:else if trends.length > 0}
-    <ul class="divide-y divide-gray-200 dark:divide-gray-800">
-      {#each trends as trend, i}
-        <li>
-          <button 
-            class="py-3 w-full text-left hover:bg-gray-50 dark:hover:bg-gray-900"
-            on:click={() => loadTrendingThreads(trend.title)}
-          >
-            <div class="text-sm text-gray-500 dark:text-gray-400">#{i + 1} Trending</div>
-            <div class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mt-1">{trend.title}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">{trend.postCount} posts</div>
-          </button>
-        </li>
-      {/each}
-    </ul>
   {:else}
-    <div class="text-center py-10">
-      <p class="text-gray-500 dark:text-gray-400">No trending topics available</p>
-    </div>
+    <p class="text-center text-gray-500 dark:text-gray-400 py-4">No trending topics available.</p>
   {/if}
 </div>
 

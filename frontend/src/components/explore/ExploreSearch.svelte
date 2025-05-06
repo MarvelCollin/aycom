@@ -21,6 +21,7 @@
     bio?: string;
     isVerified: boolean;
     followerCount: number;
+    isFollowing: boolean;
   }> = [];
   export let showRecentSearches = false;
   export let isSearching = false;

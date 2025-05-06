@@ -1,0 +1,46 @@
+This page is accessible to authorized users only (logged-in-users).
+• Contains a search bar. When clicked, the search bar displays the user’s 3 (three) most
+recent searches. Recent search data must be saved locally, not in the database.
+• Contains “Clear All” button to clear the user’s search history.
+• Contains a filter that allows user to filter search results based on “People you follow”,
+“Verified accounts only” or “Everyone”.
+• Contains a filter that allows users to filter search results based on thread categories.
+• When no search query is entered, the user sees the trending tab with the top 10 (ten)
+popular hashtags. Clicking on a hashtag shows a list of threads with that hashtag, sorted
+descending by the number of likes.
+• Related must be determined using Damerau-Levenshtein distance for accurate, fuzzy
+matching.
+• While typing a search query, display recommended user profiles that are related to the
+search query. Use a debounce mechanism to optimize performance.
+• When the user presses “Enter” or click the search icon, the results are shown across 4
+(four) tabs:
+o Top
+Figure 15. Explore Page (Searched)
+Halaman : 18 dari 32
+Page 18 of 32
+Display the top 3 (three) user profiles based on the follower count that related to the
+search query, with a “View All” button that redirects to the People for a complete list
+of results. Below, show a list of threads that include the search keyword in their
+content.
+o Latest
+Display the most recent threads that related to the search query, sorted in
+descending order, with the newest threads appearing first.
+o People
+Display user profilesrelated to the search query, showing the user’s name, username,
+profile picture, and bio. Include a “Follow” button to allow users to follow others
+directly. Clicking a profile will navigate to that user’s profile page. Implement
+pagination for a limited number of profiles per page, with options to display 25, 30,
+or 35 profiles per page.
+o Media
+Display media content (images, GIFs, and videos) from threads related to the search
+query in a responsive grid with 3 (three) media items per row and infinite scrolling.
+Clicking on any media item will navigate the user to the corresponding Thread Detail
+Page.
+o Communities
+Display a list of communities related to the search query. Each entry should include
+the community’s name, description, and logo. Provide a “Request to Join” button for
+users to send a join request to the community. Clicking on a community will navigate
+the user to the corresponding Community Detail Page. Implement pagination with
+options to display 25, 30, or 35 communities per page.
+• While search results are loading, display a loading skeleton UI to indicate result is being
+fetched.

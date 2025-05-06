@@ -12,15 +12,7 @@
   $: isDarkMode = $theme === 'dark';
   
   // Props
-  export let communityResults: Array<{
-    id: string;
-    name: string;
-    description: string;
-    logo: string | null;
-    memberCount: number;
-    isJoined: boolean;
-    isPending: boolean;
-  }> = [];
+  export let communityResults: any[] = [];
   export let isLoading = false;
   export let communitiesPerPage = 25;
   

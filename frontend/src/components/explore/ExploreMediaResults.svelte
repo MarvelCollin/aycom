@@ -1,75 +1,118 @@
 <script lang="ts">
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { createEventDispatcher, onMount } from 'svelte';
+  import { useTheme } from '../../hooks/useTheme';
+  import LoadingSkeleton from '../common/LoadingSkeleton.svelte';
   
-  const logger = createLoggerWithPrefix('ExploreMediaResults');
+  const dispatch = createEventDispatcher();
+  const { theme } = useTheme();
   
   // Props
-  export let mediaResults: Array<{
-    id: string;
-    threadId: string;
-    url: string;
-    type: string;
-    content: string;
-    username: string;
-    media_id?: string;
-  }> = [];
+  export let media: any[] = [];
+  export let hasMore = false;
   export let isLoading = false;
   
-  // Log when media results change
-  $: {
-    if (!isLoading) {
-      if (mediaResults.length > 0) {
-        logger.debug('Media results loaded', { count: mediaResults.length });
-      } else {
-        logger.debug('No media results found');
-      }
+  // Reactive declarations
+  $: isDarkMode = $theme === 'dark';
+  
+  // Intersection observer for infinite scrolling
+  let loadMoreTrigger;
+  
+  function setupInfiniteScroll() {
+    if (typeof IntersectionObserver === 'undefined') {
+      // Fallback for browsers that don't support IntersectionObserver
+      return;
     }
+    
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry.isIntersecting && hasMore && !isLoading) {
+        dispatch('loadMore');
+      }
+    }, { threshold: 0.1 });
+    
+    if (loadMoreTrigger) {
+      observer.observe(loadMoreTrigger);
+    }
+    
+    return () => {
+      if (loadMoreTrigger) {
+        observer.unobserve(loadMoreTrigger);
+      }
+    };
+  }
+  
+  onMount(setupInfiniteScroll);
+  
+  $: if (media && !isLoading) {
+    setupInfiniteScroll();
   }
 </script>
 
 <div class="p-4">
-  {#if isLoading && mediaResults.length === 0}
+  <h2 class="font-bold text-xl mb-4">Media</h2>
+  
+  {#if media.length > 0}
     <div class="grid grid-cols-3 gap-1">
-      {#each Array(9) as _}
-        <div class="aspect-square bg-gray-300 dark:bg-gray-700 animate-pulse rounded-md"></div>
-      {/each}
-    </div>
-  {:else if mediaResults.length > 0}
-    <div class="grid grid-cols-3 gap-1">
-      {#each mediaResults as media}
-        <a href={`/thread/${media.threadId}`} class="aspect-square rounded-md overflow-hidden relative block bg-gray-100 dark:bg-gray-800">
-          {#if media.type === 'image'}
-            <img src={media.url} alt={media.content} class="w-full h-full object-cover" />
-          {:else if media.type === 'video'}
-            <video src={media.url} class="w-full h-full object-cover"></video>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="bg-black bg-opacity-50 rounded-full p-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {#each media as item}
+        {#if item.media && item.media.length > 0}
+          <a 
+            href={`/thread/${item.id}`} 
+            class="aspect-square block overflow-hidden bg-gray-200 dark:bg-gray-800 relative"
+          >
+            <!-- Display appropriate media based on type -->
+            {#if item.media[0].type === 'image'}
+              <img 
+                src={item.media[0].url} 
+                alt="Media content" 
+                class="w-full h-full object-cover"
+              />
+            {:else if item.media[0].type === 'video'}
+              <div class="w-full h-full flex items-center justify-center">
+                <div class="absolute inset-0 bg-black opacity-50"></div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
+                <video 
+                  src={item.media[0].url} 
+                  class="w-full h-full object-cover absolute inset-0"
+                ></video>
               </div>
-            </div>
-          {/if}
-          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
-            <div class="text-white text-xs truncate">
-              @{media.username}
-            </div>
-          </div>
-        </a>
+            {:else if item.media[0].type === 'gif'}
+              <img 
+                src={item.media[0].url} 
+                alt="GIF content" 
+                class="w-full h-full object-cover"
+              />
+            {/if}
+          </a>
+        {/if}
       {/each}
     </div>
     
-    <!-- Loading indicator for infinite scroll -->
-    {#if isLoading}
-      <div class="flex justify-center mt-6 mb-2">
-        <div class="h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+    <!-- Infinite scroll trigger -->
+    {#if hasMore}
+      <div 
+        class="py-8 flex justify-center" 
+        bind:this={loadMoreTrigger}
+      >
+        {#if isLoading}
+          <div class="flex items-center space-x-2">
+            <div class="w-4 h-4 rounded-full bg-blue-500 animate-pulse"></div>
+            <div class="w-4 h-4 rounded-full bg-blue-500 animate-pulse" style="animation-delay: 0.2s"></div>
+            <div class="w-4 h-4 rounded-full bg-blue-500 animate-pulse" style="animation-delay: 0.4s"></div>
+          </div>
+        {:else}
+          <span class="text-gray-500 dark:text-gray-400 text-sm">Loading more media...</span>
+        {/if}
       </div>
     {/if}
+  {:else if isLoading}
+    <LoadingSkeleton type="media" />
   {:else}
-    <div class="text-center py-10">
-      <p class="text-gray-500 dark:text-gray-400">No media found</p>
-    </div>
+    <p class="text-center text-gray-500 dark:text-gray-400 py-8">
+      No media content found for your search.
+    </p>
   {/if}
 </div>
 

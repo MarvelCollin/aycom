@@ -12,16 +12,7 @@
   $: isDarkMode = $theme === 'dark';
   
   // Props
-  export let peopleResults: Array<{
-    id: string;
-    username: string;
-    displayName: string;
-    avatar: string | null;
-    bio?: string;
-    isVerified: boolean;
-    followerCount: number;
-    isFollowing: boolean;
-  }> = [];
+  export let peopleResults: any[] = [];
   export let isLoading = false;
   export let peoplePerPage = 25;
   
