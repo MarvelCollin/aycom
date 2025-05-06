@@ -6,7 +6,7 @@ const API_BASE_URL = appConfig.api.baseUrl;
 export async function getProfile() {
   const token = getAuthToken();
   
-  const response = await fetch(`${API_BASE_URL}/api/v1/users/profile`, {
+  const response = await fetch(`${API_BASE_URL}/users/profile`, {
     method: "GET",
     headers: { 
       "Content-Type": "application/json",
@@ -28,7 +28,7 @@ export async function getProfile() {
 export async function updateProfile(data: Record<string, any>) {
   const token = getAuthToken();
   
-  const response = await fetch(`${API_BASE_URL}/api/v1/users/profile`, {
+  const response = await fetch(`${API_BASE_URL}/users/profile`, {
     method: "PUT",
     headers: { 
       "Content-Type": "application/json",
@@ -51,7 +51,7 @@ export async function updateProfile(data: Record<string, any>) {
 // Added functions from useProfile.ts
 export async function checkUsernameAvailability(username: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/users/check-username?username=${encodeURIComponent(username)}`, {
+    const response = await fetch(`${API_BASE_URL}/users/check-username?username=${encodeURIComponent(username)}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
@@ -74,7 +74,7 @@ export async function followUser(userId: string): Promise<boolean> {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/follow`, {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/follow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -97,7 +97,7 @@ export async function unfollowUser(userId: string): Promise<boolean> {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/unfollow`, {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/unfollow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ export async function getFollowers(userId: string, page = 1, limit = 20): Promis
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/followers?page=${page}&limit=${limit}`, {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/followers?page=${page}&limit=${limit}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -156,7 +156,7 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/following?page=${page}&limit=${limit}`, {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/following?page=${page}&limit=${limit}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
 // Search users functionality
 export async function searchUsers(query: string, page: number = 1, limit: number = 10, options?: any) {
   try {
-    const url = new URL(`${API_BASE_URL}/api/v1/users/search`);
+    const url = new URL(`${API_BASE_URL}/users/search`);
     
     // Set query parameters
     url.searchParams.append('q', query);

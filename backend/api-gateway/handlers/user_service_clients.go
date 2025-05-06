@@ -73,8 +73,24 @@ var userServiceClient UserServiceClient
 
 // InitUserServiceClient initializes the user service client
 func InitUserServiceClient(cfg *config.Config) {
-	log.Println("User service client initialization skipped - using direct client")
-	// Actual implementation depends on your user service architecture
+	if userServiceClient != nil {
+		log.Println("User service client already initialized")
+		return
+	}
+
+	userServiceAddr := cfg.Services.UserService
+	log.Printf("Initializing User service client at %s", userServiceAddr)
+
+	// Only attempt to initialize if we have a valid connection to the service
+	if UserClient != nil {
+		log.Println("Creating user service client wrapper using existing gRPC connection")
+		userServiceClient = &GRPCUserServiceClient{
+			client: UserClient,
+		}
+		log.Println("User service client initialized successfully")
+	} else {
+		log.Println("WARNING: Cannot initialize user service client - no connection to User service")
+	}
 }
 
 // Register implements UserServiceClient
