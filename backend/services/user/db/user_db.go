@@ -20,6 +20,14 @@ type UserRepository interface {
 	UpdateUser(user *model.User) error
 	UpdateUserVerification(userID string, isVerified bool) error
 	DeleteUser(id string) error
+
+	// Social follow methods
+	CheckFollowExists(followerID, followedID uuid.UUID) (bool, error)
+	CreateFollow(follow *model.Follow) error
+	DeleteFollow(followerID, followedID uuid.UUID) error
+	GetFollowers(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
+	GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
+	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
 }
 
 // PostgresUserRepository is the PostgreSQL implementation of UserRepository
@@ -96,6 +104,134 @@ func (r *PostgresUserRepository) DeleteUser(id string) error {
 	return r.db.Delete(&model.User{}, "id = ?", id).Error
 }
 
+// CheckFollowExists checks if a follow relationship exists between two users
+func (r *PostgresUserRepository) CheckFollowExists(followerID, followedID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.Follow{}).
+		Where("follower_id = ? AND followed_id = ?", followerID, followedID).
+		Count(&count).Error
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// CreateFollow creates a new follow relationship
+func (r *PostgresUserRepository) CreateFollow(follow *model.Follow) error {
+	return r.db.Create(follow).Error
+}
+
+// DeleteFollow removes a follow relationship
+func (r *PostgresUserRepository) DeleteFollow(followerID, followedID uuid.UUID) error {
+	return r.db.Where("follower_id = ? AND followed_id = ?", followerID, followedID).
+		Delete(&model.Follow{}).Error
+}
+
+// GetFollowers gets a paginated list of users who follow the specified user
+func (r *PostgresUserRepository) GetFollowers(userID uuid.UUID, page, limit int) ([]*model.User, int, error) {
+	var followers []*model.User
+	var total int64
+
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Get total count
+	err := r.db.Model(&model.Follow{}).
+		Where("followed_id = ?", userID).
+		Count(&total).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get followers with pagination
+	err = r.db.Table("users").
+		Joins("JOIN follows ON users.id = follows.follower_id").
+		Where("follows.followed_id = ?", userID).
+		Offset(offset).
+		Limit(limit).
+		Find(&followers).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return followers, int(total), nil
+}
+
+// GetFollowing gets a paginated list of users followed by the specified user
+func (r *PostgresUserRepository) GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error) {
+	var following []*model.User
+	var total int64
+
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Get total count
+	err := r.db.Model(&model.Follow{}).
+		Where("follower_id = ?", userID).
+		Count(&total).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get followed users with pagination
+	err = r.db.Table("users").
+		Joins("JOIN follows ON users.id = follows.followed_id").
+		Where("follows.follower_id = ?", userID).
+		Offset(offset).
+		Limit(limit).
+		Find(&following).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return following, int(total), nil
+}
+
+// SearchUsers searches for users based on query and filters with pagination
+func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error) {
+	var users []*model.User
+	var total int64
+
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Base query
+	baseQuery := r.db.Model(&model.User{}).
+		Where("username ILIKE ? OR name ILIKE ? OR email ILIKE ?",
+			"%"+query+"%", "%"+query+"%", "%"+query+"%")
+
+	// Apply filters if needed
+	switch filter {
+	case "verified":
+		baseQuery = baseQuery.Where("is_verified = ?", true)
+		// Add more filters as needed
+	}
+
+	// Get total count
+	err := baseQuery.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get users with pagination
+	err = baseQuery.
+		Offset(offset).
+		Limit(limit).
+		Find(&users).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, int(total), nil
+}
+
 // Add Token and OAuthConnection structs
 
 type Token struct {
@@ -127,15 +263,17 @@ type UserAuthRepository interface {
 }
 
 type PostgresUserAuthRepository struct {
-	db *gorm.DB
+	PostgresUserRepository // Embed PostgresUserRepository to inherit all its methods
+	db                     *gorm.DB
 }
 
 func NewPostgresUserAuthRepository(db *gorm.DB) UserAuthRepository {
-	return &PostgresUserAuthRepository{db: db}
+	return &PostgresUserAuthRepository{
+		PostgresUserRepository: PostgresUserRepository{db: db},
+		db:                     db,
+	}
 }
 
-// UserRepository methods (reuse existing PostgresUserRepository logic)
-// ... existing code ...
 // Token methods
 func (r *PostgresUserAuthRepository) SaveToken(token *Token) error {
 	if token.ID == "" {

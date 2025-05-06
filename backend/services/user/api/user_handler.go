@@ -12,18 +12,15 @@ import (
 	"aycom/backend/services/user/service"
 )
 
-// UserHandler implements the proto.UserServiceServer interface
 type UserHandler struct {
-	userProto.UnimplementedUserServiceServer // Embed for forward compatibility
-	svc                                      service.UserService
+	userProto.UnimplementedUserServiceServer
+	svc service.UserService
 }
 
-// NewUserHandler creates a new UserHandler
 func NewUserHandler(svc service.UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
-// mapUserModelToProto converts internal model.User to proto.User
 func mapUserModelToProto(user *model.User) *userProto.User {
 	if user == nil {
 		return nil
@@ -37,8 +34,8 @@ func mapUserModelToProto(user *model.User) *userProto.User {
 		Gender:            user.Gender,
 		ProfilePictureUrl: user.ProfilePictureURL,
 		BannerUrl:         user.BannerURL,
-		// Don't include sensitive fields
-		// Password, SecurityAnswer, etc.
+		// IsVerified field needs to be added to the proto
+		// For now, we'll handle this in the client code
 	}
 
 	// Handle optional time fields
@@ -135,3 +132,10 @@ func (h *UserHandler) GetUserByEmail(ctx context.Context, req *userProto.GetUser
 	}
 	return &userProto.GetUserByEmailResponse{User: mapUserModelToProto(u)}, nil
 }
+
+// TODO: Implement these functions when proto definitions are updated
+// func (h *UserHandler) FollowUser(ctx context.Context, req *userProto.FollowUserRequest) (*userProto.FollowUserResponse, error) { ... }
+// func (h *UserHandler) UnfollowUser(ctx context.Context, req *userProto.UnfollowUserRequest) (*userProto.UnfollowUserResponse, error) { ... }
+// func (h *UserHandler) GetFollowers(ctx context.Context, req *userProto.GetFollowersRequest) (*userProto.GetFollowersResponse, error) { ... }
+// func (h *UserHandler) GetFollowing(ctx context.Context, req *userProto.GetFollowingRequest) (*userProto.GetFollowingResponse, error) { ... }
+// func (h *UserHandler) SearchUsers(ctx context.Context, req *userProto.SearchUsersRequest) (*userProto.SearchUsersResponse, error) { ... }

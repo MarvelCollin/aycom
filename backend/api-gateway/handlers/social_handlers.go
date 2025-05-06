@@ -1483,4 +1483,43 @@ func RemoveReplyBookmark(c *gin.Context) {
 	})
 }
 
-// GetThreadsFromFollowing gets threads from users the current user follows
+// SearchSocialUsers searches for users based on query and filters for social contexts
+// @Summary Search users for social features
+// @Description Search for users by name, username, or email in a social context
+// @Tags Users,Social
+// @Accept json
+// @Produce json
+// @Router /api/v1/social/users/search [get]
+func SearchSocialUsers(c *gin.Context) {
+	// Get search parameters from query
+	query := c.Query("q")
+	if query == "" {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
+		return
+	}
+
+	filter := c.DefaultQuery("filter", "")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
+
+	// Use the user service client to search users
+	users, err := userServiceClient.SearchUsers(query, filter, page, limit)
+	if err != nil {
+		log.Printf("Error searching users: %v", err)
+		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to search users")
+		return
+	}
+
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"users": users,
+		"page":  page,
+		"limit": limit,
+	})
+}

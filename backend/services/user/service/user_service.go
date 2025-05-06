@@ -27,6 +27,13 @@ type UserService interface {
 	DeleteUser(ctx context.Context, id string) error
 	LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
+
+	// New social functions
+	FollowUser(ctx context.Context, req *model.FollowUserRequest) error
+	UnfollowUser(ctx context.Context, req *model.UnfollowUserRequest) error
+	GetFollowers(ctx context.Context, req *model.GetFollowersRequest) ([]*model.User, int, error)
+	GetFollowing(ctx context.Context, req *model.GetFollowingRequest) ([]*model.User, int, error)
+	SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error)
 }
 
 // userService implements the UserService interface
@@ -276,4 +283,201 @@ func (s *userService) GetUserByEmail(ctx context.Context, email string) (*model.
 		return nil, status.Error(codes.Internal, "Failed to retrieve user")
 	}
 	return user, nil
+}
+
+// FollowUser creates a follow relationship between two users
+func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserRequest) error {
+	if req.FollowerID == "" || req.FollowedID == "" {
+		return status.Error(codes.InvalidArgument, "Both follower and followed IDs are required")
+	}
+
+	// Validate follower exists
+	followerUUID, err := uuid.Parse(req.FollowerID)
+	if err != nil {
+		return status.Error(codes.InvalidArgument, "Invalid follower ID format")
+	}
+	_, err = s.repo.FindUserByID(req.FollowerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Error(codes.NotFound, "Follower user not found")
+		}
+		return status.Error(codes.Internal, "Failed to find follower user")
+	}
+
+	// Validate followed user exists
+	followedUUID, err := uuid.Parse(req.FollowedID)
+	if err != nil {
+		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
+	}
+	_, err = s.repo.FindUserByID(req.FollowedID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Error(codes.NotFound, "Followed user not found")
+		}
+		return status.Error(codes.Internal, "Failed to find followed user")
+	}
+
+	// Check if already following
+	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
+	if err != nil {
+		return status.Error(codes.Internal, "Failed to check follow relationship")
+	}
+	if exists {
+		return status.Error(codes.AlreadyExists, "Already following this user")
+	}
+
+	// Create follow relationship
+	follow := &model.Follow{
+		ID:         uuid.New(),
+		FollowerID: followerUUID,
+		FollowedID: followedUUID,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	err = s.repo.CreateFollow(follow)
+	if err != nil {
+		log.Printf("Error creating follow relationship: %v", err)
+		return status.Error(codes.Internal, "Failed to create follow relationship")
+	}
+
+	return nil
+}
+
+// UnfollowUser removes a follow relationship between two users
+func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserRequest) error {
+	if req.FollowerID == "" || req.FollowedID == "" {
+		return status.Error(codes.InvalidArgument, "Both follower and followed IDs are required")
+	}
+
+	// Validate UUID formats
+	followerUUID, err := uuid.Parse(req.FollowerID)
+	if err != nil {
+		return status.Error(codes.InvalidArgument, "Invalid follower ID format")
+	}
+
+	followedUUID, err := uuid.Parse(req.FollowedID)
+	if err != nil {
+		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
+	}
+
+	// Check if follow relationship exists
+	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
+	if err != nil {
+		return status.Error(codes.Internal, "Failed to check follow relationship")
+	}
+	if !exists {
+		return status.Error(codes.NotFound, "Follow relationship does not exist")
+	}
+
+	// Delete follow relationship
+	err = s.repo.DeleteFollow(followerUUID, followedUUID)
+	if err != nil {
+		log.Printf("Error deleting follow relationship: %v", err)
+		return status.Error(codes.Internal, "Failed to delete follow relationship")
+	}
+
+	return nil
+}
+
+// GetFollowers gets a list of users who follow the specified user
+func (s *userService) GetFollowers(ctx context.Context, req *model.GetFollowersRequest) ([]*model.User, int, error) {
+	if req.UserID == "" {
+		return nil, 0, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Validate user exists
+	userUUID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		return nil, 0, status.Error(codes.InvalidArgument, "Invalid user ID format")
+	}
+	_, err = s.repo.FindUserByID(req.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, status.Error(codes.NotFound, "User not found")
+		}
+		return nil, 0, status.Error(codes.Internal, "Failed to find user")
+	}
+
+	// Get followers with pagination
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 10 // Default limit
+	}
+
+	followers, total, err := s.repo.GetFollowers(userUUID, page, limit)
+	if err != nil {
+		log.Printf("Error getting followers: %v", err)
+		return nil, 0, status.Error(codes.Internal, "Failed to get followers")
+	}
+
+	return followers, total, nil
+}
+
+// GetFollowing gets a list of users followed by the specified user
+func (s *userService) GetFollowing(ctx context.Context, req *model.GetFollowingRequest) ([]*model.User, int, error) {
+	if req.UserID == "" {
+		return nil, 0, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Validate user exists
+	userUUID, err := uuid.Parse(req.UserID)
+	if err != nil {
+		return nil, 0, status.Error(codes.InvalidArgument, "Invalid user ID format")
+	}
+	_, err = s.repo.FindUserByID(req.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, status.Error(codes.NotFound, "User not found")
+		}
+		return nil, 0, status.Error(codes.Internal, "Failed to find user")
+	}
+
+	// Get followed users with pagination
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 10 // Default limit
+	}
+
+	following, total, err := s.repo.GetFollowing(userUUID, page, limit)
+	if err != nil {
+		log.Printf("Error getting following users: %v", err)
+		return nil, 0, status.Error(codes.Internal, "Failed to get following users")
+	}
+
+	return following, total, nil
+}
+
+// SearchUsers searches for users based on query and filters
+func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error) {
+	if req.Query == "" {
+		return nil, 0, status.Error(codes.InvalidArgument, "Search query is required")
+	}
+
+	// Setup pagination
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 10 // Default limit
+	}
+
+	// Search users with pagination and filters
+	users, total, err := s.repo.SearchUsers(req.Query, req.Filter, page, limit)
+	if err != nil {
+		log.Printf("Error searching users: %v", err)
+		return nil, 0, status.Error(codes.Internal, "Failed to search users")
+	}
+
+	return users, total, nil
 }

@@ -26,6 +26,21 @@ service UserService {
 
   // Get user by email
   rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
+
+  // Follow a user
+  rpc FollowUser(FollowUserRequest) returns (FollowUserResponse) {}
+
+  // Unfollow a user
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse) {}
+
+  // Get user followers
+  rpc GetFollowers(GetFollowersRequest) returns (GetFollowersResponse) {}
+
+  // Get users being followed
+  rpc GetFollowing(GetFollowingRequest) returns (GetFollowingResponse) {}
+
+  // Search users
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse) {}
 }
 
 // User contains user information
@@ -49,6 +64,10 @@ message User {
   string security_question = 15;
   string security_answer = 16;
   bool subscribe_to_newsletter = 17;
+  bool is_verified = 18;
+  int32 follower_count = 19;
+  int32 following_count = 20;
+  bool is_following = 21; // Whether the requesting user is following this user
 }
 
 // GetUserRequest is used to request user information by ID
@@ -128,4 +147,72 @@ message GetUserByEmailRequest {
 // Response for getting user by email
 message GetUserByEmailResponse {
   User user = 1;
+}
+
+// Request to follow a user
+message FollowUserRequest {
+  string follower_id = 1; // ID of the user who is following
+  string followed_id = 2; // ID of the user being followed
+}
+
+// Response for follow user operation
+message FollowUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Request to unfollow a user
+message UnfollowUserRequest {
+  string follower_id = 1; // ID of the user who is unfollowing
+  string followed_id = 2; // ID of the user being unfollowed
+}
+
+// Response for unfollow user operation
+message UnfollowUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Request to get followers of a user
+message GetFollowersRequest {
+  string user_id = 1; // ID of the user whose followers we want
+  int32 page = 2;     // Pagination - page number
+  int32 limit = 3;    // Pagination - items per page
+}
+
+// Response containing list of followers
+message GetFollowersResponse {
+  repeated User followers = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to get users being followed
+message GetFollowingRequest {
+  string user_id = 1; // ID of the user whose following list we want
+  int32 page = 2;     // Pagination - page number
+  int32 limit = 3;    // Pagination - items per page
+}
+
+// Response containing list of followed users
+message GetFollowingResponse {
+  repeated User following = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to search users
+message SearchUsersRequest {
+  string query = 1;   // Search query
+  string filter = 2;  // Optional filter (verified, following, etc.)
+  int32 page = 3;     // Pagination - page number
+  int32 limit = 4;    // Pagination - items per page
+}
+
+// Response containing search results
+message SearchUsersResponse {
+  repeated User users = 1;
+  int32 total_count = 2;
 } 
