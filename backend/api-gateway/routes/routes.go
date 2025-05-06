@@ -64,6 +64,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/profile", handlers.GetUserProfile)
 		users.GET("/me", handlers.GetUserProfile)
 		users.PUT("/profile", handlers.UpdateUserProfile)
+		users.POST("/media", handlers.UploadProfileMedia)
 		users.POST("/:userId/follow", handlers.FollowUser)
 		users.POST("/:userId/unfollow", handlers.UnfollowUser)
 		users.GET("/:userId/followers", handlers.GetFollowers)
@@ -81,7 +82,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
 		threads.GET("/following", handlers.GetThreadsFromFollowing)
-		// threads.POST("/media", handlers.UploadThreadMedia)
+		threads.POST("/media", handlers.UploadThreadMedia)
 
 		// Social interaction routes
 		threads.POST("/:id/like", handlers.LikeThread)

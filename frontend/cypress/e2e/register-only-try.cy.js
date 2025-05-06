@@ -8,7 +8,7 @@ describe('User Registration', () => {
     const testUser = {
       name: `miawmiawa`,
       username: 'miawmiaw',
-      email: 'miawmiaw@gmail.com',
+      email: 'miawmiawa@gmail.com',
       password: 'Miawmiaw123@',
       confirmPassword: 'Miawmiaw123@',
       gender: 'female',

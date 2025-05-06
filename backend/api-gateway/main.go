@@ -27,6 +27,7 @@ import (
 	"aycom/backend/api-gateway/config"
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/router"
+	"aycom/backend/api-gateway/utils"
 )
 
 func main() {
@@ -54,6 +55,13 @@ func main() {
 
 	// Initialize handlers with configuration
 	handlers.InitHandlers(cfg)
+
+	// Initialize Supabase client
+	if err := utils.InitSupabase(); err != nil {
+		log.Printf("Warning: Failed to initialize Supabase client: %v", err)
+	} else {
+		log.Println("Supabase client initialized successfully")
+	}
 
 	// Set up router with all routes
 	r := router.SetupRouter(cfg)

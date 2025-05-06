@@ -97,7 +97,6 @@
           thread_id: replyTo.threadId || replyTo.id,
           parent_id: replyTo.id,
           mentioned_user_ids: categories, // Use categories for mentions in replies
-          media: files.length > 0 ? files.map(file => getFilePreview(file)) : []
         };
         
         logger.debug('Posting reply with data:', replyData);
@@ -105,7 +104,7 @@
         // Call the reply API
         response = await replyToThread(replyTo.id.toString(), replyData);
         
-        // Optional: Upload media if API doesn't support direct upload in reply
+        // Upload media if files are present
         if (files.length > 0 && response.id) {
           try {
             logger.debug(`Uploading ${files.length} media files for reply ${response.id}`);

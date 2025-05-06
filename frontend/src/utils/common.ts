@@ -129,4 +129,24 @@ export function handleApiError(error: unknown): { success: false, message: strin
 export function truncateText(text: string, maxLength: number = 100): string {
   if (!text || text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
+}
+
+// Helper function to determine if a URL is a Supabase storage URL
+export function isSupabaseStorageUrl(url: string): boolean {
+  const supabaseUrlPattern = /supabase\.co\/storage\/v1\/object\/public\//;
+  return supabaseUrlPattern.test(url);
+}
+
+// Format Supabase storage URLs correctly for display
+export function formatStorageUrl(url: string | null): string {
+  if (!url) return '';
+  
+  // Return as-is if it's already a fully formed URL
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // Construct the Supabase storage URL
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
+  return `${supabaseUrl}/storage/v1/object/public/${url}`;
 } 

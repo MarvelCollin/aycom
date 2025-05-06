@@ -11,7 +11,7 @@ const appConfig = {
   
   // API settings
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1'
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'
   },
 
   ui: {

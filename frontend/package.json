@@ -26,6 +26,7 @@
     "vite": "^6.3.1"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.6",
     "svelte-feather-icons": "^4.2.0",
     "svelte-icons": "^2.1.0",
     "svelte-recaptcha-v2": "^0.0.2"

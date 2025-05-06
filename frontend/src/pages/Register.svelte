@@ -94,7 +94,18 @@
         recaptcha_token: recaptchaToken
       };
       try {
-        const result = await register(userData);
+        // Use registerWithMedia if profile picture or banner is provided
+        let result;
+        if ($formData.profilePicture instanceof File || $formData.banner instanceof File) {
+          result = await registerWithMedia(
+            userData, 
+            $formData.profilePicture instanceof File ? $formData.profilePicture : null,
+            $formData.banner instanceof File ? $formData.banner : null
+          );
+        } else {
+          result = await register(userData);
+        }
+        
         formState.update(state => ({ ...state, loading: false }));
         if (result.success) {
           startTimer();

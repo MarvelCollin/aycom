@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"aycom/backend/api-gateway/utils"
 	threadProto "aycom/backend/proto/thread"
 
 	"github.com/gin-gonic/gin"
@@ -569,62 +572,114 @@ func DeleteThread(c *gin.Context) {
 // @Router /api/v1/threads/media [post]
 func UploadThreadMedia(c *gin.Context) {
 	// Extract user ID from context
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"code":    http.StatusUnauthorized,
+			"success": false,
 			"message": "User not authenticated",
 		})
 		return
 	}
 
-	// Log the user ID to use the variable
-	log.Printf("Media upload requested by user: %v", userID)
-
-	// Get the multipart form
-	form, err := c.MultipartForm()
-	if err != nil {
+	// Extract thread ID from form
+	threadID := c.PostForm("thread_id")
+	if threadID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"code":    http.StatusBadRequest,
-			"message": "Failed to parse form data: " + err.Error(),
-		})
-		return
-	}
-
-	// Get thread ID
-	threadIDs := form.Value["thread_id"]
-	if len(threadIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"code":    http.StatusBadRequest,
+			"success": false,
 			"message": "Thread ID is required",
 		})
 		return
 	}
-	threadID := threadIDs[0]
 
-	// Log the thread ID to use the variable
-	log.Printf("Media upload requested for thread: %s", threadID)
-
-	// Get all files
-	files := form.File
-	if len(files) == 0 {
+	// Process a single file upload or multiple files upload
+	form, err := c.MultipartForm()
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"code":    http.StatusBadRequest,
-			"message": "No files uploaded",
+			"success": false,
+			"message": "Invalid form data: " + err.Error(),
 		})
 		return
 	}
 
-	// This functionality is not implemented in the thread service yet
-	// Instead of calling a non-existent method, return a not implemented error
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"status":  "error",
-		"code":    http.StatusNotImplemented,
-		"message": "Media upload functionality is not yet implemented",
+	// Get all files from form
+	files := form.File["file"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "No files provided",
+		})
+		return
+	}
+
+	var mediaUrls []string
+	var mediaTypes []string
+
+	// Process each file
+	for _, file := range files {
+		// Check file type
+		fileExt := filepath.Ext(file.Filename)
+		allowedExts := map[string]bool{
+			".jpg":  true,
+			".jpeg": true,
+			".png":  true,
+			".gif":  true,
+			".mp4":  true,
+			".webm": true,
+			".mov":  true,
+		}
+
+		if !allowedExts[fileExt] {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("File type %s not allowed", fileExt),
+			})
+			return
+		}
+
+		// Determine media type
+		mediaType := "image"
+		if fileExt == ".gif" {
+			mediaType = "gif"
+		} else if fileExt == ".mp4" || fileExt == ".webm" || fileExt == ".mov" {
+			mediaType = "video"
+		}
+
+		// Open the file
+		fileContent, err := file.Open()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Failed to open file: " + err.Error(),
+			})
+			return
+		}
+		defer fileContent.Close()
+
+		// Upload to Supabase
+		bucket := "thread-media"
+		folder := mediaType + "s"
+
+		url, err := utils.UploadFile(fileContent, file.Filename, bucket, folder)
+		if err != nil {
+			log.Printf("Failed to upload thread media to Supabase: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Failed to upload file: " + err.Error(),
+			})
+			return
+		}
+
+		// Add to results
+		mediaUrls = append(mediaUrls, url)
+		mediaTypes = append(mediaTypes, mediaType)
+	}
+
+	// Return success with all media URLs
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"thread_id": threadID,
+		"media":     mediaUrls,
+		"types":     mediaTypes,
 	})
 }
 

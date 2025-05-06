@@ -235,4 +235,60 @@ export async function searchUsers(query: string, page: number = 1, limit: number
       total_count: 0
     };
   }
+}
+
+// Upload profile picture
+export async function uploadProfilePicture(file: File) {
+  const token = getAuthToken();
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', 'profile_picture');
+  
+  const response = await fetch(`${API_BASE_URL}/users/media`, {
+    method: 'POST',
+    headers: { 
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    body: formData,
+    credentials: "include",
+  });
+  
+  if (!response.ok) {
+    try {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to upload profile picture");
+    } catch (parseError) {
+      throw new Error("Failed to upload profile picture");
+    }
+  }
+  return response.json();
+}
+
+// Upload banner
+export async function uploadBanner(file: File) {
+  const token = getAuthToken();
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', 'banner');
+  
+  const response = await fetch(`${API_BASE_URL}/users/media`, {
+    method: 'POST',
+    headers: { 
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    body: formData,
+    credentials: "include",
+  });
+  
+  if (!response.ok) {
+    try {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to upload banner");
+    } catch (parseError) {
+      throw new Error("Failed to upload banner");
+    }
+  }
+  return response.json();
 } 

@@ -265,36 +265,37 @@ export async function deleteThread(id: string) {
 export async function uploadThreadMedia(threadId: string, files: File[]) {
   const token = getAuthToken();
   
-    const formData = new FormData();
-    formData.append('thread_id', threadId);
-    
-    files.forEach((file, index) => {
-      formData.append(`media_${index}`, file);
-    });
-    
+  const formData = new FormData();
+  formData.append('thread_id', threadId);
+  
+  // Append each file with a unique name
+  files.forEach((file, index) => {
+    formData.append(`file`, file); // Changed from 'media_${index}' to 'file' to match backend expectation
+  });
+  
   const response = await fetch(`${API_BASE_URL}/threads/media`, {
-      method: 'POST',
+    method: 'POST',
     headers: {
       "Authorization": token ? `Bearer ${token}` : ''
     },
     body: formData,
     credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to upload media: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to upload media: ${response.status} ${response.statusText}`);
-      }
+  });
+  
+  if (!response.ok) {
+    try {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 
+        errorData.error?.message || 
+        `Failed to upload media: ${response.status} ${response.statusText}`
+      );
+    } catch (parseError) {
+      throw new Error(`Failed to upload media: ${response.status} ${response.statusText}`);
     }
-    
-    return response.json();
+  }
+  
+  return response.json();
 }
 
 // Social Features

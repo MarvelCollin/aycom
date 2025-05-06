@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
+
+	"aycom/backend/api-gateway/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -23,16 +27,23 @@ import (
 // @Router /api/v1/media [post]
 func UploadMedia(c *gin.Context) {
 	// Get current user ID from JWT token
-	_, exists := c.Get("userID")
+	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "User not authenticated"})
+		return
+	}
+
+	// Convert userID to string and validate
+	_, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Invalid user ID format"})
 		return
 	}
 
 	// Get file from form
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No file provided"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "No file provided"})
 		return
 	}
 
@@ -49,15 +60,9 @@ func UploadMedia(c *gin.Context) {
 	}
 
 	if !allowedExts[fileExt] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "File type not allowed"})
 		return
 	}
-
-	// Generate unique filename
-	filename := uuid.New().String() + fileExt
-
-	// TODO: Actually save the file to storage/cloud
-	// This is a placeholder implementation
 
 	// Determine media type
 	mediaType := "image"
@@ -67,15 +72,40 @@ func UploadMedia(c *gin.Context) {
 		mediaType = "video"
 	}
 
-	// Placeholder URL - in actual implementation, this would be the URL to the uploaded file
-	url := "https://media.example.com/" + filename
+	// Open the file
+	fileContent, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Failed to open file"})
+		return
+	}
+	defer fileContent.Close()
+
+	// Determine bucket and folder based on media type
+	bucket := "media"
+	folder := mediaType + "s"
+
+	// Upload to Supabase
+	url, err := utils.UploadFile(fileContent, file.Filename, bucket, folder)
+	if err != nil {
+		log.Printf("Failed to upload file to Supabase: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": fmt.Sprintf("Failed to upload file: %v", err)})
+		return
+	}
+
+	// Generate unique ID for the media
+	mediaID := uuid.New().String()
+
+	// For video files, we would need to generate a thumbnail
+	// But for now, just leave it empty as we don't have thumbnail generation yet
 	thumbnailUrl := ""
 	if mediaType == "video" {
-		thumbnailUrl = "https://media.example.com/thumbnails/" + filename + ".jpg"
+		// In a real implementation, we'd generate and upload a thumbnail
+		// thumbnailUrl = "https://your-thumbnail-url.com"
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":        filename,
+		"success":   true,
+		"id":        mediaID,
 		"type":      mediaType,
 		"url":       url,
 		"thumbnail": thumbnailUrl,

@@ -64,6 +64,8 @@ export interface IUserRegistration {
   security_answer: string;
   subscribe_to_newsletter: boolean;
   recaptcha_token: string;
+  profile_picture_url?: string;
+  banner_url?: string;
 }
 
 // Date of birth interface

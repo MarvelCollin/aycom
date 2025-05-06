@@ -3,6 +3,7 @@ import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse, IAut
 import { setAuthData, clearAuthData, getAuthToken } from '../utils/auth';
 import * as authApi from '../api/auth';
 import appConfig from '../config/appConfig';
+import { uploadFile } from '../utils/supabase';
 
 // Use the API base URL from appConfig
 const API_URL = appConfig.api.baseUrl;
@@ -135,6 +136,39 @@ export function useAuth() {
       };
     } catch (error) {
       console.error('Registration error:', error);
+      return handleApiError(error);
+    }
+  };
+  
+  const registerWithMedia = async (userData: IUserRegistration, profilePicture: File | null, banner: File | null) => {
+    try {
+      // Upload profile picture to Supabase if provided
+      let profilePictureUrl = null;
+      if (profilePicture) {
+        profilePictureUrl = await uploadFile(profilePicture, 'profile-pictures', 'users');
+      }
+      
+      // Upload banner to Supabase if provided
+      let bannerUrl = null;
+      if (banner) {
+        bannerUrl = await uploadFile(banner, 'banners', 'users');
+      }
+      
+      // Add the URLs to the user data
+      const enrichedUserData: IUserRegistration = {
+        ...userData,
+        profile_picture_url: profilePictureUrl || '',
+        banner_url: bannerUrl || ''
+      };
+      
+      // Register with the enriched data
+      const data = await authApi.register(enrichedUserData);
+      return {
+        success: data.success,
+        message: data.message || 'Registration successful! Check your email for verification code.'
+      };
+    } catch (error) {
+      console.error('Registration with media error:', error);
       return handleApiError(error);
     }
   };
@@ -297,6 +331,7 @@ export function useAuth() {
   
   return {
     register,
+    registerWithMedia,
     login,
     verifyEmail,
     resendVerificationCode,

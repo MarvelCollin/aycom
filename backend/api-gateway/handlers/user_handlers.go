@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"aycom/backend/api-gateway/utils"
+	"aycom/backend/proto/user"
 	userProto "aycom/backend/proto/user"
 
 	"github.com/dgrijalva/jwt-go"
@@ -472,5 +475,128 @@ func CheckUsernameAvailability(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"available": available,
+	})
+}
+
+// UploadProfileMedia handles uploading a profile picture or banner image
+// @Summary Upload profile media
+// @Description Upload a profile picture or banner image
+// @Tags Users
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Media file to upload"
+// @Param type formData string true "Media type (profile_picture or banner)" Enums(profile_picture, banner)
+// @Success 200 {object} models.MediaUploadResponse
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/users/media [post]
+func UploadProfileMedia(c *gin.Context) {
+	// Get current user ID from JWT token
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "User not authenticated"})
+		return
+	}
+
+	// Convert userID to string and validate
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Invalid user ID format"})
+		return
+	}
+
+	// Get mediaType from form
+	mediaType := c.PostForm("type")
+	if mediaType != "profile_picture" && mediaType != "banner" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid media type. Must be 'profile_picture' or 'banner'",
+		})
+		return
+	}
+
+	// Get file from form
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "No file provided"})
+		return
+	}
+
+	// Check file type
+	fileExt := filepath.Ext(file.Filename)
+	allowedExts := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".gif":  true,
+	}
+
+	if !allowedExts[fileExt] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "File type not allowed. Only jpg, jpeg, png, and gif are allowed.",
+		})
+		return
+	}
+
+	// Open the file
+	fileContent, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Failed to open file"})
+		return
+	}
+	defer fileContent.Close()
+
+	var url string
+
+	// Upload to Supabase based on media type
+	if mediaType == "profile_picture" {
+		url, err = utils.UploadProfilePicture(fileContent, file.Filename, userIDStr)
+	} else { // banner
+		url, err = utils.UploadBanner(fileContent, file.Filename, userIDStr)
+	}
+
+	if err != nil {
+		log.Printf("Failed to upload %s to Supabase: %v", mediaType, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   fmt.Sprintf("Failed to upload file: %v", err),
+		})
+		return
+	}
+
+	// Update user profile in the database with the new URL
+	var updateRequest user.UpdateUserRequest
+	if mediaType == "profile_picture" {
+		updateRequest = user.UpdateUserRequest{
+			UserId:            userIDStr,
+			ProfilePictureUrl: url,
+		}
+	} else { // banner
+		updateRequest = user.UpdateUserRequest{
+			UserId:    userIDStr,
+			BannerUrl: url,
+		}
+	}
+
+	// Make the request to update the user profile
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	_, err = UserClient.UpdateUser(ctx, &updateRequest)
+	if err != nil {
+		log.Printf("Failed to update user with new %s URL: %v", mediaType, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   fmt.Sprintf("File uploaded but failed to update user profile: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"type":    mediaType,
+		"url":     url,
 	})
 }
