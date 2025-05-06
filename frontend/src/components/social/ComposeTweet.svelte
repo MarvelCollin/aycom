@@ -4,7 +4,8 @@
     ImageIcon, 
     BarChart2Icon, 
     SmileIcon, 
-    MapPinIcon
+    MapPinIcon,
+    XIcon
   } from 'svelte-feather-icons';
   import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
   import { getCategories } from '../../api/categories';
@@ -209,9 +210,7 @@
         on:click={closeModal}
         aria-label="Close dialog"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <XIcon size="24" />
       </button>
       <span class="text-gray-600 dark:text-gray-300">{modalTitle}</span>
       <div style="width:2.5rem"></div>

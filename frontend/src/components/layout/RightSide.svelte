@@ -100,12 +100,12 @@
 
 <div class="mt-4 text-center footer-links {isDarkMode ? 'footer-dark' : ''}">
   <div class="flex flex-wrap text-xs justify-between {isDarkMode ? 'text-gray-500' : 'text-gray-500'}">
-    <button class="hover:underline mb-2" on:click={() => navigateTo('/terms')}>Terms of Service</button>
-    <button class="hover:underline mb-2" on:click={() => navigateTo('/privacy')}>Privacy Policy</button>
-    <button class="hover:underline mb-2" on:click={() => navigateTo('/cookies')}>Cookie Policy</button>
-    <button class="hover:underline mb-2" on:click={() => navigateTo('/accessibility')}>Accessibility</button>
-    <button class="hover:underline mb-2" on:click={() => navigateTo('/ads')}>Ads Info</button>
-    <button class="hover:underline mb-2" on:click={() => navigateTo('/about')}>About</button>
+    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/terms')}>Terms of Service</button>
+    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/privacy')}>Privacy Policy</button>
+    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/cookies')}>Cookie Policy</button>
+    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/accessibility')}>Accessibility</button>
+    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/ads')}>Ads Info</button>
+    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/about')}>About</button>
   </div>
   <p class="text-xs mt-2 {isDarkMode ? 'text-gray-500' : 'text-gray-500'}">© 2023 AYCOM, Inc.</p>
 </div>

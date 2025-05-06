@@ -4,6 +4,20 @@
   import { toastStore } from '../../stores/toastStore';
   import { formatTimeAgo, processUserMetadata } from '../../utils/common';
   import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark } from '../../api/thread';
+  
+  // Import Feather Icons
+  import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
+  import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
+  import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
+  import BookmarkIcon from 'svelte-feather-icons/src/icons/BookmarkIcon.svelte';
+  import EyeIcon from 'svelte-feather-icons/src/icons/EyeIcon.svelte';
+  import ChevronUpIcon from 'svelte-feather-icons/src/icons/ChevronUpIcon.svelte';
+  import ChevronDownIcon from 'svelte-feather-icons/src/icons/ChevronDownIcon.svelte';
+  import ChevronRightIcon from 'svelte-feather-icons/src/icons/ChevronRightIcon.svelte';
+  import ArrowRightIcon from 'svelte-feather-icons/src/icons/ArrowRightIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
+  import ChevronLeftIcon from 'svelte-feather-icons/src/icons/ChevronLeftIcon.svelte';
+  import CornerUpRightIcon from 'svelte-feather-icons/src/icons/CornerUpRightIcon.svelte';
 
   export let tweet: ITweet;
   export let isDarkMode: boolean = false;
@@ -349,9 +363,7 @@
   {#if inReplyToTweet && nestingLevel === 0}
     <div class="reply-context px-4 pt-2 pb-0">
       <div class="flex items-center text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-        </svg>
+        <CornerUpRightIcon size="16" class="mr-2" />
         <span>Replying to <span class="text-blue-500 hover:underline">@{inReplyToTweet.username}</span></span>
       </div>
       <div class="ml-5 pl-4 border-l {isDarkMode ? 'border-gray-700' : 'border-gray-200'} my-1">
@@ -427,14 +439,10 @@
         <div class="flex justify-between mt-3 {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
           <div class="flex items-center">
             <button class="tweet-action-btn flex items-center rounded-full p-2 transition-colors {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'} hover:text-blue-500 {processedTweet.replies > 0 ? 'has-replies text-blue-500' : ''}" on:click|stopPropagation={handleReply} aria-label="Reply to tweet">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
+              <MessageCircleIcon size="20" class="mr-1.5" />
               <span class="reply-count {processedTweet.replies > 0 ? 'bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full text-blue-600 dark:text-blue-400 font-medium' : ''}">{isNaN(processedTweet.replies) ? 0 : processedTweet.replies}</span>
               {#if processedTweet.replies > 0}
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                </svg>
+                <ChevronRightIcon size="14" class="ml-0.5 text-blue-500" />
               {/if}
             </button>
           </div>
@@ -444,10 +452,8 @@
               on:click|stopPropagation={handleRetweet}
               aria-label="{isReposted ? 'Undo repost' : 'Repost'}"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill={isReposted ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{isNaN(processedTweet.reposts) ? 0 : processedTweet.reposts}</span>
+              <RefreshCwIcon size="20" class="mr-1.5" />
+              <span class="count-badge">{isNaN(processedTweet.reposts) ? 0 : processedTweet.reposts}</span>
             </button>
           </div>
           <div class="flex items-center">
@@ -456,10 +462,8 @@
               on:click|stopPropagation={handleLike}
               aria-label="{isLiked ? 'Unlike' : 'Like'}"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill={isLiked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-              <span>{isNaN(processedTweet.likes) ? 0 : processedTweet.likes}</span>
+              <HeartIcon size="20" fill={isLiked ? "currentColor" : "none"} class="mr-1.5" />
+              <span class="count-badge">{isNaN(processedTweet.likes) ? 0 : processedTweet.likes}</span>
             </button>
           </div>
           <div class="flex items-center">
@@ -468,20 +472,14 @@
               on:click|stopPropagation={handleBookmark}
               aria-label="{isBookmarked ? 'Remove bookmark' : 'Bookmark'}"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill={isBookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-              <!-- Show bookmark count -->
-              <span>{isNaN(processedTweet.bookmarks) ? 0 : processedTweet.bookmarks}</span>
+              <BookmarkIcon size="20" fill={isBookmarked ? "currentColor" : "none"} class="mr-1.5" />
+              <span class="count-badge">{isNaN(processedTweet.bookmarks) ? 0 : processedTweet.bookmarks}</span>
             </button>
           </div>
           <div class="flex items-center">
             <div class="flex items-center p-2 rounded-full transition-colors {isDarkMode ? 'dark-btn hover:bg-gray-700' : 'light-btn hover:bg-gray-100'}">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              <span>{typeof processedTweet.views === 'string' ? processedTweet.views : '0'}</span>
+              <EyeIcon size="20" class="mr-1.5" />
+              <span class="count-badge">{typeof processedTweet.views === 'string' ? processedTweet.views : '0'}</span>
             </div>
           </div>
         </div>
@@ -499,13 +497,11 @@
       aria-expanded={showReplies}
       aria-controls="replies-container"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        {#if showReplies}
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-        {:else}
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        {/if}
-      </svg>
+      {#if showReplies}
+        <ChevronUpIcon size="16" class="mr-1.5" />
+      {:else}
+        <ChevronDownIcon size="16" class="mr-1.5" />
+      {/if}
       {#if replies.length > 0}
         {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
       {:else}
@@ -580,9 +576,7 @@
                 </div>
                 <div class="flex text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-2">
                   <button class="flex items-center mr-4 hover:text-blue-500 p-1 rounded-full {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'}" on:click|stopPropagation={() => dispatch('reply', reply.id)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
+                    <MessageCircleIcon size="16" class="mr-1" />
                     <span>Reply</span>
                   </button>
                   
@@ -593,13 +587,9 @@
                       reply.isLiked ? handleUnlikeReply(reply.id) : handleLikeReply(reply.id);
                     }}>
                     {#if reply.isLiked}
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
-                      </svg>
+                      <HeartIcon size="16" fill="currentColor" class="mr-1" />
                     {:else}
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
+                      <HeartIcon size="16" class="mr-1" />
                     {/if}
                     <span>Like</span>
                   </button>
@@ -611,13 +601,9 @@
                       reply.isBookmarked ? handleUnbookmarkReply(reply.id) : handleBookmarkReply(reply.id);
                     }}>
                     {#if reply.isBookmarked}
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
-                      </svg>
+                      <BookmarkIcon size="16" fill="currentColor" class="mr-1" />
                     {:else}
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                      </svg>
+                      <BookmarkIcon size="16" class="mr-1" />
                     {/if}
                     <span>Save</span>
                   </button>
@@ -646,15 +632,10 @@
       on:click|stopPropagation={toggleReplies}
       aria-expanded={showReplies}
     >
-      <!-- Right-pointing chevron for reply thread -->
       {#if !showReplies}
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-        </svg>
+        <ChevronRightIcon size="16" class="mr-1.5" />
       {:else}
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-        </svg>
+        <ChevronUpIcon size="16" class="mr-1.5" />
       {/if}
       
       <!-- Show appropriate text based on reply count -->
@@ -674,9 +655,7 @@
       class="flex items-center text-xs py-1 px-2 rounded-full border {isDarkMode ? 'bg-gray-800 border-gray-700 text-blue-400 hover:bg-gray-700' : 'bg-gray-50 border-gray-200 text-blue-500 hover:bg-gray-100'} transition-colors"
       on:click|stopPropagation={toggleReplies}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-      </svg>
+      <ChevronRightIcon size="14" class="mr-1.5" />
       
       <!-- Show appropriate text based on reply count -->
       {#if processedTweet.replies > 0}
@@ -783,5 +762,23 @@
 
   .has-replies {
     font-weight: 500;
+  }
+
+  /* Add styles for count badges */
+  .count-badge {
+    min-width: 1.5rem;
+    text-align: center;
+    font-weight: 500;
+    display: inline-block;
+  }
+  
+  /* Make the buttons a bit more prominent */
+  .tweet-action-btn {
+    padding: 6px 10px;
+    border-radius: 9999px;
+  }
+  
+  .tweet-action-btn:hover {
+    background-color: rgba(29, 155, 240, 0.1);
   }
 </style>

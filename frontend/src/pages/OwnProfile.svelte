@@ -5,13 +5,18 @@
   import { useTheme } from '../hooks/useTheme';
   import { isAuthenticated, getUserId } from '../utils/auth';
   import { getProfile, updateProfile, pinThread, unpinThread, pinReply, unpinReply } from '../api/user';
-  import { getUserThreads, getUserReplies, getUserLikedThreads, getUserMedia, getThreadReplies } from '../api/thread';
+  import { getUserThreads, getUserReplies, getUserLikedThreads, getUserMedia, getThreadReplies, likeThread, unlikeThread, bookmarkThread, removeBookmark } from '../api/thread';
   import { toastStore } from '../stores/toastStore';
   import ThreadCard from '../components/explore/ThreadCard.svelte';
   import TweetCard from '../components/social/TweetCard.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import ProfileEditModal from '../components/profile/ProfileEditModal.svelte';
   import type { ITweet } from '../interfaces/ISocialMedia';
+  
+  // Import Feather icons
+  import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
+  import PinIcon from 'svelte-feather-icons/src/icons/FlagIcon.svelte';
   
   // Define interfaces for our data structures
   interface Thread {
@@ -106,40 +111,192 @@
   
   // Additional functions for thread interactions
   let repliesMap = new Map(); // Store replies for threads
+  let nestedRepliesMap = new Map(); // Store nested replies
   
   // Helper function to ensure an object has all ITweet properties
   function ensureTweetFormat(thread: any): ITweet {
+    // Check if we have debugging enabled
+    const debug = false;
+    if (debug) {
+      console.log('Converting thread to tweet:', thread);
+    }
+    
+    // Default values
+    let username = 'anonymous';
+    let displayName = 'User';
+    let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
+    let content = thread.content || '';
+    
+    // Get author data from all possible locations
+    // First try direct author fields
+    if (thread.author_username) {
+      username = thread.author_username;
+    } else if (thread.authorUsername) {
+      username = thread.authorUsername;
+    } else if (thread.username) {
+      username = thread.username;
+    }
+    
+    if (thread.author_name) {
+      displayName = thread.author_name;
+    } else if (thread.authorName) {
+      displayName = thread.authorName;
+    } else if (thread.display_name) {
+      displayName = thread.display_name;
+    } else if (thread.displayName) {
+      displayName = thread.displayName;
+    }
+    
+    if (thread.author_avatar) {
+      profilePicture = thread.author_avatar;
+    } else if (thread.authorAvatar) {
+      profilePicture = thread.authorAvatar;
+    } else if (thread.profile_picture_url) {
+      profilePicture = thread.profile_picture_url;
+    } else if (thread.avatar) {
+      profilePicture = thread.avatar;
+    }
+    
+    // Fallback: if user data is not directly in the thread, check for embedded content format
+    if (username === 'anonymous' && typeof content === 'string') {
+      // Look for enhanced user metadata that includes profile picture
+      // Format: [USER:username@displayName@profileUrl]content
+      const enhancedMetadataRegex = /^\[USER:([^@\]]+)@([^@\]]+)@([^\]]+)\](.*)/;
+      const match = enhancedMetadataRegex.exec(content);
+      
+      if (match) {
+        username = match[1] || username;
+        displayName = match[2] || displayName;
+        profilePicture = match[3] || profilePicture;
+        content = match[4] || '';
+      } else {
+        // Try the old format without profile picture
+        const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
+        const basicMatch = content.match(userMetadataRegex);
+        
+        if (basicMatch) {
+          username = basicMatch[1] || username;
+          displayName = basicMatch[2] || displayName;
+          content = basicMatch[3] || '';
+        }
+      }
+    }
+
+    // Safe date conversion with fallback
+    let timestamp = new Date().toISOString();
+    try {
+      if (thread.created_at) {
+        const date = new Date(thread.created_at);
+        // Check if date is valid before converting to ISO string
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      } else if (thread.timestamp) {
+        const date = new Date(thread.timestamp);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      }
+    } catch (error) {
+      console.warn("Invalid date format in thread:", thread.created_at || thread.timestamp);
+    }
+
     return {
       id: thread.id,
-      content: thread.content || '',
-      username: thread.username || thread.author_username || 'user',
-      displayName: thread.displayName || thread.author_name || 'User',
-      timestamp: thread.timestamp || thread.created_at || new Date().toISOString(),
-      likes: thread.likes || thread.likes_count || 0,
-      replies: thread.replies || thread.replies_count || 0,
-      reposts: thread.reposts || thread.reposts_count || 0,
-      bookmarks: thread.bookmarks || thread.bookmarks_count || 0,
+      threadId: thread.thread_id || thread.id,
+      username: username,
+      displayName: displayName,
+      content: content,
+      timestamp: timestamp,
+      avatar: profilePicture,
+      likes: thread.likes_count || thread.like_count || thread.metrics?.likes || 0,
+      replies: thread.replies_count || thread.reply_count || thread.metrics?.replies || 0,
+      reposts: thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0,
+      bookmarks: thread.bookmarks_count || thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
       views: thread.views || String(thread.views_count || '0'),
-      avatar: thread.avatar || thread.author_avatar || null,
-      isLiked: thread.isLiked || thread.is_liked || false,
-      isReposted: thread.isReposted || thread.is_reposted || false,
-      isBookmarked: thread.isBookmarked || thread.is_bookmarked || false,
-      media: thread.media || []
+      media: thread.media || [],
+      isLiked: thread.is_liked || false,
+      isReposted: thread.is_reposted || thread.is_repost || false,
+      isBookmarked: thread.is_bookmarked || false,
+      replyTo: null, // Will be populated later if this is a reply
+      isAdvertisement: thread.is_advertisement || false,
+      communityId: thread.community_id || null,
+      communityName: thread.community_name || null,
+      // Include additional fields for integration
+      authorId: thread.author_id || thread.authorId || thread.user_id,
+      authorName: thread.author_name || thread.authorName || displayName,
+      authorUsername: thread.author_username || thread.authorUsername || username,
+      authorAvatar: thread.author_avatar || thread.authorAvatar || profilePicture
     };
   }
   
-  // Load replies for a thread
+  // Load replies for a specific thread
   async function loadRepliesForThread(threadId) {
     try {
       const response = await getThreadReplies(threadId);
       if (response && response.replies) {
-        repliesMap.set(threadId, response.replies.map(reply => ensureTweetFormat(reply)));
-        return repliesMap.get(threadId);
+        console.log(`Loaded ${response.replies.length} replies for thread ${threadId}`);
+        
+        // Create a more detailed mapping for replies that properly extracts user data
+        const convertedReplies = response.replies.map(reply => {
+          // Extract core data
+          const replyData = reply.reply || reply;
+          
+          // Handle user data which might be nested or at the top level
+          const userData = reply.user || {};
+          
+          // Build a comprehensive reply object that ensures all fields are populated
+          const enrichedReply = {
+            id: replyData.id,
+            thread_id: replyData.thread_id || threadId,
+            content: replyData.content || '',
+            created_at: replyData.created_at || new Date().toISOString(),
+            author_id: userData.id || replyData.user_id,
+            author_username: userData.username || reply.author_username,
+            author_name: userData.name || reply.author_name,
+            author_avatar: userData.profile_picture_url || reply.author_avatar,
+            parent_id: replyData.parent_id,
+            is_liked: reply.is_liked || false,
+            is_bookmarked: reply.is_bookmarked || false,
+            likes_count: reply.likes_count || 0,
+            replies_count: 0 // Replies to replies not tracked yet
+          };
+          
+          const convertedReply = ensureTweetFormat(enrichedReply);
+          
+          // Ensure the parent references are set properly
+          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
+          (convertedReply as any).parentReplyId = replyData.parent_id;
+          
+          return convertedReply;
+        });
+        
+        // Store replies in the map for the thread
+        repliesMap.set(threadId, convertedReplies);
+        
+        // Process nested replies (replies to replies)
+        convertedReplies.forEach(reply => {
+          const parentId = (reply as any).parentReplyId;
+          if (parentId) {
+            // If this reply has a parent that is not the main thread
+            const parentReplies = nestedRepliesMap.get(parentId) || [];
+            nestedRepliesMap.set(parentId, [...parentReplies, reply]);
+          }
+        });
+        
+        // Trigger reactivity update
+        repliesMap = repliesMap;
+        nestedRepliesMap = nestedRepliesMap;
+      } else {
+        console.warn(`No replies returned for thread ${threadId}`);
+        repliesMap.set(threadId, []);
+        repliesMap = repliesMap;
       }
-      return [];
     } catch (error) {
-      console.error('Error loading replies:', error);
-      return [];
+      console.error(`Error fetching replies for thread ${threadId}:`, error);
+      toastStore.showToast('Failed to load replies. Please try again.', 'error');
+      repliesMap.set(threadId, []);
+      repliesMap = repliesMap;
     }
   }
   
@@ -283,6 +440,119 @@
     }
   }
   
+  // Handle thread interactions
+  async function handleLike(event) {
+    const threadId = event.detail;
+    try {
+      await likeThread(threadId);
+      
+      // Update posts array to reflect the like
+      posts = posts.map(post => {
+        if (post.id === threadId) {
+          return { ...post, is_liked: true, likes_count: (post.likes_count || 0) + 1 };
+        }
+        return post;
+      });
+      
+      // Update likes array if needed
+      likes = likes.map(like => {
+        if (like.id === threadId) {
+          return { ...like, is_liked: true, likes_count: (like.likes_count || 0) + 1 };
+        }
+        return like;
+      });
+      
+      toastStore.showToast('Post liked', 'success');
+    } catch (error) {
+      console.error('Error liking thread:', error);
+      toastStore.showToast('Failed to like post. Please try again.', 'error');
+    }
+  }
+  
+  async function handleUnlike(event) {
+    const threadId = event.detail;
+    try {
+      await unlikeThread(threadId);
+      
+      // Update posts array to reflect the unlike
+      posts = posts.map(post => {
+        if (post.id === threadId) {
+          return { ...post, is_liked: false, likes_count: Math.max(0, (post.likes_count || 0) - 1) };
+        }
+        return post;
+      });
+      
+      // Update likes array if needed
+      likes = likes.map(like => {
+        if (like.id === threadId) {
+          return { ...like, is_liked: false, likes_count: Math.max(0, (like.likes_count || 0) - 1) };
+        }
+        return like;
+      });
+      
+      toastStore.showToast('Post unliked', 'success');
+    } catch (error) {
+      console.error('Error unliking thread:', error);
+      toastStore.showToast('Failed to unlike post. Please try again.', 'error');
+    }
+  }
+  
+  async function handleBookmark(event) {
+    const threadId = event.detail;
+    try {
+      await bookmarkThread(threadId);
+      
+      // Update posts array to reflect the bookmark
+      posts = posts.map(post => {
+        if (post.id === threadId) {
+          return { ...post, is_bookmarked: true, bookmarks_count: (post.bookmarks_count || 0) + 1 };
+        }
+        return post;
+      });
+      
+      // Update likes array if needed
+      likes = likes.map(like => {
+        if (like.id === threadId) {
+          return { ...like, is_bookmarked: true, bookmarks_count: (like.bookmarks_count || 0) + 1 };
+        }
+        return like;
+      });
+      
+      toastStore.showToast('Post bookmarked', 'success');
+    } catch (error) {
+      console.error('Error bookmarking thread:', error);
+      toastStore.showToast('Failed to bookmark post. Please try again.', 'error');
+    }
+  }
+  
+  async function handleRemoveBookmark(event) {
+    const threadId = event.detail;
+    try {
+      await removeBookmark(threadId);
+      
+      // Update posts array to reflect the removed bookmark
+      posts = posts.map(post => {
+        if (post.id === threadId) {
+          return { ...post, is_bookmarked: false, bookmarks_count: Math.max(0, (post.bookmarks_count || 0) - 1) };
+        }
+        return post;
+      });
+      
+      // Update likes array if needed
+      likes = likes.map(like => {
+        if (like.id === threadId) {
+          return { ...like, is_bookmarked: false, bookmarks_count: Math.max(0, (like.bookmarks_count || 0) - 1) };
+        }
+        return like;
+      });
+      
+      toastStore.showToast('Post removed from bookmarks', 'success');
+    } catch (error) {
+      console.error('Error removing bookmark:', error);
+      toastStore.showToast('Failed to remove bookmark. Please try again.', 'error');
+    }
+  }
+  
   // Handle pin/unpin thread
   async function handlePinThread(threadId, isPinned) {
     try {
@@ -395,7 +665,7 @@
         
         <div class="mt-16">
           <button 
-            class="px-4 py-2 rounded-full border border-gray-300 dark:border-gray-700 font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            class="px-4 py-2 rounded-full dark:bg-black border border-gray-100 dark:border-black font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             on:click={() => showEditModal = true}
           >
             Edit profile
@@ -414,12 +684,7 @@
         
         <div class="flex items-center mt-3 text-gray-500 dark:text-gray-400 text-sm">
           <span class="flex items-center">
-            <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M8 2V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M16 2V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M3 8H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M3 7.5C3 5.29086 4.79086 3.5 7 3.5H17C19.2091 3.5 21 5.29086 21 7.5V18C21 20.2091 19.2091 22 17 22H7C4.79086 22 3 20.2091 3 18V7.5Z" stroke="currentColor" stroke-width="1.5"/>
-            </svg>
+            <CalendarIcon size="16" class="mr-1" />
             {formatJoinDate(profileData.joinedDate)}
           </span>
         </div>
@@ -448,7 +713,7 @@
           {/if}
         </button>
         <button 
-          class="flex-1 py-4 text-gray-500 dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'replies' ? 'text-blue-500 font-bold' : ''}"
+          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 dark:bg-black font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'replies' ? 'text-blue-500 font-bold' : ''}"
           on:click={() => setActiveTab('replies')}
         >
           Replies
@@ -457,7 +722,7 @@
           {/if}
         </button>
         <button 
-          class="flex-1 py-4 text-gray-500 dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'likes' ? 'text-blue-500 font-bold' : ''}"
+          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'likes' ? 'text-blue-500 font-bold' : ''}"
           on:click={() => setActiveTab('likes')}
         >
           Likes
@@ -466,7 +731,7 @@
           {/if}
         </button>
         <button 
-          class="flex-1 py-4 text-gray-500 dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'media' ? 'text-blue-500 font-bold' : ''}"
+          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'media' ? 'text-blue-500 font-bold' : ''}"
           on:click={() => setActiveTab('media')}
         >
           Media
@@ -490,9 +755,7 @@
               <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800 {post.is_pinned ? 'bg-gray-50 dark:bg-gray-900' : ''}">
                 {#if post.is_pinned}
                   <div class="flex items-center text-blue-500 text-xs font-bold mb-2">
-                    <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 21V12M12 12L18 8M12 12L6 8M6 4H18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                    <PinIcon size="14" class="mr-1" />
                     Pinned
                   </div>
                 {/if}
@@ -500,9 +763,9 @@
                   tweet={ensureTweetFormat(post)} 
                   {isDarkMode} 
                   isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={post.isLiked || post.is_liked || false}
-                  isBookmarked={post.isBookmarked || post.is_bookmarked || false}
-                  isReposted={post.isReposted || post.is_reposted || false}
+                  isLiked={post.is_liked || false}
+                  isBookmarked={post.is_bookmarked || false}
+                  isReposted={post.is_reposted || false}
                   replies={repliesMap.get(post.id) || []}
                   showReplies={false}
                   nestingLevel={0}
@@ -512,7 +775,7 @@
                   on:click={handleThreadClick}
                 />
                 <button 
-                  class="mt-2 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
+                  class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
                   on:click={() => handlePinThread(post.id, post.is_pinned)}
                 >
                   {post.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
@@ -530,23 +793,34 @@
               <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800 {reply.is_pinned ? 'bg-gray-50 dark:bg-gray-900' : ''}">
                 {#if reply.is_pinned}
                   <div class="flex items-center text-blue-500 text-xs font-bold mb-2">
-                    <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 21V12M12 12L18 8M12 12L6 8M6 4H18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                    <PinIcon size="14" class="mr-1" />
                     Pinned
                   </div>
                 {/if}
-                <div class="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                    Replying to <a href={`/thread/${reply.thread_id}`} class="text-blue-500 hover:underline">@{reply.thread_author}</a>
-                  </p>
-                  <p class="text-black dark:text-white">{reply.content}</p>
-                  <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span>{new Date(reply.created_at).toLocaleDateString()}</span>
-                  </div>
+                <div class="text-sm text-blue-500 mb-2">
+                  Replying to <a href={`/thread/${reply.thread_id}`} class="hover:underline">thread</a>
                 </div>
+                <TweetCard 
+                  tweet={ensureTweetFormat(reply)} 
+                  {isDarkMode} 
+                  isAuthenticated={!!authState.isAuthenticated}
+                  isLiked={reply.is_liked || false}
+                  isBookmarked={reply.is_bookmarked || false}
+                  isReposted={reply.is_reposted || false}
+                  replies={repliesMap.get(reply.id) || []}
+                  showReplies={false}
+                  nestingLevel={0}
+                  nestedRepliesMap={new Map()}
+                  on:reply={handleReply}
+                  on:loadReplies={handleLoadReplies}
+                  on:click={handleThreadClick}
+                  on:like={handleLike}
+                  on:unlike={handleUnlike}
+                  on:bookmark={handleBookmark}
+                  on:removeBookmark={handleRemoveBookmark}
+                />
                 <button 
-                  class="mt-2 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
+                  class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
                   on:click={() => handlePinReply(reply.id, reply.is_pinned)}
                 >
                   {reply.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
@@ -566,9 +840,9 @@
                   tweet={ensureTweetFormat(like)} 
                   {isDarkMode} 
                   isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={like.isLiked || like.is_liked || true}
-                  isBookmarked={like.isBookmarked || like.is_bookmarked || false}
-                  isReposted={like.isReposted || like.is_reposted || false}
+                  isLiked={like.is_liked || true}
+                  isBookmarked={like.is_bookmarked || false}
+                  isReposted={like.is_reposted || false}
                   replies={repliesMap.get(like.id) || []}
                   showReplies={false}
                   nestingLevel={0}
@@ -671,10 +945,7 @@
           on:click={() => showPicturePreview = false}
           aria-label="Close preview"
         >
-          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <XIcon size="24" />
         </button>
         <img 
           src={profileData.profilePicture} 

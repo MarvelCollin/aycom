@@ -17,6 +17,12 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getProfile } from '../api/user';
+  
+  // Import Feather icons
+  import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
+  import FileIcon from 'svelte-feather-icons/src/icons/FileIcon.svelte';
+  import BarChartIcon from 'svelte-feather-icons/src/icons/BarChartIcon.svelte';
+  import SmileIcon from 'svelte-feather-icons/src/icons/SmileIcon.svelte';
 
   const logger = createLoggerWithPrefix('Feed');
 
@@ -716,13 +722,13 @@
       <!-- Tabs -->
       <div class="flex justify-between">
         <button 
-          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'for-you' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
+          class="flex-1 py-4 dark:bg-black text-center font-medium tab-button {activeTab === 'for-you' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
           on:click={() => handleTabChange('for-you')}
         >
           For you
         </button>
         <button 
-          class="flex-1 py-4 text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
+          class="flex-1 py-4 dark:bg-black text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
           on:click={() => handleTabChange('following')}
         >
           Following
@@ -746,21 +752,21 @@
               What's happening?
             </button>
             <div class="flex mt-2 -ml-2">
-              <button class="p-2 text-primary rounded-full hover:bg-primary/10">
+              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
                 <span class="sr-only">Add image</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                <ImageIcon size="20" />
               </button>
-              <button class="p-2 text-primary rounded-full hover:bg-primary/10">
+              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
                 <span class="sr-only">Add gif</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <FileIcon size="20" />
               </button>
-              <button class="p-2 text-primary rounded-full hover:bg-primary/10">
+              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
                 <span class="sr-only">Add poll</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                <BarChartIcon size="20" />
               </button>
-              <button class="p-2 text-primary rounded-full hover:bg-primary/10">
+              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
                 <span class="sr-only">Add emoji</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                <SmileIcon size="20" />
               </button>
             </div>
           </div>
