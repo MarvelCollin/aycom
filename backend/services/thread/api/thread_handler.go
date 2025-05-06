@@ -1,19 +1,19 @@
 package handlers
 
 import (
+	"aycom/backend/proto/thread"
 	"context"
 	"log"
-
-	"aycom/backend/proto/thread"
-	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/repository"
-	"aycom/backend/services/thread/service"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/repository"
+	"aycom/backend/services/thread/service"
 )
 
 // ThreadHandler handles gRPC requests for the Thread service
