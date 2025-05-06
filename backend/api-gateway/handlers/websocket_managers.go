@@ -27,8 +27,8 @@ const (
 // WebSocketManager manages WebSocket connections and message broadcasting
 type WebSocketManager struct {
 	clients      map[string]*Client
-	chatRooms    map[string]map[string]bool // chatID -> map of clientIDs
-	userToClient map[string]string          // userID -> clientID
+	chatRooms    map[string]map[string]bool 
+	userToClient map[string]string         
 	register     chan *Client
 	unregister   chan *Client
 	broadcast    chan BroadcastMessage

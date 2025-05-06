@@ -311,48 +311,8 @@ func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *thread.Bookmark
 
 // RemoveBookmark removes a bookmark
 func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *thread.RemoveBookmarkRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to remove the bookmark
+	// Call the interaction service to remove the bookmark from the thread
 	err := h.interactionService.RemoveBookmark(ctx, req.UserId, req.ThreadId)
-	if err != nil {
-		return nil, err
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// Create type aliases for missing proto types
-type BookmarkReplyRequest struct {
-	ReplyId string
-	UserId  string
-}
-
-type RemoveReplyBookmarkRequest struct {
-	ReplyId string
-	UserId  string
-}
-
-// Custom ReplyResponse type that includes bookmark fields
-type CustomReplyResponse struct {
-	*thread.ReplyResponse
-	BookmarkCount    int64
-	BookmarkedByUser bool
-}
-
-// BookmarkReply adds a bookmark to a reply
-func (h *ThreadHandler) BookmarkReply(ctx context.Context, req *BookmarkReplyRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to bookmark the reply
-	err := h.interactionService.BookmarkReply(ctx, req.UserId, req.ReplyId)
-	if err != nil {
-		return nil, err
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// RemoveReplyBookmark removes a bookmark from a reply
-func (h *ThreadHandler) RemoveReplyBookmark(ctx context.Context, req *RemoveReplyBookmarkRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to remove the bookmark from the reply
-	err := h.interactionService.RemoveReplyBookmark(ctx, req.UserId, req.ReplyId)
 	if err != nil {
 		return nil, err
 	}
@@ -378,10 +338,9 @@ func (h *ThreadHandler) GetPollResults(ctx context.Context, req *thread.GetPollR
 	return nil, status.Error(codes.Unimplemented, "Method not implemented")
 }
 
-// GetTrendingHashtags returns the most popular hashtags
+// GetTrendingHashtags returns a list of trending hashtags
 func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.GetTrendingHashtagsRequest) (*thread.GetTrendingHashtagsResponse, error) {
-	log.Printf("GetTrendingHashtags called with limit: %d", req.Limit)
-
+	// Get limit from request, default to 10 if not specified
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 10 // Default limit
@@ -390,22 +349,19 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.Get
 	// Get trending hashtags from repository
 	hashtags, err := h.hashtagRepo.GetTrendingHashtags(limit)
 	if err != nil {
-		log.Printf("Error getting trending hashtags: %v", err)
-		return nil, status.Errorf(codes.Internal, "Failed to get trending hashtags: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve trending hashtags: %v", err)
 	}
 
-	// Convert hashtags to HashtagResponse objects
+	// Convert to response format
 	hashtagResponses := make([]*thread.HashtagResponse, 0, len(hashtags))
 	for _, hashtag := range hashtags {
 		// Get thread count for this hashtag
 		count, err := h.hashtagRepo.CountThreadsWithHashtag(hashtag.HashtagID.String())
 		if err != nil {
-			log.Printf("Error counting threads for hashtag %s: %v", hashtag.Text, err)
 			// Continue with count 0 rather than failing the whole request
 			count = 0
 		}
 
-		// Create a hashtag response
 		hashtagResponses = append(hashtagResponses, &thread.HashtagResponse{
 			Name:  hashtag.Text,
 			Count: int64(count),

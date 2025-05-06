@@ -106,6 +106,7 @@ services:
       - DATABASE_PORT=5432
       - DATABASE_URL=postgresql://${THREAD_DB_USER:-kolin}:${THREAD_DB_PASSWORD:-kolin}@thread_db:5432/${THREAD_DB_NAME:-thread_db}
       - USER_SERVICE_HOST=user_service
+      - USER_SERVICE_PORT=9091
     volumes:
       - ./backend:/app
       - thread_service_go_mod_cache:/go/pkg/mod

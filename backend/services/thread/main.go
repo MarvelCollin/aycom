@@ -97,6 +97,7 @@ func initThreadService() {
 		log.Println("TLS is enabled but not configured. Please update the code to configure TLS.")
 	}
 
+	// Create a server with the handler
 	grpcServer := grpc.NewServer(opts...)
 	thread.RegisterThreadServiceServer(grpcServer, handler)
 	log.Printf("Thread service started on port %s, environment: %s", port, environment)
