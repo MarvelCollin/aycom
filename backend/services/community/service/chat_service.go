@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"aycom/backend/proto/community"
 	"aycom/backend/services/community/model"
 
 	"github.com/google/uuid"
@@ -242,16 +243,26 @@ func (s *ChatService) GetChat(chatID string) (*Chat, error) {
 }
 
 // ListChats lists chats for a user
-func (s *ChatService) ListChats(userID string, limit, offset int) ([]*Chat, error) {
+func (s *ChatService) ListChats(userID string, limit, offset int) ([]*community.Chat, error) {
 	chatDTOs, err := s.chatRepo.ListChatsByUserID(userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	chats := make([]*Chat, len(chatDTOs))
+	chats := make([]*community.Chat, len(chatDTOs))
 	for i, dto := range chatDTOs {
-		chats[i] = fromModelChatDTO(dto)
+		chats[i] = &community.Chat{
+			Id:          dto.ID,
+			Name:        dto.Name,
+			Description: dto.Description,
+			CreatorId:   dto.CreatorID,
+			CommunityId: dto.CommunityID,
+			IsGroupChat: dto.IsGroupChat,
+			CreatedAt:   dto.CreatedAt.Unix(),
+			UpdatedAt:   dto.UpdatedAt.Unix(),
+		}
 	}
+
 	return chats, nil
 }
 

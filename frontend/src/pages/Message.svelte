@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import MainLayout from '../components/layout/MainLayout.svelte';
+  import LeftSide from '../components/layout/LeftSide.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import type { IAuthStore } from '../interfaces/IAuth';
@@ -9,6 +9,7 @@
   import { checkAuth, isWithinTime, formatTimeAgo, handleApiError } from '../utils/common';
   import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages } from '../api/chat';
   import { getProfile } from '../api/user';
+  import '../styles/magniview.css'
   
   const logger = createLoggerWithPrefix('Message');
   
@@ -34,6 +35,24 @@
   let searchQuery = '';
   let filteredChats: Chat[] = [];
   let selectedAttachments: Attachment[] = [];
+
+  // Dynamic class for mobile view
+  let chatSelectedClass = '';
+  $: {
+    chatSelectedClass = selectedChat ? 'chat-selected' : '';
+  }
+
+  // Update class on the container
+  $: if (typeof document !== 'undefined') {
+    const container = document.querySelector('.message-container');
+    if (container) {
+      if (selectedChat && window.innerWidth <= 768) {
+        container.classList.add('chat-selected');
+      } else {
+        container.classList.remove('chat-selected');
+      }
+    }
+  }
 
   // Message interfaces
   interface Message {
@@ -118,26 +137,20 @@
   // Fetch chats
   async function fetchChats() {
     isLoadingChats = true;
-    
     try {
       const response = await listChats();
-      
-      if (response && response.chats) {
+      // Backend returns { chats: [...] }
+      if (response && response.chats && Array.isArray(response.chats)) {
         chats = response.chats.map((chat: any) => ({
-          id: chat.id,
-          type: chat.type || 'individual',
-          name: chat.name || getParticipantName(chat),
-          avatar: chat.avatar || null,
-          participants: chat.participants || [],
-          lastMessage: chat.last_message ? {
-            content: chat.last_message.content,
-            timestamp: chat.last_message.timestamp,
-            senderId: chat.last_message.sender_id
-          } : undefined,
+          id: chat.id || chat.Id,
+          type: chat.is_group_chat || chat.IsGroupChat ? 'group' : 'individual',
+          name: chat.name || chat.Name || getParticipantName(chat),
+          avatar: chat.avatar || null, // You may want to add avatar logic for group/individual
+          participants: chat.participants || [], // If not present, leave as empty array
+          lastMessage: chat.last_message || chat.lastMessage || undefined,
           messages: [],
           unreadCount: chat.unread_count || 0
         }));
-        
         filteredChats = [...chats];
         logger.debug('Chats loaded', { count: chats.length });
       } else {
@@ -206,26 +219,23 @@
   // Select a chat and load messages
   async function selectChat(chat: Chat) {
     selectedChat = chat;
-    
     try {
       const response = await listMessages(chat.id);
-      
-      if (response && response.messages) {
-        // Update chat with fetched messages
+      if (response && response.messages && Array.isArray(response.messages)) {
         selectedChat.messages = response.messages.map((msg: any) => ({
-          id: msg.id,
-          senderId: msg.sender_id,
-          senderName: msg.sender_name,
-          senderAvatar: msg.sender_avatar,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          isDeleted: msg.is_deleted || false,
+          id: msg.id || msg.Id,
+          senderId: msg.sender_id || msg.SenderId,
+          senderName: msg.sender_name || '',
+          senderAvatar: msg.sender_avatar || '',
+          content: msg.content || msg.Content,
+          timestamp: msg.timestamp || msg.Timestamp,
+          isDeleted: msg.is_deleted || msg.IsDeleted || false,
           attachments: msg.attachments || [],
-          isOwn: msg.sender_id === authState.userId
+          isOwn: (msg.sender_id || msg.SenderId) === authState.userId
         }));
+      } else {
+        selectedChat.messages = [];
       }
-      
-      // Mark messages as read
       selectedChat.unreadCount = 0;
       logger.debug('Chat selected and messages loaded', { chatId: chat.id, messageCount: selectedChat.messages.length });
     } catch (error) {
@@ -238,7 +248,6 @@
   // Send a message using the API
   async function sendMessage() {
     if (!selectedChat || (!newMessage.trim() && selectedAttachments.length === 0)) return;
-    
     try {
       const messageData = {
         content: newMessage.trim(),
@@ -247,30 +256,25 @@
           url: attachment.url
         }))
       };
-      
       const response = await apiSendMessage(selectedChat.id, messageData);
-      
       if (response && response.message) {
-        // Add the new message to the chat
         const newMsg: Message = {
-          id: response.message.id,
-          senderId: response.message.sender_id,
+          id: response.message.id || response.message.Id,
+          senderId: response.message.sender_id || response.message.SenderId,
           senderName: response.message.sender_name || displayName,
           senderAvatar: response.message.sender_avatar || avatar,
-          content: response.message.content,
-          timestamp: response.message.timestamp,
+          content: response.message.content || response.message.Content,
+          timestamp: response.message.timestamp || response.message.Timestamp,
           isDeleted: false,
           attachments: response.message.attachments || [],
           isOwn: true
         };
-        
         selectedChat.messages = [...selectedChat.messages, newMsg];
         selectedChat.lastMessage = {
           content: newMsg.content || 'Sent an attachment',
           timestamp: newMsg.timestamp,
           senderId: newMsg.senderId
         };
-        
         newMessage = '';
         selectedAttachments = [];
         logger.debug('Message sent', { messageId: newMsg.id });
@@ -350,246 +354,627 @@
   }
 </script>
 
-<MainLayout
-  username={username}
-  displayName={displayName}
-  avatar={avatar}
-  on:toggleComposeModal={() => {}}
->
-  <div class="flex h-screen border-x border-gray-200 dark:border-gray-800">
-    <!-- Left sidebar - Chat list -->
-    <div class="w-full md:w-2/5 lg:w-1/3 border-r border-gray-200 dark:border-gray-800">
-      <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-        <h1 class="text-xl font-bold">Messages</h1>
-        
-        <!-- Search -->
-        <div class="relative mt-3">
-          <input 
-            type="text" 
-            bind:value={searchQuery}
-            placeholder="Search Direct Messages" 
-            class="w-full rounded-full pl-10 pr-4 py-2 {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-200'}"
-          />
-          <div class="absolute left-3 top-2.5 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Chat list -->
-      <div class="overflow-y-auto">
-        {#if isLoadingChats}
-          <div class="p-4">
-            <div class="animate-pulse space-y-4">
-              {#each Array(5) as _}
-                <div class="flex space-x-4">
-                  <div class="rounded-full bg-gray-300 dark:bg-gray-700 h-12 w-12"></div>
-                  <div class="flex-1 space-y-2 py-1">
-                    <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-                    <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {:else if filteredChats.length === 0}
-          <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
-            <h2 class="text-2xl font-bold mb-2">No messages found</h2>
-            <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-md">
-              {searchQuery ? 'Try a different search term.' : 'Start a conversation with someone.'}
-            </p>
-          </div>
-        {:else}
-          <div class="divide-y divide-gray-200 dark:divide-gray-800">
-            {#each filteredChats as chat}
-              <button 
-                class="w-full text-left p-4 hover:bg-gray-50 dark:hover:bg-gray-900 transition {selectedChat?.id === chat.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}"
-                on:click={() => selectChat(chat)}
-              >
-                <div class="flex">
-                  <div class="flex-shrink-0">
-                    <div class="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                      {#if chat.avatar}
-                        <img src={chat.avatar} alt={chat.name} class="w-full h-full object-cover" />
-                      {:else}
-                        <span class="text-xl">👤</span>
-                      {/if}
-                    </div>
-                  </div>
-                  <div class="ml-3 flex-1">
-                    <div class="flex items-center justify-between">
-                      <span class="font-semibold">{chat.name}</span>
-                      <span class="text-gray-500 dark:text-gray-400 text-sm">
-                        {chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}
-                      </span>
-                    </div>
-                    <div class="flex items-center justify-between mt-1">
-                      <p class="text-gray-500 dark:text-gray-400 truncate">
-                        {chat.lastMessage ? chat.lastMessage.content : 'No messages yet'}
-                      </p>
-                      {#if chat.unreadCount > 0}
-                        <span class="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                          {chat.unreadCount}
-                        </span>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
+<div class="message-container {chatSelectedClass}">
+  <!-- Left navigation/profile -->
+  <div class="left-sidebar">
+    <LeftSide username={username} displayName={displayName} avatar={avatar} />
+  </div>
+
+  <!-- Middle: Chat List / Search -->
+  <div class="middle-section">
+    <div class="section-header">
+      <h1>Messages</h1>
     </div>
-    
-    <!-- Right side - Chat content or placeholder -->
-    <div class="hidden md:flex md:w-3/5 lg:w-2/3 flex-col">
-      {#if selectedChat}
-        <!-- Chat header -->
-        <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center">
-          <div class="flex-shrink-0">
-            <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-              {#if selectedChat.avatar}
-                <img src={selectedChat.avatar} alt={selectedChat.name} class="w-full h-full object-cover" />
-              {:else}
-                <span class="text-lg">👤</span>
-              {/if}
-            </div>
-          </div>
-          <div class="ml-3">
-            <h2 class="font-bold">{selectedChat.name}</h2>
-            <p class="text-gray-500 dark:text-gray-400 text-sm">
-              {selectedChat.type === 'group' ? `${selectedChat.participants.length} members` : ''}
-            </p>
-          </div>
-          <div class="ml-auto flex space-x-2">
-            <button class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        
-        <!-- Chat messages -->
-        <div class="flex-1 overflow-y-auto p-4 space-y-4">
-          {#each selectedChat.messages as message}
-            <div class="flex {message.isOwn ? 'justify-end' : 'justify-start'}">
-              <div class="max-w-[70%] {message.isOwn ? 'bg-blue-500 text-white rounded-l-lg rounded-tr-lg' : 'bg-gray-200 dark:bg-gray-700 rounded-r-lg rounded-tl-lg'} p-3">
-                {#if !message.isOwn}
-                  <div class="font-semibold">{message.senderName}</div>
-                {/if}
-                <div class="{message.isDeleted ? 'italic text-gray-400 dark:text-gray-500' : ''}">
-                  {message.isDeleted ? 'This message was deleted' : message.content}
-                </div>
-                {#if message.attachments.length > 0}
-                  <div class="mt-2 space-y-2">
-                    {#each message.attachments as attachment}
-                      {#if attachment.type === 'image' || attachment.type === 'gif'}
-                        <img src={attachment.url} alt="Attachment" class="rounded-lg max-w-full" />
-                      {:else if attachment.type === 'video'}
-                        <video src={attachment.url} controls class="rounded-lg max-w-full">
-                          <track kind="captions" src="path-to-captions.vtt" label="English" default />
-                          Your browser does not support the video tag.
-                        </video>
-                      {/if}
-                    {/each}
-                  </div>
-                {/if}
-                <div class="text-xs mt-1 {message.isOwn ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}">
-                  {formatTimeAgo(message.timestamp)}
-                  {#if message.isOwn && !message.isDeleted && isWithinTime(message.timestamp)}
-                    <button class="ml-2 hover:underline" on:click={() => unsendMessage(message.id)}>
-                      Unsend
-                    </button>
-                  {/if}
-                </div>
-              </div>
-            </div>
-          {/each}
-        </div>
-        
-        <!-- Message input -->
-        <div class="border-t border-gray-200 dark:border-gray-800 p-4">
-          <div class="flex">
-            <div class="flex space-x-2 mr-2">
-              <button 
-                class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                on:click={() => clearSearch()}
-                aria-label="Clear search"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                </svg>
-              </button>
-              <button
-                class="text-gray-500 hover:text-blue-500 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                on:click={() => handleAttachment('image')}
-                aria-label="Attach image"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <button
-                class="text-gray-500 hover:text-blue-500 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                on:click={() => handleAttachment('gif')}
-                aria-label="Attach GIF"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-            </div>
-            <input 
-              type="text" 
-              bind:value={newMessage}
-              placeholder="Start a new message" 
-              class="flex-1 rounded-full px-4 py-2 {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-200'}"
-              on:keydown={(e) => e.key === 'Enter' && sendMessage()}
-            />
-            <button
-              class="p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white"
-              on:click={sendMessage}
-              disabled={!newMessage.trim()}
-              aria-label="Send message"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </div>
+    <div class="search-container">
+      <input
+        type="text"
+        bind:value={searchQuery}
+        placeholder="Search Direct Messages"
+        class="search-input"
+      />
+    </div>
+    <div class="chat-list">
+      {#if isLoadingChats}
+        <div class="loading-message">Loading chats...</div>
+      {:else if filteredChats.length === 0}
+        <div class="empty-message">
+          {chats.length === 0 ? 'No conversations yet' : 'No messages found'}
         </div>
       {:else}
-        <!-- Placeholder when no chat is selected -->
-        <div class="flex flex-col items-center justify-center h-full px-4 text-center">
-          <h2 class="text-2xl font-bold mb-2">Select a message</h2>
-          <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-md">
-            Choose a conversation from the list or start a new one.
-          </p>
-        </div>
+        <ul class="chat-items">
+          {#each filteredChats as chat}
+            <li>
+              <button
+                class="chat-item {selectedChat?.id === chat.id ? 'active' : ''}"
+                on:click={() => selectChat(chat)}
+              >
+                <div class="avatar-container">
+                  {#if chat.avatar}
+                    <img src={chat.avatar} alt={chat.name} class="avatar-image" />
+                  {:else}
+                    <span class="avatar-placeholder">👤</span>
+                  {/if}
+                </div>
+                <div class="chat-info">
+                  <div class="chat-header">
+                    <span class="chat-name">{chat.name}</span>
+                    <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
+                  </div>
+                  <div class="chat-preview">
+                    {chat.lastMessage ? chat.lastMessage.content : 'No messages yet'}
+                  </div>
+                </div>
+                {#if chat.unreadCount > 0}
+                  <span class="unread-badge">{chat.unreadCount}</span>
+                {/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
       {/if}
     </div>
   </div>
-</MainLayout>
+
+  <!-- Right: Chat Content -->
+  <div class="right-section">
+    {#if selectedChat}
+      <!-- Chat header -->
+      <div class="chat-header">
+        <div class="chat-avatar">
+          {#if selectedChat.avatar}
+            <img src={selectedChat.avatar} alt={selectedChat.name} class="avatar-image" />
+          {:else}
+            <span class="avatar-placeholder">👤</span>
+          {/if}
+        </div>
+        <div class="chat-title">
+          <h2>{selectedChat.name}</h2>
+          <p class="group-info">{selectedChat.type === 'group' ? `${selectedChat.participants.length} members` : ''}</p>
+        </div>
+      </div>
+      
+      <!-- Messages -->
+      <div class="messages-container">
+        {#each selectedChat.messages as message}
+          <div class="message-wrapper {message.isOwn ? 'own-message' : 'other-message'}">
+            <div class="message-bubble">
+              {#if !message.isOwn}
+                <div class="sender-name">{message.senderName}</div>
+              {/if}
+              <div class={message.isDeleted ? 'deleted-message' : ''}>
+                {message.isDeleted ? 'This message was deleted' : message.content}
+              </div>
+              {#if message.attachments.length > 0}
+                <div class="attachments">
+                  {#each message.attachments as attachment}
+                    {#if attachment.type === 'image' || attachment.type === 'gif'}
+                      <img src={attachment.url} alt="Attachment" class="attachment-image" />
+                    {:else if attachment.type === 'video'}
+                      <video src={attachment.url} controls class="attachment-video">
+                        <track kind="captions" src="path-to-captions.vtt" label="English" default />
+                        Your browser does not support the video tag.
+                      </video>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+              <div class="message-meta">
+                {formatTimeAgo(message.timestamp)}
+                {#if message.isOwn && !message.isDeleted && isWithinTime(message.timestamp)}
+                  <button class="unsend-button" on:click={() => unsendMessage(message.id)}>
+                    Unsend
+                  </button>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/each}
+      </div>
+      
+      <!-- Message input -->
+      <div class="message-input-container">
+        <div class="message-actions">
+          <button class="action-button" on:click={() => clearSearch()} aria-label="Clear search">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <button class="action-button" on:click={() => handleAttachment('image')} aria-label="Attach image">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+          <button class="action-button" on:click={() => handleAttachment('gif')} aria-label="Attach GIF">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+        </div>
+        <input
+          type="text"
+          bind:value={newMessage}
+          placeholder="Start a new message"
+          class="message-input"
+          on:keydown={(e) => e.key === 'Enter' && sendMessage()}
+        />
+        <button
+          class="send-button"
+          on:click={sendMessage}
+          disabled={!newMessage.trim()}
+          aria-label="Send message"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </button>
+      </div>
+    {:else}
+      <div class="empty-chat">
+        <h2>Select a message</h2>
+        <p>Choose from your existing conversations, start a new one, or just keep swimming.</p>
+        <button class="new-message-button">New message</button>
+      </div>
+    {/if}
+  </div>
+</div>
 
 <style>
-  /* Limit multiline text to 1 line */
-  .truncate {
+  /* Main Container */
+  .message-container {
+    display: grid;
+    grid-template-columns: 288px 300px 1fr;
+    height: 100vh;
+    background-color: var(--background-color, white);
+    color: var(--text-color, black);
+  }
+
+  /* Dark mode overrides */
+  :global(.dark) .message-container {
+    --background-color: black;
+    --text-color: white;
+    --border-color: #2d3748;
+    --hover-bg: #1a202c;
+    --active-bg: rgba(29, 78, 216, 0.2);
+    --message-bg: #2d3748;
+    --own-message-bg: #3b82f6;
+    --input-bg: #1a202c;
+  }
+
+  /* Light mode variables */
+  .message-container {
+    --border-color: #e2e8f0;
+    --hover-bg: #f7fafc;
+    --active-bg: rgba(59, 130, 246, 0.1);
+    --message-bg: #e2e8f0;
+    --own-message-bg: #3b82f6;
+    --input-bg: #f7fafc;
+  }
+
+  /* Left Sidebar */
+  .left-sidebar {
+    border-right: 1px solid var(--border-color);
+    height: 100%;
+    overflow-y: auto;
+    min-width: 288px;
+  }
+
+  /* Middle Section */
+  .middle-section {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    height: 100%;
+  }
+
+  .section-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .section-header h1 {
+    font-size: 1.25rem;
+    font-weight: bold;
+  }
+
+  .search-container {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+  }
+
+  .chat-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .loading-message, .empty-message {
+    padding: 20px;
+    text-align: center;
+    color: gray;
+  }
+
+  .chat-items {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .chat-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    text-align: left;
+    transition: background-color 0.2s;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-color);
+    border-radius: 8px;
+    margin: 4px 0;
+  }
+
+  .chat-item:hover {
+    background-color: var(--hover-bg);
+  }
+
+  .chat-item.active {
+    background-color: var(--active-bg);
+  }
+
+  .avatar-container {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-placeholder {
+    font-size: 1.25rem;
+  }
+
+  .chat-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .chat-name {
+    font-weight: 600;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .chat-time {
+    font-size: 0.75rem;
+    color: gray;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  .chat-preview {
+    color: gray;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.875rem;
   }
-  
-  /* Skeleton loading animation */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+
+  .unread-badge {
+    background-color: #3b82f6;
+    color: white;
+    font-size: 0.75rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    flex-shrink: 0;
   }
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  /* Right Section */
+  .right-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .chat-header {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .chat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+  }
+
+  .chat-title h2 {
+    font-weight: bold;
+    margin: 0;
+  }
+
+  .group-info {
+    font-size: 0.875rem;
+    color: gray;
+    margin: 0;
+  }
+
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background-color: #f9fafb;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  :global(.dark) .messages-container {
+    background-color: black;
+  }
+
+  .message-wrapper {
+    display: flex;
+  }
+
+  .own-message {
+    justify-content: flex-end;
+  }
+
+  .other-message {
+    justify-content: flex-start;
+  }
+
+  .message-bubble {
+    max-width: 70%;
+    padding: 12px;
+    border-radius: 12px;
+    position: relative;
+  }
+
+  .own-message .message-bubble {
+    background-color: var(--own-message-bg);
+    color: white;
+    border-top-right-radius: 4px;
+  }
+
+  .other-message .message-bubble {
+    background-color: var(--message-bg);
+    border-top-left-radius: 4px;
+  }
+
+  .sender-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .deleted-message {
+    font-style: italic;
+    color: #9ca3af;
+  }
+
+  .attachments {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .attachment-image, .attachment-video {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+
+  .message-meta {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    margin-top: 4px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .other-message .message-meta {
+    color: gray;
+  }
+
+  .unsend-button {
+    margin-left: 8px;
+    background: none;
+    border: none;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .message-input-container {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .message-actions {
+    display: flex;
+    margin-right: 8px;
+  }
+
+  .action-button {
+    background: none;
+    border: none;
+    color: gray;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-right: 4px;
+  }
+
+  .action-button:hover {
+    background-color: var(--hover-bg);
+    color: #3b82f6;
+  }
+
+  .action-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .message-input {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 9999px;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+  }
+
+  .send-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: 8px;
+  }
+
+  .send-button:hover {
+    background-color: #2563eb;
+  }
+
+  .send-button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .send-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .empty-chat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    padding: 0 16px;
+  }
+
+  .empty-chat h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+
+  .empty-chat p {
+    color: gray;
+    margin-bottom: 24px;
+    max-width: 400px;
+  }
+
+  .new-message-button {
+    background-color: #3b82f6;
+    color: white;
+    font-weight: bold;
+    padding: 8px 24px;
+    border-radius: 9999px;
+    border: none;
+    cursor: pointer;
+  }
+
+  .new-message-button:hover {
+    background-color: #2563eb;
+  }
+
+  /* Media Queries for Responsive Layout */
+  @media (max-width: 1280px) {
+    .message-container {
+      grid-template-columns: 288px 250px 1fr;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .message-container {
+      grid-template-columns: 240px 200px 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .message-container {
+      grid-template-columns: 72px 1fr;
+    }
+    
+    .middle-section {
+      display: var(--middle-display, flex);
+    }
+    
+    .right-section {
+      display: var(--right-display, none);
+    }
+    
+    /* When a chat is selected, show right and hide middle */
+    .message-container.chat-selected {
+      --middle-display: none;
+      --right-display: flex;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .message-container {
+      grid-template-columns: 1fr;
+    }
+    
+    .left-sidebar {
+      display: none;
+    }
   }
 </style>

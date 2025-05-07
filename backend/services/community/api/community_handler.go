@@ -3,10 +3,26 @@ package api
 import (
 	"aycom/backend/proto/community"
 	"context"
+	"fmt"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type CommunityService interface{}
-type ChatService interface{}
+
+type ChatService interface {
+	ListChats(userID string, limit, offset int) ([]*community.Chat, error)
+	CreateChat(name, description string, creatorID string, isGroupChat bool, participantIDs []string) (*community.Chat, error)
+	AddParticipant(chatID, userID, addedBy string) error
+	RemoveParticipant(chatID, userID, removedBy string) error
+	ListParticipants(chatID string, limit, offset int) ([]*community.ChatParticipant, error)
+	SendMessage(chatID, userID, content string) (string, error)
+	GetMessages(chatID string, limit, offset int) ([]*community.Message, error)
+	DeleteMessage(messageID string) error
+	UnsendMessage(messageID string) error
+	SearchMessages(chatID, query string, limit, offset int) ([]*community.Message, error)
+}
 
 type CommunityHandler struct {
 	community.UnimplementedCommunityServiceServer
@@ -91,7 +107,22 @@ func (h *CommunityHandler) RemoveChatParticipant(ctx context.Context, req *commu
 	return nil, nil
 }
 func (h *CommunityHandler) ListChats(ctx context.Context, req *community.ListChatsRequest) (*community.ListChatsResponse, error) {
-	return nil, nil
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	// Default limit and offset if not provided
+	limit := 50
+	offset := 0
+
+	chats, err := h.chatService.ListChats(req.UserId, limit, offset)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list chats: %v", err))
+	}
+
+	return &community.ListChatsResponse{
+		Chats: chats,
+	}, nil
 }
 func (h *CommunityHandler) ListChatParticipants(ctx context.Context, req *community.ListChatParticipantsRequest) (*community.ListChatParticipantsResponse, error) {
 	return nil, nil

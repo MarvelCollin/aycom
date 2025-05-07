@@ -5,6 +5,15 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('ChatAPI');
 
+// Import the handler function for WebSocket messages
+import { handleIncomingMessage } from '../stores/chatMessageStore';
+
+// WebSocket Message Handler
+export function processWebSocketMessage(message: any): void {
+  // Forward the message to the message handler
+  handleIncomingMessage(message);
+}
+
 export async function createChat(data: Record<string, any>) {
   try {
     const token = getAuthToken();
