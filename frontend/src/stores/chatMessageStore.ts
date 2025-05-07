@@ -78,24 +78,43 @@ function createChatMessageStore() {
 
   // Send a message through WebSocket
   const sendMessage = (chatId: string, content: string, userId: string) => {
+    // Generate a temporary ID for optimistic UI updates
+    const tempId = `temp-${Date.now()}`;
+    const timestamp = new Date();
+    
+    // Create message with temporary ID
+    const tempMessage: MessageWithUser = {
+      type: 'text',
+      content,
+      user_id: userId,
+      chat_id: chatId,
+      message_id: tempId,
+      timestamp,
+      is_read: false,
+      is_edited: false,
+      is_deleted: false,
+      user: { 
+        id: userId, 
+        username: '', 
+        display_name: '' 
+      }
+    };
+    
+    // Optimistically add to local state
+    addMessage(tempMessage);
+    
+    // Send via websocket
     const message: ChatMessage = {
       type: 'text',
       content,
       user_id: userId,
       chat_id: chatId,
-      timestamp: new Date()
+      timestamp: new Date(),
+      message_id: tempId // Include temp ID to link with server response
     };
 
+    logger.debug('Sending message to WebSocket', { chatId, tempId });
     websocketStore.sendMessage(chatId, message);
-    
-    // Optimistically add the message to the local store
-    // It will be updated with the correct ID when the server confirms receipt
-    const tempId = `temp-${Date.now()}`;
-    addMessage({
-      ...message,
-      message_id: tempId,
-      user: { id: userId, username: '', display_name: '' } // Placeholder, will be updated
-    });
   };
 
   // Send a typing indicator
@@ -381,6 +400,66 @@ function createChatMessageStore() {
     }
   };
 
+  // Add a method to update a temporary message with real data from server
+  const updateMessageWithServerData = (tempMessageId: string, chatId: string, serverMessageId: string, serverTimestamp: Date) => {
+    update(state => {
+      // If chat doesn't exist yet, do nothing
+      if (!state.messages[chatId]) return state;
+      
+      // Find the temp message
+      const tempMessage = state.messages[chatId][tempMessageId];
+      if (!tempMessage) {
+        logger.warn('Could not find temporary message to update', { tempMessageId, chatId });
+        return state;
+      }
+      
+      // Create updated message
+      const updatedMessages = { ...state.messages };
+      updatedMessages[chatId] = { ...updatedMessages[chatId] };
+      
+      // Create updated message with server data, preserving content
+      const updatedMessage = {
+        ...tempMessage,
+        message_id: serverMessageId,
+        timestamp: serverTimestamp
+      };
+      
+      // Add the updated message with real ID and remove temp
+      updatedMessages[chatId][serverMessageId] = updatedMessage;
+      delete updatedMessages[chatId][tempMessageId];
+      
+      logger.debug('Updated temporary message with server data', { 
+        tempId: tempMessageId, 
+        serverId: serverMessageId 
+      });
+      
+      return {
+        ...state,
+        messages: updatedMessages
+      };
+    });
+  };
+
+  // Clear all messages for a specific chat
+  const clearChat = (chatId: string) => {
+    update(state => {
+      // Create a new state with the chat's messages removed
+      const updatedState = {
+        ...state,
+        messages: { ...state.messages }
+      };
+      
+      // Remove the messages for this chat
+      delete updatedState.messages[chatId];
+      
+      // Initialize with empty structure
+      updatedState.messages[chatId] = {};
+      
+      logger.debug(`Cleared messages for chat ${chatId}`);
+      return updatedState;
+    });
+  };
+
   return {
     subscribe,
     connectToChat,
@@ -395,7 +474,9 @@ function createChatMessageStore() {
     updateMessage,
     deleteMessage,
     resetError,
-    cleanup
+    cleanup,
+    updateMessageWithServerData,
+    clearChat
   };
 }
 

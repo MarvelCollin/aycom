@@ -63,8 +63,6 @@ func (r *GormChatRepository) ListChatsByUserID(userID string, limit, offset int)
 		return nil, err
 	}
 
-	// Join with chat_participants to get chats the user is in
-	// Use table aliases and explicit join clause to prevent type casting issues
 	err = r.db.Table("chats c").
 		Joins("JOIN chat_participants cp ON c.chat_id = cp.chat_id").
 		Where("cp.user_id = ?", userUUID).

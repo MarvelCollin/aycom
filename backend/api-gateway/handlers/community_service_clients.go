@@ -23,6 +23,8 @@ type CommunityServiceClient interface {
 	DeleteMessage(chatID, userID, messageID string) error
 	GetChats(userID string, limit, offset int) ([]Chat, error)
 	CreateChat(isGroup bool, name string, participantIDs []string, createdBy string) (*Chat, error)
+	IsUserChatParticipant(chatID, userID string) (bool, error)
+	GetChatParticipants(chatID string) ([]string, error)
 }
 
 // Message represents a chat message
@@ -129,15 +131,19 @@ func (c *communityCommunicationClient) SendMessage(chatID, userID, content strin
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Printf("Sending message to chat %s from user %s: %s", chatID, userID, content)
+
 	resp, err := c.grpcClient.SendMessage(ctx, &communityProto.SendMessageRequest{
 		ChatId:   chatID,
 		SenderId: userID,
 		Content:  content,
 	})
 	if err != nil {
+		log.Printf("Error sending message to gRPC service: %v", err)
 		return "", err
 	}
 
+	log.Printf("Successfully sent message, got ID: %s", resp.Message.Id)
 	return resp.Message.Id, nil
 }
 
@@ -169,23 +175,33 @@ func (c *communityCommunicationClient) GetMessages(chatID string, limit, offset 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Printf("Fetching messages for chat %s (limit: %d, offset: %d)", chatID, limit, offset)
+
 	resp, err := c.grpcClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
 		ChatId: chatID,
 		Limit:  int32(limit),
 		Offset: int32(offset),
 	})
 	if err != nil {
+		log.Printf("Error fetching messages from gRPC service: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Retrieved %d messages from service for chat %s", len(resp.Messages), chatID)
+
 	messages := make([]Message, len(resp.Messages))
 	for i, msg := range resp.Messages {
+		sentTime := time.Now()
+		if msg.SentAt != nil {
+			sentTime = msg.SentAt.AsTime()
+		}
+
 		messages[i] = Message{
 			ID:        msg.Id,
 			ChatID:    msg.ChatId,
 			SenderID:  msg.SenderId,
 			Content:   msg.Content,
-			Timestamp: msg.SentAt.AsTime(),
+			Timestamp: sentTime,
 			IsRead:    !msg.Unsent, // Use unsent as a proxy for read status
 			IsEdited:  false,       // No edit tracking in proto
 			IsDeleted: msg.DeletedForAll || msg.DeletedForSender,
@@ -309,4 +325,57 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 	}
 
 	return chat, nil
+}
+
+// IsUserChatParticipant checks if a user is a participant in a chat
+func (c *communityCommunicationClient) IsUserChatParticipant(chatID, userID string) (bool, error) {
+	if c.grpcClient == nil {
+		return false, fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Get participants of the chat
+	resp, err := c.grpcClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+		ChatId: chatID,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	// Check if the user is in the list of participants
+	for _, participant := range resp.Participants {
+		if participant.UserId == userID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetChatParticipants returns the list of participant IDs for a chat
+func (c *communityCommunicationClient) GetChatParticipants(chatID string) ([]string, error) {
+	if c.grpcClient == nil {
+		return nil, fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Get participants from the gRPC service
+	resp, err := c.grpcClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+		ChatId: chatID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract user IDs from participants
+	participantIDs := make([]string, len(resp.Participants))
+	for i, p := range resp.Participants {
+		participantIDs[i] = p.UserId
+	}
+
+	return participantIDs, nil
 }

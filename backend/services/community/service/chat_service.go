@@ -70,6 +70,7 @@ type MessageRepository interface {
 	DeleteMessage(messageID string) error
 	UnsendMessage(messageID string) error
 	SearchMessages(chatID, query string, limit, offset int) ([]*Message, error)
+	UpdateMessage(message *Message) error
 }
 
 // ParticipantRepository defines the methods for participant operations
@@ -367,7 +368,7 @@ func (s *ChatService) ListParticipants(chatID string, limit, offset int) ([]*com
 	return participants, nil
 }
 
-// SendMessage sends a message to a chat
+// SendMessage sends a message in a chat
 func (s *ChatService) SendMessage(chatID, userID, content string) (string, error) {
 	// Check if chat exists
 	_, err := s.chatRepo.FindChatByID(chatID)
@@ -400,10 +401,13 @@ func (s *ChatService) SendMessage(chatID, userID, content string) (string, error
 		IsDeleted: false,
 	}
 
+	// Save message to the database using the message repository
 	if err := s.messageRepo.SaveMessage(toModelMessageDTO(message)); err != nil {
+		log.Printf("Error saving message to database: %v", err)
 		return "", err
 	}
 
+	log.Printf("Message saved to database with ID: %s", messageID)
 	return messageID, nil
 }
 
@@ -418,11 +422,16 @@ func (s *ChatService) GetMessages(chatID string, limit, offset int) ([]*communit
 		return nil, err
 	}
 
+	// Retrieve messages from the database
 	messageDTOs, err := s.messageRepo.FindMessagesByChatID(chatID, limit, offset)
 	if err != nil {
+		log.Printf("Error retrieving messages from database: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Retrieved %d messages for chat %s", len(messageDTOs), chatID)
+
+	// Convert the message DTOs to protobuf messages
 	messages := make([]*community.Message, len(messageDTOs))
 	for i, dto := range messageDTOs {
 		messages[i] = &community.Message{
@@ -555,4 +564,62 @@ func (s *ChatService) SearchMessages(chatID, query string, limit, offset int) ([
 		}
 	}
 	return messages, nil
+}
+
+// EditMessage edits an existing message
+func (s *ChatService) EditMessage(chatID, userID, messageID, newContent string) error {
+	// Get the message
+	messageDTO, err := s.messageRepo.FindMessageByID(messageID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrMessageNotFound
+		}
+		return err
+	}
+
+	// If chatID is not provided, use the one from the message
+	if chatID == "" {
+		chatID = messageDTO.ChatID
+	}
+
+	// Check if message belongs to the chat
+	if messageDTO.ChatID != chatID {
+		return ErrPermissionDenied
+	}
+
+	// Only sender can edit
+	if messageDTO.SenderID != userID {
+		return ErrPermissionDenied
+	}
+
+	// Update message content and mark as edited
+	messageDTO.Content = newContent
+	messageDTO.IsEdited = true
+
+	// Save the updated message
+	return s.messageRepo.UpdateMessage(messageDTO)
+}
+
+// GetMessageById gets a message by its ID
+func (s *ChatService) GetMessageById(messageID string) (*community.Message, error) {
+	// Find the message
+	messageDTO, err := s.messageRepo.FindMessageByID(messageID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrMessageNotFound
+		}
+		return nil, err
+	}
+
+	// Convert to protobuf message
+	return &community.Message{
+		Id:               messageDTO.ID,
+		ChatId:           messageDTO.ChatID,
+		SenderId:         messageDTO.SenderID,
+		Content:          messageDTO.Content,
+		SentAt:           timestamppb.New(messageDTO.Timestamp),
+		Unsent:           !messageDTO.IsRead, // Using IsRead as proxy for unsent status
+		DeletedForAll:    messageDTO.IsDeleted,
+		DeletedForSender: false, // Not tracking per-user deletion yet
+	}, nil
 }

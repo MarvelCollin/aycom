@@ -10,10 +10,17 @@
   interface Chat {
     id: string;
     name?: string;
+    is_group_chat?: boolean;
+    created_by?: string;
     last_message?: {
       content?: string;
     };
-    participants?: any[];
+    participants?: Array<{
+      id?: string;
+      user_id?: string;
+      username?: string;
+      display_name?: string;
+    }>;
     created_at?: string;
     updated_at?: string;
   }
@@ -24,15 +31,62 @@
   let isLoading = true;
   let error: string | null = null;
   
+  // Helper function to get chat name or participants display
+  function getChatDisplayName(chat: Chat): string {
+    if (chat.name && chat.name.trim() !== '') {
+      return chat.name;
+    }
+    
+    // Get names of participants if available
+    if (chat.participants && chat.participants.length > 0) {
+      const currentUserId = getUserIdFromToken();
+      return chat.participants
+        .filter(p => (p.id !== currentUserId && p.user_id !== currentUserId))
+        .map(p => p.display_name || p.username || 'Unknown User')
+        .join(', ');
+    }
+    
+    return 'Unnamed Chat';
+  }
+  
+  // Get user ID from JWT token
+  function getUserIdFromToken(): string {
+    const token = localStorage.getItem('token');
+    if (!token) return '';
+    
+    try {
+      const payload = token.split('.')[1];
+      const decoded = JSON.parse(atob(payload));
+      return decoded.sub || '';
+    } catch (e) {
+      logger.error('Failed to decode JWT token', e);
+      return '';
+    }
+  }
+  
   // Load user chats when component mounts
   onMount(async () => {
     try {
+      isLoading = true;
+      logger.debug('Loading chat list');
+      
       const response = await listChats();
       chats = response.chats || [];
+      logger.debug('Loaded chats', { count: chats.length, chats });
       
-      // Select the first chat by default if available
-      if (chats.length > 0) {
+      // Try to restore previously selected chat from localStorage
+      const savedChatId = localStorage.getItem('selectedChatId');
+      
+      if (savedChatId && chats.some(chat => chat.id === savedChatId)) {
+        // If the saved chat exists in the loaded chats, select it
+        selectedChatId = savedChatId;
+        logger.debug('Restored previously selected chat', { chatId: savedChatId });
+      } else if (chats.length > 0) {
+        // Otherwise select the first chat
         selectedChatId = chats[0].id;
+        // Save the selection
+        localStorage.setItem('selectedChatId', selectedChatId);
+        logger.debug('Selected first chat', { chatId: selectedChatId });
       }
       
       isLoading = false;
@@ -46,6 +100,9 @@
   // Handle chat selection
   function selectChat(chatId: string) {
     selectedChatId = chatId;
+    // Save the selection for persistence between refreshes
+    localStorage.setItem('selectedChatId', chatId);
+    logger.debug('Selected chat', { chatId });
   }
 </script>
 
@@ -66,14 +123,14 @@
             class="chat-item {selectedChatId === chat.id ? 'selected' : ''}"
             on:click={() => selectChat(chat.id)}
           >
-            <div class="chat-name">{chat.name || 'Unnamed Chat'}</div>
+            <div class="chat-name">{getChatDisplayName(chat)}</div>
             <div class="chat-preview">
               {chat.last_message?.content || 'No messages yet'}
             </div>
           </li>
         {/each}
       </ul>
-    {/if}
+    {/if} 
   </div>
   
   <div class="chat-area">

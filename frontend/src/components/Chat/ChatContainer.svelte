@@ -1,24 +1,55 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import ChatWindow from './ChatWindow.svelte';
-  import { listChatParticipants } from '../../api/chat';
+  import { listChatParticipants, listMessages } from '../../api/chat';
   import { getAuthToken } from '../../utils/auth';
   import { createLoggerWithPrefix } from '../../utils/logger';
+  import { chatMessageStore } from '../../stores/chatMessageStore';
   
   const logger = createLoggerWithPrefix('ChatContainer');
   
   // Props
   export let chatId: string;
   
+  // Define message interface
+  interface Message {
+    id?: string;
+    message_id?: string;
+    sender_id: string;
+    chat_id?: string;
+    user_id?: string;
+    content: string;
+    timestamp: number | string;
+    is_read?: boolean;
+    is_deleted?: boolean;
+    is_edited?: boolean;
+    user?: {
+      id: string;
+      username?: string;
+      display_name?: string;
+      avatar_url?: string;
+    };
+  }
+  
+  interface Participant {
+    id?: string;
+    user_id?: string;
+    username?: string;
+    display_name?: string;
+    avatar_url?: string;
+  }
+  
   // State
-  let participants = [];
+  let participants: Participant[] = [];
   let userId = '';
   let isLoading = true;
   let error: string | null = null;
+  let messages: Message[] = [];
   
-  // Load chat participants when component mounts
+  // Load chat participants and message history when component mounts
   onMount(async () => {
     try {
+      isLoading = true;
       // Get current user ID from auth token
       const token = getAuthToken();
       if (!token) {
@@ -36,14 +67,75 @@
       }
       
       // Fetch participant data
-      const response = await listChatParticipants(chatId);
-      participants = response.participants || [];
+      logger.debug('Fetching participants for chat', { chatId });
+      const participantsResponse = await listChatParticipants(chatId);
+      participants = participantsResponse.participants || [];
+      logger.debug('Loaded participants', { count: participants.length, participants });
+      
+      // Fetch message history
+      const messagesResponse = await listMessages(chatId);
+      messages = messagesResponse.messages || [];
+      logger.debug('Loaded messages', { count: messages.length });
+      
+      // Clear existing messages for this chat from the store to avoid duplicates
+      chatMessageStore.clearChat(chatId);
+      
+      // Add messages to store for real-time updates
+      if (messages.length > 0) {
+        messages.forEach(message => {
+          // Use existing user data if available, otherwise find from participants
+          const sender = message.user || participants.find(p => 
+            (p.user_id === message.sender_id) || 
+            (p.id === message.sender_id) || 
+            (p.user_id === message.user_id) || 
+            (p.id === message.user_id)
+          );
+          
+          // Ensure we have message_id (use either id or message_id from backend)
+          const messageId = message.message_id || message.id || '';
+          
+          // Ensure we have user_id (use either sender_id or user_id from backend)
+          const messageUserId = message.user_id || message.sender_id;
+          
+          const messageWithUser = {
+            ...message,
+            user_id: messageUserId,
+            chat_id: chatId,
+            message_id: messageId,
+            type: 'text' as const,
+            timestamp: typeof message.timestamp === 'number' ? 
+              new Date(message.timestamp * 1000) : 
+              (typeof message.timestamp === 'string' ? new Date(message.timestamp) : new Date()),
+            content: message.content,
+            is_read: message.is_read || false,
+            is_deleted: message.is_deleted || false,
+            is_edited: message.is_edited || false,
+            user: {
+              id: messageUserId,
+              username: sender?.username || 'Unknown',
+              display_name: sender?.display_name || 'Unknown User',
+              avatar_url: sender?.avatar_url
+            }
+          };
+          chatMessageStore.addMessage(messageWithUser);
+        });
+      }
+      
+      // Connect to real-time updates
+      chatMessageStore.connectToChat(chatId);
       
       isLoading = false;
     } catch (err: unknown) {
-      logger.error('Error loading chat participants:', err);
+      logger.error('Error loading chat data:', err);
       error = err instanceof Error ? err.message : 'Failed to load chat';
       isLoading = false;
+    }
+  });
+  
+  // Clean up when the component is destroyed
+  onDestroy(() => {
+    if (chatId) {
+      chatMessageStore.disconnectFromChat(chatId);
     }
   });
 </script>
@@ -63,10 +155,20 @@
       <p>You need to be logged in to view this chat</p>
     </div>
   {:else}
+    <div class="chat-header">
+      {#if participants.length > 0}
+        <div class="participant-info">
+          <h3>Chat with: {participants.filter(p => p.user_id !== userId && p.id !== userId)
+            .map(p => p.display_name || p.username || 'Unknown User')
+            .join(', ')}</h3>
+        </div>
+      {/if}
+    </div>
     <ChatWindow 
       {chatId}
       {userId}
       {participants}
+      initialMessages={messages}
     />
   {/if}
 </div>
@@ -77,6 +179,19 @@
     height: 100%;
     display: flex;
     flex-direction: column;
+  }
+  
+  .chat-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+  }
+  
+  .participant-info h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #333;
   }
   
   .loading-state,

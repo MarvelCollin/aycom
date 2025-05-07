@@ -2,6 +2,7 @@ package repository
 
 import (
 	"aycom/backend/services/community/model"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,18 +39,24 @@ func NewMessageRepository(db *gorm.DB) model.MessageRepository {
 
 // SaveMessage saves a message to the database
 func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
+	log.Printf("Saving message to database: ID=%s, ChatID=%s, SenderID=%s",
+		message.ID, message.ChatID, message.SenderID)
+
 	msgID, err := uuid.Parse(message.ID)
 	if err != nil {
+		log.Printf("Error parsing message ID: %v", err)
 		return err
 	}
 
 	chatID, err := uuid.Parse(message.ChatID)
 	if err != nil {
+		log.Printf("Error parsing chat ID: %v", err)
 		return err
 	}
 
 	senderID, err := uuid.Parse(message.SenderID)
 	if err != nil {
+		log.Printf("Error parsing sender ID: %v", err)
 		return err
 	}
 
@@ -64,7 +71,14 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		IsDeleted: message.IsDeleted,
 	}
 
-	return r.db.Create(dbMessage).Error
+	err = r.db.Create(dbMessage).Error
+	if err != nil {
+		log.Printf("Error saving message to database: %v", err)
+		return err
+	}
+
+	log.Printf("Message saved successfully to database with ID: %s", message.ID)
+	return nil
 }
 
 // FindMessageByID finds a message by ID
@@ -94,20 +108,36 @@ func (r *GormMessageRepository) FindMessageByID(messageID string) (*model.Messag
 
 // FindMessagesByChatID finds messages by chat ID
 func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offset int) ([]*model.MessageDTO, error) {
+	log.Printf("Finding messages for chat ID: %s (limit: %d, offset: %d)", chatID, limit, offset)
+
 	chatUUID, err := uuid.Parse(chatID)
 	if err != nil {
+		log.Printf("Error parsing chat ID: %v", err)
 		return nil, err
 	}
 
 	var dbMessages []MessageDBModel
-	err = r.db.Where("chat_id = ?", chatUUID).
-		Order("sent_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Find(&dbMessages).Error
+	query := r.db.Where("chat_id = ?", chatUUID)
+
+	// Add ordering by sent_at in descending order (latest messages first)
+	query = query.Order("sent_at DESC")
+
+	// Apply limit and offset
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	// Execute the query
+	err = query.Find(&dbMessages).Error
 	if err != nil {
+		log.Printf("Database error retrieving messages: %v", err)
 		return nil, err
 	}
+
+	log.Printf("Found %d messages for chat ID: %s", len(dbMessages), chatID)
 
 	messages := make([]*model.MessageDTO, len(dbMessages))
 	for i, dbMessage := range dbMessages {
@@ -194,4 +224,26 @@ func (r *GormMessageRepository) SearchMessages(chatID, query string, limit, offs
 	}
 
 	return messages, nil
+}
+
+// UpdateMessage updates a message in the database
+func (r *GormMessageRepository) UpdateMessage(message *model.MessageDTO) error {
+	msgID, err := uuid.Parse(message.ID)
+	if err != nil {
+		return err
+	}
+
+	// Prepare message data to update
+	updateData := map[string]interface{}{
+		"content":    message.Content,
+		"is_edited":  message.IsEdited,
+		"is_read":    message.IsRead,
+		"is_deleted": message.IsDeleted,
+	}
+
+	// Update the message
+	return r.db.Model(&MessageDBModel{}).
+		Where("message_id = ?", msgID).
+		Updates(updateData).
+		Error
 }

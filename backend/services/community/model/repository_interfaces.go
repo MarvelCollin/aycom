@@ -59,6 +59,7 @@ type MessageRepository interface {
 	DeleteMessage(messageID string) error
 	UnsendMessage(messageID string) error
 	SearchMessages(chatID, query string, limit, offset int) ([]*MessageDTO, error)
+	UpdateMessage(message *MessageDTO) error
 }
 
 // ParticipantRepository defines the interface for participant operations

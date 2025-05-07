@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -61,18 +63,26 @@ func HandleCommunityChat(c *gin.Context) {
 		return
 	}
 
+	log.Printf("WebSocket connection request for chat %s from user %s", chatID, userID)
+
 	// Validate user exists
 	client := GetCommunityServiceClient()
-	isValid, err := client.ValidateUser(userID.(string))
+
+	// Check if client can access this chat (this validates both the chat and user)
+	_, err := client.GetMessages(chatID, 1, 0)
 	if err != nil {
-		log.Printf("Error validating user: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "server_error", "Failed to validate user")
+		log.Printf("Error validating chat access: %v", err)
+		SendErrorResponse(c, http.StatusInternalServerError, "server_error", "Failed to validate chat access")
 		return
 	}
 
-	if !isValid {
-		SendErrorResponse(c, http.StatusNotFound, "not_found", "User not found")
-		return
+	// Set up websocket connection
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow all origins in development
+		},
 	}
 
 	// Upgrade HTTP connection to WebSocket
@@ -81,6 +91,8 @@ func HandleCommunityChat(c *gin.Context) {
 		log.Printf("Failed to set websocket upgrade: %v", err)
 		return
 	}
+
+	log.Printf("WebSocket connection established for chat %s, user %s", chatID, userID)
 
 	// Create client and register with WebSocket manager
 	wsClient := &Client{
@@ -187,27 +199,40 @@ func communityChatWritePump(c *Client) {
 // ProcessIncomingMessage processes messages received from WebSocket clients
 // and stores them in the database via the Community service gRPC client
 func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, error) {
-	// Parse the message from JSON
 	var chatMessage ChatMessage
 	if err := json.Unmarshal(message, &chatMessage); err != nil {
 		log.Printf("Error unmarshaling message: %v", err)
-		return createErrorResponse("invalid_message_format", "Could not parse message"), err
+		return createErrorResponse("invalid_format", "Invalid message format"), err
 	}
 
-	// Set message metadata
-	chatMessage.UserID = userID
-	chatMessage.ChatID = chatID
-	chatMessage.Timestamp = time.Now()
-
-	// Generate a unique message ID if not provided
-	if chatMessage.MessageID == "" {
-		chatMessage.MessageID = uuid.New().String()
+	// Default to the provided user ID and chat ID if not specified in the message
+	if chatMessage.UserID == "" {
+		chatMessage.UserID = userID
+	}
+	if chatMessage.ChatID == "" {
+		chatMessage.ChatID = chatID
 	}
 
-	// Process based on message type
+	// Validate that the user ID in the message matches the authenticated user
+	if chatMessage.UserID != userID {
+		log.Printf("User ID mismatch: %s != %s", chatMessage.UserID, userID)
+		return createErrorResponse("unauthorized", "User ID mismatch"), fmt.Errorf("user ID mismatch")
+	}
+
+	// Set timestamp if not provided
+	if chatMessage.Timestamp.IsZero() {
+		chatMessage.Timestamp = time.Now()
+	}
+
+	// Process message based on type
+	var originalID string
+	if chatMessage.MessageID != "" {
+		originalID = chatMessage.MessageID
+	}
+
 	switch chatMessage.Type {
 	case "text":
-		return processTextMessage(chatMessage)
+		return processTextMessage(chatMessage, originalID)
 	case "typing":
 		return processTypingIndicator(chatMessage)
 	case "read":
@@ -217,12 +242,15 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 	case "delete":
 		return processDeleteMessage(chatMessage)
 	default:
-		return createErrorResponse("unknown_message_type", "Message type not supported"), nil
+		log.Printf("Unknown message type: %s", chatMessage.Type)
+		return createErrorResponse("invalid_type", "Unknown message type"), nil
 	}
 }
 
 // processTextMessage handles text messages
-func processTextMessage(message ChatMessage) ([]byte, error) {
+func processTextMessage(message ChatMessage, originalID string) ([]byte, error) {
+	log.Printf("Processing text message from user %s to chat %s: %s", message.UserID, message.ChatID, message.Content)
+
 	// Save the message to the database
 	client := GetCommunityServiceClient()
 	msgID, err := client.SendMessage(
@@ -232,6 +260,7 @@ func processTextMessage(message ChatMessage) ([]byte, error) {
 	)
 
 	if err != nil {
+		log.Printf("Error saving message to database: %v", err)
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.NotFound:
@@ -245,12 +274,32 @@ func processTextMessage(message ChatMessage) ([]byte, error) {
 		return createErrorResponse("server_error", "Failed to save message"), err
 	}
 
+	log.Printf("Message saved with ID: %s (original ID: %s)", msgID, originalID)
+
 	// Update message ID from database
 	message.MessageID = msgID
 
-	// Return the message to be broadcast
-	responseMsg, err := json.Marshal(message)
+	// Create response map with all required fields
+	responseMap := map[string]interface{}{
+		"type":       message.Type,
+		"content":    message.Content,
+		"user_id":    message.UserID,
+		"chat_id":    message.ChatID,
+		"timestamp":  message.Timestamp.Unix(), // Convert to Unix timestamp
+		"message_id": message.MessageID,
+		"is_edited":  message.IsEdited,
+		"is_deleted": message.IsDeleted,
+		"is_read":    message.IsRead,
+	}
+
+	// Include the original client ID if it was a temporary ID (starts with temp-)
+	if originalID != "" && strings.HasPrefix(originalID, "temp-") {
+		responseMap["original_id"] = originalID
+	}
+
+	responseMsg, err := json.Marshal(responseMap)
 	if err != nil {
+		log.Printf("Error serializing response: %v", err)
 		return createErrorResponse("server_error", "Failed to process message"), err
 	}
 

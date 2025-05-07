@@ -6,7 +6,7 @@
   import type { IAuthStore } from '../interfaces/IAuth';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import { checkAuth, isWithinTime, formatTimeAgo, handleApiError } from '../utils/common';
+  import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
   import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat } from '../api/chat';
   import { getProfile, searchUsers } from '../api/user';
   import '../styles/magniview.css'
@@ -133,7 +133,21 @@
     
     // Fetch user profile first, then chats
     fetchUserProfile().then(() => {
-      fetchChats();
+      fetchChats().then(() => {
+        // Try to restore the last selected chat from localStorage
+        try {
+          const savedChatId = localStorage.getItem('selectedChatId');
+          if (savedChatId && chats.length > 0) {
+            const chatToSelect = chats.find(c => c.id === savedChatId);
+            if (chatToSelect) {
+              selectChat(chatToSelect);
+              logger.debug('Restored selected chat from localStorage', { chatId: savedChatId });
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to restore chat from localStorage', error);
+        }
+      });
     });
   });
 
@@ -142,18 +156,138 @@
     isLoadingChats = true;
     try {
       const response = await listChats();
+      logger.debug('Raw chat data from API:', { chats: response.chats });
+      
       // Backend returns { chats: [...] }
       if (response && response.chats && Array.isArray(response.chats)) {
-        chats = response.chats.map((chat: any) => ({
-          id: chat.id || chat.Id,
-          type: chat.is_group_chat || chat.IsGroupChat ? 'group' : 'individual',
-          name: chat.name || chat.Name || getParticipantName(chat),
-          avatar: chat.avatar || null, // You may want to add avatar logic for group/individual
-          participants: chat.participants || [], // If not present, leave as empty array
-          lastMessage: chat.last_message || chat.lastMessage || undefined,
-          messages: [],
-          unreadCount: chat.unread_count || 0
-        }));
+        chats = response.chats.map((chat: any) => {
+          // Get the chat ID
+          const chatId = chat.id || chat.Id;
+          logger.debug(`Processing chat ${chatId}`, chat);
+          
+          // Determine if this is a group chat
+          const isGroup = chat.is_group_chat || chat.IsGroupChat || chat.is_group || false;
+          
+          // Process participants list
+          let processedParticipants: Participant[] = [];
+          if (Array.isArray(chat.participants)) { 
+            processedParticipants = chat.participants.map((p: any) => ({
+              id: p.id || p.user_id || p.userId || '',
+              username: p.username || '',
+              displayName: p.display_name || p.displayName || p.username || 'User',
+              avatar: p.profile_picture_url || p.avatar || null,
+              isVerified: p.is_verified || false
+            }));
+          }
+          
+          // Try to determine chat name
+          let chatName: string;
+          let chatAvatar: string | null = null;
+          
+          // Get name directly if provided and valid
+          if (chat.name && chat.name !== 'Chat' && chat.name !== 'null null' && chat.name !== 'New Chat') {
+            chatName = chat.name;
+          }
+          // For individual chats, try to use the other participant's name
+          else if (!isGroup && processedParticipants.length > 0) {
+            // Find the other participant (not the current user)
+            const otherParticipant = processedParticipants.find(p => 
+              p.id !== authState.userId && 
+              p.id !== `${authState.userId}`
+            );
+            
+            if (otherParticipant) {
+              chatName = otherParticipant.displayName || otherParticipant.username || 'Chat Partner';
+              chatAvatar = otherParticipant.avatar;
+            } else {
+              // If we couldn't find another participant, use the first one
+              chatName = processedParticipants[0].displayName || 
+                        processedParticipants[0].username || 
+                        'Chat';
+              chatAvatar = processedParticipants[0].avatar;
+            }
+          }
+          // For group chats without a name
+          else if (isGroup) {
+            chatName = `Group (${processedParticipants.length} members)`;
+          } 
+          // Check creator info if available
+          else if (chat.created_by || chat.createdBy) {
+            const creatorId = chat.created_by || chat.createdBy;
+            // If current user is creator
+            if (creatorId === authState.userId) {
+              chatName = "My Chat";
+            } else {
+              chatName = "Chat";
+            }
+          }
+          // Default fallback
+          else {
+            chatName = "Chat";
+          }
+          
+          // Process last message 
+          let lastMessageData;
+          if (chat.last_message) {
+            if (typeof chat.last_message === 'string') {
+              lastMessageData = {
+                content: chat.last_message,
+                timestamp: Date.now() / 1000,
+                senderId: ''
+              };
+            } else {
+              lastMessageData = {
+                content: chat.last_message.content || '',
+                timestamp: chat.last_message.timestamp || Date.now() / 1000,
+                senderId: chat.last_message.sender_id || ''
+              };
+            }
+          } else if (chat.lastMessage) {
+            if (typeof chat.lastMessage === 'string') {
+              lastMessageData = {
+                content: chat.lastMessage,
+                timestamp: Date.now() / 1000,
+                senderId: ''
+              };
+            } else {
+              lastMessageData = {
+                content: chat.lastMessage.content || chat.lastMessage.Content || '',
+                timestamp: chat.lastMessage.timestamp || chat.lastMessage.Timestamp || Date.now() / 1000,
+                senderId: chat.lastMessage.sender_id || chat.lastMessage.SenderId || ''
+              };
+            }
+          } else {
+            // Create a default last message when none exists
+            lastMessageData = {
+              content: '',
+              timestamp: Date.now() / 1000,
+              senderId: ''
+            };
+          }
+          
+          // Create the chat object with properly formatted data
+          const formattedChat: Chat = {
+            id: chatId,
+            type: isGroup ? 'group' : 'individual',
+            name: chatName,
+            avatar: chatAvatar,
+            participants: processedParticipants,
+            lastMessage: lastMessageData,
+            messages: [],
+            unreadCount: chat.unread_count || 0
+          };
+          
+          logger.debug('Processed chat:', { 
+            id: formattedChat.id, 
+            name: formattedChat.name,
+            type: formattedChat.type,
+            participantsCount: formattedChat.participants.length,
+            lastMessage: formattedChat.lastMessage ? formattedChat.lastMessage.content : 'No last message'
+          });
+          
+          return formattedChat;
+        });
+        
         filteredChats = [...chats];
         logger.debug('Chats loaded', { count: chats.length });
       } else {
@@ -178,6 +312,39 @@
       const participant = chat.participants[0];
       return participant.display_name || participant.username || 'Chat';
     }
+    return 'Chat';
+  }
+
+  // Function to get the display name for a chat based on participants
+  function getChatDisplayName(chat: Chat): string {
+    // If chat has a name that's not the default placeholder, use it
+    if (chat.name && chat.name !== 'Chat' && chat.name !== 'null null') {
+      return chat.name;
+    }
+    
+    // If it's a group chat with no name or a default name
+    if (chat.type === 'group') {
+      return `Group (${chat.participants.length} members)`;
+    }
+    
+    // For individual chats, find the other participant (not the current user)
+    if (chat.participants && chat.participants.length > 0) {
+      // Find participant that isn't the current user
+      const otherParticipant = chat.participants.find(p => 
+        p.id !== authState.userId && 
+        p.id !== `${authState.userId}`
+      );
+      
+      if (otherParticipant) {
+        return otherParticipant.displayName || otherParticipant.username || 'Chat Partner';
+      }
+      
+      // If we couldn't find another participant, use the first participant
+      const participant = chat.participants[0];
+      return participant.displayName || participant.username || 'Chat';
+    }
+    
+    // Ultimate fallback
     return 'Chat';
   }
 
@@ -222,25 +389,69 @@
   // Select a chat and load messages
   async function selectChat(chat: Chat) {
     selectedChat = chat;
+    
+    // Save selected chat ID to localStorage
     try {
+      localStorage.setItem('selectedChatId', chat.id);
+    } catch (error) {
+      logger.warn('Failed to save selected chat to localStorage', error);
+    }
+    
+    try {
+      logger.debug(`Selecting chat ${chat.id} and loading messages`);
       const response = await listMessages(chat.id);
+      
       if (response && response.messages && Array.isArray(response.messages)) {
-        selectedChat.messages = response.messages.map((msg: any) => ({
-          id: msg.id || msg.Id,
-          senderId: msg.sender_id || msg.SenderId,
-          senderName: msg.sender_name || '',
-          senderAvatar: msg.sender_avatar || '',
-          content: msg.content || msg.Content,
-          timestamp: msg.timestamp || msg.Timestamp,
-          isDeleted: msg.is_deleted || msg.IsDeleted || false,
-          attachments: msg.attachments || [],
-          isOwn: (msg.sender_id || msg.SenderId) === authState.userId
-        }));
+        logger.debug(`Received ${response.messages.length} messages for chat ${chat.id}`);
+        
+        // Transform the messages to the expected format
+        selectedChat.messages = response.messages.map((msg: any) => {
+          // Handle inconsistent field names
+          const id = msg.id || msg.message_id || msg.Id;
+          const senderId = msg.sender_id || msg.user_id || msg.SenderId;
+          const content = msg.content || msg.Content || '';
+          let timestamp = msg.timestamp || msg.Timestamp || Date.now() / 1000;
+          const isDeleted = msg.is_deleted || msg.IsDeleted || false;
+          
+          // Ensure timestamp is a number
+          if (typeof timestamp === 'string') {
+            timestamp = parseInt(timestamp);
+          }
+          
+          logger.debug(`Processing message ${id} from sender ${senderId}`, { 
+            messageType: typeof msg,
+            timestamp: timestamp 
+          });
+          
+          return {
+            id: id,
+            senderId: senderId,
+            senderName: msg.sender_name || displayName,
+            senderAvatar: msg.sender_avatar || avatar,
+            content: content,
+            timestamp: timestamp.toString(),
+            isDeleted: isDeleted,
+            attachments: msg.attachments || [],
+            isOwn: senderId === authState.userId
+          };
+        });
+        
+        // Sort messages by timestamp (oldest first)
+        selectedChat.messages.sort((a, b) => {
+          const timestampA = parseInt(a.timestamp);
+          const timestampB = parseInt(b.timestamp);
+          return timestampA - timestampB;
+        });
+        
+        logger.debug(`Processed ${selectedChat.messages.length} messages for display`);
       } else {
+        logger.warn(`No messages or invalid response format for chat ${chat.id}`);
         selectedChat.messages = [];
       }
+      
+      // Reset unread count
       selectedChat.unreadCount = 0;
-      logger.debug('Chat selected and messages loaded', { chatId: chat.id, messageCount: selectedChat.messages.length });
+      
     } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error('Error loading messages:', errorResponse);
@@ -252,40 +463,95 @@
   async function sendMessage() {
     if (!selectedChat || (!newMessage.trim() && selectedAttachments.length === 0)) return;
     try {
+      // First, add a temporary message to the UI for immediate feedback
+      const tempId = `temp-${Date.now()}`;
+      const tempMessage: Message = {
+        id: tempId,
+        senderId: authState.userId as string,
+        senderName: displayName,
+        senderAvatar: avatar,
+        content: newMessage.trim(),
+        timestamp: (Date.now() / 1000).toString(), // Unix timestamp as string
+        isDeleted: false,
+        attachments: selectedAttachments,
+        isOwn: true
+      };
+      
+      // Add to UI immediately
+      selectedChat.messages = [...selectedChat.messages, tempMessage];
+      
+      // Prepare data to send to API
       const messageData = {
         content: newMessage.trim(),
+        message_id: tempId, // Send the temp ID so the server can link the response
         attachments: selectedAttachments.map(attachment => ({
           type: attachment.type,
           url: attachment.url
         }))
       };
+      
+      logger.debug(`Sending message to chat ${selectedChat.id}`, { tempId });
+      
+      // Clear the input fields immediately for better UX
+      const sentContent = newMessage; // Keep a copy for error cases
+      newMessage = '';
+      const sentAttachments = [...selectedAttachments];
+      selectedAttachments = [];
+      
+      // Call the API
       const response = await apiSendMessage(selectedChat.id, messageData);
+      
+      logger.debug(`Message send response received`, { response });
+      
       if (response && response.message) {
-        const newMsg: Message = {
-          id: response.message.id || response.message.Id,
-          senderId: response.message.sender_id || response.message.SenderId,
-          senderName: response.message.sender_name || displayName,
-          senderAvatar: response.message.sender_avatar || avatar,
-          content: response.message.content || response.message.Content,
-          timestamp: response.message.timestamp || response.message.Timestamp,
-          isDeleted: false,
-          attachments: response.message.attachments || [],
-          isOwn: true
-        };
-        selectedChat.messages = [...selectedChat.messages, newMsg];
-        selectedChat.lastMessage = {
-          content: newMsg.content || 'Sent an attachment',
-          timestamp: newMsg.timestamp,
-          senderId: newMsg.senderId
-        };
-        newMessage = '';
-        selectedAttachments = [];
-        logger.debug('Message sent', { messageId: newMsg.id });
+        // Extract server-assigned message ID and data
+        const serverMsgId = response.message.id || response.message.message_id;
+        
+        if (serverMsgId) {
+          logger.debug(`Message saved with server ID: ${serverMsgId}`);
+          
+          // Update the temporary message with server data
+          selectedChat.messages = selectedChat.messages.map(m => {
+            if (m.id === tempId) {
+              // Update with server data
+              return {
+                ...m,
+                id: serverMsgId,
+                content: response.message.content || m.content,
+                timestamp: (response.message.timestamp || m.timestamp).toString()
+              };
+            }
+            return m;
+          });
+          
+          // Update the last message in the chat list
+          selectedChat.lastMessage = {
+            content: response.message.content || sentContent || 'Sent an attachment',
+            timestamp: response.message.timestamp?.toString() || (Date.now() / 1000).toString(),
+            senderId: response.message.sender_id || authState.userId as string
+          };
+        }
       }
+      
+      // Force scroll to bottom to show new message
+      setTimeout(() => {
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      }, 100);
+      
     } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error('Failed to send message:', errorResponse);
       toastStore.showToast('Failed to send message. Please try again.', 'error');
+      
+      // Remove the temporary message on error
+      if (selectedChat) {
+        selectedChat.messages = selectedChat.messages.filter(m => 
+          !m.id.startsWith('temp-') || m.id === `temp-${Date.now()}`
+        );
+      }
     }
   }
 
@@ -441,14 +707,19 @@
                 avatar: user.avatar,
                 isVerified: user.isVerified
               },
-              // Current user is also a participant, but we don't need to add it here
-              // as the backend should already include it
+              // Add current user as participant for display name calculation
+              {
+                id: authState.userId as string,
+                username: username,
+                displayName: displayName,
+                avatar: avatar,
+                isVerified: false
+              }
             ],
             messages: [],
             unreadCount: 0
           };
           
-          // Add the new chat to the list and select it
           logger.debug('Adding new chat to list', { newChatId: newChat.id });
           chats = [newChat, ...chats];
           filteredChats = [newChat, ...filteredChats];
@@ -528,6 +799,119 @@
   $: if (searchQuery !== undefined) {
     searchChats();
   }
+
+  // Define our own formatTimeAgo function to ensure timestamps display correctly
+  function formatTimeAgo(timestamp: string | number): string {
+    if (!timestamp) return '';
+    
+    let date: Date;
+    
+    // Convert the timestamp to a Date object based on type
+    if (typeof timestamp === 'string') {
+      // Try parsing as ISO string first
+      date = new Date(timestamp);
+      
+      // If invalid date, try to parse as Unix timestamp in seconds
+      if (isNaN(date.getTime())) {
+        date = new Date(parseInt(timestamp) * 1000);
+      }
+    } else if (typeof timestamp === 'number') {
+      if (timestamp < 31536000000) {
+        date = new Date(timestamp * 1000);
+      } else {
+        date = new Date(timestamp);
+      }
+    } else {
+      return '';
+    }
+    
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'Just now';
+    }
+    
+    if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes}m`;
+    }
+    
+    if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours}h`;
+    }
+    
+    // Less than a week
+    if (diffInSeconds < 604800) {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days}d`;
+    }
+    
+    // Less than a month
+    if (diffInSeconds < 2592000) {
+      const weeks = Math.floor(diffInSeconds / 604800);
+      return `${weeks}w`;
+    }
+    
+    // Less than a year
+    if (diffInSeconds < 31536000) {
+      const months = Math.floor(diffInSeconds / 2592000);
+      return `${months}mo`;
+    }
+    
+    // More than a year
+    const years = Math.floor(diffInSeconds / 31536000);
+    return `${years}y`;
+  }
+
+  // Get a consistent color based on name
+  function getAvatarColor(name: string): string {
+    // Default colors
+    const colors = [
+      '#4F46E5', // indigo
+      '#0EA5E9', // sky
+      '#10B981', // emerald
+      '#F59E0B', // amber
+      '#EF4444', // red
+      '#8B5CF6', // violet
+      '#EC4899', // pink
+      '#06B6D4', // cyan
+    ];
+    
+    // Get a deterministic index based on the name
+    let hash = 0;
+    if (!name) name = 'Chat';
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Convert to positive number and get index
+    hash = Math.abs(hash);
+    const index = hash % colors.length;
+    
+    return colors[index];
+  }
+
+  // Get the first letter or two initials from a name
+  function getInitials(name: string): string {
+    if (!name) return '?';
+    
+    // If the name contains spaces, get first letters of first and last words
+    if (name.includes(' ')) {
+      const parts = name.split(' ').filter(Boolean);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+    }
+    
+    // Otherwise just return the first letter
+    return name[0].toUpperCase();
+  }
 </script>
 
 <div class="message-container {chatSelectedClass}">
@@ -567,11 +951,11 @@
                 {#each userSearchResults as user}
                   <li>
                     <button class="dropdown-item" on:click={() => startChatWithUser(user)}>
-                      <div class="avatar-container">
+                      <div class="avatar-container" style="background-color: {getAvatarColor(user.displayName || user.username)}">
                         {#if user.avatar}
                           <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
                         {:else}
-                          <span class="avatar-placeholder">👤</span>
+                          <span class="avatar-placeholder">{getInitials(user.displayName || user.username)}</span>
                         {/if}
                       </div>
                       <div class="user-info">
@@ -594,18 +978,22 @@
                 {#each filteredChats as chat}
                   <li>
                     <button class="dropdown-item" on:click={() => selectChat(chat)}>
-                      <div class="avatar-container">
+                      <div class="avatar-container" style="background-color: {getAvatarColor(getChatDisplayName(chat))}">
                         {#if chat.avatar}
                           <img src={chat.avatar} alt={chat.name} class="avatar-image" />
                         {:else}
-                          <span class="avatar-placeholder">👤</span>
+                          <span class="avatar-placeholder">{getInitials(getChatDisplayName(chat))}</span>
                         {/if}
                       </div>
                       <div class="user-info">
-                        <span class="user-name">{chat.name}</span>
-                        {#if chat.lastMessage}
-                          <span class="chat-preview">{chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}</span>
-                        {/if}
+                        <span class="user-name">{getChatDisplayName(chat)}</span>
+                        <div class="chat-preview">
+                          {#if chat.lastMessage && chat.lastMessage.content}
+                            {chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}
+                          {:else}
+                            No messages yet
+                          {/if}
+                        </div>
                       </div>
                     </button>
                   </li>
@@ -631,11 +1019,11 @@
               {#each userSearchResults as user}
                 <li>
                   <button class="user-result-item" on:click={() => startChatWithUser(user)}>
-                    <div class="avatar-container">
+                    <div class="avatar-container" style="background-color: {getAvatarColor(user.displayName || user.username)}">
                       {#if user.avatar}
                         <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
                       {:else}
-                        <span class="avatar-placeholder">👤</span>
+                        <span class="avatar-placeholder">{getInitials(user.displayName || user.username)}</span>
                       {/if}
                     </div>
                     <div class="user-info">
@@ -663,20 +1051,24 @@
                     class="chat-item {selectedChat?.id === chat.id ? 'active' : ''}"
                     on:click={() => selectChat(chat)}
                   >
-                    <div class="avatar-container">
+                    <div class="avatar-container" style="background-color: {getAvatarColor(getChatDisplayName(chat))}">
                       {#if chat.avatar}
                         <img src={chat.avatar} alt={chat.name} class="avatar-image" />
                       {:else}
-                        <span class="avatar-placeholder">👤</span>
+                        <span class="avatar-placeholder">{getInitials(getChatDisplayName(chat))}</span>
                       {/if}
                     </div>
                     <div class="chat-info">
                       <div class="chat-header">
-                        <span class="chat-name">{chat.name}</span>
+                        <span class="chat-name">{getChatDisplayName(chat)}</span>
                         <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
                       </div>
                       <div class="chat-preview">
-                        {chat.lastMessage ? chat.lastMessage.content : 'No messages yet'}
+                        {#if chat.lastMessage && chat.lastMessage.content}
+                          {chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}
+                        {:else}
+                          No messages yetasdasd
+                        {/if}
                       </div>
                     </div>
                     {#if chat.unreadCount > 0}
@@ -697,15 +1089,15 @@
     {#if selectedChat}
       <!-- Chat header -->
       <div class="chat-header">
-        <div class="chat-avatar">
+        <div class="chat-avatar" style="background-color: {getAvatarColor(getChatDisplayName(selectedChat))}">
           {#if selectedChat.avatar}
             <img src={selectedChat.avatar} alt={selectedChat.name} class="avatar-image" />
           {:else}
-            <span class="avatar-placeholder">👤</span>
+            <span class="avatar-placeholder">{getInitials(getChatDisplayName(selectedChat))}</span>
           {/if}
         </div>
         <div class="chat-title">
-          <h2>{selectedChat.name}</h2>
+          <h2>{getChatDisplayName(selectedChat)}</h2>
           <p class="group-info">{selectedChat.type === 'group' ? `${selectedChat.participants.length} members` : ''}</p>
         </div>
       </div>
@@ -788,9 +1180,17 @@
       </div>
     {:else}
       <div class="empty-chat">
-        <h2>Select a message</h2>
-        <p>Choose from your existing conversations, start a new one, or just keep swimming.</p>
-        <button class="new-message-button">New message</button>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="empty-chat-icon">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        <h2>Select a conversation</h2>
+        <p>Choose from your existing chats or start a new conversation to begin messaging.</p>
+        <button class="new-message-button" on:click={() => searchQuery = 'new'}>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          New message
+        </button>
       </div>
     {/if}
   </div>
@@ -1055,18 +1455,24 @@
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    background-color: #f9fafb;
+    background-color: var(--bg-light, #f9fafb);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
   }
 
   :global(.dark) .messages-container {
-    background-color: black;
+    background-color: var(--bg-dark, #121212);
   }
 
   .message-wrapper {
     display: flex;
+    animation: fade-in 0.3s ease;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .own-message {
@@ -1078,31 +1484,41 @@
   }
 
   .message-bubble {
-    max-width: 70%;
-    padding: 12px;
-    border-radius: 12px;
+    max-width: 75%;
+    padding: 10px 14px;
+    border-radius: 18px;
     position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
   }
 
   .own-message .message-bubble {
-    background-color: var(--own-message-bg);
+    background-color: var(--own-message-bg, #3b82f6);
     color: white;
-    border-top-right-radius: 4px;
+    border-bottom-right-radius: 6px;
   }
 
   .other-message .message-bubble {
-    background-color: var(--message-bg);
-    border-top-left-radius: 4px;
+    background-color: var(--message-bg, #f3f4f6);
+    color: var(--text-color, black);
+    border-bottom-left-radius: 6px;
+  }
+
+  :global(.dark) .other-message .message-bubble {
+    background-color: var(--message-bg-dark, #2d3748);
+    color: white;
   }
 
   .sender-name {
     font-weight: 600;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6c757d);
   }
 
   .deleted-message {
     font-style: italic;
-    color: #9ca3af;
+    color: var(--text-tertiary, #9ca3af);
+    font-size: 0.9rem;
   }
 
   .attachments {
@@ -1120,30 +1536,43 @@
   .message-meta {
     display: flex;
     align-items: center;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     margin-top: 4px;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.8);
+    justify-content: flex-end;
   }
 
   .other-message .message-meta {
-    color: gray;
+    color: var(--text-secondary, #6c757d);
   }
 
   .unsend-button {
-    margin-left: 8px;
+    margin-left: 6px;
     background: none;
     border: none;
     color: inherit;
     text-decoration: underline;
     cursor: pointer;
     padding: 0;
+    font-size: 0.7rem;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+
+  .unsend-button:hover {
+    opacity: 1;
   }
 
   .message-input-container {
     display: flex;
     align-items: center;
-    padding: 12px;
+    padding: 12px 16px;
     border-top: 1px solid var(--border-color);
+    background-color: var(--bg-light, white);
+  }
+
+  :global(.dark) .message-input-container {
+    background-color: var(--bg-dark, #121212);
   }
 
   .message-actions {
@@ -1154,7 +1583,7 @@
   .action-button {
     background: none;
     border: none;
-    color: gray;
+    color: var(--text-secondary, #6c757d);
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -1163,32 +1592,35 @@
     justify-content: center;
     cursor: pointer;
     margin-right: 4px;
+    transition: all 0.2s;
   }
 
   .action-button:hover {
-    background-color: var(--hover-bg);
-    color: #3b82f6;
-  }
-
-  .action-button svg {
-    width: 20px;
-    height: 20px;
+    background-color: var(--hover-bg, #f7fafc);
+    color: var(--own-message-bg, #3b82f6);
   }
 
   .message-input {
     flex: 1;
     padding: 10px 16px;
-    border-radius: 9999px;
-    border: 1px solid var(--border-color);
-    background-color: var(--input-bg);
-    color: var(--text-color);
+    border-radius: 24px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background-color: var(--input-bg, #f7fafc);
+    color: var(--text-color, black);
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+  }
+
+  .message-input:focus {
+    outline: none;
+    border-color: var(--own-message-bg, #3b82f6);
   }
 
   .send-button {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: #3b82f6;
+    background-color: var(--own-message-bg, #3b82f6);
     color: white;
     border: none;
     display: flex;
@@ -1196,15 +1628,22 @@
     justify-content: center;
     cursor: pointer;
     margin-left: 8px;
+    transition: background-color 0.2s, transform 0.1s;
   }
 
   .send-button:hover {
-    background-color: #2563eb;
+    background-color: var(--own-message-bg-hover, #2563eb);
+    transform: scale(1.05);
+  }
+
+  .send-button:active {
+    transform: scale(0.95);
   }
 
   .send-button[disabled] {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
 
   .send-button svg {
@@ -1220,193 +1659,60 @@
     height: 100%;
     text-align: center;
     padding: 0 16px;
+    color: var(--text-secondary, #6c757d);
+    background-color: var(--bg-light, #f9fafb);
+  }
+
+  :global(.dark) .empty-chat {
+    background-color: var(--bg-dark, #121212);
+    color: #e5e7eb;
   }
 
   .empty-chat h2 {
     font-size: 1.5rem;
     font-weight: bold;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+    color: var(--text-primary, #1f2937);
+  }
+
+  :global(.dark) .empty-chat h2 {
+    color: white;
   }
 
   .empty-chat p {
-    color: gray;
+    color: var(--text-secondary, #6c757d);
     margin-bottom: 24px;
     max-width: 400px;
+    line-height: 1.5;
   }
 
   .new-message-button {
-    background-color: #3b82f6;
+    background-color: var(--own-message-bg, #3b82f6);
     color: white;
-    font-weight: bold;
-    padding: 8px 24px;
+    font-weight: 600;
+    padding: 10px 24px;
     border-radius: 9999px;
     border: none;
     cursor: pointer;
+    transition: background-color 0.2s;
   }
 
   .new-message-button:hover {
-    background-color: #2563eb;
+    background-color: var(--own-message-bg-hover, #2563eb);
   }
 
-  /* Media Queries for Responsive Layout */
-  @media (max-width: 1280px) {
-    .message-container {
-      grid-template-columns: 288px 250px 1fr;
-    }
+  .empty-message {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary, #6c757d);
+    font-style: italic;
   }
 
-  @media (max-width: 1024px) {
-    .message-container {
-      grid-template-columns: 240px 200px 1fr;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .message-container {
-      grid-template-columns: 72px 1fr;
-    }
-    
-    .middle-section {
-      display: var(--middle-display, flex);
-    }
-    
-    .right-section {
-      display: var(--right-display, none);
-    }
-    
-    /* When a chat is selected, show right and hide middle */
-    .message-container.chat-selected {
-      --middle-display: none;
-      --right-display: flex;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .message-container {
-      grid-template-columns: 1fr;
-    }
-    
-    .left-sidebar {
-      display: none;
-    }
-  }
-
-  /* Search results styling */
-  .search-results-section {
-    margin-bottom: 16px;
-  }
-  
-  .search-section-title {
-    font-size: 14px;
-    color: #6c757d;
-    margin: 8px 0;
-    padding-left: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .user-results {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .user-result-item {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 10px;
-    border: none;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: background-color 0.2s;
-  }
-  
-  .user-result-item:hover {
-    background-color: #f0f2f5;
-  }
-  
-  .user-info {
-    margin-left: 10px;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .user-name {
-    font-weight: 500;
-  }
-  
-  .user-username {
-    font-size: 12px;
-    color: #6c757d;
-  }
-  
-  .dark-theme .user-result-item:hover {
-    background-color: #2d3748;
-  }
-  
-  .dark-theme .search-section-title {
-    color: #cbd5e0;
-  }
-  
-  .dark-theme .user-username {
-    color: #a0aec0;
-  }
-
-  /* Make sure the chat list takes remaining space */
-  .chat-list {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  /* Ensure these base styles exist */
-  .avatar-container {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    overflow: hidden;
-    background-color: #6b7280;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-right: 12px;
-  }
-  
-  .avatar-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .avatar-placeholder {
-    font-size: 1.25rem;
-  }
-  
-  .user-info {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  .search-dropdown-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .dropdown-item {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 8px;
-    border: none;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-    border-radius: 6px;
-    margin-bottom: 2px;
-    transition: background-color 0.15s ease;
+  .empty-chat-icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 20px;
+    color: var(--own-message-bg, #3b82f6);
+    opacity: 0.7;
   }
 </style>
