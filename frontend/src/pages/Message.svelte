@@ -8,7 +8,7 @@
   import { toastStore } from '../stores/toastStore';
   import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
   import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat } from '../api/chat';
-  import { getProfile, searchUsers } from '../api/user';
+  import { getProfile, searchUsers, getUserById } from '../api/user';
   import '../styles/magniview.css'
   
   const logger = createLoggerWithPrefix('Message');
@@ -58,7 +58,7 @@
     id: string;
     senderId: string;
     senderName: string;
-    senderAvatar: string | null;
+    senderAvatar: string;
     content: string;
     timestamp: string;
     isDeleted: boolean;
@@ -158,8 +158,77 @@
       const response = await listChats();
       logger.debug('Raw chat data from API:', { chats: response.chats });
       
+      // Debug: Log all users with chats and their last messages
+      console.log('===== CHAT DEBUG INFO =====');
+      console.log('All chats received from API:', response.chats);
+      
       // Backend returns { chats: [...] }
       if (response && response.chats && Array.isArray(response.chats)) {
+        console.log(`Found ${response.chats.length} chats`);
+        
+        // Track unique users across all chats
+        const allUsers = new Map();
+        
+        response.chats.forEach((chat, index) => {
+          const chatId = chat.id || chat.Id;
+          console.log(`\nChat #${index + 1} (ID: ${chatId}):`)
+          console.log(`- Is group: ${chat.is_group_chat || false}`);
+          console.log(`- Name: ${chat.name || 'Unnamed'}`);
+          
+          // Log participants
+          if (Array.isArray(chat.participants)) {
+            console.log(`- Participants (${chat.participants.length}):`);
+            chat.participants.forEach(p => {
+              const userId = p.id || p.user_id || '';
+              const username = p.username || '';
+              const displayName = p.display_name || p.displayName || '';
+              
+              console.log(`  * User: ${displayName || username || 'Unknown'} (ID: ${userId})`);
+              
+              // Add to all users map
+              if (userId && !allUsers.has(userId)) {
+                allUsers.set(userId, { 
+                  username: username, 
+                  displayName: displayName 
+                });
+              }
+            });
+          } else {
+            console.log('- No participants data available');
+          }
+          
+          // Log last message
+          if (chat.last_message) {
+            console.log('- Last message:');
+            if (typeof chat.last_message === 'string') {
+              console.log(`  * Content: ${chat.last_message}`);
+            } else {
+              console.log(`  * Content: ${chat.last_message.content || ''}`);
+              console.log(`  * Sender: ${chat.last_message.sender_id || ''}`);
+              console.log(`  * Timestamp: ${chat.last_message.timestamp || ''}`);
+            }
+          } else if (chat.lastMessage) {
+            console.log('- Last message:');
+            if (typeof chat.lastMessage === 'string') {
+              console.log(`  * Content: ${chat.lastMessage}`);
+            } else {
+              console.log(`  * Content: ${chat.lastMessage.content || chat.lastMessage.Content || ''}`);
+              console.log(`  * Sender: ${chat.lastMessage.sender_id || chat.lastMessage.SenderId || ''}`);
+              console.log(`  * Timestamp: ${chat.lastMessage.timestamp || chat.lastMessage.Timestamp || ''}`);
+            }
+          } else {
+            console.log('- No last message available');
+          }
+        });
+        
+        // Log summary of all users
+        console.log('\nAll Users Summary:');
+        console.log(`Total unique users: ${allUsers.size}`);
+        allUsers.forEach((userData, userId) => {
+          console.log(`- ${userData.displayName || userData.username || 'Unknown'} (ID: ${userId})`);
+        });
+        console.log('===== END DEBUG INFO =====');
+        
         chats = response.chats.map((chat: any) => {
           // Get the chat ID
           const chatId = chat.id || chat.Id;
@@ -273,8 +342,8 @@
             avatar: chatAvatar,
             participants: processedParticipants,
             lastMessage: lastMessageData,
-            messages: [],
-            unreadCount: chat.unread_count || 0
+          messages: [],
+          unreadCount: chat.unread_count || 0
           };
           
           logger.debug('Processed chat:', { 
@@ -401,11 +470,39 @@
       logger.debug(`Selecting chat ${chat.id} and loading messages`);
       const response = await listMessages(chat.id);
       
+      console.log(`===== MESSAGES DEBUG INFO (Chat: ${chat.id}) =====`);
+      console.log('Raw message response:', response);
+      
       if (response && response.messages && Array.isArray(response.messages)) {
-        logger.debug(`Received ${response.messages.length} messages for chat ${chat.id}`);
+        console.log(`Received ${response.messages.length} messages for chat ${chat.id}`);
         
-        // Transform the messages to the expected format
-        selectedChat.messages = response.messages.map((msg: any) => {
+        // Log detailed information about each message
+        response.messages.forEach((msg, index) => {
+          console.log(`\nMessage #${index + 1}:`);
+          console.log(`- ID: ${msg.id || msg.message_id || 'unknown'}`);
+          console.log(`- Sender ID: ${msg.sender_id || msg.user_id || 'unknown'}`);
+          console.log(`- Content: ${msg.content || 'empty'}`);
+          console.log(`- Timestamp: ${msg.timestamp || 'none'}`);
+          console.log(`- Is deleted: ${msg.is_deleted || false}`);
+          
+          // Log user data if available
+          if (msg.user) {
+            console.log(`- User data:`);
+            console.log(`  * ID: ${msg.user.id || 'unknown'}`);
+            console.log(`  * Username: ${msg.user.username || 'unknown'}`);
+            console.log(`  * Display name: ${msg.user.display_name || 'unknown'}`);
+          } else {
+            console.log(`- No user data available`);
+          }
+        });
+        
+        console.log('===== END MESSAGES DEBUG INFO =====');
+        
+        // Create a map of user data we've fetched to avoid duplicate API calls
+        const userDataCache = new Map();
+        
+        // Transform the messages
+        const messagesPromises = response.messages.map(async (msg: any) => {
           // Handle inconsistent field names
           const id = msg.id || msg.message_id || msg.Id;
           const senderId = msg.sender_id || msg.user_id || msg.SenderId;
@@ -418,23 +515,97 @@
             timestamp = parseInt(timestamp);
           }
           
-          logger.debug(`Processing message ${id} from sender ${senderId}`, { 
-            messageType: typeof msg,
-            timestamp: timestamp 
+          // Extract user data if available
+          let senderName = '';
+          let senderAvatar = '';
+          
+          // Check if user data is provided directly in the message
+          if (msg.user) {
+            // Log the user data for debugging
+            logger.debug(`Message ${id} has user data:`, {
+              user_id: msg.user.id,
+              username: msg.user.username || 'Not provided',
+              display_name: msg.user.display_name || 'Not provided',
+              profile_picture_url: msg.user.profile_picture_url || 'No profile picture'
+            });
+            
+            // Use display_name or username from the message's user data
+            senderName = msg.user.display_name || msg.user.username || `User ${senderId.substring(0, 4)}`;
+            senderAvatar = msg.user.profile_picture_url || msg.user.avatar || '';
+          } else {
+            // Try to find the user in the participants list
+            const senderParticipant = chat.participants.find(p => 
+              p.id === senderId || (p.id === `${senderId}`)
+            );
+            
+            if (senderParticipant) {
+              senderName = senderParticipant.displayName || senderParticipant.username || `User ${senderId.substring(0, 4)}`;
+              senderAvatar = senderParticipant.avatar || '';
+            } else {
+              // If user not in participants and not in message, fetch from API
+              // Check if we already fetched this user
+              if (!userDataCache.has(senderId)) {
+                logger.debug(`Fetching user data for sender ${senderId}`);
+                
+                try {
+                  // Fetch user data from API
+                  const userData = await getUserById(senderId);
+                  if (userData) {
+                    userDataCache.set(senderId, userData);
+                    logger.debug(`Retrieved user data for ${senderId}:`, userData);
+                  }
+                } catch (error) {
+                  logger.error(`Failed to fetch user data for ${senderId}:`, error);
+                }
+              }
+              
+              // Use the cached user data if available
+              const userData = userDataCache.get(senderId);
+              if (userData) {
+                senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
+                senderAvatar = userData.profile_picture_url || '';
+                
+                logger.debug(`Using API data for user ${senderId}:`, {
+                  name: senderName,
+                  avatar: senderAvatar
+                });
+              } else {
+                // Generate a name from the sender ID if no user data found
+                senderName = senderId === authState.userId ? displayName : `User ${senderId.substring(0, 4)}`;
+                senderAvatar = senderId === authState.userId ? (avatar || '') : '';
+                
+                logger.debug(`Using generated data for user ${senderId}`);
+              }
+            }
+          }
+          
+          // Use the sender's name if it's the current user
+          if (senderId === authState.userId) {
+            senderName = displayName; // Use the logged-in user's display name
+            senderAvatar = avatar || '';    // Use the logged-in user's avatar
+          }
+          
+          logger.debug(`Message ${id} processed:`, { 
+            sender: senderId,
+            senderName: senderName,
+            isCurrentUser: senderId === authState.userId
           });
           
           return {
             id: id,
             senderId: senderId,
-            senderName: msg.sender_name || displayName,
-            senderAvatar: msg.sender_avatar || avatar,
+            senderName: senderName,
+            senderAvatar: senderAvatar,
             content: content,
             timestamp: timestamp.toString(),
             isDeleted: isDeleted,
-            attachments: msg.attachments || [],
+          attachments: msg.attachments || [],
             isOwn: senderId === authState.userId
           };
         });
+        
+        // Wait for all user data fetching to complete
+        selectedChat.messages = await Promise.all(messagesPromises);
         
         // Sort messages by timestamp (oldest first)
         selectedChat.messages.sort((a, b) => {
@@ -525,7 +696,7 @@
           });
           
           // Update the last message in the chat list
-          selectedChat.lastMessage = {
+        selectedChat.lastMessage = {
             content: response.message.content || sentContent || 'Sent an attachment',
             timestamp: response.message.timestamp?.toString() || (Date.now() / 1000).toString(),
             senderId: response.message.sender_id || authState.userId as string
@@ -896,22 +1067,6 @@
     
     return colors[index];
   }
-
-  // Get the first letter or two initials from a name
-  function getInitials(name: string): string {
-    if (!name) return '?';
-    
-    // If the name contains spaces, get first letters of first and last words
-    if (name.includes(' ')) {
-      const parts = name.split(' ').filter(Boolean);
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-      }
-    }
-    
-    // Otherwise just return the first letter
-    return name[0].toUpperCase();
-  }
 </script>
 
 <div class="message-container {chatSelectedClass}">
@@ -955,7 +1110,7 @@
                         {#if user.avatar}
                           <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
                         {:else}
-                          <span class="avatar-placeholder">{getInitials(user.displayName || user.username)}</span>
+                          <span class="avatar-placeholder">👤</span>
                         {/if}
                       </div>
                       <div class="user-info">
@@ -982,7 +1137,7 @@
                         {#if chat.avatar}
                           <img src={chat.avatar} alt={chat.name} class="avatar-image" />
                         {:else}
-                          <span class="avatar-placeholder">{getInitials(getChatDisplayName(chat))}</span>
+                          <span class="avatar-placeholder">👥</span>
                         {/if}
                       </div>
                       <div class="user-info">
@@ -992,7 +1147,7 @@
                             {chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}
                           {:else}
                             No messages yet
-                          {/if}
+                        {/if}
                         </div>
                       </div>
                     </button>
@@ -1023,7 +1178,7 @@
                       {#if user.avatar}
                         <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
                       {:else}
-                        <span class="avatar-placeholder">{getInitials(user.displayName || user.username)}</span>
+                        <span class="avatar-placeholder">👤</span>
                       {/if}
                     </div>
                     <div class="user-info">
@@ -1055,7 +1210,7 @@
                       {#if chat.avatar}
                         <img src={chat.avatar} alt={chat.name} class="avatar-image" />
                       {:else}
-                        <span class="avatar-placeholder">{getInitials(getChatDisplayName(chat))}</span>
+                        <span class="avatar-placeholder">👥</span>
                       {/if}
                     </div>
                     <div class="chat-info">
@@ -1067,7 +1222,7 @@
                         {#if chat.lastMessage && chat.lastMessage.content}
                           {chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}
                         {:else}
-                          No messages yetasdasd
+                          No messages yet
                         {/if}
                       </div>
                     </div>
@@ -1093,7 +1248,7 @@
           {#if selectedChat.avatar}
             <img src={selectedChat.avatar} alt={selectedChat.name} class="avatar-image" />
           {:else}
-            <span class="avatar-placeholder">{getInitials(getChatDisplayName(selectedChat))}</span>
+            <span class="avatar-placeholder">👥</span>
           {/if}
         </div>
         <div class="chat-title">

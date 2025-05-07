@@ -460,4 +460,32 @@ export async function unpinReply(replyId: string) {
     console.error('Failed to unpin reply:', err);
     throw err;
   }
+}
+
+// Get user profile by user ID
+export async function getUserById(userId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      credentials: "include",
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch user profile for ID ${userId}: ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log(`Retrieved user data for ID ${userId}:`, data);
+    return data.user;
+  } catch (error) {
+    console.error(`Error fetching user profile for ID ${userId}:`, error);
+    return null;
+  }
 } 

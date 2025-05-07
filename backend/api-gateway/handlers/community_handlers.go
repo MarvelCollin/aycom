@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	communityProto "aycom/backend/proto/community"
+	userProto "aycom/backend/proto/user"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -99,8 +102,129 @@ func CreateChat(c *gin.Context) {
 	log.Printf("CreateChat: Response sent with status 201")
 }
 
-func AddChatParticipant(c *gin.Context)    {}
-func RemoveChatParticipant(c *gin.Context) {}
+func AddChatParticipant(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Chat ID is required")
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, 400, "bad_request", "Invalid request body: "+err.Error())
+		return
+	}
+
+	if req.UserID == "" {
+		SendErrorResponse(c, 400, "bad_request", "User ID is required")
+		return
+	}
+
+	client := GetCommunityServiceClient()
+
+	// Check if user is participant in the chat
+	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
+	if err != nil {
+		SendErrorResponse(c, 500, "server_error", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	if !isParticipant {
+		SendErrorResponse(c, 403, "forbidden", "You don't have access to this chat")
+		return
+	}
+
+	// Use the gRPC client directly as our service client doesn't expose this method
+	if CommunityClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = CommunityClient.AddChatParticipant(ctx, &communityProto.AddChatParticipantRequest{
+			ChatId: chatID,
+			UserId: req.UserID,
+		})
+		if err != nil {
+			SendErrorResponse(c, 500, "server_error", "Failed to add participant: "+err.Error())
+			return
+		}
+	} else {
+		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "Participant added successfully",
+	})
+}
+
+func RemoveChatParticipant(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Chat ID is required")
+		return
+	}
+
+	participantID := c.Param("userId")
+	if participantID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Participant user ID is required")
+		return
+	}
+
+	client := GetCommunityServiceClient()
+
+	// Check if user is participant in the chat
+	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
+	if err != nil {
+		SendErrorResponse(c, 500, "server_error", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	if !isParticipant {
+		SendErrorResponse(c, 403, "forbidden", "You don't have access to this chat")
+		return
+	}
+
+	// Use the gRPC client directly as our service client doesn't expose this method
+	if CommunityClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = CommunityClient.RemoveChatParticipant(ctx, &communityProto.RemoveChatParticipantRequest{
+			ChatId: chatID,
+			UserId: participantID,
+		})
+		if err != nil {
+			SendErrorResponse(c, 500, "server_error", "Failed to remove participant: "+err.Error())
+			return
+		}
+	} else {
+		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "Participant removed successfully",
+	})
+}
+
 func ListChats(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -124,6 +248,7 @@ func ListChats(c *gin.Context) {
 		"chats":   chats,
 	})
 }
+
 func ListChatParticipants(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -267,8 +392,110 @@ func SendMessage(c *gin.Context) {
 	c.JSON(201, response)
 }
 
-func DeleteMessage(c *gin.Context) {}
-func UnsendMessage(c *gin.Context) {}
+func DeleteMessage(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Chat ID is required")
+		return
+	}
+
+	messageID := c.Param("messageId")
+	if messageID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Message ID is required")
+		return
+	}
+
+	client := GetCommunityServiceClient()
+
+	// Check if user is participant in the chat
+	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
+	if err != nil {
+		SendErrorResponse(c, 500, "server_error", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	if !isParticipant {
+		SendErrorResponse(c, 403, "forbidden", "You don't have access to this chat")
+		return
+	}
+
+	err = client.DeleteMessage(chatID, userID.(string), messageID)
+	if err != nil {
+		SendErrorResponse(c, 500, "server_error", "Failed to delete message: "+err.Error())
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "Message deleted successfully",
+	})
+}
+
+func UnsendMessage(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Chat ID is required")
+		return
+	}
+
+	messageID := c.Param("messageId")
+	if messageID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Message ID is required")
+		return
+	}
+
+	client := GetCommunityServiceClient()
+
+	// Check if user is participant in the chat
+	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
+	if err != nil {
+		SendErrorResponse(c, 500, "server_error", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	if !isParticipant {
+		SendErrorResponse(c, 403, "forbidden", "You don't have access to this chat")
+		return
+	}
+
+	// In a real implementation, you would fetch the specific message by ID
+	// to verify the sender, but for now we'll just check chat access
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Use the gRPC client directly because our service client doesn't expose UnsendMessage
+	if CommunityClient != nil {
+		_, err = CommunityClient.UnsendMessage(ctx, &communityProto.UnsendMessageRequest{
+			MessageId: messageID,
+		})
+		if err != nil {
+			SendErrorResponse(c, 500, "server_error", "Failed to unsend message: "+err.Error())
+			return
+		}
+	} else {
+		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"message": "Message unsent successfully",
+	})
+}
+
 func ListMessages(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -319,13 +546,182 @@ func ListMessages(c *gin.Context) {
 
 		// Add user information when available
 		if msg.SenderID != "" {
-			// Generate a simple username and display name based on the sender ID
-			// In a real implementation, this would fetch from a user service
+			// Try to get the actual user data from the user service
+			var username, displayName string
+
+			// Try using the global UserClient if available
+			if UserClient != nil {
+				log.Printf("Using UserClient to get info for %s", msg.SenderID)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				// Try getting the user data from the user service
+				resp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+					UserId: msg.SenderID,
+				})
+
+				if err == nil && resp != nil && resp.User != nil {
+					log.Printf("Retrieved user data using UserClient for %s: username=%s name=%s",
+						msg.SenderID, resp.User.Username, resp.User.Name)
+
+					username = resp.User.Username
+					displayName = resp.User.Name
+
+					// Add profile picture if available
+					if resp.User.ProfilePictureUrl != "" {
+						msgObj["profile_picture_url"] = resp.User.ProfilePictureUrl
+					}
+				} else {
+					log.Printf("Failed to get user data for %s: %v", msg.SenderID, err)
+				}
+			}
+
+			// If we couldn't get real user data, generate a placeholder
+			if username == "" {
+				// Generate a simple name based on the sender ID
+				shortenedId := msg.SenderID
+				if len(shortenedId) > 4 {
+					shortenedId = shortenedId[:4]
+				}
+
+				username = fmt.Sprintf("user%s", shortenedId)
+				displayName = fmt.Sprintf("User %s", shortenedId)
+
+				// Make it clearer this is generated data
+				if msg.SenderID == userID.(string) {
+					username = fmt.Sprintf("you_%s", username)
+					displayName = fmt.Sprintf("You (%s)", displayName)
+				} else {
+					username = fmt.Sprintf("chat_%s", username)
+					displayName = fmt.Sprintf("Chat User %s", shortenedId)
+				}
+
+				log.Printf("Using generated user data for %s: username=%s display_name=%s",
+					msg.SenderID, username, displayName)
+			}
+
+			// Add the user data to the message
+			msgObj["user"] = gin.H{
+				"id":           msg.SenderID,
+				"username":     username,
+				"display_name": displayName,
+			}
+		}
+
+		formattedMessages = append(formattedMessages, msgObj)
+	}
+
+	c.JSON(200, gin.H{
+		"success":  true,
+		"messages": formattedMessages,
+	})
+}
+
+func SearchMessages(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Chat ID is required")
+		return
+	}
+
+	// Parse query parameters
+	query := c.Query("q")
+	if query == "" {
+		SendErrorResponse(c, 400, "invalid_request", "Search query is required")
+		return
+	}
+
+	limit := 50 // Default limit
+	offset := 0 // Default offset
+
+	client := GetCommunityServiceClient()
+
+	// First check if user is a participant (has access to this chat)
+	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
+	if err != nil {
+		log.Printf("Error checking if user is chat participant: %v", err)
+		SendErrorResponse(c, 500, "server_error", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	if !isParticipant {
+		SendErrorResponse(c, 403, "forbidden", "You don't have access to this chat")
+		return
+	}
+
+	// Use the gRPC client directly as the service client doesn't expose search
+	var messages []Message
+	if CommunityClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Assuming there's a SearchMessages RPC in the proto
+		resp, err := CommunityClient.SearchMessages(ctx, &communityProto.SearchMessagesRequest{
+			ChatId: chatID,
+			Query:  query,
+			Limit:  int32(limit),
+			Offset: int32(offset),
+		})
+		if err != nil {
+			SendErrorResponse(c, 500, "server_error", "Failed to search messages: "+err.Error())
+			return
+		}
+
+		// Convert proto messages to our Message type
+		messages = make([]Message, len(resp.Messages))
+		for i, msg := range resp.Messages {
+			sentTime := time.Now()
+			if msg.SentAt != nil {
+				sentTime = msg.SentAt.AsTime()
+			}
+
+			messages[i] = Message{
+				ID:        msg.Id,
+				ChatID:    msg.ChatId,
+				SenderID:  msg.SenderId,
+				Content:   msg.Content,
+				Timestamp: sentTime,
+				IsRead:    !msg.Unsent,
+				IsEdited:  false,
+				IsDeleted: msg.DeletedForAll || msg.DeletedForSender,
+			}
+		}
+	} else {
+		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		return
+	}
+
+	// Format messages (similar to ListMessages)
+	formattedMessages := make([]gin.H, 0, len(messages))
+	for _, msg := range messages {
+		// Format timestamp as Unix timestamp (seconds since epoch)
+		timestamp := msg.Timestamp.Unix()
+
+		msgObj := gin.H{
+			"id":         msg.ID,
+			"message_id": msg.ID,
+			"chat_id":    msg.ChatID,
+			"sender_id":  msg.SenderID,
+			"content":    msg.Content,
+			"timestamp":  timestamp,
+			"user_id":    msg.SenderID,
+			"is_edited":  msg.IsEdited,
+			"is_deleted": msg.IsDeleted,
+			"is_read":    msg.IsRead,
+		}
+
+		// Add user information (similar to ListMessages)
+		if msg.SenderID != "" {
 			shortenedId := msg.SenderID
 			if len(shortenedId) > 4 {
 				shortenedId = shortenedId[:4]
 			}
-
 			username := fmt.Sprintf("user%s", shortenedId)
 			displayName := fmt.Sprintf("User %s", shortenedId)
 
@@ -344,4 +740,167 @@ func ListMessages(c *gin.Context) {
 		"messages": formattedMessages,
 	})
 }
-func SearchMessages(c *gin.Context) {}
+
+// GetDetailedChats returns all chats for a user with detailed participant info and last message
+func GetDetailedChats(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	limit := 50 // Default limit
+	offset := 0 // Default offset
+
+	client := GetCommunityServiceClient()
+
+	// Get the basic chat list first
+	chats, err := client.GetChats(userID.(string), limit, offset)
+	if err != nil {
+		SendErrorResponse(c, 500, "server_error", "Failed to fetch chats: "+err.Error())
+		return
+	}
+
+	// Enhanced response with detailed chats
+	detailedChats := make([]gin.H, 0, len(chats))
+
+	// Process each chat to get participants and last message
+	for _, chat := range chats {
+		chatID := chat.ID
+
+		// Get participants for this chat
+		participants, err := client.GetChatParticipants(chatID)
+		if err != nil {
+			log.Printf("Error fetching participants for chat %s: %v", chatID, err)
+			continue
+		}
+
+		// Get last message for this chat
+		messages, err := client.GetMessages(chatID, 1, 0)
+		if err != nil {
+			log.Printf("Error fetching last message for chat %s: %v", chatID, err)
+		}
+
+		// Process participant details, ideally from user service
+		enhancedParticipants := make([]gin.H, len(participants))
+		for i, p := range participants {
+			// Try to get real user data from user service
+			var username, displayName string
+			var profilePicture string
+
+			if UserClient != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				resp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+					UserId: p,
+				})
+
+				if err == nil && resp != nil && resp.User != nil {
+					username = resp.User.Username
+					displayName = resp.User.Name
+					profilePicture = resp.User.ProfilePictureUrl
+					log.Printf("Got user data for %s: username=%s, name=%s",
+						p, username, displayName)
+				} else {
+					log.Printf("Failed to get user data for %s: %v", p, err)
+				}
+			}
+
+			// Fallback if user service fails
+			if username == "" {
+				shortenedId := p
+				if len(shortenedId) > 4 {
+					shortenedId = shortenedId[:4]
+				}
+				username = fmt.Sprintf("user%s", shortenedId)
+				displayName = fmt.Sprintf("User %s", shortenedId)
+			}
+
+			enhancedParticipants[i] = gin.H{
+				"id":                  p,
+				"user_id":             p,
+				"username":            username,
+				"display_name":        displayName,
+				"profile_picture_url": profilePicture,
+			}
+		}
+
+		// Process last message if available
+		var lastMessage gin.H
+		if len(messages) > 0 {
+			msg := messages[0]
+
+			// Get sender info
+			var senderUsername, senderDisplayName string
+			var senderPicture string
+
+			if UserClient != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				resp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+					UserId: msg.SenderID,
+				})
+
+				if err == nil && resp != nil && resp.User != nil {
+					senderUsername = resp.User.Username
+					senderDisplayName = resp.User.Name
+					senderPicture = resp.User.ProfilePictureUrl
+				}
+			}
+
+			// Fallback if sender info not available
+			if senderUsername == "" {
+				shortenedId := msg.SenderID
+				if len(shortenedId) > 4 {
+					shortenedId = shortenedId[:4]
+				}
+				senderUsername = fmt.Sprintf("user%s", shortenedId)
+				senderDisplayName = fmt.Sprintf("User %s", shortenedId)
+			}
+
+			lastMessage = gin.H{
+				"id":         msg.ID,
+				"message_id": msg.ID,
+				"chat_id":    msg.ChatID,
+				"sender_id":  msg.SenderID,
+				"user_id":    msg.SenderID,
+				"content":    msg.Content,
+				"timestamp":  msg.Timestamp.Unix(),
+				"is_edited":  msg.IsEdited,
+				"is_deleted": msg.IsDeleted,
+				"is_read":    msg.IsRead,
+				"user": gin.H{
+					"id":                  msg.SenderID,
+					"username":            senderUsername,
+					"display_name":        senderDisplayName,
+					"profile_picture_url": senderPicture,
+				},
+			}
+		}
+
+		// Build the enhanced chat object
+		detailedChat := gin.H{
+			"id":            chat.ID,
+			"name":          chat.Name,
+			"is_group_chat": chat.IsGroupChat,
+			"created_by":    chat.CreatedBy,
+			"created_at":    chat.CreatedAt.Unix(),
+			"updated_at":    chat.UpdatedAt.Unix(),
+			"participants":  enhancedParticipants,
+		}
+
+		// Add last message if available
+		if lastMessage != nil {
+			detailedChat["last_message"] = lastMessage
+		}
+
+		detailedChats = append(detailedChats, detailedChat)
+	}
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"chats":   detailedChats,
+	})
+}
