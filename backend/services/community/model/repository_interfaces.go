@@ -28,10 +28,10 @@ type MessageDTO struct {
 
 // Participant represents a chat participant in the domain model
 type ParticipantDTO struct {
-	ID       string
 	ChatID   string
 	UserID   string
 	JoinedAt time.Time
+	IsAdmin  bool
 }
 
 // DeletedChat represents a chat deleted for a specific user
@@ -73,4 +73,4 @@ type ParticipantRepository interface {
 type DeletedChatRepository interface {
 	MarkChatAsDeleted(chatID, userID string) error
 	IsDeletedForUser(chatID, userID string) (bool, error)
-} 
+}

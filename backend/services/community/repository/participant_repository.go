@@ -12,8 +12,8 @@ import (
 type ParticipantModel struct {
 	ChatID   uuid.UUID `gorm:"type:uuid;primaryKey;column:chat_id"`
 	UserID   uuid.UUID `gorm:"type:uuid;primaryKey;column:user_id"`
-	IsAdmin  bool      `gorm:"default:false"`
-	JoinedAt time.Time `gorm:"autoCreateTime"`
+	IsAdmin  bool      `gorm:"default:false;not null;column:is_admin"`
+	JoinedAt time.Time `gorm:"default:now();not null;column:joined_at"`
 }
 
 // TableName sets the table name for the chat participant model
@@ -46,7 +46,7 @@ func (r *GormParticipantRepository) AddParticipant(participant *model.Participan
 	dbParticipant := &ParticipantModel{
 		ChatID:   chatUUID,
 		UserID:   userUUID,
-		IsAdmin:  false,
+		IsAdmin:  participant.IsAdmin,
 		JoinedAt: participant.JoinedAt,
 	}
 	return r.db.Create(dbParticipant).Error
@@ -86,10 +86,10 @@ func (r *GormParticipantRepository) ListParticipantsByChatID(chatID string, limi
 	participants := make([]*model.ParticipantDTO, len(dbParticipants))
 	for i, dbParticipant := range dbParticipants {
 		participants[i] = &model.ParticipantDTO{
-			ID:       uuid.New().String(), // Generate a UUID since DB doesn't have ID
 			ChatID:   dbParticipant.ChatID.String(),
 			UserID:   dbParticipant.UserID.String(),
 			JoinedAt: dbParticipant.JoinedAt,
+			IsAdmin:  dbParticipant.IsAdmin,
 		}
 	}
 
