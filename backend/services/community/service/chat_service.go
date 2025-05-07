@@ -9,6 +9,7 @@ import (
 	"aycom/backend/services/community/model"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 )
 
@@ -182,13 +183,12 @@ func fromModelParticipantDTO(p *model.ParticipantDTO) *Participant {
 }
 
 // CreateChat creates a new chat
-func (s *ChatService) CreateChat(name, description string, creatorID, communityID uuid.UUID, isGroupChat bool, participantIDs []uuid.UUID) (*Chat, error) {
+func (s *ChatService) CreateChat(name string, description string, creatorID string, isGroupChat bool, participantIDs []string) (*community.Chat, error) {
 	chat := &Chat{
 		ID:          uuid.New().String(),
 		Name:        name,
 		Description: description,
-		CreatorID:   creatorID.String(),
-		CommunityID: communityID.String(),
+		CreatorID:   creatorID,
 		IsGroupChat: isGroupChat,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -198,36 +198,50 @@ func (s *ChatService) CreateChat(name, description string, creatorID, communityI
 		return nil, err
 	}
 
-	// Add creator as participant
-	creatorParticipant := &Participant{
-		ID:       uuid.New().String(),
-		ChatID:   chat.ID,
-		UserID:   creatorID.String(),
-		JoinedAt: time.Now(),
-	}
-	if err := s.participantRepo.AddParticipant(toModelParticipantDTO(creatorParticipant)); err != nil {
-		log.Printf("Error adding creator as participant: %v", err)
-		// Don't return error, continue with adding other participants
-	}
-
-	// Add other participants
+	// Add all participants to chat
 	for _, participantID := range participantIDs {
-		if participantID == creatorID {
-			continue // Creator already added
-		}
 		participant := &Participant{
 			ID:       uuid.New().String(),
 			ChatID:   chat.ID,
-			UserID:   participantID.String(),
+			UserID:   participantID,
 			JoinedAt: time.Now(),
 		}
 		if err := s.participantRepo.AddParticipant(toModelParticipantDTO(participant)); err != nil {
-			log.Printf("Error adding participant %s: %v", participantID, err)
-			// Don't return error, continue with adding other participants
+			log.Printf("Error adding participant %s to chat %s: %v", participantID, chat.ID, err)
+			// Continue adding other participants even if one fails
 		}
 	}
 
-	return chat, nil
+	// Add the creator as a participant if not already included
+	creatorAlreadyAdded := false
+	for _, participantID := range participantIDs {
+		if participantID == creatorID {
+			creatorAlreadyAdded = true
+			break
+		}
+	}
+
+	if !creatorAlreadyAdded {
+		participant := &Participant{
+			ID:       uuid.New().String(),
+			ChatID:   chat.ID,
+			UserID:   creatorID,
+			JoinedAt: time.Now(),
+		}
+		if err := s.participantRepo.AddParticipant(toModelParticipantDTO(participant)); err != nil {
+			log.Printf("Error adding creator %s to chat %s: %v", creatorID, chat.ID, err)
+		}
+	}
+
+	// Return proto Chat
+	return &community.Chat{
+		Id:        chat.ID,
+		Name:      chat.Name,
+		IsGroup:   chat.IsGroupChat,
+		CreatedBy: chat.CreatorID,
+		CreatedAt: timestamppb.New(chat.CreatedAt),
+		UpdatedAt: timestamppb.New(chat.UpdatedAt),
+	}, nil
 }
 
 // GetChat gets a chat by ID
@@ -252,14 +266,12 @@ func (s *ChatService) ListChats(userID string, limit, offset int) ([]*community.
 	chats := make([]*community.Chat, len(chatDTOs))
 	for i, dto := range chatDTOs {
 		chats[i] = &community.Chat{
-			Id:          dto.ID,
-			Name:        dto.Name,
-			Description: dto.Description,
-			CreatorId:   dto.CreatorID,
-			CommunityId: dto.CommunityID,
-			IsGroupChat: dto.IsGroupChat,
-			CreatedAt:   dto.CreatedAt.Unix(),
-			UpdatedAt:   dto.UpdatedAt.Unix(),
+			Id:        dto.ID,
+			Name:      dto.Name,
+			IsGroup:   dto.IsGroupChat,
+			CreatedBy: dto.CreatorID,
+			CreatedAt: timestamppb.New(dto.CreatedAt),
+			UpdatedAt: timestamppb.New(dto.UpdatedAt),
 		}
 	}
 
@@ -271,6 +283,9 @@ func (s *ChatService) AddParticipant(chatID, userID, addedBy string) error {
 	// Check if chat exists
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrChatNotFound
+		}
 		return err
 	}
 
@@ -280,7 +295,7 @@ func (s *ChatService) AddParticipant(chatID, userID, addedBy string) error {
 		return err
 	}
 	if !isInChat {
-		return errors.New("only chat participants can add new participants")
+		return ErrNotChatParticipant
 	}
 
 	// Check if user is already in the chat
@@ -307,6 +322,9 @@ func (s *ChatService) RemoveParticipant(chatID, userID, removedBy string) error 
 	// Check if chat exists
 	chatDTO, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrChatNotFound
+		}
 		return err
 	}
 
@@ -318,12 +336,12 @@ func (s *ChatService) RemoveParticipant(chatID, userID, removedBy string) error 
 		return err
 	}
 	if !isInChat {
-		return errors.New("only chat participants can remove participants")
+		return ErrNotChatParticipant
 	}
 
 	// Cannot remove creator unless it's a self-removal
 	if userID == chat.CreatorID && userID != removedBy {
-		return errors.New("cannot remove chat creator")
+		return ErrPermissionDenied
 	}
 
 	// Remove user from chat
@@ -331,15 +349,20 @@ func (s *ChatService) RemoveParticipant(chatID, userID, removedBy string) error 
 }
 
 // ListParticipants lists participants in a chat
-func (s *ChatService) ListParticipants(chatID string, limit, offset int) ([]*Participant, error) {
+func (s *ChatService) ListParticipants(chatID string, limit, offset int) ([]*community.ChatParticipant, error) {
 	participantDTOs, err := s.participantRepo.ListParticipantsByChatID(chatID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	participants := make([]*Participant, len(participantDTOs))
+	participants := make([]*community.ChatParticipant, len(participantDTOs))
 	for i, dto := range participantDTOs {
-		participants[i] = fromModelParticipantDTO(dto)
+		participants[i] = &community.ChatParticipant{
+			ChatId:   dto.ChatID,
+			UserId:   dto.UserID,
+			IsAdmin:  false, // Set default as false, would need additional logic to determine admin status
+			JoinedAt: timestamppb.New(dto.JoinedAt),
+		}
 	}
 	return participants, nil
 }
@@ -350,7 +373,7 @@ func (s *ChatService) SendMessage(chatID, userID, content string) (string, error
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", errors.New("chat not found")
+			return "", ErrChatNotFound
 		}
 		return "", err
 	}
@@ -361,7 +384,7 @@ func (s *ChatService) SendMessage(chatID, userID, content string) (string, error
 		return "", err
 	}
 	if !isInChat {
-		return "", errors.New("user is not a participant in this chat")
+		return "", ErrNotChatParticipant
 	}
 
 	// Create and save message
@@ -385,10 +408,13 @@ func (s *ChatService) SendMessage(chatID, userID, content string) (string, error
 }
 
 // GetMessages gets messages from a chat
-func (s *ChatService) GetMessages(chatID string, limit, offset int) ([]*Message, error) {
+func (s *ChatService) GetMessages(chatID string, limit, offset int) ([]*community.Message, error) {
 	// Check if chat exists
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChatNotFound
+		}
 		return nil, err
 	}
 
@@ -397,9 +423,18 @@ func (s *ChatService) GetMessages(chatID string, limit, offset int) ([]*Message,
 		return nil, err
 	}
 
-	messages := make([]*Message, len(messageDTOs))
+	messages := make([]*community.Message, len(messageDTOs))
 	for i, dto := range messageDTOs {
-		messages[i] = fromModelMessageDTO(dto)
+		messages[i] = &community.Message{
+			Id:               dto.ID,
+			ChatId:           dto.ChatID,
+			SenderId:         dto.SenderID,
+			Content:          dto.Content,
+			SentAt:           timestamppb.New(dto.Timestamp),
+			Unsent:           !dto.IsRead, // Using IsRead as proxy for unsent status
+			DeletedForAll:    dto.IsDeleted,
+			DeletedForSender: false, // Not tracking per-user deletion yet
+		}
 	}
 	return messages, nil
 }
@@ -409,6 +444,9 @@ func (s *ChatService) MarkMessageAsRead(chatID, messageID, userID string) error 
 	// Check if chat exists
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrChatNotFound
+		}
 		return err
 	}
 
@@ -418,7 +456,7 @@ func (s *ChatService) MarkMessageAsRead(chatID, messageID, userID string) error 
 		return err
 	}
 	if !isInChat {
-		return errors.New("user is not a participant in this chat")
+		return ErrNotChatParticipant
 	}
 
 	// Mark message as read
@@ -430,19 +468,27 @@ func (s *ChatService) DeleteMessage(chatID, messageID, userID string) error {
 	// Get the message
 	messageDTO, err := s.messageRepo.FindMessageByID(messageID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrMessageNotFound
+		}
 		return err
 	}
 
 	message := fromModelMessageDTO(messageDTO)
 
+	// If chatID is not provided, use the one from the message
+	if chatID == "" {
+		chatID = message.ChatID
+	}
+
 	// Check if message belongs to the chat
 	if message.ChatID != chatID {
-		return errors.New("message does not belong to the specified chat")
+		return ErrPermissionDenied
 	}
 
 	// Only sender can delete
 	if message.SenderID != userID {
-		return errors.New("only the sender can delete a message")
+		return ErrPermissionDenied
 	}
 
 	return s.messageRepo.DeleteMessage(messageID)
@@ -453,29 +499,40 @@ func (s *ChatService) UnsendMessage(chatID, messageID, userID string) error {
 	// Get the message
 	messageDTO, err := s.messageRepo.FindMessageByID(messageID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrMessageNotFound
+		}
 		return err
 	}
 
 	message := fromModelMessageDTO(messageDTO)
 
+	// If chatID is not provided, use the one from the message
+	if chatID == "" {
+		chatID = message.ChatID
+	}
+
 	// Check if message belongs to the chat
 	if message.ChatID != chatID {
-		return errors.New("message does not belong to the specified chat")
+		return ErrPermissionDenied
 	}
 
 	// Only sender can unsend
 	if message.SenderID != userID {
-		return errors.New("only the sender can unsend a message")
+		return ErrPermissionDenied
 	}
 
 	return s.messageRepo.UnsendMessage(messageID)
 }
 
 // SearchMessages searches for messages in a chat
-func (s *ChatService) SearchMessages(chatID, query string, limit, offset int) ([]*Message, error) {
+func (s *ChatService) SearchMessages(chatID, query string, limit, offset int) ([]*community.Message, error) {
 	// Check if chat exists
 	_, err := s.chatRepo.FindChatByID(chatID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrChatNotFound
+		}
 		return nil, err
 	}
 
@@ -484,9 +541,18 @@ func (s *ChatService) SearchMessages(chatID, query string, limit, offset int) ([
 		return nil, err
 	}
 
-	messages := make([]*Message, len(messageDTOs))
+	messages := make([]*community.Message, len(messageDTOs))
 	for i, dto := range messageDTOs {
-		messages[i] = fromModelMessageDTO(dto)
+		messages[i] = &community.Message{
+			Id:               dto.ID,
+			ChatId:           dto.ChatID,
+			SenderId:         dto.SenderID,
+			Content:          dto.Content,
+			SentAt:           timestamppb.New(dto.Timestamp),
+			Unsent:           !dto.IsRead, // Using IsRead as proxy for unsent status
+			DeletedForAll:    dto.IsDeleted,
+			DeletedForSender: false, // Not tracking per-user deletion yet
+		}
 	}
 	return messages, nil
 }

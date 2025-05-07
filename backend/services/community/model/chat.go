@@ -15,3 +15,8 @@ type Chat struct {
 	UpdatedAt time.Time  `gorm:"autoUpdateTime"`
 	DeletedAt *time.Time `gorm:"index"`
 }
+
+// TableName sets the table name for the chat model
+func (c *Chat) TableName() string {
+	return "chats"
+}

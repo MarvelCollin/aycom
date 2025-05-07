@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -85,15 +84,11 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 	case conn := <-p.connections:
 		return conn, nil
 	default:
-		ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
-		defer cancel()
-
 		opts := []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
 		}
 
-		conn, err := grpc.DialContext(ctx, p.serviceAddr, opts...)
+		conn, err := grpc.NewClient(p.serviceAddr, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -165,12 +160,8 @@ func InitGRPCServices() {
 		userServiceAddr := AppConfig.Services.UserService
 		log.Printf("Connecting to User service at %s", userServiceAddr)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-
-		userConn, err := grpc.DialContext(ctx, userServiceAddr,
+		userConn, err := grpc.NewClient(userServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
 		)
 
 		if err != nil {
@@ -191,12 +182,8 @@ func InitGRPCServices() {
 		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
 
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel2()
-
-		communityConn, err := grpc.DialContext(ctx2, communityServiceAddr,
+		communityConn, err := grpc.NewClient(communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
 		)
 
 		if err != nil {

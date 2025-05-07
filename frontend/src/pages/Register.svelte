@@ -75,8 +75,14 @@
   
   // Make the function async to use await
   async function submitRegistration(recaptchaToken: string | null) {
-    // Always use a dummy token and skip recaptcha validation
-    recaptchaToken = 'dummy-recaptcha-token';
+    // Validate recaptcha token if required in production
+    if (!recaptchaToken && !import.meta.env.DEV) {
+      const errorMessage = "reCAPTCHA verification failed. Please try again.";
+      formState.update(state => ({ ...state, error: errorMessage }));
+      if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
+      return;
+    }
+    
     let errorMessage = "";
     if (validateStep1()) {
       formState.update(state => ({ ...state, loading: true }));
@@ -91,7 +97,7 @@
         security_question: $formData.securityQuestion,
         security_answer: $formData.securityAnswer,
         subscribe_to_newsletter: $formData.subscribeToNewsletter,
-        recaptcha_token: recaptchaToken
+        recaptcha_token: recaptchaToken || (import.meta.env.DEV ? "dev-mode-token" : "")
       };
       try {
         // Use registerWithMedia if profile picture or banner is provided

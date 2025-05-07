@@ -52,8 +52,29 @@
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
 
-  function triggerSubmit() {
-    onSubmit('dummy-recaptcha-token');
+  // Check if we're in development mode
+  const isDevelopment = import.meta.env.DEV;
+
+  async function triggerSubmit() {
+    // In development mode, just submit with a development placeholder token
+    if (isDevelopment) {
+      onSubmit('dev-mode-token');
+      return;
+    }
+    
+    // In production, use the reCAPTCHA API if available
+    if (typeof window !== 'undefined' && window.grecaptcha) {
+      try {
+        const token = await window.grecaptcha.execute();
+        onSubmit(token);
+      } catch (error) {
+        console.error('reCAPTCHA error:', error);
+        onSubmit(null);
+      }
+    } else {
+      console.warn('reCAPTCHA not loaded');
+      onSubmit(null);
+    }
   }
 </script>
 

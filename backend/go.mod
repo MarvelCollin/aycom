@@ -9,3 +9,5 @@ replace (
 	aycom/backend/services/thread => ./services/thread
 	aycom/backend/services/user => ./services/user
 )
+
+require github.com/lib/pq v1.10.9 // indirect

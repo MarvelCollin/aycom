@@ -121,10 +121,8 @@ func InitThreadServiceClient(cfg *config.Config) {
 
 			if testErr != nil {
 				log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
-				// Return connection to pool or close it
 				threadConnPool.Put(conn)
 			} else {
-				// Create and set our client wrapper
 				threadServiceClient = &GRPCThreadServiceClient{
 					client: grpcClient,
 					conn:   conn,
@@ -139,13 +137,8 @@ func InitThreadServiceClient(cfg *config.Config) {
 	} else {
 		log.Println("Warning: Thread connection pool not initialized, trying direct connection")
 
-		// Try direct connection as fallback
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-
-		conn, err := grpc.DialContext(ctx, cfg.Services.ThreadService,
+		conn, err := grpc.NewClient(cfg.Services.ThreadService,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
 		)
 
 		if err == nil {

@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"aycom/backend/services/community/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
 )
 
 // GormChatRepository is the implementation of ChatRepository using GORM
@@ -64,8 +64,10 @@ func (r *GormChatRepository) ListChatsByUserID(userID string, limit, offset int)
 	}
 
 	// Join with chat_participants to get chats the user is in
-	err = r.db.Joins("JOIN chat_participants ON chats.chat_id = chat_participants.chat_id").
-		Where("chat_participants.user_id = ?", userUUID).
+	// Use table aliases and explicit join clause to prevent type casting issues
+	err = r.db.Table("chats c").
+		Joins("JOIN chat_participants cp ON c.chat_id = cp.chat_id").
+		Where("cp.user_id = ?", userUUID).
 		Limit(limit).
 		Offset(offset).
 		Find(&dbChats).Error

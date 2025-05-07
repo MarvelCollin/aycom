@@ -1,16 +1,16 @@
 package handlers
 
 import (
+	communityProto "aycom/backend/proto/community"
 	"context"
 	"fmt"
 	"log"
 	"time"
 
-	"aycom/backend/api-gateway/config"
-	communityProto "aycom/backend/proto/community"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"aycom/backend/api-gateway/config"
 )
 
 // CommunityServiceClient defines the methods used from the Community service
@@ -19,6 +19,10 @@ type CommunityServiceClient interface {
 	SendMessage(chatID, userID, content string) (string, error)
 	MarkMessageAsRead(chatID, userID, messageID string) error
 	GetMessages(chatID string, limit, offset int) ([]Message, error)
+	EditMessage(chatID, userID, messageID, newContent string) error
+	DeleteMessage(chatID, userID, messageID string) error
+	GetChats(userID string, limit, offset int) ([]Chat, error)
+	CreateChat(isGroup bool, name string, participantIDs []string, createdBy string) (*Chat, error)
 }
 
 // Message represents a chat message
@@ -33,6 +37,18 @@ type Message struct {
 	IsDeleted bool      `json:"is_deleted,omitempty"`
 }
 
+// Chat represents a chat room
+type Chat struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	IsGroupChat  bool      `json:"is_group_chat"`
+	CreatedBy    string    `json:"created_by"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Participants []string  `json:"participants,omitempty"`
+	LastMessage  *Message  `json:"last_message,omitempty"`
+}
+
 // Default implementation using gRPC client
 type communityCommunicationClient struct {
 	grpcClient communityProto.CommunityServiceClient
@@ -45,7 +61,6 @@ var communityServiceClient CommunityServiceClient
 func GetCommunityServiceClient() CommunityServiceClient {
 	if communityServiceClient == nil {
 		log.Println("Warning: Community service client not initialized, using fallback")
-		// Create and return a fallback client
 		return &communityCommunicationClient{}
 	}
 	return communityServiceClient
@@ -83,24 +98,65 @@ func InitCommunityServiceClient(cfg *config.Config) {
 
 // ValidateUser checks if a user ID is valid with the Community service
 func (c *communityCommunicationClient) ValidateUser(userID string) (bool, error) {
-	// This is a stub implementation; in a real app, we'd make a gRPC call to the Community service
-	log.Printf("Validating user %s with Community service", userID)
-	// For development purposes, consider all users valid
+	if c.grpcClient == nil {
+		return false, fmt.Errorf("community service client not initialized")
+	}
+
+	// Based on the proto definition, there is no direct ValidateUser RPC
+	// Instead, we can check if the user exists by trying to list their chats
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := c.grpcClient.ListChats(ctx, &communityProto.ListChatsRequest{
+		UserId: userID,
+	})
+
+	if err != nil {
+		log.Printf("Error validating user %s: %v", userID, err)
+		return false, err
+	}
+
+	// If we could list the user's chats, they exist
 	return true, nil
 }
 
 // SendMessage sends a message to a chat through the Community service
 func (c *communityCommunicationClient) SendMessage(chatID, userID, content string) (string, error) {
-	// This is a stub implementation; in a real app, we'd make a gRPC call to the Community service
-	log.Printf("Sending message from user %s to chat %s: %s", userID, chatID, content)
-	// Return a dummy message ID
-	return "msg_" + userID + "_" + chatID, nil
+	if c.grpcClient == nil {
+		return "", fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.grpcClient.SendMessage(ctx, &communityProto.SendMessageRequest{
+		ChatId:   chatID,
+		SenderId: userID,
+		Content:  content,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Message.Id, nil
 }
 
 // MarkMessageAsRead marks a message as read through the Community service
+// Note: The proto doesn't have a direct MarkMessageAsRead RPC, so we simulate it
 func (c *communityCommunicationClient) MarkMessageAsRead(chatID, userID, messageID string) error {
-	// This is a stub implementation; in a real app, we'd make a gRPC call to the Community service
-	log.Printf("Marking message %s as read by user %s in chat %s", messageID, userID, chatID)
+	if c.grpcClient == nil {
+		return fmt.Errorf("community service client not initialized")
+	}
+
+	// Since there's no direct MarkMessageAsRead RPC in the proto, we implement a workaround
+	// For now, we'll simply log that the message was marked as read
+	// In a production system, you might want to:
+	// 1. Add a MarkMessageAsRead RPC to the proto
+	// 2. Implement read receipts in a separate table
+	log.Printf("Marking message as read: chat %s, user %s, message %s", chatID, userID, messageID)
+
+	// For now, this is just a stub that simulates success
+	// In a real implementation, you would need to add this functionality to the proto
 	return nil
 }
 
@@ -137,4 +193,120 @@ func (c *communityCommunicationClient) GetMessages(chatID string, limit, offset 
 	}
 
 	return messages, nil
+}
+
+// EditMessage edits a message through the Community service
+func (c *communityCommunicationClient) EditMessage(chatID, userID, messageID, newContent string) error {
+	if c.grpcClient == nil {
+		return fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Since there's no EditMessage RPC, we need to implement editing as
+	// 1. Unsend the original message
+	_, err := c.grpcClient.UnsendMessage(ctx, &communityProto.UnsendMessageRequest{
+		MessageId: messageID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to unsend message: %w", err)
+	}
+
+	// 2. Send a new message with the updated content
+	_, err = c.grpcClient.SendMessage(ctx, &communityProto.SendMessageRequest{
+		ChatId:   chatID,
+		SenderId: userID,
+		Content:  newContent,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send edited message: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteMessage deletes a message through the Community service
+func (c *communityCommunicationClient) DeleteMessage(chatID, userID, messageID string) error {
+	if c.grpcClient == nil {
+		return fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// The actual DeleteMessageRequest only takes messageId according to the proto
+	_, err := c.grpcClient.DeleteMessage(ctx, &communityProto.DeleteMessageRequest{
+		MessageId: messageID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete message: %w", err)
+	}
+
+	return nil
+}
+
+// GetChats retrieves chats for a user
+func (c *communityCommunicationClient) GetChats(userID string, limit, offset int) ([]Chat, error) {
+	if c.grpcClient == nil {
+		return nil, fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.grpcClient.ListChats(ctx, &communityProto.ListChatsRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	chats := make([]Chat, len(resp.Chats))
+	for i, protoChat := range resp.Chats {
+		chats[i] = Chat{
+			ID:          protoChat.Id,
+			Name:        protoChat.Name,
+			IsGroupChat: protoChat.IsGroup,
+			CreatedBy:   protoChat.CreatedBy,
+			CreatedAt:   protoChat.CreatedAt.AsTime(),
+			UpdatedAt:   protoChat.UpdatedAt.AsTime(),
+			// We could add more fields here if needed
+		}
+	}
+
+	return chats, nil
+}
+
+// CreateChat creates a new chat
+func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, participantIDs []string, createdBy string) (*Chat, error) {
+	if c.grpcClient == nil {
+		return nil, fmt.Errorf("community service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.grpcClient.CreateChat(ctx, &communityProto.CreateChatRequest{
+		IsGroup:        isGroup,
+		Name:           name,
+		ParticipantIds: participantIDs,
+		CreatedBy:      createdBy,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the proto chat to our Chat type
+	chat := &Chat{
+		ID:          resp.Chat.Id,
+		Name:        resp.Chat.Name,
+		IsGroupChat: resp.Chat.IsGroup,
+		CreatedBy:   resp.Chat.CreatedBy,
+		CreatedAt:   resp.Chat.CreatedAt.AsTime(),
+		UpdatedAt:   resp.Chat.UpdatedAt.AsTime(),
+		// Add participants if needed from a separate RPC call to get participants
+	}
+
+	return chat, nil
 }

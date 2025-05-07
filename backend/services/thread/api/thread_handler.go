@@ -14,6 +14,7 @@ import (
 	"aycom/backend/services/thread/model"
 	"aycom/backend/services/thread/repository"
 	"aycom/backend/services/thread/service"
+
 )
 
 // ThreadHandler handles gRPC requests for the Thread service
@@ -533,9 +534,7 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 	return response, nil
 }
 
-// Helper function to convert a Reply model to a ReplyResponse proto
 func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model.Reply) (*thread.ReplyResponse, error) {
-	// Create the nested Reply structure
 	protoReply := &thread.Reply{
 		Id:        reply.ReplyID.String(),
 		ThreadId:  reply.ThreadID.String(),
@@ -545,17 +544,14 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 		UpdatedAt: timestamppb.New(reply.UpdatedAt),
 	}
 
-	// Set parent ID if exists
 	if reply.ParentReplyID != nil {
 		protoReply.ParentId = reply.ParentReplyID.String()
 	}
 
-	// Create the full response with the reply and its stats
 	response := &thread.ReplyResponse{
 		Reply: protoReply,
 	}
 
-	// Get reply stats if interaction repo is available
 	if h.interactionRepo != nil {
 		replyID := reply.ReplyID.String()
 

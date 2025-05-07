@@ -292,9 +292,28 @@ func processReadReceipt(message ChatMessage) ([]byte, error) {
 
 // processEditMessage handles message edits
 func processEditMessage(message ChatMessage) ([]byte, error) {
-	// The current implementation doesn't have a dedicated EditMessage method
-	// For now we'll just pretend it was successful
-	log.Printf("Edit message not fully implemented yet: %s", message.MessageID)
+	// Call the community service to update the message
+	client := GetCommunityServiceClient()
+	err := client.EditMessage(
+		message.ChatID,
+		message.UserID,
+		message.MessageID,
+		message.Content,
+	)
+
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return createErrorResponse("not_found", "Message not found"), err
+			case codes.PermissionDenied:
+				return createErrorResponse("permission_denied", "Not allowed to edit this message"), err
+			default:
+				return createErrorResponse("server_error", "Failed to edit message"), err
+			}
+		}
+		return createErrorResponse("server_error", "Failed to edit message"), err
+	}
 
 	message.IsEdited = true
 	responseMsg, err := json.Marshal(message)
@@ -306,9 +325,27 @@ func processEditMessage(message ChatMessage) ([]byte, error) {
 
 // processDeleteMessage handles message deletion
 func processDeleteMessage(message ChatMessage) ([]byte, error) {
-	// The current implementation doesn't have a dedicated DeleteMessage method
-	// For now we'll just pretend it was successful
-	log.Printf("Delete message not fully implemented yet: %s", message.MessageID)
+	// Call the community service to delete the message
+	client := GetCommunityServiceClient()
+	err := client.DeleteMessage(
+		message.ChatID,
+		message.UserID,
+		message.MessageID,
+	)
+
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return createErrorResponse("not_found", "Message not found"), err
+			case codes.PermissionDenied:
+				return createErrorResponse("permission_denied", "Not allowed to delete this message"), err
+			default:
+				return createErrorResponse("server_error", "Failed to delete message"), err
+			}
+		}
+		return createErrorResponse("server_error", "Failed to delete message"), err
+	}
 
 	message.IsDeleted = true
 	message.Content = "" // Remove the content from deleted messages

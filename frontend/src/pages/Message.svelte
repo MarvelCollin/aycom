@@ -7,8 +7,8 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { checkAuth, isWithinTime, formatTimeAgo, handleApiError } from '../utils/common';
-  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages } from '../api/chat';
-  import { getProfile } from '../api/user';
+  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat } from '../api/chat';
+  import { getProfile, searchUsers } from '../api/user';
   import '../styles/magniview.css'
   
   const logger = createLoggerWithPrefix('Message');
@@ -94,8 +94,12 @@
     username: string;
     displayName: string;
     avatar: string | null;
+    isVerified: boolean;
   }
   
+  // Add user search results state
+  let userSearchResults: Participant[] = [];
+
   // Fetch user profile data using the API directly
   async function fetchUserProfile() {
     isLoadingProfile = true;
@@ -290,13 +294,63 @@
   async function searchChats() {
     if (!searchQuery.trim()) {
       filteredChats = [...chats];
+      userSearchResults = [];
       return;
     }
 
+    const query = searchQuery.toLowerCase();
+
     // First, filter local chats by name
     let results = chats.filter(chat => 
-      chat.name.toLowerCase().includes(searchQuery.toLowerCase())
+      chat.name.toLowerCase().includes(query)
     );
+    
+    // Search for users via API
+    try {
+      const response = await searchUsers(searchQuery);
+      
+      if (response && response.users) {
+        // Transform API user results to match our participant format
+        userSearchResults = response.users.map(user => ({
+          id: user.id,
+          username: user.username,
+          displayName: user.name,
+          avatar: user.profile_picture_url,
+          bio: user.bio,
+          isVerified: user.is_verified,
+          isFollowing: user.is_following,
+        }));
+      } else {
+        userSearchResults = [];
+      }
+    } catch (error) {
+      logger.error('Error searching users:', error);
+      userSearchResults = [];
+      // Fallback to client-side searching if API fails
+      const uniqueUsers = new Map<string, Participant>();
+      
+      chats.forEach(chat => {
+        if (chat.participants && chat.participants.length > 0) {
+          chat.participants.forEach(participant => {
+            // Skip if it's the current user or already in the map
+            if (participant.id === authState.userId || uniqueUsers.has(participant.id)) {
+              return;
+            }
+            
+            // Check if user matches search query
+            const displayName = participant.displayName || participant.username || '';
+            const username = participant.username || '';
+            
+            if (displayName.toLowerCase().includes(query) || 
+                username.toLowerCase().includes(query)) {
+              uniqueUsers.set(participant.id, participant);
+            }
+          });
+        }
+      });
+      
+      userSearchResults = Array.from(uniqueUsers.values());
+    }
     
     // If we have a selected chat, also search messages
     if (selectedChat) {
@@ -315,37 +369,137 @@
     }
     
     filteredChats = results;
-    logger.debug('Chats searched', { query: searchQuery, resultCount: filteredChats.length });
+    logger.debug('Search completed', { 
+      query: searchQuery, 
+      chatResults: filteredChats.length,
+      userResults: userSearchResults.length
+    });
+  }
+
+  // Start a new chat with a user
+  async function startChatWithUser(user: Participant) {
+    // Add more logging
+    logger.debug('Starting chat with user', { userId: user.id, username: user.username });
+    
+    // Check if we already have a chat with this user
+    const existingChat = chats.find(chat => 
+      chat.type === 'individual' && 
+      chat.participants.some(p => p.id === user.id)
+    );
+    
+    if (existingChat) {
+      // If chat exists, select it
+      logger.debug('Found existing chat', { chatId: existingChat.id });
+      selectChat(existingChat);
+    } else {
+      // Create a new chat with this user via API
+      try {
+        const chatData = {
+          type: 'individual',
+          participants: [user.id]
+        };
+        
+        logger.debug('Creating new chat', { chatData });
+        const response = await createChat(chatData);
+        logger.debug('Create chat API response', { response });
+        
+        if (response && response.chat) {
+          // Format the received chat to match our chat structure
+          const newChat: Chat = {
+            id: response.chat.id,
+            name: user.displayName || user.username,
+            type: 'individual',
+            lastMessage: undefined, // Using undefined instead of null to satisfy TypeScript
+            avatar: user.avatar,
+            participants: [
+              {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                avatar: user.avatar,
+                isVerified: user.isVerified
+              },
+              // Current user is also a participant, but we don't need to add it here
+              // as the backend should already include it
+            ],
+            messages: [],
+            unreadCount: 0
+          };
+          
+          // Add the new chat to the list and select it
+          logger.debug('Adding new chat to list', { newChatId: newChat.id });
+          chats = [newChat, ...chats];
+          filteredChats = [newChat, ...filteredChats];
+          selectChat(newChat);
+          
+          toastStore.showToast(`Chat with ${user.displayName || user.username} created`, 'success');
+        } else {
+          logger.error('Invalid response format from create chat API', { response });
+          toastStore.showToast(`Failed to create chat: Invalid response`, 'error');
+        }
+      } catch (error) {
+        const errorDetail = handleApiError(error);
+        logger.error('Failed to create chat:', errorDetail);
+        toastStore.showToast(`Failed to create chat with ${user.displayName || user.username}`, 'error');
+      }
+      
+      // Clear search
+      clearSearch();
+    }
   }
 
   // Clear search
   function clearSearch() {
     searchQuery = '';
     filteredChats = [...chats];
+    userSearchResults = [];
     logger.debug('Search cleared');
   }
 
   // Handle file attachments
   function handleAttachment(type: 'image' | 'gif' | 'video') {
-    // For now, we'll keep this simplified without file picker integration
-    // In a real implementation, you would use a file input element
+    // Create a file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
     
-    const dummyUrl = type === 'image' 
-      ? 'https://via.placeholder.com/300' 
-      : type === 'gif' 
-        ? 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyg/giphy.gif'
-        : 'https://sample-videos.com/video123/mp4/240/big_buck_bunny_240p_1mb.mp4';
+    if (type === 'image') {
+      fileInput.accept = 'image/*';
+    } else if (type === 'gif') {
+      fileInput.accept = 'image/gif';
+    } else if (type === 'video') {
+      fileInput.accept = 'video/*';
+    }
+    
+    // Set up the change handler
+    fileInput.onchange = async (e) => {
+      const target = e.target as HTMLInputElement;
+      if (!target.files || target.files.length === 0) return;
+      
+      const file = target.files[0];
+      
+      try {
+        // In a real implementation, you would upload this file to your server/storage
+        // and get back a URL. For now, we'll use a local object URL.
+        const localUrl = URL.createObjectURL(file);
         
-    const attachment: Attachment = {
-      id: `temp-${Date.now()}`,
-      type,
-      url: dummyUrl,
+        const attachment: Attachment = {
+          id: `temp-${Date.now()}`,
+          type,
+          url: localUrl,
+        };
+        
+        selectedAttachments = [...selectedAttachments, attachment];
+        toastStore.showToast(`${type} attached`, 'success');
+        
+        logger.debug('Attachment added', { type, filename: file.name, size: file.size });
+      } catch (error) {
+        logger.error('Failed to process attachment', { error });
+        toastStore.showToast('Failed to attach file. Please try again.', 'error');
+      }
     };
     
-    selectedAttachments = [...selectedAttachments, attachment];
-    toastStore.showToast(`${type} attached`, 'success');
-    
-    logger.debug('Attachment added', { type, attachmentCount: selectedAttachments.length });
+    // Trigger the file dialog
+    fileInput.click();
   }
 
   // Filter chats when search query changes
@@ -376,41 +530,75 @@
     <div class="chat-list">
       {#if isLoadingChats}
         <div class="loading-message">Loading chats...</div>
-      {:else if filteredChats.length === 0}
+      {:else if userSearchResults.length === 0 && filteredChats.length === 0}
         <div class="empty-message">
-          {chats.length === 0 ? 'No conversations yet' : 'No messages found'}
+          {chats.length === 0 ? 'No conversations yet' : 'No results found'}
         </div>
       {:else}
-        <ul class="chat-items">
-          {#each filteredChats as chat}
-            <li>
-              <button
-                class="chat-item {selectedChat?.id === chat.id ? 'active' : ''}"
-                on:click={() => selectChat(chat)}
-              >
-                <div class="avatar-container">
-                  {#if chat.avatar}
-                    <img src={chat.avatar} alt={chat.name} class="avatar-image" />
-                  {:else}
-                    <span class="avatar-placeholder">👤</span>
-                  {/if}
-                </div>
-                <div class="chat-info">
-                  <div class="chat-header">
-                    <span class="chat-name">{chat.name}</span>
-                    <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
-                  </div>
-                  <div class="chat-preview">
-                    {chat.lastMessage ? chat.lastMessage.content : 'No messages yet'}
-                  </div>
-                </div>
-                {#if chat.unreadCount > 0}
-                  <span class="unread-badge">{chat.unreadCount}</span>
-                {/if}
-              </button>
-            </li>
-          {/each}
-        </ul>
+        {#if userSearchResults.length > 0}
+          <div class="search-results-section">
+            <h3 class="search-section-title">Users</h3>
+            <ul class="user-results">
+              {#each userSearchResults as user}
+                <li>
+                  <button class="user-result-item" on:click={() => startChatWithUser(user)}>
+                    <div class="avatar-container">
+                      {#if user.avatar}
+                        <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
+                      {:else}
+                        <span class="avatar-placeholder">👤</span>
+                      {/if}
+                    </div>
+                    <div class="user-info">
+                      <span class="user-name">{user.displayName || user.username}</span>
+                      {#if user.username && user.username !== user.displayName}
+                        <span class="user-username">@{user.username}</span>
+                      {/if}
+                    </div>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        
+        {#if filteredChats.length > 0}
+          <div class="search-results-section">
+            {#if userSearchResults.length > 0}
+              <h3 class="search-section-title">Chats</h3>
+            {/if}
+            <ul class="chat-items">
+              {#each filteredChats as chat}
+                <li>
+                  <button
+                    class="chat-item {selectedChat?.id === chat.id ? 'active' : ''}"
+                    on:click={() => selectChat(chat)}
+                  >
+                    <div class="avatar-container">
+                      {#if chat.avatar}
+                        <img src={chat.avatar} alt={chat.name} class="avatar-image" />
+                      {:else}
+                        <span class="avatar-placeholder">👤</span>
+                      {/if}
+                    </div>
+                    <div class="chat-info">
+                      <div class="chat-header">
+                        <span class="chat-name">{chat.name}</span>
+                        <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
+                      </div>
+                      <div class="chat-preview">
+                        {chat.lastMessage ? chat.lastMessage.content : 'No messages yet'}
+                      </div>
+                    </div>
+                    {#if chat.unreadCount > 0}
+                      <span class="unread-badge">{chat.unreadCount}</span>
+                    {/if}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
@@ -976,5 +1164,69 @@
     .left-sidebar {
       display: none;
     }
+  }
+
+  /* Search results styling */
+  .search-results-section {
+    margin-bottom: 16px;
+  }
+  
+  .search-section-title {
+    font-size: 14px;
+    color: #6c757d;
+    margin: 8px 0;
+    padding-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .user-results {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .user-result-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+  }
+  
+  .user-result-item:hover {
+    background-color: #f0f2f5;
+  }
+  
+  .user-info {
+    margin-left: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .user-name {
+    font-weight: 500;
+  }
+  
+  .user-username {
+    font-size: 12px;
+    color: #6c757d;
+  }
+  
+  .dark-theme .user-result-item:hover {
+    background-color: #2d3748;
+  }
+  
+  .dark-theme .search-section-title {
+    color: #cbd5e0;
+  }
+  
+  .dark-theme .user-username {
+    color: #a0aec0;
   }
 </style>

@@ -17,6 +17,7 @@ export function processWebSocketMessage(message: any): void {
 export async function createChat(data: Record<string, any>) {
   try {
     const token = getAuthToken();
+    logger.debug('Creating chat with data', { data, apiUrl: `${API_BASE_URL}/chats` });
     
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'POST',
@@ -28,11 +29,19 @@ export async function createChat(data: Record<string, any>) {
       credentials: 'include'
     });
     
+    logger.debug('Create chat response status', { 
+      status: response.status, 
+      statusText: response.statusText
+    });
+    
+    const responseData = await response.json();
+    logger.debug('Create chat response data', { responseData });
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to create chat');
+      throw new Error(responseData.message || `Failed to create chat: ${response.status} ${response.statusText}`);
     }
-    return response.json();
+    
+    return responseData;
   } catch (error) {
     logger.error('Create chat failed:', error);
     throw error;

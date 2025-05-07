@@ -23,7 +23,7 @@ type MessageDBModel struct {
 
 // TableName sets the table name for the message model
 func (MessageDBModel) TableName() string {
-	return "chat_messages"
+	return "messages"
 }
 
 // GormMessageRepository implements model.MessageRepository

@@ -103,7 +103,7 @@
     
     // Mark all messages as read when opening the chat
     $messages.forEach(message => {
-      if (!message.is_read && message.user_id !== userId) {
+      if (!message.is_read && message.user_id !== userId && message.message_id) {
         chatMessageStore.sendReadReceipt(chatId, message.message_id, userId);
       }
     });
