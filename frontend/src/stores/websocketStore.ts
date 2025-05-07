@@ -71,7 +71,14 @@ function createWebSocketStore() {
           wsProtocol = 'wss:';
         }
         
-        const wsUrl = `${wsProtocol}//${apiUrl.replace(/^https?:\/\//, '')}/chats/${chatId}/ws`;
+        // Get the domain part of the API URL without protocol
+        const domain = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
+        
+        // Get the API path without domain
+        const apiPath = apiUrl.replace(/^https?:\/\/[^/]+/, '');
+        
+        // Construct WebSocket URL with the complete path
+        const wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${chatId}/ws`;
         
         logger.info(`Connecting to WebSocket: ${wsUrl}`);
         

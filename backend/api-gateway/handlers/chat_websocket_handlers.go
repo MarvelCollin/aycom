@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -52,9 +53,44 @@ type ChatMessage struct {
 func HandleCommunityChat(c *gin.Context) {
 	// Validate user access to chat
 	userID, exists := c.Get("userId")
+
+	// If userId is not in context, try to get from query parameter
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Authentication required")
-		return
+		// Get token from query parameter
+		tokenQuery := c.Query("token")
+		if tokenQuery == "" {
+			SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Authentication required")
+			return
+		}
+
+		// Parse and validate JWT token
+		claims := jwt.MapClaims{}
+		jwtSecret := GetJWTSecret()
+
+		parsedToken, err := jwt.ParseWithClaims(tokenQuery, claims, func(token *jwt.Token) (interface{}, error) {
+			// Check signing method
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return jwtSecret, nil
+		})
+
+		if err != nil || !parsedToken.Valid {
+			log.Printf("Invalid token in WebSocket request: %v", err)
+			SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid authentication token")
+			return
+		}
+
+		// Extract user ID from token claims
+		userIdClaim, ok := claims["user_id"].(string)
+		if !ok {
+			log.Printf("Invalid user_id in token claim")
+			SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid token claims")
+			return
+		}
+
+		userID = userIdClaim
+		log.Printf("Using user ID from query token: %s", userID)
 	}
 
 	chatID := c.Param("id")
