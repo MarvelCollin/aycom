@@ -297,20 +297,36 @@ export async function uploadBanner(file: File) {
 export async function pinThread(threadId: string) {
   try {
     const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
     
-    const response = await fetch(`${API_BASE_URL}/users/profile/pin-thread/${threadId}`, {
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       }
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to pin thread: ${response.status}`);
+      // Try to get more details from the error response
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to pin thread: ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse the error, just use the status code
+        throw new Error(`Failed to pin thread: ${response.status}`);
+      }
     }
     
-    return await response.json();
+    // Return a consistent response format even if the server returns empty
+    try {
+      return await response.json();
+    } catch (e) {
+      // If the response can't be parsed as JSON, return a default success object
+      return { success: true, message: "Thread pinned successfully" };
+    }
   } catch (err) {
     console.error('Failed to pin thread:', err);
     throw err;
@@ -320,20 +336,36 @@ export async function pinThread(threadId: string) {
 export async function unpinThread(threadId: string) {
   try {
     const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
     
-    const response = await fetch(`${API_BASE_URL}/users/profile/unpin-thread/${threadId}`, {
-      method: 'POST',
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       }
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to unpin thread: ${response.status}`);
+      // Try to get more details from the error response
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to unpin thread: ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse the error, just use the status code
+        throw new Error(`Failed to unpin thread: ${response.status}`);
+      }
     }
     
-    return await response.json();
+    // Return a consistent response format even if the server returns empty
+    try {
+      return await response.json();
+    } catch (e) {
+      // If the response can't be parsed as JSON, return a default success object
+      return { success: true, message: "Thread unpinned successfully" };
+    }
   } catch (err) {
     console.error('Failed to unpin thread:', err);
     throw err;
@@ -343,20 +375,36 @@ export async function unpinThread(threadId: string) {
 export async function pinReply(replyId: string) {
   try {
     const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
     
-    const response = await fetch(`${API_BASE_URL}/users/profile/pin-reply/${replyId}`, {
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/pin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       }
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to pin reply: ${response.status}`);
+      // Try to get more details from the error response
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to pin reply: ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse the error, just use the status code
+        throw new Error(`Failed to pin reply: ${response.status}`);
+      }
     }
     
-    return await response.json();
+    // Return a consistent response format even if the server returns empty
+    try {
+      return await response.json();
+    } catch (e) {
+      // If the response can't be parsed as JSON, return a default success object
+      return { success: true, message: "Reply pinned successfully" };
+    }
   } catch (err) {
     console.error('Failed to pin reply:', err);
     throw err;
@@ -366,20 +414,36 @@ export async function pinReply(replyId: string) {
 export async function unpinReply(replyId: string) {
   try {
     const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
     
-    const response = await fetch(`${API_BASE_URL}/users/profile/unpin-reply/${replyId}`, {
-      method: 'POST',
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/pin`, {
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       }
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to unpin reply: ${response.status}`);
+      // Try to get more details from the error response
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to unpin reply: ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse the error, just use the status code
+        throw new Error(`Failed to unpin reply: ${response.status}`);
+      }
     }
     
-    return await response.json();
+    // Return a consistent response format even if the server returns empty
+    try {
+      return await response.json();
+    } catch (e) {
+      // If the response can't be parsed as JSON, return a default success object
+      return { success: true, message: "Reply unpinned successfully" };
+    }
   } catch (err) {
     console.error('Failed to unpin reply:', err);
     throw err;

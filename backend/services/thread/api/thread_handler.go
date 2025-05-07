@@ -373,6 +373,82 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.Get
 	}, nil
 }
 
+// PinThread implements the PinThread gRPC method
+func (h *ThreadHandler) PinThread(ctx context.Context, req *thread.PinThreadRequest) (*emptypb.Empty, error) {
+	if req.ThreadId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Call the thread service to pin the thread
+	err := h.threadService.PinThread(ctx, req.ThreadId, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// UnpinThread implements the UnpinThread gRPC method
+func (h *ThreadHandler) UnpinThread(ctx context.Context, req *thread.UnpinThreadRequest) (*emptypb.Empty, error) {
+	if req.ThreadId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Call the thread service to unpin the thread
+	err := h.threadService.UnpinThread(ctx, req.ThreadId, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// PinReply implements the PinReply gRPC method
+func (h *ThreadHandler) PinReply(ctx context.Context, req *thread.PinReplyRequest) (*emptypb.Empty, error) {
+	if req.ReplyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Call the thread service to pin the reply
+	err := h.threadService.PinReply(ctx, req.ReplyId, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// UnpinReply implements the UnpinReply gRPC method
+func (h *ThreadHandler) UnpinReply(ctx context.Context, req *thread.UnpinReplyRequest) (*emptypb.Empty, error) {
+	if req.ReplyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Call the thread service to unpin the reply
+	err := h.threadService.UnpinReply(ctx, req.ReplyId, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // Helper function to convert a Thread model to a ThreadResponse proto
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {
 	// Create the nested Thread structure

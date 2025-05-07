@@ -27,6 +27,7 @@ export interface ITweet {
   isLiked?: boolean;
   isReposted?: boolean;
   isBookmarked?: boolean;
+  is_pinned?: boolean;
   replyTo?: ITweet | null;
   isAdvertisement?: boolean;
   communityId?: string | null;

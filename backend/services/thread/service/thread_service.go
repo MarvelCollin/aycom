@@ -23,6 +23,12 @@ type ThreadService interface {
 	GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error)
 	UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*model.Thread, error)
 	DeleteThread(ctx context.Context, threadID, userID string) error
+
+	// Pinning operations
+	PinThread(ctx context.Context, threadID, userID string) error
+	UnpinThread(ctx context.Context, threadID, userID string) error
+	PinReply(ctx context.Context, replyID, userID string) error
+	UnpinReply(ctx context.Context, replyID, userID string) error
 }
 
 // threadService implements the ThreadService interface
@@ -329,4 +335,200 @@ type BookmarkReplyRequest struct {
 type RemoveReplyBookmarkRequest struct {
 	ReplyId string
 	UserId  string
+}
+
+// PinThread pins a thread to the user's profile
+func (s *threadService) PinThread(ctx context.Context, threadID, userID string) error {
+	// Validate required fields
+	if threadID == "" {
+		return status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
+
+	if userID == "" {
+		return status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Parse IDs
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
+	}
+
+	// Validate thread ID format
+	_, err = uuid.Parse(threadID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
+	}
+
+	// Get the thread from the repository
+	thread, err := s.threadRepo.FindThreadByID(threadID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Errorf(codes.NotFound, "Thread with ID %s not found", threadID)
+		}
+		return status.Errorf(codes.Internal, "Failed to get thread: %v", err)
+	}
+
+	// Check if the user is the owner of the thread
+	if thread.UserID != userUUID {
+		return status.Error(codes.PermissionDenied, "Only the owner of the thread can pin it")
+	}
+
+	// Set the thread as pinned
+	thread.IsPinned = true
+	thread.UpdatedAt = time.Now()
+
+	// Update the thread in the repository
+	if err := s.threadRepo.UpdateThread(thread); err != nil {
+		return status.Errorf(codes.Internal, "Failed to pin thread: %v", err)
+	}
+
+	return nil
+}
+
+// UnpinThread unpins a thread from the user's profile
+func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string) error {
+	// Validate required fields
+	if threadID == "" {
+		return status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
+
+	if userID == "" {
+		return status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Parse IDs
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
+	}
+
+	// Validate thread ID format
+	_, err = uuid.Parse(threadID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
+	}
+
+	// Get the thread from the repository
+	thread, err := s.threadRepo.FindThreadByID(threadID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Errorf(codes.NotFound, "Thread with ID %s not found", threadID)
+		}
+		return status.Errorf(codes.Internal, "Failed to get thread: %v", err)
+	}
+
+	// Check if the user is the owner of the thread
+	if thread.UserID != userUUID {
+		return status.Error(codes.PermissionDenied, "Only the owner of the thread can unpin it")
+	}
+
+	// Set the thread as unpinned
+	thread.IsPinned = false
+	thread.UpdatedAt = time.Now()
+
+	// Update the thread in the repository
+	if err := s.threadRepo.UpdateThread(thread); err != nil {
+		return status.Errorf(codes.Internal, "Failed to unpin thread: %v", err)
+	}
+
+	return nil
+}
+
+// PinReply pins a reply to the user's profile
+func (s *threadService) PinReply(ctx context.Context, replyID, userID string) error {
+	// Validate required fields
+	if replyID == "" {
+		return status.Error(codes.InvalidArgument, "Reply ID is required")
+	}
+
+	if userID == "" {
+		return status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Parse IDs
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
+	}
+
+	// Validate reply ID format
+	_, err = uuid.Parse(replyID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid reply ID: %v", err)
+	}
+
+	// Get the reply from the repository
+	reply, err := s.replyRepo.FindReplyByID(replyID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Errorf(codes.NotFound, "Reply with ID %s not found", replyID)
+		}
+		return status.Errorf(codes.Internal, "Failed to get reply: %v", err)
+	}
+
+	// Check if the user is the owner of the reply
+	if reply.UserID != userUUID {
+		return status.Error(codes.PermissionDenied, "Only the owner of the reply can pin it")
+	}
+
+	// Set the reply as pinned
+	reply.IsPinned = true
+	reply.UpdatedAt = time.Now()
+
+	// Update the reply in the repository
+	if err := s.replyRepo.UpdateReply(reply); err != nil {
+		return status.Errorf(codes.Internal, "Failed to pin reply: %v", err)
+	}
+
+	return nil
+}
+
+// UnpinReply unpins a reply from the user's profile
+func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) error {
+	// Validate required fields
+	if replyID == "" {
+		return status.Error(codes.InvalidArgument, "Reply ID is required")
+	}
+
+	if userID == "" {
+		return status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Parse IDs
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
+	}
+
+	// Validate reply ID format
+	_, err = uuid.Parse(replyID)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid reply ID: %v", err)
+	}
+
+	// Get the reply from the repository
+	reply, err := s.replyRepo.FindReplyByID(replyID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return status.Errorf(codes.NotFound, "Reply with ID %s not found", replyID)
+		}
+		return status.Errorf(codes.Internal, "Failed to get reply: %v", err)
+	}
+
+	// Check if the user is the owner of the reply
+	if reply.UserID != userUUID {
+		return status.Error(codes.PermissionDenied, "Only the owner of the reply can unpin it")
+	}
+
+	// Set the reply as unpinned
+	reply.IsPinned = false
+	reply.UpdatedAt = time.Now()
+
+	// Update the reply in the repository
+	if err := s.replyRepo.UpdateReply(reply); err != nil {
+		return status.Errorf(codes.Internal, "Failed to unpin reply: %v", err)
+	}
+
+	return nil
 }

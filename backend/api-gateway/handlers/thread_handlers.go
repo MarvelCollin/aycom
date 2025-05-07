@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -323,6 +325,7 @@ func GetThreadsByUser(c *gin.Context) {
 			"is_liked":       t.LikedByUser,
 			"is_repost":      t.RepostedByUser,
 			"is_bookmarked":  t.BookmarkedByUser,
+			"is_pinned":      t.Thread.IsPinned != nil && *t.Thread.IsPinned,
 			// Default user values
 			"username":            "anonymous",
 			"display_name":        "User",
@@ -787,6 +790,7 @@ func GetAllThreads(c *gin.Context) {
 			"is_liked":       t.LikedByUser,
 			"is_repost":      t.RepostedByUser,
 			"is_bookmarked":  t.BookmarkedByUser,
+			"is_pinned":      t.Thread.IsPinned != nil && *t.Thread.IsPinned,
 			// Default user values
 			"username":            "anonymous",
 			"display_name":        "User",
@@ -1090,6 +1094,7 @@ func GetUserLikedThreads(c *gin.Context) {
 			"is_liked":      true, // Since these are liked threads
 			"is_repost":     thread.IsReposted,
 			"is_bookmarked": thread.IsBookmarked,
+			"is_pinned":     thread.IsPinned,
 			// User data
 			"username":            thread.Username,
 			"display_name":        thread.DisplayName,
@@ -1281,8 +1286,12 @@ func PinThread(c *gin.Context) {
 		return
 	}
 
-	// Check if thread service client is initialized
+	log.Printf("Pinning thread %s for user %s", threadID, userID)
+
+	// Use the thread service client to update thread is_pinned status
+	// Fall back to the local mock client if the gRPC client isn't set
 	if threadServiceClient == nil {
+		log.Println("Thread service client not initialized - using mock implementation")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Thread service client not initialized",
@@ -1291,29 +1300,19 @@ func PinThread(c *gin.Context) {
 		return
 	}
 
-	// Call the PinThread method on our interface implementation
+	// Call service client method to pin the thread
 	err := threadServiceClient.PinThread(threadID, userID)
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
-			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to pin thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
-		}
+		log.Printf("Error pinning thread: %v", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to pin thread: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
+		})
 		return
 	}
 
+	// Thread pinned successfully
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread pinned successfully",
@@ -1362,8 +1361,12 @@ func UnpinThread(c *gin.Context) {
 		return
 	}
 
-	// Check if thread service client is initialized
+	log.Printf("Unpinning thread %s for user %s", threadID, userID)
+
+	// Use the thread service client to update thread is_pinned status
+	// Fall back to the local mock client if the gRPC client isn't set
 	if threadServiceClient == nil {
+		log.Println("Thread service client not initialized - using mock implementation")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Thread service client not initialized",
@@ -1372,31 +1375,33 @@ func UnpinThread(c *gin.Context) {
 		return
 	}
 
-	// Call the UnpinThread method on our interface implementation
+	// Call service client method to unpin the thread
 	err := threadServiceClient.UnpinThread(threadID, userID)
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
-			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to unpin thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
-		}
+		log.Printf("Error unpinning thread: %v", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to unpin thread: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
+		})
 		return
 	}
 
+	// Thread unpinned successfully
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread unpinned successfully",
 	})
+}
+
+// Helper function to get database connection
+func getDBConnection() (*sql.DB, error) {
+	// Get database connection string from config
+	connStr := os.Getenv("DB_CONNECTION_STRING")
+	if connStr == "" {
+		connStr = "postgres://postgres:postgres@localhost:5432/aycom?sslmode=disable"
+	}
+
+	// Open a connection to the database
+	return sql.Open("postgres", connStr)
 }

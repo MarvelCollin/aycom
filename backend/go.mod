@@ -9,5 +9,3 @@ replace (
 	aycom/backend/services/thread => ./services/thread
 	aycom/backend/services/user => ./services/user
 )
-
-require github.com/supabase-community/storage-go v0.7.0 // indirect

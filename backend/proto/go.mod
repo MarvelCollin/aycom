@@ -1,6 +1,8 @@
 module aycom/backend/proto
 
-go 1.20
+go 1.23
+
+toolchain go1.24.2
 
 require (
 	google.golang.org/grpc v1.72.0

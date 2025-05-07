@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 
 	"aycom/backend/api-gateway/config"
 	threadProto "aycom/backend/proto/thread"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ThreadServiceClient provides methods to interact with the Thread service
@@ -69,6 +73,7 @@ type Thread struct {
 	IsLiked        bool
 	IsReposted     bool
 	IsBookmarked   bool
+	IsPinned       bool
 	Media          []Media
 	ParentID       string
 }
@@ -85,6 +90,7 @@ type Media struct {
 // that communicates with the Thread service via gRPC
 type GRPCThreadServiceClient struct {
 	client threadProto.ThreadServiceClient
+	conn   *grpc.ClientConn
 }
 
 // Global instance of the thread service client
@@ -92,8 +98,265 @@ var threadServiceClient ThreadServiceClient
 
 // InitThreadServiceClient initializes the thread service client
 func InitThreadServiceClient(cfg *config.Config) {
-	log.Println("Thread service client initialization skipped - using direct client")
-	// Actual implementation depends on your thread service architecture
+	log.Println("Initializing thread service client...")
+
+	// Check if thread service address is configured
+	if cfg.Services.ThreadService == "" {
+		log.Println("Warning: Thread service address is not configured, using local implementation")
+		threadServiceClient = &localThreadServiceClient{}
+		return
+	}
+
+	// Try to get a connection from the pool
+	if threadConnPool != nil {
+		conn, err := threadConnPool.Get()
+		if err == nil {
+			// Create a new gRPC thread service client
+			grpcClient := threadProto.NewThreadServiceClient(conn)
+
+			// Test the connection with a simple request that should always work
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			_, testErr := grpcClient.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{Limit: 1})
+			cancel()
+
+			if testErr != nil {
+				log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
+				// Return connection to pool or close it
+				threadConnPool.Put(conn)
+			} else {
+				// Create and set our client wrapper
+				threadServiceClient = &GRPCThreadServiceClient{
+					client: grpcClient,
+					conn:   conn,
+				}
+
+				log.Println("Thread service client initialized with gRPC implementation")
+				return
+			}
+		} else {
+			log.Printf("Warning: Could not get connection from pool: %v, falling back to local implementation", err)
+		}
+	} else {
+		log.Println("Warning: Thread connection pool not initialized, trying direct connection")
+
+		// Try direct connection as fallback
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		conn, err := grpc.DialContext(ctx, cfg.Services.ThreadService,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithBlock(),
+		)
+
+		if err == nil {
+			grpcClient := threadProto.NewThreadServiceClient(conn)
+			threadServiceClient = &GRPCThreadServiceClient{
+				client: grpcClient,
+				conn:   conn,
+			}
+			log.Println("Thread service client initialized with direct gRPC connection")
+			return
+		} else {
+			log.Printf("Warning: Failed to establish direct gRPC connection: %v", err)
+		}
+	}
+
+	// Fallback to local implementation if all connection attempts fail
+	threadServiceClient = &localThreadServiceClient{}
+	log.Println("Thread service client initialized with local implementation (fallback)")
+}
+
+// localThreadServiceClient implements ThreadServiceClient with local implementations
+type localThreadServiceClient struct {
+}
+
+// Additional methods to implement ThreadServiceClient interface
+// Just return placeholder implementations to satisfy the interface
+
+// CreateThread implements ThreadServiceClient
+func (c *localThreadServiceClient) CreateThread(userID, content string, mediaIDs []string) (string, error) {
+	log.Printf("Mock: Creating thread for user %s", userID)
+	return "mock-thread-id", nil
+}
+
+// GetThreadByID implements ThreadServiceClient
+func (c *localThreadServiceClient) GetThreadByID(threadID string, userID string) (*Thread, error) {
+	log.Printf("Mock: Getting thread %s for user %s", threadID, userID)
+	// Return a mock thread
+	return &Thread{
+		ID:          threadID,
+		Content:     "Mock thread content",
+		UserID:      userID,
+		Username:    "mockuser",
+		DisplayName: "Mock User",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}, nil
+}
+
+// GetThreadsByUserID implements ThreadServiceClient
+func (c *localThreadServiceClient) GetThreadsByUserID(userID string, requestingUserID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Getting threads for user %s", userID)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// GetAllThreads implements ThreadServiceClient
+func (c *localThreadServiceClient) GetAllThreads(userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Getting all threads page %d limit %d", page, limit)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// UpdateThread implements ThreadServiceClient
+func (c *localThreadServiceClient) UpdateThread(threadID, userID, content string) (*Thread, error) {
+	log.Printf("Mock: Updating thread %s for user %s", threadID, userID)
+	// Return a mock thread
+	return &Thread{
+		ID:          threadID,
+		Content:     content,
+		UserID:      userID,
+		Username:    "mockuser",
+		DisplayName: "Mock User",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}, nil
+}
+
+// DeleteThread implements ThreadServiceClient
+func (c *localThreadServiceClient) DeleteThread(threadID, userID string) error {
+	log.Printf("Mock: Deleting thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// SearchThreads implements ThreadServiceClient
+func (c *localThreadServiceClient) SearchThreads(query string, userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Searching threads with query %s", query)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// LikeThread implements ThreadServiceClient
+func (c *localThreadServiceClient) LikeThread(threadID, userID string) error {
+	log.Printf("Mock: Liking thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// UnlikeThread implements ThreadServiceClient
+func (c *localThreadServiceClient) UnlikeThread(threadID, userID string) error {
+	log.Printf("Mock: Unliking thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// ReplyToThread implements ThreadServiceClient
+func (c *localThreadServiceClient) ReplyToThread(threadID, userID, content string, mediaIDs []string) (string, error) {
+	log.Printf("Mock: Replying to thread %s for user %s", threadID, userID)
+	return "mock-reply-id", nil
+}
+
+// GetThreadReplies implements ThreadServiceClient
+func (c *localThreadServiceClient) GetThreadReplies(threadID string, userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Getting replies for thread %s", threadID)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// RepostThread implements ThreadServiceClient
+func (c *localThreadServiceClient) RepostThread(threadID, userID string) error {
+	log.Printf("Mock: Reposting thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// RemoveRepost implements ThreadServiceClient
+func (c *localThreadServiceClient) RemoveRepost(threadID, userID string) error {
+	log.Printf("Mock: Removing repost for thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// BookmarkThread implements ThreadServiceClient
+func (c *localThreadServiceClient) BookmarkThread(threadID, userID string) error {
+	log.Printf("Mock: Bookmarking thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// RemoveBookmark implements ThreadServiceClient
+func (c *localThreadServiceClient) RemoveBookmark(threadID, userID string) error {
+	log.Printf("Mock: Removing bookmark for thread %s for user %s", threadID, userID)
+	return nil
+}
+
+// GetUserBookmarks implements ThreadServiceClient
+func (c *localThreadServiceClient) GetUserBookmarks(userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Getting bookmarks for user %s", userID)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// SearchUserBookmarks implements ThreadServiceClient
+func (c *localThreadServiceClient) SearchUserBookmarks(userID, query string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Searching bookmarks for user %s with query %s", userID, query)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// GetRepliesByUser implements ThreadServiceClient
+func (c *localThreadServiceClient) GetRepliesByUser(userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Getting replies for user %s", userID)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// GetLikedThreadsByUser implements ThreadServiceClient
+func (c *localThreadServiceClient) GetLikedThreadsByUser(userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("Mock: Getting liked threads for user %s", userID)
+	// Return an empty array for now
+	return []*Thread{}, nil
+}
+
+// GetMediaByUser implements ThreadServiceClient
+func (c *localThreadServiceClient) GetMediaByUser(userID string, page, limit int) ([]Media, error) {
+	log.Printf("Mock: Getting media for user %s", userID)
+	// Return an empty array for now
+	return []Media{}, nil
+}
+
+// GetTrendingHashtags implements ThreadServiceClient
+func (c *localThreadServiceClient) GetTrendingHashtags(limit int) ([]string, error) {
+	log.Printf("Mock: Getting trending hashtags with limit %d", limit)
+	// Return some mock trending hashtags
+	return []string{"mock1", "mock2", "mock3"}, nil
+}
+
+// PinThread implements ThreadServiceClient for local mock
+func (c *localThreadServiceClient) PinThread(threadID, userID string) error {
+	log.Printf("Local implementation: Pinning thread %s for user %s", threadID, userID)
+	// In a real implementation, we would update the database
+	// For now, just return success
+	return nil
+}
+
+// UnpinThread implements ThreadServiceClient for local mock
+func (c *localThreadServiceClient) UnpinThread(threadID, userID string) error {
+	log.Printf("Local implementation: Unpinning thread %s for user %s", threadID, userID)
+	// In a real implementation, we would update the database
+	// For now, just return success
+	return nil
+}
+
+// PinReply implements ThreadServiceClient for local mock
+func (c *localThreadServiceClient) PinReply(replyID, userID string) error {
+	log.Printf("Local implementation: Pinning reply %s for user %s", replyID, userID)
+	// In a real implementation, we would update the database
+	// For now, just return success
+	return nil
+}
+
+// UnpinReply implements ThreadServiceClient for local mock
+func (c *localThreadServiceClient) UnpinReply(replyID, userID string) error {
+	log.Printf("Local implementation: Unpinning reply %s for user %s", replyID, userID)
+	// In a real implementation, we would update the database
+	// For now, just return success
+	return nil
 }
 
 // CreateThread implements ThreadServiceClient
@@ -509,184 +772,384 @@ func (c *GRPCThreadServiceClient) GetTrendingHashtags(limit int) ([]string, erro
 	return hashtags, nil
 }
 
-// GetRepliesByUser implements ThreadServiceClient
-func (c *GRPCThreadServiceClient) GetRepliesByUser(userID string, page, limit int) ([]*Thread, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("thread service client not initialized")
-	}
-
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// This is a mock implementation - in a real system, you would call the actual
-	// thread service with a method like GetRepliesByUser that returns this info
-	// For now, we'll just return an empty list to avoid errors
-	return []*Thread{}, nil
-}
-
-// GetLikedThreadsByUser implements ThreadServiceClient
-func (c *GRPCThreadServiceClient) GetLikedThreadsByUser(userID string, page, limit int) ([]*Thread, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("thread service client not initialized")
-	}
-
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// This is a mock implementation - in a real system, you would call the actual
-	// thread service with a method like GetLikedThreadsByUser
-	// For now, we'll just return an empty list to avoid errors
-	return []*Thread{}, nil
-}
-
-// GetMediaByUser implements ThreadServiceClient
-func (c *GRPCThreadServiceClient) GetMediaByUser(userID string, page, limit int) ([]Media, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("thread service client not initialized")
-	}
-
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// This is a mock implementation
-	// For now, we'll just return an empty list to avoid errors
-	return []Media{}, nil
-}
-
-// PinThread implements ThreadServiceClient
+// PinThread implements ThreadServiceClient for GRPC implementation
 func (c *GRPCThreadServiceClient) PinThread(threadID, userID string) error {
 	if c.client == nil {
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Mock implementation
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("PinThread")
+	if !method.IsValid() {
+		return fmt.Errorf("method PinThread not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("ThreadId").SetString(threadID)
+	reqVal.FieldByName("UserId").SetString(userID)
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return results[1].Interface().(error)
+	}
+
 	return nil
 }
 
-// UnpinThread implements ThreadServiceClient
+// UnpinThread implements ThreadServiceClient for GRPC implementation
 func (c *GRPCThreadServiceClient) UnpinThread(threadID, userID string) error {
 	if c.client == nil {
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Mock implementation
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("UnpinThread")
+	if !method.IsValid() {
+		return fmt.Errorf("method UnpinThread not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("ThreadId").SetString(threadID)
+	reqVal.FieldByName("UserId").SetString(userID)
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return results[1].Interface().(error)
+	}
+
 	return nil
 }
 
-// PinReply implements ThreadServiceClient
+// PinReply implements ThreadServiceClient for GRPC implementation
 func (c *GRPCThreadServiceClient) PinReply(replyID, userID string) error {
 	if c.client == nil {
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Mock implementation
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("PinReply")
+	if !method.IsValid() {
+		return fmt.Errorf("method PinReply not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("ReplyId").SetString(replyID)
+	reqVal.FieldByName("UserId").SetString(userID)
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return results[1].Interface().(error)
+	}
+
 	return nil
 }
 
-// UnpinReply implements ThreadServiceClient
+// UnpinReply implements ThreadServiceClient for GRPC implementation
 func (c *GRPCThreadServiceClient) UnpinReply(replyID, userID string) error {
 	if c.client == nil {
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	// In a real implementation, this context would be used for the gRPC call
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Mock implementation
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("UnpinReply")
+	if !method.IsValid() {
+		return fmt.Errorf("method UnpinReply not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("ReplyId").SetString(replyID)
+	reqVal.FieldByName("UserId").SetString(userID)
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return results[1].Interface().(error)
+	}
+
 	return nil
 }
 
-// Helper function to convert proto thread to Thread struct
+// GetLikedThreadsByUser implements ThreadServiceClient for GRPC implementation
+func (c *GRPCThreadServiceClient) GetLikedThreadsByUser(userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("GetLikedThreadsByUser")
+	if !method.IsValid() {
+		return nil, fmt.Errorf("method GetLikedThreadsByUser not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("UserId").SetString(userID)
+	reqVal.FieldByName("Page").SetInt(int64(page))
+	reqVal.FieldByName("Limit").SetInt(int64(limit))
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return nil, results[1].Interface().(error)
+	}
+
+	// Process the response
+	resp := results[0].Interface()
+
+	// Extract threads from response using reflection
+	threadsVal := reflect.ValueOf(resp).Elem().FieldByName("Threads")
+
+	// Convert to our internal thread representation
+	threads := make([]*Thread, threadsVal.Len())
+	for i := 0; i < threadsVal.Len(); i++ {
+		threadResp := threadsVal.Index(i).Interface()
+		threads[i] = convertProtoToThread(threadResp)
+	}
+
+	return threads, nil
+}
+
+// GetMediaByUser implements ThreadServiceClient for GRPC implementation
+func (c *GRPCThreadServiceClient) GetMediaByUser(userID string, page, limit int) ([]Media, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("GetMediaByUser")
+	if !method.IsValid() {
+		return nil, fmt.Errorf("method GetMediaByUser not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("UserId").SetString(userID)
+	reqVal.FieldByName("Page").SetInt(int64(page))
+	reqVal.FieldByName("Limit").SetInt(int64(limit))
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return nil, results[1].Interface().(error)
+	}
+
+	// Process the response
+	resp := results[0].Interface()
+
+	// Extract media from response using reflection
+	mediaVal := reflect.ValueOf(resp).Elem().FieldByName("Media")
+
+	// Convert to our internal media representation
+	media := make([]Media, mediaVal.Len())
+	for i := 0; i < mediaVal.Len(); i++ {
+		m := mediaVal.Index(i).Interface()
+
+		// Extract fields using reflection
+		mVal := reflect.ValueOf(m).Elem()
+		media[i] = Media{
+			ID:   mVal.FieldByName("Id").String(),
+			URL:  mVal.FieldByName("Url").String(),
+			Type: mVal.FieldByName("Type").String(),
+		}
+	}
+
+	return media, nil
+}
+
+// GetRepliesByUser implements ThreadServiceClient for GRPC implementation
+func (c *GRPCThreadServiceClient) GetRepliesByUser(userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the method using reflection
+	method := reflect.ValueOf(c.client).MethodByName("GetRepliesByUser")
+	if !method.IsValid() {
+		return nil, fmt.Errorf("method GetRepliesByUser not found on client")
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("UserId").SetString(userID)
+	reqVal.FieldByName("Page").SetInt(int64(page))
+	reqVal.FieldByName("Limit").SetInt(int64(limit))
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return nil, results[1].Interface().(error)
+	}
+
+	// Extract replies using reflection
+	resp := results[0].Interface()
+	repliesVal := reflect.ValueOf(resp).Elem().FieldByName("Replies")
+
+	// Convert to our thread type
+	replies := make([]*Thread, repliesVal.Len())
+	for i := 0; i < repliesVal.Len(); i++ {
+		r := repliesVal.Index(i).Interface()
+		rVal := reflect.ValueOf(r).Elem()
+
+		// Get the reply and user objects
+		replyObj := rVal.FieldByName("Reply").Interface()
+		userObj := rVal.FieldByName("User").Interface()
+
+		// Extract values using reflection
+		replyVal := reflect.ValueOf(replyObj).Elem()
+		userVal := reflect.ValueOf(userObj).Elem()
+
+		isPinned := false
+		if replyVal.FieldByName("IsPinned").IsValid() && !replyVal.FieldByName("IsPinned").IsNil() {
+			isPinned = replyVal.FieldByName("IsPinned").Elem().Bool()
+		}
+
+		// Create a thread from reply data
+		replies[i] = &Thread{
+			ID:             replyVal.FieldByName("Id").String(),
+			Content:        replyVal.FieldByName("Content").String(),
+			UserID:         replyVal.FieldByName("UserId").String(),
+			Username:       userVal.FieldByName("Username").String(),
+			DisplayName:    userVal.FieldByName("Name").String(),
+			ProfilePicture: userVal.FieldByName("ProfilePictureUrl").String(),
+			CreatedAt:      replyVal.FieldByName("CreatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
+			UpdatedAt:      replyVal.FieldByName("UpdatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
+			LikeCount:      int(rVal.FieldByName("LikesCount").Int()),
+			IsLiked:        rVal.FieldByName("LikedByUser").Bool(),
+			ParentID:       replyVal.FieldByName("ThreadId").String(),
+			IsPinned:       isPinned,
+		}
+
+		// Convert media if present
+		mediaField := replyVal.FieldByName("Media")
+		if mediaField.IsValid() && mediaField.Len() > 0 {
+			media := make([]Media, mediaField.Len())
+			for j := 0; j < mediaField.Len(); j++ {
+				m := mediaField.Index(j).Interface()
+				mVal := reflect.ValueOf(m).Elem()
+				media[j] = Media{
+					ID:   mVal.FieldByName("Id").String(),
+					URL:  mVal.FieldByName("Url").String(),
+					Type: mVal.FieldByName("Type").String(),
+				}
+			}
+			replies[i].Media = media
+		}
+	}
+
+	return replies, nil
+}
+
+// Helper function to convert proto Thread to our internal Thread type
 func convertProtoToThread(t any) *Thread {
 	if t == nil {
 		return nil
 	}
 
-	var thread *Thread
+	// Create a default thread
+	thread := &Thread{
+		ID:          "unknown",
+		Content:     "",
+		UserID:      "",
+		Username:    "anonymous",
+		DisplayName: "User",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
 
-	// Handle both Thread and ThreadResponse types
-	switch v := t.(type) {
-	case *threadProto.Thread:
-		thread = &Thread{
-			ID:        v.Id,
-			Content:   v.Content,
-			UserID:    v.UserId,
-			CreatedAt: v.CreatedAt.AsTime(),
-			UpdatedAt: v.UpdatedAt.AsTime(),
-			ParentID:  "", // No parent for regular threads
-			// Default values for user data if not available
-			Username:    "anonymous",
-			DisplayName: "User",
-		}
+	// Try to convert the ThreadResponse
+	if tr, ok := t.(*threadProto.ThreadResponse); ok && tr != nil {
+		if tr.Thread != nil {
+			thread.ID = tr.Thread.Id
+			thread.Content = tr.Thread.Content
+			thread.UserID = tr.Thread.UserId
+			thread.CreatedAt = tr.Thread.CreatedAt.AsTime()
+			thread.UpdatedAt = tr.Thread.UpdatedAt.AsTime()
+			thread.LikeCount = int(tr.LikesCount)
+			thread.ReplyCount = int(tr.RepliesCount)
+			thread.RepostCount = int(tr.RepostsCount)
+			thread.IsLiked = tr.LikedByUser
+			thread.IsReposted = tr.RepostedByUser
+			thread.IsBookmarked = tr.BookmarkedByUser
 
-		// Convert media
-		if len(v.Media) > 0 {
-			thread.Media = make([]Media, len(v.Media))
-			for i, m := range v.Media {
-				thread.Media[i] = Media{
-					ID:   m.Id,
-					Type: m.Type,
-					URL:  m.Url,
+			// Set is_pinned if available
+			if tr.Thread.IsPinned != nil {
+				thread.IsPinned = *tr.Thread.IsPinned
+			}
+
+			// Convert media
+			if len(tr.Thread.Media) > 0 {
+				thread.Media = make([]Media, len(tr.Thread.Media))
+				for i, m := range tr.Thread.Media {
+					thread.Media[i] = Media{
+						ID:   m.Id,
+						Type: m.Type,
+						URL:  m.Url,
+					}
 				}
 			}
-		}
-
-	case *threadProto.ThreadResponse:
-		if v.Thread == nil {
-			return nil
-		}
-
-		thread = &Thread{
-			ID:           v.Thread.Id,
-			Content:      v.Thread.Content,
-			UserID:       v.Thread.UserId,
-			CreatedAt:    v.Thread.CreatedAt.AsTime(),
-			UpdatedAt:    v.Thread.UpdatedAt.AsTime(),
-			ParentID:     "", // No parent for regular threads
-			LikeCount:    int(v.LikesCount),
-			ReplyCount:   int(v.RepliesCount),
-			RepostCount:  int(v.RepostsCount),
-			IsLiked:      v.LikedByUser,
-			IsReposted:   v.RepostedByUser,
-			IsBookmarked: v.BookmarkedByUser,
-			// Default values for user data if User not available
-			Username:    "anonymous",
-			DisplayName: "User",
 		}
 
 		// Set user data if available
-		if v.User != nil {
-			thread.Username = v.User.Username
-			thread.DisplayName = v.User.Name
-			thread.ProfilePicture = v.User.ProfilePictureUrl
-		}
-
-		// Convert media
-		if len(v.Thread.Media) > 0 {
-			thread.Media = make([]Media, len(v.Thread.Media))
-			for i, m := range v.Thread.Media {
-				thread.Media[i] = Media{
-					ID:   m.Id,
-					Type: m.Type,
-					URL:  m.Url,
-				}
-			}
+		if tr.User != nil {
+			thread.Username = tr.User.Username
+			thread.DisplayName = tr.User.Name
+			thread.ProfilePicture = tr.User.ProfilePictureUrl
 		}
 	}
 

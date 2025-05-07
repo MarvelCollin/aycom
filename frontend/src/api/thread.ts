@@ -64,77 +64,61 @@ export async function getThread(id: string) {
     return response.json();
 }
 
-export async function getThreadsByUser(userId: string) {
-  const token = getAuthToken();
-  
+export async function getThreadsByUser(userId: string, page: number = 1, limit: number = 10) {
   try {
+    const token = getAuthToken();
+    let actualUserId = userId;
+    
+    // If 'me' is specified, get the actual user ID
     if (userId === 'me') {
       const currentUserId = getUserId();
+      console.log('Current user ID from auth:', currentUserId);
+      
       if (!currentUserId) {
-        throw new Error('User ID isa required');
+        throw new Error('User ID is required');
       }
-      userId = currentUserId;
+      actualUserId = currentUserId;
     }
     
-    console.log(`Fetching threads for user: ${userId}, token exists: ${!!token}`);
-    
-    const endpoint = `${API_BASE_URL}/threads/user/${userId}`;
+    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}?page=${page}&limit=${limit}`;
     console.log(`Making request to: ${endpoint}`);
     
     const response = await fetch(endpoint, {
-      method: "GET",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       },
-      credentials: "include",
+      credentials: "include"
     });
     
-    if (response.status === 401) {
-      console.warn("Authentication error when fetching threads - token may be invalid");
-      // Don't throw yet - allow caller to handle auth errors
-    }
-    
-    // If we got a 500 error, it might be due to the proto issues with user data
-    if (response.status === 500) {
-      console.warn("Encountered 500 error in getThreadsByUser, attempting to process response anyway");
-      
-      // Even with the 500 error, try to parse the response body
-      // The server might have returned partial data we can use
-      try {
-        const data = await response.json();
-        
-        // Check if we have at least some threads data we can use
-        if (data && data.threads && Array.isArray(data.threads)) {
-          console.info(`Retrieved ${data.threads.length} threads despite error status`);
-          return data;
-        }
-      } catch (parseError) {
-        console.error("Failed to parse response from error status:", parseError);
-        // Continue to error handling below
-      }
-    }
-    
     if (!response.ok) {
-      let errorMessage = `Failed to fetch user's threads: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || 
-                      errorData.error?.message || 
-                      errorMessage;
-        console.error("API error response:", errorData);
-      } catch (parseError) {
-        console.error("Could not parse error response:", parseError);
+      // Handle different error types
+      if (response.status === 400) {
+        let errorMessage = `Bad request when getting user threads`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error("API error response:", errorData);
+        } catch (parseError) {
+          console.error("Could not parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
       }
-      throw new Error(errorMessage);
+      throw new Error(`Failed to get user threads: ${response.status}`);
     }
     
     const data = await response.json();
-    console.log(`Successfully retrieved ${data.threads?.length || 0} threads`);
+    
+    // Debug output to check pinned status
+    console.log("Threads received from API:", data.threads);
+    console.log("Pinned threads:", data.threads.filter(thread => thread.is_pinned === true).length);
+    console.log("Pinned thread IDs:", data.threads.filter(thread => thread.is_pinned === true).map(t => t.id));
+    
     return data;
-  } catch (error) {
-    console.error("Error in getThreadsByUser:", error);
-    throw error;
+  } catch (err) {
+    console.error('Error getting user threads:', err);
+    throw err;
   }
 }
 
