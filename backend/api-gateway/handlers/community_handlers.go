@@ -904,3 +904,180 @@ func GetDetailedChats(c *gin.Context) {
 		"chats":   detailedChats,
 	})
 }
+
+// GetChatHistoryList returns all chats for a user with the participants' usernames and the last message
+func GetChatHistoryList(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		return
+	}
+
+	limit := 50 // Default limit
+	offset := 0 // Default offset
+
+	client := GetCommunityServiceClient()
+	log.Printf("GetChatHistoryList: Processing request for user %v", userID)
+
+	// Get the basic chat list first
+	chats, err := client.GetChats(userID.(string), limit, offset)
+	if err != nil {
+		log.Printf("GetChatHistoryList: Error fetching chats for user %v: %v", userID, err)
+		SendErrorResponse(c, 500, "server_error", "Failed to fetch chats: "+err.Error())
+		return
+	}
+	log.Printf("GetChatHistoryList: Found %d chats for user %v", len(chats), userID)
+
+	// Enhanced response with detailed chat history
+	chatHistoryList := make([]gin.H, 0, len(chats))
+
+	// Process each chat to get participants and last message
+	for _, chat := range chats {
+		chatID := chat.ID
+		log.Printf("GetChatHistoryList: Processing chat %s", chatID)
+
+		// Get participants for this chat
+		participants, err := client.GetChatParticipants(chatID)
+		if err != nil {
+			log.Printf("GetChatHistoryList: Error fetching participants for chat %s: %v", chatID, err)
+			continue
+		}
+		log.Printf("GetChatHistoryList: Found %d participants for chat %s", len(participants), chatID)
+
+		// Get last message for this chat
+		messages, err := client.GetMessages(chatID, 1, 0)
+		if err != nil {
+			log.Printf("GetChatHistoryList: Error fetching last message for chat %s: %v", chatID, err)
+		}
+		log.Printf("GetChatHistoryList: Found %d messages for chat %s", len(messages), chatID)
+
+		// Process participant details with usernames from user service
+		participantDetails := make([]gin.H, len(participants))
+		for i, p := range participants {
+			// Get user data from user service
+			var username, displayName string
+			var profilePicture string
+
+			if UserClient != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				resp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+					UserId: p,
+				})
+
+				if err == nil && resp != nil && resp.User != nil {
+					username = resp.User.Username
+					displayName = resp.User.Name
+					profilePicture = resp.User.ProfilePictureUrl
+					log.Printf("GetChatHistoryList: Got user data for %s: username=%s", p, username)
+				} else {
+					log.Printf("GetChatHistoryList: Failed to get user data for %s: %v", p, err)
+				}
+			}
+
+			// Fallback if user service fails
+			if username == "" {
+				shortenedId := p
+				if len(shortenedId) > 4 {
+					shortenedId = shortenedId[:4]
+				}
+				username = fmt.Sprintf("user%s", shortenedId)
+				displayName = fmt.Sprintf("User %s", shortenedId)
+				log.Printf("GetChatHistoryList: Using fallback user data for %s: username=%s", p, username)
+			}
+
+			participantDetails[i] = gin.H{
+				"id":                  p,
+				"user_id":             p,
+				"username":            username,
+				"display_name":        displayName,
+				"profile_picture_url": profilePicture,
+			}
+		}
+
+		// Process last message if available
+		var lastMessage gin.H
+		if len(messages) > 0 {
+			msg := messages[0]
+
+			// Get sender info
+			var senderUsername, senderDisplayName string
+			var senderPicture string
+
+			if UserClient != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				resp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+					UserId: msg.SenderID,
+				})
+
+				if err == nil && resp != nil && resp.User != nil {
+					senderUsername = resp.User.Username
+					senderDisplayName = resp.User.Name
+					senderPicture = resp.User.ProfilePictureUrl
+					log.Printf("GetChatHistoryList: Got sender data for %s: username=%s", msg.SenderID, senderUsername)
+				} else {
+					log.Printf("GetChatHistoryList: Failed to get sender data for %s: %v", msg.SenderID, err)
+				}
+			}
+
+			// Fallback if sender info not available
+			if senderUsername == "" {
+				shortenedId := msg.SenderID
+				if len(shortenedId) > 4 {
+					shortenedId = shortenedId[:4]
+				}
+				senderUsername = fmt.Sprintf("user%s", shortenedId)
+				senderDisplayName = fmt.Sprintf("User %s", shortenedId)
+				log.Printf("GetChatHistoryList: Using fallback sender data for %s: username=%s", msg.SenderID, senderUsername)
+			}
+
+			lastMessage = gin.H{
+				"id":         msg.ID,
+				"message_id": msg.ID,
+				"chat_id":    msg.ChatID,
+				"sender_id":  msg.SenderID,
+				"user_id":    msg.SenderID,
+				"content":    msg.Content,
+				"timestamp":  msg.Timestamp.Unix(),
+				"is_edited":  msg.IsEdited,
+				"is_deleted": msg.IsDeleted,
+				"is_read":    msg.IsRead,
+				"user": gin.H{
+					"id":                  msg.SenderID,
+					"username":            senderUsername,
+					"display_name":        senderDisplayName,
+					"profile_picture_url": senderPicture,
+				},
+			}
+		}
+
+		// Build the chat history object
+		chatHistory := gin.H{
+			"id":            chat.ID,
+			"name":          chat.Name,
+			"is_group_chat": chat.IsGroupChat,
+			"created_by":    chat.CreatedBy,
+			"created_at":    chat.CreatedAt.Unix(),
+			"updated_at":    chat.UpdatedAt.Unix(),
+			"participants":  participantDetails,
+		}
+
+		// Add last message if available
+		if lastMessage != nil {
+			chatHistory["last_message"] = lastMessage
+		}
+
+		chatHistoryList = append(chatHistoryList, chatHistory)
+	}
+
+	// Log the response for debugging purposes
+	log.Printf("GetChatHistoryList: Returning %d chats for user %v", len(chatHistoryList), userID)
+
+	c.JSON(200, gin.H{
+		"success": true,
+		"chats":   chatHistoryList,
+	})
+}

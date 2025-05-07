@@ -105,7 +105,7 @@ export async function createChat(data: Record<string, any>) {
       
       // Check existing chats
       try {
-        const existingChats = await listChats();
+        const existingChats = await getChatHistoryList();
         logger.debug('Checking existing chats for participant', { participantId, chatsCount: existingChats.chats?.length || 0 });
         
         // Find any direct (non-group) chat that has this participant
@@ -448,6 +448,12 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
 
 export async function listMessages(chatId: string) {
   try {
+    // Validate the chatId
+    if (!chatId) {
+      logger.error('Cannot list messages: Chat ID is undefined or empty');
+      throw new Error('Invalid chat ID: Chat ID is required');
+    }
+    
     const token = getAuthToken();
     logger.debug(`Fetching messages for chat ${chatId}`);
     
@@ -627,6 +633,66 @@ export async function searchMessages(chatId: string, query: string) {
     }
   } catch (error) {
     logger.error(`Search messages in chat ${chatId} failed:`, error);
+    throw error;
+  }
+}
+
+export async function getChatHistoryList() {
+  try {
+    const token = getAuthToken();
+    logger.debug('Fetching chat history list');
+    
+    const response = await fetch(`${API_BASE_URL}/chats/history`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    logger.debug('Chat history response status', { 
+      status: response.status, 
+      statusText: response.statusText
+    });
+    
+    if (!response.ok) {
+      // Check if response has content before parsing
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        logger.error('Error response from chat history endpoint', errorData);
+        throw new Error(errorData.message || 'Failed to get chat history');
+      } else {
+        throw new Error(`Failed to get chat history: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    // Check if the response has content before parsing JSON
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const data = await response.json();
+        logger.debug('Chat history response data', { 
+          hasSuccess: 'success' in data,
+          hasChats: 'chats' in data,
+          chatsIsArray: Array.isArray(data.chats),
+          chatsLength: data.chats ? data.chats.length : 0,
+          data: data
+        });
+        return data;
+      } catch (parseError: unknown) {
+        logger.error('Failed to parse JSON response for getting chat history:', parseError);
+        // Return empty chats array as fallback
+        return { chats: [] };
+      }
+    } else {
+      logger.warn('Non-JSON response for getting chat history');
+      // Return empty chats array as fallback
+      return { chats: [] };
+    }
+  } catch (error) {
+    logger.error('Get chat history failed:', error);
     throw error;
   }
 }

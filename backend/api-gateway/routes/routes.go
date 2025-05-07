@@ -157,6 +157,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		chats.POST("", handlers.CreateChat)
 		chats.GET("", handlers.ListChats)
+		chats.GET("/history", handlers.GetChatHistoryList)
 		chats.GET("/:id/participants", handlers.ListChatParticipants)
 		chats.POST("/:id/participants", handlers.AddChatParticipant)
 		chats.DELETE("/:id/participants/:userId", handlers.RemoveChatParticipant)
