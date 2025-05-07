@@ -235,32 +235,39 @@ func (c *GRPCUserServiceClient) GetUserByEmail(email string) (*User, error) {
 }
 
 // SearchUsers searches for users based on query
-// TODO: Replace with real gRPC implementation once proto files are regenerated
 func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int) ([]*User, error) {
-	// This is a temporary mock implementation
-	log.Printf("[MOCK] Searching users with query '%s', filter '%s', page %d, limit %d", query, filter, page, limit)
-
-	// Return mock data that includes the search query in the name to make it appear like a real search
-	mockUsers := []*User{
-		{
-			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d483",
-			Username:          "user_" + query,
-			Name:              "User matching " + query,
-			ProfilePictureURL: "https://example.com/avatar5.jpg",
-			IsVerified:        true,
-			Email:             "user_" + query + "@example.com",
-		},
-		{
-			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d484",
-			Username:          "another_" + query,
-			Name:              "Another " + query,
-			ProfilePictureURL: "https://example.com/avatar6.jpg",
-			IsVerified:        false,
-			Email:             "another_" + query + "@example.com",
-		},
+	if c.client == nil {
+		return nil, fmt.Errorf("user service client not initialized")
 	}
 
-	return mockUsers, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create the request
+	req := &userProto.SearchUsersRequest{
+		Query:  query,
+		Filter: filter,
+		Page:   int32(page),
+		Limit:  int32(limit),
+	}
+
+	// Call the gRPC service
+	resp, err := c.client.SearchUsers(ctx, req)
+	if err != nil {
+		log.Printf("Error calling SearchUsers gRPC: %v", err)
+		return nil, err
+	}
+
+	// Convert proto users to our User type
+	users := make([]*User, 0, len(resp.GetUsers()))
+	for _, protoUser := range resp.GetUsers() {
+		user := convertProtoToUser(protoUser)
+		if user != nil {
+			users = append(users, user)
+		}
+	}
+
+	return users, nil
 }
 
 // GetUserRecommendations implements UserServiceClient

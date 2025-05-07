@@ -12,8 +12,7 @@
   import '../styles/magniview.css'
   
   const logger = createLoggerWithPrefix('Message');
-  
-  // Auth and theme
+
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
   
@@ -299,19 +298,30 @@
     }
 
     const query = searchQuery.toLowerCase();
+    logger.debug('Starting search with query:', { query });
 
     // First, filter local chats by name
     let results = chats.filter(chat => 
       chat.name.toLowerCase().includes(query)
     );
+    logger.debug('Filtered local chats:', { count: results.length });
     
-    // Search for users via API
+    // Search for users via API - this should search ALL users in the system, not just those we've chatted with
     try {
+      logger.debug('Calling searchUsers API with query:', { query: searchQuery });
       const response = await searchUsers(searchQuery);
       
-      if (response && response.users) {
+      logger.debug('Search users API response:', { 
+        status: 'success',
+        responseData: JSON.stringify(response)
+      });
+      
+      // Handle different response formats - check both direct response.users and response.data.users
+      const users = response?.users || (response?.data?.users || []);
+      
+      if (users && users.length > 0) {
         // Transform API user results to match our participant format
-        userSearchResults = response.users.map(user => ({
+        userSearchResults = users.map(user => ({
           id: user.id,
           username: user.username,
           displayName: user.name,
@@ -320,8 +330,10 @@
           isVerified: user.is_verified,
           isFollowing: user.is_following,
         }));
+        logger.debug('Retrieved users from API', { count: userSearchResults.length, users: userSearchResults.map(u => u.username) });
       } else {
         userSearchResults = [];
+        logger.warn('No users found or invalid API response format', { response });
       }
     } catch (error) {
       logger.error('Error searching users:', error);
@@ -350,17 +362,26 @@
       });
       
       userSearchResults = Array.from(uniqueUsers.values());
+      logger.debug('Using fallback search results', { count: userSearchResults.length });
     }
     
     // If we have a selected chat, also search messages
     if (selectedChat) {
       try {
+        logger.debug('Searching messages in chat:', { chatId: selectedChat.id, query: searchQuery });
         const response = await searchMessages(selectedChat.id, searchQuery);
+        
+        logger.debug('Search messages API response:', { 
+          status: 'success',
+          responseData: JSON.stringify(response)
+        });
         
         if (response && response.messages && response.messages.length > 0) {
           // If the current chat isn't in results but has matching messages, add it
           if (!results.some(chat => chat.id === selectedChat!.id)) {
             results.push(selectedChat);
+            logger.debug('Added current chat to results due to matching messages', 
+              { chatId: selectedChat.id, matchingMessages: response.messages.length });
           }
         }
       } catch (error) {
@@ -372,7 +393,8 @@
     logger.debug('Search completed', { 
       query: searchQuery, 
       chatResults: filteredChats.length,
-      userResults: userSearchResults.length
+      userResults: userSearchResults.length,
+      userDetails: userSearchResults.map(u => u.username).join(', ')
     });
   }
 
@@ -520,12 +542,79 @@
       <h1>Messages</h1>
     </div>
     <div class="search-container">
-      <input
-        type="text"
-        bind:value={searchQuery}
-        placeholder="Search Direct Messages"
-        class="search-input"
-      />
+      <div class="search-input-wrapper">
+        <input
+          type="text"
+          bind:value={searchQuery}
+          placeholder="Search Direct Messages"
+          class="search-input"
+        />
+        {#if searchQuery.trim() !== ''}
+          <button class="clear-search-button" on:click={clearSearch}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        {/if}
+      </div>
+      
+      {#if searchQuery.trim() !== '' && (userSearchResults.length > 0 || filteredChats.length > 0)}
+        <div class="search-dropdown">
+          {#if userSearchResults.length > 0}
+            <div class="search-dropdown-section">
+              <h4 class="search-dropdown-title">Users</h4>
+              <ul class="search-dropdown-list">
+                {#each userSearchResults as user}
+                  <li>
+                    <button class="dropdown-item" on:click={() => startChatWithUser(user)}>
+                      <div class="avatar-container">
+                        {#if user.avatar}
+                          <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
+                        {:else}
+                          <span class="avatar-placeholder">👤</span>
+                        {/if}
+                      </div>
+                      <div class="user-info">
+                        <span class="user-name">{user.displayName || user.username}</span>
+                        {#if user.username && user.username !== user.displayName}
+                          <span class="user-username">@{user.username}</span>
+                        {/if}
+                      </div>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+          
+          {#if filteredChats.length > 0}
+            <div class="search-dropdown-section">
+              <h4 class="search-dropdown-title">Conversations</h4>
+              <ul class="search-dropdown-list">
+                {#each filteredChats as chat}
+                  <li>
+                    <button class="dropdown-item" on:click={() => selectChat(chat)}>
+                      <div class="avatar-container">
+                        {#if chat.avatar}
+                          <img src={chat.avatar} alt={chat.name} class="avatar-image" />
+                        {:else}
+                          <span class="avatar-placeholder">👤</span>
+                        {/if}
+                      </div>
+                      <div class="user-info">
+                        <span class="user-name">{chat.name}</span>
+                        {#if chat.lastMessage}
+                          <span class="chat-preview">{chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}</span>
+                        {/if}
+                      </div>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
     <div class="chat-list">
       {#if isLoadingChats}
@@ -768,6 +857,13 @@
   .search-container {
     padding: 12px;
     border-bottom: 1px solid var(--border-color);
+    position: relative;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
   }
 
   .search-input {
@@ -779,67 +875,84 @@
     color: var(--text-color);
   }
 
-  .chat-list {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .loading-message, .empty-message {
-    padding: 20px;
-    text-align: center;
-    color: gray;
-  }
-
-  .chat-items {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .chat-item {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 12px 16px;
-    text-align: left;
-    transition: background-color 0.2s;
-    border: none;
+  .clear-search-button {
+    position: absolute;
+    right: 8px;
     background: none;
+    border: none;
+    padding: 4px;
+    color: var(--text-secondary, #6c757d);
     cursor: pointer;
-    color: var(--text-color);
-    border-radius: 8px;
-    margin: 4px 0;
+    border-radius: 50%;
   }
 
-  .chat-item:hover {
+  .clear-search-button:hover {
     background-color: var(--hover-bg);
   }
 
-  .chat-item.active {
-    background-color: var(--active-bg);
+  .search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 12px;
+    right: 12px;
+    max-height: 350px;
+    overflow-y: auto;
+    background-color: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
   }
 
-  .avatar-container {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+  .search-dropdown-section {
+    padding: 8px;
+  }
+
+  .search-dropdown-section + .search-dropdown-section {
+    border-top: 1px solid var(--border-color);
+  }
+
+  .search-dropdown-title {
+    font-size: 12px;
+    color: var(--text-secondary, #6c757d);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 4px 8px 8px;
+  }
+
+  .dropdown-item {
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    transition: background-color 0.15s ease;
+  }
+
+  .dropdown-item:hover {
+    background-color: var(--hover-bg);
+  }
+
+  .dropdown-item .avatar-container {
+    width: 36px;
+    height: 36px;
+    margin-right: 10px;
+  }
+
+  .dropdown-item .user-name {
+    font-weight: 600;
+    display: block;
+    white-space: nowrap;
     overflow: hidden;
-    background-color: #6b7280;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-right: 12px;
+    text-overflow: ellipsis;
   }
 
-  .avatar-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .avatar-placeholder {
-    font-size: 1.25rem;
+  .dropdown-item .user-username,
+  .dropdown-item .chat-preview {
+    font-size: 12px;
+    color: var(--text-secondary, #6c757d);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .chat-info {
@@ -850,6 +963,18 @@
   .chat-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+  }
+
+  .search-container {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
     align-items: center;
   }
 
@@ -1228,5 +1353,60 @@
   
   .dark-theme .user-username {
     color: #a0aec0;
+  }
+
+  /* Make sure the chat list takes remaining space */
+  .chat-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  /* Ensure these base styles exist */
+  .avatar-container {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .avatar-placeholder {
+    font-size: 1.25rem;
+  }
+  
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .search-dropdown-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    transition: background-color 0.15s ease;
   }
 </style>

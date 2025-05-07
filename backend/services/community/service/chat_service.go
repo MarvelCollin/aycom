@@ -166,16 +166,16 @@ func fromModelMessageDTO(m *model.MessageDTO) *Message {
 // Convert between model.ParticipantDTO and service Participant
 func toModelParticipantDTO(p *Participant) *model.ParticipantDTO {
 	return &model.ParticipantDTO{
-		ID:       p.ID,
 		ChatID:   p.ChatID,
 		UserID:   p.UserID,
 		JoinedAt: p.JoinedAt,
+		IsAdmin:  false, // Default value, can be updated if needed
 	}
 }
 
 func fromModelParticipantDTO(p *model.ParticipantDTO) *Participant {
 	return &Participant{
-		ID:       p.ID,
+		ID:       uuid.New().String(), // Generate a new ID since it's not in the DTO
 		ChatID:   p.ChatID,
 		UserID:   p.UserID,
 		JoinedAt: p.JoinedAt,

@@ -213,27 +213,39 @@ export async function searchUsers(query: string, page: number = 1, limit: number
     // Get token
     const token = getAuthToken();
     
-    // Make request
+    console.log(`Searching users at: ${url.toString()}`);
+    
+    // Make the fetch request with error handling
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to search users: ${response.status}`);
-    }
+    console.log('[searchUsers] Response status:', response.status);
     
-    return await response.json();
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+      console.log('[searchUsers] Response data:', data);
+      
+      if (!response.ok) {
+        console.log('[searchUsers] Error response:', data);
+        throw new Error(`Failed to search users: ${response.status} - ${JSON.stringify(data)}`);
+      }
+      
+      return data;
+    } else {
+      const text = await response.text();
+      console.log('[searchUsers] Non-JSON response:', text);
+      throw new Error(`Failed to search users: Server returned non-JSON response`);
+    }
   } catch (error) {
     console.error('Error searching users:', error);
-    // Return empty results instead of mock data in production
-    return {
-      users: [],
-      total_count: 0
-    };
+    throw error;
   }
 }
 

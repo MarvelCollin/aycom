@@ -133,6 +133,32 @@ func (h *UserHandler) GetUserByEmail(ctx context.Context, req *userProto.GetUser
 	return &userProto.GetUserByEmailResponse{User: mapUserModelToProto(u)}, nil
 }
 
+// SearchUsers handles searching for users based on a query
+func (h *UserHandler) SearchUsers(ctx context.Context, req *userProto.SearchUsersRequest) (*userProto.SearchUsersResponse, error) {
+	serviceReq := &model.SearchUsersRequest{
+		Query:  req.Query,
+		Filter: req.Filter,
+		Page:   int(req.Page),
+		Limit:  int(req.Limit),
+	}
+
+	users, total, err := h.svc.SearchUsers(ctx, serviceReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert model users to proto users
+	var protoUsers []*userProto.User
+	for _, user := range users {
+		protoUsers = append(protoUsers, mapUserModelToProto(user))
+	}
+
+	return &userProto.SearchUsersResponse{
+		Users:      protoUsers,
+		TotalCount: int32(total),
+	}, nil
+}
+
 // TODO: Implement these functions when proto definitions are updated
 // func (h *UserHandler) FollowUser(ctx context.Context, req *userProto.FollowUserRequest) (*userProto.FollowUserResponse, error) { ... }
 // func (h *UserHandler) UnfollowUser(ctx context.Context, req *userProto.UnfollowUserRequest) (*userProto.UnfollowUserResponse, error) { ... }
