@@ -54,6 +54,12 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Public trends route
 	v1.Group("/trends").GET("", handlers.GetTrends)
 
+	// Public WebSocket endpoints
+	publicWebsockets := v1.Group("/chats")
+	{
+		publicWebsockets.GET("/:id/ws", handlers.HandleCommunityChat)
+	}
+
 	// Protected routes - using JWT authentication middleware
 	protected := v1.Group("")
 	protected.Use(middleware.JWTAuth(string(handlers.GetJWTSecret())))
@@ -152,7 +158,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.POST("/:id/join-requests/:requestId/reject", handlers.RejectJoinRequest)
 	}
 
-	// Chat routes - comment out until implemented
 	// Chat routes
 	chats := protected.Group("/chats")
 	{
@@ -168,9 +173,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		chats.DELETE("/:id/messages/:messageId", handlers.DeleteMessage)
 		chats.POST("/:id/messages/:messageId/unsend", handlers.UnsendMessage)
 		chats.GET("/:id/messages/search", handlers.SearchMessages)
-
-		// WebSocket endpoint for real-time chat
-		chats.GET("/:id/ws", handlers.HandleCommunityChat)
 	}
 
 	// Notification routes

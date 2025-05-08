@@ -15,7 +15,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+# Configure CORS to allow credentials and specify origins
+CORS(app, resources={r"/*": {"origins": os.environ.get("CORS_ORIGIN", "http://localhost:3000"), "supports_credentials": True}})
 
 # Global variables for models
 thread_model = None

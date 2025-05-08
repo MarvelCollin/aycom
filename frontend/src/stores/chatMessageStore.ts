@@ -1,9 +1,67 @@
 import { derived, writable } from 'svelte/store';
-import { websocketStore, type ChatMessage, type MessageType } from './websocketStore';
+import type { MessageType } from './websocketStore';
 import { getAuthToken } from '../utils/auth';
 import { createLoggerWithPrefix } from '../utils/logger';
+import { registerChatMessageHandler } from '../api/chat';
 
 const logger = createLoggerWithPrefix('ChatMessageStore');
+
+// Define the types from websocketStore here to avoid circular dependency
+export interface ChatMessage {
+  type: MessageType;
+  content?: string;
+  user_id: string;
+  chat_id: string;
+  timestamp?: Date;
+  message_id?: string;
+  is_edited?: boolean;
+  is_deleted?: boolean;
+  is_read?: boolean;
+}
+
+// Reference to the websocketStore methods we need
+// These will be set after websocketStore is initialized
+let websocketConnect: (chatId: string) => void;
+let websocketDisconnect: (chatId: string) => void;
+let websocketSendMessage: (chatId: string, message: ChatMessage) => void;
+let websocketSubscribe: (callback: (state: any) => void) => () => void;
+let websocketRegisterMessageHandler: (handler: (message: any) => void) => () => void;
+let websocketResetError: () => void;
+let websocketDisconnectAll: () => void;
+
+// Store unsubscribe functions
+let unsubscribeWsState: (() => void) | null = null;
+let unsubscribeMessageHandler: (() => void) | null = null;
+
+// Function to set up the websocket methods
+export function setupWebsocketMethods(methods: {
+  connect: (chatId: string) => void;
+  disconnect: (chatId: string) => void;
+  sendMessage: (chatId: string, message: ChatMessage) => void;
+  subscribe: (callback: (state: any) => void) => () => void;
+  registerMessageHandler: (handler: (message: any) => void) => () => void;
+  resetError: () => void;
+  disconnectAll: () => void;
+}) {
+  websocketConnect = methods.connect;
+  websocketDisconnect = methods.disconnect;
+  websocketSendMessage = methods.sendMessage;
+  websocketSubscribe = methods.subscribe;
+  websocketRegisterMessageHandler = methods.registerMessageHandler;
+  websocketResetError = methods.resetError;
+  websocketDisconnectAll = methods.disconnectAll;
+  
+  // Initialize handlers once websocket methods are available
+  if (chatMessageStore) {
+    unsubscribeWsState = websocketSubscribe(wsState => {
+      if (wsState.lastError) {
+        chatMessageStore.update(state => ({ ...state, lastError: wsState.lastError }));
+      }
+    });
+    
+    unsubscribeMessageHandler = websocketRegisterMessageHandler(handleIncomingMessage);
+  }
+}
 
 export interface User {
   id: string;
@@ -40,16 +98,6 @@ export function handleIncomingMessage(message: ChatMessage & { user?: User }) {
 function createChatMessageStore() {
   const { subscribe, update, set } = writable<ChatState>(initialState);
 
-  // Subscribe to WebSocket store to receive messages
-  const unsubscribeWsState = websocketStore.subscribe(wsState => {
-    if (wsState.lastError) {
-      update(state => ({ ...state, lastError: wsState.lastError }));
-    }
-  });
-  
-  // Register a message handler with the WebSocket store
-  const unsubscribeMessageHandler = websocketStore.registerMessageHandler(handleIncomingMessage);
-
   // Initialize chat state for a given chat ID
   const initChat = (chatId: string) => {
     update(state => {
@@ -68,12 +116,12 @@ function createChatMessageStore() {
   // Connect to chat WebSocket and initialize state
   const connectToChat = (chatId: string) => {
     initChat(chatId);
-    websocketStore.connect(chatId);
+    websocketConnect(chatId);
   };
 
   // Disconnect from chat WebSocket
   const disconnectFromChat = (chatId: string) => {
-    websocketStore.disconnect(chatId);
+    websocketDisconnect(chatId);
   };
 
   // Send a message through WebSocket
@@ -114,7 +162,7 @@ function createChatMessageStore() {
     };
 
     logger.debug('Sending message to WebSocket', { chatId, tempId });
-    websocketStore.sendMessage(chatId, message);
+    websocketSendMessage(chatId, message);
   };
 
   // Send a typing indicator
@@ -125,7 +173,7 @@ function createChatMessageStore() {
       chat_id: chatId
     };
 
-    websocketStore.sendMessage(chatId, message);
+    websocketSendMessage(chatId, message);
   };
 
   // Send a read receipt
@@ -137,7 +185,7 @@ function createChatMessageStore() {
       message_id: messageId
     };
 
-    websocketStore.sendMessage(chatId, message);
+    websocketSendMessage(chatId, message);
     
     // Update local state to mark this message as read
     update(state => {
@@ -207,7 +255,7 @@ function createChatMessageStore() {
   };
 
   // Process an incoming message from WebSocket
-  const addIncomingMessage = (message: ChatMessage & { user?: User }) => {
+  const addIncomingMessage = (message: any) => {
     const { type, chat_id: chatId } = message;
     
     if (!chatId) {
@@ -249,8 +297,17 @@ function createChatMessageStore() {
         }
         break;
         
-      default:
-        logger.warn(`Unknown message type: ${type}`, message);
+      case 'update':
+        // Handle update messages from chat.ts for temp message updates
+        if (message.originalTempId && message.message_id) {
+          updateMessageWithServerData(
+            message.originalTempId,
+            message.chat_id,
+            message.message_id,
+            message.timestamp
+          );
+        }
+        break;
     }
   };
 
@@ -370,17 +427,25 @@ function createChatMessageStore() {
     });
   };
 
-  // Reset error state
+  // Reset error
   const resetError = () => {
     update(state => ({ ...state, lastError: null }));
-    websocketStore.resetError();
+    websocketResetError();
   };
 
   // Clean up on unmount
   const cleanup = () => {
-    unsubscribeWsState();
-    unsubscribeMessageHandler();
-    websocketStore.disconnectAll();
+    if (unsubscribeWsState) {
+      unsubscribeWsState();
+      unsubscribeWsState = null;
+    }
+    if (unsubscribeMessageHandler) {
+      unsubscribeMessageHandler();
+      unsubscribeMessageHandler = null;
+    }
+    if (websocketDisconnectAll) {
+      websocketDisconnectAll();
+    }
   };
 
   // Helper to get current user ID from auth token
@@ -470,7 +535,9 @@ function createChatMessageStore() {
     addMessage,
     addIncomingMessage,
     updateTypingStatus,
+    clearTypingStatus,
     markMessageAsRead,
+    update,
     updateMessage,
     deleteMessage,
     resetError,
@@ -482,6 +549,9 @@ function createChatMessageStore() {
 
 // Export the singleton store instance
 export const chatMessageStore = createChatMessageStore();
+
+// Register the message handler with chat.ts
+registerChatMessageHandler(handleIncomingMessage);
 
 // Derived store for getting messages for a specific chat
 export function getMessagesForChat(chatId: string) {

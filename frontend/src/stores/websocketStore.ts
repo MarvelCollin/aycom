@@ -2,7 +2,8 @@ import { writable } from 'svelte/store';
 import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
-import { processWebSocketMessage } from '../api/chat';
+// Remove direct import from chat.ts to break circular dependency
+// import { processWebSocketMessage } from '../api/chat';
 
 const logger = createLoggerWithPrefix('WebSocketStore');
 
@@ -68,16 +69,55 @@ function createWebSocketStore() {
         // Get the API path without domain
         const apiPath = apiUrl.replace(/^https?:\/\/[^/]+/, '');
         
-        // Construct WebSocket URL with the complete path - no token needed
-        const wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${chatId}/ws`;
+        // Get auth token
+        const token = getAuthToken();
         
-        logger.info(`Connecting to WebSocket: ${wsUrl}`);
+        // Try to extract user ID from token
+        let userId = '';
+        try {
+          if (token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            
+            const tokenData = JSON.parse(jsonPayload);
+            userId = tokenData.user_id || tokenData.sub || '';
+            logger.debug('Extracted user ID from token:', userId);
+          }
+        } catch (e) {
+          logger.error('Error decoding token:', e);
+        }
         
-        // Connect without a token
+        // Construct WebSocket URL
+        let wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${chatId}/ws`;
+        
+        // Add authentication parameters
+        const params: string[] = [];
+        
+        // Add token as a query parameter if available
+        if (token) {
+          params.push(`token=${token}`);
+        }
+        
+        // Add user ID even if we have a token (as a fallback)
+        if (userId) {
+          params.push(`user_id=${userId}`);
+        }
+        
+        // Add query parameters if any
+        if (params.length > 0) {
+          wsUrl += `?${params.join('&')}`;
+        }
+        
+        logger.info(`Attempting to connect to WebSocket: ${wsUrl}`);
+        
+        // Connect with parameters in URL
         const ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {
-          logger.info('WebSocket connection established');
+          logger.info(`WebSocket connection established for chat ${chatId}`);
           update(s => ({ 
             ...s, 
             connected: true, 
@@ -91,20 +131,21 @@ function createWebSocketStore() {
         
         ws.onmessage = (event) => {
           try {
+            logger.debug(`WebSocket message received for chat ${chatId}:`, event.data);
             const message = JSON.parse(event.data);
             
-            // Process the message using the chat API handler
-            processWebSocketMessage(message);
-            
-            // Also pass message to any registered handlers
+            // Instead of calling processWebSocketMessage, just pass to registered handlers
             messageHandlers.forEach(handler => handler(message));
           } catch (e) {
-            logger.error('Error parsing WebSocket message:', e);
+            logger.error(`Error parsing WebSocket message for chat ${chatId}:`, e);
           }
         };
         
         ws.onerror = (error) => {
-          logger.error('WebSocket error:', error);
+          logger.error(`WebSocket error for chat ${chatId}:`, error);
+          // Log additional information about the connection
+          logger.error(`WebSocket URL was: ${wsUrl}`);
+          logger.error(`WebSocket ready state: ${ws.readyState}`);
           update(s => ({ 
             ...s, 
             lastError: 'Connection error' 
@@ -112,7 +153,7 @@ function createWebSocketStore() {
         };
         
         ws.onclose = (event) => {
-          logger.info(`WebSocket closed: ${event.code} ${event.reason}`);
+          logger.info(`WebSocket closed for chat ${chatId}: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
           
           // Remove the closed connection
           update(s => {
@@ -128,6 +169,7 @@ function createWebSocketStore() {
           
           // Attempt to reconnect unless this was a clean close
           if (event.code !== 1000) {
+            logger.info(`Will attempt to reconnect to chat ${chatId} due to non-clean close`);
             attemptReconnect(chatId);
           }
         };
@@ -285,5 +327,20 @@ function createWebSocketStore() {
   };
 }
 
-// Export the singleton store instance
-export const websocketStore = createWebSocketStore(); 
+// Create the websocket store
+export const websocketStore = createWebSocketStore();
+
+// Import the setup function from chatMessageStore
+import { setupWebsocketMethods } from './chatMessageStore';
+
+// Initialize chatMessageStore with our websocket methods
+// This needs to be done after websocketStore is created to avoid circular references
+setupWebsocketMethods({
+  connect: websocketStore.connect,
+  disconnect: websocketStore.disconnect,
+  sendMessage: websocketStore.sendMessage,
+  subscribe: websocketStore.subscribe,
+  registerMessageHandler: websocketStore.registerMessageHandler,
+  resetError: websocketStore.resetError,
+  disconnectAll: websocketStore.disconnectAll
+}); 

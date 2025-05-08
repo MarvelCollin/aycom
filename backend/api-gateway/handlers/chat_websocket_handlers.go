@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc/codes"
@@ -50,8 +51,86 @@ type ChatMessage struct {
 
 // HandleCommunityChat handles WebSocket connections for community chat
 func HandleCommunityChat(c *gin.Context) {
-	// No authorization required anymore
-	userID := "anonymous" // Default user ID for anonymous users
+	// Default to anonymous user ID
+	userID := "anonymous"
+
+	// First check if user_id is directly provided as a query parameter
+	// This allows for easy connection without authentication (useful for testing)
+	directUserID := c.Query("user_id")
+	if directUserID != "" {
+		userID = directUserID
+		log.Printf("Using directly provided user_id: %s", userID)
+	} else {
+		// If no direct user_id, try to extract from JWT in Authorization header
+		token := c.GetHeader("Authorization")
+		if token == "" {
+			// If no Authorization header, try to get token from query parameter
+			token = c.Query("token")
+			if token != "" {
+				log.Printf("DEBUG: Got token from query parameter: %s... (length: %d)", token[:min(len(token), 20)]+"...", len(token))
+				// Prepend "Bearer " to match the format expected by the token parser
+				token = "Bearer " + token
+				log.Printf("DEBUG: Added Bearer prefix: %s... (length: %d)", token[:min(len(token), 27)]+"...", len(token))
+			} else {
+				log.Printf("DEBUG: No token found in query parameter")
+			}
+		}
+
+		if token != "" && strings.HasPrefix(token, "Bearer ") {
+			// Extract token without "Bearer " prefix
+			tokenString := token[7:]
+			log.Printf("DEBUG: Parsing token string: %s... (length: %d)", tokenString[:min(len(tokenString), 20)]+"...", len(tokenString))
+
+			// Get JWT secret from common.go
+			jwtSecret := string(GetJWTSecret())
+
+			// Parse token using the v5 JWT library
+			parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				// Check signing method
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					log.Printf("DEBUG: Unexpected signing method: %v", token.Header["alg"])
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+				return []byte(jwtSecret), nil
+			})
+
+			if err != nil {
+				log.Printf("DEBUG: JWT parse error: %v", err)
+			} else {
+				log.Printf("DEBUG: Token parsed successfully, valid: %v", parsedToken.Valid)
+			}
+
+			if err == nil && parsedToken.Valid {
+				// Extract user ID from claims
+				if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
+					log.Printf("DEBUG: Token claims: %+v", claims)
+
+					// In v5, the "user_id" claim is now available as "sub" by default
+					var uid string
+
+					// Try both "user_id" and "sub" claims
+					if userIDFromToken, ok := claims["user_id"].(string); ok {
+						uid = userIDFromToken
+					} else if sub, ok := claims["sub"].(string); ok {
+						uid = sub
+					}
+
+					if uid != "" {
+						userID = uid
+						log.Printf("Authenticated WebSocket connection for user %s", userID)
+					} else {
+						log.Printf("DEBUG: user_id/sub claim not found or not a string")
+					}
+				} else {
+					log.Printf("DEBUG: Failed to get claims from token")
+				}
+			} else {
+				log.Printf("Invalid token: %v", err)
+			}
+		} else {
+			log.Printf("DEBUG: No valid Bearer token found, using anonymous user")
+		}
+	}
 
 	chatID := c.Param("id")
 	if chatID == "" {
@@ -59,7 +138,7 @@ func HandleCommunityChat(c *gin.Context) {
 		return
 	}
 
-	log.Printf("WebSocket connection request for chat %s from anonymous user", chatID)
+	log.Printf("WebSocket connection request for chat %s from user %s", chatID, userID)
 
 	// Set up websocket connection
 	upgrader := websocket.Upgrader{
@@ -77,7 +156,7 @@ func HandleCommunityChat(c *gin.Context) {
 		return
 	}
 
-	log.Printf("WebSocket connection established for chat %s, anonymous user", chatID)
+	log.Printf("WebSocket connection established for chat %s, user %s", chatID, userID)
 
 	// Create client and register with WebSocket manager
 	wsClient := &Client{
@@ -404,4 +483,14 @@ func createErrorResponse(code, message string) []byte {
 
 	response, _ := json.Marshal(errorResponse)
 	return response
+}
+
+// GetJWTSecret is declared in common.go, so we don't need to redeclare it here
+
+// Helper function to get minimum of two values
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

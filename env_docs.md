@@ -35,5 +35,6 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 
 # Frontend environment variables
 VITE_API_BASE_URL=http://localhost:8083/api/v1
-CORS_ALLOWED_ORIGINS=*
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+CORS_ORIGIN=http://localhost:3000
 

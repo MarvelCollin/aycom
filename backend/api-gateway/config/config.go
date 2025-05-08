@@ -79,7 +79,7 @@ func LoadConfig() (*Config, error) {
 			Port:         getEnv("API_GATEWAY_PORT", "8083"),
 			ReadTimeout:  getDurationEnv("READ_TIMEOUT", 10*time.Second),
 			WriteTimeout: getDurationEnv("WRITE_TIMEOUT", 10*time.Second),
-			CORSOrigin:   getEnv("CORS_ORIGIN", "*"),
+			CORSOrigin:   getEnv("CORS_ORIGIN", "http://localhost:3000"),
 		},
 		Auth: AuthConfig{
 			JWTSecret:            getEnv("JWT_SECRET", "your-secret-key"),
@@ -191,7 +191,7 @@ func GetDefaultConfig() *Config {
 			Port:         getEnv("API_GATEWAY_PORT", "8083"),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
-			CORSOrigin:   "*",
+			CORSOrigin:   "http://localhost:3000",
 		},
 		Auth: AuthConfig{
 			JWTSecret:            getEnv("JWT_SECRET", "default-secret-key-for-development"),

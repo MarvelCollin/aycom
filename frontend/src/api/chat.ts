@@ -1,13 +1,17 @@
 import { createLoggerWithPrefix } from '../utils/logger';
 import appConfig from '../config/appConfig';
 import { getAuthToken } from '../utils/auth';
-import { chatMessageStore } from '../stores/chatMessageStore';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('ChatAPI');
 
-// Import the handler function for WebSocket messages
-import { handleIncomingMessage } from '../stores/chatMessageStore';
+// Instead of importing directly, use the handleIncomingMessage that will be registered
+let messageHandler: (message: any) => void;
+
+// Function to register the message handler
+export function registerChatMessageHandler(handler: (message: any) => void) {
+  messageHandler = handler;
+}
 
 // WebSocket Message Handler
 export function processWebSocketMessage(message: any) {
@@ -37,12 +41,16 @@ export function processWebSocketMessage(message: any) {
             new Date(message.timestamp * 1000) : new Date(message.timestamp)) 
           : new Date();
         
-        chatMessageStore.updateMessageWithServerData(
-          originalTempId,
-          message.chat_id,
-          message.message_id,
-          timestamp
-        );
+        // Use the message handler instead of direct store reference
+        if (messageHandler) {
+          const updateMessage = {
+            ...message,
+            type: 'update',
+            originalTempId,
+            timestamp
+          };
+          messageHandler(updateMessage);
+        }
       } else {
         // This is a new message from someone else
         internalHandleIncomingMessage(message);
@@ -89,8 +97,10 @@ function internalHandleIncomingMessage(message: any) {
     return;
   }
   
-  // Process using store
-  chatMessageStore.addIncomingMessage(message);
+  // Use message handler instead of direct store reference
+  if (messageHandler) {
+    messageHandler(message);
+  }
 }
 
 export async function createChat(data: Record<string, any>) {

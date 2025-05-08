@@ -8,9 +8,200 @@
   import { toastStore } from '../../stores/toastStore';
   import { getProfile } from '../../api/user';
   import appConfig from '../../config/appConfig';
+  import { websocketStore } from '../../stores/websocketStore';
   
   // API URL from app config
   const apiUrl = appConfig.api.baseUrl;
+  
+  // Add debug logger for this component
+  const debugLogger = createLoggerWithPrefix('DebugPanel');
+  
+  // WebSocket debug state
+  let wsStatus = 'Unknown';
+  let wsTestChatId = '';
+  let wsTestResult = '';
+  let isConnecting = false;
+  let isDisconnecting = false;
+  
+  // Subscribe to websocket store to track status
+  const unsubscribeWs = websocketStore.subscribe(state => {
+    wsStatus = state.connected ? 'Connected' : (state.reconnecting ? 'Reconnecting' : 'Disconnected');
+    if (state.lastError) {
+      wsStatus += ` (Error: ${state.lastError})`;
+    }
+    
+    // Add to logs when status changes
+    debugLogger.info(`WebSocket status changed: ${wsStatus}`);
+  });
+  
+  // Function to test WebSocket connection
+  async function testWebSocketConnection() {
+    if (!wsTestChatId) {
+      wsTestResult = 'Please enter a chat ID to test';
+      debugLogger.warn('WebSocket test failed: No chat ID provided');
+      return;
+    }
+    
+    try {
+      isConnecting = true;
+      wsTestResult = 'Connecting...';
+      debugLogger.info(`Testing WebSocket connection to chat: ${wsTestChatId}`);
+      
+      // Create a WebSocket URL based on the API URL
+      const apiUrl = appConfig.api.baseUrl;
+      let wsProtocol = 'ws:';
+      if (apiUrl.startsWith('https:') || window.location.protocol === 'https:') {
+        wsProtocol = 'wss:';
+      }
+      
+      // Get the domain part of the API URL without protocol
+      const domain = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
+      
+      // Get the API path without domain
+      const apiPath = apiUrl.replace(/^https?:\/\/[^/]+/, '');
+      
+      // Get token from auth state instead of direct import
+      const token = authState && authState.accessToken ? authState.accessToken : null;
+
+      // Get user ID from auth state
+      const userId = authState && authState.userId ? authState.userId : null;
+      
+      // Construct WebSocket URL
+      let wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${wsTestChatId}/ws`;
+      
+      // Add authentication parameters
+      const params: string[] = [];
+      
+      // Add token as query parameter for authentication
+      if (token) {
+        params.push(`token=${token}`);
+      }
+      
+      // Add user_id as fallback or for direct connection without authentication
+      if (userId) {
+        params.push(`user_id=${userId}`);
+      }
+      
+      // Add query parameters if any
+      if (params.length > 0) {
+        wsUrl += `?${params.join('&')}`;
+      }
+      
+      debugLogger.debug(`WebSocket URL: ${wsUrl}`);
+      
+      // Create a WebSocket connection
+      const ws = new WebSocket(wsUrl);
+      
+      // Set a timeout for the connection attempt
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+          wsTestResult = 'Connection timed out after 5 seconds';
+          debugLogger.error('WebSocket connection timed out');
+          isConnecting = false;
+        }
+      }, 5000);
+      
+      ws.onopen = () => {
+        clearTimeout(connectionTimeout);
+        wsTestResult = 'Connected successfully';
+        debugLogger.info('WebSocket test connection established');
+        
+        // Send a test message
+        try {
+          ws.send(JSON.stringify({
+            type: 'ping',
+            chat_id: wsTestChatId,
+            user_id: 'debug-panel',
+            timestamp: new Date()
+          }));
+          wsTestResult += ' and sent test message';
+        } catch (e) {
+          debugLogger.warn('Failed to send test message', { error: e });
+          wsTestResult += ' but failed to send test message';
+        }
+        
+        // Close the connection after 2 seconds
+        setTimeout(() => {
+          ws.close(1000, 'Test completed');
+          isConnecting = false;
+        }, 2000);
+      };
+      
+      ws.onerror = (error) => {
+        clearTimeout(connectionTimeout);
+        wsTestResult = `Error: ${error}`;
+        debugLogger.error('WebSocket test connection error', { error });
+        isConnecting = false;
+      };
+      
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        if (wsTestResult === 'Connecting...') {
+          wsTestResult = `Closed unexpectedly: Code ${event.code}, Reason: ${event.reason || 'None'}`;
+          debugLogger.warn(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`);
+        } else if (wsTestResult.includes('Connected successfully')) {
+          wsTestResult = `${wsTestResult}. Connection closed normally.`;
+          debugLogger.info('WebSocket test connection closed normally');
+        }
+        isConnecting = false;
+      };
+      
+    } catch (error) {
+      wsTestResult = `Failed to establish connection: ${error}`;
+      debugLogger.error('Failed to establish WebSocket test connection', { error });
+      isConnecting = false;
+    }
+  }
+  
+  // Function to connect to a chat via the websocketStore
+  function connectToChat() {
+    if (!wsTestChatId) {
+      wsTestResult = 'Please enter a chat ID to connect';
+      return;
+    }
+    
+    try {
+      isConnecting = true;
+      websocketStore.connect(wsTestChatId);
+      wsTestResult = 'Connection initiated via websocketStore, check logs for status';
+      isConnecting = false;
+    } catch (error) {
+      wsTestResult = `Error initiating connection: ${error}`;
+      isConnecting = false;
+    }
+  }
+  
+  // Function to disconnect from a chat
+  function disconnectFromChat() {
+    if (!wsTestChatId) {
+      wsTestResult = 'Please enter a chat ID to disconnect';
+      return;
+    }
+    
+    try {
+      isDisconnecting = true;
+      websocketStore.disconnect(wsTestChatId);
+      wsTestResult = 'Disconnection initiated';
+      isDisconnecting = false;
+    } catch (error) {
+      wsTestResult = `Error disconnecting: ${error}`;
+      isDisconnecting = false;
+    }
+  }
+  
+  // Check if is connected to a chat
+  function checkConnectedToChat() {
+    if (!wsTestChatId) {
+      wsTestResult = 'Please enter a chat ID to check';
+      return;
+    }
+    
+    const isConnected = websocketStore.isConnected(wsTestChatId);
+    wsTestResult = isConnected 
+      ? `Connected to chat ${wsTestChatId}` 
+      : `Not connected to chat ${wsTestChatId}`;
+  }
   
   // Get auth state
   const { getAuthState, subscribe } = useAuth();
@@ -394,6 +585,7 @@
   onDestroy(() => {
     if (cleanupFunction) cleanupFunction();
     if (unsubscribeLogs) unsubscribeLogs();
+    if (unsubscribeWs) unsubscribeWs();
     
     // Clean up body class
     if (typeof document !== 'undefined') {
@@ -437,6 +629,62 @@
       
       <!-- Simple content -->
       <div class="debug-panel-content">
+        <!-- WebSocket Debug Section -->
+        <div class="section">
+          <h3>WebSocket Debug</h3>
+          <div class="card">
+            <h4>Status: <span class={wsStatus === 'Connected' ? 'ws-status-connected' : (wsStatus.includes('Error') ? 'ws-status-error' : 'ws-status-disconnected')}>{wsStatus}</span></h4>
+            
+            <div class="flex-col">
+              <div class="flex-row mb-2">
+                <input 
+                  type="text" 
+                  bind:value={wsTestChatId}
+                  placeholder="Enter chat ID to test..."
+                  class="text-input" 
+                />
+              </div>
+              
+              <div class="flex-row mb-2">
+                <button 
+                  class="debug-btn blue mr-2" 
+                  on:click={testWebSocketConnection}
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? 'Testing...' : 'Test Direct Connection'}
+                </button>
+                
+                <button 
+                  class="debug-btn green mr-2" 
+                  on:click={connectToChat}
+                  disabled={isConnecting}
+                >
+                  Connect via Store
+                </button>
+                
+                <button 
+                  class="debug-btn orange mr-2" 
+                  on:click={disconnectFromChat}
+                  disabled={isDisconnecting}
+                >
+                  Disconnect
+                </button>
+                
+                <button 
+                  class="debug-btn" 
+                  on:click={checkConnectedToChat}
+                >
+                  Check Status
+                </button>
+              </div>
+              
+              <div class="ws-test-result">
+                <strong>Result:</strong> {wsTestResult || 'No test run yet'}
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div class="section">
           <h3>Current User</h3>
           <div class="card">
@@ -939,5 +1187,39 @@
   
   .text-gray-500 {
     color: #64748b;
+  }
+  
+  /* Add WebSocket specific styles */
+  .ws-status-connected {
+    color: #4ade80;
+    font-weight: 600;
+  }
+  
+  .ws-status-disconnected {
+    color: #94a3b8;
+    font-weight: 600;
+  }
+  
+  .ws-status-error {
+    color: #ef4444;
+    font-weight: 600;
+  }
+  
+  .ws-test-result {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    color: #e2e8f0;
+    word-break: break-all;
+  }
+  
+  .flex-col {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .mb-2 {
+    margin-bottom: 8px;
   }
 </style>

@@ -14,8 +14,14 @@ import (
 // CORS middleware for handling Cross-Origin Resource Sharing
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Allow specific origin (your frontend dev server)
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:3000" // Default to frontend origin if not specified
+		}
+
+		// When credentials are included, Access-Control-Allow-Origin cannot be '*'
+		// It must be set to a specific origin
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		// Allow credentials (cookies, authorization headers)

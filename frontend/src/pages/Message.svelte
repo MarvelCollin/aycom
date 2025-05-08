@@ -12,6 +12,7 @@
   import '../styles/magniview.css'
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
+  import DebugPanel from '../components/common/DebugPanel.svelte';
   
   const logger = createLoggerWithPrefix('Message');
 
@@ -2648,3 +2649,6 @@
     border-bottom: 1px solid var(--border-color);
   }
 </style>
+
+<!-- Add the Debug Panel component -->
+<DebugPanel />
