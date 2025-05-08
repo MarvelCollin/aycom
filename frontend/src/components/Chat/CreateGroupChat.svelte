@@ -1,402 +1,770 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
+  import { useAuth } from '../../hooks/useAuth';
+  import { searchUsers } from '../../api/user';
   import { createChat } from '../../api/chat';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  
+  import { toastStore } from '../../stores/toastStore';
+  import { handleApiError } from '../../utils/common';
+  import type { User, ApiUserResponse, CreateChatResponse } from '../../interfaces/IChat';
+
   const logger = createLoggerWithPrefix('CreateGroupChat');
-  
-  // Define user interface
-  interface User {
-    id: string;
-    username: string;
-    display_name?: string;
-    avatar_url?: string;
-  }
-  
-  // Props
-  export let onSuccess: (data: any) => void = () => {};
-  export let onCancel: () => void = () => {};
-  
+  const dispatch = createEventDispatcher();
+  const { getAuthState } = useAuth();
+
+  // Properties
+  export let onSuccess: ((event: { detail: { chat: any } }) => void) | undefined = undefined;  
+  export let onCancel: (() => void) | undefined = undefined;   
+
   // State
-  let chatName = '';
+  let authState = getAuthState ? getAuthState() : { userId: null };
+  let groupName = '';
   let searchQuery = '';
-  let availableUsers: User[] = [];
-  let selectedUsers: User[] = [];
+  let searchResults: User[] = [];
+  let selectedParticipants: User[] = [];
   let isLoading = false;
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let errorMessage = '';
-  
-  // Load available users on mount
-  onMount(async () => {
-    try {
-      // Fetch available users that can be added to chat
-      const response = await fetch('/api/v1/users/suggestions', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+
+  // Get a color for avatar placeholders
+  function getAvatarColor(name: string | undefined): string {
+    const colors = [
+      '#4F46E5', // indigo
+      '#0EA5E9', // sky
+      '#10B981', // emerald
+      '#F59E0B', // amber
+      '#EF4444', // red
+      '#8B5CF6', // violet
+      '#EC4899', // pink
+      '#06B6D4', // cyan
+    ];
+    
+    // Get a deterministic index based on the name
+    let hash = 0;
+    if (!name) name = 'User';
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Convert to positive number and get index
+    hash = Math.abs(hash);
+    const index = hash % colors.length;
+    
+    return colors[index];
+  }
+
+  // Search for users
+  async function handleSearch(): Promise<void> {
+    if (!searchQuery.trim()) {
+      searchResults = [];
+      return;
+    }
+
+    // Clear previous timeout
+    if (searchTimeout) clearTimeout(searchTimeout);
+
+    // Set a new timeout to avoid too many requests
+    searchTimeout = setTimeout(async () => {
+      try {
+        logger.debug('Searching for users:', { query: searchQuery });
+        isLoading = true;
+        errorMessage = '';
+
+        const response: ApiUserResponse = await searchUsers(searchQuery);
+        
+        logger.debug('Search users response:', { 
+          status: 'success',
+          response: JSON.stringify(response)
+        });
+
+        // Parse response
+        const users = response?.users || (response?.data?.users || []);
+        
+        if (users && users.length > 0) {
+          // Transform to our format and filter out already selected users and current user
+          searchResults = users
+            .filter(user => 
+              user.id !== authState.userId && 
+              !selectedParticipants.some(p => p.id === user.id)
+            )
+            .map(user => ({
+              id: user.id,
+              username: user.username || '',
+              displayName: user.name || user.display_name || user.username || `User`,
+              avatar: user.profile_picture_url || null,
+              isVerified: user.is_verified || false
+            }));
+          
+          logger.debug('Filtered search results:', { count: searchResults.length });
+        } else {
+          searchResults = [];
+          logger.debug('No users found in search');
         }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to load users');
+      } catch (error) {
+        const errorDetail = handleApiError(error);
+        logger.error('Failed to search users:', errorDetail);
+        errorMessage = 'Failed to search for users. Please try again.';
+        searchResults = [];
+      } finally {
+        isLoading = false;
       }
-      
-      const data = await response.json();
-      availableUsers = data.users || [];
-    } catch (error) {
-      logger.error('Error loading users:', error);
-      errorMessage = 'Failed to load users. Please try again.';
-    }
-  });
-  
-  // Filtered users based on search query
-  $: filteredUsers = searchQuery 
-    ? availableUsers.filter(user => 
-        user.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (user.display_name && user.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : availableUsers;
-  
-  // Check if a user is already selected
-  function isUserSelected(userId: string): boolean {
-    return selectedUsers.some(user => user.id === userId);
+    }, 300); // Debounce 300ms
   }
-  
-  // Add user to selection
-  function selectUser(user: User): void {
-    if (!isUserSelected(user.id)) {
-      selectedUsers = [...selectedUsers, user];
-    }
+
+  // Add user to selected participants
+  function addParticipant(user: User): void {
+    // Add to selected participants
+    selectedParticipants = [...selectedParticipants, user];
+    
+    // Remove from search results
+    searchResults = searchResults.filter(result => result.id !== user.id);
+    
+    // Clear search
+    searchQuery = '';
+    logger.debug('Added participant:', { userId: user.id });
   }
-  
-  // Remove user from selection
-  function removeUser(userId: string): void {
-    selectedUsers = selectedUsers.filter(user => user.id !== userId);
+
+  // Remove user from selected participants
+  function removeParticipant(userId: string): void {
+    selectedParticipants = selectedParticipants.filter(p => p.id !== userId);
+    logger.debug('Removed participant:', { userId });
   }
-  
-  // Handle form submission
-  async function handleSubmit(): Promise<void> {
-    if (!chatName.trim()) {
-      errorMessage = 'Please enter a chat name';
+
+  // Create group chat
+  async function createGroupChat(): Promise<void> {
+    if (!groupName.trim()) {
+      errorMessage = 'Please enter a group name';
       return;
     }
-    
-    if (selectedUsers.length === 0) {
-      errorMessage = 'Please select at least one user';
+
+    if (selectedParticipants.length === 0) {
+      errorMessage = 'Please select at least one participant';
       return;
     }
-    
-    isLoading = true;
-    errorMessage = '';
-    
+
     try {
-      // Create new group chat
-      const response = await createChat({
-        name: chatName,
-        participants: selectedUsers.map(user => user.id),
-        is_group: true
+      isLoading = true;
+      errorMessage = '';
+      
+      // Format data for API
+      const participantIds = selectedParticipants.map(p => p.id);
+      const chatData = {
+        name: groupName.trim(),
+        type: 'group',
+        participants: participantIds
+      };
+      
+      logger.debug('Creating group chat:', { 
+        name: groupName, 
+        participantsCount: participantIds.length 
       });
       
-      onSuccess(response);
+      // Call API to create chat
+      const response: CreateChatResponse = await createChat(chatData);
+      
+      if (response && response.chat) {
+        logger.debug('Group chat created:', { chatId: response.chat.id });
+        
+        // Add the current user into participants for the UI
+        const fullParticipants = [...selectedParticipants];
+        
+        // Dispatch success event
+        if (onSuccess) {
+          onSuccess({ detail: { 
+            chat: {
+              ...response.chat,
+              participants: fullParticipants
+            }
+          }});
+        } else {
+          dispatch('success', { 
+            chat: {
+              ...response.chat,
+              participants: fullParticipants
+            }
+          });
+        }
+        
+        toastStore.showToast('Group chat created successfully', 'success');
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
-      logger.error('Error creating chat:', error);
-      errorMessage = 'Failed to create chat. Please try again.';
+      const errorDetail = handleApiError(error);
+      errorMessage = 'Failed to create group chat. Please try again.';
+      logger.error('Failed to create group chat:', errorDetail);
+      toastStore.showToast('Failed to create group chat', 'error');
     } finally {
       isLoading = false;
     }
   }
+
+  // Handle input changes
+  function handleInput(): void {
+    // Clear error when user types
+    if (errorMessage) errorMessage = '';
+    
+    // Trigger search
+    handleSearch();
+  }
+  
+  // Cancel and close modal
+  function cancel(): void {
+    if (onCancel) {
+      onCancel();
+    } else {
+      dispatch('cancel');
+    }
+  }
 </script>
 
-<div class="create-group-modal">
+<div class="group-chat-modal">
   <div class="modal-header">
-    <h2>Create Group Chat</h2>
-    <button class="close-button" on:click={onCancel}>✕</button>
+    <div class="header-content">
+      <h2>Create a Group Chat</h2>
+      {#if selectedParticipants.length > 0}
+        <div class="member-preview">
+          <div class="avatar-group">
+            {#each selectedParticipants.slice(0, 3) as participant, i}
+              <div 
+                class="avatar-mini preview" 
+                style="
+                  background-color: {getAvatarColor(participant.displayName || participant.username)};
+                  margin-right: -8px;
+                  z-index: {3 - i};
+                "
+              >
+                {#if participant.avatar}
+                  <img src={participant.avatar} alt={participant.displayName || participant.username} />
+                {:else}
+                  <span>{(participant.displayName || participant.username || 'User').substring(0, 1).toUpperCase()}</span>
+                {/if}
+              </div>
+            {/each}
+            {#if selectedParticipants.length > 3}
+              <div class="avatar-mini preview more-members">
+                <span>+{selectedParticipants.length - 3}</span>
+              </div>
+            {/if}
+          </div>
+          <span class="member-count">{selectedParticipants.length} {selectedParticipants.length === 1 ? 'member' : 'members'}</span>
+        </div>
+      {/if}
+    </div>
+    <button class="close-button" on:click={cancel} aria-label="Close">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
   </div>
-  
+
   <div class="modal-body">
     {#if errorMessage}
-      <div class="error-message">{errorMessage}</div>
+      <div class="error-message">
+        {errorMessage}
+      </div>
     {/if}
-    
-    <div class="form-group">
-      <label for="chat-name">Group Name</label>
-      <input 
-        id="chat-name" 
-        type="text" 
-        bind:value={chatName} 
-        placeholder="Enter group name"
-      />
-    </div>
-    
-    <div class="form-group">
-      <label>Add Participants</label>
+
+    <div class="input-group">
+      <label for="groupName">Group Name</label>
       <input 
         type="text" 
-        bind:value={searchQuery} 
-        placeholder="Search users..."
+        id="groupName" 
+        placeholder="Enter group name" 
+        bind:value={groupName}
+        on:input={() => errorMessage = ''}
       />
     </div>
-    
-    <div class="selected-users">
-      {#if selectedUsers.length > 0}
-        <h4>Selected Users ({selectedUsers.length})</h4>
-        <div class="user-chips">
-          {#each selectedUsers as user (user.id)}
-            <div class="user-chip">
-              <span>{user.display_name || user.username}</span>
-              <button on:click={() => removeUser(user.id)}>✕</button>
+
+    <div class="input-group">
+      <label for="searchUsers">Add Participants</label>
+      <input 
+        type="text" 
+        id="searchUsers" 
+        placeholder="Search users by name or username" 
+        bind:value={searchQuery}
+        on:input={handleInput}
+      />
+    </div>
+
+    {#if isLoading}
+      <div class="loading">
+        <span class="loading-spinner"></span>
+        Searching users...
+      </div>
+    {:else if searchQuery && searchResults.length === 0}
+      <div class="no-results">
+        No users found matching "{searchQuery}"
+      </div>
+    {/if}
+
+    {#if searchResults.length > 0}
+      <div class="search-results">
+        <h3>Search Results</h3>
+        <ul>
+          {#each searchResults as user}
+            <li>
+              <div class="user-item" on:click={() => addParticipant(user)}>
+                <div class="avatar" style="background-color: {getAvatarColor(user.displayName || user.username)}">
+                  {#if user.avatar}
+                    <img src={user.avatar} alt={user.displayName || user.username} />
+                  {:else}
+                    <span>{(user.displayName || user.username || 'User').substring(0, 1).toUpperCase()}</span>
+                  {/if}
+                </div>
+                <div class="user-info">
+                  <span class="display-name">{user.displayName || user.username}</span>
+                  {#if user.username && user.username !== user.displayName}
+                    <span class="username">@{user.username}</span>
+                  {/if}
+                </div>
+                <div class="add-button" aria-label="Add user">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </div>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
+
+    <div class="selected-participants">
+      <h3>Selected Participants ({selectedParticipants.length})</h3>
+      {#if selectedParticipants.length === 0}
+        <div class="no-selections">
+          No participants selected yet. Search and add users above.
+        </div>
+      {:else}
+        <div class="participant-chips">
+          {#each selectedParticipants as participant}
+            <div class="participant-chip">
+              <div class="avatar-mini" style="background-color: {getAvatarColor(participant.displayName || participant.username)}">
+                {#if participant.avatar}
+                  <img src={participant.avatar} alt={participant.displayName || participant.username} />
+                {:else}
+                  <span>{(participant.displayName || participant.username || 'User').substring(0, 1).toUpperCase()}</span>
+                {/if}
+              </div>
+              <span>{participant.displayName || participant.username}</span>
+              <button 
+                class="remove-button" 
+                on:click={() => removeParticipant(participant.id)}
+                aria-label="Remove participant"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           {/each}
         </div>
       {/if}
     </div>
-    
-    <div class="user-list">
-      <h4>Available Users</h4>
-      {#if filteredUsers.length === 0}
-        <p class="empty-state">No users found</p>
-      {:else}
-        {#each filteredUsers as user (user.id)}
-          <div 
-            class="user-item {isUserSelected(user.id) ? 'selected' : ''}" 
-            on:click={() => selectUser(user)}
-          >
-            <div class="user-avatar">
-              {#if user.avatar_url}
-                <img src={user.avatar_url} alt={user.username} />
-              {:else}
-                <div class="avatar-placeholder">
-                  {(user.display_name || user.username)[0].toUpperCase()}
-                </div>
-              {/if}
-            </div>
-            <div class="user-info">
-              <div class="user-name">{user.display_name || user.username}</div>
-              <div class="user-username">@{user.username}</div>
-            </div>
-            {#if isUserSelected(user.id)}
-              <div class="selected-indicator">✓</div>
-            {/if}
-          </div>
-        {/each}
-      {/if}
-    </div>
   </div>
-  
+
   <div class="modal-footer">
-    <button class="cancel-button" on:click={onCancel} disabled={isLoading}>Cancel</button>
+    <button class="cancel-button" on:click={cancel} disabled={isLoading}>
+      Cancel
+    </button>
     <button 
       class="create-button" 
-      on:click={handleSubmit} 
-      disabled={isLoading || selectedUsers.length === 0 || !chatName.trim()}
+      on:click={createGroupChat} 
+      disabled={isLoading || selectedParticipants.length === 0 || !groupName.trim()}
     >
-      {isLoading ? 'Creating...' : 'Create Group'}
+      {isLoading ? 'Creating...' : 'Create Group Chat'}
     </button>
   </div>
 </div>
 
 <style>
-  .create-group-modal {
+  .group-chat-modal {
+    background-color: var(--background-color, white);
+    color: var(--text-color, black);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
-    width: 100%;
-    height: 100%;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
   }
-  
+
+  :global(.dark) .group-chat-modal {
+    --background-color: #1f2937;
+    --text-color: #f3f4f6;
+    --border-color: #374151;
+    --input-bg: #111827;
+    --button-bg: #3b82f6;
+    --button-hover: #2563eb;
+    --button-text: white;
+    --error-bg: rgba(239, 68, 68, 0.2);
+    --error-text: #ef4444;
+  }
+
+  /* Light mode variables */
+  .group-chat-modal {
+    --border-color: #e5e7eb;
+    --input-bg: #f9fafb;
+    --button-bg: #3b82f6;
+    --button-hover: #2563eb;
+    --button-text: white;
+    --error-bg: rgba(239, 68, 68, 0.1);
+    --error-text: #ef4444;
+  }
+
   .modal-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    border-bottom: 1px solid #e5e5e5;
+    align-items: flex-start;
   }
-  
+
+  .header-content {
+    display: flex;
+    flex-direction: column;
+  }
+
   .modal-header h2 {
     margin: 0;
     font-size: 1.25rem;
+    font-weight: 600;
   }
-  
+
+  .member-preview {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+  }
+
+  .avatar-group {
+    display: flex;
+    align-items: center;
+    margin-right: 8px;
+  }
+
+  .avatar-mini.preview {
+    width: 24px;
+    height: 24px;
+    font-size: 0.7rem;
+    border: 2px solid var(--background-color);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    margin-right: -8px;
+    color: white;
+    font-weight: 600;
+  }
+
+  .more-members {
+    background-color: var(--button-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+  }
+
+  .member-count {
+    font-size: 0.85rem;
+    color: var(--text-secondary, gray);
+    margin-left: 12px;
+  }
+
   .close-button {
     background: none;
     border: none;
-    font-size: 1.25rem;
     cursor: pointer;
-    color: #6c757d;
-  }
-  
-  .modal-body {
-    flex: 1;
-    padding: 16px;
-    overflow-y: auto;
-  }
-  
-  .form-group {
-    margin-bottom: 16px;
-  }
-  
-  .form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-  }
-  
-  input[type="text"] {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 1rem;
-  }
-  
-  .error-message {
-    background-color: #f8d7da;
-    color: #721c24;
-    padding: 10px;
-    border-radius: 4px;
-    margin-bottom: 16px;
-  }
-  
-  .selected-users {
-    margin-bottom: 16px;
-  }
-  
-  .user-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  
-  .user-chip {
+    color: var(--text-color);
     display: flex;
     align-items: center;
-    background-color: #e9ecef;
-    border-radius: 16px;
-    padding: 4px 12px;
+    justify-content: center;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    transition: background-color 0.2s;
+  }
+
+  .close-button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  :global(.dark) .close-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .error-message {
+    padding: 10px;
+    background-color: var(--error-bg);
+    color: var(--error-text);
+    border-radius: 6px;
     font-size: 0.875rem;
   }
-  
-  .user-chip button {
-    background: none;
-    border: none;
-    font-size: 0.75rem;
-    margin-left: 8px;
-    cursor: pointer;
-    color: #6c757d;
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-  
-  .user-list {
-    border: 1px solid #e5e5e5;
-    border-radius: 4px;
-    max-height: 300px;
-    overflow-y: auto;
+
+  .input-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
   }
-  
-  .user-list h4 {
+
+  .input-group input {
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.95rem;
+  }
+
+  .input-group input:focus {
+    outline: none;
+    border-color: var(--button-bg);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.875rem;
+    color: var(--text-secondary, gray);
+    padding: 8px 0;
+  }
+
+  .loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: var(--button-bg);
+    border-radius: 50%;
+    animation: spinner 0.8s linear infinite;
+  }
+
+  @keyframes spinner {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  :global(.dark) .loading-spinner {
+    border-color: rgba(255, 255, 255, 0.1);
+    border-top-color: var(--button-bg);
+  }
+
+  .no-results {
+    padding: 8px 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary, gray);
+  }
+
+  .search-results {
+    margin-top: 8px;
+  }
+
+  .search-results h3, .selected-participants h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+  }
+
+  .search-results ul {
+    list-style: none;
+    padding: 0;
     margin: 0;
-    padding: 12px;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #e5e5e5;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
   }
-  
+
   .user-item {
     display: flex;
     align-items: center;
-    padding: 12px;
+    padding: 10px 12px;
+    width: 100%;
+    text-align: left;
     cursor: pointer;
-    border-bottom: 1px solid #e5e5e5;
+    color: var(--text-color);
+    transition: background-color 0.2s;
+    border-bottom: 1px solid var(--border-color);
   }
-  
+
   .user-item:last-child {
     border-bottom: none;
   }
-  
+
   .user-item:hover {
-    background-color: #f8f9fa;
+    background-color: rgba(0, 0, 0, 0.05);
   }
-  
-  .user-item.selected {
-    background-color: #e9ecef;
+
+  :global(.dark) .user-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
   }
-  
-  .user-avatar {
+
+  .avatar, .avatar-mini {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    margin-right: 12px;
     overflow: hidden;
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    color: white;
+    font-weight: 600;
   }
-  
-  .user-avatar img {
+
+  .avatar-mini {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+    margin-right: 8px;
+  }
+
+  .avatar img, .avatar-mini img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
-  .avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    background-color: #6c757d;
-    color: white;
+
+  .user-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .display-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .username {
+    font-size: 0.75rem;
+    color: var(--text-secondary, gray);
+  }
+
+  .add-button {
+    color: var(--button-bg);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
+    padding: 4px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
   }
-  
-  .user-info {
-    flex: 1;
+
+  .user-item:hover .add-button {
+    background-color: rgba(59, 130, 246, 0.1);
   }
-  
-  .user-name {
-    font-weight: 500;
+
+  .selected-participants {
+    margin-top: 16px;
   }
-  
-  .user-username {
+
+  .no-selections {
+    color: var(--text-secondary, gray);
     font-size: 0.875rem;
-    color: #6c757d;
+    font-style: italic;
+    padding: 8px 0;
   }
-  
-  .selected-indicator {
-    color: #007bff;
-    font-weight: bold;
+
+  .participant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 0;
   }
-  
-  .empty-state {
-    padding: 16px;
-    text-align: center;
-    color: #6c757d;
+
+  .participant-chip {
+    display: flex;
+    align-items: center;
+    background-color: rgba(59, 130, 246, 0.1);
+    border-radius: 20px;
+    padding: 4px 8px;
+    font-size: 0.875rem;
   }
-  
+
+  .remove-button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    padding: 2px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+
+  .remove-button:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  :global(.dark) .remove-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
   .modal-footer {
+    padding: 16px;
+    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: flex-end;
-    padding: 16px;
-    border-top: 1px solid #e5e5e5;
     gap: 12px;
   }
-  
+
   .cancel-button {
     padding: 8px 16px;
-    border: 1px solid #ced4da;
-    background-color: white;
-    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: transparent;
+    color: var(--text-color);
+    border-radius: 6px;
+    font-weight: 500;
     cursor: pointer;
+    transition: background-color 0.2s;
   }
-  
+
+  .cancel-button:hover:not(:disabled) {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  :global(.dark) .cancel-button:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
   .create-button {
     padding: 8px 16px;
     border: none;
-    background-color: #007bff;
-    color: white;
-    border-radius: 4px;
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border-radius: 6px;
+    font-weight: 500;
     cursor: pointer;
+    transition: background-color 0.2s;
   }
-  
-  .create-button:disabled {
-    background-color: #6c757d;
+
+  .create-button:hover:not(:disabled) {
+    background-color: var(--button-hover);
+  }
+
+  .create-button:disabled, .cancel-button:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
   }
-</style> 
+</style>

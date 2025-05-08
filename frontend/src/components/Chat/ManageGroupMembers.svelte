@@ -2,7 +2,11 @@
   import { onMount } from 'svelte';
   import { addChatParticipant, removeChatParticipant, listChatParticipants } from '../../api/chat';
   import { createLoggerWithPrefix } from '../../utils/logger';
+  import { searchUsers } from '../../api/user';
+  import { getAuthToken } from '../../utils/auth';
+  import appConfig from '../../config/appConfig';
   
+  const API_BASE_URL = appConfig.api.baseUrl;
   const logger = createLoggerWithPrefix('ManageGroupMembers');
   
   // Define interfaces
@@ -56,26 +60,72 @@
   // Load available users to add
   async function loadAvailableUsers(): Promise<void> {
     try {
-      const response = await fetch('/api/v1/users/suggestions', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      logger.debug('Attempting to load available users with searchUsers API');
+      // Use common letter 'a' to get many results
+      const response = await searchUsers('a', 1, 50);
       
-      if (!response.ok) {
-        throw new Error('Failed to load available users');
+      if (response && response.users && response.users.length > 0) {
+        logger.debug('Users loaded successfully from searchUsers API', { count: response.users.length });
+        
+        // Filter out users who are already in the chat
+        const participantIds = new Set(currentParticipants.map(p => p.id));
+        
+        // Map the user objects to match our format
+        availableUsers = response.users
+          .filter(user => !participantIds.has(user.id))
+          .map(user => ({
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name || user.name || user.username,
+            avatar_url: user.avatar_url || user.profile_picture_url || user.avatar || ''
+          }));
+          
+        logger.debug('Filtered available users', { count: availableUsers.length });
+      } else {
+        // Try alternative queries if no results
+        await tryAlternativeSearchQueries();
       }
-      
-      const data = await response.json();
-      // Filter out users who are already in the chat
-      const participants = currentParticipants.map(p => p.id);
-      availableUsers = (data.users || []).filter((user: User) => 
-        !participants.includes(user.id)
-      );
     } catch (error) {
-      logger.error('Error loading available users:', error);
-      throw new Error('Failed to load available users');
+      logger.error('Error loading users with searchUsers API:', error);
+      await tryAlternativeSearchQueries();
     }
+  }
+  
+  // Try different common letters that should return users
+  async function tryAlternativeSearchQueries(): Promise<void> {
+    // Try a series of common letters that should return results
+    const commonLetters = ['e', 'i', 'o', 's', 'm'];
+    
+    for (const letter of commonLetters) {
+      try {
+        logger.debug(`Trying alternative search with letter "${letter}"`);
+        const response = await searchUsers(letter, 1, 50);
+        
+        if (response && response.users && response.users.length > 0) {
+          logger.debug(`Users found with letter "${letter}"`, { count: response.users.length });
+          
+          // Filter out users who are already in the chat
+          const participantIds = new Set(currentParticipants.map(p => p.id));
+          
+          availableUsers = response.users
+            .filter(user => !participantIds.has(user.id))
+            .map(user => ({
+              id: user.id,
+              username: user.username,
+              display_name: user.display_name || user.name || user.username,
+              avatar_url: user.avatar_url || user.profile_picture_url || user.avatar || ''
+            }));
+            
+          logger.debug('Filtered available users from alternative search', { count: availableUsers.length });
+          return; // Exit after finding users
+        }
+      } catch (err) {
+        logger.warn(`Search with letter "${letter}" failed:`, err);
+      }
+    }
+    
+    logger.warn('All alternative searches failed to load users');
+    errorMessage = 'Could not load available users. Try searching by username.';
   }
   
   // Filtered users based on search query
@@ -85,6 +135,58 @@
         (user.display_name && user.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : availableUsers;
+  
+  // Real-time search for users when typing
+  $: if (searchQuery && searchQuery.length > 1) {
+    performUserSearch(searchQuery);
+  }
+
+  // Debounce search to avoid too many API calls
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  
+  function performUserSearch(query: string) {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Only search if query is at least 2 characters
+    if (query.length < 2) return;
+    
+    searchTimeout = setTimeout(async () => {
+      logger.debug(`Performing user search for "${query}"`);
+      
+      try {
+        const response = await searchUsers(query, 1, 20);
+        
+        if (response && response.users && response.users.length > 0) {
+          logger.debug(`Found ${response.users.length} users matching "${query}"`);
+          
+          // Filter out users who are already in the chat
+          const participantIds = new Set(currentParticipants.map(p => p.id));
+          
+          const newUsers = response.users
+            .filter(user => !participantIds.has(user.id))
+            .map(user => ({
+              id: user.id,
+              username: user.username,
+              display_name: user.display_name || user.name || user.username,
+              avatar_url: user.avatar_url || user.profile_picture_url || user.avatar || ''
+            }));
+          
+          // Merge new users with existing ones, avoiding duplicates
+          const existingIds = new Set(availableUsers.map(u => u.id));
+          const uniqueNewUsers = newUsers.filter(u => !existingIds.has(u.id));
+          
+          if (uniqueNewUsers.length > 0) {
+            availableUsers = [...availableUsers, ...uniqueNewUsers];
+            logger.debug(`Added ${uniqueNewUsers.length} new users to available list`);
+          }
+        }
+      } catch (error) {
+        logger.warn(`User search for "${query}" failed:`, error);
+      }
+    }, 300); // 300ms debounce time
+  }
   
   // Add a user to the chat
   async function handleAddMember(user: User): Promise<void> {
@@ -210,44 +312,62 @@
       
       <div class="add-members-section">
         <h3>Add Members</h3>
-        <input 
-          type="text" 
-          bind:value={searchQuery} 
-          placeholder="Search users..."
-          class="search-input"
-        />
-        
-        {#if filteredUsers.length === 0}
-          <p class="empty-state">No users found</p>
-        {:else}
-          <div class="user-list">
-            {#each filteredUsers as user (user.id)}
-              <div class="user-item">
-                <div class="user-avatar">
-                  {#if user.avatar_url}
-                    <img src={user.avatar_url} alt={user.username} />
-                  {:else}
-                    <div class="avatar-placeholder">
-                      {(user.display_name || user.username)[0].toUpperCase()}
-                    </div>
-                  {/if}
-                </div>
-                
-                <div class="user-info">
-                  <div class="user-name">{user.display_name || user.username}</div>
-                  <div class="user-username">@{user.username}</div>
-                </div>
-                
-                <button 
-                  class="add-button" 
-                  on:click={() => handleAddMember(user)}
-                  disabled={isAddingMember}
-                >
-                  Add
-                </button>
-              </div>
-            {/each}
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              bind:value={searchQuery} 
+              placeholder="Search users..."
+              class="search-input"
+            />
+            {#if searchQuery.trim() !== ''}
+              <button class="clear-search-button" on:click={() => searchQuery = ''}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            {/if}
           </div>
+
+          {#if searchQuery.trim() !== '' && filteredUsers.length > 0}
+            <div class="search-dropdown">
+              <div class="search-dropdown-section">
+                <h4 class="search-dropdown-title">Users</h4>
+                <ul class="search-dropdown-list">
+                  {#each filteredUsers as user (user.id)}
+                    <li>
+                      <div class="dropdown-item" on:click={() => handleAddMember(user)}>
+                        <div class="avatar-container">
+                          {#if user.avatar_url}
+                            <img src={user.avatar_url} alt={user.display_name || user.username} class="avatar-image" />
+                          {:else}
+                            <span class="avatar-placeholder">{(user.display_name || user.username)[0].toUpperCase()}</span>
+                          {/if}
+                        </div>
+                        <div class="user-info">
+                          <span class="user-name">{user.display_name || user.username}</span>
+                          <span class="user-username">@{user.username}</span>
+                        </div>
+                        <button 
+                          class="add-button" 
+                          on:click|stopPropagation={() => handleAddMember(user)}
+                          disabled={isAddingMember}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            </div>
+          {/if}
+        </div>
+        
+        {#if searchQuery.trim() === ''}
+          <p class="help-text">Type to search for users</p>
+        {:else if filteredUsers.length === 0}
+          <p class="empty-state">No users found</p>
         {/if}
       </div>
     {/if}
@@ -331,34 +451,114 @@
     margin-bottom: 24px;
   }
   
+  .search-container {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  
   .search-input {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid #ced4da;
     border-radius: 4px;
     font-size: 1rem;
-    margin-bottom: 12px;
   }
   
-  .member-list, .user-list {
+  .clear-search-button {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+  }
+  
+  .search-dropdown-section {
+    padding: 8px;
+  }
+  
+  .search-dropdown-title {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 4px 4px 12px;
+    font-weight: 600;
+  }
+  
+  .search-dropdown-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+  
+  .dropdown-item:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .help-text {
+    color: #6c757d;
+    font-size: 0.9rem;
+    text-align: center;
+    margin: 16px 0;
+  }
+  
+  .member-list {
     border: 1px solid #e5e5e5;
     border-radius: 4px;
     max-height: 300px;
     overflow-y: auto;
   }
   
-  .member-item, .user-item {
+  .member-item {
     display: flex;
     align-items: center;
     padding: 12px;
     border-bottom: 1px solid #e5e5e5;
   }
   
-  .member-item:last-child, .user-item:last-child {
+  .member-item:last-child {
     border-bottom: none;
   }
   
-  .user-avatar {
+  .avatar-container, .user-avatar {
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -367,7 +567,7 @@
     flex-shrink: 0;
   }
   
-  .user-avatar img {
+  .avatar-image, .user-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -390,11 +590,13 @@
   
   .user-name {
     font-weight: 500;
+    display: block;
   }
   
   .user-username {
     font-size: 0.875rem;
     color: #6c757d;
+    display: block;
   }
   
   .role-badge {
@@ -414,6 +616,7 @@
     border-radius: 4px;
     font-size: 0.875rem;
     cursor: pointer;
+    white-space: nowrap;
   }
   
   .remove-button {
@@ -426,6 +629,7 @@
     background-color: #d4edda;
     color: #155724;
     border: 1px solid #c3e6cb;
+    margin-left: 8px;
   }
   
   .remove-button:disabled, .add-button:disabled {

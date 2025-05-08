@@ -11,7 +11,7 @@
   import { useTheme } from '../hooks/useTheme';
   import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
-  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads, getThreadReplies, getFollowingThreads } from '../api/thread';
+  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads, getThreadReplies, getFollowingThreads, removeRepost } from '../api/thread';
   import { getTrends } from '../api/trends';
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
@@ -630,6 +630,134 @@
     showComposeModal = true;
   }
   
+  // New function: Handle tweet repost
+  async function handleTweetRepost(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to repost', 'warning');
+      return;
+    }
+    logger.info('Repost tweet action', { tweetId });
+    
+    try {
+      await repostThread(tweetId);
+      toastStore.showToast('Tweet reposted', 'success');
+      
+      // Update both tweet arrays
+      tweetsForYou = tweetsForYou.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, reposts: (tweet.reposts || 0) + 1, isReposted: true };
+        }
+        return tweet;
+      });
+      
+      tweetsFollowing = tweetsFollowing.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, reposts: (tweet.reposts || 0) + 1, isReposted: true };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to repost tweet', 'error');
+    }
+  }
+  
+  // New function: Handle tweet unrepost
+  async function handleTweetUnrepost(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to remove a repost', 'warning');
+      return;
+    }
+    logger.info('Unrepost tweet action', { tweetId });
+    
+    try {
+      await removeRepost(tweetId);
+      toastStore.showToast('Repost removed', 'success');
+      
+      // Update both tweet arrays
+      tweetsForYou = tweetsForYou.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, reposts: Math.max(0, (tweet.reposts || 0) - 1), isReposted: false };
+        }
+        return tweet;
+      });
+      
+      tweetsFollowing = tweetsFollowing.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, reposts: Math.max(0, (tweet.reposts || 0) - 1), isReposted: false };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to remove repost', 'error');
+    }
+  }
+  
+  // New function: Handle tweet bookmark
+  async function handleTweetBookmark(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to bookmark posts', 'warning');
+      return;
+    }
+    logger.info('Bookmark tweet action', { tweetId });
+    
+    try {
+      await bookmarkThread(tweetId);
+      toastStore.showToast('Tweet bookmarked', 'success');
+      
+      // Update both tweet arrays
+      tweetsForYou = tweetsForYou.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, bookmarks: (tweet.bookmarks || 0) + 1, isBookmarked: true };
+        }
+        return tweet;
+      });
+      
+      tweetsFollowing = tweetsFollowing.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, bookmarks: (tweet.bookmarks || 0) + 1, isBookmarked: true };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to bookmark tweet', 'error');
+    }
+  }
+  
+  // New function: Handle tweet unbookmark
+  async function handleTweetUnbookmark(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to remove bookmarks', 'warning');
+      return;
+    }
+    logger.info('Unbookmark tweet action', { tweetId });
+    
+    try {
+      await removeBookmark(tweetId);
+      toastStore.showToast('Bookmark removed', 'success');
+      
+      // Update both tweet arrays
+      tweetsForYou = tweetsForYou.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, bookmarks: Math.max(0, (tweet.bookmarks || 0) - 1), isBookmarked: false };
+        }
+        return tweet;
+      });
+      
+      tweetsFollowing = tweetsFollowing.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, bookmarks: Math.max(0, (tweet.bookmarks || 0) - 1), isBookmarked: false };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to remove bookmark', 'error');
+    }
+  }
+  
   // Load replies for a specific thread
   async function handleLoadReplies(event: CustomEvent) {
     const threadId = event.detail;
@@ -896,10 +1024,10 @@
               on:click={() => openThreadModal(tweet)}
               on:like={handleTweetLike}
               on:unlike={handleTweetUnlike}
-              on:repost={() => {}}
+              on:repost={(e) => tweet.isReposted ? handleTweetUnrepost(e) : handleTweetRepost(e)}
               on:reply={handleTweetReply}
-              on:bookmark={() => {}}
-              on:removeBookmark={() => {}}
+              on:bookmark={handleTweetBookmark}
+              on:removeBookmark={handleTweetUnbookmark}
               on:loadReplies={handleLoadReplies}
             />
           {/if}

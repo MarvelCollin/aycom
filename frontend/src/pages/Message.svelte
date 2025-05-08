@@ -13,6 +13,7 @@
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
   import DebugPanel from '../components/common/DebugPanel.svelte';
+  import CreateGroupChat from '../components/chat/CreateGroupChat.svelte';
   
   const logger = createLoggerWithPrefix('Message');
 
@@ -37,6 +38,9 @@
   let searchQuery = '';
   let filteredChats: Chat[] = [];
   let selectedAttachments: Attachment[] = [];
+  
+  // Group chat modal state
+  let showGroupChatModal = false;
 
   // WebSocket state
   let wsUnsubscribe: () => void;
@@ -57,6 +61,47 @@
         container.classList.remove('chat-selected');
       }
     }
+  }
+  
+  // Handle successful group chat creation
+  function handleGroupChatCreated(event: any) {
+    if (event && event.detail && event.detail.chat) {
+      logger.debug('Group chat created', { chatId: event.detail.chat.id });
+      
+      // Add the new group chat to the chat list
+      const newChat = formatGroupChatForDisplay(event.detail.chat);
+      chats = [newChat, ...chats];
+      filteredChats = [newChat, ...filteredChats];
+      
+      // Select the new chat
+      selectChat(newChat);
+      
+      // Close the modal
+      showGroupChatModal = false;
+      
+      // Show success notification
+      toastStore.showToast('Group chat created successfully', 'success');
+    }
+  }
+  
+  // Format group chat data for display
+  function formatGroupChatForDisplay(chatData: any): Chat {
+    return {
+      id: chatData.id,
+      name: chatData.name || 'New Group Chat',
+      type: 'group',
+      lastMessage: undefined,
+      avatar: null,
+      participants: chatData.participants?.map(p => ({
+        id: p.id || p.user_id,
+        username: p.username || '',
+        displayName: p.display_name || p.username || `User`,
+        avatar: p.avatar_url || p.avatar || null,
+        isVerified: p.is_verified || false
+      })) || [],
+      messages: [],
+      unreadCount: 0
+    };
   }
 
   // Message interfaces
@@ -1527,12 +1572,20 @@
   <div class="middle-section">
     <div class="section-header">
       <h1>Messages</h1>
-      <button class="compose-button" on:click={() => searchQuery = 'new'}>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-        <span>New</span>
-      </button>
+      <div class="button-group">
+        <button class="compose-button" on:click={() => showGroupChatModal = true}>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span>Group</span>
+        </button>
+        <button class="compose-button" on:click={() => searchQuery = 'new'}>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          <span>New</span>
+        </button>
+      </div>
     </div>
     <div class="search-container">
       <div class="search-input-wrapper">
@@ -1833,6 +1886,18 @@
     {/if}
   </div>
 </div>
+
+<!-- Add the Group Chat modal -->
+{#if showGroupChatModal}
+  <div class="modal-overlay">
+    <div class="modal-container">
+      <CreateGroupChat 
+        onSuccess={handleGroupChatCreated} 
+        onCancel={() => showGroupChatModal = false} 
+      />
+    </div>
+  </div>
+{/if}
 
 <style>
   /* Main Container */
@@ -2647,6 +2712,34 @@
     margin: 16px 16px 8px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border-color);
+  }
+
+  /* Add these new styles for the button group and modal */
+  .button-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal-container {
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   }
 </style>
 

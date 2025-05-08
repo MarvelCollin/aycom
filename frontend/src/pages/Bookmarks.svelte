@@ -1,199 +1,754 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import MainLayout from '../components/layout/MainLayout.svelte';
+  import TweetCard from '../components/social/TweetCard.svelte';
+  import Toast from '../components/common/Toast.svelte';
+  import DebugPanel from '../components/common/DebugPanel.svelte';
+  import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import type { ITweet } from '../interfaces/ISocialMedia';
+  import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
+  import { likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getThreadReplies, removeRepost, getUserBookmarks } from '../api/thread';
+  import { getTrends } from '../api/trends';
+  import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import TweetCard from '../components/social/TweetCard.svelte';
-  import { getUserBookmarks, removeBookmark } from '../api/thread';
-  
+  import { getProfile } from '../api/user';
+
   const logger = createLoggerWithPrefix('Bookmarks');
-  
-  // Auth and theme
+
+  // Get auth store methods
   const { getAuthState } = useAuth();
+  // Get theme store
   const { theme } = useTheme();
-  
-  // Reactive declarations
+
+  // Reactive declarations for auth and theme
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
   $: isDarkMode = $theme === 'dark';
-  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
-  $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar with proper image URL
   
-  // Bookmarks state
+  // User profile data
+  let username = '';
+  let displayName = '';
+  let avatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar image URL
+  let isLoadingProfile = true;
+
+  // State for bookmarked tweets
+  let bookmarkedTweets: ITweet[] = [];
   let isLoading = true;
-  let bookmarks: ITweet[] = [];
-  let filteredBookmarks: ITweet[] = [];
-  let searchQuery = '';
+  let error: string | null = null;
+  let selectedTweet: ITweet | null = null;
   
+  // Pagination
+  let page = 1;
+  let limit = 10;
+  let hasMore = true;
+  
+  // Trends data
+  let trends: ITrend[] = [];
+  let isTrendsLoading = true;
+  
+  // Suggested users to follow
+  let suggestedUsers: ISuggestedFollow[] = [];
+  let isSuggestedUsersLoading = true;
+
+  // Add nestedRepliesMap to track replies at different levels
+  let repliesMap = new Map();
+  let nestedRepliesMap = new Map(); // For storing replies to replies
+
+  // Convert thread data to tweet format
+  function threadToTweet(thread: any): ITweet {
+    // Check if we have debugging enabled
+    const debug = false;
+    if (debug) {
+      console.log('Converting thread to tweet:', thread);
+    }
+    
+    // Default values
+    let username = 'anonymous';
+    let displayName = 'User';
+    let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
+    let content = thread.content || '';
+    
+    // Get author data from all possible locations
+    // First try direct author fields
+    if (thread.author_username) {
+      username = thread.author_username;
+    } else if (thread.authorUsername) {
+      username = thread.authorUsername;
+    } else if (thread.username) {
+      username = thread.username;
+    }
+    
+    if (thread.author_name) {
+      displayName = thread.author_name;
+    } else if (thread.authorName) {
+      displayName = thread.authorName;
+    } else if (thread.display_name) {
+      displayName = thread.display_name;
+    } else if (thread.displayName) {
+      displayName = thread.displayName;
+    }
+    
+    // Handle avatar URLs from Supabase
+    if (thread.author_avatar) {
+      profilePicture = formatSupabaseImageUrl(thread.author_avatar);
+    } else if (thread.authorAvatar) {
+      profilePicture = formatSupabaseImageUrl(thread.authorAvatar);
+    } else if (thread.profile_picture_url) {
+      profilePicture = formatSupabaseImageUrl(thread.profile_picture_url);
+    } else if (thread.avatar) {
+      profilePicture = formatSupabaseImageUrl(thread.avatar);
+    }
+    
+    // Fallback: if user data is not directly in the thread, check for embedded content format
+    if (username === 'anonymous' && typeof content === 'string') {
+      // Look for enhanced user metadata that includes profile picture
+      // Format: [USER:username@displayName@profileUrl]content
+      const enhancedMetadataRegex = /^\[USER:([^@\]]+)@([^@\]]+)@([^\]]+)\](.*)/;
+      const match = enhancedMetadataRegex.exec(content);
+      
+      if (match) {
+        username = match[1] || username;
+        displayName = match[2] || displayName;
+        profilePicture = match[3] || profilePicture;
+        content = match[4] || '';
+      } else {
+        // Try the old format without profile picture
+        const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
+        const basicMatch = content.match(userMetadataRegex);
+        
+        if (basicMatch) {
+          username = basicMatch[1] || username;
+          displayName = basicMatch[2] || displayName;
+          content = basicMatch[3] || '';
+        }
+      }
+    }
+
+    // Safe date conversion with fallback
+    let timestamp = new Date().toISOString();
+    try {
+      if (thread.created_at) {
+        const date = new Date(thread.created_at);
+        // Check if date is valid before converting to ISO string
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      } else if (thread.timestamp) {
+        const date = new Date(thread.timestamp);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      }
+    } catch (error) {
+      console.warn("Invalid date format in thread:", thread.created_at || thread.timestamp);
+    }
+    
+    return {
+      id: thread.id,
+      threadId: thread.thread_id || thread.id,
+      username: username,
+      displayName: displayName,
+      content: content,
+      timestamp: timestamp,
+      avatar: profilePicture,
+      likes: thread.like_count || thread.metrics?.likes || 0,
+      replies: thread.reply_count || thread.metrics?.replies || 0,
+      reposts: thread.repost_count || thread.metrics?.reposts || 0,
+      bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
+      views: '0', // We're temporarily using view_count for bookmarks, so display 0 for now
+      media: thread.media || [],
+      isLiked: thread.is_liked || false,
+      isReposted: thread.is_repost || false,
+      isBookmarked: true, // Always true for bookmarks page
+      replyTo: null, // Will be populated later if this is a reply
+      isAdvertisement: thread.is_advertisement || false,
+      communityId: thread.community_id || null,
+      communityName: thread.community_name || null,
+      // Include additional fields for replies
+      authorId: thread.author_id || thread.authorId,
+      authorName: thread.author_name || thread.authorName || displayName,
+      authorUsername: thread.author_username || thread.authorUsername || username,
+      authorAvatar: thread.author_avatar || thread.authorAvatar || profilePicture
+    };
+  }
+
+  // Helper function to format Supabase image URLs
+  function formatSupabaseImageUrl(url: string): string {
+    if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
+    
+    // If already a full URL, return as is
+    if (url.startsWith('http')) return url;
+    
+    // Otherwise, construct the Supabase URL
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+    return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
+  }
+
   // Authentication check
   function checkAuth() {
     if (!authState.isAuthenticated) {
-      toastStore.showToast('You need to log in to access bookmarks', 'warning');
-      window.location.href = '/login';
+      logger.info('User not authenticated, redirecting to login page');
+      
+      // Only redirect if we're not already on the login page
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login') {
+        window.location.href = '/login';
+      }
       return false;
     }
     return true;
   }
   
-  // Update the fetchBookmarks function to use our API function
-  async function fetchBookmarks() {
-    isLoading = true;
-
+  // Fetch user profile data using the API directly
+  async function fetchUserProfile() {
+    isLoadingProfile = true;
     try {
-      logger.debug('Fetching bookmarks from API');
-      
-      // Use the imported API function instead of direct fetch
-      const data = await getUserBookmarks(1, 20);
-      
-      // Ensure the data matches our ITweet interface format
-      bookmarks = data.bookmarks || [];
-      
-      filteredBookmarks = [...bookmarks];
-      isLoading = false;
-      logger.debug('Bookmarks loaded successfully', { count: bookmarks.length });
+      const response = await getProfile();
+      if (response && response.user) {
+        username = response.user.username || '';
+        displayName = response.user.name || response.user.display_name || username;
+        
+        // Use direct Supabase URL for profile picture if available
+        if (response.user.profile_picture_url && response.user.profile_picture_url.startsWith('http')) {
+          avatar = response.user.profile_picture_url;
+        } else if (response.user.profile_picture_url) {
+          // If it's a relative path or filename, construct proper Supabase URL
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+          avatar = `${supabaseUrl}/storage/v1/object/public/tpaweb/${response.user.profile_picture_url}`;
+        } else {
+          avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+        }
+        
+        logger.debug('Profile loaded successfully', { username });
+      } else {
+        logger.warn('No user data received from API');
+        // Set default values
+        username = 'user';
+        displayName = 'Guest User';
+        avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+      }
     } catch (error) {
-      console.error('Error fetching bookmarks:', error);
-      toastStore.showToast('Failed to load bookmarks from server.', 'warning');
-      isLoading = false;
-      
-      // Use an empty array for bookmarks if fetch fails
-      bookmarks = [];
-      filteredBookmarks = [];
+      logger.error('Error fetching user profile:', error);
+      // Set default values
+      username = 'user';
+      displayName = 'Guest User';
+      avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+    } finally {
+      isLoadingProfile = false;
     }
   }
-  
-  // Filter bookmarks based on search query
-  function filterBookmarks() {
-    if (!searchQuery.trim()) {
-      filteredBookmarks = [...bookmarks];
+
+  // Function to fetch bookmarked tweets
+  async function fetchBookmarkedTweets(resetPage = false) {
+    logger.info('Fetching bookmarked tweets', { resetPage, page });
+    
+    if (resetPage) {
+      page = 1;
+      bookmarkedTweets = [];
+    }
+    
+    isLoading = true;
+    error = null;
+    
+    try {
+      if (!checkAuth()) return;
+      
+      logger.debug('Fetching bookmarks');
+      const response = await getUserBookmarks(page, limit);
+      
+      if (response && response.bookmarks) {
+        logger.info(`Received ${response.bookmarks.length} bookmarks from API`);
+        
+        // Convert bookmarks to tweets format
+        const convertedTweets = response.bookmarks.map(bookmark => {
+          const tweet = threadToTweet(bookmark.thread || bookmark);
+          return tweet;
+        });
+        
+        // If first page, replace tweets, otherwise append
+        bookmarkedTweets = page === 1 ? convertedTweets : [...bookmarkedTweets, ...convertedTweets];
+        
+        // Check if there are more tweets to load
+        hasMore = convertedTweets.length === limit;
+        page++;
+        
+        logger.debug('Updated bookmarks state', { 
+          totalBookmarks: bookmarkedTweets.length, 
+          hasMore, 
+          nextPage: page 
+        });
+      } else {
+        logger.info('No bookmarks received from API');
+        hasMore = false;
+      }
+    } catch (err) {
+      console.error('Error loading bookmarks:', err);
+      toastStore.showToast('Failed to load bookmarks. Please try again.', 'error');
+      error = err instanceof Error ? err.message : 'Failed to fetch bookmarks';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function fetchTrends() {
+    logger.debug('Fetching trends');
+    isTrendsLoading = true;
+    
+    try {
+      const trendData = await getTrends(5);
+      trends = trendData;
+      logger.debug('Trends loaded', { trendsCount: trends.length });
+    } catch (error) {
+      console.error('Error loading trends:', error);
+      toastStore.showToast('Failed to load trends. Please try again.', 'error');
+      trends = [];
+    } finally {
+      isTrendsLoading = false;
+    }
+  }
+
+  async function fetchSuggestedUsers() {
+    logger.debug('Fetching suggested users');
+    isSuggestedUsersLoading = true;
+    
+    try {
+      const userData = await getSuggestedUsers(3);
+      suggestedUsers = userData;
+      logger.debug('Suggested users loaded', { count: suggestedUsers.length });
+    } catch (error) {
+      console.error('Error loading suggestions:', error);
+      toastStore.showToast('Failed to load suggestions. Please try again.', 'error');
+      suggestedUsers = [];
+    } finally {
+      isSuggestedUsersLoading = false;
+    }
+  }
+
+  onMount(async () => {
+    console.log('Bookmarks page - Auth state:', authState.isAuthenticated, 'Current path:', window.location.pathname);
+    
+    // Let the Router handle redirects rather than doing it directly
+    if (!authState.isAuthenticated) {
+      logger.info('User not authenticated, letting Router handle the redirect');
       return;
     }
     
-    const query = searchQuery.toLowerCase();
-    filteredBookmarks = bookmarks.filter(bookmark => 
-      bookmark.content.toLowerCase().includes(query) || 
-      bookmark.authorName?.toLowerCase().includes(query) || 
-      bookmark.authorUsername?.toLowerCase().includes(query) ||
-      bookmark.displayName.toLowerCase().includes(query) || 
-      bookmark.username.toLowerCase().includes(query)
-    );
+    // Load user profile first
+    await fetchUserProfile();
     
-    logger.debug('Bookmarks filtered', { query, resultsCount: filteredBookmarks.length });
+    // Then fetch bookmarked tweets
+    fetchBookmarkedTweets();
+    
+    // Fetch trends and suggestions in parallel
+    Promise.all([
+      fetchTrends(),
+      fetchSuggestedUsers()
+    ]).catch(error => {
+      logger.error('Error fetching additional data:', error);
+    });
+  });
+
+  function openThreadModal(tweet: ITweet) {
+    logger.debug('Opening thread modal', { tweetId: tweet.id });
+    selectedTweet = tweet;
   }
   
-  // Handle bookmark removal - updated to use actual API function
-  async function handleRemoveBookmark(event) {
+  function closeThreadModal() {
+    logger.debug('Closing thread modal');
+    selectedTweet = null;
+  }
+  
+  // Handle tweet actions - updating the bookmarked tweets array
+  async function handleTweetLike(event: CustomEvent) {
     const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to like posts', 'warning');
+      return;
+    }
+    logger.info('Like tweet action', { tweetId });
     
     try {
-      logger.debug('Removing bookmark', { tweetId });
+      await likeThread(tweetId);
+      toastStore.showToast('Tweet liked', 'success');
       
-      // Use the imported API function instead of direct fetch
-      await removeBookmark(tweetId);
-      
-      // Update local state after successful API call
-      bookmarks = bookmarks.filter(bookmark => bookmark.id !== tweetId);
-      filteredBookmarks = filteredBookmarks.filter(bookmark => bookmark.id !== tweetId);
-      
-      logger.debug('Bookmark removed successfully', { tweetId });
-      toastStore.showToast('Bookmark removed', 'success');
+      // Update bookmarked tweets array
+      bookmarkedTweets = bookmarkedTweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, likes: (tweet.likes || 0) + 1, isLiked: true };
+        }
+        return tweet;
+      });
     } catch (error) {
-      console.error('Error removing bookmark:', error);
+      toastStore.showToast('Failed to like tweet', 'error');
+    }
+  }
+  
+  async function handleTweetUnlike(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to unlike posts', 'warning');
+      return;
+    }
+    logger.info('Unlike tweet action', { tweetId });
+    
+    try {
+      await unlikeThread(tweetId);
+      toastStore.showToast('Tweet unliked', 'success');
+      
+      // Update bookmarked tweets array
+      bookmarkedTweets = bookmarkedTweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, likes: Math.max(0, (tweet.likes || 0) - 1), isLiked: false };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to unlike tweet', 'error');
+    }
+  }
+  
+  // Handle tweet reply
+  function handleTweetReply(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to reply to posts', 'warning');
+      return;
+    }
+    logger.info('Reply to tweet action', { tweetId });
+    
+    // Find the tweet in the array
+    const tweetToReply = bookmarkedTweets.find(t => t.id === tweetId);
+    
+    if (!tweetToReply) {
+      toastStore.showToast('Cannot find the tweet to reply to', 'error');
+      return;
+    }
+    
+    // Store the tweet to reply to and navigate to the thread page
+    window.location.href = `/thread/${tweetId}`;
+  }
+  
+  // Handle tweet repost
+  async function handleTweetRepost(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to repost', 'warning');
+      return;
+    }
+    logger.info('Repost tweet action', { tweetId });
+    
+    try {
+      await repostThread(tweetId);
+      toastStore.showToast('Tweet reposted', 'success');
+      
+      // Update bookmarked tweets array
+      bookmarkedTweets = bookmarkedTweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, reposts: (tweet.reposts || 0) + 1, isReposted: true };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to repost tweet', 'error');
+    }
+  }
+  
+  // Handle tweet unrepost
+  async function handleTweetUnrepost(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to remove a repost', 'warning');
+      return;
+    }
+    logger.info('Unrepost tweet action', { tweetId });
+    
+    try {
+      await removeRepost(tweetId);
+      toastStore.showToast('Repost removed', 'success');
+      
+      // Update bookmarked tweets array
+      bookmarkedTweets = bookmarkedTweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, reposts: Math.max(0, (tweet.reposts || 0) - 1), isReposted: false };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      toastStore.showToast('Failed to remove repost', 'error');
+    }
+  }
+  
+  // Handle tweet unbookmark - remove from the list
+  async function handleTweetUnbookmark(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to remove bookmarks', 'warning');
+      return;
+    }
+    logger.info('Unbookmark tweet action', { tweetId });
+    
+    try {
+      await removeBookmark(tweetId);
+      toastStore.showToast('Bookmark removed', 'success');
+      
+      // Remove the tweet from the bookmarked tweets array
+      bookmarkedTweets = bookmarkedTweets.filter(tweet => tweet.id !== tweetId);
+    } catch (error) {
       toastStore.showToast('Failed to remove bookmark', 'error');
     }
   }
   
-  // Watch for search query changes
-  $: if (searchQuery !== undefined) {
-    filterBookmarks();
+  // Load replies for a specific thread
+  async function handleLoadReplies(event: CustomEvent) {
+    const threadId = event.detail;
+    logger.debug(`Loading replies for thread: ${threadId}`);
+    await fetchRepliesForThread(threadId);
+  }
+
+  // Function to fetch replies for a given thread
+  async function fetchRepliesForThread(threadId: string) {
+    logger.debug(`Fetching replies for thread: ${threadId}`);
+    
+    try {
+      const response = await getThreadReplies(threadId);
+      
+      if (response && response.replies && response.replies.length > 0) {
+        logger.info(`Received ${response.replies.length} replies for thread ${threadId}`);
+        
+        // Debug the raw reply data structure
+        console.log('Sample reply structure from API:', response.replies[0]);
+        
+        // Create a more detailed mapping for replies that properly extracts user data
+        const convertedReplies = response.replies.map(reply => {
+          // Extract core data
+          const replyData = reply.reply || reply;
+          
+          // Handle user data which might be nested or at the top level
+          const userData = reply.user || {};
+          
+          // Build a comprehensive reply object that ensures all fields are populated
+          const enrichedReply = {
+            id: replyData.id,
+            thread_id: replyData.thread_id || threadId,
+            content: replyData.content || '',
+            created_at: replyData.created_at || new Date().toISOString(),
+            author_id: userData.id || replyData.user_id,
+            author_username: userData.username || reply.author_username,
+            author_name: userData.name || reply.author_name,
+            author_avatar: userData.profile_picture_url || reply.author_avatar,
+            parent_id: replyData.parent_id,
+            metrics: {
+              likes: reply.likes_count || 0,
+              replies: 0 // Replies to replies not tracked yet
+            }
+          };
+          
+          const convertedReply = threadToTweet(enrichedReply);
+          
+          // Ensure the parent references are set properly
+          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
+          (convertedReply as any).parentReplyId = replyData.parent_id;
+          
+          return convertedReply;
+        });
+        
+        // Store replies in the map for the thread
+        repliesMap.set(threadId, convertedReplies);
+        
+        // Process nested replies (replies to replies)
+        convertedReplies.forEach(reply => {
+          const parentId = (reply as any).parentReplyId;
+          if (parentId) {
+            // If this reply has a parent that is not the main thread
+            const parentReplies = nestedRepliesMap.get(parentId) || [];
+            nestedRepliesMap.set(parentId, [...parentReplies, reply]);
+          }
+        });
+        
+        // Trigger reactivity update
+        repliesMap = repliesMap;
+        nestedRepliesMap = nestedRepliesMap;
+        
+        logger.debug(`Replies loaded for thread ${threadId}`, { count: convertedReplies.length });
+      } else {
+        logger.warn(`No replies returned for thread ${threadId}`);
+        repliesMap.set(threadId, []);
+        repliesMap = repliesMap;
+      }
+    } catch (error) {
+      logger.error(`Error fetching replies for thread ${threadId}:`, error);
+      toastStore.showToast('Failed to load replies. Please try again.', 'error');
+      repliesMap.set(threadId, []);
+      repliesMap = repliesMap;
+    }
   }
   
-  onMount(() => {
-    logger.debug('Bookmarks page mounted', { authState });
-    if (checkAuth()) {
-      fetchBookmarks();
-    }
-  });
+  // Function to load more bookmarked tweets
+  function loadMoreBookmarks() {
+    fetchBookmarkedTweets();
+  }
 </script>
 
 <MainLayout
-  username={sidebarUsername}
-  displayName={sidebarDisplayName}
-  avatar={sidebarAvatar}
-  on:toggleComposeModal={() => {}}
+  username={username}
+  displayName={displayName}
+  avatar={avatar}
+  trends={trends}
+  suggestedFollows={suggestedUsers}
 >
-  <div class="min-h-screen border-x border-gray-200 dark:border-gray-800">
+  <!-- Content Area -->
+  <div class="min-h-screen border-x feed-container">
     <!-- Header -->
-    <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-      <h1 class="text-xl font-bold">Bookmarks</h1>
-      
-      <!-- Search -->
-      <div class="relative mt-3">
-        <input 
-          type="text" 
-          bind:value={searchQuery}
-          placeholder="Search Bookmarks" 
-          class="w-full rounded-full pl-10 pr-4 py-2 {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-200'}"
-        />
-        <div class="absolute left-3 top-2.5 text-gray-500">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
+    <div class="sticky top-0 z-10 header-tabs border-b {isDarkMode ? 'bg-black border-gray-800' : 'bg-white border-gray-200'}">
+      <div class="p-4">
+        <h1 class="text-xl font-bold">Bookmarks</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Your saved tweets</p>
       </div>
     </div>
     
-    <!-- Content -->
-    <div class="divide-y divide-gray-200 dark:divide-gray-800">
-      {#if isLoading}
-        <div class="p-4">
-          <div class="animate-pulse space-y-4">
-            {#each Array(3) as _}
-              <div class="flex space-x-4">
-                <div class="rounded-full bg-gray-300 dark:bg-gray-700 h-12 w-12"></div>
-                <div class="flex-1 space-y-2 py-1">
-                  <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-                  <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
-                  <div class="h-24 bg-gray-300 dark:bg-gray-700 rounded w-full mt-2"></div>
-                  <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full mt-2"></div>
+    <!-- Tweets List -->
+    <div class="tweet-list">
+      <!-- Loading state when first loading tab -->
+      {#if isLoading && bookmarkedTweets.length === 0}
+        <div class="space-y-4 p-4">
+          {#each Array(5) as _, i}
+            <div class="animate-pulse flex space-x-4">
+              <div class="rounded-full bg-gray-300 dark:bg-gray-700 h-10 w-10"></div>
+              <div class="flex-1 space-y-3 py-1">
+                <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded"></div>
+                <div class="space-y-2">
+                  <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded"></div>
+                  <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
                 </div>
+                <div class="h-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
               </div>
-            {/each}
-          </div>
+            </div>
+          {/each}
         </div>
-      {:else if filteredBookmarks.length === 0}
-        <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
-          {#if bookmarks.length === 0}
-            <h2 class="text-2xl font-bold mb-2">You haven't added any Bookmarks yet</h2>
-            <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-md">
-              When you do, they'll show up here.
-            </p>
-          {:else}
-            <h2 class="text-2xl font-bold mb-2">No results found</h2>
-            <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-md">
-              Try a different search term.
-            </p>
-          {/if}
+      <!-- Error state -->
+      {:else if error}
+        <div class="p-8 text-center">
+          <p class="text-red-500 mb-4">{error}</p>
+          <button 
+            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+            on:click={() => fetchBookmarkedTweets(true)}
+          >
+            Try Again
+          </button>
         </div>
+      <!-- Empty state -->
+      {:else if bookmarkedTweets.length === 0 && !isLoading}
+        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+          <p class="mb-4">You haven't bookmarked any tweets yet</p>
+          <a 
+            href="/explore" 
+            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 inline-block"
+          >
+            Explore Content
+          </a>
+        </div>
+      <!-- Bookmarked tweets list -->
       {:else}
-        {#each filteredBookmarks as bookmark}
-          <div class="border-b border-gray-200 dark:border-gray-800">
-            <TweetCard 
-              tweet={bookmark} 
-              on:removeBookmark={handleRemoveBookmark} 
-            />
-          </div>
+        {#each bookmarkedTweets as tweet (tweet.id)}
+          <TweetCard 
+            {tweet}
+            {isDarkMode}
+            isAuthenticated={authState.isAuthenticated}
+            isLiked={tweet.isLiked || false}
+            isReposted={tweet.isReposted || false}
+            isBookmarked={true}
+            inReplyToTweet={tweet.replyTo || null}
+            replies={repliesMap.get(tweet.id) || []}
+            nestedRepliesMap={nestedRepliesMap}
+            nestingLevel={0}
+            on:click={() => openThreadModal(tweet)}
+            on:like={handleTweetLike}
+            on:unlike={handleTweetUnlike}
+            on:repost={(e) => tweet.isReposted ? handleTweetUnrepost(e) : handleTweetRepost(e)}
+            on:reply={handleTweetReply}
+            on:bookmark={() => {}}
+            on:removeBookmark={handleTweetUnbookmark}
+            on:loadReplies={handleLoadReplies}
+          />
         {/each}
+        
+        <!-- Loading more state -->
+        {#if isLoading}
+          <div class="flex justify-center items-center p-4">
+            <div class="h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+          </div>
+        <!-- Load more button -->
+        {:else if hasMore}
+          <div class="p-4 text-center">
+            <button 
+              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+              on:click={loadMoreBookmarks}
+            >
+              Load More
+            </button>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
 </MainLayout>
 
+<!-- Toast notifications -->
+<Toast />
+
+<!-- Debug panel -->
+<DebugPanel />
+
 <style>
+  /* Theme colors */
+  :global(.theme-light) {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f8fa;
+    --bg-tertiary: #ebeef0;
+    --bg-overlay: rgba(255, 255, 255, 0.9);
+    --border-color: #e1e8ed;
+    --text-primary: #14171a;
+    --text-secondary: #657786;
+    --text-tertiary: #aab8c2;
+    --accent-color: #1d9bf0;
+    --accent-hover: #1a8cd8;
+    --error-color: #e0245e;
+    --success-color: #17bf63;
+  }
+
+  :global(.theme-dark) {
+    --bg-primary: #000000;
+    --bg-secondary: #15181c;
+    --bg-tertiary: #212327;
+    --bg-overlay: rgba(0, 0, 0, 0.9);
+    --border-color: #2f3336;
+    --text-primary: #ffffff;
+    --text-secondary: #8899a6;
+    --text-tertiary: #66757f;
+    --accent-color: #1d9bf0;
+    --accent-hover: #1a8cd8;
+    --error-color: #e0245e;
+    --success-color: #17bf63;
+  }
+
+  /* Apply theme variables to specific elements */
+  .feed-container {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+  }
+
+  .header-tabs {
+    background-color: var(--bg-overlay);
+    backdrop-filter: blur(12px);
+    border-color: var(--border-color);
+  }
+
+  .tweet-list {
+    background-color: var(--bg-primary);
+  }
+
   /* Skeleton loading animation */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
@@ -201,5 +756,14 @@
   }
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Spinner animation */
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .animate-spin {
+    animation: spin 1s linear infinite;
   }
 </style>

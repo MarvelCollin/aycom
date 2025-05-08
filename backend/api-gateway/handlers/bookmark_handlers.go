@@ -20,7 +20,7 @@ import (
 // @Router /api/v1/bookmarks [get]
 func GetUserBookmarks(c *gin.Context) {
 	// Get current user ID from JWT token
-	_, exists := c.Get("userID")
+	_, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -61,7 +61,7 @@ func SearchBookmarks(c *gin.Context) {
 	}
 
 	// Get current user ID from JWT token
-	_, exists := c.Get("userID")
+	_, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -94,7 +94,7 @@ func SearchBookmarks(c *gin.Context) {
 // @Router /api/v1/bookmarks/{id} [delete]
 func RemoveBookmark(c *gin.Context) {
 	// Get current user ID from JWT token
-	_, exists := c.Get("userID")
+	_, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
