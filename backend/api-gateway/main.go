@@ -1,7 +1,7 @@
 // @title AYCOM API Gateway
 // @version 1.0
 // @description This is the API Gateway for the AYCOM platform.
-// @host localhost:8081
+// @host localhost:8083
 // @BasePath /api/v1
 // @schemes http https
 // @securityDefinitions.apikey BearerAuth
