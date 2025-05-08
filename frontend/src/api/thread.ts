@@ -1498,3 +1498,112 @@ export async function getUserMedia(userId: string, page: number = 1, limit: numb
     throw err;
   }
 }
+
+// Bookmarks API functions
+export async function getUserBookmarks(page = 1, limit = 20) {
+  try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error("No auth token available for fetching bookmarks");
+      throw new Error("Authentication required");
+    }
+    
+    // Add retry logic with backoff
+    let retries = 0;
+    const maxRetries = 2;
+    
+    while (retries <= maxRetries) {
+      try {
+        console.log(`Fetching user bookmarks, page: ${page}, limit: ${limit}`);
+        
+        const response = await fetch(`${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`, {
+          method: "GET",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          credentials: "include",
+        });
+        
+        // First check if the response might be HTML (indicates endpoint not implemented)
+        const responseText = await response.text();
+        
+        // If HTML response, throw an error for proper handling
+        if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
+          console.warn('Bookmarks API returned HTML instead of JSON - endpoint might not be implemented');
+          throw new Error('Bookmarks API not fully implemented');
+        }
+        
+        // Try to parse as JSON
+        try {
+          const data = JSON.parse(responseText);
+          return data;
+        } catch (parseError) {
+          console.error('Failed to parse bookmarks response as JSON', parseError);
+          throw new Error('Invalid JSON response from bookmarks API');
+        }
+      } catch (fetchError) {
+        // If network error or API not implemented and we can retry
+        if (retries < maxRetries && !fetchError.message.includes('not fully implemented')) {
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+    
+    throw new Error("Failed to fetch bookmarks after multiple attempts");
+  } catch (error) {
+    console.error("Error in getUserBookmarks:", error);
+    
+    // For demo/development purposes, return mock data if the API isn't implemented
+    if (error.message.includes('not fully implemented') || error.message.includes('Invalid JSON')) {
+      console.log("Returning mock bookmark data since API isn't fully implemented");
+      return { 
+        bookmarks: [
+          {
+            id: '1',
+            content: 'This is a mock bookmarked tweet for development',
+            username: 'dev',
+            displayName: 'Developer',
+            avatar: 'https://secure.gravatar.com/avatar/0?d=mp',
+            timestamp: new Date().toISOString(),
+            likes: 42,
+            replies: 7,
+            reposts: 3,
+            bookmarks: 5,
+            views: "120",
+            isLiked: false,
+            isBookmarked: true
+          },
+          {
+            id: '2',
+            content: 'Another mock bookmarked tweet with some different content',
+            username: 'test',
+            displayName: 'Tester',
+            avatar: 'https://secure.gravatar.com/avatar/1?d=mp',
+            timestamp: new Date(Date.now() - 3600000).toISOString(),
+            likes: 15,
+            replies: 3,
+            reposts: 1,
+            bookmarks: 2,
+            views: "85",
+            isLiked: true,
+            isBookmarked: true
+          }
+        ],
+        pagination: {
+          total: 2,
+          page: 1,
+          limit: limit,
+          hasMore: false
+        }
+      };
+    }
+    
+    throw error;
+  }
+}

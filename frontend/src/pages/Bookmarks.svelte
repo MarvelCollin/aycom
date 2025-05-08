@@ -8,6 +8,7 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import TweetCard from '../components/social/TweetCard.svelte';
+  import { getUserBookmarks, removeBookmark } from '../api/thread';
   
   const logger = createLoggerWithPrefix('Bookmarks');
   
@@ -38,134 +39,30 @@
     return true;
   }
   
-  // Fetch bookmarks
+  // Update the fetchBookmarks function to use our API function
   async function fetchBookmarks() {
     isLoading = true;
-    
+
     try {
-      // In a real implementation, this would be an API call to fetch bookmarks
-      // For example: const response = await fetch('/api/bookmarks');
+      logger.debug('Fetching bookmarks from API');
       
-      // Simulate API response with mock data
-      setTimeout(() => {
-        // Mock bookmarks data
-        bookmarks = [
-          {
-            id: 'tweet1',
-            username: '@Brawlhalla',
-            displayName: 'Brawlhalla',
-            avatar: null,
-            content: 'The Brawlhalla: Guardians Crossover Event has begun! Choose Titan, Hunter, Warlock, or all three and Brawl in the Grand Tournament! Your Ghost Companions and Ghaisthuns, topped with with Heavy Ammo, are waiting for you now!',
-            timestamp: '2023-05-27T10:00:00Z',
-            likes: 621,
-            replies: 27,
-            reposts: 71,
-            bookmarks: 0,
-            views: '135K',
-            isLiked: false,
-            isReposted: false,
-            isBookmarked: true,
-            // Additional properties used in UI
-            authorId: 'brawlhalla',
-            authorName: 'Brawlhalla',
-            authorUsername: '@Brawlhalla',
-            authorAvatar: null,
-            verified: true,
-            likesCount: 621,
-            commentsCount: 27,
-            repostsCount: 71,
-            viewsCount: '135K',
-            createdAt: '2023-05-27T10:00:00Z',
-            media: [
-              {
-                type: 'image',
-                url: 'https://example.com/brawlhalla-event.jpg',
-                alt: 'Brawlhalla event promotional image'
-              }
-            ],
-            poll: null,
-            quoteTweet: null,
-            replyingTo: null
-          },
-          {
-            id: 'tweet2',
-            username: '@AstralisCS',
-            displayName: 'Astralis Counter-Strike',
-            avatar: null,
-            content: '@clue vs on train vs ENCE\n16-8 W/D\n19/24 ADR\nrating: 1.25',
-            timestamp: '2023-08-12T15:30:00Z',
-            likes: 320,
-            replies: 15,
-            reposts: 42,
-            bookmarks: 0,
-            views: '98K',
-            isLiked: false,
-            isReposted: false,
-            isBookmarked: true,
-            // Additional properties used in UI
-            authorId: 'astraliscs',
-            authorName: 'Astralis Counter-Strike',
-            authorUsername: '@AstralisCS',
-            authorAvatar: null,
-            verified: true,
-            likesCount: 320,
-            commentsCount: 15,
-            repostsCount: 42,
-            viewsCount: '98K',
-            createdAt: '2023-08-12T15:30:00Z',
-            media: [],
-            poll: null,
-            quoteTweet: null,
-            replyingTo: null
-          },
-          {
-            id: 'tweet3',
-            username: '@AstralisCS',
-            displayName: 'Astralis Counter-Strike',
-            avatar: null,
-            content: 'advice',
-            timestamp: '2023-04-15T09:15:00Z',
-            likes: 510,
-            replies: 30,
-            reposts: 85,
-            bookmarks: 0,
-            views: '120K',
-            isLiked: true,
-            isReposted: false,
-            isBookmarked: true,
-            // Additional properties used in UI
-            authorId: 'astraliscs',
-            authorName: 'Astralis Counter-Strike',
-            authorUsername: '@AstralisCS',
-            authorAvatar: null,
-            verified: true,
-            likesCount: 510,
-            commentsCount: 30,
-            repostsCount: 85,
-            viewsCount: '120K',
-            createdAt: '2023-04-15T09:15:00Z',
-            media: [
-              {
-                type: 'image',
-                url: 'https://example.com/astralis-advice.jpg',
-                alt: 'Astralis advice image'
-              }
-            ],
-            poll: null,
-            quoteTweet: null,
-            replyingTo: null
-          }
-        ];
-        
-        filteredBookmarks = [...bookmarks];
-        isLoading = false;
-        logger.debug('Bookmarks loaded', { count: bookmarks.length });
-      }, 1000);
+      // Use the imported API function instead of direct fetch
+      const data = await getUserBookmarks(1, 20);
       
+      // Ensure the data matches our ITweet interface format
+      bookmarks = data.bookmarks || [];
+      
+      filteredBookmarks = [...bookmarks];
+      isLoading = false;
+      logger.debug('Bookmarks loaded successfully', { count: bookmarks.length });
     } catch (error) {
       console.error('Error fetching bookmarks:', error);
-      toastStore.showToast('Failed to load bookmarks. Please try again.', 'error');
+      toastStore.showToast('Failed to load bookmarks from server.', 'warning');
       isLoading = false;
+      
+      // Use an empty array for bookmarks if fetch fails
+      bookmarks = [];
+      filteredBookmarks = [];
     }
   }
   
@@ -188,19 +85,26 @@
     logger.debug('Bookmarks filtered', { query, resultsCount: filteredBookmarks.length });
   }
   
-  // Handle bookmark removal
-  function handleRemoveBookmark(event) {
+  // Handle bookmark removal - updated to use actual API function
+  async function handleRemoveBookmark(event) {
     const tweetId = event.detail;
     
-    // In a real implementation, this would be an API call to remove bookmark
-    // For example: await fetch(`/api/bookmarks/${tweetId}`, { method: 'DELETE' });
-    
-    // Update local state
-    bookmarks = bookmarks.filter(bookmark => bookmark.id !== tweetId);
-    filteredBookmarks = filteredBookmarks.filter(bookmark => bookmark.id !== tweetId);
-    
-    logger.debug('Bookmark removed', { tweetId });
-    toastStore.showToast('Bookmark removed', 'success');
+    try {
+      logger.debug('Removing bookmark', { tweetId });
+      
+      // Use the imported API function instead of direct fetch
+      await removeBookmark(tweetId);
+      
+      // Update local state after successful API call
+      bookmarks = bookmarks.filter(bookmark => bookmark.id !== tweetId);
+      filteredBookmarks = filteredBookmarks.filter(bookmark => bookmark.id !== tweetId);
+      
+      logger.debug('Bookmark removed successfully', { tweetId });
+      toastStore.showToast('Bookmark removed', 'success');
+    } catch (error) {
+      console.error('Error removing bookmark:', error);
+      toastStore.showToast('Failed to remove bookmark', 'error');
+    }
   }
   
   // Watch for search query changes
