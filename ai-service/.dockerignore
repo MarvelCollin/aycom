@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+docker-compose.yml
+Dockerfile
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Environments
+.env
+.env.*
+
+# Air
+tmp/
+air_errors.log
+
+# Exclude large model files when developing locally - comment out in production 
+# thread_category_model.h5
+# tokenizer.pickle 

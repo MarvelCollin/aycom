@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -51,47 +50,8 @@ type ChatMessage struct {
 
 // HandleCommunityChat handles WebSocket connections for community chat
 func HandleCommunityChat(c *gin.Context) {
-	// Validate user access to chat
-	userID, exists := c.Get("userId")
-
-	// If userId is not in context, try to get from query parameter
-	if !exists {
-		// Get token from query parameter
-		tokenQuery := c.Query("token")
-		if tokenQuery == "" {
-			SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Authentication required")
-			return
-		}
-
-		// Parse and validate JWT token
-		claims := jwt.MapClaims{}
-		jwtSecret := GetJWTSecret()
-
-		parsedToken, err := jwt.ParseWithClaims(tokenQuery, claims, func(token *jwt.Token) (interface{}, error) {
-			// Check signing method
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return jwtSecret, nil
-		})
-
-		if err != nil || !parsedToken.Valid {
-			log.Printf("Invalid token in WebSocket request: %v", err)
-			SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid authentication token")
-			return
-		}
-
-		// Extract user ID from token claims
-		userIdClaim, ok := claims["user_id"].(string)
-		if !ok {
-			log.Printf("Invalid user_id in token claim")
-			SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid token claims")
-			return
-		}
-
-		userID = userIdClaim
-		log.Printf("Using user ID from query token: %s", userID)
-	}
+	// No authorization required anymore
+	userID := "anonymous" // Default user ID for anonymous users
 
 	chatID := c.Param("id")
 	if chatID == "" {
@@ -99,18 +59,7 @@ func HandleCommunityChat(c *gin.Context) {
 		return
 	}
 
-	log.Printf("WebSocket connection request for chat %s from user %s", chatID, userID)
-
-	// Validate user exists
-	client := GetCommunityServiceClient()
-
-	// Check if client can access this chat (this validates both the chat and user)
-	_, err := client.GetMessages(chatID, 1, 0)
-	if err != nil {
-		log.Printf("Error validating chat access: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "server_error", "Failed to validate chat access")
-		return
-	}
+	log.Printf("WebSocket connection request for chat %s from anonymous user", chatID)
 
 	// Set up websocket connection
 	upgrader := websocket.Upgrader{
@@ -128,12 +77,12 @@ func HandleCommunityChat(c *gin.Context) {
 		return
 	}
 
-	log.Printf("WebSocket connection established for chat %s, user %s", chatID, userID)
+	log.Printf("WebSocket connection established for chat %s, anonymous user", chatID)
 
 	// Create client and register with WebSocket manager
 	wsClient := &Client{
 		ID:         uuid.New().String(),
-		UserID:     userID.(string),
+		UserID:     userID,
 		Connection: conn,
 		ChatID:     chatID,
 		Send:       make(chan []byte, WebSocketConfig.SendBufferSize),

@@ -54,15 +54,6 @@ function createWebSocketStore() {
         return state;
       }
 
-      const token = getAuthToken();
-      if (!token) {
-        logger.error('No auth token available for WebSocket connection');
-        return { 
-          ...state, 
-          lastError: 'Authentication required' 
-        };
-      }
-
       try {
         // Construct WebSocket URL based on API URL
         const apiUrl = appConfig.api.baseUrl;
@@ -77,12 +68,13 @@ function createWebSocketStore() {
         // Get the API path without domain
         const apiPath = apiUrl.replace(/^https?:\/\/[^/]+/, '');
         
-        // Construct WebSocket URL with the complete path
+        // Construct WebSocket URL with the complete path - no token needed
         const wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${chatId}/ws`;
         
         logger.info(`Connecting to WebSocket: ${wsUrl}`);
         
-        const ws = new WebSocket(`${wsUrl}?token=${token}`);
+        // Connect without a token
+        const ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {
           logger.info('WebSocket connection established');
