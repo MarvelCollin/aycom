@@ -260,6 +260,19 @@ function createWebSocketStore() {
     };
   };
 
+  // Check if a specific chat is connected
+  const isConnected = (chatId: string) => {
+    let connected = false;
+    
+    update(state => {
+      const ws = state.chatConnections[chatId];
+      connected = ws && ws.readyState === WebSocket.OPEN;
+      return state;
+    });
+    
+    return connected;
+  };
+
   return {
     subscribe,
     connect,
@@ -267,7 +280,8 @@ function createWebSocketStore() {
     disconnectAll,
     sendMessage,
     resetError,
-    registerMessageHandler
+    registerMessageHandler,
+    isConnected
   };
 }
 

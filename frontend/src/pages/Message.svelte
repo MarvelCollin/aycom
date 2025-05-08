@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import LeftSide from '../components/layout/LeftSide.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
@@ -10,6 +10,8 @@
   import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList } from '../api/chat';
   import { getProfile, searchUsers, getUserById } from '../api/user';
   import '../styles/magniview.css'
+  import { websocketStore } from '../stores/websocketStore';
+  import type { ChatMessage, MessageType } from '../stores/websocketStore';
   
   const logger = createLoggerWithPrefix('Message');
 
@@ -34,6 +36,9 @@
   let searchQuery = '';
   let filteredChats: Chat[] = [];
   let selectedAttachments: Attachment[] = [];
+
+  // WebSocket state
+  let wsUnsubscribe: () => void;
 
   // Dynamic class for mobile view
   let chatSelectedClass = '';
@@ -159,7 +164,188 @@
         }
       });
     });
+
+    // Setup WebSocket message handler
+    setupWebSocketHandler();
   });
+
+  onDestroy(() => {
+    // Cleanup WebSocket connections when component is destroyed
+    if (wsUnsubscribe) {
+      wsUnsubscribe();
+    }
+    websocketStore.disconnectAll();
+  });
+
+  // Setup WebSocket message handler
+  function setupWebSocketHandler() {
+    // Unsubscribe from any existing handlers
+    if (wsUnsubscribe) {
+      wsUnsubscribe();
+    }
+
+    // Register a handler for incoming WebSocket messages
+    wsUnsubscribe = websocketStore.registerMessageHandler(handleWebSocketMessage);
+    logger.debug('WebSocket message handler registered');
+  }
+
+  // Handle incoming WebSocket messages
+  function handleWebSocketMessage(message: any) {
+    logger.debug('WebSocket message received', message);
+    
+    // Only process if we have a selected chat and message is related to it
+    if (!selectedChat || !message.chat_id || message.chat_id !== selectedChat.id) {
+      return;
+    }
+
+    // Handle different message types
+    switch (message.type) {
+      case 'text':
+        handleIncomingTextMessage(message);
+        break;
+      case 'typing':
+        // Could implement typing indicator here
+        break;
+      case 'read':
+        handleReadReceipt(message);
+        break;
+      case 'edit':
+        handleEditMessage(message);
+        break;
+      case 'delete':
+        handleDeleteMessage(message);
+        break;
+      default:
+        logger.warn('Unknown WebSocket message type', { type: message.type });
+    }
+  }
+
+  // Handle incoming text message
+  function handleIncomingTextMessage(message: any) {
+    if (!selectedChat) return;
+
+    // Only process if it's not our own message (those are handled during send)
+    if (message.user_id === authState.userId) return;
+
+    logger.debug('Processing incoming text message', { messageId: message.message_id });
+
+    // Find sender info from participants
+    const sender = selectedChat.participants.find(p => p.id === message.user_id);
+    
+    // Create new message object
+    const newIncomingMessage: Message = {
+      id: message.message_id,
+      content: message.content || '',
+      timestamp: message.timestamp ? message.timestamp.toString() : (Date.now() / 1000).toString(),
+      senderId: message.user_id,
+      senderName: sender ? (sender.displayName || sender.username) : `User ${message.user_id.substring(0, 4)}`,
+      senderAvatar: sender ? sender.avatar || undefined : undefined,
+      isOwn: false,
+      isRead: false,
+      isDeleted: false,
+      attachments: message.attachments || []
+    };
+
+    // Add message to chat
+    selectedChat.messages = [...selectedChat.messages, newIncomingMessage];
+
+    // Update lastMessage in chat
+    selectedChat.lastMessage = {
+      content: message.content,
+      timestamp: message.timestamp || (Date.now() / 1000),
+      senderId: message.user_id,
+      senderName: newIncomingMessage.senderName
+    };
+
+    // Force scroll to bottom to show new message
+    setTimeout(() => {
+      const messagesContainer = document.querySelector('.messages-container');
+      if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }, 100);
+  }
+
+  // Handle read receipt
+  function handleReadReceipt(message: any) {
+    if (!selectedChat) return;
+
+    // Mark messages as read
+    selectedChat.messages = selectedChat.messages.map(msg => {
+      if (!msg.isRead && message.message_ids && message.message_ids.includes(msg.id)) {
+        return { ...msg, isRead: true };
+      }
+      return msg;
+    });
+  }
+
+  // Handle edit message
+  function handleEditMessage(message: any) {
+    if (!selectedChat) return;
+
+    // Update edited message
+    selectedChat.messages = selectedChat.messages.map(msg => {
+      if (msg.id === message.message_id) {
+        return { 
+          ...msg, 
+          content: message.content,
+          isEdited: true
+        };
+      }
+      return msg;
+    });
+
+    // Update last message if this was the last one
+    if (selectedChat.lastMessage && selectedChat.lastMessage.content) {
+      const lastMsg = selectedChat.messages[selectedChat.messages.length - 1];
+      if (lastMsg && lastMsg.id === message.message_id) {
+        selectedChat.lastMessage.content = message.content;
+      }
+    }
+  }
+
+  // Handle delete message
+  function handleDeleteMessage(message: any) {
+    if (!selectedChat) return;
+
+    // Mark message as deleted
+    selectedChat.messages = selectedChat.messages.map(msg => {
+      if (msg.id === message.message_id) {
+        return { ...msg, isDeleted: true };
+      }
+      return msg;
+    });
+
+    // Update last message if needed
+    if (selectedChat && selectedChat.lastMessage) {
+      const lastMessageContent = selectedChat.lastMessage.content;
+      
+      if (selectedChat.messages.some(m => 
+        m.id === message.message_id && 
+        m.content === lastMessageContent)) {
+        // Find the new last non-deleted message
+        const lastNonDeletedMessage = [...selectedChat.messages]
+          .reverse()
+          .find(m => !m.isDeleted);
+        
+        if (lastNonDeletedMessage) {
+          selectedChat.lastMessage = {
+            content: lastNonDeletedMessage.content,
+            timestamp: lastNonDeletedMessage.timestamp,
+            senderId: lastNonDeletedMessage.senderId,
+            senderName: lastNonDeletedMessage.senderName
+          };
+        } else {
+          selectedChat.lastMessage = {
+            content: '',
+            timestamp: Date.now() / 1000,
+            senderId: '',
+            senderName: ''
+          };
+        }
+      }
+    }
+  }
 
   // Fetch chats
   async function fetchChats() {
@@ -673,6 +859,11 @@
 
   // Select a chat and load messages
   async function selectChat(chat: Chat) {
+    // Disconnect from previous chat's WebSocket if any
+    if (selectedChat && selectedChat.id) {
+      websocketStore.disconnect(selectedChat.id);
+    }
+
     // Validate that chat and chat.id exist and are valid
     if (!chat || !chat.id) {
       logger.error('Attempted to select a chat with invalid ID', { chat });
@@ -846,6 +1037,10 @@
       // Reset unread count
       selectedChat.unreadCount = 0;
       
+      // Connect to WebSocket for this chat
+      websocketStore.connect(chat.id);
+      logger.debug(`Connected to WebSocket for chat ${chat.id}`);
+      
     } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error('Error loading messages:', errorResponse);
@@ -893,41 +1088,61 @@
       const sentAttachments = [...selectedAttachments];
       selectedAttachments = [];
       
-      // Call the API
-      const response = await apiSendMessage(selectedChat.id, messageData);
-      
-      logger.debug(`Message send response received`, { response });
-      
-      if (response && response.message) {
-        // Extract server-assigned message ID and data
-        const serverMsgId = response.message.id || response.message.message_id;
+      // Send via WebSocket if connection is active, otherwise fall back to API
+      if (websocketStore.isConnected(selectedChat.id)) {
+        // Prepare message for WebSocket
+        const wsMessage: ChatMessage = {
+          type: 'text' as MessageType,
+          content: sentContent,
+          user_id: authState.userId as string,
+          chat_id: selectedChat.id,
+          timestamp: new Date(),
+          message_id: tempId
+        };
         
-        if (serverMsgId) {
-          logger.debug(`Message saved with server ID: ${serverMsgId}`);
+        // Send via WebSocket
+        websocketStore.sendMessage(selectedChat.id, wsMessage);
+        logger.debug('Message sent via WebSocket', { chatId: selectedChat.id, tempId });
+      } else {
+        // Fall back to API if WebSocket is not connected
+        logger.debug('WebSocket not connected, sending via API', { chatId: selectedChat.id });
+        
+        // Call the API
+        const response = await apiSendMessage(selectedChat.id, messageData);
+        
+        logger.debug(`Message send response received`, { response });
+        
+        if (response && response.message) {
+          // Extract server-assigned message ID and data
+          const serverMsgId = response.message.id || response.message.message_id;
           
-          // Update the temporary message with server data
-          selectedChat.messages = selectedChat.messages.map(m => {
-            if (m.id === tempId) {
-              // Update with server data
-              return {
-                ...m,
-                id: serverMsgId,
-                content: response.message.content || m.content,
-                timestamp: (response.message.timestamp || m.timestamp).toString()
-              };
-            }
-            return m;
-          });
-          
-          // Update the last message in the chat list
-          selectedChat.lastMessage = {
-            content: response.message.content || sentContent || 'Sent an attachment',
-            timestamp: response.message.timestamp?.toString() || (Date.now() / 1000).toString(),
-            senderId: response.message.sender_id || authState.userId as string,
-            senderName: 'You' // Current user is the sender
-          };
+          if (serverMsgId) {
+            logger.debug(`Message saved with server ID: ${serverMsgId}`);
+            
+            // Update the temporary message with server data
+            selectedChat.messages = selectedChat.messages.map(m => {
+              if (m.id === tempId) {
+                // Update with server data
+                return {
+                  ...m,
+                  id: serverMsgId,
+                  content: response.message.content || m.content,
+                  timestamp: (response.message.timestamp || m.timestamp).toString()
+                };
+              }
+              return m;
+            });
+          }
         }
       }
+      
+      // Update the last message in the chat list
+      selectedChat.lastMessage = {
+        content: sentContent || 'Sent an attachment',
+        timestamp: (Date.now() / 1000).toString(),
+        senderId: authState.userId as string,
+        senderName: 'You' // Current user is the sender
+      };
       
       // Force scroll to bottom to show new message
       setTimeout(() => {
