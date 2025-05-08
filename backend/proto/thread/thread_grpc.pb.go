@@ -20,37 +20,38 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ThreadService_CreateThread_FullMethodName          = "/thread.ThreadService/CreateThread"
-	ThreadService_GetThreadById_FullMethodName         = "/thread.ThreadService/GetThreadById"
-	ThreadService_GetThreadsByUser_FullMethodName      = "/thread.ThreadService/GetThreadsByUser"
-	ThreadService_GetAllThreads_FullMethodName         = "/thread.ThreadService/GetAllThreads"
-	ThreadService_UpdateThread_FullMethodName          = "/thread.ThreadService/UpdateThread"
-	ThreadService_DeleteThread_FullMethodName          = "/thread.ThreadService/DeleteThread"
-	ThreadService_CreateReply_FullMethodName           = "/thread.ThreadService/CreateReply"
-	ThreadService_GetRepliesByThread_FullMethodName    = "/thread.ThreadService/GetRepliesByThread"
-	ThreadService_UpdateReply_FullMethodName           = "/thread.ThreadService/UpdateReply"
-	ThreadService_DeleteReply_FullMethodName           = "/thread.ThreadService/DeleteReply"
-	ThreadService_GetRepliesByUser_FullMethodName      = "/thread.ThreadService/GetRepliesByUser"
-	ThreadService_GetLikedThreadsByUser_FullMethodName = "/thread.ThreadService/GetLikedThreadsByUser"
-	ThreadService_GetMediaByUser_FullMethodName        = "/thread.ThreadService/GetMediaByUser"
-	ThreadService_LikeThread_FullMethodName            = "/thread.ThreadService/LikeThread"
-	ThreadService_UnlikeThread_FullMethodName          = "/thread.ThreadService/UnlikeThread"
-	ThreadService_LikeReply_FullMethodName             = "/thread.ThreadService/LikeReply"
-	ThreadService_UnlikeReply_FullMethodName           = "/thread.ThreadService/UnlikeReply"
-	ThreadService_RepostThread_FullMethodName          = "/thread.ThreadService/RepostThread"
-	ThreadService_RemoveRepost_FullMethodName          = "/thread.ThreadService/RemoveRepost"
-	ThreadService_BookmarkThread_FullMethodName        = "/thread.ThreadService/BookmarkThread"
-	ThreadService_RemoveBookmark_FullMethodName        = "/thread.ThreadService/RemoveBookmark"
-	ThreadService_BookmarkReply_FullMethodName         = "/thread.ThreadService/BookmarkReply"
-	ThreadService_RemoveReplyBookmark_FullMethodName   = "/thread.ThreadService/RemoveReplyBookmark"
-	ThreadService_PinThread_FullMethodName             = "/thread.ThreadService/PinThread"
-	ThreadService_UnpinThread_FullMethodName           = "/thread.ThreadService/UnpinThread"
-	ThreadService_PinReply_FullMethodName              = "/thread.ThreadService/PinReply"
-	ThreadService_UnpinReply_FullMethodName            = "/thread.ThreadService/UnpinReply"
-	ThreadService_CreatePoll_FullMethodName            = "/thread.ThreadService/CreatePoll"
-	ThreadService_VotePoll_FullMethodName              = "/thread.ThreadService/VotePoll"
-	ThreadService_GetPollResults_FullMethodName        = "/thread.ThreadService/GetPollResults"
-	ThreadService_GetTrendingHashtags_FullMethodName   = "/thread.ThreadService/GetTrendingHashtags"
+	ThreadService_CreateThread_FullMethodName            = "/thread.ThreadService/CreateThread"
+	ThreadService_GetThreadById_FullMethodName           = "/thread.ThreadService/GetThreadById"
+	ThreadService_GetThreadsByUser_FullMethodName        = "/thread.ThreadService/GetThreadsByUser"
+	ThreadService_GetAllThreads_FullMethodName           = "/thread.ThreadService/GetAllThreads"
+	ThreadService_UpdateThread_FullMethodName            = "/thread.ThreadService/UpdateThread"
+	ThreadService_DeleteThread_FullMethodName            = "/thread.ThreadService/DeleteThread"
+	ThreadService_CreateReply_FullMethodName             = "/thread.ThreadService/CreateReply"
+	ThreadService_GetRepliesByThread_FullMethodName      = "/thread.ThreadService/GetRepliesByThread"
+	ThreadService_UpdateReply_FullMethodName             = "/thread.ThreadService/UpdateReply"
+	ThreadService_DeleteReply_FullMethodName             = "/thread.ThreadService/DeleteReply"
+	ThreadService_GetRepliesByUser_FullMethodName        = "/thread.ThreadService/GetRepliesByUser"
+	ThreadService_GetLikedThreadsByUser_FullMethodName   = "/thread.ThreadService/GetLikedThreadsByUser"
+	ThreadService_GetMediaByUser_FullMethodName          = "/thread.ThreadService/GetMediaByUser"
+	ThreadService_LikeThread_FullMethodName              = "/thread.ThreadService/LikeThread"
+	ThreadService_UnlikeThread_FullMethodName            = "/thread.ThreadService/UnlikeThread"
+	ThreadService_LikeReply_FullMethodName               = "/thread.ThreadService/LikeReply"
+	ThreadService_UnlikeReply_FullMethodName             = "/thread.ThreadService/UnlikeReply"
+	ThreadService_RepostThread_FullMethodName            = "/thread.ThreadService/RepostThread"
+	ThreadService_RemoveRepost_FullMethodName            = "/thread.ThreadService/RemoveRepost"
+	ThreadService_BookmarkThread_FullMethodName          = "/thread.ThreadService/BookmarkThread"
+	ThreadService_RemoveBookmark_FullMethodName          = "/thread.ThreadService/RemoveBookmark"
+	ThreadService_BookmarkReply_FullMethodName           = "/thread.ThreadService/BookmarkReply"
+	ThreadService_RemoveReplyBookmark_FullMethodName     = "/thread.ThreadService/RemoveReplyBookmark"
+	ThreadService_PinThread_FullMethodName               = "/thread.ThreadService/PinThread"
+	ThreadService_UnpinThread_FullMethodName             = "/thread.ThreadService/UnpinThread"
+	ThreadService_PinReply_FullMethodName                = "/thread.ThreadService/PinReply"
+	ThreadService_UnpinReply_FullMethodName              = "/thread.ThreadService/UnpinReply"
+	ThreadService_CreatePoll_FullMethodName              = "/thread.ThreadService/CreatePoll"
+	ThreadService_VotePoll_FullMethodName                = "/thread.ThreadService/VotePoll"
+	ThreadService_GetPollResults_FullMethodName          = "/thread.ThreadService/GetPollResults"
+	ThreadService_GetTrendingHashtags_FullMethodName     = "/thread.ThreadService/GetTrendingHashtags"
+	ThreadService_GetRepliesByParentReply_FullMethodName = "/thread.ThreadService/GetRepliesByParentReply"
 )
 
 // ThreadServiceClient is the client API for ThreadService service.
@@ -96,6 +97,8 @@ type ThreadServiceClient interface {
 	GetPollResults(ctx context.Context, in *GetPollResultsRequest, opts ...grpc.CallOption) (*PollResultsResponse, error)
 	// Trending hashtags
 	GetTrendingHashtags(ctx context.Context, in *GetTrendingHashtagsRequest, opts ...grpc.CallOption) (*GetTrendingHashtagsResponse, error)
+	// Get replies to a specific reply (for nested replies/comments)
+	GetRepliesByParentReply(ctx context.Context, in *GetRepliesByParentReplyRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
 }
 
 type threadServiceClient struct {
@@ -416,6 +419,16 @@ func (c *threadServiceClient) GetTrendingHashtags(ctx context.Context, in *GetTr
 	return out, nil
 }
 
+func (c *threadServiceClient) GetRepliesByParentReply(ctx context.Context, in *GetRepliesByParentReplyRequest, opts ...grpc.CallOption) (*RepliesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RepliesResponse)
+	err := c.cc.Invoke(ctx, ThreadService_GetRepliesByParentReply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ThreadServiceServer is the server API for ThreadService service.
 // All implementations must embed UnimplementedThreadServiceServer
 // for forward compatibility.
@@ -459,6 +472,8 @@ type ThreadServiceServer interface {
 	GetPollResults(context.Context, *GetPollResultsRequest) (*PollResultsResponse, error)
 	// Trending hashtags
 	GetTrendingHashtags(context.Context, *GetTrendingHashtagsRequest) (*GetTrendingHashtagsResponse, error)
+	// Get replies to a specific reply (for nested replies/comments)
+	GetRepliesByParentReply(context.Context, *GetRepliesByParentReplyRequest) (*RepliesResponse, error)
 	mustEmbedUnimplementedThreadServiceServer()
 }
 
@@ -561,6 +576,9 @@ func (UnimplementedThreadServiceServer) GetPollResults(context.Context, *GetPoll
 }
 func (UnimplementedThreadServiceServer) GetTrendingHashtags(context.Context, *GetTrendingHashtagsRequest) (*GetTrendingHashtagsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrendingHashtags not implemented")
+}
+func (UnimplementedThreadServiceServer) GetRepliesByParentReply(context.Context, *GetRepliesByParentReplyRequest) (*RepliesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRepliesByParentReply not implemented")
 }
 func (UnimplementedThreadServiceServer) mustEmbedUnimplementedThreadServiceServer() {}
 func (UnimplementedThreadServiceServer) testEmbeddedByValue()                       {}
@@ -1141,6 +1159,24 @@ func _ThreadService_GetTrendingHashtags_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ThreadService_GetRepliesByParentReply_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRepliesByParentReplyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).GetRepliesByParentReply(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_GetRepliesByParentReply_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).GetRepliesByParentReply(ctx, req.(*GetRepliesByParentReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ThreadService_ServiceDesc is the grpc.ServiceDesc for ThreadService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1271,6 +1307,10 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTrendingHashtags",
 			Handler:    _ThreadService_GetTrendingHashtags_Handler,
+		},
+		{
+			MethodName: "GetRepliesByParentReply",
+			Handler:    _ThreadService_GetRepliesByParentReply_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

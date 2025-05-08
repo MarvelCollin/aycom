@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"aycom/backend/proto/thread"
+	"aycom/backend/services/thread/model"
+	"aycom/backend/services/thread/repository"
+	"aycom/backend/services/thread/service"
 	"context"
 	"log"
 
@@ -10,11 +13,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"aycom/backend/services/thread/model"
-	"aycom/backend/services/thread/repository"
-	"aycom/backend/services/thread/service"
-
 )
 
 // ThreadHandler handles gRPC requests for the Thread service
@@ -450,6 +448,86 @@ func (h *ThreadHandler) UnpinReply(ctx context.Context, req *thread.UnpinReplyRe
 	return &emptypb.Empty{}, nil
 }
 
+// BookmarkReply implements the BookmarkReply gRPC method
+func (h *ThreadHandler) BookmarkReply(ctx context.Context, req *thread.BookmarkReplyRequest) (*emptypb.Empty, error) {
+	if req.ReplyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Call the interaction service to bookmark the reply
+	err := h.interactionService.BookmarkReply(ctx, req.UserId, req.ReplyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// RemoveReplyBookmark implements the RemoveReplyBookmark gRPC method
+func (h *ThreadHandler) RemoveReplyBookmark(ctx context.Context, req *thread.RemoveReplyBookmarkRequest) (*emptypb.Empty, error) {
+	if req.ReplyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Call the interaction service to remove the reply bookmark
+	err := h.interactionService.RemoveReplyBookmark(ctx, req.UserId, req.ReplyId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// GetRepliesByParentReply retrieves replies to a parent reply with pagination
+func (h *ThreadHandler) GetRepliesByParentReply(ctx context.Context, req *thread.GetRepliesByParentReplyRequest) (*thread.RepliesResponse, error) {
+	if req.ParentReplyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Parent reply ID is required")
+	}
+
+	// Default pagination values if not provided
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Call the repository to get replies to this parent reply
+	replies, err := h.replyService.FindRepliesByParentID(ctx, req.ParentReplyId, page, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve replies: %v", err)
+	}
+
+	// Convert replies to response format
+	replyResponses := make([]*thread.ReplyResponse, 0, len(replies))
+	for _, reply := range replies {
+		response, err := h.convertReplyToResponse(ctx, reply)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
+		}
+		replyResponses = append(replyResponses, response)
+	}
+
+	// Calculate total count (could be optimized with a separate count query)
+	totalCount := len(replies)
+
+	return &thread.RepliesResponse{
+		Replies: replyResponses,
+		Total:   int32(totalCount),
+	}, nil
+}
+
 // Helper function to convert a Thread model to a ThreadResponse proto
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {
 	// Create the nested Thread structure
@@ -561,12 +639,10 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 			response.LikesCount = likeCount
 		}
 
-		// Calculate bookmark count - just log it for now as the field doesn't exist in proto
+		// Calculate bookmark count
 		bookmarkCount, err := h.interactionRepo.CountReplyBookmarks(replyID)
 		if err == nil {
-			log.Printf("Reply %s has %d bookmarks", replyID, bookmarkCount)
-			// Can't set this as the field doesn't exist in the proto definition
-			// response.BookmarkCount = bookmarkCount
+			response.BookmarkCount = bookmarkCount
 		}
 
 		// Get metadata from context if available
@@ -583,12 +659,10 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 					response.LikedByUser = hasLiked
 				}
 
-				// Check if user has bookmarked this reply - just log it for now
+				// Check if user has bookmarked this reply
 				hasBookmarked, err := h.interactionService.HasUserBookmarkedReply(ctx, userID, replyID)
 				if err == nil {
-					log.Printf("Reply %s is bookmarked by user %s: %v", replyID, userID, hasBookmarked)
-					// Can't set this as the field doesn't exist in the proto definition
-					// response.BookmarkedByUser = hasBookmarked
+					response.BookmarkedByUser = hasBookmarked
 				}
 			}
 		}

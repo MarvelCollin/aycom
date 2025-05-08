@@ -47,6 +47,7 @@ export interface ICustomWindow extends Window {
     render: (container: string | HTMLElement, parameters: any) => number;
     execute: (siteKey: string, options?: { action: string }) => Promise<string>;
     reset: (widgetId?: number) => void;
+    getResponse: (widgetId: number) => string;
   };
   handleGoogleCredentialResponse?: (response: IGoogleCredentialResponse) => void;
 }

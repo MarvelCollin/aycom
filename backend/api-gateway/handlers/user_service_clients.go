@@ -27,7 +27,7 @@ type UserServiceClient interface {
 	GetFollowing(userID string, page, limit int) ([]*User, error)
 
 	// Search operations
-	SearchUsers(query string, filter string, page, limit int) ([]*User, error)
+	SearchUsers(query string, filter string, page, limit int) ([]*User, int, error)
 	GetUserRecommendations(userID string, limit int) ([]*User, error)
 }
 
@@ -235,9 +235,9 @@ func (c *GRPCUserServiceClient) GetUserByEmail(email string) (*User, error) {
 }
 
 // SearchUsers searches for users based on query
-func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int) ([]*User, error) {
+func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int) ([]*User, int, error) {
 	if c.client == nil {
-		return nil, fmt.Errorf("user service client not initialized")
+		return nil, 0, fmt.Errorf("user service client not initialized")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -255,7 +255,7 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 	resp, err := c.client.SearchUsers(ctx, req)
 	if err != nil {
 		log.Printf("Error calling SearchUsers gRPC: %v", err)
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Convert proto users to our User type
@@ -267,7 +267,10 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 		}
 	}
 
-	return users, nil
+	// Get the total count from the response
+	totalCount := int(resp.GetTotalCount())
+
+	return users, totalCount, nil
 }
 
 // GetUserRecommendations implements UserServiceClient

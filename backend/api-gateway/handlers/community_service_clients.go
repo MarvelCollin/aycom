@@ -268,8 +268,11 @@ func (c *communityCommunicationClient) GetChats(userID string, limit, offset int
 		return nil, fmt.Errorf("community service client not initialized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Increase timeout from 5 to 20 seconds to prevent timeout errors
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+
+	log.Printf("Fetching chats for user %s (limit: %d, offset: %d)", userID, limit, offset)
 
 	resp, err := c.grpcClient.ListChats(ctx, &communityProto.ListChatsRequest{
 		UserId: userID,

@@ -6,13 +6,13 @@ export function useExternalServices() {
   let googleAuthLoaded = false;
   
   const getRecaptchaSiteKey = (): string => 
-    import.meta.env.VITE_RECAPTCHA_SITE_KEY || '';
+    import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA';
     
   const getGoogleClientId = (): string => 
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+    import.meta.env.VITE_GOOGLE_CLIENT_ID || '161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com';
     
   const getGoogleRedirectUri = (): string => 
-    import.meta.env.VITE_GOOGLE_REDIRECT_URI || '';
+    import.meta.env.VITE_GOOGLE_REDIRECT_URI || 'http://localhost:3000/register';
   
   const loadRecaptcha = (
     callback: (token: string) => void, 
@@ -84,7 +84,12 @@ export function useExternalServices() {
       return '';
     }
     
-    return customWindow.grecaptcha.getResponse(recaptchaWidgetId);
+    try {
+      return customWindow.grecaptcha.getResponse(recaptchaWidgetId) || '';
+    } catch (error) {
+      console.error('Error getting reCAPTCHA token:', error);
+      return '';
+    }
   };
   
   const loadGoogleAuth = (

@@ -1,3 +1,4 @@
+// Package handlers provides the handlers for the user service
 package handlers
 
 import (
@@ -7,55 +8,61 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	userProto "aycom/backend/proto/user"
+	"aycom/backend/proto/user"
 	"aycom/backend/services/user/model"
 	"aycom/backend/services/user/service"
 )
 
+// UserHandler implements the user service gRPC interface
 type UserHandler struct {
-	userProto.UnimplementedUserServiceServer
+	user.UnimplementedUserServiceServer
 	svc service.UserService
 }
 
+// NewUserHandler creates a new user handler
 func NewUserHandler(svc service.UserService) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
-func mapUserModelToProto(user *model.User) *userProto.User {
-	if user == nil {
+// GetService returns the underlying service instance
+func (h *UserHandler) GetService() service.UserService {
+	return h.svc
+}
+
+// mapUserModelToProto maps a model.User to a proto.User
+func mapUserModelToProto(u *model.User) *user.User {
+	if u == nil {
 		return nil
 	}
 
-	protoUser := &userProto.User{
-		Id:                user.ID.String(),
-		Name:              user.Name,
-		Username:          user.Username,
-		Email:             user.Email,
-		Gender:            user.Gender,
-		ProfilePictureUrl: user.ProfilePictureURL,
-		BannerUrl:         user.BannerURL,
-		// IsVerified field needs to be added to the proto
-		// For now, we'll handle this in the client code
+	protoUser := &user.User{
+		Id:                u.ID.String(),
+		Name:              u.Name,
+		Username:          u.Username,
+		Email:             u.Email,
+		Gender:            u.Gender,
+		ProfilePictureUrl: u.ProfilePictureURL,
+		BannerUrl:         u.BannerURL,
 	}
 
 	// Handle optional time fields
-	if user.DateOfBirth != nil {
-		protoUser.DateOfBirth = user.DateOfBirth.Format("2006-01-02")
+	if u.DateOfBirth != nil {
+		protoUser.DateOfBirth = u.DateOfBirth.Format("2006-01-02")
 	}
 
-	if !user.CreatedAt.IsZero() {
-		protoUser.CreatedAt = user.CreatedAt.Format(time.RFC3339)
+	if !u.CreatedAt.IsZero() {
+		protoUser.CreatedAt = u.CreatedAt.Format(time.RFC3339)
 	}
 
-	if !user.UpdatedAt.IsZero() {
-		protoUser.UpdatedAt = user.UpdatedAt.Format(time.RFC3339)
+	if !u.UpdatedAt.IsZero() {
+		protoUser.UpdatedAt = u.UpdatedAt.Format(time.RFC3339)
 	}
 
 	return protoUser
 }
 
 // GetUser handles the GetUser gRPC request
-func (h *UserHandler) GetUser(ctx context.Context, req *userProto.GetUserRequest) (*userProto.GetUserResponse, error) {
+func (h *UserHandler) GetUser(ctx context.Context, req *user.GetUserRequest) (*user.GetUserResponse, error) {
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
@@ -63,29 +70,29 @@ func (h *UserHandler) GetUser(ctx context.Context, req *userProto.GetUserRequest
 	if err != nil {
 		return nil, err
 	}
-	return &userProto.GetUserResponse{User: mapUserModelToProto(u)}, nil
+	return &user.GetUserResponse{User: mapUserModelToProto(u)}, nil
 }
 
 // CreateUser handles the CreateUser gRPC request
-func (h *UserHandler) CreateUser(ctx context.Context, req *userProto.CreateUserRequest) (*userProto.CreateUserResponse, error) {
+func (h *UserHandler) CreateUser(ctx context.Context, req *user.CreateUserRequest) (*user.CreateUserResponse, error) {
 	u, err := h.svc.CreateUserProfile(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return &userProto.CreateUserResponse{User: mapUserModelToProto(u)}, nil
+	return &user.CreateUserResponse{User: mapUserModelToProto(u)}, nil
 }
 
 // UpdateUser handles the UpdateUser gRPC request
-func (h *UserHandler) UpdateUser(ctx context.Context, req *userProto.UpdateUserRequest) (*userProto.UpdateUserResponse, error) {
+func (h *UserHandler) UpdateUser(ctx context.Context, req *user.UpdateUserRequest) (*user.UpdateUserResponse, error) {
 	u, err := h.svc.UpdateUserProfile(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return &userProto.UpdateUserResponse{User: mapUserModelToProto(u)}, nil
+	return &user.UpdateUserResponse{User: mapUserModelToProto(u)}, nil
 }
 
 // DeleteUser handles the DeleteUser gRPC request
-func (h *UserHandler) DeleteUser(ctx context.Context, req *userProto.DeleteUserRequest) (*userProto.DeleteUserResponse, error) {
+func (h *UserHandler) DeleteUser(ctx context.Context, req *user.DeleteUserRequest) (*user.DeleteUserResponse, error) {
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
@@ -94,21 +101,21 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *userProto.DeleteUserR
 		// Service layer should return gRPC status errors
 		return nil, err
 	}
-	return &userProto.DeleteUserResponse{Success: true, Message: "User deleted successfully"}, nil
+	return &user.DeleteUserResponse{Success: true, Message: "User deleted successfully"}, nil
 }
 
 // UpdateUserVerificationStatus handles the UpdateUserVerificationStatus gRPC request
-func (h *UserHandler) UpdateUserVerificationStatus(ctx context.Context, req *userProto.UpdateUserVerificationStatusRequest) (*userProto.UpdateUserVerificationStatusResponse, error) {
+func (h *UserHandler) UpdateUserVerificationStatus(ctx context.Context, req *user.UpdateUserVerificationStatusRequest) (*user.UpdateUserVerificationStatusResponse, error) {
 	err := h.svc.UpdateUserVerificationStatus(ctx, req)
 	if err != nil {
 		// Service layer should return gRPC status errors
 		return nil, err
 	}
-	return &userProto.UpdateUserVerificationStatusResponse{Success: true, Message: "Verification status updated"}, nil
+	return &user.UpdateUserVerificationStatusResponse{Success: true, Message: "Verification status updated"}, nil
 }
 
 // LoginUser handles user authentication
-func (h *UserHandler) LoginUser(ctx context.Context, req *userProto.LoginUserRequest) (*userProto.LoginUserResponse, error) {
+func (h *UserHandler) LoginUser(ctx context.Context, req *user.LoginUserRequest) (*user.LoginUserResponse, error) {
 	u, err := h.svc.LoginUser(ctx, req)
 	if err != nil {
 		// Error already logged and mapped to gRPC status in service layer
@@ -118,11 +125,11 @@ func (h *UserHandler) LoginUser(ctx context.Context, req *userProto.LoginUserReq
 	// Use the common mapping function for consistency
 	protoUser := mapUserModelToProto(u)
 
-	return &userProto.LoginUserResponse{User: protoUser}, nil
+	return &user.LoginUserResponse{User: protoUser}, nil
 }
 
 // GetUserByEmail handles the GetUserByEmail gRPC request
-func (h *UserHandler) GetUserByEmail(ctx context.Context, req *userProto.GetUserByEmailRequest) (*userProto.GetUserByEmailResponse, error) {
+func (h *UserHandler) GetUserByEmail(ctx context.Context, req *user.GetUserByEmailRequest) (*user.GetUserByEmailResponse, error) {
 	if req.Email == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email is required")
 	}
@@ -130,13 +137,5 @@ func (h *UserHandler) GetUserByEmail(ctx context.Context, req *userProto.GetUser
 	if err != nil {
 		return nil, err
 	}
-	return &userProto.GetUserByEmailResponse{User: mapUserModelToProto(u)}, nil
+	return &user.GetUserByEmailResponse{User: mapUserModelToProto(u)}, nil
 }
-
-// Note: The following methods are part of the UserServiceServer interface but are not yet implemented.
-// They are inherited from the embedded UnimplementedUserServiceServer:
-// - FollowUser
-// - UnfollowUser
-// - GetFollowers
-// - GetFollowing
-// - SearchUsers

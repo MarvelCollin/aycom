@@ -1510,7 +1510,7 @@ func SearchSocialUsers(c *gin.Context) {
 	}
 
 	// Use the user service client to search users
-	users, err := userServiceClient.SearchUsers(query, filter, page, limit)
+	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
 		log.Printf("Error searching users: %v", err)
 		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to search users")
@@ -1519,8 +1519,12 @@ func SearchSocialUsers(c *gin.Context) {
 
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"users": users,
-		"page":  page,
-		"limit": limit,
+		"pagination": gin.H{
+			"total":   totalCount,
+			"page":    page,
+			"limit":   limit,
+			"hasMore": len(users) == limit && (page*limit) < totalCount,
+		},
 	})
 }
 
@@ -1684,4 +1688,94 @@ func UnpinReply(c *gin.Context) {
 		"success": true,
 		"message": "Reply unpinned successfully",
 	})
+}
+
+// GetRepliesByParentReply handles the API request to get replies to a specific reply
+// @Summary Get replies to a reply
+// @Description Returns all replies for a specific parent reply
+// @Tags Social
+// @Produce json
+// @Param id path string true "Parent Reply ID"
+// @Param page query int false "Page number"
+// @Param limit query int false "Items per page"
+// @Success 200 {object} threadProto.RepliesResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v1/replies/{id}/replies [get]
+func GetRepliesByParentReply(c *gin.Context) {
+	// Get reply ID from URL
+	parentReplyID := c.Param("id")
+	if parentReplyID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Parent Reply ID is required",
+			Code:    "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Get pagination parameters
+	page := 1
+	limit := 20
+
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
+			page = val
+		}
+	}
+
+	limitStr := c.Query("limit")
+	if limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 && val <= 100 {
+			limit = val
+		}
+	}
+
+	// Get connection to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to connect to thread service: " + err.Error(),
+			Code:    "SERVICE_UNAVAILABLE",
+		})
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	// Create thread service client
+	client := threadProto.NewThreadServiceClient(conn)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service
+	resp, err := client.GetRepliesByParentReply(ctx, &threadProto.GetRepliesByParentReplyRequest{
+		ParentReplyId: parentReplyID,
+		Page:          int32(page),
+		Limit:         int32(limit),
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			c.JSON(httpStatus, ErrorResponse{
+				Success: false,
+				Message: st.Message(),
+				Code:    st.Code().String(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "Failed to get reply replies: " + err.Error(),
+				Code:    "INTERNAL_ERROR",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }

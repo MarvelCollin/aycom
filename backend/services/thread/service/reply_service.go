@@ -23,6 +23,7 @@ type ReplyService interface {
 	UpdateReply(ctx context.Context, req *thread.UpdateReplyRequest) (*model.Reply, error)
 	DeleteReply(ctx context.Context, replyID, userID string) error
 	CountRepliesByParentID(ctx context.Context, parentID string) (int, error)
+	FindRepliesByParentID(ctx context.Context, parentReplyID string, page, limit int) ([]*model.Reply, error)
 }
 
 // replyService implements the ReplyService interface
@@ -245,4 +246,26 @@ func (s *replyService) CountRepliesByParentID(ctx context.Context, parentID stri
 	}
 
 	return count, nil
+}
+
+// FindRepliesByParentID fetches replies to a specific reply with pagination
+func (s *replyService) FindRepliesByParentID(ctx context.Context, parentReplyID string, page, limit int) ([]*model.Reply, error) {
+	if parentReplyID == "" {
+		return nil, status.Error(codes.InvalidArgument, "Parent reply ID is required")
+	}
+
+	// Default pagination values if not provided
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	replies, err := s.replyRepo.FindRepliesByParentID(parentReplyID, page, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve replies: %v", err)
+	}
+
+	return replies, nil
 }

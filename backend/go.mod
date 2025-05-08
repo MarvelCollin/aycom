@@ -9,3 +9,5 @@ replace (
 	aycom/backend/services/thread => ./services/thread
 	aycom/backend/services/user => ./services/user
 )
+
+replace aycom/backend/proto/user => ./proto/user

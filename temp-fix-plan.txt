@@ -1,0 +1,221 @@
+# Fixes for the AYCOM Chat and User Search Issues
+
+## 1. Community Service Client Timeout Fix
+
+Edit file: backend/api-gateway/handlers/community_service_clients.go
+Change the context timeout for GetChats from 5 seconds to 20 seconds:
+
+```go
+// GetChats implements CommunityServiceClient
+func (c *communityCommunicationClient) GetChats(userID string, limit, offset int) ([]Chat, error) {
+	if c.grpcClient == nil {
+		return nil, fmt.Errorf("community service client not initialized")
+	}
+
+	// Increase timeout from 5 to 20 seconds to prevent timeout errors
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	log.Printf("Fetching chats for user %s (limit: %d, offset: %d)", userID, limit, offset)
+	
+	// ... rest of the function ...
+}
+```
+
+## 2. User Search Implementation
+
+### Step 1: Create model/search.go if needed
+
+File: backend/services/user/model/search.go
+
+```go
+package model
+
+// SearchUsersRequest contains parameters for searching users
+type SearchUsersRequest struct {
+	Query  string
+	Filter string
+	Page   int
+	Limit  int
+}
+
+// FollowUserRequest contains information about a follow relationship
+type FollowUserRequest struct {
+	FollowerID string
+	FollowedID string
+}
+
+// UnfollowUserRequest contains information about removing a follow relationship
+type UnfollowUserRequest struct {
+	FollowerID string
+	FollowedID string
+}
+
+// GetFollowersRequest contains parameters for retrieving followers
+type GetFollowersRequest struct {
+	UserID string
+	Page   int
+	Limit  int
+}
+
+// GetFollowingRequest contains parameters for retrieving followed users
+type GetFollowingRequest struct {
+	UserID string
+	Page   int
+	Limit  int
+}
+```
+
+### Step 2: Update user_handler.go with SearchUsers method
+
+File: backend/services/user/api/user_handler.go
+
+```go
+// SearchUsers handles the SearchUsers gRPC request
+func (h *UserHandler) SearchUsers(ctx context.Context, req *user.SearchUsersRequest) (*user.SearchUsersResponse, error) {
+	if req.Query == "" {
+		return nil, status.Error(codes.InvalidArgument, "Search query is required")
+	}
+	
+	// Set default pagination values if not provided
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 10 // Default limit
+	}
+	
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1 // Default page
+	}
+	
+	// Create the model search request
+	searchReq := &model.SearchUsersRequest{
+		Query:  req.Query,
+		Filter: req.Filter,
+		Page:   page,
+		Limit:  limit,
+	}
+	
+	// Call service to search users
+	users, totalCount, err := h.svc.SearchUsers(ctx, searchReq)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Map model users to proto users
+	protoUsers := make([]*user.User, 0, len(users))
+	for _, u := range users {
+		protoUsers = append(protoUsers, mapUserModelToProto(u))
+	}
+	
+	return &user.SearchUsersResponse{
+		Users:      protoUsers,
+		TotalCount: int32(totalCount),
+	}, nil
+}
+```
+
+### Step 3: Update main.go to add SearchUsers to the adapter
+
+File: backend/services/user/main.go
+
+Add this method to the userServiceAdapter:
+
+```go
+// Forward SearchUsers to the handler implementation
+func (a *userServiceAdapter) SearchUsers(ctx context.Context, req *user.SearchUsersRequest) (*user.SearchUsersResponse, error) {
+	return a.h.SearchUsers(ctx, req)
+}
+```
+
+## 3. Implement SearchUsers in user service layer
+
+If the service implementation is missing, add this to backend/services/user/service/user_service.go:
+
+```go
+// SearchUsers implements search functionality for users
+func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error) {
+	// This is a simple implementation - you might want to improve this with more robust search
+	
+	// Get total count first (before pagination)
+	totalCount, err := s.repo.CountUsersBySearch(req.Query, req.Filter)
+	if err != nil {
+		log.Printf("Error counting users for search %s: %v", req.Query, err)
+		return nil, 0, status.Error(codes.Internal, "Failed to count search results")
+	}
+	
+	// Then get paginated results
+	users, err := s.repo.FindUsersBySearch(req.Query, req.Filter, req.Page, req.Limit)
+	if err != nil {
+		log.Printf("Error searching for users with query %s: %v", req.Query, err)
+		return nil, 0, status.Error(codes.Internal, "Failed to search users")
+	}
+	
+	return users, totalCount, nil
+}
+```
+
+## 4. Repository Implementation
+
+If needed, update repository interface in backend/services/user/db/user_repository.go:
+
+```go
+// Add to the UserRepository interface:
+FindUsersBySearch(query string, filter string, page int, limit int) ([]*model.User, error)
+CountUsersBySearch(query string, filter string) (int, error)
+```
+
+And implement in backend/services/user/db/user_db.go:
+
+```go
+// FindUsersBySearch finds users by search query with pagination
+func (r *postgresUserRepository) FindUsersBySearch(query string, filter string, page int, limit int) ([]*model.User, error) {
+	var users []*model.User
+	offset := (page - 1) * limit
+	
+	db := r.db.Model(&model.User{})
+	
+	// Apply search condition
+	searchQuery := "%" + query + "%"
+	db = db.Where("username ILIKE ? OR name ILIKE ? OR email ILIKE ?", searchQuery, searchQuery, searchQuery)
+	
+	// Apply filter if provided
+	if filter == "verified" {
+		db = db.Where("is_verified = ?", true)
+	}
+	
+	// Add order by
+	db = db.Order("created_at DESC")
+	
+	// Apply pagination
+	err := db.Limit(limit).Offset(offset).Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	
+	return users, nil
+}
+
+// CountUsersBySearch counts the total number of users matching a search query
+func (r *postgresUserRepository) CountUsersBySearch(query string, filter string) (int, error) {
+	var count int64
+	
+	db := r.db.Model(&model.User{})
+	
+	// Apply search condition
+	searchQuery := "%" + query + "%"
+	db = db.Where("username ILIKE ? OR name ILIKE ? OR email ILIKE ?", searchQuery, searchQuery, searchQuery)
+	
+	// Apply filter if provided
+	if filter == "verified" {
+		db = db.Where("is_verified = ?", true)
+	}
+	
+	err := db.Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	
+	return int(count), nil
+}
+``` 

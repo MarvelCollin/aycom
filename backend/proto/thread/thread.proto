@@ -51,6 +51,9 @@ service ThreadService {
 
   // Trending hashtags
   rpc GetTrendingHashtags(GetTrendingHashtagsRequest) returns (GetTrendingHashtagsResponse);
+
+  // Get replies to a specific reply (for nested replies/comments)
+  rpc GetRepliesByParentReply(GetRepliesByParentReplyRequest) returns (RepliesResponse) {}
 }
 
 // Thread message
@@ -285,6 +288,13 @@ message ThreadResponse {
 message ThreadsResponse {
   repeated ThreadResponse threads = 1;
   int32 total = 2;
+}
+
+// GetRepliesByParentReplyRequest message
+message GetRepliesByParentReplyRequest {
+  string parent_reply_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
 }
 
 // ReplyResponse message

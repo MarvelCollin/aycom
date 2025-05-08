@@ -107,7 +107,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		replies.DELETE("/:id/like", handlers.UnlikeReply)
 		replies.POST("/:id/bookmark", handlers.BookmarkReply)
 		replies.DELETE("/:id/bookmark", handlers.RemoveReplyBookmark)
-		replies.POST("/:id/replies", handlers.ReplyToThread) // Reusing the same handler for reply-to-reply
+		replies.POST("/:id/replies", handlers.ReplyToThread)          // Reusing the same handler for reply-to-reply
+		replies.GET("/:id/replies", handlers.GetRepliesByParentReply) // Get replies to a specific reply
 		replies.POST("/:id/pin", handlers.PinReply)
 		replies.DELETE("/:id/pin", handlers.UnpinReply)
 	}

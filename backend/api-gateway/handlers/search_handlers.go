@@ -43,7 +43,7 @@ func SearchUsers(c *gin.Context) {
 	}
 
 	// Call the service client method
-	users, err := userServiceClient.SearchUsers(query, filter, page, limit)
+	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
 		// Handle errors
 		st, ok := status.FromError(err)
@@ -75,10 +75,10 @@ func SearchUsers(c *gin.Context) {
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"users": userResults,
 		"pagination": gin.H{
-			"total":   len(users), // In a real implementation, you'd get the total count from the service
+			"total":   totalCount,
 			"page":    page,
 			"limit":   limit,
-			"hasMore": len(users) == limit, // This is a simple heuristic; might not be accurate
+			"hasMore": len(users) == limit && (page*limit) < totalCount,
 		},
 	})
 }
