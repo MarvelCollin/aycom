@@ -115,9 +115,15 @@ func loadEnv() error {
 		return nil
 	}
 
-	// Try loading from project root
+	// Try loading from project root (direct parent directories method)
 	if err := godotenv.Load("../../.env"); err == nil {
-		log.Println("Loaded .env file from project root")
+		log.Println("Loaded .env file from project root (../../.env)")
+		return nil
+	}
+
+	// Try another path to root (going up three levels)
+	if err := godotenv.Load("../../../.env"); err == nil {
+		log.Println("Loaded .env file from project root (../../../.env)")
 		return nil
 	}
 

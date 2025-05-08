@@ -1,15 +1,16 @@
 package main
 
 import (
+	"aycom/backend/proto/community"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 
-	"aycom/backend/proto/community"
 	"aycom/backend/services/community/api"
 	"aycom/backend/services/community/db"
 	"aycom/backend/services/community/repository"
@@ -18,7 +19,12 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found or cannot be loaded: %v", err)
+		rootEnvPath := filepath.Join("..", "..", "..", ".env")
+		if err := godotenv.Load(rootEnvPath); err != nil {
+			log.Printf("Warning: .env file not found or cannot be loaded: %v", err)
+		} else {
+			log.Printf("Loaded .env from root directory: %s", rootEnvPath)
+		}
 	}
 
 	var wg sync.WaitGroup

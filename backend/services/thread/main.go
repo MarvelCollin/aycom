@@ -1,9 +1,11 @@
 package main
 
 import (
+	"aycom/backend/proto/thread"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"aycom/backend/proto/thread"
 	handlers "aycom/backend/services/thread/api"
 	"aycom/backend/services/thread/db"
 	"aycom/backend/services/thread/repository"
@@ -19,9 +20,15 @@ import (
 )
 
 func main() {
-	// Load environment variables from .env file
+	// Try to load .env file from the current directory
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found or cannot be loaded: %v", err)
+		// If that fails, try to load from root project directory
+		rootEnvPath := filepath.Join("..", "..", "..", ".env")
+		if err := godotenv.Load(rootEnvPath); err != nil {
+			log.Printf("Warning: .env file not found or cannot be loaded: %v", err)
+		} else {
+			log.Printf("Loaded .env from root directory: %s", rootEnvPath)
+		}
 	}
 
 	var wg sync.WaitGroup
