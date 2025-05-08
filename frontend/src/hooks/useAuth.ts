@@ -143,15 +143,35 @@ export function useAuth() {
   const registerWithMedia = async (userData: IUserRegistration, profilePicture: File | null, banner: File | null) => {
     try {
       // Upload profile picture to Supabase if provided
-      let profilePictureUrl = null;
+      let profilePictureUrl: string | null = null;
+      let profileUploadError = false;
       if (profilePicture) {
-        profilePictureUrl = await uploadFile(profilePicture, 'profile-pictures', 'users');
+        try {
+          profilePictureUrl = await uploadFile(profilePicture, 'profile-pictures', 'users');
+          if (!profilePictureUrl) {
+            profileUploadError = true;
+            console.warn('Profile picture upload failed, continuing without profile picture');
+          }
+        } catch (uploadError) {
+          profileUploadError = true;
+          console.error('Profile picture upload error:', uploadError);
+        }
       }
       
       // Upload banner to Supabase if provided
-      let bannerUrl = null;
+      let bannerUrl: string | null = null;
+      let bannerUploadError = false;
       if (banner) {
-        bannerUrl = await uploadFile(banner, 'banners', 'users');
+        try {
+          bannerUrl = await uploadFile(banner, 'banners', 'users');
+          if (!bannerUrl) {
+            bannerUploadError = true;
+            console.warn('Banner upload failed, continuing without banner');
+          }
+        } catch (uploadError) {
+          bannerUploadError = true;
+          console.error('Banner upload error:', uploadError);
+        }
       }
       
       // Add the URLs to the user data
@@ -161,11 +181,20 @@ export function useAuth() {
         banner_url: bannerUrl || ''
       };
       
+      console.log('Registering user with data:', JSON.stringify(enrichedUserData, null, 2));
+      
       // Register with the enriched data
       const data = await authApi.register(enrichedUserData);
+      
+      // Return success but with warning if uploads failed
+      let message = data.message || 'Registration successful! Check your email for verification code.';
+      if (profileUploadError || bannerUploadError) {
+        message += ' Note: Some media uploads failed. You can update your profile later.';
+      }
+      
       return {
         success: data.success,
-        message: data.message || 'Registration successful! Check your email for verification code.'
+        message: message
       };
     } catch (error) {
       console.error('Registration with media error:', error);

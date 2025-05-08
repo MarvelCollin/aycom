@@ -35,14 +35,25 @@ func main() {
 	loadEnvFile()
 
 	// Get port from environment with fallback
-	port := os.Getenv("API_GATEWAY_PORT")
-	if port == "" {
-		port = "8081"
+	if err := godotenv.Load(); err != nil {
+		rootEnvPath := filepath.Join("..", "..", "..", ".env")
+		if err := godotenv.Load(rootEnvPath); err != nil {
+			log.Printf("Warning: .env file not found or cannot be loaded: %v", err)
+		} else {
+			log.Printf("Loaded .env from root directory: %s", rootEnvPath)
+		}
 	}
 
 	// Set Gin to release mode in production
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// Get port from environment variable or use default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8083" // Default port
+		log.Printf("Using default port: %s", port)
 	}
 
 	// Load configuration

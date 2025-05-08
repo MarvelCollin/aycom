@@ -11,6 +11,21 @@
     // Implement actual navigation logic here when paths are created
     // window.location.href = path;
   }
+  
+  // Helper function to format Supabase image URLs
+  function formatSupabaseImageUrl(url: string): string {
+    if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
+    
+    // If already a full URL, return as is
+    if (url.startsWith('http')) return url;
+    
+    // If it contains emoji or placeholder indicator, return default
+    if (url.includes('👤')) return 'https://secure.gravatar.com/avatar/0?d=mp';
+    
+    // Otherwise, construct the Supabase URL
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+    return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
+  }
 </script>
 
 <div class="search-container {isDarkMode ? 'search-dark' : ''} sticky top-0 z-10 pb-3 bg-inherit">
@@ -61,11 +76,7 @@
           <li class="flex items-center gap-3 py-3 {suggestedFollows.indexOf(follow) !== suggestedFollows.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
             <div class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex-shrink-0 flex items-center justify-center">
               <div class="flex items-center justify-center w-full h-full text-lg">
-                {#if follow.avatar && !follow.avatar.includes('👤')}
-                  <img src={follow.avatar} alt={follow.username} class="w-full h-full object-cover rounded-full" />
-                {:else}
-                  <img src="https://secure.gravatar.com/avatar/0?d=mp" alt={follow.username} class="w-full h-full object-cover rounded-full" />
-                {/if}
+                <img src={formatSupabaseImageUrl(follow.avatar)} alt={follow.username} class="w-full h-full object-cover rounded-full" />
               </div>
             </div>
             <div class="flex-1 min-w-0">

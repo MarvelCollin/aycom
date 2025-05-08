@@ -107,14 +107,15 @@
       displayName = thread.displayName;
     }
     
+    // Handle avatar URLs from Supabase
     if (thread.author_avatar) {
-      profilePicture = thread.author_avatar;
+      profilePicture = formatSupabaseImageUrl(thread.author_avatar);
     } else if (thread.authorAvatar) {
-      profilePicture = thread.authorAvatar;
+      profilePicture = formatSupabaseImageUrl(thread.authorAvatar);
     } else if (thread.profile_picture_url) {
-      profilePicture = thread.profile_picture_url;
+      profilePicture = formatSupabaseImageUrl(thread.profile_picture_url);
     } else if (thread.avatar) {
-      profilePicture = thread.avatar;
+      profilePicture = formatSupabaseImageUrl(thread.avatar);
     }
     
     // Fallback: if user data is not directly in the thread, check for embedded content format
@@ -190,6 +191,18 @@
     };
   }
 
+  // Helper function to format Supabase image URLs
+  function formatSupabaseImageUrl(url: string): string {
+    if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
+    
+    // If already a full URL, return as is
+    if (url.startsWith('http')) return url;
+    
+    // Otherwise, construct the Supabase URL
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+    return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
+  }
+
   // Authentication check
   function checkAuth() {
     if (!authState.isAuthenticated) {
@@ -213,7 +226,18 @@
       if (response && response.user) {
         username = response.user.username || '';
         displayName = response.user.name || response.user.display_name || username;
-        avatar = response.user.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+        
+        // Use direct Supabase URL for profile picture if available
+        if (response.user.profile_picture_url && response.user.profile_picture_url.startsWith('http')) {
+          avatar = response.user.profile_picture_url;
+        } else if (response.user.profile_picture_url) {
+          // If it's a relative path or filename, construct proper Supabase URL
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+          avatar = `${supabaseUrl}/storage/v1/object/public/tpaweb/${response.user.profile_picture_url}`;
+        } else {
+          avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+        }
+        
         logger.debug('Profile loaded successfully', { username });
       } else {
         logger.warn('No user data received from API');

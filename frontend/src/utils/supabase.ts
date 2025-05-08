@@ -146,11 +146,14 @@ export async function deleteMedia(url: string): Promise<boolean> {
  * @returns URL of the uploaded file or null if failed
  */
 export async function uploadFile(file: File, bucket: string, path: string): Promise<string | null> {
+  console.log(`Attempting to upload file to bucket: ${bucket}, path: ${path}`);
   try {
     // Generate a unique filename with timestamp and original extension
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
     const filePath = `${path}/${fileName}`;
+    
+    console.log(`Generated file path: ${filePath}`);
     
     // Upload the file
     const { data, error } = await supabase
@@ -163,6 +166,32 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
       
     if (error) {
       console.error('Error uploading file:', error);
+      // Try with a fallback bucket if original fails and it's a profile or banner
+      if (bucket === 'profile-pictures' || bucket === 'banners') {
+        console.log(`Attempting upload to fallback bucket: tpaweb`);
+        const fallbackResult = await supabase
+          .storage
+          .from('tpaweb')
+          .upload(`${bucket}/${filePath}`, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+          
+        if (fallbackResult.error) {
+          console.error('Fallback upload also failed:', fallbackResult.error);
+          return null;
+        }
+        
+        // Get public URL from fallback bucket
+        const { data: fallbackUrlData } = supabase
+          .storage
+          .from('tpaweb')
+          .getPublicUrl(`${bucket}/${filePath}`);
+          
+        console.log('Fallback upload successful, URL:', fallbackUrlData.publicUrl);
+        return fallbackUrlData.publicUrl;
+      }
+      
       return null;
     }
     
@@ -172,6 +201,7 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
       .from(bucket)
       .getPublicUrl(filePath);
       
+    console.log('Upload successful, URL:', publicUrl);
     return publicUrl;
   } catch (err) {
     console.error('Exception during file upload:', err);
@@ -186,7 +216,7 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
  * @returns URL of the uploaded profile picture or null if failed
  */
 export async function uploadProfilePicture(file: File, userId: string): Promise<string | null> {
-  return uploadFile(file, 'profiles', userId);
+  return uploadFile(file, 'profile-pictures', userId);
 }
 
 /**

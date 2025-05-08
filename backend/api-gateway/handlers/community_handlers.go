@@ -34,7 +34,6 @@ func RejectJoinRequest(c *gin.Context)  {}
 func ListJoinRequests(c *gin.Context)   {}
 
 func CreateChat(c *gin.Context) {
-	// Get user ID from context
 	userID, exists := c.Get("userId")
 	if !exists {
 		log.Printf("CreateChat: Missing userId in context")
