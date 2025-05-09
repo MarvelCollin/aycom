@@ -1523,6 +1523,104 @@ func (x *SearchUsersResponse) GetTotalCount() int32 {
 	return 0
 }
 
+// Request to get recommended users
+type GetRecommendedUsersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Optional: ID of the requesting user (to exclude already followed users)
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                // Number of recommendations to fetch
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRecommendedUsersRequest) Reset() {
+	*x = GetRecommendedUsersRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRecommendedUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRecommendedUsersRequest) ProtoMessage() {}
+
+func (x *GetRecommendedUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRecommendedUsersRequest.ProtoReflect.Descriptor instead.
+func (*GetRecommendedUsersRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetRecommendedUsersRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetRecommendedUsersRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Response containing recommended users
+type GetRecommendedUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRecommendedUsersResponse) Reset() {
+	*x = GetRecommendedUsersResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRecommendedUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRecommendedUsersResponse) ProtoMessage() {}
+
+func (x *GetRecommendedUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRecommendedUsersResponse.ProtoReflect.Descriptor instead.
+func (*GetRecommendedUsersResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *GetRecommendedUsersResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -1648,7 +1746,13 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x05users\x18\x01 \x03(\v2\n" +
 	".user.UserR\x05users\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
-	"totalCount2\xfc\x06\n" +
+	"totalCount\"K\n" +
+	"\x1aGetRecommendedUsersRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"?\n" +
+	"\x1bGetRecommendedUsersResponse\x12 \n" +
+	"\x05users\x18\x01 \x03(\v2\n" +
+	".user.UserR\x05users2\xda\a\n" +
 	"\vUserService\x128\n" +
 	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
 	"\n" +
@@ -1665,7 +1769,8 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\fUnfollowUser\x12\x19.user.UnfollowUserRequest\x1a\x1a.user.UnfollowUserResponse\"\x00\x12G\n" +
 	"\fGetFollowers\x12\x19.user.GetFollowersRequest\x1a\x1a.user.GetFollowersResponse\"\x00\x12G\n" +
 	"\fGetFollowing\x12\x19.user.GetFollowingRequest\x1a\x1a.user.GetFollowingResponse\"\x00\x12D\n" +
-	"\vSearchUsers\x12\x18.user.SearchUsersRequest\x1a\x19.user.SearchUsersResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
+	"\vSearchUsers\x12\x18.user.SearchUsersRequest\x1a\x19.user.SearchUsersResponse\"\x00\x12\\\n" +
+	"\x13GetRecommendedUsers\x12 .user.GetRecommendedUsersRequest\x1a!.user.GetRecommendedUsersResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -1679,7 +1784,7 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_proto_user_user_proto_goTypes = []any{
 	(*User)(nil),                                 // 0: user.User
 	(*GetUserRequest)(nil),                       // 1: user.GetUserRequest
@@ -1706,6 +1811,8 @@ var file_proto_user_user_proto_goTypes = []any{
 	(*GetFollowingResponse)(nil),                 // 22: user.GetFollowingResponse
 	(*SearchUsersRequest)(nil),                   // 23: user.SearchUsersRequest
 	(*SearchUsersResponse)(nil),                  // 24: user.SearchUsersResponse
+	(*GetRecommendedUsersRequest)(nil),           // 25: user.GetRecommendedUsersRequest
+	(*GetRecommendedUsersResponse)(nil),          // 26: user.GetRecommendedUsersResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 0: user.GetUserResponse.user:type_name -> user.User
@@ -1718,35 +1825,38 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 7: user.GetFollowersResponse.followers:type_name -> user.User
 	0,  // 8: user.GetFollowingResponse.following:type_name -> user.User
 	0,  // 9: user.SearchUsersResponse.users:type_name -> user.User
-	1,  // 10: user.UserService.GetUser:input_type -> user.GetUserRequest
-	3,  // 11: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	5,  // 12: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	7,  // 13: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	9,  // 14: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
-	11, // 15: user.UserService.LoginUser:input_type -> user.LoginUserRequest
-	13, // 16: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
-	15, // 17: user.UserService.FollowUser:input_type -> user.FollowUserRequest
-	17, // 18: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
-	19, // 19: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
-	21, // 20: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
-	23, // 21: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
-	2,  // 22: user.UserService.GetUser:output_type -> user.GetUserResponse
-	4,  // 23: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 24: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	8,  // 25: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	10, // 26: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
-	12, // 27: user.UserService.LoginUser:output_type -> user.LoginUserResponse
-	14, // 28: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
-	16, // 29: user.UserService.FollowUser:output_type -> user.FollowUserResponse
-	18, // 30: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
-	20, // 31: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
-	22, // 32: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
-	24, // 33: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
-	22, // [22:34] is the sub-list for method output_type
-	10, // [10:22] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	0,  // 10: user.GetRecommendedUsersResponse.users:type_name -> user.User
+	1,  // 11: user.UserService.GetUser:input_type -> user.GetUserRequest
+	3,  // 12: user.UserService.CreateUser:input_type -> user.CreateUserRequest
+	5,  // 13: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
+	7,  // 14: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
+	9,  // 15: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
+	11, // 16: user.UserService.LoginUser:input_type -> user.LoginUserRequest
+	13, // 17: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
+	15, // 18: user.UserService.FollowUser:input_type -> user.FollowUserRequest
+	17, // 19: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
+	19, // 20: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
+	21, // 21: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
+	23, // 22: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
+	25, // 23: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
+	2,  // 24: user.UserService.GetUser:output_type -> user.GetUserResponse
+	4,  // 25: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	6,  // 26: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
+	8,  // 27: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	10, // 28: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
+	12, // 29: user.UserService.LoginUser:output_type -> user.LoginUserResponse
+	14, // 30: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
+	16, // 31: user.UserService.FollowUser:output_type -> user.FollowUserResponse
+	18, // 32: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
+	20, // 33: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
+	22, // 34: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
+	24, // 35: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
+	26, // 36: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
+	24, // [24:37] is the sub-list for method output_type
+	11, // [11:24] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_proto_user_user_proto_init() }
@@ -1760,7 +1870,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

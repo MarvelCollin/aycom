@@ -41,6 +41,9 @@ service UserService {
 
   // Search users
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse) {}
+  
+  // Get recommended users (sorted by highest follower count)
+  rpc GetRecommendedUsers(GetRecommendedUsersRequest) returns (GetRecommendedUsersResponse) {}
 }
 
 // User contains user information
@@ -215,4 +218,15 @@ message SearchUsersRequest {
 message SearchUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
+}
+
+// Request to get recommended users
+message GetRecommendedUsersRequest {
+  string user_id = 1; // Optional: ID of the requesting user (to exclude already followed users)
+  int32 limit = 2;    // Number of recommendations to fetch
+}
+
+// Response containing recommended users
+message GetRecommendedUsersResponse {
+  repeated User users = 1;
 } 

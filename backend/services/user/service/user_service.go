@@ -34,6 +34,7 @@ type UserService interface {
 	GetFollowers(ctx context.Context, req *model.GetFollowersRequest) ([]*model.User, int, error)
 	GetFollowing(ctx context.Context, req *model.GetFollowingRequest) ([]*model.User, int, error)
 	SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error)
+	GetRecommendedUsers(ctx context.Context, userID string, limit int) ([]*model.User, error)
 }
 
 // userService implements the UserService interface
@@ -458,6 +459,17 @@ func (s *userService) GetFollowing(ctx context.Context, req *model.GetFollowingR
 
 // SearchUsers searches for users based on query and filters
 func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error) {
+	// Special case for popular filter - allows empty query to get recommended users
+	if req.Filter == "popular" {
+		// Get users with highest follower counts
+		users, err := s.GetRecommendedUsers(ctx, "", req.Limit)
+		if err != nil {
+			return nil, 0, err
+		}
+		return users, len(users), nil
+	}
+
+	// Standard search requires a query
 	if req.Query == "" {
 		return nil, 0, status.Error(codes.InvalidArgument, "Search query is required")
 	}
@@ -480,4 +492,20 @@ func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersReq
 	}
 
 	return users, total, nil
+}
+
+// GetRecommendedUsers returns users with the highest follower counts
+func (s *userService) GetRecommendedUsers(ctx context.Context, userID string, limit int) ([]*model.User, error) {
+	if limit <= 0 {
+		limit = 3 // Default limit if not specified or invalid
+	}
+
+	// Call the repository to get recommended users
+	users, err := s.repo.GetRecommendedUsers(limit, userID)
+	if err != nil {
+		log.Printf("Error fetching recommended users: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to fetch recommended users")
+	}
+
+	return users, nil
 }

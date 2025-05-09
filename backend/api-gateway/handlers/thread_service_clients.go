@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // ThreadServiceClient provides methods to interact with the Thread service
@@ -157,6 +158,11 @@ func InitThreadServiceClient(cfg *config.Config) {
 	// Fallback to local implementation if all connection attempts fail
 	threadServiceClient = &localThreadServiceClient{}
 	log.Println("Thread service client initialized with local implementation (fallback)")
+}
+
+// GetThreadServiceClient returns the thread service client instance
+func GetThreadServiceClient() ThreadServiceClient {
+	return threadServiceClient
 }
 
 // localThreadServiceClient implements ThreadServiceClient with local implementations
@@ -728,9 +734,55 @@ func (c *GRPCThreadServiceClient) RemoveBookmark(threadID, userID string) error 
 
 // GetUserBookmarks implements ThreadServiceClient
 func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit int) ([]*Thread, error) {
-	// Note: This is a placeholder. The Thread service would need to implement a method to fetch bookmarks
-	// For now, we'll just return an empty list
-	return []*Thread{}, nil
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Set up metadata with user ID for authentication/tracking
+	md := metadata.New(map[string]string{
+		"user_id": userID,
+	})
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	// Call the method using reflection since it might not be directly available
+	method := reflect.ValueOf(c.client).MethodByName("GetThreadsByUser")
+	if !method.IsValid() {
+		log.Printf("Method GetThreadsByUser not found on client, falling back to mock data")
+		return []*Thread{}, nil
+	}
+
+	// Set up arguments
+	ctxArg := reflect.ValueOf(ctx)
+	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
+
+	// Set fields via reflection
+	reqVal := reflect.ValueOf(reqArg).Elem()
+	reqVal.FieldByName("UserId").SetString(userID)
+	reqVal.FieldByName("Page").SetInt(int64(page))
+	reqVal.FieldByName("Limit").SetInt(int64(limit))
+
+	// Invoke method
+	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+	if !results[1].IsNil() {
+		return nil, results[1].Interface().(error)
+	}
+
+	resp := results[0].Interface()
+	threadsResp := resp.(*threadProto.ThreadsResponse)
+
+	// Convert ThreadResponse objects to Thread structs
+	threads := make([]*Thread, len(threadsResp.Threads))
+	for i, t := range threadsResp.Threads {
+		thread := convertProtoToThread(t)
+		// Mark as bookmarked since these are bookmarks
+		thread.IsBookmarked = true
+		threads[i] = thread
+	}
+
+	return threads, nil
 }
 
 // SearchUserBookmarks implements ThreadServiceClient

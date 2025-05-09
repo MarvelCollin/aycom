@@ -50,9 +50,10 @@ export interface ITweet {
 
 // Trend interface
 export interface ITrend {
+  id?: string;
   category: string;
   title: string;
-  postCount: string;
+  postCount: string | number;
 }
 
 // Suggested follow interface
@@ -62,6 +63,7 @@ export interface ISuggestedFollow {
   avatar: string;
   verified: boolean;
   followerCount: number;
+  isFollowing?: boolean;
 }
 
 // Community interface

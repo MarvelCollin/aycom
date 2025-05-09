@@ -139,3 +139,25 @@ func (h *UserHandler) GetUserByEmail(ctx context.Context, req *user.GetUserByEma
 	}
 	return &user.GetUserByEmailResponse{User: mapUserModelToProto(u)}, nil
 }
+
+// GetRecommendedUsers handles the GetRecommendedUsers gRPC request
+func (h *UserHandler) GetRecommendedUsers(ctx context.Context, req *user.GetRecommendedUsersRequest) (*user.GetRecommendedUsersResponse, error) {
+	// Get recommended users from the service
+	users, err := h.svc.GetRecommendedUsers(ctx, req.UserId, int(req.Limit))
+	if err != nil {
+		return nil, err // Service layer should return gRPC status errors
+	}
+
+	// Map user models to protos
+	userProtos := make([]*user.User, 0, len(users))
+	for _, u := range users {
+		userProto := mapUserModelToProto(u)
+		if userProto != nil {
+			userProtos = append(userProtos, userProto)
+		}
+	}
+
+	return &user.GetRecommendedUsersResponse{
+		Users: userProtos,
+	}, nil
+}

@@ -28,6 +28,7 @@ type UserRepository interface {
 	GetFollowers(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
 	GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
 	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
+	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
 }
 
 // PostgresUserRepository is the PostgreSQL implementation of UserRepository
@@ -201,12 +202,46 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 	// Calculate offset
 	offset := (page - 1) * limit
 
-	// Base query
-	baseQuery := r.db.Model(&model.User{}).
-		Where("username ILIKE ? OR name ILIKE ? OR email ILIKE ?",
-			"%"+query+"%", "%"+query+"%", "%"+query+"%")
+	// Special case for 'popular' filter which gets most followed users
+	if filter == "popular" {
+		// This query gets users ordered by follower count
+		countQuery := r.db.Table("users AS u").
+			Select("u.*, COUNT(f.follower_id) as follower_count").
+			Joins("LEFT JOIN follows AS f ON u.id = f.followed_id").
+			Group("u.id").
+			Order("follower_count DESC, u.created_at DESC")
 
-	// Apply filters if needed
+		// Get total count
+		var tempUsers []*model.User
+		err := countQuery.Find(&tempUsers).Error
+		if err != nil {
+			return nil, 0, err
+		}
+		total = int64(len(tempUsers))
+
+		// Apply pagination
+		err = countQuery.
+			Offset(offset).
+			Limit(limit).
+			Find(&users).Error
+
+		if err != nil {
+			return nil, 0, err
+		}
+
+		return users, int(total), nil
+	}
+
+	// Base query for standard search
+	baseQuery := r.db.Model(&model.User{})
+
+	// Apply query filter if provided
+	if query != "" {
+		baseQuery = baseQuery.Where("username ILIKE ? OR name ILIKE ? OR email ILIKE ?",
+			"%"+query+"%", "%"+query+"%", "%"+query+"%")
+	}
+
+	// Apply additional filters if needed
 	switch filter {
 	case "verified":
 		baseQuery = baseQuery.Where("is_verified = ?", true)
@@ -230,6 +265,33 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 	}
 
 	return users, int(total), nil
+}
+
+// GetRecommendedUsers gets users with the highest follower count
+func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error) {
+	var users []*model.User
+
+	// Start with a basic query to select users and count their followers
+	query := r.db.Table("users").
+		Joins("LEFT JOIN follows ON users.id = follows.followed_id").
+		Group("users.id").
+		Select("users.*, COUNT(follows.follower_id) as follower_count").
+		Order("follower_count DESC, users.created_at DESC") // Sort by follower count, then registration date
+
+	// Add exclusion if a userID is provided (to avoid recommending the current user)
+	if excludeUserID != "" {
+		if _, err := uuid.Parse(excludeUserID); err == nil {
+			query = query.Where("users.id != ?", excludeUserID)
+		}
+	}
+
+	// Apply limit
+	err := query.Limit(limit).Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 
 // Add Token and OAuthConnection structs

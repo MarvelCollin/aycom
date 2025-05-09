@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,21 +21,93 @@ import (
 // @Router /api/v1/bookmarks [get]
 func GetUserBookmarks(c *gin.Context) {
 	// Get current user ID from JWT token
-	_, exists := c.Get("userId")
+	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	// TODO: Get bookmarks from thread service
-	// This is a placeholder implementation
+	userID, ok := userIDAny.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	// Parse pagination parameters
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	// Get thread service client
+	threadClient := GetThreadServiceClient()
+	if threadClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Thread service unavailable"})
+		return
+	}
+
+	// Get user bookmarks
+	bookmarkedThreads, err := threadClient.GetUserBookmarks(userID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch bookmarks: " + err.Error(),
+		})
+		return
+	}
+
+	// Convert to response format
+	bookmarks := make([]gin.H, len(bookmarkedThreads))
+	for i, thread := range bookmarkedThreads {
+		bookmarks[i] = gin.H{
+			"id":              thread.ID,
+			"thread_id":       thread.ID,
+			"content":         thread.Content,
+			"user_id":         thread.UserID,
+			"username":        thread.Username,
+			"display_name":    thread.DisplayName,
+			"profile_picture": thread.ProfilePicture,
+			"created_at":      thread.CreatedAt,
+			"updated_at":      thread.UpdatedAt,
+			"like_count":      thread.LikeCount,
+			"reply_count":     thread.ReplyCount,
+			"repost_count":    thread.RepostCount,
+			"is_liked":        thread.IsLiked,
+			"is_repost":       thread.IsReposted,
+			"is_bookmarked":   true, // Since these are bookmarks
+			"is_pinned":       thread.IsPinned,
+		}
+
+		// Add media if available
+		if thread.Media != nil && len(thread.Media) > 0 {
+			media := make([]map[string]interface{}, len(thread.Media))
+			for j, m := range thread.Media {
+				media[j] = map[string]interface{}{
+					"id":   m.ID,
+					"type": m.Type,
+					"url":  m.URL,
+				}
+			}
+			bookmarks[i]["media"] = media
+		} else {
+			bookmarks[i]["media"] = []interface{}{}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"bookmarks": []gin.H{},
+		"bookmarks": bookmarks,
 		"pagination": gin.H{
-			"total":   0,
-			"page":    1,
-			"limit":   10,
-			"hasMore": false,
+			"total":   len(bookmarkedThreads), // Ideally we'd get a total count from the service
+			"page":    page,
+			"limit":   limit,
+			"hasMore": len(bookmarkedThreads) >= limit, // Simple estimation
 		},
 	})
 }

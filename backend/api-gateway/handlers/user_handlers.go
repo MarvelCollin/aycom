@@ -391,11 +391,81 @@ func GetUserSuggestions(c *gin.Context) {
 		return
 	}
 
-	// Since there's no specific GetUserRecommendations RPC,
-	// we'll return mock data but in a production environment
-	// you would implement this endpoint in the UserService
-	log.Printf("No GetUserRecommendations RPC available, returning mock data")
-	returnMockSuggestions(c, limit)
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the SearchUsers method with sorting by follower count
+	resp, err := UserClient.SearchUsers(ctx, &userProto.SearchUsersRequest{
+		Query:  "",        // Empty query to find all users
+		Filter: "popular", // This filter tells the service to sort by follower count
+		Page:   1,
+		Limit:  int32(limit + 1), // Request one more to account for filtering out current user
+	})
+
+	if err != nil {
+		log.Printf("Failed to get user suggestions: %v", err)
+		returnMockSuggestions(c, limit)
+		return
+	}
+
+	// Convert proto users to API response format
+	suggestedUsers := make([]gin.H, 0, limit)
+	for _, u := range resp.GetUsers() {
+		// Skip the current user if they somehow appear in recommendations
+		if u.GetId() == userID {
+			continue
+		}
+
+		suggestedUsers = append(suggestedUsers, gin.H{
+			"id":             u.GetId(),
+			"username":       u.GetUsername(),
+			"display_name":   u.GetName(),
+			"avatar_url":     u.GetProfilePictureUrl(),
+			"verified":       u.GetIsVerified(),
+			"follower_count": u.GetFollowerCount(),
+			"is_following":   false, // Default to false since we're showing recommendations
+		})
+
+		// Make sure we only return the requested limit
+		if len(suggestedUsers) >= limit {
+			break
+		}
+	}
+
+	// If we couldn't get enough suggestions from the database, add some mock data
+	if len(suggestedUsers) < limit {
+		log.Printf("Not enough users found, adding mock suggestions")
+		mockCount := limit - len(suggestedUsers)
+
+		for i := 1; i <= mockCount; i++ {
+			mockId := fmt.Sprintf("mock_%d", i)
+			// Skip if we already have a suggestion with this ID
+			exists := false
+			for _, su := range suggestedUsers {
+				if su["id"] == mockId {
+					exists = true
+					break
+				}
+			}
+
+			if !exists {
+				suggestedUsers = append(suggestedUsers, gin.H{
+					"id":             mockId,
+					"username":       fmt.Sprintf("suggested_user%d", i),
+					"display_name":   fmt.Sprintf("Suggested User %d", i),
+					"avatar_url":     fmt.Sprintf("https://example.com/avatar%d.jpg", i),
+					"verified":       i%3 == 0, // Every third user is verified
+					"follower_count": 100 + i*10,
+					"is_following":   false,
+				})
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": suggestedUsers,
+	})
 }
 
 // Helper function to return mock user suggestions

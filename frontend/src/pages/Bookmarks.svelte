@@ -257,21 +257,31 @@
       logger.debug('Fetching bookmarks');
       const response = await getUserBookmarks(page, limit);
       
-      if (response && response.bookmarks) {
+      console.log('Bookmarks API response:', response);
+      
+      if (response && response.bookmarks && Array.isArray(response.bookmarks)) {
         logger.info(`Received ${response.bookmarks.length} bookmarks from API`);
         
-        // Convert bookmarks to tweets format
+        // Convert bookmarks to tweets format - bookmarks are now directly the threads
         const convertedTweets = response.bookmarks.map(bookmark => {
-          const tweet = threadToTweet(bookmark.thread || bookmark);
+          // Each bookmark is already the thread data
+          const tweet = threadToTweet(bookmark);
           return tweet;
         });
         
         // If first page, replace tweets, otherwise append
         bookmarkedTweets = page === 1 ? convertedTweets : [...bookmarkedTweets, ...convertedTweets];
         
-        // Check if there are more tweets to load
-        hasMore = convertedTweets.length === limit;
-        page++;
+        // Use pagination info from API if available
+        if (response.pagination) {
+          hasMore = response.pagination.hasMore;
+          // Set page to next page value
+          page = response.pagination.page + 1;
+        } else {
+          // Fallback to old logic
+          hasMore = convertedTweets.length === limit;
+          page++;
+        }
         
         logger.debug('Updated bookmarks state', { 
           totalBookmarks: bookmarkedTweets.length, 
@@ -279,7 +289,7 @@
           nextPage: page 
         });
       } else {
-        logger.info('No bookmarks received from API');
+        logger.info('No bookmarks received from API or invalid format');
         hasMore = false;
       }
     } catch (err) {
