@@ -29,6 +29,12 @@ type UserServiceClient interface {
 	// Search operations
 	SearchUsers(query string, filter string, page, limit int) ([]*User, int, error)
 	GetUserRecommendations(userID string, limit int) ([]*User, error)
+
+	// Password reset operations
+	RequestPasswordReset(email string) (bool, string, string, error)
+	VerifySecurityAnswer(email, securityAnswer string) (bool, string, string, error)
+	VerifyResetToken(token string) (bool, string, string, error)
+	ResetPassword(token, newPassword, email string) (bool, string, error)
 }
 
 // User represents a user with profile information
@@ -392,4 +398,72 @@ func convertProtoToUser(u *userProto.User) *User {
 	}
 
 	return result
+}
+
+// Implementation for the password reset methods
+func (c *GRPCUserServiceClient) RequestPasswordReset(email string) (bool, string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the actual gRPC method
+	resp, err := c.client.RequestPasswordReset(ctx, &userProto.RequestPasswordResetRequest{
+		Email: email,
+	})
+
+	if err != nil {
+		return false, "", "", err
+	}
+
+	return resp.Success, resp.Message, resp.SecurityQuestion, nil
+}
+
+func (c *GRPCUserServiceClient) VerifySecurityAnswer(email, securityAnswer string) (bool, string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the actual gRPC method
+	resp, err := c.client.VerifySecurityAnswer(ctx, &userProto.VerifySecurityAnswerRequest{
+		Email:          email,
+		SecurityAnswer: securityAnswer,
+	})
+
+	if err != nil {
+		return false, "", "", err
+	}
+
+	return resp.Success, resp.Message, resp.ResetToken, nil
+}
+
+func (c *GRPCUserServiceClient) VerifyResetToken(token string) (bool, string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the actual gRPC method
+	resp, err := c.client.VerifyResetToken(ctx, &userProto.VerifyResetTokenRequest{
+		Token: token,
+	})
+
+	if err != nil {
+		return false, "", "", err
+	}
+
+	return resp.Valid, resp.Email, resp.Message, nil
+}
+
+func (c *GRPCUserServiceClient) ResetPassword(token, newPassword, email string) (bool, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the actual gRPC method
+	resp, err := c.client.ResetPassword(ctx, &userProto.ResetPasswordRequest{
+		Token:       token,
+		NewPassword: newPassword,
+		Email:       email,
+	})
+
+	if err != nil {
+		return false, "", err
+	}
+
+	return resp.Success, resp.Message, nil
 }

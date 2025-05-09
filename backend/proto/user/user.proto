@@ -44,6 +44,18 @@ service UserService {
   
   // Get recommended users (sorted by highest follower count)
   rpc GetRecommendedUsers(GetRecommendedUsersRequest) returns (GetRecommendedUsersResponse) {}
+
+  // Request a password reset
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse) {}
+
+  // Verify a reset token
+  rpc VerifyResetToken(VerifyResetTokenRequest) returns (VerifyResetTokenResponse) {}
+
+  // Reset password with a valid token
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {}
+
+  // Verify security answer before password reset
+  rpc VerifySecurityAnswer(VerifySecurityAnswerRequest) returns (VerifySecurityAnswerResponse) {}
 }
 
 // User contains user information
@@ -229,4 +241,54 @@ message GetRecommendedUsersRequest {
 // Response containing recommended users
 message GetRecommendedUsersResponse {
   repeated User users = 1;
+}
+
+// Request for password reset
+message RequestPasswordResetRequest {
+  string email = 1;
+}
+
+// Response for password reset request
+message RequestPasswordResetResponse {
+  bool success = 1;
+  string message = 2;
+  string security_question = 3; // User's security question if email exists and is not banned
+}
+
+// Request to verify a password reset token
+message VerifyResetTokenRequest {
+  string token = 1;
+}
+
+// Response for token verification
+message VerifyResetTokenResponse {
+  bool valid = 1;
+  string email = 2; // User's email if token is valid
+  string message = 3;
+}
+
+// Request to verify security answer before password reset
+message VerifySecurityAnswerRequest {
+  string email = 1;
+  string security_answer = 2;
+}
+
+// Response for security answer verification
+message VerifySecurityAnswerResponse {
+  bool success = 1;
+  string message = 2;
+  string reset_token = 3; // Token to use for password reset if answer is correct
+}
+
+// Request to reset password using a token
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+  string email = 3;      // Added for additional verification
+}
+
+// Response for password reset
+message ResetPasswordResponse {
+  bool success = 1;
+  string message = 2;
 } 

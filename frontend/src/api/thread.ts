@@ -275,67 +275,56 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
 // Social Features
 
 export async function likeThread(threadId: string) {
-  try {
-    const token = getAuthToken();
-    
-    if (!token) {
-      console.error("No auth token available for liking thread");
-      throw new Error("Authentication required");
-    }
-    
-    let retries = 0;
-    const maxRetries = 2;
-    
-    while (retries <= maxRetries) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          credentials: "include",
-        });
-        
-        if (response.ok) {
-          return response.json();
-        }
-        
-        // If server error, try again
-        if (response.status >= 500 && retries < maxRetries) {
-          retries++;
-          // Wait before retrying (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        
-        // Handle error response
-        try {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || 
-            errorData.error?.message || 
-            `Failed to like thread: ${response.status} ${response.statusText}`
-          );
-        } catch (parseError) {
-          throw new Error(`Failed to like thread: ${response.status} ${response.statusText}`);
-        }
-      } catch (fetchError) {
-        // If network error and we can retry, do so
-        if (retries < maxRetries) {
-          retries++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        throw fetchError;
+  const token = getAuthToken();
+  const maxRetries = 3;
+  let currentRetry = 0;
+
+  while (currentRetry < maxRetries) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ''
+        },
+        credentials: "include",
+      });
+
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again later.");
       }
+
+      if (response.status >= 500) {
+        // If server error, try again
+        currentRetry++;
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, currentRetry)));
+        continue;
+      }
+
+      if (!response.ok) {
+        // Handle error response
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to like thread: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return response.json();
+    } catch (fetchError) {
+      // If network error and we can retry, do so
+      if (currentRetry < maxRetries) {
+        currentRetry++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, currentRetry)));
+        continue;
+      }
+      throw fetchError;
     }
-    
-    throw new Error("Failed to like thread after multiple attempts");
-  } catch (error: unknown) {
-    console.error("Error in likeThread:", error);
-    throw error;
   }
+
+  throw new Error("Failed to like thread after multiple attempts");
 }
 
 export async function unlikeThread(threadId: string) {
@@ -1274,6 +1263,7 @@ export async function removeReplyBookmark(replyId: string) {
 }
 
 // User thread functions
+
 export async function getUserThreads(userId: string, page: number = 1, limit: number = 10) {
   try {
     const token = getAuthToken();

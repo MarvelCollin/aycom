@@ -30,6 +30,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.POST("/verify-email", handlers.VerifyEmail)
 		auth.POST("/resend-verification", handlers.ResendVerification)
 		auth.POST("/google", handlers.GoogleLogin)
+		auth.POST("/forgot-password", handlers.ForgotPassword)
+		auth.POST("/verify-security-answer", handlers.VerifySecurityAnswer)
+		auth.POST("/reset-password", handlers.ResetPassword)
 	}
 
 	// AI routes - accessible to both authenticated and non-authenticated users
@@ -59,6 +62,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	// Public trends route
 	v1.Group("/trends").GET("", handlers.GetTrends)
+
+	// Public Categories route
+	v1.Group("/categories").GET("", handlers.GetCategories)
 
 	// Public WebSocket endpoints
 	publicWebsockets := v1.Group("/chats")

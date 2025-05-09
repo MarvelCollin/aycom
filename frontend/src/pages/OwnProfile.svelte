@@ -4,7 +4,7 @@
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import { isAuthenticated, getUserId } from '../utils/auth';
-  import { getProfile, updateProfile, pinThread, unpinThread, pinReply, unpinReply } from '../api/user';
+  import { getProfile, updateProfile, pinThread, unpinThread, pinReply, unpinReply, getUserById } from '../api/user';
   import { getUserThreads, getUserReplies, getUserLikedThreads, getUserMedia, getThreadReplies, likeThread, unlikeThread, bookmarkThread, removeBookmark } from '../api/thread';
   import { toastStore } from '../stores/toastStore';
   import ThreadCard from '../components/explore/ThreadCard.svelte';
@@ -75,6 +75,13 @@
   // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
+  
+  // Get userId from URL parameter or use current user
+  export let userId: string = '';
+  
+  // Determine if we're viewing the current user's profile or another user's profile
+  $: isOwnProfile = !userId || userId === 'me' || userId === getUserId();
+  $: profileUserId = isOwnProfile ? 'me' : userId;
   
   // Reactive declarations
   $: isDarkMode = $theme === 'dark';
@@ -222,7 +229,7 @@
     
     try {
       // Step 1: Fetch recent threads to check if any should be pinned
-      const postsData = await getUserThreads('me');
+      const postsData = await getUserThreads(profileUserId);
       const threads = postsData.threads || [];
       
       console.log("Threads from API:", threads.length);
@@ -380,8 +387,8 @@
     isLoading = true;
     try {
       if (tab === 'posts') {
-        // Load user's tweets
-        const postsData = await getUserThreads('me');
+        // Load user's tweets using profileUserId
+        const postsData = await getUserThreads(profileUserId);
         
         // Debug: Log the raw thread data to check for pinned status
         console.log('Raw thread data from API:', postsData.threads);
@@ -417,18 +424,18 @@
         console.log('Final post order (first 5):', posts.slice(0, 5).map(p => ({id: p.id, is_pinned: p.is_pinned})));
       } 
       else if (tab === 'replies') {
-        // Load user's replies
-        const repliesData = await getUserReplies('me');
+        // Load user's replies using profileUserId
+        const repliesData = await getUserReplies(profileUserId);
         replies = (repliesData.replies || []).map(reply => ensureTweetFormat(reply));
       } 
       else if (tab === 'likes') {
-        // Load user's liked tweets
-        const likesData = await getUserLikedThreads('me');
+        // Load user's liked tweets using profileUserId
+        const likesData = await getUserLikedThreads(profileUserId);
         likes = (likesData.threads || []).map(thread => ensureTweetFormat(thread));
       } 
       else if (tab === 'media') {
-        // Load user's media posts
-        const mediaData = await getUserMedia('me');
+        // Load user's media posts using profileUserId
+        const mediaData = await getUserMedia(profileUserId);
         media = mediaData.media || [];
       }
     } catch (error) {
@@ -443,7 +450,13 @@
   async function loadProfileData() {
     isLoading = true;
     try {
-      const response = await getProfile();
+      let response;
+      if (isOwnProfile) {
+        response = await getProfile();
+      } else {
+        response = await getUserById(profileUserId);
+      }
+      
       if (response && response.user) {
         profileData = {
           id: response.user.id || '',
@@ -455,9 +468,9 @@
           followerCount: response.user.follower_count || 0,
           followingCount: response.user.following_count || 0,
           joinedDate: response.user.created_at ? new Date(response.user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
-          email: response.user.email || '',
-          dateOfBirth: response.user.date_of_birth || '',
-          gender: response.user.gender || ''
+          email: isOwnProfile ? (response.user.email || '') : '',
+          dateOfBirth: isOwnProfile ? (response.user.date_of_birth || '') : '',
+          gender: isOwnProfile ? (response.user.gender || '') : ''
         };
       }
     } catch (error) {
@@ -679,8 +692,10 @@
   onMount(async () => {
     try {
       await loadProfileData();
-      // Call troubleshooting function
-      await troubleshootPinnedThreads();
+      // Only call troubleshooting for own profile
+      if (isOwnProfile) {
+        await troubleshootPinnedThreads();
+      }
       await loadTabContent(activeTab);
       console.log('UserProfile component mounted successfully');
     } catch (error) {
@@ -732,12 +747,16 @@
         </div>
         
         <div class="mt-16">
-          <button 
-            class="px-4 py-2 rounded-full dark:bg-black border border-gray-100 dark:border-black font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            on:click={() => showEditModal = true}
-          >
-            Edit profile
-          </button>
+          {#if isOwnProfile}
+            <button 
+              class="px-4 py-2 rounded-full dark:bg-black border border-gray-100 dark:border-black font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              on:click={() => showEditModal = true}
+            >
+              Edit profile
+            </button>
+          {:else}
+            <!-- Add follow/unfollow button here if needed -->
+          {/if}
         </div>
       </div>
       
@@ -807,7 +826,7 @@
         </button>
       </div>
       
-            <div class="p-4">
+      <div class="p-4">
         {#if isLoading}
           <LoadingSkeleton type="threads" count={3} />
         {:else if activeTab === 'posts'}
@@ -839,12 +858,14 @@
                   on:loadReplies={handleLoadReplies}
                   on:click={handleThreadClick}
                 />
-                <button 
-                  class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
-                  on:click={() => handlePinThread(post.id, post.is_pinned)}
-                >
-                  {post.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
-                </button>
+                {#if isOwnProfile}
+                  <button 
+                    class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
+                    on:click={() => handlePinThread(post.id, post.is_pinned)}
+                  >
+                    {post.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
+                  </button>
+                {/if}
               </div>
             {/each}
           {/if}
@@ -884,12 +905,14 @@
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
                 />
-                <button 
-                  class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
-                  on:click={() => handlePinReply(reply.id, reply.is_pinned)}
-                >
-                  {reply.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
-                </button>
+                {#if isOwnProfile}
+                  <button 
+                    class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
+                    on:click={() => handlePinReply(reply.id, reply.is_pinned)}
+                  >
+                    {reply.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
+                  </button>
+                {/if}
               </div>
             {/each}
           {/if}
@@ -958,8 +981,8 @@
     {/if}
   </div>
   
-  <!-- Profile edit modal -->
-  {#if showEditModal}
+  <!-- Profile edit modal only for own profile -->
+  {#if isOwnProfile}
     <ProfileEditModal 
       profile={{
         id: profileData.id,
@@ -989,36 +1012,36 @@
   {/if}
   
   <!-- Profile picture preview modal -->
-  {#if showPicturePreview && profileData.profilePicture}
+  {#if showPicturePreview}
+  <div 
+    class="fixed inset-0 bg-black/80 flex items-center justify-center z-50" 
+    on:click={() => showPicturePreview = false}
+    on:keydown={(e) => e.key === 'Escape' && (showPicturePreview = false)}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Profile picture preview"
+    tabindex="0"
+  >
     <div 
-      class="fixed inset-0 bg-black/80 flex items-center justify-center z-50" 
-      on:click={() => showPicturePreview = false}
-      on:keydown={(e) => e.key === 'Escape' && (showPicturePreview = false)}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Profile picture preview"
-      tabindex="0"
+      class="relative max-w-[90%] max-h-[90%]" 
+      on:click|stopPropagation
+      on:keydown|stopPropagation
+      role="document"
     >
-      <div 
-        class="relative max-w-[90%] max-h-[90%]" 
-        on:click|stopPropagation
-        on:keydown|stopPropagation
-        role="document"
+      <button 
+        class="absolute -top-10 right-0 text-white p-2" 
+        on:click={() => showPicturePreview = false}
+        aria-label="Close preview"
       >
-        <button 
-          class="absolute -top-10 right-0 text-white p-2" 
-          on:click={() => showPicturePreview = false}
-          aria-label="Close preview"
-        >
-          <XIcon size="24" />
-        </button>
-        <img 
-          src={profileData.profilePicture} 
-          alt={profileData.displayName} 
-          class="max-w-full max-h-[80vh] rounded-lg"
-        />
-      </div>
+        <XIcon size="24" />
+      </button>
+      <img 
+        src={profileData.profilePicture} 
+        alt={profileData.displayName} 
+        class="max-w-full max-h-[80vh] rounded-lg"
+      />
     </div>
+  </div>
   {/if}
 </MainLayout>
 

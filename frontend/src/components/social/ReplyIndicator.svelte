@@ -9,7 +9,6 @@
     class="reply-indicator-button flex items-center py-1.5 px-3 rounded-full transition-colors {isDarkMode ? 'bg-gray-800 text-blue-400 hover:text-blue-300 hover:bg-gray-700' : 'bg-gray-50 text-blue-500 hover:text-blue-600 hover:bg-gray-100'}"
     on:click
   >
-    <!-- Show up/down arrow based on expanded state -->
     {#if isExpanded}
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />

@@ -5,7 +5,6 @@
   import { formatTimeAgo, processUserMetadata } from '../../utils/common';
   import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark } from '../../api/thread';
   
-  // Import Feather Icons
   import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
   import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
   import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
@@ -23,38 +22,26 @@
   export let isDarkMode: boolean = false;
   export let isAuthenticated: boolean = false;
   
-  // Track interaction states
   export let isLiked: boolean = false;
   export let isReposted: boolean = false;
   export let isBookmarked: boolean = false;
   
-  // For display of replied-to tweet
   export let inReplyToTweet: ITweet | null = null;
-  // For display of replies to this tweet
   export let replies: ITweet[] = [];
-  // Whether to show replies (can be toggled)
   export let showReplies: boolean = false;
-  // Level of nesting for replies (0 for main tweets, increases for nested replies)
   export let nestingLevel: number = 0;
-  // Maximum allowed nesting level
   const MAX_NESTING_LEVEL = 3;
-  // Map for holding nested replies (replies to replies)
   export let nestedRepliesMap: Map<string, ITweet[]> = new Map();
   
   const dispatch = createEventDispatcher();
   
-  // Process user metadata from content field
-  // Format: [USER:username@displayName]content
   $: processedTweet = processTweetContent(tweet);
   
-  // Store processed replies separately to avoid infinite reactive updates
   $: processedReplies = replies.map(reply => processTweetContent(reply));
   
   function processTweetContent(originalTweet: ITweet): ITweet {
-    // Create a copy of the tweet to avoid mutating the original
     const processedTweet = { ...originalTweet };
     
-    // First try to use author fields if available (from API response)
     if (processedTweet.authorUsername) {
       processedTweet.username = processedTweet.authorUsername;
     }
@@ -63,8 +50,6 @@
       processedTweet.displayName = processedTweet.authorName;
     }
     
-    // Check if the tweet already has a valid username (not 'anonymous' or 'unknown')
-    // If so, we can assume it's already been processed
     if (processedTweet.username && 
         processedTweet.username !== 'anonymous' && 
         processedTweet.username !== 'user' &&
@@ -86,7 +71,6 @@
       processedTweet.content = processed.content;
     }
     
-    // If we still don't have a username and displayName, use fallbacks
     if (!processedTweet.username || processedTweet.username === 'anonymous' || processedTweet.username === 'unknown') {
       console.log('Using fallback for username in tweet:', processedTweet.id);
       processedTweet.username = 'user';
@@ -103,7 +87,6 @@
     try {
       const date = new Date(timestamp);
       
-      // Check if date is valid
       if (isNaN(date.getTime())) {
         return 'now';
       }
@@ -111,25 +94,25 @@
       const now = new Date();
       const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
       
-      if (seconds < 0) return 'now'; // Future dates or clock skew
+      if (seconds < 0) return 'now';
       
-      let interval = seconds / 31536000; // seconds in a year
+      let interval = seconds / 31536000;
       if (interval > 1) {
         return Math.floor(interval) + 'y';
       }
-      interval = seconds / 2592000; // seconds in a month
+      interval = seconds / 2592000;
       if (interval > 1) {
         return Math.floor(interval) + 'mo';
       }
-      interval = seconds / 86400; // seconds in a day
+      interval = seconds / 86400;
       if (interval > 1) {
         return Math.floor(interval) + 'd';
       }
-      interval = seconds / 3600; // seconds in an hour
+      interval = seconds / 3600;
       if (interval > 1) {
         return Math.floor(interval) + 'h';
       }
-      interval = seconds / 60; // seconds in a minute
+      interval = seconds / 60;
       if (interval > 1) {
         return Math.floor(interval) + 'm';
       }
@@ -140,7 +123,6 @@
     }
   }
 
-  // Handle action clicks with authentication check
   function handleReply() {
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to reply to posts', 'info');
@@ -155,7 +137,7 @@
       return;
     }
     dispatch('repost', processedTweet.id);
-    isReposted = !isReposted; // Toggle state locally
+    isReposted = !isReposted;
   }
 
   function handleLike() {
@@ -164,15 +146,11 @@
       return;
     }
     
-    // Dispatch specific events based on current state (like or unlike)
     if (isLiked) {
       dispatch('unlike', processedTweet.id);
     } else {
       dispatch('like', processedTweet.id);
     }
-    
-    // Don't toggle state locally - let the parent component update based on API response
-    // isLiked = !isLiked;
   }
 
   function handleBookmark() {
@@ -187,21 +165,17 @@
 
     console.log(`Bookmark action on tweet ${processedTweet.id}. Current bookmark state: ${isBookmarked}`);
 
-    // Get the current bookmark state and toggle it
     const currentlyBookmarked = isBookmarked;
     
-    // Optimistically update the UI
     isBookmarked = !currentlyBookmarked;
     
     try {
-      // Dispatch relevant event based on the previous state
       if (currentlyBookmarked) {
         dispatch('removeBookmark', processedTweet.id);
       } else {
         dispatch('bookmark', processedTweet.id);
       }
     } catch (error) {
-      // If there's an error in the event handling, revert the optimistic update
       console.error('Error processing bookmark action:', error);
       isBookmarked = currentlyBookmarked;
       toastStore.showToast('Failed to process bookmark action', 'error');
@@ -211,7 +185,6 @@
   function toggleReplies() {
     showReplies = !showReplies;
     if (showReplies) {
-      // Always load replies when expanding, regardless of current reply count
       console.log('Loading replies for tweet:', processedTweet.id);
       dispatch('loadReplies', processedTweet.id);
     } else {
@@ -227,21 +200,15 @@
     dispatch('click', processedTweet);
   }
 
-  // Handle reply to a reply
   function handleNestedReply(event) {
-    // Forward the event to parent with the reply ID
     dispatch('reply', event.detail);
   }
 
-  // Handle loading replies for nested tweets
   function handleLoadNestedReplies(event) {
-    // Forward the loadReplies event to parent
     dispatch('loadReplies', event.detail);
   }
 
-  // Handle nested like/unlike
   function handleNestedLike(event) {
-    // Forward the like/unlike event to parent
     if (event.type === 'unlike') {
       dispatch('unlike', event.detail);
     } else {
@@ -249,9 +216,7 @@
     }
   }
 
-  // Handle nested bookmark events
   function handleNestedBookmark(event) {
-    // Forward events to parent
     if (event.type === 'removeBookmark') {
       dispatch('removeBookmark', event.detail);
     } else {
@@ -263,12 +228,10 @@
     dispatch('repost', event.detail);
   }
 
-  // Function to show login modal if not authenticated
   function showLoginModal() {
     toastStore.showToast('You need to be logged in to perform this action', 'error');
   }
 
-  // Event handlers for reply interactions
   async function handleLikeReply(replyId: any) {
     try {
       if (!isAuthenticated) {
@@ -279,14 +242,11 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
-      // Optimistically update UI
       reply.isLiked = true;
       
-      // Call API
       await likeReply(String(replyId));
     } catch (error) {
       console.error('Error liking reply:', error);
-      // Revert optimistic update on error
       const reply = replies.find(r => r.id === replyId);
       if (reply) reply.isLiked = false;
     }
@@ -302,14 +262,11 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
-      // Optimistically update UI
       reply.isLiked = false;
       
-      // Call API
       await unlikeReply(String(replyId));
     } catch (error) {
       console.error('Error unliking reply:', error);
-      // Revert optimistic update on error
       const reply = replies.find(r => r.id === replyId);
       if (reply) reply.isLiked = true;
     }
@@ -325,14 +282,11 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
-      // Optimistically update UI
       reply.isBookmarked = true;
       
-      // Call API
       await bookmarkReply(String(replyId));
     } catch (error) {
       console.error('Error bookmarking reply:', error);
-      // Revert optimistic update on error
       const reply = replies.find(r => r.id === replyId);
       if (reply) reply.isBookmarked = false;
     }
@@ -348,14 +302,11 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
-      // Optimistically update UI
       reply.isBookmarked = false;
       
-      // Call API
       await removeReplyBookmark(String(replyId));
     } catch (error) {
       console.error('Error unbookmarking reply:', error);
-      // Revert optimistic update on error
       const reply = replies.find(r => r.id === replyId);
       if (reply) reply.isBookmarked = true;
     }
@@ -370,7 +321,6 @@
   role="button"
   tabindex="0"
 >
-  <!-- If this is a reply, show the replied-to tweet -->
   {#if inReplyToTweet && nestingLevel === 0}
     <div class="reply-context px-4 pt-2 pb-0">
       <div class="flex items-center text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
@@ -385,7 +335,6 @@
     </div>
   {/if}
 
-  <!-- Nested reply indicator for levels deeper than 1 -->
   {#if nestingLevel > 0}
     <div class="nested-reply-indicator {isDarkMode ? 'border-gray-700' : 'border-gray-300'}"></div>
   {/if}
@@ -446,7 +395,6 @@
           </div>
         {/if}
         
-        <!-- Action buttons -->
         <div class="flex justify-between mt-3 {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
           <div class="flex items-center">
             <button class="tweet-action-btn flex items-center rounded-full p-2 transition-colors {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'} hover:text-blue-500 {processedTweet.replies > 0 ? 'has-replies text-blue-500' : ''}" on:click|stopPropagation={handleReply} aria-label="Reply to tweet">
@@ -499,7 +447,6 @@
   </div>
 </div>
 
-<!-- Show replies button (only for main tweets and if replies exist or can be loaded) -->
 {#if nestingLevel === 0 && (replies.length > 0 || processedTweet.replies > 0)}
   <div class="ml-12 mt-1 mb-2">
     <button 
@@ -522,21 +469,17 @@
   </div>
 {/if}
 
-<!-- Replies section -->
 {#if showReplies}
   <div id="replies-container" class="replies-container {isDarkMode ? 'bg-gray-900' : 'bg-white'} ml-12 border-l {isDarkMode ? 'border-gray-700' : 'border-gray-200'} pl-4 pb-2">
     {#if replies.length === 0}
-      <!-- Loading state -->
       <div class="py-4 text-center {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
         <div class="animate-pulse">Loading replies...</div>
       </div>
     {:else}
-      <!-- Display replies -->
       {#each processedReplies as reply, index (reply.id || `reply-${reply.timestamp}-${reply.username}-${index}`)}
         {#if index === 0}
           {console.log('First reply data:', reply)}
         {/if}
-        <!-- Render each reply as a nested TweetCard if not exceeding max nesting level -->
         {#if nestingLevel < MAX_NESTING_LEVEL}
           <svelte:self 
             tweet={reply}
@@ -559,7 +502,6 @@
             on:loadReplies={handleLoadNestedReplies}
           />
         {:else}
-          <!-- Simple reply rendering for max nesting level -->
           <div class="reply-item py-3 {isDarkMode ? 'border-b border-gray-800' : 'border-b border-gray-200'}">
             <div class="flex">
               <div class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3 flex-shrink-0">
@@ -591,7 +533,6 @@
                     <span>Reply</span>
                   </button>
                   
-                  <!-- Like/Unlike button for replies -->
                   <button class="flex items-center mr-4 p-1 rounded-full {reply.isLiked ? 'text-red-500' : ''} {isDarkMode ? 'dark-btn hover:bg-red-900/30 hover:text-red-500' : 'light-btn hover:bg-red-100 hover:text-red-500'}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
@@ -605,7 +546,6 @@
                     <span>Like</span>
                   </button>
                   
-                  <!-- Bookmark/Unbookmark button for replies -->
                   <button class="flex items-center mr-4 p-1 rounded-full {reply.isBookmarked ? 'text-blue-500' : ''} {isDarkMode ? 'dark-btn hover:bg-blue-900/30 hover:text-blue-500' : 'light-btn hover:bg-blue-100 hover:text-blue-500'}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
@@ -635,7 +575,6 @@
   </div>
 {/if}
 
-<!-- Show "View replies" or "Reply" message for all tweets, regardless of reply count -->
 {#if nestingLevel === 0}
   <div class="mt-1 mb-2 ml-14">
     <button 
@@ -649,7 +588,6 @@
         <ChevronUpIcon size="16" class="mr-1.5" />
       {/if}
       
-      <!-- Show appropriate text based on reply count -->
       {#if processedTweet.replies > 0}
         {showReplies ? 'Hide' : 'View'} {processedTweet.replies} {processedTweet.replies === 1 ? 'reply' : 'replies'}
       {:else}
@@ -659,7 +597,6 @@
   </div>
 {/if}
 
-<!-- Nested reply indicator for nested tweets -->
 {#if nestingLevel > 0 && !showReplies}
   <div class="mt-1 mb-2 ml-12">
     <button 
@@ -668,7 +605,6 @@
     >
       <ChevronRightIcon size="14" class="mr-1.5" />
       
-      <!-- Show appropriate text based on reply count -->
       {#if processedTweet.replies > 0}
         {processedTweet.replies} {processedTweet.replies === 1 ? 'reply' : 'replies'}
       {:else}
@@ -684,7 +620,7 @@
   }
   
   .tweet-card-dark {
-    background-color: #1a202c; /* Match with gray-900 */
+    background-color: #1a202c;
   }
 
   .nested-tweet {
@@ -713,7 +649,6 @@
     transition: all 0.2s;
   }
   
-  /* Button styles for dark and light mode */
   .dark-btn {
     background-color: transparent;
   }
@@ -726,13 +661,15 @@
     background-color: transparent;
   }
   
-  /* Media grid styling */
+  .light-btn:hover {
+    background-color: rgba(29, 155, 240, 0.1);
+  }
+  
   .media-grid {
     max-height: 300px;
     overflow: hidden;
   }
   
-  /* For truncating long text in reply context */
   .line-clamp-1 {
     display: -webkit-box;
     -webkit-line-clamp: 1;
@@ -741,7 +678,6 @@
     overflow: hidden;
   }
   
-  /* Animation for loading indicator */
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
@@ -755,7 +691,6 @@
     text-align: center;
   }
 
-  /* Show reply thread lines to visually connect nested comments */
   .replies-container {
     position: relative;
   }
@@ -775,7 +710,6 @@
     font-weight: 500;
   }
 
-  /* Add styles for count badges */
   .count-badge {
     min-width: 1.5rem;
     text-align: center;
@@ -783,13 +717,8 @@
     display: inline-block;
   }
   
-  /* Make the buttons a bit more prominent */
   .tweet-action-btn {
     padding: 6px 10px;
     border-radius: 9999px;
-  }
-  
-  .tweet-action-btn:hover {
-    background-color: rgba(29, 155, 240, 0.1);
   }
 </style>

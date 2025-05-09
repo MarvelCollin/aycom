@@ -384,7 +384,6 @@ export async function checkUserCommunityMembership(communityId: string) {
     });
     
     if (!response.ok) {
-      // If response status is 404, user is not a member
       if (response.status === 404) {
         return { isMember: false };
       }
@@ -397,7 +396,6 @@ export async function checkUserCommunityMembership(communityId: string) {
     return { isMember: data.isMember || false };
   } catch (error) {
     logger.error(`Check membership for community ${communityId} failed:`, error);
-    // Default to non-member in case of error
     return { isMember: false };
   }
 }
@@ -411,15 +409,12 @@ export async function searchCommunities(
   try {
     const url = new URL(`${API_BASE_URL}/communities/search`);
     
-    // Set query parameters
     url.searchParams.append('q', query);
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
     
-    // Get token
     const token = getAuthToken();
     
-    // Make request
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -436,7 +431,6 @@ export async function searchCommunities(
     return await response.json();
   } catch (error) {
     console.error('Error searching communities:', error);
-    // Mock data for development
     return {
       communities: [
         {

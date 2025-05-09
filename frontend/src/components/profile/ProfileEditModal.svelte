@@ -13,7 +13,7 @@
   $: isDarkMode = $theme === 'dark';
   
   export let profile: IUserProfile | null = null;
-  export const isOpen = true;
+  export let isOpen: boolean = false;
   
   // Local form data that we can safely bind to
   let formData = {
@@ -156,6 +156,7 @@
   }
 </script>
 
+{#if isOpen}
 <div 
   class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" 
   on:click={handleClose}
@@ -353,6 +354,7 @@
     </form>
   </div>
 </div>
+{/if}
 
 <style>
   /* Only native CSS for backgrounds as requested */

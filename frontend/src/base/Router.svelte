@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page, updatePageStore } from '../stores/routeStore';
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
@@ -12,12 +13,26 @@
   import ForgotPassword from '../pages/ForgotPassword.svelte';
   import appConfig from '../config/appConfig';
   import OwnProfile from '../pages/OwnProfile.svelte';
+  import UserProfile from '../pages/UserProfile.svelte';
   
   let route = '/';
-  let isAuthenticated = false; 
+  let isAuthenticated = false;
+  let userId = '';
   
   function handleNavigation() {
-    route = window.location.pathname;
+    const fullPath = window.location.pathname;
+    
+    // Check for user profile route pattern
+    const userProfileMatch = fullPath.match(/^\/user\/([^\/]+)$/);
+    if (userProfileMatch) {
+      userId = userProfileMatch[1];
+      route = '/user';
+      
+      // Update the route store
+      updatePageStore();
+    } else {
+      route = fullPath;
+    }
     
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
     
@@ -33,7 +48,8 @@
          route === '/messages' || 
          route === '/bookmarks' ||
          route === '/communities' ||
-         route === '/profile')) {
+         route === '/profile' ||
+         route === '/user')) {
       window.history.replaceState({}, '', '/login');
       route = '/login';
     }
@@ -67,7 +83,7 @@
       if (anchor && anchor.href.includes(window.location.origin) && !anchor.hasAttribute('target')) {
         e.preventDefault();
         const href = anchor.getAttribute('href') || '/';
-        if (href !== route) {
+        if (href !== window.location.pathname) {
           window.history.pushState({}, '', href);
           handleNavigation();
         }
@@ -99,9 +115,11 @@
     <GoogleCallback />
   {:else if route === '/profile'}
     <OwnProfile />
+  {:else if route === '/user'}
+    <UserProfile />
   {:else if route === '/explore'}
     <Explore />
-{:else if route === '/notifications'}
+  {:else if route === '/notifications'}
     <Notification />
   {:else if route === '/messages'}
     <Message />

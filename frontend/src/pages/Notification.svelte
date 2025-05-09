@@ -318,43 +318,6 @@
   </div>
 </MainLayout>
 
-<!-- 
-  BACKEND REQUIREMENTS:
-  1. Real-time notifications:
-     - Implement WebSocket connection to deliver notifications in real-time
-     - When events occur (likes, reposts, follows, mentions), push notifications to connected clients
-     - Store notifications in database for persistence and retrieval when user connects
-
-  2. Email notifications:
-     - Set up email service integration (SendGrid, Amazon SES, etc.)
-     - Create email templates for different notification types
-     - Send emails for all notification events
-     - Allow users to configure email notification preferences
-     
-  3. API Endpoints needed:
-     - GET /api/notifications - Fetch all notifications for the authenticated user
-     - GET /api/notifications/mentions - Fetch only mention notifications
-     - PUT /api/notifications/:id/read - Mark a notification as read
-     - PUT /api/notifications/read-all - Mark all notifications as read
-     - DELETE /api/notifications/:id - Delete a notification
-     
-  4. Notification storage schema:
-     - id: unique identifier
-     - userId: ID of the user receiving the notification
-     - actorId: ID of the user who performed the action
-     - type: enum ('like', 'repost', 'follow', 'mention')
-     - entityId: ID of the related entity (thread ID for likes/reposts/mentions)
-     - content: Optional content snippet (for mentions/thread content)
-     - isRead: boolean
-     - createdAt: timestamp
-     
-  5. Real-time implementation considerations:
-     - Use Socket.io or similar for WebSocket connections
-     - Implement room-based subscription where each user joins their own notification room
-     - When notification events occur, emit to the appropriate user's room
-     - Handle reconnection gracefully to avoid missing notifications
--->
-
 <style>
   /* Limit multiline text to 2 lines */
   .line-clamp-2 {

@@ -27,7 +27,7 @@
   let newTweet = '';
   let files: File[] = [];
   let replyPermission = 'everyone';
-  let categories: string[] = [];
+  let selectedCategory = '';
   let categoryInput = '';
   let isPosting = false;
   let errorMessage = '';
@@ -55,23 +55,23 @@
     }
   }
   
-  function addCategory(category: string) {
-    if (!categories.includes(category) && category.trim()) {
-      categories = [...categories, category.trim()];
+  function setCategory(category: string) {
+    if (category.trim()) {
+      selectedCategory = category.trim();
       categoryInput = '';
-      logger.debug('Added category', { category, totalCategories: categories.length });
+      logger.debug('Set category', { category });
     }
   }
   
-  function removeCategory(category: string) {
-    categories = categories.filter(c => c !== category);
-    logger.debug('Removed category', { category, totalCategories: categories.length });
+  function clearCategory() {
+    selectedCategory = '';
+    logger.debug('Cleared category');
   }
   
   function handleCategoryKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && categoryInput.trim()) {
       e.preventDefault();
-      addCategory(categoryInput);
+      setCategory(categoryInput);
     }
   }
   
@@ -92,7 +92,7 @@
           content: newTweet,
           thread_id: replyTo.threadId || replyTo.id,
           parent_id: replyTo.id,
-          mentioned_user_ids: categories,
+          mentioned_user_ids: selectedCategory ? [selectedCategory] : [],
         };
         
         logger.debug('Posting reply with data:', replyData);
@@ -113,7 +113,7 @@
       } else {
         const data = {
           content: newTweet,
-          hashtags: categories,
+          hashtags: selectedCategory ? [selectedCategory] : [],
         };
         
         logger.debug('Posting tweet with data:', data);
@@ -135,7 +135,7 @@
       
       newTweet = '';
       files = [];
-      categories = [];
+      selectedCategory = '';
       
       dispatch('tweet', response);
     } catch (error) {
@@ -182,12 +182,12 @@
   $: filteredCategories = categoryInput.trim() 
     ? availableCategories.filter(c => 
         c.name.toLowerCase().includes(categoryInput.toLowerCase()) && 
-        !categories.includes(c.name)
+        c.name !== selectedCategory
       )
     : [];
 
   async function getSuggestedCategories() {
-    if (newTweet.trim().length < 10) {
+    if (newTweet.trim().length < 10 || isReplyMode) {
       return;
     }
 
@@ -195,40 +195,63 @@
     showSuggestions = true;
     
     try {
-      const result = await predictThreadCategory(newTweet);
+      // Add a timeout to prevent UI hanging if the AI service is slow
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('AI suggestion timeout')), 8000)
+      );
+      
+      const resultPromise = predictThreadCategory(newTweet);
+      
+      // Race between the actual API call and timeout
+      const result = await Promise.race([resultPromise, timeoutPromise]);
       
       if (result.success) {
-        const threshold = 0.05;
-        suggestedCategories = Object.entries(result.all_categories)
-          .filter(([_, confidence]) => (confidence as number) >= threshold)
-          .map(([category]) => category)
-          .filter(category => !categories.includes(category));
+        // Always select the highest confidence category
+        const sortedCategories = Object.entries(result.all_categories)
+          .sort((a, b) => (b[1] as number) - (a[1] as number));
+          
+        // Set the top category
+        const topCategory = sortedCategories[0][0];
+        setCategory(topCategory);
         
-        logger.debug('Got AI suggested categories', { count: suggestedCategories.length });
+        // Get other suggestions to show
+        const threshold = 0.05;
+        suggestedCategories = sortedCategories
+          .slice(1) // Skip the first one as it's already selected
+          .filter(([_, confidence]) => (confidence as number) >= threshold)
+          .map(([category]) => category);
+        
+        logger.debug('Got AI suggested categories', { 
+          selected: topCategory,
+          suggestions: suggestedCategories.length
+        });
       } else {
+        logger.warn('AI prediction failed:', result.error);
+        toastStore.showToast('Couldn\'t suggest categories', 'warning');
         suggestedCategories = [];
       }
     } catch (error) {
       logger.error('Failed to get AI suggested categories', { error });
       suggestedCategories = [];
+      toastStore.showToast('Couldn\'t suggest categories', 'warning');
     } finally {
       isLoadingSuggestions = false;
     }
   }
 
-  function addSuggestedCategory(category: string) {
-    if (!categories.includes(category)) {
-      categories = [...categories, category];
-      suggestedCategories = suggestedCategories.filter(c => c !== category);
-      logger.debug('Added suggested category', { category });
-    }
+  function selectSuggestedCategory(category: string) {
+    setCategory(category);
+    suggestedCategories = suggestedCategories.filter(c => c !== category);
+    logger.debug('Selected suggested category', { category });
   }
 
   let debounceTimeout: ReturnType<typeof setTimeout>;
   $: {
     if (newTweet && !isReplyMode) {
       clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(getSuggestedCategories, 500);
+      if (newTweet.trim().length >= 10) {
+        debounceTimeout = setTimeout(getSuggestedCategories, 1000);
+      }
     }
   }
 </script>
@@ -334,25 +357,27 @@
           {/if}
 
           <div class="mb-3">
-            {#if categories.length > 0}
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm font-medium {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Category</span>
+            </div>
+            
+            {#if selectedCategory}
               <div class="flex flex-wrap gap-2 mb-2">
-                {#each categories as category}
-                  <div class="category-tag {isDarkMode ? 'category-tag-dark' : ''}">
-                    {category}
-                    <button class="ml-1 text-sm" on:click={() => removeCategory(category)}>×</button>
-                  </div>
-                {/each}
+                <div class="category-tag {isDarkMode ? 'category-tag-dark' : ''}">
+                  {selectedCategory}
+                  <button class="ml-1 text-sm" on:click={clearCategory}>×</button>
+                </div>
               </div>
             {/if}
             
             <div class="relative">
               <input 
                 type="text" 
-                placeholder="Add categories" 
+                placeholder="Select a category" 
                 bind:value={categoryInput} 
                 on:keydown={handleCategoryKeydown}
                 class="compose-category-input {isDarkMode ? 'compose-category-input-dark' : ''}"
-                aria-label="Add categories"
+                aria-label="Select a category"
               />
               
               {#if filteredCategories.length > 0 && categoryInput.trim()}
@@ -360,7 +385,7 @@
                   {#each filteredCategories as category}
                     <button 
                       class="category-option {isDarkMode ? 'category-option-dark' : ''}" 
-                      on:click={() => addCategory(category.name)}
+                      on:click={() => setCategory(category.name)}
                     >
                       {category.name}
                     </button>
@@ -373,13 +398,13 @@
               <div class="mt-2">
                 <div class="flex items-center gap-1 mb-1">
                   <ZapIcon size="14" color="#FBBF24" />
-                  <span class="text-xs {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">AI-suggested categories:</span>
+                  <span class="text-xs {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Other suggested categories:</span>
                 </div>
                 <div class="flex flex-wrap gap-2">
                   {#each suggestedCategories as category}
                     <button 
                       class="suggested-category-tag {isDarkMode ? 'suggested-category-tag-dark' : ''}"
-                      on:click={() => addSuggestedCategory(category)}
+                      on:click={() => selectSuggestedCategory(category)}
                     >
                       {category}
                     </button>
@@ -725,6 +750,15 @@
     border: 2px solid rgba(59, 130, 246, 0.3);
     border-radius: 50%;
     border-top-color: #3b82f6;
+    animation: spin 1s linear infinite;
+  }
+  
+  .loading-spinner-sm {
+    width: 10px;
+    height: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
     animation: spin 1s linear infinite;
   }
   

@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/your-project/userProto"
 )
 
 // AuthHandler handles authentication
@@ -134,5 +137,170 @@ func GoogleLogin(c *gin.Context) {
 		},
 		"token":         "mock-jwt-token",
 		"refresh_token": "mock-refresh-token",
+	})
+}
+
+// ForgotPassword handles password reset requests
+// @Summary Request password reset
+// @Description Sends a password reset link to the user's email
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param email body object true "User's email"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /api/v1/auth/forgot-password [post]
+func ForgotPassword(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid email format")
+		return
+	}
+
+	// Check if the user service client is initialized
+	if UserClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	// Get user by email to check if it exists
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Get the user by email
+	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+		Email: req.Email,
+	})
+
+	// Handle errors but return generic response to prevent user enumeration
+	if err != nil || userResp.User == nil {
+		SendSuccessResponse(c, http.StatusOK, gin.H{
+			"message": "If the email address exists in our system, a security question will be sent",
+		})
+		return
+	}
+
+	// Return the security question from the user's profile
+	securityQuestion := userResp.User.SecurityQuestion
+	if securityQuestion == "" {
+		securityQuestion = "What is your mother's maiden name?" // Fallback question
+	}
+
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"message":           "Please answer your security question to reset your password",
+		"security_question": securityQuestion,
+		"email":             req.Email,
+	})
+}
+
+// VerifySecurityAnswer handles security question answers for password reset
+// @Summary Verify security answer
+// @Description Verifies the security answer before allowing password reset
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param data body object true "Email and security answer"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /api/v1/auth/verify-security-answer [post]
+func VerifySecurityAnswer(c *gin.Context) {
+	var req struct {
+		Email          string `json:"email" binding:"required,email"`
+		SecurityAnswer string `json:"security_answer" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
+		return
+	}
+
+	// Check if the user service client is initialized
+	if userServiceClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	// Call the service to verify the security answer
+	success, message, resetToken, err := userServiceClient.VerifySecurityAnswer(req.Email, req.SecurityAnswer)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to verify security answer")
+		return
+	}
+
+	if !success {
+		SendErrorResponse(c, http.StatusBadRequest, "INVALID_ANSWER", message)
+		return
+	}
+
+	// Return success with the reset token
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"message": message,
+		"token":   resetToken,
+	})
+}
+
+// ResetPassword handles password reset with a valid token
+// @Summary Reset password
+// @Description Resets a user's password using a valid reset token
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param reset_data body object true "Reset token and new password"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /api/v1/auth/reset-password [post]
+func ResetPassword(c *gin.Context) {
+	var req struct {
+		Token       string `json:"token" binding:"required"`
+		Email       string `json:"email" binding:"required,email"`
+		NewPassword string `json:"new_password" binding:"required,min=8"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request. Token, email, and password (min 8 chars) are required.")
+		return
+	}
+
+	// Check if the user service client is initialized
+	if userServiceClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	// First, verify the token is valid
+	valid, email, message, err := userServiceClient.VerifyResetToken(req.Token)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to verify reset token")
+		return
+	}
+
+	if !valid {
+		SendErrorResponse(c, http.StatusBadRequest, "INVALID_TOKEN", message)
+		return
+	}
+
+	// Verify the email from the token matches the provided email
+	if email != req.Email {
+		SendErrorResponse(c, http.StatusBadRequest, "EMAIL_MISMATCH", "Email does not match the token")
+		return
+	}
+
+	// Now reset the password
+	success, resetMessage, err := userServiceClient.ResetPassword(req.Token, req.NewPassword, req.Email)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to reset password")
+		return
+	}
+
+	if !success {
+		SendErrorResponse(c, http.StatusBadRequest, "RESET_FAILED", resetMessage)
+		return
+	}
+
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"message": "Password has been reset successfully. You can now log in with your new password",
 	})
 }

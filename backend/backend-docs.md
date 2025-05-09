@@ -20,6 +20,9 @@ This section lists all the HTTP endpoints defined in the API Gateway (`backend/a
 *   `GET /auth/oauth-config`: Retrieves OAuth configuration details.
 *   `POST /users/register`: Handles new user registration.
 *   `POST /users/login`: Handles user login.
+*   `POST /auth/forgot-password`: Request a password reset by providing email. Returns security question.
+*   `POST /auth/verify-security-answer`: Verify security answer for password reset. Returns a reset token.
+*   `POST /auth/reset-password`: Reset password using a valid token.
 
 ### Protected Routes (Require JWT Authentication)
 

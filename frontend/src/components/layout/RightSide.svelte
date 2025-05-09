@@ -1,81 +1,66 @@
 <script lang="ts">
-  import type { ITrend, ISuggestedFollow } from "../../interfaces/ISocialMedia";
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { onMount } from 'svelte';
   import { getAuthToken } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
+  import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
+  import { createEventDispatcher } from 'svelte';
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { page } from '../../stores/routeStore';
+  import { getTrends } from '../../api/trends';
+  import { getSuggestedUsers } from '../../api/suggestions';
 
   export let isDarkMode: boolean = false;
   
-  // Initialize with empty arrays
   let trends: ITrend[] = [];
   let suggestedFollows: ISuggestedFollow[] = [];
   let isTrendsLoading = true;
   let isSuggestedFollowsLoading = true;
-  
+
   const API_BASE_URL = appConfig.api.baseUrl;
   const logger = createLoggerWithPrefix('RightSide');
   const dispatch = createEventDispatcher();
 
-  // Function to navigate to a route
   function navigateTo(path) {
     console.log(`Navigating to: ${path}`);
     window.location.href = path;
   }
-  
-  // Helper function to format Supabase image URLs
+
   function formatSupabaseImageUrl(url: string): string {
     if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
     
-    // If already a full URL, return as is
     if (url.startsWith('http')) return url;
     
-    // If it contains emoji or placeholder indicator, return default
     if (url.includes('👤')) return 'https://secure.gravatar.com/avatar/0?d=mp';
     
-    // Otherwise, construct the Supabase URL
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
     return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
   }
 
-  // Dispatch follow event to parent component
   function handleFollow(username: string) {
     const user = suggestedFollows.find(user => user.username === username);
     if (user) {
-      // Toggle following state
       user.isFollowing = !user.isFollowing;
-      suggestedFollows = [...suggestedFollows]; // Force refresh
+      suggestedFollows = [...suggestedFollows];
       
-      // Dispatch event
-      dispatch('follow', { username, isFollowing: user.isFollowing });
-      
-      // In a real app, make API call to follow/unfollow
       try {
         if (user.isFollowing) {
           logger.debug(`Following user: ${username}`);
-          // API call would go here
         } else {
           logger.debug(`Unfollowing user: ${username}`);
-          // API call would go here
         }
       } catch (error) {
         logger.error(`Error ${user.isFollowing ? 'following' : 'unfollowing'} user:`, error);
-        // Revert state on error
         user.isFollowing = !user.isFollowing;
-        suggestedFollows = [...suggestedFollows]; // Force refresh
+        suggestedFollows = [...suggestedFollows];
       }
     }
   }
 
-  // Handle trend click
   function handleTrendClick(trend: ITrend) {
     dispatch('trendClick', trend);
-    // Navigate to a hashtag page
     logger.debug(`Clicked on trend: ${trend.title}`);
-    // navigateTo(`/explore/hashtags/${trend.title.replace('#', '')}`);
   }
 
-  // Fetch trending hashtags from API
   async function fetchTrendingHashtags() {
     isTrendsLoading = true;
     try {
@@ -115,7 +100,6 @@
     }
   }
   
-  // Fetch suggested users to follow from API
   async function fetchSuggestedUsers() {
     isSuggestedFollowsLoading = true;
     try {
@@ -157,7 +141,6 @@
     }
   }
 
-  // Fetch data on component mount
   onMount(() => {
     fetchTrendingHashtags();
     fetchSuggestedUsers();

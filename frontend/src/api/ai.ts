@@ -6,6 +6,9 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const logger = createLoggerWithPrefix('AI API');
 const baseUrl = `${appConfig.api.baseUrl}/ai`;
 
+// Cached results to reduce API calls during typing
+const predictionCache = new Map<string, any>();
+
 /**
  * Predicts the most suitable category for a thread based on its content
  * @param content The content of the thread
@@ -13,35 +16,48 @@ const baseUrl = `${appConfig.api.baseUrl}/ai`;
  */
 export async function predictThreadCategory(content: string) {
   try {
+    // Skip API call for very short content
+    if (!content || content.trim().length < 5) {
+      return {
+        success: false,
+        error: "Content too short for prediction"
+      };
+    }
+
+    // Use cache for identical content to reduce API load
+    const trimmed = content.trim();
+    const cacheKey = trimmed.substring(0, 100); // Use prefix as key
+    if (predictionCache.has(cacheKey)) {
+      logger.debug('Using cached prediction result');
+      return predictionCache.get(cacheKey);
+    }
+    
     logger.debug('Predicting category for thread content');
     
     const response = await axios.post(`${baseUrl}/predict-category`, {
-      content
+      content: trimmed
+    }, { 
+      timeout: 5000 // Increased timeout for model loading
     });
     
     logger.debug('Category prediction result:', response.data);
     
-    return {
+    const result = {
       success: true,
       category: response.data.category,
       confidence: response.data.confidence,
       all_categories: response.data.all_categories
     };
+
+    // Cache the result
+    predictionCache.set(cacheKey, result);
+    
+    return result;
   } catch (error) {
     logger.error('Failed to predict category:', error);
-    
     return {
       success: false,
-      category: 'general',
-      confidence: 0,
-      all_categories: { 
-        'general': 1.0,
-        'technology': 0,
-        'politics': 0,
-        'entertainment': 0,
-        'sports': 0,
-        'business': 0
-      }
+      error: "Failed to predict category"
     };
   }
 } 
