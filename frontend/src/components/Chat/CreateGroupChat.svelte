@@ -6,6 +6,7 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { handleApiError } from '../../utils/common';
+  import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
   import type { User, ApiUserResponse, CreateChatResponse } from '../../interfaces/IChat';
 
   const logger = createLoggerWithPrefix('CreateGroupChat');
@@ -20,8 +21,8 @@
   let authState = getAuthState ? getAuthState() : { userId: null };
   let groupName = '';
   let searchQuery = '';
-  let searchResults: User[] = [];
-  let selectedParticipants: User[] = [];
+  let searchResults: StandardUser[] = [];
+  let selectedParticipants: StandardUser[] = [];
   let isLoading = false;
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let errorMessage = '';
@@ -70,30 +71,23 @@
         isLoading = true;
         errorMessage = '';
 
-        const response: ApiUserResponse = await searchUsers(searchQuery);
+        const response = await searchUsers(searchQuery);
         
         logger.debug('Search users response:', { 
           status: 'success',
           response: JSON.stringify(response)
         });
 
-        // Parse response
-        const users = response?.users || (response?.data?.users || []);
+        // Get users directly from the response
+        const users = response?.users || [];
         
         if (users && users.length > 0) {
-          // Transform to our format and filter out already selected users and current user
-          searchResults = users
-            .filter(user => 
-              user.id !== authState.userId && 
-              !selectedParticipants.some(p => p.id === user.id)
-            )
-            .map(user => ({
-              id: user.id,
-              username: user.username || '',
-              displayName: user.name || user.display_name || user.username || `User`,
-              avatar: user.profile_picture_url || null,
-              isVerified: user.is_verified || false
-            }));
+          // Transform to our standardized format and filter out already selected users and current user
+          const transformedUsers = transformApiUsers(users);
+          searchResults = transformedUsers.filter(user => 
+            user.id !== authState.userId && 
+            !selectedParticipants.some(p => p.id === user.id)
+          );
           
           logger.debug('Filtered search results:', { count: searchResults.length });
         } else {
@@ -108,20 +102,19 @@
       } finally {
         isLoading = false;
       }
-    }, 300); // Debounce 300ms
+    }, 300); // 300ms debounce
   }
 
   // Add user to selected participants
-  function addParticipant(user: User): void {
-    // Add to selected participants
+  function addParticipant(user: StandardUser): void {
+    if (selectedParticipants.some(p => p.id === user.id)) {
+      return;
+    }
+    
     selectedParticipants = [...selectedParticipants, user];
-    
-    // Remove from search results
-    searchResults = searchResults.filter(result => result.id !== user.id);
-    
-    // Clear search
+    searchResults = searchResults.filter(u => u.id !== user.id);
+    logger.debug('Added participant', { userId: user.id, username: user.username });
     searchQuery = '';
-    logger.debug('Added participant:', { userId: user.id });
   }
 
   // Remove user from selected participants

@@ -50,6 +50,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.GET("/check-username", handlers.CheckUsernameAvailability)
 		publicUsers.GET("/search", handlers.SearchUsers)
 		publicUsers.GET("/suggestions", handlers.GetUserSuggestions)
+		publicUsers.GET("/all", handlers.GetAllUsers)
 	}
 
 	// Public thread routes

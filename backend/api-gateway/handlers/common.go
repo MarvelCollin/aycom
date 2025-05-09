@@ -88,7 +88,7 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
 
-		conn, err := grpc.NewClient(p.serviceAddr, opts...)
+		conn, err := grpc.Dial(p.serviceAddr, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +160,7 @@ func InitGRPCServices() {
 		userServiceAddr := AppConfig.Services.UserService
 		log.Printf("Connecting to User service at %s", userServiceAddr)
 
-		userConn, err := grpc.NewClient(userServiceAddr,
+		userConn, err := grpc.Dial(userServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 
@@ -182,7 +182,7 @@ func InitGRPCServices() {
 		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
 
-		communityConn, err := grpc.NewClient(communityServiceAddr,
+		communityConn, err := grpc.Dial(communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 

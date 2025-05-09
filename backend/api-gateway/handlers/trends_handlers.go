@@ -148,7 +148,7 @@ func GetTrends(c *gin.Context) {
 		if userServiceClient != nil {
 			// Get user recommendations
 			users, err := userServiceClient.GetUserRecommendations(userIDStr, recLimit)
-			if err == nil {
+			if err == nil && len(users) > 0 {
 				// Create response format for recommendations
 				var recommendations []gin.H
 				for _, user := range users {
@@ -165,8 +165,6 @@ func GetTrends(c *gin.Context) {
 
 				// Add recommendations to the response
 				response["recommended_users"] = recommendations
-			} else {
-				log.Printf("Error getting user recommendations: %v", err)
 			}
 		}
 	}

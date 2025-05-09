@@ -5,18 +5,10 @@
   import { searchUsers } from '../../api/user';
   import { getAuthToken } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
+  import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
   
   const API_BASE_URL = appConfig.api.baseUrl;
   const logger = createLoggerWithPrefix('ManageGroupMembers');
-  
-  // Define interfaces
-  interface User {
-    id: string;
-    username: string;
-    display_name?: string;
-    avatar_url?: string;
-    role?: string;
-  }
   
   // Props
   export let chatId: string;
@@ -24,8 +16,8 @@
   export let onMembersUpdated: () => void = () => {};
   
   // State
-  let currentParticipants: User[] = [];
-  let availableUsers: User[] = [];
+  export let currentParticipants: StandardUser[] = [];
+  let availableUsers: StandardUser[] = [];
   let searchQuery = '';
   let isLoading = true;
   let isAddingMember = false;
@@ -70,16 +62,10 @@
         // Filter out users who are already in the chat
         const participantIds = new Set(currentParticipants.map(p => p.id));
         
-        // Map the user objects to match our format
-        availableUsers = response.users
-          .filter(user => !participantIds.has(user.id))
-          .map(user => ({
-            id: user.id,
-            username: user.username,
-            display_name: user.display_name || user.name || user.username,
-            avatar_url: user.avatar_url || user.profile_picture_url || user.avatar || ''
-          }));
-          
+        // Transform and filter users
+        const transformedUsers = transformApiUsers(response.users);
+        availableUsers = transformedUsers.filter(user => !participantIds.has(user.id));
+        
         logger.debug('Filtered available users', { count: availableUsers.length });
       } else {
         // Try alternative queries if no results
@@ -107,15 +93,10 @@
           // Filter out users who are already in the chat
           const participantIds = new Set(currentParticipants.map(p => p.id));
           
-          availableUsers = response.users
-            .filter(user => !participantIds.has(user.id))
-            .map(user => ({
-              id: user.id,
-              username: user.username,
-              display_name: user.display_name || user.name || user.username,
-              avatar_url: user.avatar_url || user.profile_picture_url || user.avatar || ''
-            }));
-            
+          // Transform and filter users
+          const transformedUsers = transformApiUsers(response.users);
+          availableUsers = transformedUsers.filter(user => !participantIds.has(user.id));
+          
           logger.debug('Filtered available users from alternative search', { count: availableUsers.length });
           return; // Exit after finding users
         }
@@ -132,7 +113,7 @@
   $: filteredUsers = searchQuery 
     ? availableUsers.filter(user => 
         user.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (user.display_name && user.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
+        user.displayName.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : availableUsers;
   
@@ -164,14 +145,9 @@
           // Filter out users who are already in the chat
           const participantIds = new Set(currentParticipants.map(p => p.id));
           
-          const newUsers = response.users
-            .filter(user => !participantIds.has(user.id))
-            .map(user => ({
-              id: user.id,
-              username: user.username,
-              display_name: user.display_name || user.name || user.username,
-              avatar_url: user.avatar_url || user.profile_picture_url || user.avatar || ''
-            }));
+          // Transform user results
+          const transformedUsers = transformApiUsers(response.users);
+          const newUsers = transformedUsers.filter(user => !participantIds.has(user.id));
           
           // Merge new users with existing ones, avoiding duplicates
           const existingIds = new Set(availableUsers.map(u => u.id));
@@ -189,7 +165,7 @@
   }
   
   // Add a user to the chat
-  async function handleAddMember(user: User): Promise<void> {
+  async function handleAddMember(user: StandardUser): Promise<void> {
     errorMessage = '';
     successMessage = '';
     isAddingMember = true;
@@ -201,7 +177,7 @@
       currentParticipants = [...currentParticipants, user];
       availableUsers = availableUsers.filter(u => u.id !== user.id);
       
-      successMessage = `Added ${user.display_name || user.username} to the chat`;
+      successMessage = `Added ${user.displayName || user.username} to the chat`;
       
       // Notify parent component
       onMembersUpdated();
@@ -221,7 +197,7 @@
   }
   
   // Remove a user from the chat
-  async function handleRemoveMember(user: User): Promise<void> {
+  async function handleRemoveMember(user: StandardUser): Promise<void> {
     errorMessage = '';
     successMessage = '';
     isRemovingMember = true;
@@ -233,7 +209,7 @@
       currentParticipants = currentParticipants.filter(p => p.id !== user.id);
       availableUsers = [...availableUsers, user];
       
-      successMessage = `Removed ${user.display_name || user.username} from the chat`;
+      successMessage = `Removed ${user.displayName || user.username} from the chat`;
       
       // Notify parent component
       onMembersUpdated();
@@ -279,17 +255,17 @@
             {#each currentParticipants as user (user.id)}
               <div class="member-item">
                 <div class="user-avatar">
-                  {#if user.avatar_url}
-                    <img src={user.avatar_url} alt={user.username} />
+                  {#if user.avatar}
+                    <img src={user.avatar} alt={user.username} />
                   {:else}
                     <div class="avatar-placeholder">
-                      {(user.display_name || user.username)[0].toUpperCase()}
+                      {(user.displayName || user.username)[0].toUpperCase()}
                     </div>
                   {/if}
                 </div>
                 
                 <div class="user-info">
-                  <div class="user-name">{user.display_name || user.username}</div>
+                  <div class="user-name">{user.displayName || user.username}</div>
                   <div class="user-username">@{user.username}</div>
                 </div>
                 
@@ -338,14 +314,14 @@
                     <li>
                       <div class="dropdown-item" on:click={() => handleAddMember(user)}>
                         <div class="avatar-container">
-                          {#if user.avatar_url}
-                            <img src={user.avatar_url} alt={user.display_name || user.username} class="avatar-image" />
+                          {#if user.avatar}
+                            <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
                           {:else}
-                            <span class="avatar-placeholder">{(user.display_name || user.username)[0].toUpperCase()}</span>
+                            <span class="avatar-placeholder">{(user.displayName || user.username)[0].toUpperCase()}</span>
                           {/if}
                         </div>
                         <div class="user-info">
-                          <span class="user-name">{user.display_name || user.username}</span>
+                          <span class="user-name">{user.displayName || user.username}</span>
                           <span class="user-username">@{user.username}</span>
                         </div>
                         <button 

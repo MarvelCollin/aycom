@@ -249,19 +249,9 @@ func (a *userServiceAdapter) SearchUsers(ctx context.Context, req *user.SearchUs
 			Email:             u.Email,
 			Gender:            u.Gender,
 			ProfilePictureUrl: u.ProfilePictureURL,
-			BannerUrl:         u.BannerURL,
+			CreatedAt:         u.CreatedAt.Format(time.RFC3339),
+			IsVerified:        u.IsVerified,
 		}
-
-		if u.DateOfBirth != nil {
-			protoUser.DateOfBirth = u.DateOfBirth.Format("2006-01-02")
-		}
-		if !u.CreatedAt.IsZero() {
-			protoUser.CreatedAt = u.CreatedAt.Format(time.RFC3339)
-		}
-		if !u.UpdatedAt.IsZero() {
-			protoUser.UpdatedAt = u.UpdatedAt.Format(time.RFC3339)
-		}
-
 		protoUsers = append(protoUsers, protoUser)
 	}
 
@@ -269,4 +259,9 @@ func (a *userServiceAdapter) SearchUsers(ctx context.Context, req *user.SearchUs
 		Users:      protoUsers,
 		TotalCount: int32(totalCount),
 	}, nil
+}
+
+func (a *userServiceAdapter) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequest) (*user.GetAllUsersResponse, error) {
+	// Forward the request to our handler
+	return a.h.GetAllUsers(ctx, req)
 }

@@ -1,27 +1,16 @@
-/**
- * Utility functions for transforming user data from API responses
- */
-
 import { logger } from './logger';
 
-/**
- * Standard user interface used throughout the application
- */
 export interface StandardUser {
   id: string;
   username: string;
   displayName: string;
-  avatar: string;
+  avatar: string | null;
   bio?: string;
-  isVerified?: boolean;
+  isVerified: boolean;
   isFollowing?: boolean;
   followerCount?: number;
 }
 
-/**
- * Transforms a user object from API response to standardized format
- * Handles various field naming patterns that might exist in the API
- */
 export function transformApiUser(user: any): StandardUser {
   if (!user || !user.id) {
     logger.warn('Invalid user object provided to transform', { user });
@@ -32,7 +21,7 @@ export function transformApiUser(user: any): StandardUser {
     id: user.id,
     username: user.username || '',
     displayName: user.display_name || user.name || user.username || 'User',
-    avatar: user.avatar_url || user.profile_picture_url || user.avatar || '',
+    avatar: user.avatar_url || user.profile_picture_url || user.avatar || null,
     bio: user.bio || '',
     isVerified: !!user.is_verified,
     isFollowing: !!user.is_following,
@@ -40,9 +29,6 @@ export function transformApiUser(user: any): StandardUser {
   };
 }
 
-/**
- * Transforms an array of users from API response to standardized format
- */
 export function transformApiUsers(users: any[]): StandardUser[] {
   if (!Array.isArray(users)) {
     logger.warn('Invalid users array provided to transform', { users });

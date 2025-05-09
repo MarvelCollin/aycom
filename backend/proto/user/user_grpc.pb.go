@@ -32,6 +32,7 @@ const (
 	UserService_GetFollowing_FullMethodName                 = "/user.UserService/GetFollowing"
 	UserService_SearchUsers_FullMethodName                  = "/user.UserService/SearchUsers"
 	UserService_GetRecommendedUsers_FullMethodName          = "/user.UserService/GetRecommendedUsers"
+	UserService_GetAllUsers_FullMethodName                  = "/user.UserService/GetAllUsers"
 	UserService_RequestPasswordReset_FullMethodName         = "/user.UserService/RequestPasswordReset"
 	UserService_VerifyResetToken_FullMethodName             = "/user.UserService/VerifyResetToken"
 	UserService_ResetPassword_FullMethodName                = "/user.UserService/ResetPassword"
@@ -70,6 +71,8 @@ type UserServiceClient interface {
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
 	// Get recommended users (sorted by highest follower count)
 	GetRecommendedUsers(ctx context.Context, in *GetRecommendedUsersRequest, opts ...grpc.CallOption) (*GetRecommendedUsersResponse, error)
+	// Get all users with pagination
+	GetAllUsers(ctx context.Context, in *GetAllUsersRequest, opts ...grpc.CallOption) (*GetAllUsersResponse, error)
 	// Request a password reset
 	RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error)
 	// Verify a reset token
@@ -218,6 +221,16 @@ func (c *userServiceClient) GetRecommendedUsers(ctx context.Context, in *GetReco
 	return out, nil
 }
 
+func (c *userServiceClient) GetAllUsers(ctx context.Context, in *GetAllUsersRequest, opts ...grpc.CallOption) (*GetAllUsersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAllUsersResponse)
+	err := c.cc.Invoke(ctx, UserService_GetAllUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequestPasswordResetResponse)
@@ -290,6 +303,8 @@ type UserServiceServer interface {
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
 	// Get recommended users (sorted by highest follower count)
 	GetRecommendedUsers(context.Context, *GetRecommendedUsersRequest) (*GetRecommendedUsersResponse, error)
+	// Get all users with pagination
+	GetAllUsers(context.Context, *GetAllUsersRequest) (*GetAllUsersResponse, error)
 	// Request a password reset
 	RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error)
 	// Verify a reset token
@@ -346,6 +361,9 @@ func (UnimplementedUserServiceServer) SearchUsers(context.Context, *SearchUsersR
 }
 func (UnimplementedUserServiceServer) GetRecommendedUsers(context.Context, *GetRecommendedUsersRequest) (*GetRecommendedUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRecommendedUsers not implemented")
+}
+func (UnimplementedUserServiceServer) GetAllUsers(context.Context, *GetAllUsersRequest) (*GetAllUsersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAllUsers not implemented")
 }
 func (UnimplementedUserServiceServer) RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestPasswordReset not implemented")
@@ -614,6 +632,24 @@ func _UserService_GetRecommendedUsers_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetAllUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAllUsersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetAllUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetAllUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetAllUsers(ctx, req.(*GetAllUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_RequestPasswordReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequestPasswordResetRequest)
 	if err := dec(in); err != nil {
@@ -744,6 +780,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRecommendedUsers",
 			Handler:    _UserService_GetRecommendedUsers_Handler,
+		},
+		{
+			MethodName: "GetAllUsers",
+			Handler:    _UserService_GetAllUsers_Handler,
 		},
 		{
 			MethodName: "RequestPasswordReset",

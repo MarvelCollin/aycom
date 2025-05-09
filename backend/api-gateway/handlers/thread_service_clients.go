@@ -108,37 +108,11 @@ func InitThreadServiceClient(cfg *config.Config) {
 		return
 	}
 
-	// Try to get a connection from the pool
-	if threadConnPool != nil {
-		conn, err := threadConnPool.Get()
-		if err == nil {
-			// Create a new gRPC thread service client
-			grpcClient := threadProto.NewThreadServiceClient(conn)
+	// Try direct connection if pool is not available
+	if threadConnPool == nil {
+		log.Printf("Thread connection pool not available, connecting directly to %s", cfg.Services.ThreadService)
 
-			// Test the connection with a simple request that should always work
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			_, testErr := grpcClient.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{Limit: 1})
-			cancel()
-
-			if testErr != nil {
-				log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
-				threadConnPool.Put(conn)
-			} else {
-				threadServiceClient = &GRPCThreadServiceClient{
-					client: grpcClient,
-					conn:   conn,
-				}
-
-				log.Println("Thread service client initialized with gRPC implementation")
-				return
-			}
-		} else {
-			log.Printf("Warning: Could not get connection from pool: %v, falling back to local implementation", err)
-		}
-	} else {
-		log.Println("Warning: Thread connection pool not initialized, trying direct connection")
-
-		conn, err := grpc.NewClient(cfg.Services.ThreadService,
+		conn, err := grpc.Dial(cfg.Services.ThreadService,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 
@@ -153,6 +127,16 @@ func InitThreadServiceClient(cfg *config.Config) {
 		} else {
 			log.Printf("Warning: Failed to establish direct gRPC connection: %v", err)
 		}
+	}
+
+	// Test the connection with a simple request that should always work
+	_, testErr := threadServiceClient.GetTrendingHashtags(1)
+
+	if testErr != nil {
+		log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
+	} else {
+		log.Println("Thread service client initialized with gRPC implementation")
+		return
 	}
 
 	// Fallback to local implementation if all connection attempts fail

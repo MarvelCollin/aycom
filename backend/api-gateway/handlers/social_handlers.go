@@ -61,14 +61,36 @@ func FollowUser(c *gin.Context) {
 		return
 	}
 
-	// TODO: In a real implementation, you would call a service to create a follow relationship
-	// For now, we'll just return a success response
+	// Create the follow relationship using the FollowUser endpoint
+	followRequest := &userProto.FollowUserRequest{
+		FollowerId: currentUserID,
+		FollowedId: targetUserID,
+	}
+
+	followResp, err := UserClient.FollowUser(ctx, followRequest)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.AlreadyExists {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "Already following this user",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to follow user: " + err.Error(),
+		})
+		log.Printf("Error following user: %v", err)
+		return
+	}
 
 	log.Printf("User %s successfully followed user %s", currentUserID, targetUserID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Successfully followed user",
+		"success": followResp.Success,
+		"message": followResp.Message,
 	})
 }
 
@@ -117,20 +139,42 @@ func UnfollowUser(c *gin.Context) {
 		return
 	}
 
-	// TODO: In a real implementation, you would call a service to remove the follow relationship
-	// For now, we'll just return a success response
+	// Remove the follow relationship using the UnfollowUser endpoint
+	unfollowRequest := &userProto.UnfollowUserRequest{
+		FollowerId: currentUserID,
+		FollowedId: targetUserID,
+	}
+
+	unfollowResp, err := UserClient.UnfollowUser(ctx, unfollowRequest)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.NotFound {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "You are not following this user",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to unfollow user: " + err.Error(),
+		})
+		log.Printf("Error unfollowing user: %v", err)
+		return
+	}
 
 	log.Printf("User %s successfully unfollowed user %s", currentUserID, targetUserID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Successfully unfollowed user",
+		"success": unfollowResp.Success,
+		"message": unfollowResp.Message,
 	})
 }
 
-// GetFollowers returns the followers of a user
+// GetFollowers returns a user's followers
 // @Summary Get followers
-// @Description Gets a list of followers for a user
+// @Description Gets a list of users that follow a specific user
 // @Tags Users
 // @Produce json
 // @Router /api/v1/users/{userId}/followers [get]
@@ -148,19 +192,50 @@ func GetFollowers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	// In a real implementation, you would:
-	// 1. Call the appropriate service to get followers
-	// 2. Process the response and return it to the client
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// For now, we'll return mock data
-	var followers []gin.H
-	for i := 1; i <= 5; i++ {
+	// Call the user service to get followers
+	followersReq := &userProto.GetFollowersRequest{
+		UserId: targetUserID,
+		Page:   int32(page),
+		Limit:  int32(limit),
+	}
+
+	followersResp, err := UserClient.GetFollowers(ctx, followersReq)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.NotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "User not found",
+			})
+			return
+		}
+
+		log.Printf("Error getting followers: %v", err)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"followers": []gin.H{},
+				"page":      page,
+				"limit":     limit,
+				"total":     0,
+			},
+		})
+		return
+	}
+
+	// Convert the response to the expected format
+	followers := make([]gin.H, 0, len(followersResp.GetFollowers()))
+	for _, user := range followersResp.GetFollowers() {
 		followers = append(followers, gin.H{
-			"id":                  fmt.Sprintf("user_%d", i),
-			"username":            fmt.Sprintf("follower%d", i),
-			"name":                fmt.Sprintf("Follower %d", i),
-			"profile_picture_url": fmt.Sprintf("https://example.com/profile_%d.jpg", i),
-			"is_following":        i%2 == 0, // Alternating true/false for demonstration
+			"id":                  user.GetId(),
+			"username":            user.GetUsername(),
+			"name":                user.GetName(),
+			"profile_picture_url": user.GetProfilePictureUrl(),
+			"is_following":        user.GetIsFollowing(),
 		})
 	}
 
@@ -170,7 +245,7 @@ func GetFollowers(c *gin.Context) {
 			"followers": followers,
 			"page":      page,
 			"limit":     limit,
-			"total":     5,
+			"total":     followersResp.GetTotalCount(),
 		},
 	})
 }
@@ -195,19 +270,50 @@ func GetFollowing(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	// In a real implementation, you would:
-	// 1. Call the appropriate service to get users the target user is following
-	// 2. Process the response and return it to the client
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// For now, we'll return mock data
-	var following []gin.H
-	for i := 1; i <= 5; i++ {
+	// Call the user service to get following users
+	followingReq := &userProto.GetFollowingRequest{
+		UserId: targetUserID,
+		Page:   int32(page),
+		Limit:  int32(limit),
+	}
+
+	followingResp, err := UserClient.GetFollowing(ctx, followingReq)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.NotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "User not found",
+			})
+			return
+		}
+
+		log.Printf("Error getting following users: %v", err)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"following": []gin.H{},
+				"page":      page,
+				"limit":     limit,
+				"total":     0,
+			},
+		})
+		return
+	}
+
+	// Convert the response to the expected format
+	following := make([]gin.H, 0, len(followingResp.GetFollowing()))
+	for _, user := range followingResp.GetFollowing() {
 		following = append(following, gin.H{
-			"id":                  fmt.Sprintf("user_%d", i+10),
-			"username":            fmt.Sprintf("followed%d", i),
-			"name":                fmt.Sprintf("Followed User %d", i),
-			"profile_picture_url": fmt.Sprintf("https://example.com/profile_%d.jpg", i+10),
-			"is_following":        true, // All are being followed
+			"id":                  user.GetId(),
+			"username":            user.GetUsername(),
+			"name":                user.GetName(),
+			"profile_picture_url": user.GetProfilePictureUrl(),
+			"is_following":        true, // By definition, we're following these users
 		})
 	}
 
@@ -217,7 +323,7 @@ func GetFollowing(c *gin.Context) {
 			"following": following,
 			"page":      page,
 			"limit":     limit,
-			"total":     5,
+			"total":     followingResp.GetTotalCount(),
 		},
 	})
 }
@@ -1000,41 +1106,10 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	log.Printf("Getting following threads for user: %s, page: %d, limit: %d", authenticatedUserIDStr, page, limit)
 
-	// For now, return mock data until the backend can support this properly
-	// In a production environment, you would call a specific endpoint
-	mockThreads := make([]gin.H, 0, limit)
-
-	// Create realistic mock data that matches the frontend's expectations
-	for i := 1; i <= limit; i++ {
-		threadID := fmt.Sprintf("thread_%d", i)
-		userID := fmt.Sprintf("user_%d", i)
-		username := fmt.Sprintf("follower%d", i)
-		displayName := fmt.Sprintf("Follower %d", i)
-
-		mockThreads = append(mockThreads, gin.H{
-			"id":             threadID,
-			"user_id":        userID,
-			"username":       username,
-			"display_name":   displayName,
-			"content":        fmt.Sprintf("This is a post from someone you follow. Post #%d", i),
-			"created_at":     time.Now().Add(-time.Duration(i) * time.Hour).Format(time.RFC3339),
-			"updated_at":     time.Now().Format(time.RFC3339),
-			"like_count":     i * 5,
-			"reply_count":    i * 2,
-			"repost_count":   i,
-			"bookmark_count": i / 2,
-			"is_liked":       i%2 == 0,
-			"is_reposted":    i%3 == 0,
-			"is_bookmarked":  i%4 == 0,
-			"media":          []gin.H{},
-			"avatar":         fmt.Sprintf("https://i.pravatar.cc/150?u=%s", userID),
-			"is_verified":    i%5 == 0,
-		})
-	}
-
+	// Return empty array since this endpoint is not yet fully implemented
 	c.JSON(http.StatusOK, gin.H{
-		"threads": mockThreads,
-		"total":   len(mockThreads),
+		"threads": []gin.H{},
+		"total":   0,
 		"page":    page,
 		"limit":   limit,
 	})

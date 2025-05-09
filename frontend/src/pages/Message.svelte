@@ -8,12 +8,13 @@
   import { toastStore } from '../stores/toastStore';
   import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
   import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList } from '../api/chat';
-  import { getProfile, searchUsers, getUserById } from '../api/user';
+  import { getProfile, searchUsers, getUserById, getAllUsers } from '../api/user';
   import '../styles/magniview.css'
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
   import DebugPanel from '../components/common/DebugPanel.svelte';
   import CreateGroupChat from '../components/chat/CreateGroupChat.svelte';
+  import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   
   const logger = createLoggerWithPrefix('Message');
 
@@ -152,7 +153,7 @@
   }
   
   // Add user search results state
-  let userSearchResults: Participant[] = [];
+  let userSearchResults: StandardUser[] = [];
 
   // Fetch user profile data using the API directly
   async function fetchUserProfile() {
@@ -232,7 +233,15 @@
 
     // Register a handler for incoming WebSocket messages
     wsUnsubscribe = websocketStore.registerMessageHandler(handleWebSocketMessage);
-    logger.debug('WebSocket message handler registered');
+    logger.info('WebSocket message handler registered');
+    
+    // Check all existing connections and reconnect any that are closed
+    if (selectedChat && selectedChat.id) {
+      if (!websocketStore.isConnected(selectedChat.id)) {
+        logger.info(`Reconnecting to WebSocket for chat ${selectedChat.id}`);
+        websocketStore.connect(selectedChat.id);
+      }
+    }
   }
 
   // Handle incoming WebSocket messages
@@ -1085,7 +1094,19 @@
       
       // Connect to WebSocket for this chat
       websocketStore.connect(chat.id);
-      logger.debug(`Connected to WebSocket for chat ${chat.id}`);
+      logger.info(`Connected to WebSocket for chat ${chat.id}`);
+      
+      // Check WebSocket connection status after a short delay
+      setTimeout(() => {
+        const isConnected = websocketStore.isConnected(chat.id);
+        logger.info(`WebSocket connection status for chat ${chat.id}: ${isConnected ? 'Connected' : 'Not connected'}`);
+        
+        // Update UI to show connection status
+        const wsStatusElement = document.querySelector('.ws-status');
+        if (wsStatusElement) {
+          wsStatusElement.setAttribute('data-connected', isConnected ? 'true' : 'false');
+        }
+      }, 500);
       
     } catch (error) {
       const errorResponse = handleApiError(error);
@@ -1134,8 +1155,24 @@
       const sentAttachments = [...selectedAttachments];
       selectedAttachments = [];
       
+      // Make sure we have an active WebSocket connection
+      let isWsConnected = websocketStore.isConnected(selectedChat.id);
+      
+      // If not connected, try to connect
+      if (!isWsConnected) {
+        logger.info(`WebSocket not connected for chat ${selectedChat.id}, attempting to connect`);
+        websocketStore.connect(selectedChat.id);
+        
+        // Wait a moment to allow connection to establish
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Check connection status again
+        isWsConnected = websocketStore.isConnected(selectedChat.id);
+        logger.info(`WebSocket connection status after attempt: ${isWsConnected ? 'Connected' : 'Not connected'}`);
+      }
+      
       // Send via WebSocket if connection is active, otherwise fall back to API
-      if (websocketStore.isConnected(selectedChat.id)) {
+      if (isWsConnected) {
         // Prepare message for WebSocket
         const wsMessage: ChatMessage = {
           type: 'text' as MessageType,
@@ -1148,10 +1185,10 @@
         
         // Send via WebSocket
         websocketStore.sendMessage(selectedChat.id, wsMessage);
-        logger.debug('Message sent via WebSocket', { chatId: selectedChat.id, tempId });
+        logger.info('Message sent via WebSocket', { chatId: selectedChat.id, tempId });
       } else {
         // Fall back to API if WebSocket is not connected
-        logger.debug('WebSocket not connected, sending via API', { chatId: selectedChat.id });
+        logger.info('WebSocket not connected, sending via API', { chatId: selectedChat.id });
         
         // Call the API
         const response = await apiSendMessage(selectedChat.id, messageData);
@@ -1221,71 +1258,125 @@
     }
 
     const query = searchQuery.toLowerCase();
-    logger.debug('Starting search with query:', { query });
+    logger.info('Starting search with query:', { query });
 
     // First, filter local chats by name
     let results = chats.filter(chat => 
-      chat.name.toLowerCase().includes(query)
+      chat.name.toLowerCase().includes(query) || 
+      chat.participants.some(p => 
+        (p.displayName && p.displayName.toLowerCase().includes(query)) || 
+        (p.username && p.username.toLowerCase().includes(query))
+      )
     );
-    logger.debug('Filtered local chats:', { count: results.length });
+    logger.info('Filtered local chats:', { count: results.length });
     
-    // Search for users via API - this should search ALL users in the system, not just those we've chatted with
+    // Search for users via API
     try {
-      logger.debug('Calling searchUsers API with query:', { query: searchQuery });
+      logger.info('Calling searchUsers API with query:', { query: searchQuery });
       const response = await searchUsers(searchQuery);
       
-      logger.debug('Search users API response:', { 
+      logger.info('Search users API response:', { 
         status: 'success',
-        responseData: JSON.stringify(response)
+        userCount: response.users?.length || 0,
+        totalResults: response.totalCount || 0
       });
       
-      // Handle different response formats - check both direct response.users and response.data.users
-      const users = response?.users || (response?.data?.users || []);
+      // Get users from the response
+      const users = response?.users || [];
       
       if (users && users.length > 0) {
-        // Transform API user results to match our participant format
-        userSearchResults = users.map(user => ({
-          id: user.id,
-          username: user.username,
-          displayName: user.name,
-          avatar: user.profile_picture_url,
-          bio: user.bio,
-          isVerified: user.is_verified,
-          isFollowing: user.is_following,
-        }));
-        logger.debug('Retrieved users from API', { count: userSearchResults.length, users: userSearchResults.map(u => u.username) });
+        // Transform API user results using our utility function
+        userSearchResults = transformApiUsers(users);
+        logger.info('Retrieved users from API', { 
+          count: userSearchResults.length, 
+          firstUser: userSearchResults[0]?.displayName
+        });
       } else {
-        userSearchResults = [];
-        logger.warn('No users found or invalid API response format', { response });
+        logger.warn('No users found from API, trying to get all users', { query: searchQuery });
+        
+        // Try to get all users from the new all users endpoint
+        try {
+          // First try to use the all users endpoint
+          const allUsersResponse = await getAllUsers(30, 1, 'username', true);
+          
+          if (allUsersResponse.users && allUsersResponse.users.length > 0) {
+            // Filter users client-side based on the query
+            const filteredUsers = allUsersResponse.users.filter(user => 
+              (user.username && user.username.toLowerCase().includes(query)) ||
+              (user.display_name && user.display_name.toLowerCase().includes(query))
+            );
+            
+            if (filteredUsers.length > 0) {
+              userSearchResults = transformApiUsers(filteredUsers);
+              logger.info('Retrieved filtered users from all users list', { 
+                count: userSearchResults.length 
+              });
+            } else {
+              // If no users match the filter, use client-side fallback
+              findUsersFromLocalChats(query);
+            }
+          } else {
+            // If no users returned from all users API, try with basic search as fallback
+            logger.warn('No users returned from all users endpoint, trying search endpoint with empty query');
+            const fallbackResponse = await searchUsers(" ");
+            
+            if (fallbackResponse.users && fallbackResponse.users.length > 0) {
+              // Filter users client-side based on the query
+              const filteredUsers = fallbackResponse.users.filter(user => 
+                (user.username && user.username.toLowerCase().includes(query)) ||
+                (user.display_name && user.display_name.toLowerCase().includes(query))
+              );
+              
+              if (filteredUsers.length > 0) {
+                userSearchResults = transformApiUsers(filteredUsers);
+                logger.info('Retrieved filtered users from search with empty query', { 
+                  count: userSearchResults.length 
+                });
+              } else {
+                findUsersFromLocalChats(query);
+              }
+            } else {
+              findUsersFromLocalChats(query);
+            }
+          }
+        } catch (fallbackError) {
+          logger.error('Error getting all users:', fallbackError);
+          
+          // Try with basic search as fallback
+          try {
+            logger.warn('Falling back to search endpoint with empty query');
+            const fallbackResponse = await searchUsers(" ");
+            
+            if (fallbackResponse.users && fallbackResponse.users.length > 0) {
+              // Filter users client-side based on the query
+              const filteredUsers = fallbackResponse.users.filter(user => 
+                (user.username && user.username.toLowerCase().includes(query)) ||
+                (user.display_name && user.display_name.toLowerCase().includes(query))
+              );
+              
+              if (filteredUsers.length > 0) {
+                userSearchResults = transformApiUsers(filteredUsers);
+                logger.info('Retrieved filtered users from search with empty query', { 
+                  count: userSearchResults.length 
+                });
+              } else {
+                findUsersFromLocalChats(query);
+              }
+            } else {
+              findUsersFromLocalChats(query);
+            }
+          } catch (secondFallbackError) {
+            logger.error('Error with search fallback:', secondFallbackError);
+            findUsersFromLocalChats(query);
+          }
+        }
       }
     } catch (error) {
       logger.error('Error searching users:', error);
       userSearchResults = [];
+      
       // Fallback to client-side searching if API fails
-      const uniqueUsers = new Map<string, Participant>();
-      
-      chats.forEach(chat => {
-        if (chat.participants && chat.participants.length > 0) {
-          chat.participants.forEach(participant => {
-            // Skip if it's the current user or already in the map
-            if (participant.id === authState.userId || uniqueUsers.has(participant.id)) {
-              return;
-            }
-            
-            // Check if user matches search query
-            const displayName = participant.displayName || participant.username || '';
-            const username = participant.username || '';
-            
-            if (displayName.toLowerCase().includes(query) || 
-                username.toLowerCase().includes(query)) {
-              uniqueUsers.set(participant.id, participant);
-            }
-          });
-        }
-      });
-      
-      userSearchResults = Array.from(uniqueUsers.values());
-      logger.debug('Using fallback search results', { count: userSearchResults.length });
+      findUsersFromLocalChats(query);
     }
     
     // If we have a selected chat, also search messages
@@ -1296,7 +1387,7 @@
         
         logger.debug('Search messages API response:', { 
           status: 'success',
-          responseData: JSON.stringify(response)
+          messageCount: response.messages?.length || 0
         });
         
         if (response && response.messages && response.messages.length > 0) {
@@ -1312,17 +1403,66 @@
       }
     }
     
-    filteredChats = results;
-    logger.debug('Search completed', { 
+    // Update the filtered chats to trigger UI update
+    filteredChats = [...results];
+    
+    logger.info('Search completed', { 
       query: searchQuery, 
       chatResults: filteredChats.length,
-      userResults: userSearchResults.length,
-      userDetails: userSearchResults.map(u => u.username).join(', ')
+      userResults: userSearchResults.length
     });
+  }
+  
+  // Helper function to find users from local chats
+  function findUsersFromLocalChats(query: string) {
+    const uniqueUsers = new Map<string, Participant>();
+    
+    chats.forEach(chat => {
+      if (chat.participants && chat.participants.length > 0) {
+        chat.participants.forEach(participant => {
+          // Skip if it's the current user or already in the map
+          if (participant.id === authState.userId || uniqueUsers.has(participant.id)) {
+            return;
+          }
+          
+          // Check if user matches search query
+          const displayName = participant.displayName || participant.username || '';
+          const username = participant.username || '';
+          
+          if (displayName.toLowerCase().includes(query) || 
+              username.toLowerCase().includes(query)) {
+            uniqueUsers.set(participant.id, participant);
+          }
+        });
+      }
+    });
+    
+    // Convert participants to StandardUser format if we found any matches
+    if (uniqueUsers.size > 0) {
+      userSearchResults = Array.from(uniqueUsers.values()).map(p => ({
+        id: p.id,
+        username: p.username,
+        displayName: p.displayName,
+        avatar: p.avatar,
+        isVerified: p.isVerified
+      }));
+      logger.info('Using local chat participants for search results', { count: userSearchResults.length });
+    } else {
+      userSearchResults = [];
+    }
   }
 
   // Start a new chat with a user
-  async function startChatWithUser(user: Participant) {
+  async function startChatWithUser(user: StandardUser) {
+    // Convert StandardUser to Participant for compatibility
+    const participant: Participant = {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      avatar: user.avatar,
+      isVerified: user.isVerified
+    };
+    
     // Add more logging
     logger.debug('Starting chat with user', { userId: user.id, username: user.username });
     
@@ -1608,7 +1748,7 @@
         <div class="search-dropdown">
           {#if userSearchResults.length > 0}
             <div class="search-dropdown-section">
-              <h4 class="search-dropdown-title">Users</h4>
+              <h4 class="search-dropdown-title">Users ({userSearchResults.length})</h4>
               <ul class="search-dropdown-list">
                 {#each userSearchResults as user}
                   <li>
@@ -1617,7 +1757,7 @@
                         {#if user.avatar}
                           <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
                         {:else}
-                          <span class="avatar-placeholder">👤</span>
+                          <span class="avatar-placeholder">{(user.displayName || user.username).substring(0, 1).toUpperCase()}</span>
                         {/if}
                       </div>
                       <div class="user-info">
@@ -1625,6 +1765,12 @@
                         {#if user.username && user.username !== user.displayName}
                           <span class="user-username">@{user.username}</span>
                         {/if}
+                      </div>
+                      <div class="start-chat-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <span>Chat</span>
                       </div>
                     </button>
                   </li>
@@ -1635,7 +1781,7 @@
           
           {#if filteredChats.length > 0}
             <div class="search-dropdown-section">
-              <h4 class="search-dropdown-title">Conversations</h4>
+              <h4 class="search-dropdown-title">Conversations ({filteredChats.length})</h4>
               <ul class="search-dropdown-list">
                 {#each filteredChats as chat}
                   <li>
@@ -1644,11 +1790,21 @@
                         {#if chat.avatar}
                           <img src={chat.avatar} alt={chat.name} class="avatar-image" />
                         {:else}
-                          <span class="avatar-placeholder">👥</span>
+                          <span class="avatar-placeholder">{getChatDisplayName(chat).substring(0, 1).toUpperCase()}</span>
+                        {/if}
+                        {#if chat.type === 'group'}
+                          <span class="group-indicator">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="12" height="12">
+                              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                            </svg>
+                          </span>
                         {/if}
                       </div>
-                      <div class="user-info">
-                        <span class="user-name">{getChatDisplayName(chat)}</span>
+                      <div class="chat-info">
+                        <div class="chat-header">
+                          <span class="chat-name">{getChatDisplayName(chat)}</span>
+                          <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
+                        </div>
                         <div class="chat-preview">
                           {#if chat.lastMessage && chat.lastMessage.content}
                             {#if chat.lastMessage.senderName}
@@ -1656,14 +1812,20 @@
                             {/if}
                             <span class="message-content">{chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}</span>
                           {:else}
-                            No messages yet
-                        {/if}
+                            <span class="no-messages">No messages yet</span>
+                          {/if}
                         </div>
                       </div>
                     </button>
                   </li>
                 {/each}
               </ul>
+            </div>
+          {/if}
+          
+          {#if userSearchResults.length === 0 && filteredChats.length === 0}
+            <div class="search-dropdown-section">
+              <p class="no-results-message">No results found for "{searchQuery}"</p>
             </div>
           {/if}
         </div>
@@ -1789,7 +1951,10 @@
         </div>
         <div class="chat-title">
           <h2>{getChatDisplayName(selectedChat)}</h2>
-          <p class="group-info">{selectedChat.type === 'group' ? `${selectedChat.participants.length} members` : ''}</p>
+          <p class="group-info">
+            {selectedChat.type === 'group' ? `${selectedChat.participants.length} members` : ''}
+            <span class="ws-status" data-connected="false" title="WebSocket connection status"></span>
+          </p>
         </div>
       </div>
       
@@ -2108,107 +2273,41 @@
     background: none;
     cursor: pointer;
     color: var(--text-primary);
+    position: relative;
   }
 
   .dropdown-item:hover {
     background-color: var(--hover-bg);
   }
-
-  .search-dropdown-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .user-results {
-    list-style: none;
-    margin: 0;
-    padding: 0 16px;
-  }
-
-  .user-result-item {
+  
+  .start-chat-btn {
     display: flex;
     align-items: center;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    background: none;
-    border: none;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: var(--text-primary);
-  }
-
-  .user-result-item:hover {
-    background-color: var(--hover-bg);
-  }
-
-  .user-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .user-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    display: block;
-    margin-bottom: 2px;
-  }
-
-  .user-username {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    display: block;
-  }
-
-  .chat-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .chat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .chat-name {
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .chat-time {
-    font-size: 0.75rem;
-    color: gray;
-    margin-left: 8px;
-    flex-shrink: 0;
-  }
-
-  .chat-preview {
-    color: gray;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 0.875rem;
-  }
-
-  .unread-badge {
-    background-color: #3b82f6;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: var(--own-message-bg);
     color: white;
     font-size: 0.75rem;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 8px;
-    flex-shrink: 0;
+    font-weight: 500;
+    margin-left: auto;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .start-chat-btn svg {
+    margin-right: 4px;
+  }
+  
+  .start-chat-btn:hover {
+    background-color: #2563eb;
+  }
+  
+  .no-results-message {
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+    padding: 20px 0;
   }
 
   /* Right Section */
@@ -2246,6 +2345,21 @@
     font-size: 0.875rem;
     color: gray;
     margin: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .ws-status {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 6px;
+    background-color: #ef4444;
+  }
+  
+  .ws-status[data-connected="true"] {
+    background-color: #10b981;
   }
 
   .messages-container {

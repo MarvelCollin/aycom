@@ -45,6 +45,9 @@ service UserService {
   // Get recommended users (sorted by highest follower count)
   rpc GetRecommendedUsers(GetRecommendedUsersRequest) returns (GetRecommendedUsersResponse) {}
 
+  // Get all users with pagination
+  rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse) {}
+
   // Request a password reset
   rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse) {}
 
@@ -291,4 +294,20 @@ message ResetPasswordRequest {
 message ResetPasswordResponse {
   bool success = 1;
   string message = 2;
+}
+
+// Request to get all users with pagination
+message GetAllUsersRequest {
+  int32 page = 1;     // Pagination - page number
+  int32 limit = 2;    // Pagination - items per page
+  string sort_by = 3; // Optional: field to sort by (e.g. "username", "created_at")
+  bool ascending = 4; // Optional: sort direction (true = ascending, false = descending)
+}
+
+// Response containing all users
+message GetAllUsersResponse {
+  repeated User users = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
 } 

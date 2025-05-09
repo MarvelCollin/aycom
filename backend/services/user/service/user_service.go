@@ -33,6 +33,7 @@ type UserService interface {
 	GetFollowing(ctx context.Context, req *model.GetFollowingRequest) ([]*model.User, int, error)
 	SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error)
 	GetRecommendedUsers(ctx context.Context, userID string, limit int) ([]*model.User, error)
+	GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 }
 
 type userService struct {
@@ -181,7 +182,6 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUse
 }
 
 func (s *userService) DeleteUser(ctx context.Context, id string) error {
-	// Check if user exists before attempting deletion
 	_, err := s.repo.FindUserByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -399,4 +399,21 @@ func (s *userService) GetRecommendedUsers(ctx context.Context, userID string, li
 	}
 
 	return users, nil
+}
+
+func (s *userService) GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool) ([]*model.User, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10 // Default limit
+	}
+
+	users, total, err := s.repo.GetAllUsers(page, limit, sortBy, ascending)
+	if err != nil {
+		log.Printf("Error getting all users: %v", err)
+		return nil, 0, status.Error(codes.Internal, "Failed to retrieve users")
+	}
+
+	return users, total, nil
 }

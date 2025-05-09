@@ -398,8 +398,8 @@ func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, 
 
 	// Find all thread likes by the user
 	rows, err := r.db.Table("likes").
-		Select("target_id").
-		Where("user_id = ? AND target_type = ?", userUUID, "thread").
+		Select("thread_id").
+		Where("user_id = ? AND thread_id IS NOT NULL", userUUID).
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
@@ -412,11 +412,11 @@ func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, 
 
 	// Convert UUIDs to strings
 	for rows.Next() {
-		var targetID uuid.UUID
-		if err := rows.Scan(&targetID); err != nil {
+		var threadID uuid.UUID
+		if err := rows.Scan(&threadID); err != nil {
 			return nil, err
 		}
-		threadIDs = append(threadIDs, targetID.String())
+		threadIDs = append(threadIDs, threadID.String())
 	}
 
 	return threadIDs, nil

@@ -189,11 +189,15 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
 
 export async function searchUsers(query: string, page: number = 1, limit: number = 10, options?: any) {
   try {
+    // Always use the search endpoint, but handle empty queries
     const url = new URL(`${API_BASE_URL}/users/search`);
     
-    url.searchParams.append('q', query);
+    // Add pagination parameters
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
+    
+    // Always add query param - use a space or the original query
+    url.searchParams.append('q', query.trim() || ' ');
     
     if (options) {
       if (options.verified !== undefined) {
@@ -203,10 +207,10 @@ export async function searchUsers(query: string, page: number = 1, limit: number
       if (options.active !== undefined) {
         url.searchParams.append('active', options.active ? 'true' : 'false');
       }
-    }
-    
-    if (options?.sort) {
-      url.searchParams.append('sort', options.sort);
+      
+      if (options.sort) {
+        url.searchParams.append('sort', options.sort);
+      }
     }
     
     const token = getAuthToken();
@@ -221,12 +225,13 @@ export async function searchUsers(query: string, page: number = 1, limit: number
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Search users API error:', errorText);
-      throw new Error(`Failed to search users: ${response.status}`);
+      console.error('User API error:', errorText);
+      throw new Error(`Failed to fetch users: ${response.status}`);
     }
     
     const data = await response.json();
     
+    // Standardize the response format
     return {
       users: data.users || [],
       totalCount: data.total_count || 0,
@@ -234,7 +239,7 @@ export async function searchUsers(query: string, page: number = 1, limit: number
       totalPages: data.total_pages || 1
     };
   } catch (err) {
-    console.error('Failed to search users:', err);
+    console.error('Failed to fetch users:', err);
     return { users: [], totalCount: 0, page, totalPages: 0 };
   }
 }
@@ -473,5 +478,46 @@ export async function getUserById(userId: string) {
   } catch (err) {
     console.error(`Failed to get user with ID ${userId}:`, err);
     throw err;
+  }
+}
+
+export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: string = 'created_at', ascending: boolean = false): Promise<any> {
+  try {
+    const url = new URL(`${API_BASE_URL}/users/all`);
+    
+    // Add parameters
+    url.searchParams.append('limit', limit.toString());
+    url.searchParams.append('page', page.toString());
+    url.searchParams.append('sort_by', sortBy);
+    url.searchParams.append('ascending', ascending.toString());
+    
+    const token = getAuthToken();
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Users API error:', errorText);
+      throw new Error(`Failed to fetch users: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Return the users in the standardized format
+    return {
+      users: data.users || [],
+      totalCount: data.total_count || 0,
+      page: data.page || 1,
+      totalPages: data.total_pages || 1
+    };
+  } catch (err) {
+    console.error('Failed to fetch users:', err);
+    return { users: [], totalCount: 0, page: 1, totalPages: 0 };
   }
 } 

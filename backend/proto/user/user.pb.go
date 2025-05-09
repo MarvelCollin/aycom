@@ -2061,6 +2061,144 @@ func (x *ResetPasswordResponse) GetMessage() string {
 	return ""
 }
 
+// Request to get all users with pagination
+type GetAllUsersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`                  // Pagination - page number
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                // Pagination - items per page
+	SortBy        string                 `protobuf:"bytes,3,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"` // Optional: field to sort by (e.g. "username", "created_at")
+	Ascending     bool                   `protobuf:"varint,4,opt,name=ascending,proto3" json:"ascending,omitempty"`        // Optional: sort direction (true = ascending, false = descending)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllUsersRequest) Reset() {
+	*x = GetAllUsersRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllUsersRequest) ProtoMessage() {}
+
+func (x *GetAllUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllUsersRequest.ProtoReflect.Descriptor instead.
+func (*GetAllUsersRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetAllUsersRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetAllUsersRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetAllUsersRequest) GetSortBy() string {
+	if x != nil {
+		return x.SortBy
+	}
+	return ""
+}
+
+func (x *GetAllUsersRequest) GetAscending() bool {
+	if x != nil {
+		return x.Ascending
+	}
+	return false
+}
+
+// Response containing all users
+type GetAllUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	TotalPages    int32                  `protobuf:"varint,4,opt,name=total_pages,json=totalPages,proto3" json:"total_pages,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllUsersResponse) Reset() {
+	*x = GetAllUsersResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllUsersResponse) ProtoMessage() {}
+
+func (x *GetAllUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllUsersResponse.ProtoReflect.Descriptor instead.
+func (*GetAllUsersResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *GetAllUsersResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *GetAllUsersResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetAllUsersResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetAllUsersResponse) GetTotalPages() int32 {
+	if x != nil {
+		return x.TotalPages
+	}
+	return 0
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -2219,8 +2357,20 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x05email\x18\x03 \x01(\tR\x05email\"K\n" +
 	"\x15ResetPasswordResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xbd\n" +
-	"\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"u\n" +
+	"\x12GetAllUsersRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x17\n" +
+	"\asort_by\x18\x03 \x01(\tR\x06sortBy\x12\x1c\n" +
+	"\tascending\x18\x04 \x01(\bR\tascending\"\x8d\x01\n" +
+	"\x13GetAllUsersResponse\x12 \n" +
+	"\x05users\x18\x01 \x03(\v2\n" +
+	".user.UserR\x05users\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1f\n" +
+	"\vtotal_pages\x18\x04 \x01(\x05R\n" +
+	"totalPages2\x83\v\n" +
 	"\vUserService\x128\n" +
 	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
 	"\n" +
@@ -2238,7 +2388,8 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\fGetFollowers\x12\x19.user.GetFollowersRequest\x1a\x1a.user.GetFollowersResponse\"\x00\x12G\n" +
 	"\fGetFollowing\x12\x19.user.GetFollowingRequest\x1a\x1a.user.GetFollowingResponse\"\x00\x12D\n" +
 	"\vSearchUsers\x12\x18.user.SearchUsersRequest\x1a\x19.user.SearchUsersResponse\"\x00\x12\\\n" +
-	"\x13GetRecommendedUsers\x12 .user.GetRecommendedUsersRequest\x1a!.user.GetRecommendedUsersResponse\"\x00\x12_\n" +
+	"\x13GetRecommendedUsers\x12 .user.GetRecommendedUsersRequest\x1a!.user.GetRecommendedUsersResponse\"\x00\x12D\n" +
+	"\vGetAllUsers\x12\x18.user.GetAllUsersRequest\x1a\x19.user.GetAllUsersResponse\"\x00\x12_\n" +
 	"\x14RequestPasswordReset\x12!.user.RequestPasswordResetRequest\x1a\".user.RequestPasswordResetResponse\"\x00\x12S\n" +
 	"\x10VerifyResetToken\x12\x1d.user.VerifyResetTokenRequest\x1a\x1e.user.VerifyResetTokenResponse\"\x00\x12J\n" +
 	"\rResetPassword\x12\x1a.user.ResetPasswordRequest\x1a\x1b.user.ResetPasswordResponse\"\x00\x12_\n" +
@@ -2256,7 +2407,7 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_proto_user_user_proto_goTypes = []any{
 	(*User)(nil),                                 // 0: user.User
 	(*GetUserRequest)(nil),                       // 1: user.GetUserRequest
@@ -2293,6 +2444,8 @@ var file_proto_user_user_proto_goTypes = []any{
 	(*VerifySecurityAnswerResponse)(nil),         // 32: user.VerifySecurityAnswerResponse
 	(*ResetPasswordRequest)(nil),                 // 33: user.ResetPasswordRequest
 	(*ResetPasswordResponse)(nil),                // 34: user.ResetPasswordResponse
+	(*GetAllUsersRequest)(nil),                   // 35: user.GetAllUsersRequest
+	(*GetAllUsersResponse)(nil),                  // 36: user.GetAllUsersResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 0: user.GetUserResponse.user:type_name -> user.User
@@ -2306,45 +2459,48 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 8: user.GetFollowingResponse.following:type_name -> user.User
 	0,  // 9: user.SearchUsersResponse.users:type_name -> user.User
 	0,  // 10: user.GetRecommendedUsersResponse.users:type_name -> user.User
-	1,  // 11: user.UserService.GetUser:input_type -> user.GetUserRequest
-	3,  // 12: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	5,  // 13: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	7,  // 14: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	9,  // 15: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
-	11, // 16: user.UserService.LoginUser:input_type -> user.LoginUserRequest
-	13, // 17: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
-	15, // 18: user.UserService.FollowUser:input_type -> user.FollowUserRequest
-	17, // 19: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
-	19, // 20: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
-	21, // 21: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
-	23, // 22: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
-	25, // 23: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
-	27, // 24: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
-	29, // 25: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
-	33, // 26: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
-	31, // 27: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
-	2,  // 28: user.UserService.GetUser:output_type -> user.GetUserResponse
-	4,  // 29: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 30: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	8,  // 31: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	10, // 32: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
-	12, // 33: user.UserService.LoginUser:output_type -> user.LoginUserResponse
-	14, // 34: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
-	16, // 35: user.UserService.FollowUser:output_type -> user.FollowUserResponse
-	18, // 36: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
-	20, // 37: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
-	22, // 38: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
-	24, // 39: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
-	26, // 40: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
-	28, // 41: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
-	30, // 42: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
-	34, // 43: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
-	32, // 44: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
-	28, // [28:45] is the sub-list for method output_type
-	11, // [11:28] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	0,  // 11: user.GetAllUsersResponse.users:type_name -> user.User
+	1,  // 12: user.UserService.GetUser:input_type -> user.GetUserRequest
+	3,  // 13: user.UserService.CreateUser:input_type -> user.CreateUserRequest
+	5,  // 14: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
+	7,  // 15: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
+	9,  // 16: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
+	11, // 17: user.UserService.LoginUser:input_type -> user.LoginUserRequest
+	13, // 18: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
+	15, // 19: user.UserService.FollowUser:input_type -> user.FollowUserRequest
+	17, // 20: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
+	19, // 21: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
+	21, // 22: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
+	23, // 23: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
+	25, // 24: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
+	35, // 25: user.UserService.GetAllUsers:input_type -> user.GetAllUsersRequest
+	27, // 26: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
+	29, // 27: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
+	33, // 28: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
+	31, // 29: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
+	2,  // 30: user.UserService.GetUser:output_type -> user.GetUserResponse
+	4,  // 31: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	6,  // 32: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
+	8,  // 33: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	10, // 34: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
+	12, // 35: user.UserService.LoginUser:output_type -> user.LoginUserResponse
+	14, // 36: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
+	16, // 37: user.UserService.FollowUser:output_type -> user.FollowUserResponse
+	18, // 38: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
+	20, // 39: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
+	22, // 40: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
+	24, // 41: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
+	26, // 42: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
+	36, // 43: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
+	28, // 44: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
+	30, // 45: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
+	34, // 46: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
+	32, // 47: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
+	30, // [30:48] is the sub-list for method output_type
+	12, // [12:30] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_proto_user_user_proto_init() }
@@ -2358,7 +2514,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

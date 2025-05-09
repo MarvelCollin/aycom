@@ -58,11 +58,10 @@
     logger.debug(`Clicked on trend: ${trend.title}`);
   }
 
-  async function fetchHomeContent() {
-    isLoading = true;
+  async function fetchTrends() {
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/api/v1/trends?include_recommendations=true&limit=5&rec_limit=3`, {
+      const response = await fetch(`${API_BASE_URL}/trends?limit=5`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -72,10 +71,11 @@
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch home content: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch trends: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      logger.debug('Trends response:', JSON.stringify(data, null, 2));
       
       if (data && data.trends && Array.isArray(data.trends)) {
         trends = data.trends.map(trend => ({
@@ -89,25 +89,72 @@
         logger.error('Invalid or empty trends data from API');
         trends = [];
       }
+    } catch (error) {
+      logger.error('Error fetching trends:', error);
+      trends = [];
+    }
+  }
+
+  async function fetchUserSuggestions() {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/users/suggestions?limit=3`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        credentials: 'include'
+      });
       
-      if (data && data.recommended_users && Array.isArray(data.recommended_users)) {
-        suggestedFollows = data.recommended_users.map(user => ({
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user suggestions: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      logger.debug('User suggestions raw response:', JSON.stringify(data, null, 2));
+      
+      interface UserApiData {
+        id: string;
+        username: string;
+        display_name?: string;
+        avatar_url?: string;
+        verified?: boolean;
+        follower_count?: number;
+        is_following?: boolean;
+      }
+      
+      let usersData: UserApiData[] = [];
+      if (data && data.users && Array.isArray(data.users)) {
+        usersData = data.users;
+      }
+      
+      if (usersData.length > 0) {
+        suggestedFollows = usersData.map(user => ({
           username: user.username,
-          displayName: user.name || user.username,
-          avatar: user.profile_picture_url || null,
-          verified: user.is_verified || false,
+          displayName: user.display_name || user.username,
+          avatar: user.avatar_url || 'https://secure.gravatar.com/avatar/0?d=mp',
+          verified: user.verified || false,
           followerCount: user.follower_count || 0,
-          isFollowing: false
+          isFollowing: user.is_following || false
         }));
-        logger.debug(`Fetched ${suggestedFollows.length} suggested users`);
+        logger.debug(`Mapped ${suggestedFollows.length} suggested users:`, JSON.stringify(suggestedFollows, null, 2));
       } else {
-        logger.error('Invalid or empty recommended users data from API');
+        logger.error('Empty users array in user suggestions response');
         suggestedFollows = [];
       }
     } catch (error) {
-      logger.error('Error fetching home content:', error);
-      trends = [];
+      logger.error('Error fetching user suggestions:', error);
       suggestedFollows = [];
+    }
+  }
+
+  async function fetchHomeContent() {
+    isLoading = true;
+    try {
+      await Promise.all([fetchTrends(), fetchUserSuggestions()]);
+    } catch (error) {
+      logger.error('Error fetching home content:', error);
     } finally {
       isLoading = false;
     }

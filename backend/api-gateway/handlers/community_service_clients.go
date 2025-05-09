@@ -84,7 +84,7 @@ func InitCommunityServiceClient(cfg *config.Config) {
 		// Create a fallback implementation or retry connection
 		communityServiceAddr := cfg.Services.CommunityService
 
-		conn, err := grpc.NewClient(communityServiceAddr,
+		conn, err := grpc.Dial(communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 		if err != nil {

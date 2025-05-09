@@ -26,6 +26,7 @@ type UserRepository interface {
 	GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
 	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
+	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 }
 
 type PostgresUserRepository struct {
@@ -252,6 +253,50 @@ func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID st
 	}
 
 	return users, nil
+}
+
+func (r *PostgresUserRepository) GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error) {
+	var users []*model.User
+	var total int64
+
+	offset := (page - 1) * limit
+
+	// Count total users
+	if err := r.db.Model(&model.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Build the query with sorting
+	query := r.db.Model(&model.User{})
+
+	// Sort by specified field or default to created_at descending
+	if sortBy != "" {
+		// Make sure the sort field exists to prevent SQL injection
+		validSortFields := map[string]bool{
+			"username": true, "created_at": true, "name": true, "id": true,
+		}
+
+		if _, ok := validSortFields[sortBy]; ok {
+			if ascending {
+				query = query.Order(sortBy + " ASC")
+			} else {
+				query = query.Order(sortBy + " DESC")
+			}
+		} else {
+			// Default sorting if invalid field provided
+			query = query.Order("created_at DESC")
+		}
+	} else {
+		// Default sorting if no sort field provided
+		query = query.Order("created_at DESC")
+	}
+
+	// Execute the query with pagination
+	if err := query.Offset(offset).Limit(limit).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, int(total), nil
 }
 
 type Token struct {

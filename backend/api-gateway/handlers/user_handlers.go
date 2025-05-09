@@ -341,8 +341,10 @@ func GetUserSuggestions(c *gin.Context) {
 	log.Printf("Fetching user suggestions for user %s, limit: %d", userID, limit)
 
 	if UserClient == nil {
-		log.Printf("User service unavailable, returning mock suggestions")
-		returnMockSuggestions(c, limit)
+		log.Printf("User service unavailable")
+		c.JSON(http.StatusOK, gin.H{
+			"users": []gin.H{},
+		})
 		return
 	}
 
@@ -358,7 +360,9 @@ func GetUserSuggestions(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Failed to get user suggestions: %v", err)
-		returnMockSuggestions(c, limit)
+		c.JSON(http.StatusOK, gin.H{
+			"users": []gin.H{},
+		})
 		return
 	}
 
@@ -381,55 +385,6 @@ func GetUserSuggestions(c *gin.Context) {
 		if len(suggestedUsers) >= limit {
 			break
 		}
-	}
-
-	if len(suggestedUsers) < limit {
-		log.Printf("Not enough users found, adding mock suggestions")
-		mockCount := limit - len(suggestedUsers)
-
-		for i := 1; i <= mockCount; i++ {
-			mockId := fmt.Sprintf("mock_%d", i)
-			exists := false
-			for _, su := range suggestedUsers {
-				if su["id"] == mockId {
-					exists = true
-					break
-				}
-			}
-
-			if !exists {
-				suggestedUsers = append(suggestedUsers, gin.H{
-					"id":             mockId,
-					"username":       fmt.Sprintf("suggested_user%d", i),
-					"display_name":   fmt.Sprintf("Suggested User %d", i),
-					"avatar_url":     fmt.Sprintf("https://example.com/avatar%d.jpg", i),
-					"verified":       i%3 == 0, // Every third user is verified
-					"follower_count": 100 + i*10,
-					"is_following":   false,
-				})
-			}
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"users": suggestedUsers,
-	})
-}
-
-// Helper function to return mock user suggestions
-func returnMockSuggestions(c *gin.Context, limit int) {
-	var suggestedUsers []gin.H
-
-	for i := 1; i <= limit; i++ {
-		suggestedUsers = append(suggestedUsers, gin.H{
-			"id":             fmt.Sprintf("user_%d", i),
-			"username":       fmt.Sprintf("suggested_user%d", i),
-			"display_name":   fmt.Sprintf("Suggested User %d", i),
-			"avatar_url":     fmt.Sprintf("https://example.com/avatar%d.jpg", i),
-			"verified":       i%3 == 0, // Every third user is verified
-			"follower_count": 100 + i*10,
-			"is_following":   false,
-		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -458,28 +413,20 @@ func CheckUsernameAvailability(c *gin.Context) {
 	}
 
 	if userServiceClient == nil {
-		available := true
-		if username == "admin" || username == "test" || username == "user" {
-			available = false
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"success":   true,
-			"available": available,
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "User service unavailable",
+			"code":    "SERVICE_UNAVAILABLE",
 		})
 		return
 	}
 
 	available, err := userServiceClient.CheckUsernameAvailability(username)
 	if err != nil {
-		mockAvailable := true
-		if username == "admin" || username == "test" || username == "user" {
-			mockAvailable = false
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"success":   true,
-			"available": mockAvailable,
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Error checking username availability",
+			"code":    "INTERNAL_ERROR",
 		})
 		return
 	}

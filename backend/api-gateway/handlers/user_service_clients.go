@@ -29,6 +29,7 @@ type UserServiceClient interface {
 	// Search operations
 	SearchUsers(query string, filter string, page, limit int) ([]*User, int, error)
 	GetUserRecommendations(userID string, limit int) ([]*User, error)
+	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*User, int, int, error)
 
 	// Password reset operations
 	RequestPasswordReset(email string) (bool, string, string, error)
@@ -484,4 +485,41 @@ func (c *GRPCUserServiceClient) ResetPassword(token, newPassword, email string) 
 	}
 
 	return resp.Success, resp.Message, nil
+}
+
+// GetAllUsers gets a paginated list of all users
+func (c *GRPCUserServiceClient) GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*User, int, int, error) {
+	if c.client == nil {
+		return nil, 0, 0, fmt.Errorf("user service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create the request
+	req := &userProto.GetAllUsersRequest{
+		Page:      int32(page),
+		Limit:     int32(limit),
+		SortBy:    sortBy,
+		Ascending: ascending,
+	}
+
+	// Call the gRPC service
+	resp, err := c.client.GetAllUsers(ctx, req)
+	if err != nil {
+		log.Printf("Error calling GetAllUsers gRPC: %v", err)
+		return nil, 0, 0, err
+	}
+
+	// Convert proto users to our User type
+	users := make([]*User, 0, len(resp.GetUsers()))
+	for _, protoUser := range resp.GetUsers() {
+		user := convertProtoToUser(protoUser)
+		if user != nil {
+			users = append(users, user)
+		}
+	}
+
+	// Return users, total count, and total pages
+	return users, int(resp.GetTotalCount()), int(resp.GetTotalPages()), nil
 }

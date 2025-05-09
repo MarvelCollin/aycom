@@ -141,3 +141,37 @@ func (h *UserHandler) GetRecommendedUsers(ctx context.Context, req *user.GetReco
 		Users: userProtos,
 	}, nil
 }
+
+func (h *UserHandler) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequest) (*user.GetAllUsersResponse, error) {
+	page := int(req.Page)
+	if page <= 0 {
+		page = 1
+	}
+	
+	limit := int(req.Limit)
+	if limit <= 0 || limit > 100 {
+		limit = 10 // Default limit
+	}
+	
+	users, total, err := h.svc.GetAllUsers(ctx, page, limit, req.SortBy, req.Ascending)
+	if err != nil {
+		return nil, err
+	}
+	
+	userProtos := make([]*user.User, 0, len(users))
+	for _, u := range users {
+		userProto := mapUserModelToProto(u)
+		if userProto != nil {
+			userProtos = append(userProtos, userProto)
+		}
+	}
+	
+	totalPages := (total + limit - 1) / limit // Calculate ceiling division
+	
+	return &user.GetAllUsersResponse{
+		Users:      userProtos,
+		TotalCount: int32(total),
+		Page:       int32(page),
+		TotalPages: int32(totalPages),
+	}, nil
+}
