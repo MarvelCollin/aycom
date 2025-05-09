@@ -1,6 +1,3 @@
-// Authentication related interfaces
-
-// Google authentication interfaces
 export interface IGoogleAccountsId {
   initialize: (config: any) => void;
   renderButton: (element: HTMLElement, options: any) => void;
@@ -14,25 +11,21 @@ export interface IGoogle {
   accounts: IGoogleAccounts;
 }
 
-// Type for Google credential response
 export interface IGoogleCredentialResponse {
   credential: string;
 }
 
-// reCAPTCHA interface
 export interface IRecaptchaInstance {
   ready: (callback: () => void) => void;
   render: (container: string, options: any) => number;
 }
 
-// Cypress type declaration
 declare global {
   interface Window {
     Cypress?: any;
   }
 }
 
-// Custom window interface that includes Google and reCAPTCHA properties
 export interface ICustomWindow extends Window {
   google?: {
     accounts: {
@@ -52,7 +45,6 @@ export interface ICustomWindow extends Window {
   handleGoogleCredentialResponse?: (response: IGoogleCredentialResponse) => void;
 }
 
-// User registration data interface
 export interface IUserRegistration {
   name: string;
   email: string;
@@ -69,14 +61,12 @@ export interface IUserRegistration {
   banner_url?: string;
 }
 
-// Date of birth interface
 export interface IDateOfBirth {
   month: string;
   day: string;
   year: string;
 }
 
-// Token response from the server
 export interface ITokenResponse {
   access_token: string;
   refresh_token: string;
@@ -85,7 +75,6 @@ export interface ITokenResponse {
   expires_in?: number;
 }
 
-// AuthStore type
 export interface IAuthStore {
   userId: string | null;
   isAuthenticated: boolean;
@@ -105,4 +94,4 @@ export interface IRegisterCredentials {
   email: string;
   password: string;
   confirmPassword: string;
-} 
+}

@@ -6,25 +6,17 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('suggestions-api');
 
-/**
- * Get suggested users to follow from either API or database
- * @param limit Number of suggestions to fetch
- * @returns Array of suggested users
- */
 export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFollow[]> {
   try {
-    // Try API first
     const apiUsers = await getSuggestedUsersFromAPI(limit);
     if (apiUsers.length > 0) {
       return apiUsers;
     }
     
-    // Fallback to mock data if API returns nothing
     logger.info('API returned no suggestions, using mock data instead');
     return getMockSuggestedUsers(limit);
   } catch (error) {
     logger.error('Error fetching suggested users from API:', error);
-    // Fallback to mock data on API error
     try {
       logger.info('Falling back to mock data for user suggestions');
       return getMockSuggestedUsers(limit);
@@ -35,11 +27,7 @@ export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFo
   }
 }
 
-/**
- * Get mock suggested users
- */
 function getMockSuggestedUsers(limit: number): ISuggestedFollow[] {
-  // Return mock data based on realistic user profiles
   const mockUsers = [
     { 
       username: 'tech_insider', 
@@ -86,9 +74,6 @@ function getMockSuggestedUsers(limit: number): ISuggestedFollow[] {
   return mockUsers.slice(0, limit);
 }
 
-/**
- * Get suggested users from the API
- */
 async function getSuggestedUsersFromAPI(limit: number): Promise<ISuggestedFollow[]> {
   const token = getAuthToken();
   

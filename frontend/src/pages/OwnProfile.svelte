@@ -128,98 +128,65 @@
   
   // Helper function to ensure an object has all ITweet properties
   function ensureTweetFormat(thread: any): ITweet {
-    // Check if we have debugging enabled
-    const debug = true;
-    if (debug) {
-      console.log('Converting thread to tweet:', thread);
-      console.log('Thread is_pinned raw value:', thread.is_pinned);
-      console.log('Thread is_pinned type:', typeof thread.is_pinned);
-    }
-    
-    // Handle is_pinned value - be flexible with the format
+    // Handle is_pinned value consistently
     let isPinned = false;
-    if (thread.is_pinned === true || thread.is_pinned === 'true' || thread.is_pinned === 1 || thread.is_pinned === '1') {
+    if (thread.is_pinned === true || thread.is_pinned === 'true' || 
+        thread.is_pinned === 1 || thread.is_pinned === '1' || 
+        thread.is_pinned === 't' || thread.IsPinned === true) {
       isPinned = true;
       console.log(`Thread ${thread.id} IS PINNED`);
-    } else if (thread.is_pinned === 't') {
-      // Handle PostgreSQL's boolean format - 't' means true
-      isPinned = true;
-      console.log(`Thread ${thread.id} IS PINNED (PostgreSQL 't' format)`);
-    } else if (thread.IsPinned === true || thread.IsPinned === 'true' || thread.IsPinned === 1 || thread.IsPinned === '1' || thread.IsPinned === 't') {
-      // Try alternate capitalization
-      isPinned = true;
-      console.log(`Thread ${thread.id} IS PINNED (using IsPinned property)`);
-    } else {
-      console.log(`Thread ${thread.id} is NOT pinned, value was:`, thread.is_pinned);
     }
     
-    // Default values
-    let username = 'anonymous';
-    let displayName = 'User';
-    let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
-    let content = thread.content || '';
+    // Get username from all possible sources
+    let username = thread.author_username || thread.authorUsername || thread.username || 'anonymous';
     
-    // Get author data from all possible locations
-    // First try direct author fields
-    if (thread.author_username) {
-      username = thread.author_username;
-    } else if (thread.authorUsername) {
-      username = thread.authorUsername;
-    } else if (thread.username) {
-      username = thread.username;
-    }
+    // Get display name from all possible sources
+    let displayName = thread.author_name || thread.authorName || thread.display_name || 
+                     thread.displayName || 'User';
     
-    if (thread.author_name) {
-      displayName = thread.author_name;
-    } else if (thread.authorName) {
-      displayName = thread.authorName;
-    } else if (thread.display_name) {
-      displayName = thread.display_name;
-    } else if (thread.displayName) {
-      displayName = thread.displayName;
-    }
-    
-    if (thread.author_avatar) {
-      profilePicture = thread.author_avatar;
-    } else if (thread.authorAvatar) {
-      profilePicture = thread.authorAvatar;
-    } else if (thread.profile_picture_url) {
-      profilePicture = thread.profile_picture_url;
-    } else if (thread.profilePictureUrl) {
-      profilePicture = thread.profilePictureUrl;
-    } else if (thread.avatar) {
-      profilePicture = thread.avatar;
-    }
+    // Get profile picture from all possible sources
+    let profilePicture = thread.author_avatar || thread.authorAvatar || 
+                       thread.profile_picture_url || thread.profilePictureUrl || 
+                       thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp';
     
     // Use the created_at timestamp if available, fall back to UTC now
-    let timestamp = new Date().toISOString();
-    if (thread.created_at) {
-      timestamp = new Date(thread.created_at).toISOString();
-    } else if (thread.createdAt) {
-      timestamp = new Date(thread.createdAt).toISOString();
-    } else if (thread.timestamp) {
-      timestamp = thread.timestamp;
+    let timestamp = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
+    if (typeof timestamp === 'string' && !timestamp.includes('T')) {
+      // Convert to ISO format if it's not already
+      timestamp = new Date(timestamp).toISOString();
     }
     
+    // Normalize metrics
+    const likes = thread.likes_count || thread.like_count || thread.metrics?.likes || 0;
+    const replies = thread.replies_count || thread.reply_count || thread.metrics?.replies || 0;
+    const reposts = thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0;
+    const bookmarks = thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0;
+    const views = thread.views || thread.views_count || '0';
+    
+    // Normalize interaction states
+    const isLiked = thread.is_liked || thread.isLiked || false;
+    const isReposted = thread.is_repost || thread.isReposted || false;
+    const isBookmarked = thread.is_bookmarked || thread.isBookmarked || false;
+      
     return {
       id: thread.id,
       threadId: thread.thread_id || thread.id,
       username: username,
       displayName: displayName,
-      content: content,
-      timestamp: timestamp,
+      content: thread.content || '',
+      timestamp: typeof timestamp === 'string' ? timestamp : new Date(timestamp).toISOString(),
       avatar: profilePicture,
-      likes: thread.likes_count || thread.like_count || thread.metrics?.likes || 0,
-      replies: thread.replies_count || thread.reply_count || thread.metrics?.replies || 0,
-      reposts: thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0,
-      bookmarks: thread.bookmarks_count || thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
-      views: thread.views || String(thread.views_count || '0'),
+      likes: likes,
+      replies: replies,
+      reposts: reposts,
+      bookmarks: bookmarks,
+      views: String(views),
       media: thread.media || [],
-      isLiked: thread.is_liked || thread.isLiked || false,
-      isReposted: thread.is_repost || thread.isReposted || false,
-      isBookmarked: thread.is_bookmarked || thread.isBookmarked || false,
+      isLiked: isLiked,
+      isReposted: isReposted,
+      isBookmarked: isBookmarked,
       is_pinned: isPinned,
-      replyTo: null
+      replyTo: thread.parent_id ? { id: thread.parent_id } as any : null
     };
   }
   
@@ -310,8 +277,8 @@
         console.log(`Loaded ${response.replies.length} replies for thread ${threadId}`);
         
         const convertedReplies = response.replies.map(reply => {
+          // Standardize the reply data structure regardless of API format
           const replyData = reply.reply || reply;
-          
           const userData = reply.user || {};
           
           const enrichedReply = {
@@ -319,19 +286,20 @@
             thread_id: replyData.thread_id || threadId,
             content: replyData.content || '',
             created_at: replyData.created_at || new Date().toISOString(),
-            author_id: userData.id || replyData.user_id,
-            author_username: userData.username || reply.author_username,
-            author_name: userData.name || reply.author_name,
-            author_avatar: userData.profile_picture_url || reply.author_avatar,
+            author_id: userData.id || replyData.user_id || replyData.author_id,
+            author_username: userData.username || reply.author_username || reply.username,
+            author_name: userData.name || userData.display_name || reply.author_name || reply.displayName,
+            author_avatar: userData.profile_picture_url || reply.author_avatar || reply.avatar,
             parent_id: replyData.parent_id,
             is_liked: reply.is_liked || false,
             is_bookmarked: reply.is_bookmarked || false,
             likes_count: reply.likes_count || 0,
-            replies_count: 0 
+            replies_count: reply.replies_count || 0
           };
           
           const convertedReply = ensureTweetFormat(enrichedReply);
           
+          // Add reply-specific fields
           convertedReply.replyTo = threadId as any;
           (convertedReply as any).parentReplyId = replyData.parent_id;
           
@@ -340,6 +308,7 @@
         
         repliesMap.set(threadId, convertedReplies);
         
+        // Process nested replies
         convertedReplies.forEach(reply => {
           const parentId = (reply as any).parentReplyId;
           if (parentId) {
@@ -387,26 +356,18 @@
     isLoading = true;
     try {
       if (tab === 'posts') {
-        // Load user's tweets using profileUserId
+        // Load user's threads
         const postsData = await getUserThreads(profileUserId);
         
-        // Debug: Log the raw thread data to check for pinned status
+        // Debug: Log the raw thread data
         console.log('Raw thread data from API:', postsData.threads);
-        console.log('Thread pinned status sample:', postsData.threads.map(t => ({id: t.id, is_pinned: t.is_pinned})));
         
         // Convert threads and ensure proper format
         let allPosts = (postsData.threads || []).map(thread => ensureTweetFormat(thread));
         
-        // Check parsed pinned status again
-        console.log('Pinned posts after processing:', allPosts.filter(p => p.is_pinned === true).length);
-        console.log('Pinned post IDs after processing:', allPosts.filter(p => p.is_pinned === true).map(p => p.id));
-        
-        // Sort the posts: pinned posts first, then by creation date
+        // Sort: pinned posts first, then by creation date
         allPosts.sort((a, b) => {
-          // Debug log pinned status during sort
-          console.log(`Comparing posts - A(${a.id}): ${a.is_pinned}, B(${b.id}): ${b.is_pinned}`);
-          
-          // First sort by pinned status (pinned posts first)
+          // First sort by pinned status
           if (a.is_pinned && !b.is_pinned) return -1;
           if (!a.is_pinned && b.is_pinned) return 1;
           
@@ -418,25 +379,50 @@
         
         posts = allPosts;
         console.log(`Loaded ${posts.length} posts (${posts.filter(p => p.is_pinned).length} pinned)`);
-        console.log('Pinned posts after sorting:', posts.filter(p => p.is_pinned).map(p => ({id: p.id, is_pinned: p.is_pinned})));
-        
-        // Additional debug: check final order of posts
-        console.log('Final post order (first 5):', posts.slice(0, 5).map(p => ({id: p.id, is_pinned: p.is_pinned})));
       } 
       else if (tab === 'replies') {
-        // Load user's replies using profileUserId
+        // Load user's replies
         const repliesData = await getUserReplies(profileUserId);
         replies = (repliesData.replies || []).map(reply => ensureTweetFormat(reply));
+        
+        // Sort replies by date (newest first)
+        replies.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime();
+        });
       } 
       else if (tab === 'likes') {
-        // Load user's liked tweets using profileUserId
+        // Load user's liked threads
         const likesData = await getUserLikedThreads(profileUserId);
         likes = (likesData.threads || []).map(thread => ensureTweetFormat(thread));
+        
+        // Sort by date (newest first)
+        likes.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime();
+        });
       } 
       else if (tab === 'media') {
-        // Load user's media posts using profileUserId
+        // Load user's media posts
         const mediaData = await getUserMedia(profileUserId);
-        media = mediaData.media || [];
+        
+        // Ensure media items have all required fields
+        media = (mediaData.media || []).map(item => ({
+          id: item.id || `media-${Math.random().toString(36).substr(2, 9)}`,
+          url: item.url || '',
+          type: item.type || 'image',
+          thread_id: item.thread_id || '',
+          created_at: item.created_at || new Date().toISOString()
+        }));
+        
+        // Sort by date (newest first)
+        media.sort((a, b) => {
+          const dateA = new Date(a.created_at || '');
+          const dateB = new Date(b.created_at || '');
+          return dateB.getTime() - dateA.getTime();
+        });
       }
     } catch (error) {
       console.error(`Error loading ${tab} tab:`, error);
@@ -508,18 +494,28 @@
     try {
       await likeThread(threadId);
       
+      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
-          return { ...post, is_liked: true, likes_count: (post.likes_count || 0) + 1 };
+          return { ...post, isLiked: true, is_liked: true, likes: (post.likes || 0) + 1, likes_count: (post.likes_count || 0) + 1 };
         }
         return post;
       });
       
+      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
-          return { ...like, is_liked: true, likes_count: (like.likes_count || 0) + 1 };
+          return { ...like, isLiked: true, is_liked: true, likes: (like.likes || 0) + 1, likes_count: (like.likes_count || 0) + 1 };
         }
         return like;
+      });
+      
+      // Update replies tab if the same thread ID exists
+      replies = replies.map(reply => {
+        if (reply.id === threadId) {
+          return { ...reply, isLiked: true, is_liked: true, likes: (reply.likes || 0) + 1, likes_count: (reply.likes_count || 0) + 1 };
+        }
+        return reply;
       });
       
       toastStore.showToast('Post liked', 'success');
@@ -534,18 +530,50 @@
     try {
       await unlikeThread(threadId);
       
+      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
-          return { ...post, is_liked: false, likes_count: Math.max(0, (post.likes_count || 0) - 1) };
+          return { 
+            ...post, 
+            isLiked: false, 
+            is_liked: false, 
+            likes: Math.max(0, (post.likes || 0) - 1), 
+            likes_count: Math.max(0, (post.likes_count || 0) - 1) 
+          };
         }
         return post;
       });
       
+      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
-          return { ...like, is_liked: false, likes_count: Math.max(0, (like.likes_count || 0) - 1) };
+          return { 
+            ...like, 
+            isLiked: false, 
+            is_liked: false, 
+            likes: Math.max(0, (like.likes || 0) - 1), 
+            likes_count: Math.max(0, (like.likes_count || 0) - 1) 
+          };
         }
         return like;
+      });
+      
+      // Also remove from likes tab if we're unliking
+      // This is optional and depends on your UX requirements
+      // likes = likes.filter(like => like.id !== threadId);
+      
+      // Update replies tab if the same thread ID exists
+      replies = replies.map(reply => {
+        if (reply.id === threadId) {
+          return { 
+            ...reply, 
+            isLiked: false, 
+            is_liked: false, 
+            likes: Math.max(0, (reply.likes || 0) - 1), 
+            likes_count: Math.max(0, (reply.likes_count || 0) - 1) 
+          };
+        }
+        return reply;
       });
       
       toastStore.showToast('Post unliked', 'success');
@@ -560,18 +588,46 @@
     try {
       await bookmarkThread(threadId);
       
+      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
-          return { ...post, is_bookmarked: true, bookmarks_count: (post.bookmarks_count || 0) + 1 };
+          return { 
+            ...post, 
+            isBookmarked: true, 
+            is_bookmarked: true, 
+            bookmarks: (post.bookmarks || 0) + 1,
+            bookmarks_count: (post.bookmarks_count || 0) + 1 
+          };
         }
         return post;
       });
       
+      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
-          return { ...like, is_bookmarked: true, bookmarks_count: (like.bookmarks_count || 0) + 1 };
+          return { 
+            ...like, 
+            isBookmarked: true, 
+            is_bookmarked: true,
+            bookmarks: (like.bookmarks || 0) + 1, 
+            bookmarks_count: (like.bookmarks_count || 0) + 1 
+          };
         }
         return like;
+      });
+      
+      // Update replies tab if the same thread ID exists
+      replies = replies.map(reply => {
+        if (reply.id === threadId) {
+          return { 
+            ...reply, 
+            isBookmarked: true, 
+            is_bookmarked: true,
+            bookmarks: (reply.bookmarks || 0) + 1, 
+            bookmarks_count: (reply.bookmarks_count || 0) + 1 
+          };
+        }
+        return reply;
       });
       
       toastStore.showToast('Post bookmarked', 'success');
@@ -586,18 +642,46 @@
     try {
       await removeBookmark(threadId);
       
+      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
-          return { ...post, is_bookmarked: false, bookmarks_count: Math.max(0, (post.bookmarks_count || 0) - 1) };
+          return { 
+            ...post, 
+            isBookmarked: false, 
+            is_bookmarked: false,
+            bookmarks: Math.max(0, (post.bookmarks || 0) - 1), 
+            bookmarks_count: Math.max(0, (post.bookmarks_count || 0) - 1) 
+          };
         }
         return post;
       });
       
+      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
-          return { ...like, is_bookmarked: false, bookmarks_count: Math.max(0, (like.bookmarks_count || 0) - 1) };
+          return { 
+            ...like, 
+            isBookmarked: false, 
+            is_bookmarked: false,
+            bookmarks: Math.max(0, (like.bookmarks || 0) - 1), 
+            bookmarks_count: Math.max(0, (like.bookmarks_count || 0) - 1) 
+          };
         }
         return like;
+      });
+      
+      // Update replies tab if the same thread ID exists
+      replies = replies.map(reply => {
+        if (reply.id === threadId) {
+          return { 
+            ...reply, 
+            isBookmarked: false, 
+            is_bookmarked: false,
+            bookmarks: Math.max(0, (reply.bookmarks || 0) - 1), 
+            bookmarks_count: Math.max(0, (reply.bookmarks_count || 0) - 1) 
+          };
+        }
+        return reply;
       });
       
       toastStore.showToast('Post removed from bookmarks', 'success');
@@ -642,23 +726,46 @@
       console.error('Error pinning/unpinning thread:', error);
       toastStore.showToast('Failed to pin/unpin thread', 'error');
       
-      // Revert UI if there's an error
+      // Revert UI if there's an error by reloading the tab
       loadTabContent('posts');
     }
   }
   
   async function handlePinReply(replyId, isPinned) {
     try {
+      // First optimistically update UI
+      replies = replies.map(reply => {
+        if (reply.id === replyId) {
+          return { ...reply, is_pinned: !isPinned };
+        }
+        return reply;
+      });
+      
+      // Sort replies to show pinned ones first
+      replies.sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        
+        const dateA = new Date(a.created_at || a.timestamp);
+        const dateB = new Date(b.created_at || b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      // Make the API call
       if (isPinned) {
         await unpinReply(replyId);
       } else {
         await pinReply(replyId);
       }
-      loadTabContent('replies');
+      
+      // Show success toast
       toastStore.showToast(isPinned ? 'Reply unpinned' : 'Reply pinned', 'success');
     } catch (error) {
       console.error('Error pinning/unpinning reply:', error);
       toastStore.showToast('Failed to pin/unpin reply', 'error');
+      
+      // Revert UI if there's an error by reloading the tab
+      loadTabContent('replies');
     }
   }
   
@@ -847,9 +954,9 @@
                   tweet={ensureTweetFormat(post)} 
                   {isDarkMode} 
                   isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={post.is_liked || false}
-                  isBookmarked={post.is_bookmarked || false}
-                  isReposted={post.is_reposted || false}
+                  isLiked={post.is_liked || post.isLiked || false}
+                  isBookmarked={post.is_bookmarked || post.isBookmarked || false}
+                  isReposted={post.is_reposted || post.isReposted || false}
                   replies={repliesMap.get(post.id) || []}
                   showReplies={false}
                   nestingLevel={0}
@@ -857,6 +964,10 @@
                   on:reply={handleReply}
                   on:loadReplies={handleLoadReplies}
                   on:click={handleThreadClick}
+                  on:like={handleLike}
+                  on:unlike={handleUnlike}
+                  on:bookmark={handleBookmark}
+                  on:removeBookmark={handleRemoveBookmark}
                 />
                 {#if isOwnProfile}
                   <button 
@@ -876,7 +987,7 @@
             </div>
           {:else}
             {#each replies as reply (reply.id)}
-              <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800 {reply.is_pinned ? 'bg-gray-50 dark:bg-gray-900' : ''}">
+              <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800 {reply.is_pinned ? 'bg-gray-50 dark:bg-gray-900 border-l-4 border-l-blue-500' : ''}">
                 {#if reply.is_pinned}
                   <div class="flex items-center text-blue-500 text-xs font-bold mb-2">
                     <PinIcon size="14" class="mr-1" />
@@ -890,9 +1001,9 @@
                   tweet={ensureTweetFormat(reply)} 
                   {isDarkMode} 
                   isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={reply.is_liked || false}
-                  isBookmarked={reply.is_bookmarked || false}
-                  isReposted={reply.is_reposted || false}
+                  isLiked={reply.is_liked || reply.isLiked || false}
+                  isBookmarked={reply.is_bookmarked || reply.isBookmarked || false}
+                  isReposted={reply.is_reposted || reply.isReposted || false}
                   replies={repliesMap.get(reply.id) || []}
                   showReplies={false}
                   nestingLevel={0}
@@ -923,14 +1034,14 @@
             </div>
           {:else}
             {#each likes as like (like.id)}
-              <div class="mb-4">
+              <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                 <TweetCard 
                   tweet={ensureTweetFormat(like)} 
                   {isDarkMode} 
                   isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={like.is_liked || true}
-                  isBookmarked={like.is_bookmarked || false}
-                  isReposted={like.is_reposted || false}
+                  isLiked={like.is_liked || like.isLiked || true}
+                  isBookmarked={like.is_bookmarked || like.isBookmarked || false}
+                  isReposted={like.is_reposted || like.isReposted || false}
                   replies={repliesMap.get(like.id) || []}
                   showReplies={false}
                   nestingLevel={0}
@@ -938,6 +1049,10 @@
                   on:reply={handleReply}
                   on:loadReplies={handleLoadReplies}
                   on:click={handleThreadClick}
+                  on:like={handleLike}
+                  on:unlike={handleUnlike}
+                  on:bookmark={handleBookmark}
+                  on:removeBookmark={handleRemoveBookmark}
                 />
               </div>
             {/each}
@@ -948,11 +1063,11 @@
               <p class="text-gray-500 dark:text-gray-400">No media yet</p>
             </div>
           {:else}
-            <div class="grid grid-cols-3 gap-0.5">
+            <div class="grid grid-cols-3 gap-1 sm:gap-2 md:gap-3">
               {#each media as item (item.id)}
-                <a href={`/thread/${item.thread_id}`} class="aspect-square overflow-hidden relative rounded-lg">
+                <a href={`/thread/${item.thread_id}`} class="aspect-square overflow-hidden relative rounded-lg border border-gray-200 dark:border-gray-800">
                   {#if item.type === 'image'}
-                    <img src={item.url} alt="Media content" class="w-full h-full object-cover" />
+                    <img src={item.url} alt="Media content" class="w-full h-full object-cover" loading="lazy" />
                   {:else if item.type === 'video'}
                     <div class="relative w-full h-full">
                       <video src={item.url} class="w-full h-full object-cover">
@@ -966,7 +1081,7 @@
                     </div>
                   {:else if item.type === 'gif'}
                     <div class="relative w-full h-full">
-                      <img src={item.url} alt="GIF content" class="w-full h-full object-cover" />
+                      <img src={item.url} alt="GIF content" class="w-full h-full object-cover" loading="lazy" />
                       <div class="absolute bottom-2 left-2 bg-black/60 text-white text-xs font-bold px-1.5 py-0.5 rounded">
                         GIF
                       </div>
@@ -1013,37 +1128,39 @@
   
   <!-- Profile picture preview modal -->
   {#if showPicturePreview}
-  <div 
-    class="fixed inset-0 bg-black/80 flex items-center justify-center z-50" 
-    on:click={() => showPicturePreview = false}
-    on:keydown={(e) => e.key === 'Escape' && (showPicturePreview = false)}
-    role="dialog"
+  <dialog 
+    open
+    class="fixed inset-0 p-0 m-0 w-full h-full bg-transparent z-50 flex items-center justify-center" 
     aria-modal="true"
     aria-label="Profile picture preview"
-    tabindex="0"
   >
-    <div 
-      class="relative max-w-[90%] max-h-[90%]" 
-      on:click|stopPropagation
-      on:keydown|stopPropagation
-      role="document"
-    >
+    <div class="fixed inset-0 bg-black/80" on:click={() => showPicturePreview = false} aria-hidden="true"></div>
+    
+    <div class="relative max-w-[90%] max-h-[90%] z-10">
       <button 
-        class="absolute -top-10 right-0 text-white p-2" 
+        class="absolute -top-10 right-0 text-white p-2 rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white" 
         on:click={() => showPicturePreview = false}
         aria-label="Close preview"
       >
         <XIcon size="24" />
       </button>
+      
       <img 
         src={profileData.profilePicture} 
         alt={profileData.displayName} 
         class="max-w-full max-h-[80vh] rounded-lg"
       />
     </div>
-  </div>
+  </dialog>
   {/if}
 </MainLayout>
+
+<!-- Global keyboard handler for ESC key -->
+<svelte:window on:keydown={(e) => {
+  if (e.key === 'Escape' && showPicturePreview) {
+    showPicturePreview = false;
+  }
+}} />
 
 <style>
   /* Only keeping background-related native CSS as requested */

@@ -6,12 +6,8 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const logger = createLoggerWithPrefix('AI API');
 const baseUrl = `${appConfig.api.baseUrl}/ai`;
 
-// Cached results to reduce API calls during typing
 const predictionCache = new Map<string, any>();
 
-/**
- * Category prediction response interface
- */
 interface ICategoryPredictionResponse {
   success: boolean;
   category?: string;
@@ -20,14 +16,8 @@ interface ICategoryPredictionResponse {
   error?: string;
 }
 
-/**
- * Predicts the most suitable category for a thread based on its content
- * @param content The content of the thread
- * @returns Promise with the predicted category and confidence score
- */
 export async function predictThreadCategory(content: string): Promise<ICategoryPredictionResponse> {
   try {
-    // Skip API call for very short content
     if (!content || content.trim().length < 5) {
       return {
         success: false,
@@ -35,9 +25,8 @@ export async function predictThreadCategory(content: string): Promise<ICategoryP
       };
     }
 
-    // Use cache for identical content to reduce API load
     const trimmed = content.trim();
-    const cacheKey = trimmed.substring(0, 100); // Use prefix as key
+    const cacheKey = trimmed.substring(0, 100);
     if (predictionCache.has(cacheKey)) {
       logger.debug('Using cached prediction result');
       return predictionCache.get(cacheKey);
@@ -48,10 +37,9 @@ export async function predictThreadCategory(content: string): Promise<ICategoryP
     const response = await axios.post(`${baseUrl}/predict-category`, {
       content: trimmed
     }, { 
-      timeout: 8000 // Increased timeout for model loading
+      timeout: 8000
     });
     
-    // Check for error in response data
     if (response.data && response.data.error) {
       logger.warn('AI service returned error:', response.data.error);
       return {
@@ -69,7 +57,6 @@ export async function predictThreadCategory(content: string): Promise<ICategoryP
       all_categories: response.data.all_categories
     };
 
-    // Cache the result
     predictionCache.set(cacheKey, result);
     
     return result;
@@ -80,4 +67,4 @@ export async function predictThreadCategory(content: string): Promise<ICategoryP
       error: "Failed to predict category"
     };
   }
-} 
+}

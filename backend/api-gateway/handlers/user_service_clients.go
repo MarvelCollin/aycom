@@ -281,10 +281,28 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 // GetUserRecommendations implements UserServiceClient
 func (c *GRPCUserServiceClient) GetUserRecommendations(userID string, limit int) ([]*User, error) {
-	// This is a mock implementation
-	// In a real implementation, we might use a specialized recommendation service
-	log.Printf("[MOCK] Getting recommendations for user %s (limit %d)", userID, limit)
-	return []*User{}, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &userProto.GetRecommendedUsersRequest{
+		UserId: userID,
+		Limit:  int32(limit),
+	}
+
+	resp, err := c.client.GetRecommendedUsers(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []*User
+	for _, u := range resp.GetUsers() {
+		user := convertProtoToUser(u)
+		if user != nil {
+			users = append(users, user)
+		}
+	}
+
+	return users, nil
 }
 
 // FollowUser creates a follow relationship between two users

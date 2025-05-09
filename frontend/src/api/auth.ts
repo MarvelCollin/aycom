@@ -99,19 +99,33 @@ export async function resendVerification(email: string) {
 }
 
 export async function googleLogin(tokenId: string) {
-  const response = await fetch(`${API_BASE_URL}/auth/google`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token_id: tokenId }),
-    credentials: "include",
-  });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Google login failed");
-    } catch (parseError) {
-      throw new Error("Google login failed");
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token_id: tokenId }),
+      credentials: "include",
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Google login failed");
+      } catch (parseError) {
+        throw new Error("Google login failed");
+      }
     }
+    return response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error("Request timed out. The server might be down or not responding.");
+    }
+    throw error;
   }
-  return response.json();
 } 

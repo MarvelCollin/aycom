@@ -1,15 +1,3 @@
-/**
- * Various utility helper functions
- */
-
-/**
- * Creates a debounced function that delays invoking func until after wait milliseconds
- * have elapsed since the last time the debounced function was invoked.
- * 
- * @param func - The function to debounce
- * @param wait - The number of milliseconds to delay
- * @returns A debounced version of the function
- */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
@@ -30,9 +18,6 @@ export function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-/**
- * Format a date relative to now (e.g. "5m", "2h", "3d")
- */
 export function formatRelativeTime(date: string | Date): string {
   const now = new Date();
   const then = new Date(date);
@@ -73,9 +58,6 @@ export function formatRelativeTime(date: string | Date): string {
   return `${monthNames[then.getMonth()]} ${then.getDate()}`;
 }
 
-/**
- * Truncate text to a maximum length with ellipsis
- */
 export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
     return text;
@@ -90,11 +72,6 @@ export function truncateText(text: string, maxLength: number): string {
   return text.substring(0, lastSpaceIndex) + '...';
 }
 
-/**
- * Implement Damerau-Levenshtein distance for fuzzy matching
- * Returns a number indicating the "distance" between two strings
- * Smaller numbers indicate more similar strings
- */
 export function damerauLevenshteinDistance(a: string, b: string): number {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
@@ -128,11 +105,6 @@ export function damerauLevenshteinDistance(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
-/**
- * Calculate similarity between two strings (0 to 1)
- * Uses Damerau-Levenshtein distance normalized to string length
- * Higher values indicate more similar strings
- */
 export function stringSimilarity(a: string, b: string): number {
   const distance = damerauLevenshteinDistance(a.toLowerCase(), b.toLowerCase());
   const maxLength = Math.max(a.length, b.length);

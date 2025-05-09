@@ -163,14 +163,52 @@ func SearchCommunities(c *gin.Context) {
 // @Router /api/v1/users/recommendations [get]
 func GetUserRecommendations(c *gin.Context) {
 	// Get current user ID from JWT token
-	_, exists := c.Get("userID")
+	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	userIDStr := userID.(string)
+
+	// Get limit parameter, default to 3 (top 3 users with highest follower count)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "3"))
+
+	// Check if service client is initialized
+	if userServiceClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// TODO: Implement actual recommendation logic by calling user service
-	c.JSON(http.StatusOK, gin.H{
-		"users": []gin.H{},
+	// Call the service client method
+	users, err := userServiceClient.GetUserRecommendations(userIDStr, limit)
+	if err != nil {
+		// Handle errors
+		st, ok := status.FromError(err)
+		if ok {
+			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user recommendations: "+st.Message())
+		} else {
+			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while getting user recommendations")
+		}
+		log.Printf("Error getting user recommendations: %v", err)
+		return
+	}
+
+	// Convert to response format
+	var userResults []gin.H
+	for _, user := range users {
+		userResults = append(userResults, gin.H{
+			"id":                  user.ID,
+			"username":            user.Username,
+			"name":                user.Name,
+			"profile_picture_url": user.ProfilePictureURL,
+			"bio":                 user.Bio,
+			"is_verified":         user.IsVerified,
+			"follower_count":      user.FollowerCount,
+		})
+	}
+
+	// Return successful response with recommended users
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"users": userResults,
 	})
 }

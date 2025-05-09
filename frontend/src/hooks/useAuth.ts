@@ -5,9 +5,8 @@ import * as authApi from '../api/auth';
 import appConfig from '../config/appConfig';
 import { uploadFile } from '../utils/supabase';
 
-// Use the API base URL from appConfig
 const API_URL = appConfig.api.baseUrl;
-const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
+const TOKEN_EXPIRY_BUFFER = 300000;
 
 interface AuthState extends IAuthStore {
   expiresAt: number | null;
@@ -33,10 +32,8 @@ const createAuthStore = () => {
         if (parsedAuth.expiresAt && parsedAuth.expiresAt > Date.now()) {
           auth.set(parsedAuth);
         } else if (parsedAuth.refreshToken) {
-          // Token expired but we have refresh token
           refreshExpiredToken(parsedAuth.refreshToken);
         } else {
-          // No valid tokens, clear auth state
           clearAuth();
         }
       }
@@ -48,7 +45,6 @@ const createAuthStore = () => {
   
   const persistAuth = (authState: AuthState) => {
     try {
-      // Use the auth utility to set data
       if (authState.accessToken && authState.userId) {
         setAuthData({
           accessToken: authState.accessToken,
@@ -65,7 +61,6 @@ const createAuthStore = () => {
   };
 
   const clearAuth = () => {
-    // Use the auth utility to clear data
     clearAuthData();
     auth.set(initialState);
   };
@@ -142,7 +137,6 @@ export function useAuth() {
   
   const registerWithMedia = async (userData: IUserRegistration, profilePicture: File | null, banner: File | null) => {
     try {
-      // Upload profile picture to Supabase if provided
       let profilePictureUrl: string | null = null;
       let profileUploadError = false;
       if (profilePicture) {
@@ -158,7 +152,6 @@ export function useAuth() {
         }
       }
       
-      // Upload banner to Supabase if provided
       let bannerUrl: string | null = null;
       let bannerUploadError = false;
       if (banner) {
@@ -174,7 +167,6 @@ export function useAuth() {
         }
       }
       
-      // Add the URLs to the user data
       const enrichedUserData: IUserRegistration = {
         ...userData,
         profile_picture_url: profilePictureUrl || '',
@@ -183,10 +175,8 @@ export function useAuth() {
       
       console.log('Registering user with data:', JSON.stringify(enrichedUserData, null, 2));
       
-      // Register with the enriched data
       const data = await authApi.register(enrichedUserData);
       
-      // Return success but with warning if uploads failed
       let message = data.message || 'Registration successful! Check your email for verification code.';
       if (profileUploadError || bannerUploadError) {
         message += ' Note: Some media uploads failed. You can update your profile later.';
@@ -241,7 +231,6 @@ export function useAuth() {
   };
   
   const getCurrentUser = async () => {
-    // Use the appropriate API call from user.ts when available
     return null;
   };
   
@@ -250,12 +239,10 @@ export function useAuth() {
       const data = await authApi.login(email, password);
       
       if (data.success && data.access_token) {
-        // Calculate token expiry if not provided
         const expiresAt = data.expires_in 
           ? Date.now() + (data.expires_in * 1000) 
-          : Date.now() + (3600 * 1000); // Default 1 hour
+          : Date.now() + (3600 * 1000);
         
-        // Create auth state
         const authState: AuthState = {
           isAuthenticated: true,
           userId: data.user_id,
@@ -264,7 +251,6 @@ export function useAuth() {
           expiresAt: expiresAt
         };
         
-        // Update store
         authStore.set(authState);
         
         return {
@@ -292,12 +278,10 @@ export function useAuth() {
       const data = await authApi.googleLogin(response.credential);
       
       if (data.success && data.access_token) {
-        // Calculate token expiry
         const expiresAt = data.expires_in 
           ? Date.now() + (data.expires_in * 1000) 
-          : Date.now() + (3600 * 1000); // Default 1 hour
+          : Date.now() + (3600 * 1000);
         
-        // Create auth state
         const authState: AuthState = {
           isAuthenticated: true,
           userId: data.user_id,
@@ -306,7 +290,6 @@ export function useAuth() {
           expiresAt: expiresAt
         };
         
-        // Update store
         authStore.set(authState);
         
         return {
@@ -326,7 +309,6 @@ export function useAuth() {
   };
   
   const logout = async () => {
-    // No need for server logout call yet, just clear local storage
     authStore.logout();
     return {
       success: true,
@@ -334,25 +316,18 @@ export function useAuth() {
     };
   };
   
-  // Access the current auth state
   const getAuthState = () => {
-    // return get(authStore);
     const store = get(authStore);
     
-    // Check if the token is expired or about to expire
     if (store.expiresAt && store.expiresAt - TOKEN_EXPIRY_BUFFER < Date.now()) {
-      // If we have a refresh token, we could auto-refresh here
       if (store.refreshToken && store.isAuthenticated) {
         console.log('Token is expired or about to expire. Refreshing...');
-        // This would need to be handled async-friendly in a real app
-        // For now we'll just warn and continue with the stale token
       }
     }
     
     return store;
   };
   
-  // Get auth token for use in API calls
   const getAuthToken = () => {
     const state = get(authStore);
     return state.accessToken;

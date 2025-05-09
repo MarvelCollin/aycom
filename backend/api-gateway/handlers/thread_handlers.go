@@ -19,15 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// @Summary Create thread
-// @Description Creates a new thread
-// @Tags Threads
-// @Accept json
-// @Produce json
-// @Failure 400 {object} ErrorResponse
-// @Router /api/v1/threads [post]
 func CreateThread(c *gin.Context) {
-	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -48,7 +40,6 @@ func CreateThread(c *gin.Context) {
 		return
 	}
 
-	// Parse request
 	var request threadProto.CreateThreadRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -59,10 +50,8 @@ func CreateThread(c *gin.Context) {
 		return
 	}
 
-	// Set user ID from token
 	request.UserId = userID
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -74,14 +63,11 @@ func CreateThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	resp, err := client.CreateThread(ctx, &request)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -107,43 +93,30 @@ func CreateThread(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-// @Summary Get thread
-// @Description Returns a thread by ID
-// @Tags Threads
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id} [get]
 func GetThread(c *gin.Context) {
-	// Get thread ID from path parameter
 	threadID := c.Param("id")
 	if threadID == "" {
 		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Thread ID is required")
 		return
 	}
 
-	// Get current user ID from JWT token (if available)
 	userID, exists := c.Get("userID")
 	var userIDStr string
 	if exists {
 		userIDStr = userID.(string)
 	}
 
-	// Check if the service client is initialized
 	if threadServiceClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
-	// Call the service client method
 	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
 	if err != nil {
-		// Handle errors
 		st, ok := status.FromError(err)
 		if ok {
-			// Map gRPC status code to HTTP status code
 			switch st.Code() {
-			case 5: // Not found
+			case 5:
 				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
 			default:
 				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve thread: "+st.Message())
@@ -155,27 +128,24 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
-	// Create response with user data clearly exposed
 	threadData := map[string]interface{}{
-		"id":            thread.ID,
-		"thread_id":     thread.ID,
-		"content":       thread.Content,
-		"user_id":       thread.UserID,
-		"created_at":    thread.CreatedAt,
-		"updated_at":    thread.UpdatedAt,
-		"like_count":    thread.LikeCount,
-		"reply_count":   thread.ReplyCount,
-		"repost_count":  thread.RepostCount,
-		"is_liked":      thread.IsLiked,
-		"is_repost":     thread.IsReposted,
-		"is_bookmarked": thread.IsBookmarked,
-		// Include user data directly
+		"id":                  thread.ID,
+		"thread_id":           thread.ID,
+		"content":             thread.Content,
+		"user_id":             thread.UserID,
+		"created_at":          thread.CreatedAt,
+		"updated_at":          thread.UpdatedAt,
+		"like_count":          thread.LikeCount,
+		"reply_count":         thread.ReplyCount,
+		"repost_count":        thread.RepostCount,
+		"is_liked":            thread.IsLiked,
+		"is_repost":           thread.IsReposted,
+		"is_bookmarked":       thread.IsBookmarked,
 		"username":            thread.Username,
 		"display_name":        thread.DisplayName,
 		"profile_picture_url": thread.ProfilePicture,
 	}
 
-	// Add media if available
 	if len(thread.Media) > 0 {
 		media := make([]map[string]interface{}, len(thread.Media))
 		for i, m := range thread.Media {
@@ -190,21 +160,12 @@ func GetThread(c *gin.Context) {
 		threadData["media"] = []interface{}{}
 	}
 
-	// Return successful response with thread
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"thread": threadData,
 	})
 }
 
-// @Summary Get threads by user
-// @Description Returns all threads for a user
-// @Tags Threads
-// @Produce json
-// @Param id path string true "User ID"
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/user/{id} [get]
 func GetThreadsByUser(c *gin.Context) {
-	// Get authenticated user ID from token
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -225,10 +186,8 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from URL path parameter
 	userID := c.Param("id")
 
-	// Handle the "me" parameter to use the authenticated user's ID
 	if userID == "me" {
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
@@ -243,7 +202,6 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -261,7 +219,6 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -273,14 +230,11 @@ func GetThreadsByUser(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	resp, err := client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
 		UserId: userID,
 		Page:   int32(page),
@@ -307,7 +261,6 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	// Transform the response to include user data properly
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
 		thread := map[string]interface{}{
@@ -332,7 +285,6 @@ func GetThreadsByUser(c *gin.Context) {
 			"profile_picture_url": "",
 		}
 
-		// Add user data if available
 		if t.User != nil {
 			thread["username"] = t.User.Username
 			thread["display_name"] = t.User.Name
@@ -340,7 +292,6 @@ func GetThreadsByUser(c *gin.Context) {
 			thread["is_verified"] = t.User.IsVerified
 		}
 
-		// Add media if available
 		if len(t.Thread.Media) > 0 {
 			media := make([]map[string]interface{}, len(t.Thread.Media))
 			for j, m := range t.Thread.Media {
@@ -364,16 +315,7 @@ func GetThreadsByUser(c *gin.Context) {
 	})
 }
 
-// @Summary Update thread
-// @Description Updates a thread by ID
-// @Tags Threads
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Failure 400 {object} ErrorResponse
-// @Router /api/v1/threads/{id} [put]
 func UpdateThread(c *gin.Context) {
-	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -394,10 +336,8 @@ func UpdateThread(c *gin.Context) {
 		return
 	}
 
-	// Use userID to log the action
 	log.Printf("User %s is updating a thread", userID)
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -408,7 +348,6 @@ func UpdateThread(c *gin.Context) {
 		return
 	}
 
-	// Parse request
 	var request threadProto.UpdateThreadRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -419,10 +358,8 @@ func UpdateThread(c *gin.Context) {
 		return
 	}
 
-	// Set thread ID from URL
 	request.ThreadId = threadID
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -434,14 +371,11 @@ func UpdateThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	resp, err := client.UpdateThread(ctx, &request)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -471,16 +405,7 @@ func UpdateThread(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// @Summary Delete thread
-// @Description Deletes a thread by ID
-// @Tags Threads
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 204 {object} nil
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id} [delete]
 func DeleteThread(c *gin.Context) {
-	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -501,7 +426,6 @@ func DeleteThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -512,7 +436,6 @@ func DeleteThread(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -524,14 +447,11 @@ func DeleteThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.DeleteThread(ctx, &threadProto.DeleteThreadRequest{
 		ThreadId: threadID,
 		UserId:   userID,
@@ -565,16 +485,7 @@ func DeleteThread(c *gin.Context) {
 	})
 }
 
-// @Summary Upload thread media
-// @Description Uploads media for a thread
-// @Tags Threads
-// @Accept multipart/form-data
-// @Produce json
-// @Param file formData file true "Media file"
-// @Failure 400 {object} ErrorResponse
-// @Router /api/v1/threads/media [post]
 func UploadThreadMedia(c *gin.Context) {
-	// Extract user ID from context
 	_, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -584,7 +495,6 @@ func UploadThreadMedia(c *gin.Context) {
 		return
 	}
 
-	// Extract thread ID from form
 	threadID := c.PostForm("thread_id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -594,7 +504,6 @@ func UploadThreadMedia(c *gin.Context) {
 		return
 	}
 
-	// Process a single file upload or multiple files upload
 	form, err := c.MultipartForm()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -604,7 +513,6 @@ func UploadThreadMedia(c *gin.Context) {
 		return
 	}
 
-	// Get all files from form
 	files := form.File["file"]
 	if len(files) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -617,9 +525,7 @@ func UploadThreadMedia(c *gin.Context) {
 	var mediaUrls []string
 	var mediaTypes []string
 
-	// Process each file
 	for _, file := range files {
-		// Check file type
 		fileExt := filepath.Ext(file.Filename)
 		allowedExts := map[string]bool{
 			".jpg":  true,
@@ -639,7 +545,6 @@ func UploadThreadMedia(c *gin.Context) {
 			return
 		}
 
-		// Determine media type
 		mediaType := "image"
 		if fileExt == ".gif" {
 			mediaType = "gif"
@@ -647,7 +552,6 @@ func UploadThreadMedia(c *gin.Context) {
 			mediaType = "video"
 		}
 
-		// Open the file
 		fileContent, err := file.Open()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -658,7 +562,6 @@ func UploadThreadMedia(c *gin.Context) {
 		}
 		defer fileContent.Close()
 
-		// Upload to Supabase
 		bucket := "thread-media"
 		folder := mediaType + "s"
 
@@ -672,12 +575,10 @@ func UploadThreadMedia(c *gin.Context) {
 			return
 		}
 
-		// Add to results
 		mediaUrls = append(mediaUrls, url)
 		mediaTypes = append(mediaTypes, mediaType)
 	}
 
-	// Return success with all media URLs
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"thread_id": threadID,
@@ -686,18 +587,7 @@ func UploadThreadMedia(c *gin.Context) {
 	})
 }
 
-// GetAllThreads returns all threads
-// @Summary Get all threads
-// @Description Returns all threads with pagination
-// @Tags Threads
-// @Produce json
-// @Param page query int false "Page number (default: 1)"
-// @Param limit query int false "Results per page (default: 20)"
-// @Success 200 {object} threadProto.ThreadsResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/threads [get]
 func GetAllThreads(c *gin.Context) {
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -715,9 +605,6 @@ func GetAllThreads(c *gin.Context) {
 		}
 	}
 
-	// Optional authentication check
-	// If the user is authenticated, we'll include their ID for personalized data
-	// If not, we'll still show threads but without personalized data
 	userID := ""
 	if userIDVal, exists := c.Get("userId"); exists {
 		if userIDStr, ok := userIDVal.(string); ok {
@@ -728,7 +615,6 @@ func GetAllThreads(c *gin.Context) {
 		log.Printf("Anonymous user is viewing threads")
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -740,14 +626,11 @@ func GetAllThreads(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Use the proper GetAllThreads method instead of the workaround
 	resp, err := client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
 		Page:  int32(page),
 		Limit: int32(limit),
@@ -771,8 +654,6 @@ func GetAllThreads(c *gin.Context) {
 		return
 	}
 
-	// Transform the response to include user data properly
-	// This ensures the frontend receives the user information directly
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
 		thread := map[string]interface{}{
@@ -797,7 +678,6 @@ func GetAllThreads(c *gin.Context) {
 			"profile_picture_url": "",
 		}
 
-		// Add user data if available
 		if t.User != nil {
 			thread["username"] = t.User.Username
 			thread["display_name"] = t.User.Name
@@ -805,7 +685,6 @@ func GetAllThreads(c *gin.Context) {
 			thread["is_verified"] = t.User.IsVerified
 		}
 
-		// Add media if available
 		if len(t.Thread.Media) > 0 {
 			media := make([]map[string]interface{}, len(t.Thread.Media))
 			for j, m := range t.Thread.Media {
@@ -829,19 +708,7 @@ func GetAllThreads(c *gin.Context) {
 	})
 }
 
-// @Summary Get user replies
-// @Description Returns all replies made by a user
-// @Tags Threads
-// @Produce json
-// @Param id path string true "User ID"
-// @Param page query int false "Page number"
-// @Param limit query int false "Limit per page"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/user/{id}/replies [get]
 func GetUserReplies(c *gin.Context) {
-	// Get authenticated user ID from token
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -862,10 +729,8 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from URL path parameter
 	userID := c.Param("id")
 
-	// Handle the "me" parameter to use the authenticated user's ID
 	if userID == "me" {
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
@@ -880,7 +745,6 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -898,7 +762,6 @@ func GetUserReplies(c *gin.Context) {
 		}
 	}
 
-	// Check if thread service client is initialized
 	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
@@ -908,7 +771,6 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
-	// Call the GetRepliesByUser method on our interface implementation
 	replies, err := threadServiceClient.GetRepliesByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -931,7 +793,6 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
-	// Transform the response to include user data properly
 	replyItems := make([]map[string]interface{}, len(replies))
 	for i, reply := range replies {
 		replyItem := map[string]interface{}{
@@ -952,7 +813,6 @@ func GetUserReplies(c *gin.Context) {
 			"thread_author":       "unknown", // Original thread author
 		}
 
-		// Add media if available
 		if len(reply.Media) > 0 {
 			media := make([]map[string]interface{}, len(reply.Media))
 			for j, m := range reply.Media {
@@ -976,19 +836,7 @@ func GetUserReplies(c *gin.Context) {
 	})
 }
 
-// @Summary Get user liked threads
-// @Description Returns all threads liked by a user
-// @Tags Threads
-// @Produce json
-// @Param id path string true "User ID"
-// @Param page query int false "Page number"
-// @Param limit query int false "Limit per page"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/user/{id}/likes [get]
 func GetUserLikedThreads(c *gin.Context) {
-	// Get authenticated user ID from token
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1009,10 +857,8 @@ func GetUserLikedThreads(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from URL path parameter
 	userID := c.Param("id")
 
-	// Handle the "me" parameter to use the authenticated user's ID
 	if userID == "me" {
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
@@ -1027,7 +873,6 @@ func GetUserLikedThreads(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -1045,7 +890,6 @@ func GetUserLikedThreads(c *gin.Context) {
 		}
 	}
 
-	// Check if thread service client is initialized
 	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
@@ -1055,7 +899,6 @@ func GetUserLikedThreads(c *gin.Context) {
 		return
 	}
 
-	// Call the GetLikedThreadsByUser method on our interface implementation
 	threads, err := threadServiceClient.GetLikedThreadsByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -1078,7 +921,6 @@ func GetUserLikedThreads(c *gin.Context) {
 		return
 	}
 
-	// Transform the response to include user data properly
 	threadItems := make([]map[string]interface{}, len(threads))
 	for i, thread := range threads {
 		threadItem := map[string]interface{}{
@@ -1101,7 +943,6 @@ func GetUserLikedThreads(c *gin.Context) {
 			"profile_picture_url": thread.ProfilePicture,
 		}
 
-		// Add media if available
 		if len(thread.Media) > 0 {
 			media := make([]map[string]interface{}, len(thread.Media))
 			for j, m := range thread.Media {
@@ -1125,19 +966,7 @@ func GetUserLikedThreads(c *gin.Context) {
 	})
 }
 
-// @Summary Get user media
-// @Description Returns media from threads posted by a user
-// @Tags Threads
-// @Produce json
-// @Param id path string true "User ID"
-// @Param page query int false "Page number"
-// @Param limit query int false "Limit per page"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/user/{id}/media [get]
 func GetUserMedia(c *gin.Context) {
-	// Get authenticated user ID from token
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1158,10 +987,8 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from URL path parameter
 	userID := c.Param("id")
 
-	// Handle the "me" parameter to use the authenticated user's ID
 	if userID == "me" {
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
@@ -1176,7 +1003,6 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -1194,7 +1020,6 @@ func GetUserMedia(c *gin.Context) {
 		}
 	}
 
-	// Check if thread service client is initialized
 	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
@@ -1204,7 +1029,6 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
-	// Call the GetMediaByUser method on our interface implementation
 	mediaItems, err := threadServiceClient.GetMediaByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -1227,7 +1051,6 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
-	// Transform the response to include media data properly
 	mediaResponse := make([]map[string]interface{}, len(mediaItems))
 	for i, m := range mediaItems {
 		mediaResponse[i] = map[string]interface{}{
@@ -1244,17 +1067,7 @@ func GetUserMedia(c *gin.Context) {
 	})
 }
 
-// @Summary Pin thread to profile
-// @Description Pins a thread to the user's profile
-// @Tags Threads
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/pin [post]
 func PinThread(c *gin.Context) {
-	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1275,7 +1088,6 @@ func PinThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1288,8 +1100,6 @@ func PinThread(c *gin.Context) {
 
 	log.Printf("Pinning thread %s for user %s", threadID, userID)
 
-	// Use the thread service client to update thread is_pinned status
-	// Fall back to the local mock client if the gRPC client isn't set
 	if threadServiceClient == nil {
 		log.Println("Thread service client not initialized - using mock implementation")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -1300,7 +1110,6 @@ func PinThread(c *gin.Context) {
 		return
 	}
 
-	// Call service client method to pin the thread
 	err := threadServiceClient.PinThread(threadID, userID)
 	if err != nil {
 		log.Printf("Error pinning thread: %v", err)
@@ -1312,24 +1121,13 @@ func PinThread(c *gin.Context) {
 		return
 	}
 
-	// Thread pinned successfully
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread pinned successfully",
 	})
 }
 
-// @Summary Unpin thread from profile
-// @Description Unpins a thread from the user's profile
-// @Tags Threads
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/pin [delete]
 func UnpinThread(c *gin.Context) {
-	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1350,7 +1148,6 @@ func UnpinThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1363,8 +1160,6 @@ func UnpinThread(c *gin.Context) {
 
 	log.Printf("Unpinning thread %s for user %s", threadID, userID)
 
-	// Use the thread service client to update thread is_pinned status
-	// Fall back to the local mock client if the gRPC client isn't set
 	if threadServiceClient == nil {
 		log.Println("Thread service client not initialized - using mock implementation")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -1375,7 +1170,6 @@ func UnpinThread(c *gin.Context) {
 		return
 	}
 
-	// Call service client method to unpin the thread
 	err := threadServiceClient.UnpinThread(threadID, userID)
 	if err != nil {
 		log.Printf("Error unpinning thread: %v", err)
@@ -1387,21 +1181,17 @@ func UnpinThread(c *gin.Context) {
 		return
 	}
 
-	// Thread unpinned successfully
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread unpinned successfully",
 	})
 }
 
-// Helper function to get database connection
 func getDBConnection() (*sql.DB, error) {
-	// Get database connection string from config
 	connStr := os.Getenv("DB_CONNECTION_STRING")
 	if connStr == "" {
 		connStr = "postgres://postgres:postgres@localhost:5432/aycom?sslmode=disable"
 	}
 
-	// Open a connection to the database
 	return sql.Open("postgres", connStr)
 }

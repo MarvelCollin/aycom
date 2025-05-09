@@ -6,7 +6,6 @@ import { registerChatMessageHandler } from '../api/chat';
 
 const logger = createLoggerWithPrefix('ChatMessageStore');
 
-// Define the types from websocketStore here to avoid circular dependency
 export interface ChatMessage {
   type: MessageType;
   content?: string;

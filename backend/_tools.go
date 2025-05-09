@@ -1,6 +1,3 @@
-//go:build tools
-
-// This file ensures build and codegen tools and indirect dependencies are tracked in go.mod.
 package tools
 
 import (

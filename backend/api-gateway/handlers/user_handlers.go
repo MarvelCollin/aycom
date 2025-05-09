@@ -18,14 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// GetUserProfile retrieves the user's profile from the User service via gRPC
-// @Summary Get user profile
-// @Description Returns the profile of the authenticated user
-// @Tags Users
-// @Produce json
-// @Router /api/v1/users/profile [get]
 func GetUserProfile(c *gin.Context) {
-	// Get user ID from JWT token (set by auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -34,26 +27,21 @@ func GetUserProfile(c *gin.Context) {
 	userIDStr := userID.(string)
 	log.Printf("GetUserProfile Handler: Retrieved userID from context: %s", userIDStr)
 
-	// Validate UUID
 	if _, err := uuid.Parse(userIDStr); err != nil {
 		log.Printf("GetUserProfile Handler: Invalid UUID format for userID: %s", userIDStr)
 		SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
 		return
 	}
 
-	// Use our service client
 	if userServiceClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// Call the service client method
 	user, err := userServiceClient.GetUserProfile(userIDStr)
 	if err != nil {
-		// Handle errors
 		st, ok := status.FromError(err)
 		if ok {
-			// Map gRPC status code to HTTP status code
 			switch st.Code() {
 			case 5: // Not found
 				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
@@ -69,7 +57,6 @@ func GetUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Return successful response with user profile
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
@@ -85,15 +72,7 @@ func GetUserProfile(c *gin.Context) {
 	})
 }
 
-// UpdateUserProfile updates the user's profile in the User service via gRPC
-// @Summary Update user profile
-// @Description Updates the profile of the authenticated user
-// @Tags Users
-// @Accept json
-// @Produce json
-// @Router /api/v1/users/profile [put]
 func UpdateUserProfile(c *gin.Context) {
-	// Get user ID from JWT token (set by auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -102,20 +81,17 @@ func UpdateUserProfile(c *gin.Context) {
 	userIDStr := userID.(string)
 	log.Printf("UpdateUserProfile Handler: Retrieved userID from context: %s", userIDStr)
 
-	// Validate UUID
 	if _, err := uuid.Parse(userIDStr); err != nil {
 		log.Printf("UpdateUserProfile Handler: Invalid UUID format for userID: %s", userIDStr)
 		SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
 		return
 	}
 
-	// Check if the service client is initialized
 	if userServiceClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// Bind input from request body
 	var input struct {
 		Name              string `json:"name"`
 		Bio               string `json:"bio"`
@@ -127,20 +103,16 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Create profile update object
 	profileUpdate := &UserProfileUpdate{
 		Name:              input.Name,
 		Bio:               input.Bio,
 		ProfilePictureURL: input.ProfilePictureURL,
 	}
 
-	// Call the service client method
 	updatedUser, err := userServiceClient.UpdateUserProfile(userIDStr, profileUpdate)
 	if err != nil {
-		// Handle errors
 		st, ok := status.FromError(err)
 		if ok {
-			// Map gRPC status code to HTTP status code
 			switch st.Code() {
 			case 5: // Not found
 				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
@@ -156,7 +128,6 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Return successful response with updated user profile
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  updatedUser.ID,
@@ -172,18 +143,6 @@ func UpdateUserProfile(c *gin.Context) {
 	})
 }
 
-// RegisterUser handles user registration
-// @Summary Register a new user
-// @Description Register a new user with email and password
-// @Tags Auth
-// @Accept json
-// @Produce json
-// @Param user body models.RegisterRequest true "User registration details"
-// @Success 201 {object} models.AuthResponse
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 409 {object} models.ErrorResponse "Email already in use"
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/auth/register [post]
 func RegisterUser(c *gin.Context) {
 	var req struct {
 		Name                  string `json:"name"`
@@ -205,7 +164,6 @@ func RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Use the globally initialized UserClient from handlers/common.go
 	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
 		return
@@ -368,14 +326,12 @@ func generateJWT(userID string) (string, error) {
 // @Failure 500 {object} ErrorResponse
 // @Router /api/v1/users/suggestions [get]
 func GetUserSuggestions(c *gin.Context) {
-	// Get current user ID from JWT token (if authenticated)
 	userID := ""
 	userIDAny, exists := c.Get("userId")
 	if exists {
 		userID, _ = userIDAny.(string)
 	}
 
-	// Get limit parameter
 	limitStr := c.DefaultQuery("limit", "3")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
@@ -384,18 +340,15 @@ func GetUserSuggestions(c *gin.Context) {
 
 	log.Printf("Fetching user suggestions for user %s, limit: %d", userID, limit)
 
-	// Check if user service is available
 	if UserClient == nil {
 		log.Printf("User service unavailable, returning mock suggestions")
 		returnMockSuggestions(c, limit)
 		return
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Call the SearchUsers method with sorting by follower count
 	resp, err := UserClient.SearchUsers(ctx, &userProto.SearchUsersRequest{
 		Query:  "",        // Empty query to find all users
 		Filter: "popular", // This filter tells the service to sort by follower count
@@ -409,10 +362,8 @@ func GetUserSuggestions(c *gin.Context) {
 		return
 	}
 
-	// Convert proto users to API response format
 	suggestedUsers := make([]gin.H, 0, limit)
 	for _, u := range resp.GetUsers() {
-		// Skip the current user if they somehow appear in recommendations
 		if u.GetId() == userID {
 			continue
 		}
@@ -427,20 +378,17 @@ func GetUserSuggestions(c *gin.Context) {
 			"is_following":   false, // Default to false since we're showing recommendations
 		})
 
-		// Make sure we only return the requested limit
 		if len(suggestedUsers) >= limit {
 			break
 		}
 	}
 
-	// If we couldn't get enough suggestions from the database, add some mock data
 	if len(suggestedUsers) < limit {
 		log.Printf("Not enough users found, adding mock suggestions")
 		mockCount := limit - len(suggestedUsers)
 
 		for i := 1; i <= mockCount; i++ {
 			mockId := fmt.Sprintf("mock_%d", i)
-			// Skip if we already have a suggestion with this ID
 			exists := false
 			for _, su := range suggestedUsers {
 				if su["id"] == mockId {
@@ -472,7 +420,6 @@ func GetUserSuggestions(c *gin.Context) {
 func returnMockSuggestions(c *gin.Context, limit int) {
 	var suggestedUsers []gin.H
 
-	// Create mock suggested users
 	for i := 1; i <= limit; i++ {
 		suggestedUsers = append(suggestedUsers, gin.H{
 			"id":             fmt.Sprintf("user_%d", i),
@@ -510,9 +457,7 @@ func CheckUsernameAvailability(c *gin.Context) {
 		return
 	}
 
-	// Check if the service client is initialized
 	if userServiceClient == nil {
-		// Return mock response if service is unavailable
 		available := true
 		if username == "admin" || username == "test" || username == "user" {
 			available = false
@@ -525,10 +470,8 @@ func CheckUsernameAvailability(c *gin.Context) {
 		return
 	}
 
-	// Call the service client method
 	available, err := userServiceClient.CheckUsernameAvailability(username)
 	if err != nil {
-		// Return mock response on error
 		mockAvailable := true
 		if username == "admin" || username == "test" || username == "user" {
 			mockAvailable = false
@@ -561,21 +504,18 @@ func CheckUsernameAvailability(c *gin.Context) {
 // @Failure 500 {object} models.ErrorResponse
 // @Router /api/v1/users/media [post]
 func UploadProfileMedia(c *gin.Context) {
-	// Get current user ID from JWT token
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "User not authenticated"})
 		return
 	}
 
-	// Convert userID to string and validate
 	userIDStr, ok := userID.(string)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Invalid user ID format"})
 		return
 	}
 
-	// Get mediaType from form
 	mediaType := c.PostForm("type")
 	if mediaType != "profile_picture" && mediaType != "banner" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -585,14 +525,12 @@ func UploadProfileMedia(c *gin.Context) {
 		return
 	}
 
-	// Get file from form
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "No file provided"})
 		return
 	}
 
-	// Check file type
 	fileExt := filepath.Ext(file.Filename)
 	allowedExts := map[string]bool{
 		".jpg":  true,
@@ -609,7 +547,6 @@ func UploadProfileMedia(c *gin.Context) {
 		return
 	}
 
-	// Open the file
 	fileContent, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Failed to open file"})
@@ -619,7 +556,6 @@ func UploadProfileMedia(c *gin.Context) {
 
 	var url string
 
-	// Upload to Supabase based on media type
 	if mediaType == "profile_picture" {
 		url, err = utils.UploadProfilePicture(fileContent, file.Filename, userIDStr)
 	} else { // banner
@@ -635,7 +571,6 @@ func UploadProfileMedia(c *gin.Context) {
 		return
 	}
 
-	// Update user profile in the database with the new URL
 	var updateRequest userProto.UpdateUserRequest
 	if mediaType == "profile_picture" {
 		updateRequest = userProto.UpdateUserRequest{
@@ -649,7 +584,6 @@ func UploadProfileMedia(c *gin.Context) {
 		}
 	}
 
-	// Make the request to update the user profile
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 

@@ -8,7 +8,6 @@
   import { getProfile } from '../../api/user';
   import { onMount } from 'svelte';
 
-  // Import Feather icons
   import HomeIcon from 'svelte-feather-icons/src/icons/HomeIcon.svelte';
   import HashIcon from 'svelte-feather-icons/src/icons/HashIcon.svelte';
   import BellIcon from 'svelte-feather-icons/src/icons/BellIcon.svelte';
@@ -24,24 +23,19 @@
   import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
   import LogInIcon from 'svelte-feather-icons/src/icons/LogInIcon.svelte';
 
-  // Props
   export let username = "";
   export let displayName = "";
   export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   
-  // Get theme from the store
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
   
-  // Get auth state
   const { getAuthState, logout, getAuthToken } = useAuth();
   let authState = getAuthState();
   
-  // Add debug flag
   let debugging = false;
   let apiResponse = null;
   
-  // User profile data
   let userDetails = {
     username: username || 'guest',
     displayName: displayName || 'Guest User',
@@ -52,7 +46,6 @@
     joinDate: ''
   };
   
-  // Fetch user profile
   async function fetchUserProfile() {
     if (!isAuthenticated()) {
       console.log('User not authenticated, skipping profile fetch');
@@ -62,9 +55,8 @@
     console.log('Fetching user profile...');
     try {
       const response = await getProfile();
-      apiResponse = response; // Store for debugging
+      apiResponse = response;
       
-      // Check for both possible response structures (direct or nested)
       const userData = response.user || (response.data && response.data.user);
       
       if (userData) {
@@ -78,7 +70,6 @@
           joinDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : ''
         };
         
-        // Update the component props in case they're used elsewhere
         username = userDetails.username;
         displayName = userDetails.displayName;
         avatar = userDetails.avatar;
@@ -93,12 +84,10 @@
     }
   }
   
-  // Toggle debug info
   function toggleDebug() {
     debugging = !debugging;
   }
   
-  // Handle logout
   async function handleLogout() {
     try {
       await logout();
@@ -109,10 +98,8 @@
     }
   }
   
-  // Event dispatcher
   const dispatch = createEventDispatcher();
   
-  // Navigation items - updated according to available pages
   const navigationItems = [
     { label: "Feed", path: "/feed", icon: "home" },
     { label: "Explore", path: "/explore", icon: "hash" },
@@ -123,27 +110,22 @@
     { label: "Profile", path: "/profile", icon: "user" },
   ];
   
-  // Toggle user menu
   let showUserMenu = false;
   function toggleUserMenu() {
     showUserMenu = !showUserMenu;
     
-    // If we're showing the menu and authenticated, update user details
     if (showUserMenu && isAuthenticated()) {
       fetchUserProfile();
     }
   }
   
-  // Handle compose tweet modal action
   function handleToggleComposeModal() {
     dispatch('toggleComposeModal');
   }
   
-  // Get current path for active state
   let currentPath = window.location.pathname;
   
   onMount(() => {
-    // Try to fetch user profile
     if (isAuthenticated()) {
       console.log('User is authenticated, fetching profile on mount');
       fetchUserProfile();
@@ -151,15 +133,13 @@
       console.log('User is not authenticated on mount');
     }
     
-    // Set up polling to check authentication and refresh profile
     const intervalId = setInterval(() => {
       if (isAuthenticated() && userDetails.username === 'guest') {
         console.log('User is authenticated but still shows as guest, refreshing profile');
         fetchUserProfile();
       }
-    }, 5000); // Check every 5 seconds
+    }, 5000);
     
-    // Return cleanup function
     return () => {
       clearInterval(intervalId);
     };
@@ -167,14 +147,12 @@
 </script>
 
 <div class="flex flex-col h-full py-2 px-2 {isDarkMode ? 'text-white' : 'text-black'}">
-  <!-- Logo -->
   <div class="px-3 mb-4">
     <a href="/" class="flex items-center justify-center md:justify-start p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800">
       <div class="text-3xl font-bold text-blue-500">AY</div>
     </a>
   </div>
 
-  <!-- Navigation Menu -->
   <nav class="flex-1">
     <ul class="space-y-1">
       {#each navigationItems as item}
@@ -183,7 +161,6 @@
             href={item.path} 
             class="flex items-center px-4 py-3 rounded-full {currentPath === item.path ? 'font-bold' : 'font-normal'} {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-200'}"
           >
-            <!-- Icon -->
             <div class="flex items-center justify-center w-6 h-6">
               {#if item.icon === 'home'}
                 <HomeIcon size="24" />
@@ -203,14 +180,12 @@
                 <SettingsIcon size="24" />
               {/if}
             </div>
-            <!-- Label -->
             <span class="hidden md:block text-xl ml-4">{item.label}</span>
           </a>
         </li>
       {/each}
     </ul>
 
-    <!-- Post Button -->
     <div class="mt-4 px-3">
       <button 
         class="w-full py-3 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600"
@@ -231,13 +206,11 @@
   </nav>
 
   <div class="mt-4 px-3 mb-4 relative">
-    <!-- User profile button with auth status indicator -->
     <button 
       class="flex items-center w-full p-3 rounded-full relative {isDarkMode ? 'bg-gray-800 hover:bg-gray-800' : 'hover:bg-gray-200'}"
       on:click={toggleUserMenu}
       on:dblclick={toggleDebug}
     >
-      <!-- Auth indicator dot -->
       <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'}"></div>
       
       <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden">
@@ -256,7 +229,6 @@
       </div>
     </button>
     
-    <!-- User Menu Dropdown -->
     {#if showUserMenu}
       <div 
         class="absolute bottom-20 left-2 w-72 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
@@ -300,7 +272,6 @@
             </div>
           {/if}
           
-          <!-- Debug info (double-click user profile to toggle) -->
           {#if debugging}
             <div class="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto max-h-36">
               <p class="font-bold">Debug Info:</p>

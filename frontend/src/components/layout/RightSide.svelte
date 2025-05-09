@@ -6,15 +6,12 @@
   import { createEventDispatcher } from 'svelte';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { page } from '../../stores/routeStore';
-  import { getTrends } from '../../api/trends';
-  import { getSuggestedUsers } from '../../api/suggestions';
 
   export let isDarkMode: boolean = false;
   
   let trends: ITrend[] = [];
   let suggestedFollows: ISuggestedFollow[] = [];
-  let isTrendsLoading = true;
-  let isSuggestedFollowsLoading = true;
+  let isLoading = true;
 
   const API_BASE_URL = appConfig.api.baseUrl;
   const logger = createLoggerWithPrefix('RightSide');
@@ -61,11 +58,11 @@
     logger.debug(`Clicked on trend: ${trend.title}`);
   }
 
-  async function fetchTrendingHashtags() {
-    isTrendsLoading = true;
+  async function fetchHomeContent() {
+    isLoading = true;
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/trends?limit=5`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/trends?include_recommendations=true&limit=5&rec_limit=3`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -75,14 +72,14 @@
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch trends: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch home content: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
       
       if (data && data.trends && Array.isArray(data.trends)) {
         trends = data.trends.map(trend => ({
-          id: trend.id || `trend-${Math.random().toString(36).substring(2, 9)}`,
+          id: trend.id,
           category: trend.category || 'Trending',
           title: trend.title,
           postCount: trend.post_count || 0
@@ -92,58 +89,32 @@
         logger.error('Invalid or empty trends data from API');
         trends = [];
       }
-    } catch (error) {
-      logger.error('Error fetching trends:', error);
-      trends = [];
-    } finally {
-      isTrendsLoading = false;
-    }
-  }
-  
-  async function fetchSuggestedUsers() {
-    isSuggestedFollowsLoading = true;
-    try {
-      const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/users/suggestions?limit=3`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        credentials: 'include'
-      });
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch suggested users: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.users && Array.isArray(data.users)) {
-        suggestedFollows = data.users.map(user => ({
+      if (data && data.recommended_users && Array.isArray(data.recommended_users)) {
+        suggestedFollows = data.recommended_users.map(user => ({
           username: user.username,
-          displayName: user.display_name || user.username,
-          avatar: user.avatar_url || null,
-          verified: user.verified || false,
+          displayName: user.name || user.username,
+          avatar: user.profile_picture_url || null,
+          verified: user.is_verified || false,
           followerCount: user.follower_count || 0,
-          isFollowing: user.is_following || false
+          isFollowing: false
         }));
         logger.debug(`Fetched ${suggestedFollows.length} suggested users`);
       } else {
-        logger.error('Invalid or empty user data from API');
+        logger.error('Invalid or empty recommended users data from API');
         suggestedFollows = [];
       }
     } catch (error) {
-      logger.error('Error fetching suggested users:', error);
+      logger.error('Error fetching home content:', error);
+      trends = [];
       suggestedFollows = [];
     } finally {
-      isSuggestedFollowsLoading = false;
+      isLoading = false;
     }
   }
 
   onMount(() => {
-    fetchTrendingHashtags();
-    fetchSuggestedUsers();
+    fetchHomeContent();
   });
 </script>
 
@@ -166,7 +137,7 @@
   <div class="sidebar-section">
     <h2 class="sidebar-title text-xl font-bold">What's happening</h2>
     
-    {#if isTrendsLoading}
+    {#if isLoading}
       <div class="py-4">
         <div class="animate-pulse">
           {#each Array(3) as _, i}
@@ -206,7 +177,7 @@
   <div class="sidebar-section">
     <h2 class="sidebar-title text-xl font-bold">Who to follow</h2>
     
-    {#if isSuggestedFollowsLoading}
+    {#if isLoading}
       <div class="py-4">
         <div class="animate-pulse">
           {#each Array(2) as _, i}
@@ -282,7 +253,6 @@
 </div>
 
 <style>
-  /* Dark mode styling */
   .sidebar {
     background-color: #f7f9fa;
     border: 1px solid #eff3f4;

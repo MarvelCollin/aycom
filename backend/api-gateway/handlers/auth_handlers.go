@@ -11,10 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthHandler handles authentication
-// @Summary Authentication related endpoints
-// @Description Provides authentication services for the API
-// @Tags Authentication
 func AuthHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -23,16 +19,6 @@ func AuthHandler() gin.HandlerFunc {
 	}
 }
 
-// RefreshToken handles token refresh
-// @Summary Refresh access token
-// @Description Refreshes the access token using a valid refresh token
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param refresh_token body string true "Refresh token"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Router /api/v1/auth/refresh [post]
 func RefreshToken(c *gin.Context) {
 	// TODO: Implement token refresh
 	c.JSON(http.StatusOK, gin.H{
@@ -40,13 +26,6 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
-// GetOAuthConfig returns OAuth configuration
-// @Summary Get OAuth configuration
-// @Description Returns OAuth configuration for social logins
-// @Tags Authentication
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/v1/auth/oauth-config [get]
 func GetOAuthConfig(c *gin.Context) {
 	// Return mock OAuth configuration
 	c.JSON(http.StatusOK, gin.H{
@@ -67,16 +46,6 @@ func GetOAuthConfig(c *gin.Context) {
 	})
 }
 
-// Login handles user login with email and password
-// @Summary Login with email and password
-// @Description Authenticate a user with email and password
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param credentials body object true "Email and password"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Router /api/v1/auth/login [post]
 func Login(c *gin.Context) {
 	// This is just a placeholder - actual login is handled by LoginUser
 	c.JSON(http.StatusOK, gin.H{
@@ -84,16 +53,6 @@ func Login(c *gin.Context) {
 	})
 }
 
-// VerifyEmail verifies a user's email address
-// @Summary Verify email address
-// @Description Verifies a user's email address using a verification code
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param verification body object true "Verification code"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /api/v1/auth/verify-email [post]
 func VerifyEmail(c *gin.Context) {
 	// Mock implementation for email verification
 	c.JSON(http.StatusOK, gin.H{
@@ -101,16 +60,6 @@ func VerifyEmail(c *gin.Context) {
 	})
 }
 
-// ResendVerification resends the verification email
-// @Summary Resend verification email
-// @Description Resends the verification email to the user
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param email body string true "User's email"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /api/v1/auth/resend-verification [post]
 func ResendVerification(c *gin.Context) {
 	// Mock implementation for resending verification email
 	c.JSON(http.StatusOK, gin.H{
@@ -118,16 +67,6 @@ func ResendVerification(c *gin.Context) {
 	})
 }
 
-// GoogleLogin handles Google OAuth login
-// @Summary Login with Google
-// @Description Authenticate a user using Google OAuth
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param code body string true "OAuth code"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Router /api/v1/auth/google [post]
 func GoogleLogin(c *gin.Context) {
 	// Mock implementation for Google OAuth login
 	c.JSON(http.StatusOK, gin.H{
@@ -142,16 +81,6 @@ func GoogleLogin(c *gin.Context) {
 	})
 }
 
-// ForgotPassword handles password reset requests
-// @Summary Request password reset
-// @Description Sends a password reset link to the user's email
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param email body object true "User's email"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /api/v1/auth/forgot-password [post]
 func ForgotPassword(c *gin.Context) {
 	var req struct {
 		Email string `json:"email" binding:"required,email"`
@@ -198,16 +127,6 @@ func ForgotPassword(c *gin.Context) {
 	})
 }
 
-// VerifySecurityAnswer handles security question answers for password reset
-// @Summary Verify security answer
-// @Description Verifies the security answer before allowing password reset
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param data body object true "Email and security answer"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /api/v1/auth/verify-security-answer [post]
 func VerifySecurityAnswer(c *gin.Context) {
 	var req struct {
 		Email          string `json:"email" binding:"required,email"`
@@ -257,16 +176,6 @@ func VerifySecurityAnswer(c *gin.Context) {
 	})
 }
 
-// ResetPassword handles password reset with a valid token
-// @Summary Reset password
-// @Description Resets a user's password using a valid reset token
-// @Tags Authentication
-// @Accept json
-// @Produce json
-// @Param reset_data body object true "Reset token and new password"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /api/v1/auth/reset-password [post]
 func ResetPassword(c *gin.Context) {
 	var req struct {
 		Token       string `json:"token" binding:"required"`

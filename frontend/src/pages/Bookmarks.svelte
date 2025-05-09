@@ -635,15 +635,12 @@
   trends={trends}
   suggestedFollows={suggestedUsers}
 >
-  <!-- Content Area -->
   <div class="min-h-screen border-x feed-container">
-    <!-- Header -->
     <div class="sticky top-0 z-10 header-tabs border-b {isDarkMode ? 'bg-black border-gray-800' : 'bg-white border-gray-200'}">
       <div class="p-4">
         <h1 class="text-xl font-bold">Bookmarks</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400">Your saved tweets</p>
         
-        <!-- Search bar -->
         <div class="mt-3 relative">
           <input
             type="text"
@@ -671,9 +668,7 @@
       </div>
     </div>
     
-    <!-- Tweets List -->
     <div class="tweet-list">
-      <!-- Loading state when first loading tab -->
       {#if isLoading && bookmarkedTweets.length === 0}
         <div class="space-y-4 p-4">
           {#each Array(5) as _, i}
@@ -690,7 +685,6 @@
             </div>
           {/each}
         </div>
-      <!-- Error state -->
       {:else if error}
         <div class="p-8 text-center">
           <p class="text-red-500 mb-4">{error}</p>
@@ -701,7 +695,6 @@
             Try Again
           </button>
         </div>
-      <!-- Empty state -->
       {:else if bookmarkedTweets.length === 0 && !isLoading}
         <div class="p-8 text-center text-gray-500 dark:text-gray-400">
           <p class="mb-4">You haven't bookmarked any tweets yet</p>
@@ -712,7 +705,6 @@
             Explore Content
           </a>
         </div>
-      <!-- Search query with no results -->
       {:else if searchQuery && filteredBookmarks.length === 0}
         <div class="p-8 text-center text-gray-500 dark:text-gray-400">
           <p class="mb-4">No bookmarks match your search</p>
@@ -723,7 +715,6 @@
             Clear Search
           </button>
         </div>
-      <!-- Bookmarked tweets list -->
       {:else}
         {#each filteredBookmarks as tweet (tweet.id)}
           <TweetCard 
@@ -748,12 +739,10 @@
           />
         {/each}
         
-        <!-- Loading more state -->
         {#if isLoading}
           <div class="flex justify-center items-center p-4">
             <div class="h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
           </div>
-        <!-- Load more button - only show when no search is active -->
         {:else if hasMore && !searchQuery}
           <div class="p-4 text-center">
             <button 
@@ -769,14 +758,11 @@
   </div>
 </MainLayout>
 
-<!-- Toast notifications -->
 <Toast />
 
-<!-- Debug panel -->
 <DebugPanel />
 
 <style>
-  /* Theme colors */
   :global(.theme-light) {
     --bg-primary: #ffffff;
     --bg-secondary: #f5f8fa;
@@ -807,7 +793,6 @@
     --success-color: #17bf63;
   }
 
-  /* Apply theme variables to specific elements */
   .feed-container {
     background-color: var(--bg-primary);
     color: var(--text-primary);
@@ -824,21 +809,11 @@
     background-color: var(--bg-primary);
   }
 
-  /* Skeleton loading animation */
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
   }
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  /* Spinner animation */
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  .animate-spin {
-    animation: spin 1s linear infinite;
   }
 </style>

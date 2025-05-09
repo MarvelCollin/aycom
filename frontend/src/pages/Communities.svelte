@@ -9,18 +9,15 @@
   
   const logger = createLoggerWithPrefix('Communities');
   
-  // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
   
-  // Reactive declarations
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
   $: isDarkMode = $theme === 'dark';
   $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
   $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
-  $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar with proper image URL
+  $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp';
   
-  // Community interface
   interface Community {
     id: number;
     name: string;
@@ -32,7 +29,6 @@
     isPrivate: boolean;
   }
   
-  // Communities state
   let isLoading = true;
   let joinedCommunities: Community[] = [];
   let pendingCommunities: Community[] = [];
@@ -45,7 +41,6 @@
   let searchQuery = '';
   let selectedCategories: string[] = [];
   
-  // Pagination options
   const paginationOptions = [25, 30, 35];
   let joinedPerPage = 25;
   let pendingPerPage = 25;
@@ -55,13 +50,11 @@
   let pendingCurrentPage = 1;
   let availableCurrentPage = 1;
   
-  // Available categories for filtering
   const categories = [
     'Gaming', 'Sports', 'Food', 'Technology', 'Art', 'Music', 
     'Movies', 'Books', 'Fitness', 'Travel', 'Fashion', 'Education'
   ];
   
-  // Authentication check
   function checkAuth() {
     if (!authState.isAuthenticated) {
       toastStore.showToast('You need to log in to access communities', 'warning');
@@ -71,20 +64,11 @@
     return true;
   }
   
-  // Fetch communities
   async function fetchCommunities() {
     isLoading = true;
     
     try {
-      // In a real implementation, this would be API calls to fetch different community lists
-      // For example: 
-      // const joinedResponse = await fetch('/api/communities/joined');
-      // const pendingResponse = await fetch('/api/communities/pending');
-      // const availableResponse = await fetch('/api/communities/available');
-      
-      // Simulate API response with mock data
       setTimeout(() => {
-        // Mock joined communities data
         joinedCommunities = [
           {
             id: 1,
@@ -118,7 +102,6 @@
           }
         ];
         
-        // Mock pending communities data
         pendingCommunities = [
           {
             id: 4,
@@ -142,7 +125,6 @@
           }
         ];
         
-        // Mock available communities data
         availableCommunities = [
           {
             id: 6,
@@ -196,7 +178,6 @@
           }
         ];
         
-        // Initialize filtered lists
         filteredJoinedCommunities = [...joinedCommunities];
         filteredPendingCommunities = [...pendingCommunities];
         filteredAvailableCommunities = [...availableCommunities];
@@ -216,12 +197,10 @@
     }
   }
   
-  // Filter communities based on search query and selected categories
   function filterCommunities() {
     const query = searchQuery.toLowerCase();
     const hasCategories = selectedCategories.length > 0;
     
-    // Filter joined communities
     filteredJoinedCommunities = joinedCommunities.filter(community => {
       const matchesQuery = query === '' || 
         community.name.toLowerCase().includes(query) || 
@@ -233,7 +212,6 @@
       return matchesQuery && matchesCategories;
     });
     
-    // Filter pending communities
     filteredPendingCommunities = pendingCommunities.filter(community => {
       const matchesQuery = query === '' || 
         community.name.toLowerCase().includes(query) || 
@@ -245,7 +223,6 @@
       return matchesQuery && matchesCategories;
     });
     
-    // Filter available communities
     filteredAvailableCommunities = availableCommunities.filter(community => {
       const matchesQuery = query === '' || 
         community.name.toLowerCase().includes(query) || 
@@ -257,7 +234,6 @@
       return matchesQuery && matchesCategories;
     });
     
-    // Reset pagination to first page
     joinedCurrentPage = 1;
     pendingCurrentPage = 1;
     availableCurrentPage = 1;
@@ -271,7 +247,6 @@
     });
   }
   
-  // Toggle category selection
   function toggleCategory(category: string) {
     if (selectedCategories.includes(category)) {
       selectedCategories = selectedCategories.filter(c => c !== category);
@@ -281,20 +256,14 @@
     filterCommunities();
   }
   
-  // Request to join a community
   async function requestToJoin(communityId: number) {
-    // In a real implementation, this would be an API call
-    // For example: await fetch(`/api/communities/${communityId}/request`, { method: 'POST' });
-    
     try {
-      // Move the community from available to pending
       const community = availableCommunities.find(c => c.id === communityId);
       if (community) {
         community.status = 'pending';
         availableCommunities = availableCommunities.filter(c => c.id !== communityId);
         pendingCommunities = [...pendingCommunities, community];
         
-        // Update filtered lists
         filteredAvailableCommunities = filteredAvailableCommunities.filter(c => c.id !== communityId);
         filteredPendingCommunities = [...filteredPendingCommunities, community];
         
@@ -307,17 +276,14 @@
     }
   }
   
-  // Navigate to community details
   function navigateToCommunity(communityId: number) {
     window.location.href = `/communities/${communityId}`;
   }
   
-  // Navigate to create community page
   function navigateToCreateCommunity() {
     window.location.href = '/create-community';
   }
   
-  // Pagination helpers
   function getPaginatedJoinedCommunities() {
     const start = (joinedCurrentPage - 1) * joinedPerPage;
     const end = start + joinedPerPage;
@@ -336,7 +302,6 @@
     return filteredAvailableCommunities.slice(start, end);
   }
   
-  // React to search query changes
   $: if (searchQuery !== undefined) {
     filterCommunities();
   }

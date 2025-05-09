@@ -52,20 +52,17 @@ func Migrate(db *gorm.DB) error {
 }
 
 func migrateInitSchema(db *gorm.DB) error {
-	// Now run AutoMigrate for the models
-	err := db.AutoMigrate(&model.User{}, &model.Session{}) // Use model.User and model.Session
+	err := db.AutoMigrate(&model.User{}, &model.Session{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate User or Session models: %w", err)
 	}
 
-	// Create indexes separately after tables are ensured
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)").Error; err != nil {
 		log.Printf("Warning: Failed to create username index: %v", err)
 	}
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)").Error; err != nil {
 		log.Printf("Warning: Failed to create email index: %v", err)
 	}
-	// You might not have model.Session defined, adjust if necessary
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)").Error; err != nil {
 		log.Printf("Warning: Failed to create session user_id index: %v", err)
 	}

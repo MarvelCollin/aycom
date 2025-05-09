@@ -210,12 +210,6 @@ func InitHandlers(cfg *config.Config) {
 	InitWebsocketServices() // This must be after setting Config
 }
 
-// @Summary Health check
-// @Description Returns the health status of the API
-// @Tags Health
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /health [get]
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

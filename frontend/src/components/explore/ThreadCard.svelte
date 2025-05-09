@@ -37,48 +37,77 @@
   }
 </script>
 
-<div class="p-4 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer" on:click={handleClick}>
-  <div class="flex">
-    <div class="flex-shrink-0 mr-3">
-      <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
-        {#if thread.author_avatar || thread.avatar}
-          <img src={thread.author_avatar || thread.avatar} alt={thread.author_name || thread.display_name} class="w-full h-full object-cover" />
-        {:else}
-          <div class="text-lg font-bold text-gray-500">{(thread.author_name || thread.display_name || 'User').charAt(0).toUpperCase()}</div>
-        {/if}
+<div class="thread-card-container">
+  <button 
+    class="thread-card-button p-4 w-full text-left border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
+    on:click={handleClick}
+    aria-label="View thread by {thread.author_name || thread.display_name || 'User'}"
+  >
+    <article class="thread-content">
+      <div class="flex">
+        <div class="flex-shrink-0 mr-3">
+          <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
+            {#if thread.author_avatar || thread.avatar}
+              <img src={thread.author_avatar || thread.avatar} alt={thread.author_name || thread.display_name} class="w-full h-full object-cover" />
+            {:else}
+              <div class="text-lg font-bold text-gray-500">{(thread.author_name || thread.display_name || 'User').charAt(0).toUpperCase()}</div>
+            {/if}
+          </div>
+        </div>
+        
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center">
+            <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{thread.author_name || thread.display_name || 'User'}</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm truncate">@{thread.author_username || thread.username || 'user'}</p>
+            <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
+            <time datetime={new Date(thread.created_at || thread.timestamp).toISOString()} class="text-gray-500 dark:text-gray-400 text-sm">
+              {formatTime(thread.created_at || thread.timestamp)}
+            </time>
+          </div>
+        
+          <p class="mt-1 mb-2 {isDarkMode ? 'text-white' : 'text-black'}">{thread.content}</p>
+          
+          {#if thread.media && thread.media.length > 0}
+            <div class="mb-2 rounded-lg overflow-hidden border dark:border-gray-700">
+              <img src={thread.media[0].url} alt="Media attached to thread" class="w-full h-48 object-cover" />
+            </div>
+          {/if}
+          
+          <div class="flex mt-2 text-gray-500 dark:text-gray-400 text-sm">
+            <div class="flex items-center mr-4">
+              <div class="mr-1"><MessageCircleIcon size="16" /></div>
+              <span>{thread.replies_count || thread.replies || 0}</span>
+            </div>
+            <div class="flex items-center mr-4">
+              <div class="mr-1"><RefreshCwIcon size="16" /></div>
+              <span>{thread.reposts_count || thread.reposts || 0}</span>
+            </div>
+            <div class="flex items-center">
+              <div class="mr-1"><HeartIcon size="16" /></div>
+              <span>{thread.likes_count || thread.likes || 0}</span>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-    
-    <div class="flex-1 min-w-0">
-      <div class="flex items-center">
-        <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{thread.author_name || thread.display_name || 'User'}</p>
-        <p class="text-gray-500 dark:text-gray-400 text-sm truncate">@{thread.author_username || thread.username || 'user'}</p>
-        <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
-        <p class="text-gray-500 dark:text-gray-400 text-sm">{formatTime(thread.created_at || thread.timestamp)}</p>
-      </div>
-      
-      <p class="mt-1 mb-2 {isDarkMode ? 'text-white' : 'text-black'}">{thread.content}</p>
-      
-      {#if thread.media && thread.media.length > 0}
-        <div class="mb-2 rounded-lg overflow-hidden border dark:border-gray-700">
-          <img src={thread.media[0].url} alt="Thread media" class="w-full h-48 object-cover" />
-        </div>
-      {/if}
-      
-      <div class="flex mt-2 text-gray-500 dark:text-gray-400 text-sm">
-        <div class="flex items-center mr-4">
-          <div class="mr-1"><MessageCircleIcon size="16" /></div>
-          <span>{thread.replies_count || thread.replies || 0}</span>
-        </div>
-        <div class="flex items-center mr-4">
-          <div class="mr-1"><RefreshCwIcon size="16" /></div>
-          <span>{thread.reposts_count || thread.reposts || 0}</span>
-        </div>
-        <div class="flex items-center">
-          <div class="mr-1"><HeartIcon size="16" /></div>
-          <span>{thread.likes_count || thread.likes || 0}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div> 
+    </article>
+  </button>
+</div>
+
+<style>
+  .thread-card-button {
+    background: none;
+    border: none;
+    font: inherit;
+    padding: 0;
+    display: block;
+    width: 100%;
+  }
+  
+  .thread-card-button {
+    padding: 1rem;
+  }
+  
+  .thread-content {
+    width: 100%;
+  }
+</style> 

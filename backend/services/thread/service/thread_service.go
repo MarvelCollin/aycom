@@ -57,18 +57,15 @@ func NewThreadService(
 
 // CreateThread creates a new thread
 func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThreadRequest) (*model.Thread, error) {
-	// Validate required fields
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Parse user ID
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
 	}
 
-	// Parse community ID if provided
 	var communityID *uuid.UUID
 	if req.CommunityId != nil && *req.CommunityId != "" {
 		commID, err := uuid.Parse(*req.CommunityId)
@@ -78,26 +75,22 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 		communityID = &commID
 	}
 
-	// Set scheduled post time if provided
 	var scheduledAt *time.Time
 	if req.ScheduledAt != nil {
 		t := req.ScheduledAt.AsTime()
 		scheduledAt = &t
 	}
 
-	// Set who can reply if provided
-	var whoCanReply string = "Everyone" // Default value
+	var whoCanReply string = "Everyone"
 	if req.WhoCanReply != nil && *req.WhoCanReply != "" {
 		whoCanReply = *req.WhoCanReply
 	}
 
-	// Set isAdvertisement if provided
-	isAdvertisement := false // Default value
+	isAdvertisement := false
 	if req.IsAdvertisement != nil {
 		isAdvertisement = *req.IsAdvertisement
 	}
 
-	// Create thread
 	threadID := uuid.New()
 	thread := &model.Thread{
 		ThreadID:        threadID,
@@ -111,12 +104,10 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 		UpdatedAt:       time.Now(),
 	}
 
-	// Create thread in database
 	if err := s.threadRepo.CreateThread(thread); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create thread: %v", err)
 	}
 
-	// Process media attachments if any
 	if len(req.Media) > 0 {
 		for _, mediaInfo := range req.Media {
 			media := &model.Media{
@@ -132,14 +123,11 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 		}
 	}
 
-	// Process hashtags if any
 	if len(req.Hashtags) > 0 {
 		for _, hashtagText := range req.Hashtags {
-			// First look for existing hashtag
 			hashtag, err := s.hashtagRepo.FindHashtagByText(hashtagText)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					// Create new hashtag
 					hashtag = &model.Hashtag{
 						HashtagID: uuid.New(),
 						Text:      hashtagText,
@@ -181,7 +169,6 @@ func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*mo
 
 // GetThreadsByUserID retrieves threads by user ID with pagination
 func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, error) {
-	// Default pagination values if not provided
 	if page <= 0 {
 		page = 1
 	}
@@ -189,7 +176,6 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 		limit = 10
 	}
 
-	// If userID is empty, get all threads instead
 	if userID == "" {
 		return s.GetAllThreads(ctx, page, limit)
 	}
@@ -204,13 +190,6 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 
 // GetAllThreads retrieves all threads with pagination
 func (s *threadService) GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error) {
-	if page <= 0 {
-		page = 1
-	}
-	if limit <= 0 {
-		limit = 10
-	}
-
 	threads, err := s.threadRepo.FindAllThreads(page, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve threads: %v", err)
@@ -225,7 +204,6 @@ func (s *threadService) UpdateThread(ctx context.Context, req *thread.UpdateThre
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
 
-	// Get existing thread
 	thread, err := s.threadRepo.FindThreadByID(req.ThreadId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -234,27 +212,22 @@ func (s *threadService) UpdateThread(ctx context.Context, req *thread.UpdateThre
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)
 	}
 
-	// Update fields if provided
 	updated := false
 	if req.Content != "" {
 		thread.Content = req.Content
 		updated = true
 	}
 
-	// Update isPinned status if provided
 	if req.IsPinned != nil {
 		thread.IsPinned = *req.IsPinned
 		updated = true
 	}
 
-	// Add new hashtags if provided
 	if len(req.AddHashtags) > 0 {
 		for _, hashtagText := range req.AddHashtags {
-			// First look for existing hashtag
 			hashtag, err := s.hashtagRepo.FindHashtagByText(hashtagText)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					// Create new hashtag
 					hashtag = &model.Hashtag{
 						HashtagID: uuid.New(),
 						Text:      hashtagText,
@@ -275,12 +248,11 @@ func (s *threadService) UpdateThread(ctx context.Context, req *thread.UpdateThre
 		updated = true
 	}
 
-	// Remove hashtags if provided
 	if len(req.RemoveHashtags) > 0 {
 		for _, hashtagText := range req.RemoveHashtags {
 			hashtag, err := s.hashtagRepo.FindHashtagByText(hashtagText)
 			if err != nil {
-				continue // Skip if hashtag doesn't exist
+				continue
 			}
 			if err := s.hashtagRepo.RemoveHashtagFromThread(thread.ThreadID.String(), hashtag.HashtagID.String()); err != nil {
 				return nil, status.Errorf(codes.Internal, "Failed to remove hashtag from thread: %v", err)
@@ -305,7 +277,6 @@ func (s *threadService) DeleteThread(ctx context.Context, threadID, userID strin
 		return status.Error(codes.InvalidArgument, "Thread ID and User ID are required")
 	}
 
-	// Get thread to check ownership
 	thread, err := s.threadRepo.FindThreadByID(threadID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -314,12 +285,10 @@ func (s *threadService) DeleteThread(ctx context.Context, threadID, userID strin
 		return status.Errorf(codes.Internal, "Failed to retrieve thread: %v", err)
 	}
 
-	// Check if user is the owner
 	if thread.UserID.String() != userID {
 		return status.Error(codes.PermissionDenied, "User is not authorized to delete this thread")
 	}
 
-	// Delete thread from database
 	if err := s.threadRepo.DeleteThread(threadID); err != nil {
 		return status.Errorf(codes.Internal, "Failed to delete thread: %v", err)
 	}
@@ -340,7 +309,6 @@ type RemoveReplyBookmarkRequest struct {
 
 // PinThread pins a thread to the user's profile
 func (s *threadService) PinThread(ctx context.Context, threadID, userID string) error {
-	// Validate required fields
 	if threadID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
@@ -349,19 +317,16 @@ func (s *threadService) PinThread(ctx context.Context, threadID, userID string) 
 		return status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Parse IDs
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
 	}
 
-	// Validate thread ID format
 	_, err = uuid.Parse(threadID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
 	}
 
-	// Get the thread from the repository
 	thread, err := s.threadRepo.FindThreadByID(threadID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -370,16 +335,13 @@ func (s *threadService) PinThread(ctx context.Context, threadID, userID string) 
 		return status.Errorf(codes.Internal, "Failed to get thread: %v", err)
 	}
 
-	// Check if the user is the owner of the thread
 	if thread.UserID != userUUID {
 		return status.Error(codes.PermissionDenied, "Only the owner of the thread can pin it")
 	}
 
-	// Set the thread as pinned
 	thread.IsPinned = true
 	thread.UpdatedAt = time.Now()
 
-	// Update the thread in the repository
 	if err := s.threadRepo.UpdateThread(thread); err != nil {
 		return status.Errorf(codes.Internal, "Failed to pin thread: %v", err)
 	}
@@ -389,7 +351,6 @@ func (s *threadService) PinThread(ctx context.Context, threadID, userID string) 
 
 // UnpinThread unpins a thread from the user's profile
 func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string) error {
-	// Validate required fields
 	if threadID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
@@ -398,19 +359,16 @@ func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string
 		return status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Parse IDs
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
 	}
 
-	// Validate thread ID format
 	_, err = uuid.Parse(threadID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
 	}
 
-	// Get the thread from the repository
 	thread, err := s.threadRepo.FindThreadByID(threadID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -419,16 +377,13 @@ func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string
 		return status.Errorf(codes.Internal, "Failed to get thread: %v", err)
 	}
 
-	// Check if the user is the owner of the thread
 	if thread.UserID != userUUID {
 		return status.Error(codes.PermissionDenied, "Only the owner of the thread can unpin it")
 	}
 
-	// Set the thread as unpinned
 	thread.IsPinned = false
 	thread.UpdatedAt = time.Now()
 
-	// Update the thread in the repository
 	if err := s.threadRepo.UpdateThread(thread); err != nil {
 		return status.Errorf(codes.Internal, "Failed to unpin thread: %v", err)
 	}
@@ -438,7 +393,6 @@ func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string
 
 // PinReply pins a reply to the user's profile
 func (s *threadService) PinReply(ctx context.Context, replyID, userID string) error {
-	// Validate required fields
 	if replyID == "" {
 		return status.Error(codes.InvalidArgument, "Reply ID is required")
 	}
@@ -447,19 +401,16 @@ func (s *threadService) PinReply(ctx context.Context, replyID, userID string) er
 		return status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Parse IDs
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
 	}
 
-	// Validate reply ID format
 	_, err = uuid.Parse(replyID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid reply ID: %v", err)
 	}
 
-	// Get the reply from the repository
 	reply, err := s.replyRepo.FindReplyByID(replyID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -468,16 +419,13 @@ func (s *threadService) PinReply(ctx context.Context, replyID, userID string) er
 		return status.Errorf(codes.Internal, "Failed to get reply: %v", err)
 	}
 
-	// Check if the user is the owner of the reply
 	if reply.UserID != userUUID {
 		return status.Error(codes.PermissionDenied, "Only the owner of the reply can pin it")
 	}
 
-	// Set the reply as pinned
 	reply.IsPinned = true
 	reply.UpdatedAt = time.Now()
 
-	// Update the reply in the repository
 	if err := s.replyRepo.UpdateReply(reply); err != nil {
 		return status.Errorf(codes.Internal, "Failed to pin reply: %v", err)
 	}
@@ -487,7 +435,6 @@ func (s *threadService) PinReply(ctx context.Context, replyID, userID string) er
 
 // UnpinReply unpins a reply from the user's profile
 func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) error {
-	// Validate required fields
 	if replyID == "" {
 		return status.Error(codes.InvalidArgument, "Reply ID is required")
 	}
@@ -496,19 +443,16 @@ func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) 
 		return status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Parse IDs
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
 	}
 
-	// Validate reply ID format
 	_, err = uuid.Parse(replyID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid reply ID: %v", err)
 	}
 
-	// Get the reply from the repository
 	reply, err := s.replyRepo.FindReplyByID(replyID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -517,16 +461,13 @@ func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) 
 		return status.Errorf(codes.Internal, "Failed to get reply: %v", err)
 	}
 
-	// Check if the user is the owner of the reply
 	if reply.UserID != userUUID {
 		return status.Error(codes.PermissionDenied, "Only the owner of the reply can unpin it")
 	}
 
-	// Set the reply as unpinned
 	reply.IsPinned = false
 	reply.UpdatedAt = time.Now()
 
-	// Update the reply in the repository
 	if err := s.replyRepo.UpdateReply(reply); err != nil {
 		return status.Errorf(codes.Internal, "Failed to unpin reply: %v", err)
 	}
@@ -540,7 +481,6 @@ func (s *threadService) GetMediaByUserID(ctx context.Context, userID string, pag
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Default pagination values if not provided
 	if page <= 0 {
 		page = 1
 	}
@@ -548,7 +488,6 @@ func (s *threadService) GetMediaByUserID(ctx context.Context, userID string, pag
 		limit = 10
 	}
 
-	// Get media from repository
 	media, err := s.mediaRepo.FindMediaByUserID(userID, page, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve user media: %v", err)

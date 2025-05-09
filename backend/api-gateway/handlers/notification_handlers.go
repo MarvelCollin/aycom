@@ -203,18 +203,6 @@ func broadcastNotificationToUser(userID string, notification Notification) {
 	}
 }
 
-// GetMentionNotifications handles fetching mention notifications for the current user
-// @Summary Get mention notifications
-// @Description Get notifications where the user is mentioned
-// @Tags Notifications
-// @Accept json
-// @Produce json
-// @Param page query int false "Page number for pagination"
-// @Param limit query int false "Number of results per page"
-// @Success 200 {object} models.NotificationsResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/notifications/mentions [get]
 func GetMentionNotifications(c *gin.Context) {
 	// Get current user ID from JWT token
 	_, exists := c.Get("userID")
@@ -236,16 +224,6 @@ func GetMentionNotifications(c *gin.Context) {
 	})
 }
 
-// MarkAllNotificationsAsRead marks all notifications for the current user as read
-// @Summary Mark all notifications as read
-// @Description Mark all notifications for the current user as read
-// @Tags Notifications
-// @Accept json
-// @Produce json
-// @Success 200 {object} models.SuccessResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/notifications/read-all [post]
 func MarkAllNotificationsAsRead(c *gin.Context) {
 	// Get current user ID from JWT token
 	_, exists := c.Get("userID")
@@ -262,18 +240,6 @@ func MarkAllNotificationsAsRead(c *gin.Context) {
 	})
 }
 
-// DeleteNotification deletes a notification
-// @Summary Delete a notification
-// @Description Delete a specific notification by ID
-// @Tags Notifications
-// @Accept json
-// @Produce json
-// @Param id path string true "Notification ID"
-// @Success 200 {object} models.SuccessResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 404 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/notifications/{id} [delete]
 func DeleteNotification(c *gin.Context) {
 	// Get notification ID from path
 	notificationID := c.Param("id")
@@ -297,16 +263,6 @@ func DeleteNotification(c *gin.Context) {
 	})
 }
 
-// UpdateNotificationSettings updates the notification settings for the user
-// @Summary Update notification settings
-// @Description Update the notification settings for the current user
-// @Tags Notifications
-// @Accept json
-// @Produce json
-// @Success 200 {object} models.SuccessResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/notifications/settings [post]
 func UpdateNotificationSettings(c *gin.Context) {
 	// Get current user ID from JWT token
 	_, exists := c.Get("userID")
@@ -322,18 +278,6 @@ func UpdateNotificationSettings(c *gin.Context) {
 	})
 }
 
-// UpdateNotificationStatus updates the read status of a notification
-// @Summary Update notification status
-// @Description Update the read status of a specific notification
-// @Tags Notifications
-// @Accept json
-// @Produce json
-// @Param id path string true "Notification ID"
-// @Success 200 {object} models.SuccessResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 404 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/notifications/{id}/status [post]
 func UpdateNotificationStatus(c *gin.Context) {
 	// Get current user ID from JWT token
 	_, exists := c.Get("userID")
@@ -349,16 +293,6 @@ func UpdateNotificationStatus(c *gin.Context) {
 	})
 }
 
-// GetNotificationPreferences gets the user's notification preferences
-// @Summary Get notification preferences
-// @Description Get the notification preferences for the current user
-// @Tags Notifications
-// @Accept json
-// @Produce json
-// @Success 200 {object} models.NotificationPreferencesResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/notifications/preferences [get]
 func GetNotificationPreferences(c *gin.Context) {
 	// Get current user ID from JWT token
 	_, exists := c.Get("userID")

@@ -338,47 +338,38 @@ func (s *UserSeeder) SeedFollows() error {
 		UpdatedAt  time.Time
 	}
 
-	// Get user IDs
 	adminID := uuid.MustParse(getEnv("ADMIN_UUID", "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"))
 	johnID := uuid.MustParse(getEnv("JOHN_UUID", "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12"))
 	janeID := uuid.MustParse(getEnv("JANE_UUID", "c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13"))
 	samID := uuid.MustParse(getEnv("SAM_UUID", "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14"))
 
-	// Get the other user IDs - this is a simplified approach since we don't have the exact IDs
 	var users []struct {
 		ID       uuid.UUID
 		Username string
 	}
 	s.db.Table("users").Select("id, username").Where("username IN ?", []string{"techguru", "fitnesscoach", "travelbug", "foodie123"}).Find(&users)
 
-	// Create a map for easier lookup
 	userMap := make(map[string]uuid.UUID)
 	for _, user := range users {
 		userMap[user.Username] = user.ID
 	}
 
-	// Now we can create the follow relationships
 	follows := []Follow{
-		// Admin follows
 		{ID: uuid.New(), FollowerID: adminID, FollowedID: johnID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		{ID: uuid.New(), FollowerID: adminID, FollowedID: janeID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 
-		// John follows
 		{ID: uuid.New(), FollowerID: johnID, FollowedID: adminID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		{ID: uuid.New(), FollowerID: johnID, FollowedID: janeID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		{ID: uuid.New(), FollowerID: johnID, FollowedID: samID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 
-		// Jane follows
 		{ID: uuid.New(), FollowerID: janeID, FollowedID: adminID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		{ID: uuid.New(), FollowerID: janeID, FollowedID: johnID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 
-		// Sam follows
 		{ID: uuid.New(), FollowerID: samID, FollowedID: adminID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		{ID: uuid.New(), FollowerID: samID, FollowedID: johnID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		{ID: uuid.New(), FollowerID: samID, FollowedID: janeID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 	}
 
-	// Add follows for the other users if they exist in our map
 	if techGuruID, ok := userMap["techguru"]; ok {
 		follows = append(follows,
 			Follow{ID: uuid.New(), FollowerID: techGuruID, FollowedID: adminID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
@@ -395,7 +386,6 @@ func (s *UserSeeder) SeedFollows() error {
 		)
 	}
 
-	// Create the follow relationships
 	if err := s.db.Table("follows").Create(&follows).Error; err != nil {
 		return fmt.Errorf("failed to create follows: %w", err)
 	}

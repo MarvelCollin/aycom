@@ -1,8 +1,4 @@
-/* Global styles moved from ThemeProvider.svelte */
-
-/* Define theme variables for the entire app */
 :root {
-  /* Common variables for both themes */
   --font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --color-primary: #3b82f6;
@@ -12,7 +8,6 @@
   --transition-speed: 0.3s;
 }
 
-/* Dark theme variables */
 .dark-theme {
   --bg-primary: #000000;
   --bg-secondary: #1f2937;
@@ -24,7 +19,6 @@
   --hover-bg: #1f2937;
 }
 
-/* Light theme variables */
 .light-theme {
   --bg-primary: #ffffff;
   --bg-secondary: #f3f4f6;
@@ -36,9 +30,8 @@
   --hover-bg: #f3f4f6;
 }
 
-/* Apply smooth transitions for theme changes */
 body, body * {
   transition: background-color var(--transition-speed) ease, 
               color var(--transition-speed) ease,
               border-color var(--transition-speed) ease;
-} 
+}

@@ -45,26 +45,21 @@ func NewCategoryService(categoryRepo repository.CategoryRepository) CategoryServ
 
 // CreateCategory creates a new category
 func (s *categoryService) CreateCategory(ctx context.Context, name string, categoryType string) (*model.Category, error) {
-	// Validate required fields
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Category name is required")
 	}
 
 	if categoryType == "" {
-		categoryType = "Thread" // Default to Thread type
+		categoryType = "Thread"
 	}
 
-	// Check if a category with this name already exists
 	existingCategory, err := s.categoryRepo.FindCategoryByName(name, categoryType)
 	if err == nil {
-		// Category already exists
 		return existingCategory, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		// Some other error occurred
 		return nil, status.Errorf(codes.Internal, "Failed to check for existing category: %v", err)
 	}
 
-	// Create a new category
 	category := &model.Category{
 		CategoryID: uuid.New(),
 		Name:       name,
@@ -117,7 +112,6 @@ func (s *categoryService) UpdateCategory(ctx context.Context, categoryID string,
 		return nil, status.Error(codes.InvalidArgument, "Category name is required")
 	}
 
-	// Get existing category
 	category, err := s.categoryRepo.FindCategoryByID(categoryID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -126,7 +120,6 @@ func (s *categoryService) UpdateCategory(ctx context.Context, categoryID string,
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve category: %v", err)
 	}
 
-	// Update category name
 	category.Name = name
 	category.UpdatedAt = time.Now()
 
@@ -205,7 +198,7 @@ func (s *categoryService) GetOrCreateCategoriesByNames(ctx context.Context, cate
 	}
 
 	if categoryType == "" {
-		categoryType = "Thread" // Default to Thread type
+		categoryType = "Thread"
 	}
 
 	categoryIDs := make([]string, 0, len(categoryNames))
@@ -215,11 +208,9 @@ func (s *categoryService) GetOrCreateCategoriesByNames(ctx context.Context, cate
 			continue
 		}
 
-		// Try to find existing category
 		category, err := s.categoryRepo.FindCategoryByName(name, categoryType)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// Create new category
 				newCategory, err := s.CreateCategory(ctx, name, categoryType)
 				if err != nil {
 					return nil, err
@@ -229,7 +220,6 @@ func (s *categoryService) GetOrCreateCategoriesByNames(ctx context.Context, cate
 				return nil, status.Errorf(codes.Internal, "Failed to process category %s: %v", name, err)
 			}
 		} else {
-			// Use existing category
 			categoryIDs = append(categoryIDs, category.CategoryID.String())
 		}
 	}
