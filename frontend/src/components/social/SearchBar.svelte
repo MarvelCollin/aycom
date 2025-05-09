@@ -6,7 +6,6 @@
   let isFocused = false;
   let recentSearches: string[] = [];
   
-  // Load recent searches from local storage on mount
   onMount(() => {
     const savedSearches = localStorage.getItem('recentSearches');
     if (savedSearches) {
@@ -14,11 +13,9 @@
     }
   });
   
-  // Save a search to recent searches
   function saveSearch(query: string) {
     if (!query.trim()) return;
     
-    // Remove duplicates and add new search at the beginning
     const newSearches = [
       query, 
       ...recentSearches.filter(s => s !== query)
@@ -28,13 +25,11 @@
     localStorage.setItem('recentSearches', JSON.stringify(newSearches));
   }
   
-  // Clear all recent searches
   function clearAllSearches() {
     recentSearches = [];
     localStorage.removeItem('recentSearches');
   }
   
-  // Handle search submission
   function handleSearch() {
     if (searchQuery.trim()) {
       saveSearch(searchQuery);
@@ -42,24 +37,21 @@
     }
   }
   
-  // Handle key press (Enter)
   function handleKeyPress(event: KeyboardEvent) {
     if (event.key === 'Enter') {
       handleSearch();
     }
   }
   
-  // Handle clicking on a recent search
   function selectRecentSearch(search: string) {
     searchQuery = search;
     handleSearch();
   }
   
-  // Toggle focus state
   function toggleFocus(value: boolean) {
     setTimeout(() => {
       isFocused = value;
-    }, 100); // Small delay to allow for click events
+    }, 100);
   }
 </script>
 
@@ -82,7 +74,6 @@
     />
   </div>
   
-  <!-- Recent searches dropdown -->
   {#if isFocused && recentSearches.length > 0}
     <div class="absolute left-0 right-0 mt-1 {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border rounded-xl shadow-lg z-10 overflow-hidden">
       <div class="flex justify-between items-center p-3 border-b {isDarkMode ? 'border-gray-700 border-opacity-50' : 'border-gray-200'}">

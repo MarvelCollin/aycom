@@ -32,6 +32,12 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.POST("/google", handlers.GoogleLogin)
 	}
 
+	// AI routes - accessible to both authenticated and non-authenticated users
+	ai := v1.Group("/ai")
+	{
+		ai.POST("/predict-category", handlers.PredictCategory)
+	}
+
 	// Public user registration and login
 	publicUsers := v1.Group("/users")
 	{

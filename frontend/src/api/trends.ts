@@ -6,25 +6,17 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('trends-api');
 
-/**
- * Get trending topics from the API or database
- * @param limit Number of trends to fetch
- * @returns Array of trending topics
- */
 export async function getTrends(limit: number = 5): Promise<ITrend[]> {
   try {
-    // Try to get from API first
     const apiTrends = await getTrendsFromAPI(limit);
     if (apiTrends.length > 0) {
       return apiTrends;
     }
     
-    // Fallback to mock data if API returns no data
     logger.info('API returned no trends, using mock data instead');
     return getMockTrends(limit);
   } catch (error) {
     logger.error('Error fetching trends:', error);
-    // Fallback to mock data on API error
     try {
       logger.info('Falling back to mock trends');
       return getMockTrends(limit);
@@ -35,11 +27,7 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
   }
 }
 
-/**
- * Get mock trends data
- */
 function getMockTrends(limit: number): ITrend[] {
-  // Return mock data based on current trends
   const mockTrends = [
     { id: 'trend-1', category: 'Technology', title: '#AI', postCount: '125K' },
     { id: 'trend-2', category: 'Entertainment', title: '#Music', postCount: '98K' },
@@ -56,9 +44,6 @@ function getMockTrends(limit: number): ITrend[] {
   return mockTrends.slice(0, limit);
 }
 
-/**
- * Get trends from the API
- */
 async function getTrendsFromAPI(limit: number): Promise<ITrend[]> {
   const token = getAuthToken();
   
@@ -94,4 +79,4 @@ async function getTrendsFromAPI(limit: number): Promise<ITrend[]> {
     title: trend.title,
     postCount: trend.post_count || 0
   }));
-} 
+}

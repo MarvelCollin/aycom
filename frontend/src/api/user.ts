@@ -48,7 +48,6 @@ export async function updateProfile(data: Record<string, any>) {
   return response.json();
 }
 
-// Added functions from useProfile.ts
 export async function checkUsernameAvailability(username: string): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/users/check-username?username=${encodeURIComponent(username)}`, {
@@ -188,156 +187,151 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
   }
 }
 
-// Search users functionality
 export async function searchUsers(query: string, page: number = 1, limit: number = 10, options?: any) {
   try {
     const url = new URL(`${API_BASE_URL}/users/search`);
     
-    // Set query parameters
     url.searchParams.append('q', query);
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
     
-    // Add optional filters
-    if (options?.filter === 'following') {
-      url.searchParams.append('filter', 'following');
-    } else if (options?.filter === 'verified') {
-      url.searchParams.append('filter', 'verified');
+    if (options) {
+      if (options.verified !== undefined) {
+        url.searchParams.append('verified', options.verified ? 'true' : 'false');
+      }
+      
+      if (options.active !== undefined) {
+        url.searchParams.append('active', options.active ? 'true' : 'false');
+      }
     }
     
-    // Add sorting if provided
-    if (options?.sortBy) {
-      url.searchParams.append('sort', options.sortBy);
+    if (options?.sort) {
+      url.searchParams.append('sort', options.sort);
     }
     
-    // Get token
     const token = getAuthToken();
     
-    console.log(`Searching users at: ${url.toString()}`);
-    
-    // Make the fetch request with error handling
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('[searchUsers] Response status:', response.status);
-    
-    // Check if response is JSON
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      console.log('[searchUsers] Response data:', data);
-      
-      if (!response.ok) {
-        console.log('[searchUsers] Error response:', data);
-        throw new Error(`Failed to search users: ${response.status} - ${JSON.stringify(data)}`);
-      }
-      
-      return data;
-    } else {
-      const text = await response.text();
-      console.log('[searchUsers] Non-JSON response:', text);
-      throw new Error(`Failed to search users: Server returned non-JSON response`);
-    }
-  } catch (error) {
-    console.error('Error searching users:', error);
-    throw error;
-  }
-}
-
-// Upload profile picture
-export async function uploadProfilePicture(file: File) {
-  const token = getAuthToken();
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('type', 'profile_picture');
-  
-  const response = await fetch(`${API_BASE_URL}/users/media`, {
-    method: 'POST',
-    headers: { 
-      "Authorization": token ? `Bearer ${token}` : ''
-    },
-    body: formData,
-    credentials: "include",
-  });
-  
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to upload profile picture");
-    } catch (parseError) {
-      throw new Error("Failed to upload profile picture");
-    }
-  }
-  return response.json();
-}
-
-// Upload banner
-export async function uploadBanner(file: File) {
-  const token = getAuthToken();
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('type', 'banner');
-  
-  const response = await fetch(`${API_BASE_URL}/users/media`, {
-    method: 'POST',
-    headers: { 
-      "Authorization": token ? `Bearer ${token}` : ''
-    },
-    body: formData,
-    credentials: "include",
-  });
-  
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to upload banner");
-    } catch (parseError) {
-      throw new Error("Failed to upload banner");
-    }
-  }
-  return response.json();
-}
-
-// Pin and unpin threads/replies
-export async function pinThread(threadId: string) {
-  try {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-    
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
-      method: 'POST',
-      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
     
     if (!response.ok) {
-      // Try to get more details from the error response
+      const errorText = await response.text();
+      console.error('Search users API error:', errorText);
+      throw new Error(`Failed to search users: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    return {
+      users: data.users || [],
+      totalCount: data.total_count || 0,
+      page: data.page || page,
+      totalPages: data.total_pages || 1
+    };
+  } catch (err) {
+    console.error('Failed to search users:', err);
+    return { users: [], totalCount: 0, page, totalPages: 0 };
+  }
+}
+
+export async function uploadProfilePicture(file: File) {
+  try {
+    const token = getAuthToken();
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${API_BASE_URL}/users/profile-picture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
       try {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to pin thread: ${response.status}`);
+        throw new Error(errorData.message || "Failed to upload profile picture");
       } catch (parseError) {
-        // If we can't parse the error, just use the status code
-        throw new Error(`Failed to pin thread: ${response.status}`);
+        throw new Error(`Failed to upload profile picture: ${response.status}`);
       }
     }
     
-    // Return a consistent response format even if the server returns empty
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to upload profile picture:', err);
+    throw err;
+  }
+}
+
+export async function uploadBanner(file: File) {
+  try {
+    const token = getAuthToken();
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${API_BASE_URL}/users/banner`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to upload banner");
+      } catch (parseError) {
+        throw new Error(`Failed to upload banner: ${response.status}`);
+      }
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error('Failed to upload banner:', err);
+    throw err;
+  }
+}
+
+export async function pinThread(threadId: string) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        console.error('Pin thread API responded with error:', errorData);
+        throw new Error(errorData.message || `Failed to pin thread: ${response.status}`);
+      } catch (parseError) {
+        try {
+          const errorMsg = await response.text();
+          throw new Error(`Failed to pin thread: ${response.status} - ${errorMsg}`);
+        } catch (textError) {
+          throw new Error(`Failed to pin thread: ${response.status}`);
+        }
+      }
+    }
+    
     try {
       return await response.json();
     } catch (e) {
-      // If the response can't be parsed as JSON, return a default success object
-      return { success: true, message: "Thread pinned successfully" };
+      return { success: true, message: 'Thread pinned successfully' };
     }
   } catch (err) {
     console.error('Failed to pin thread:', err);
@@ -348,35 +342,34 @@ export async function pinThread(threadId: string) {
 export async function unpinThread(threadId: string) {
   try {
     const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication required');
-    }
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
-      method: 'DELETE',
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/unpin`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
     
     if (!response.ok) {
-      // Try to get more details from the error response
       try {
         const errorData = await response.json();
+        console.error('Unpin thread API responded with error:', errorData);
         throw new Error(errorData.message || `Failed to unpin thread: ${response.status}`);
       } catch (parseError) {
-        // If we can't parse the error, just use the status code
-        throw new Error(`Failed to unpin thread: ${response.status}`);
+        try {
+          const errorMsg = await response.text();
+          throw new Error(`Failed to unpin thread: ${response.status} - ${errorMsg}`);
+        } catch (textError) {
+          throw new Error(`Failed to unpin thread: ${response.status}`);
+        }
       }
     }
     
-    // Return a consistent response format even if the server returns empty
     try {
       return await response.json();
     } catch (e) {
-      // If the response can't be parsed as JSON, return a default success object
-      return { success: true, message: "Thread unpinned successfully" };
+      return { success: true, message: 'Thread unpinned successfully' };
     }
   } catch (err) {
     console.error('Failed to unpin thread:', err);
@@ -387,35 +380,34 @@ export async function unpinThread(threadId: string) {
 export async function pinReply(replyId: string) {
   try {
     const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication required');
-    }
     
     const response = await fetch(`${API_BASE_URL}/replies/${replyId}/pin`, {
-      method: 'POST',
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
     
     if (!response.ok) {
-      // Try to get more details from the error response
       try {
         const errorData = await response.json();
+        console.error('Pin reply API responded with error:', errorData);
         throw new Error(errorData.message || `Failed to pin reply: ${response.status}`);
       } catch (parseError) {
-        // If we can't parse the error, just use the status code
-        throw new Error(`Failed to pin reply: ${response.status}`);
+        try {
+          const errorMsg = await response.text();
+          throw new Error(`Failed to pin reply: ${response.status} - ${errorMsg}`);
+        } catch (textError) {
+          throw new Error(`Failed to pin reply: ${response.status}`);
+        }
       }
     }
     
-    // Return a consistent response format even if the server returns empty
     try {
       return await response.json();
     } catch (e) {
-      // If the response can't be parsed as JSON, return a default success object
-      return { success: true, message: "Reply pinned successfully" };
+      return { success: true, message: 'Reply pinned successfully' };
     }
   } catch (err) {
     console.error('Failed to pin reply:', err);
@@ -426,35 +418,34 @@ export async function pinReply(replyId: string) {
 export async function unpinReply(replyId: string) {
   try {
     const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication required');
-    }
     
-    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/pin`, {
-      method: 'DELETE',
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/unpin`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': token ? `Bearer ${token}` : ''
       }
     });
     
     if (!response.ok) {
-      // Try to get more details from the error response
       try {
         const errorData = await response.json();
+        console.error('Unpin reply API responded with error:', errorData);
         throw new Error(errorData.message || `Failed to unpin reply: ${response.status}`);
       } catch (parseError) {
-        // If we can't parse the error, just use the status code
-        throw new Error(`Failed to unpin reply: ${response.status}`);
+        try {
+          const errorMsg = await response.text();
+          throw new Error(`Failed to unpin reply: ${response.status} - ${errorMsg}`);
+        } catch (textError) {
+          throw new Error(`Failed to unpin reply: ${response.status}`);
+        }
       }
     }
     
-    // Return a consistent response format even if the server returns empty
     try {
       return await response.json();
     } catch (e) {
-      // If the response can't be parsed as JSON, return a default success object
-      return { success: true, message: "Reply unpinned successfully" };
+      return { success: true, message: 'Reply unpinned successfully' };
     }
   } catch (err) {
     console.error('Failed to unpin reply:', err);
@@ -462,30 +453,25 @@ export async function unpinReply(replyId: string) {
   }
 }
 
-// Get user profile by user ID
 export async function getUserById(userId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
-      method: "GET",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include",
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
     });
     
     if (!response.ok) {
-      console.error(`Failed to fetch user profile for ID ${userId}: ${response.status}`);
-      return null;
+      throw new Error(`Failed to get user: ${response.status}`);
     }
     
-    const data = await response.json();
-    console.log(`Retrieved user data for ID ${userId}:`, data);
-    return data.user;
-  } catch (error) {
-    console.error(`Error fetching user profile for ID ${userId}:`, error);
-    return null;
+    return response.json();
+  } catch (err) {
+    console.error(`Failed to get user with ID ${userId}:`, err);
+    throw err;
   }
 } 

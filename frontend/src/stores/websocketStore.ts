@@ -2,8 +2,6 @@ import { writable } from 'svelte/store';
 import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
-// Remove direct import from chat.ts to break circular dependency
-// import { processWebSocketMessage } from '../api/chat';
 
 const logger = createLoggerWithPrefix('WebSocketStore');
 
@@ -35,44 +33,35 @@ const initialState: WebSocketState = {
   chatConnections: {},
 };
 
-// Create a registry of message handlers 
-// This allows decoupling the WebSocket store from specific handlers
 type MessageHandler = (message: any) => void;
 const messageHandlers: MessageHandler[] = [];
 
 function createWebSocketStore() {
   const { subscribe, update, set } = writable<WebSocketState>(initialState);
 
-  // Reconnect logic with exponential backoff
   let reconnectAttempts = 0;
   let reconnectTimeout: number | null = null;
 
   const connect = (chatId: string) => {
     update(state => {
-      // Check if already connected
       if (state.chatConnections[chatId]) {
         logger.info(`Already connected to chat ${chatId}`);
         return state;
       }
 
       try {
-        // Construct WebSocket URL based on API URL
         const apiUrl = appConfig.api.baseUrl;
         let wsProtocol = 'ws:';
         if (apiUrl.startsWith('https:') || window.location.protocol === 'https:') {
           wsProtocol = 'wss:';
         }
         
-        // Get the domain part of the API URL without protocol
         const domain = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
         
-        // Get the API path without domain
         const apiPath = apiUrl.replace(/^https?:\/\/[^/]+/, '');
         
-        // Get auth token
         const token = getAuthToken();
         
-        // Try to extract user ID from token
         let userId = '';
         try {
           if (token) {
@@ -90,30 +79,24 @@ function createWebSocketStore() {
           logger.error('Error decoding token:', e);
         }
         
-        // Construct WebSocket URL
         let wsUrl = `${wsProtocol}//${domain}${apiPath}/chats/${chatId}/ws`;
         
-        // Add authentication parameters
         const params: string[] = [];
         
-        // Add token as a query parameter if available
         if (token) {
           params.push(`token=${token}`);
         }
         
-        // Add user ID even if we have a token (as a fallback)
         if (userId) {
           params.push(`user_id=${userId}`);
         }
         
-        // Add query parameters if any
         if (params.length > 0) {
           wsUrl += `?${params.join('&')}`;
         }
         
         logger.info(`Attempting to connect to WebSocket: ${wsUrl}`);
         
-        // Connect with parameters in URL
         const ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {
@@ -125,7 +108,6 @@ function createWebSocketStore() {
             lastError: null 
           }));
           
-          // Reset reconnect attempts on successful connection
           reconnectAttempts = 0;
         };
         
@@ -134,7 +116,6 @@ function createWebSocketStore() {
             logger.debug(`WebSocket message received for chat ${chatId}:`, event.data);
             const message = JSON.parse(event.data);
             
-            // Instead of calling processWebSocketMessage, just pass to registered handlers
             messageHandlers.forEach(handler => handler(message));
           } catch (e) {
             logger.error(`Error parsing WebSocket message for chat ${chatId}:`, e);
@@ -143,7 +124,6 @@ function createWebSocketStore() {
         
         ws.onerror = (error) => {
           logger.error(`WebSocket error for chat ${chatId}:`, error);
-          // Log additional information about the connection
           logger.error(`WebSocket URL was: ${wsUrl}`);
           logger.error(`WebSocket ready state: ${ws.readyState}`);
           update(s => ({ 
@@ -155,7 +135,6 @@ function createWebSocketStore() {
         ws.onclose = (event) => {
           logger.info(`WebSocket closed for chat ${chatId}: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
           
-          // Remove the closed connection
           update(s => {
             const connections = { ...s.chatConnections };
             delete connections[chatId];
@@ -167,14 +146,12 @@ function createWebSocketStore() {
             };
           });
           
-          // Attempt to reconnect unless this was a clean close
           if (event.code !== 1000) {
             logger.info(`Will attempt to reconnect to chat ${chatId} due to non-clean close`);
             attemptReconnect(chatId);
           }
         };
         
-        // Store the connection
         return { 
           ...state, 
           chatConnections: { 
@@ -185,7 +162,6 @@ function createWebSocketStore() {
       } catch (error) {
         logger.error('Failed to establish WebSocket connection:', error);
         
-        // Attempt to reconnect
         attemptReconnect(chatId);
         
         return { 
@@ -198,16 +174,13 @@ function createWebSocketStore() {
 
   const disconnect = (chatId: string) => {
     update(state => {
-      const ws = state.chatConnections[chatId];
-      if (ws) {
-        ws.close(1000, 'Client disconnecting');
-        
-        // Remove this connection
+      if (state.chatConnections[chatId]) {
+        state.chatConnections[chatId].close(1000, 'Disconnect requested');
         const connections = { ...state.chatConnections };
         delete connections[chatId];
         
-        return { 
-          ...state, 
+        return {
+          ...state,
           chatConnections: connections,
           connected: Object.keys(connections).length > 0
         };
@@ -218,97 +191,108 @@ function createWebSocketStore() {
 
   const disconnectAll = () => {
     update(state => {
-      // Close all connections
-      Object.values(state.chatConnections).forEach(ws => {
-        ws.close(1000, 'Client disconnecting');
+      Object.keys(state.chatConnections).forEach(chatId => {
+        try {
+          state.chatConnections[chatId].close(1000, 'Disconnect all requested');
+        } catch (e) {
+          logger.error(`Error closing WebSocket for chat ${chatId}:`, e);
+        }
       });
       
-      return { 
-        ...initialState 
+      if (reconnectTimeout !== null) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+      
+      return {
+        ...state,
+        chatConnections: {},
+        connected: false,
+        reconnecting: false
       };
     });
-    
-    // Cancel any pending reconnect
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-      reconnectTimeout = null;
-    }
   };
 
   const sendMessage = (chatId: string, message: ChatMessage) => {
     update(state => {
-      const ws = state.chatConnections[chatId];
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        logger.error(`Cannot send message - No active connection for chat ${chatId}`);
-        return { 
-          ...state, 
-          lastError: 'No active connection' 
-        };
+      if (!state.chatConnections[chatId]) {
+        logger.warn(`Cannot send message to chat ${chatId}: not connected`);
+        connect(chatId);
+        return state;
       }
       
       try {
+        const ws = state.chatConnections[chatId];
         ws.send(JSON.stringify(message));
-        return state;
-      } catch (error) {
-        logger.error('Error sending message:', error);
-        return { 
-          ...state, 
-          lastError: 'Failed to send message' 
+        logger.debug(`Message sent to chat ${chatId}:`, message);
+      } catch (e) {
+        logger.error(`Error sending message to chat ${chatId}:`, e);
+        return {
+          ...state,
+          lastError: 'Failed to send message'
         };
       }
+      
+      return state;
     });
   };
-
+  
   const resetError = () => {
-    update(state => ({ 
-      ...state, 
-      lastError: null 
+    update(state => ({
+      ...state,
+      lastError: null
     }));
   };
-
-  // Private function to handle reconnection
+  
   const attemptReconnect = (chatId: string) => {
-    update(s => ({ 
-      ...s, 
-      reconnecting: true 
+    update(state => ({
+      ...state,
+      reconnecting: true
     }));
     
-    // Use exponential backoff for reconnect attempts
-    const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
+    const maxReconnectAttempts = 10;
     
-    logger.info(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts + 1})`);
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      logger.warn(`Maximum reconnect attempts (${maxReconnectAttempts}) reached for chat ${chatId}`);
+      update(state => ({
+        ...state,
+        reconnecting: false,
+        lastError: 'Maximum reconnect attempts reached'
+      }));
+      return;
+    }
     
-    // Clear any existing timeout
-    if (reconnectTimeout) {
+    const baseDelay = 1000;
+    const delay = baseDelay * Math.pow(1.5, reconnectAttempts);
+    reconnectAttempts++;
+    
+    if (reconnectTimeout !== null) {
       clearTimeout(reconnectTimeout);
     }
     
-    // Set up the next reconnect attempt
     reconnectTimeout = window.setTimeout(() => {
-      reconnectAttempts++;
+      logger.info(`Attempting to reconnect to chat ${chatId} (attempt ${reconnectAttempts})`);
       connect(chatId);
     }, delay);
   };
-
-  // Register a message handler
+  
   const registerMessageHandler = (handler: MessageHandler) => {
     messageHandlers.push(handler);
+    
     return () => {
-      // Return function to unregister handler
       const index = messageHandlers.indexOf(handler);
       if (index !== -1) {
         messageHandlers.splice(index, 1);
       }
     };
   };
-
-  // Check if a specific chat is connected
+  
   const isConnected = (chatId: string) => {
     let connected = false;
     
     update(state => {
-      const ws = state.chatConnections[chatId];
-      connected = ws && ws.readyState === WebSocket.OPEN;
+      connected = !!state.chatConnections[chatId] && 
+                  state.chatConnections[chatId].readyState === WebSocket.OPEN;
       return state;
     });
     
@@ -327,20 +311,14 @@ function createWebSocketStore() {
   };
 }
 
-// Create the websocket store
 export const websocketStore = createWebSocketStore();
 
-// Import the setup function from chatMessageStore
-import { setupWebsocketMethods } from './chatMessageStore';
+let setupChatMessageStore: ((ws: any) => void) | null = null;
 
-// Initialize chatMessageStore with our websocket methods
-// This needs to be done after websocketStore is created to avoid circular references
-setupWebsocketMethods({
-  connect: websocketStore.connect,
-  disconnect: websocketStore.disconnect,
-  sendMessage: websocketStore.sendMessage,
-  subscribe: websocketStore.subscribe,
-  registerMessageHandler: websocketStore.registerMessageHandler,
-  resetError: websocketStore.resetError,
-  disconnectAll: websocketStore.disconnectAll
-}); 
+export function setWebSocketHandlers(setup: (ws: any) => void) {
+  setupChatMessageStore = setup;
+  
+  if (setupChatMessageStore) {
+    setupChatMessageStore(websocketStore);
+  }
+} 

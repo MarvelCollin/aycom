@@ -31,7 +31,7 @@ export async function createThread(data: Record<string, any>) {
     }
     
     return response.json();
-  } catch (error) {
+  } catch (error: any) {
     throw error;
   }
 }
@@ -69,7 +69,6 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
     const token = getAuthToken();
     let actualUserId = userId;
     
-    // If 'me' is specified, get the actual user ID
     if (userId === 'me') {
       const currentUserId = getUserId();
       console.log('Current user ID from auth:', currentUserId);
@@ -93,7 +92,6 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
     });
     
     if (!response.ok) {
-      // Handle different error types
       if (response.status === 400) {
         let errorMessage = `Bad request when getting user threads`;
         try {
@@ -110,7 +108,6 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
     
     const data = await response.json();
     
-    // Debug output to check pinned status
     console.log("Threads received from API:", data.threads);
     console.log("Pinned threads:", data.threads.filter(thread => thread.is_pinned === true).length);
     console.log("Pinned thread IDs:", data.threads.filter(thread => thread.is_pinned === true).map(t => t.id));
@@ -128,16 +125,13 @@ export async function getAllThreads(page = 1, limit = 20) {
   try {
     console.log(`Fetching all threads, page: ${page}, limit: ${limit}`);
     
-    // There's a public endpoint for getting all threads
     const endpoint = `${API_BASE_URL}/threads?page=${page}&limit=${limit}`;
     console.log(`Making request to: ${endpoint}`);
     
-    // Set up headers - allow unauthenticated access
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
     
-    // Add authorization header if token exists
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -148,8 +142,6 @@ export async function getAllThreads(page = 1, limit = 20) {
       credentials: "include",
     });
     
-    // For 401 unauthorized, we could still attempt to return mock data
-    // This keeps the UI working even if the backend requires auth
     if (response.status === 401) {
       console.warn("Unauthorized when fetching threads - returning empty results");
       return { 
@@ -177,9 +169,8 @@ export async function getAllThreads(page = 1, limit = 20) {
     const data = await response.json();
     console.log(`Successfully retrieved ${data.threads?.length || 0} threads`);
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in getAllThreads:", error);
-    // Return empty results instead of throwing to keep UI working
     return { 
       threads: [],
       total_count: 0,
@@ -252,9 +243,8 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
   const formData = new FormData();
   formData.append('thread_id', threadId);
   
-  // Append each file with a unique name
   files.forEach((file, index) => {
-    formData.append(`file`, file); // Changed from 'media_${index}' to 'file' to match backend expectation
+    formData.append(`file`, file);
   });
   
   const response = await fetch(`${API_BASE_URL}/threads/media`, {
@@ -293,7 +283,6 @@ export async function likeThread(threadId: string) {
       throw new Error("Authentication required");
     }
     
-    // Add retry logic with backoff
     let retries = 0;
     const maxRetries = 2;
     
@@ -343,7 +332,7 @@ export async function likeThread(threadId: string) {
     }
     
     throw new Error("Failed to like thread after multiple attempts");
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in likeThread:", error);
     throw error;
   }
@@ -832,23 +821,15 @@ export async function removeBookmark(threadId: string) {
   }
 }
 
-/**
- * Fetches threads from users that the current user follows
- * @param page Page number to fetch (1-based)
- * @param limit Number of threads per page
- * @returns Object containing threads array and pagination info
- */
 export async function getFollowingThreads(page = 1, limit = 20) {
   const token = getAuthToken();
   
   try {
     console.log(`Fetching followed users threads, page: ${page}, limit: ${limit}`);
     
-    // Endpoint for getting threads from followed users
     const endpoint = `${API_BASE_URL}/threads/following?page=${page}&limit=${limit}`;
     console.log(`Making request to: ${endpoint}`);
     
-    // Authorization is required to know which users you follow
     if (!token) {
       console.warn("No token available for getFollowingThreads");
       return { 
@@ -868,7 +849,6 @@ export async function getFollowingThreads(page = 1, limit = 20) {
       credentials: "include",
     });
     
-    // For 401 unauthorized, return empty results
     if (response.status === 401) {
       console.warn("Unauthorized when fetching following threads - returning empty results");
       return { 
@@ -916,13 +896,11 @@ export async function searchThreads(
   options?: { filter?: string; category?: string; sortBy?: string }
 ) {
   try {
-    // Build the URL with query parameters
     const url = new URL(`${API_BASE_URL}/threads/search`);
     url.searchParams.append('q', query);
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
     
-    // Add optional parameters if they exist
     if (options?.filter) {
       url.searchParams.append('filter', options.filter);
     }
@@ -935,10 +913,8 @@ export async function searchThreads(
       url.searchParams.append('sort', options.sortBy);
     }
     
-    // Get the auth token
     const token = getAuthToken();
     
-    // Make the request with the token
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -953,7 +929,7 @@ export async function searchThreads(
     
     const data = await response.json();
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error searching threads:', error);
     throw error;
   }
@@ -969,25 +945,20 @@ export async function searchThreadsWithMedia(
   try {
     const url = new URL(`${API_BASE_URL}/threads/search/media`);
     
-    // Set query parameters
     url.searchParams.append('q', query);
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
     
-    // Add optional filters
     if (options?.filter) {
       url.searchParams.append('filter', options.filter);
     }
     
-    // Add category if provided
     if (options?.category) {
       url.searchParams.append('category', options.category);
     }
     
-    // Get token
     const token = getAuthToken();
     
-    // Make request
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -1001,7 +972,7 @@ export async function searchThreadsWithMedia(
     }
     
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error searching threads with media:', error);
     throw error;
   }
@@ -1014,19 +985,15 @@ export async function getThreadsByHashtag(
   limit: number = 10
 ) {
   try {
-    // Remove the hashtag symbol if it exists
     const cleanHashtag = hashtag.startsWith('#') ? hashtag.substring(1) : hashtag;
     
     const url = new URL(`${API_BASE_URL}/threads/hashtag/${encodeURIComponent(cleanHashtag)}`);
     
-    // Add pagination
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
     
-    // Get token
     const token = getAuthToken();
     
-    // Make request
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -1040,7 +1007,7 @@ export async function getThreadsByHashtag(
     }
     
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting threads by hashtag:', error);
     throw error;
   }
@@ -1312,7 +1279,6 @@ export async function getUserThreads(userId: string, page: number = 1, limit: nu
     const token = getAuthToken();
     let actualUserId = userId;
     
-    // If 'me' is specified, get the actual user ID
     if (userId === 'me') {
       const currentUserId = getUserId();
       console.log('Current user ID from auth:', currentUserId);
@@ -1336,7 +1302,6 @@ export async function getUserThreads(userId: string, page: number = 1, limit: nu
     });
     
     if (!response.ok) {
-      // Handle different error types
       if (response.status === 400) {
         let errorMessage = `Bad request when getting user threads`;
         try {
@@ -1363,7 +1328,6 @@ export async function getUserReplies(userId: string, page: number = 1, limit: nu
     const token = getAuthToken();
     let actualUserId = userId;
     
-    // If 'me' is specified, get the actual user ID
     if (userId === 'me') {
       const currentUserId = getUserId();
       console.log('Current user ID from auth:', currentUserId);
@@ -1387,7 +1351,6 @@ export async function getUserReplies(userId: string, page: number = 1, limit: nu
     });
     
     if (!response.ok) {
-      // Handle different error types
       if (response.status === 400) {
         let errorMessage = `Bad request when getting user replies`;
         try {
@@ -1414,7 +1377,6 @@ export async function getUserLikedThreads(userId: string, page: number = 1, limi
     const token = getAuthToken();
     let actualUserId = userId;
     
-    // If 'me' is specified, get the actual user ID
     if (userId === 'me') {
       const currentUserId = getUserId();
       console.log('Current user ID from auth:', currentUserId);
@@ -1438,7 +1400,6 @@ export async function getUserLikedThreads(userId: string, page: number = 1, limi
     });
     
     if (!response.ok) {
-      // Handle different error types
       if (response.status === 400) {
         let errorMessage = `Bad request when getting user liked threads`;
         try {

@@ -58,7 +58,6 @@ const LOG_STYLES = {
   [LogLevel.ERROR]: 'color: #ef4444',
 };
 
-// Map LogLevel to string names
 const LOG_LEVEL_NAMES = {
   [LogLevel.TRACE]: 'TRACE',
   [LogLevel.DEBUG]: 'DEBUG',
@@ -87,7 +86,6 @@ const createLogger = (prefix: string): Logger => {
   const formatMessage = (message: string) => `[${prefix}] ${message}`;
   
   const log = (level: LogLevel, message: string, data?: any, options: ToastOptions = {}) => {
-    // Always store logs regardless of level for Debug panel access
     const timestamp = new Date().toISOString();
     const logEntry: LogEntry = {
       timestamp,
@@ -98,15 +96,12 @@ const createLogger = (prefix: string): Logger => {
       source: prefix
     };
     
-    // Add to store
     addLogEntry(logEntry);
     
-    // Skip console output if level is below the current log level
     if (level < currentLogLevel) return;
     
     const formattedMessage = formatMessage(message);
     
-    // Log to console with appropriate styling
     switch (level) {
       case LogLevel.TRACE:
         console.log(`%c[TRACE] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
@@ -125,7 +120,6 @@ const createLogger = (prefix: string): Logger => {
         break;
     }
     
-    // Show toast notification if requested
     const { showToast = false, timeout } = options;
     if (showToast) {
       const toastType = level === LogLevel.ERROR ? 'error' 
@@ -156,20 +150,16 @@ const createLogger = (prefix: string): Logger => {
   };
 };
 
-// Export the logger creator
 export const createLoggerWithPrefix = createLogger;
 
-// Export a default logger without prefix
 export const logger = createLogger('App');
 
-// Add a global log level control function
 export const setGlobalLogLevel = (level: LogLevel): void => {
   currentLogLevel = level;
   setLogLevel(level);
   logger.info(`Log level set to ${LogLevel[level]}`, null, { showToast: true });
 };
 
-// Expose logger to the window for browser console usage
 if (typeof window !== 'undefined') {
   (window as any).logger = logger;
   (window as any).LogLevel = LogLevel;

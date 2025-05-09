@@ -3,27 +3,20 @@ import { createLoggerWithPrefix } from './logger';
 
 const logger = createLoggerWithPrefix('Supabase');
 
-// Initialize Supabase client
 const supabaseUrl = 'https://sdhtnvlmuywinhcglfsu.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU5MDE4NzUsImV4cCI6MjA2MTQ3Nzg3NX0.Jknb2LNtRgma15sEX0sgLHMPegpCQ1f-05QbZEgHq8M';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Allowed file types
 const ALLOWED_MIME_TYPES = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   video: ['video/mp4', 'video/webm', 'video/ogg'],
   audio: ['audio/mpeg', 'audio/ogg', 'audio/wav']
 };
 
-// Max file size (10MB)
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-/**
- * Validate file before upload
- */
 export function validateFile(file: File): { valid: boolean; error?: string } {
-  // Check file size
   if (file.size > MAX_FILE_SIZE) {
     return {
       valid: false,
@@ -31,7 +24,6 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
     };
   }
 
-  // Check file type
   const allowedTypes = [
     ...ALLOWED_MIME_TYPES.image,
     ...ALLOWED_MIME_TYPES.video,
@@ -48,9 +40,6 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
-/**
- * Get media type from mime type
- */
 export function getMediaType(mimeType: string): 'image' | 'video' | 'audio' | 'unknown' {
   if (ALLOWED_MIME_TYPES.image.includes(mimeType)) return 'image';
   if (ALLOWED_MIME_TYPES.video.includes(mimeType)) return 'video';
@@ -58,28 +47,22 @@ export function getMediaType(mimeType: string): 'image' | 'video' | 'audio' | 'u
   return 'unknown';
 }
 
-/**
- * Upload file to Supabase storage
- */
 export async function uploadMedia(
   file: File, 
   folder: string = 'chat'
 ): Promise<{ url: string; mediaType: string } | null> {
   try {
-    // Validate file
     const validation = validateFile(file);
     if (!validation.valid) {
       logger.error('File validation failed:', validation.error);
       throw new Error(validation.error);
     }
     
-    // Generate unique file name to avoid conflicts
     const timestamp = new Date().getTime();
     const fileExtension = file.name.split('.').pop();
     const fileName = `${timestamp}_${Math.random().toString(36).substring(2, 10)}.${fileExtension}`;
     const filePath = `${folder}/${fileName}`;
     
-    // Upload file to Supabase storage
     const { data, error } = await supabase.storage
       .from('media')
       .upload(filePath, file, {
@@ -92,7 +75,6 @@ export async function uploadMedia(
       throw error;
     }
     
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from('media')
       .getPublicUrl(filePath);
@@ -112,16 +94,11 @@ export async function uploadMedia(
   }
 }
 
-/**
- * Delete media from Supabase storage
- */
 export async function deleteMedia(url: string): Promise<boolean> {
   try {
-    // Extract file path from URL
     const urlObj = new URL(url);
     const path = urlObj.pathname.split('/').slice(2).join('/');
     
-    // Delete file from Supabase storage
     const { error } = await supabase.storage
       .from('media')
       .remove([path]);
@@ -138,24 +115,15 @@ export async function deleteMedia(url: string): Promise<boolean> {
   }
 }
 
-/**
- * Upload a file to Supabase storage
- * @param file The file to upload
- * @param bucket The storage bucket name
- * @param path Path within the bucket
- * @returns URL of the uploaded file or null if failed
- */
 export async function uploadFile(file: File, bucket: string, path: string): Promise<string | null> {
   console.log(`Attempting to upload file to bucket: ${bucket}, path: ${path}`);
   try {
-    // Generate a unique filename with timestamp and original extension
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
     const filePath = `${path}/${fileName}`;
     
     console.log(`Generated file path: ${filePath}`);
     
-    // Upload the file
     const { data, error } = await supabase
       .storage
       .from(bucket)
@@ -166,7 +134,6 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
       
     if (error) {
       console.error('Error uploading file:', error);
-      // Try with a fallback bucket if original fails and it's a profile or banner
       if (bucket === 'profile-pictures' || bucket === 'banners') {
         console.log(`Attempting upload to fallback bucket: tpaweb`);
         const fallbackResult = await supabase
@@ -182,7 +149,6 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
           return null;
         }
         
-        // Get public URL from fallback bucket
         const { data: fallbackUrlData } = supabase
           .storage
           .from('tpaweb')
@@ -195,7 +161,6 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
       return null;
     }
     
-    // Get the public URL of the file
     const { data: { publicUrl } } = supabase
       .storage
       .from(bucket)
@@ -209,32 +174,14 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
   }
 }
 
-/**
- * Upload a profile picture to Supabase storage
- * @param file The image file to upload
- * @param userId User ID to associate with the file
- * @returns URL of the uploaded profile picture or null if failed
- */
 export async function uploadProfilePicture(file: File, userId: string): Promise<string | null> {
   return uploadFile(file, 'profile-pictures', userId);
 }
 
-/**
- * Upload a banner image to Supabase storage
- * @param file The image file to upload
- * @param userId User ID to associate with the file
- * @returns URL of the uploaded banner or null if failed
- */
 export async function uploadBanner(file: File, userId: string): Promise<string | null> {
   return uploadFile(file, 'banners', userId);
 }
 
-/**
- * Delete a file from Supabase storage
- * @param bucket The storage bucket name
- * @param path Full path to the file within the bucket
- * @returns Boolean indicating success or failure
- */
 export async function deleteFile(bucket: string, path: string): Promise<boolean> {
   try {
     const { error } = await supabase
@@ -252,4 +199,4 @@ export async function deleteFile(bucket: string, path: string): Promise<boolean>
     console.error('Exception during file deletion:', err);
     return false;
   }
-} 
+}

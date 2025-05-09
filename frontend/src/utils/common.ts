@@ -5,11 +5,6 @@ import { createLoggerWithPrefix } from './logger';
 
 const logger = createLoggerWithPrefix('common-utils');
 
-/**
- * Format a timestamp as a relative time (e.g., "2h", "3d")
- * @param timestamp ISO string timestamp
- * @returns Formatted time string
- */
 export function formatTimeAgo(timestamp: string): string {
   try {
     const date = new Date(timestamp);
@@ -33,12 +28,6 @@ export function formatTimeAgo(timestamp: string): string {
   }
 }
 
-/**
- * Check if the user is authenticated, redirect to login if not
- * @param authState Current authentication state
- * @param featureName Name of the feature requiring authentication
- * @returns Boolean indicating if authenticated
- */
 export function checkAuth(authState: IAuthStore, featureName: string): boolean {
   if (!authState.isAuthenticated) {
     toastStore.showToast(`You need to log in to access ${featureName}`, 'warning');
@@ -48,12 +37,6 @@ export function checkAuth(authState: IAuthStore, featureName: string): boolean {
   return true;
 }
 
-/**
- * Check if a timestamp is within the last X milliseconds
- * @param timestamp ISO string timestamp
- * @param withinMs Milliseconds to check against (default 60000 = 1 minute)
- * @returns Boolean indicating if timestamp is within specified time
- */
 export function isWithinTime(timestamp: string, withinMs: number = 60000): boolean {
   try {
     const time = new Date(timestamp).getTime();
@@ -65,11 +48,6 @@ export function isWithinTime(timestamp: string, withinMs: number = 60000): boole
   }
 }
 
-/**
- * Generate a preview URL for a file
- * @param file File to generate preview for
- * @returns Object with URL and type
- */
 export function generateFilePreview(file: File): IMedia {
   const url = URL.createObjectURL(file);
   const type = file.type.startsWith('image/') ? 'image' : 
@@ -82,12 +60,6 @@ export function generateFilePreview(file: File): IMedia {
   };
 }
 
-/**
- * Process user metadata from tweet content field
- * Format: [USER:username@displayName]content
- * @param content Content string with potential user metadata
- * @returns Object with extracted username, displayName and cleaned content
- */
 export function processUserMetadata(content: string): { username?: string, displayName?: string, content: string } {
   if (!content) return { content: '' };
   
@@ -105,11 +77,6 @@ export function processUserMetadata(content: string): { username?: string, displ
   return { content };
 }
 
-/**
- * Safely handle API errors and return standardized error response
- * @param error Error object or unknown value
- * @returns Standardized error response
- */
 export function handleApiError(error: unknown): { success: false, message: string } {
   if (error instanceof Error) {
     if (error.name === 'AbortError') {
@@ -120,33 +87,23 @@ export function handleApiError(error: unknown): { success: false, message: strin
   return { success: false, message: 'An unexpected error occurred.' };
 }
 
-/**
- * Truncate text to specified length with ellipsis
- * @param text Text to truncate
- * @param maxLength Maximum length before truncation
- * @returns Truncated text
- */
 export function truncateText(text: string, maxLength: number = 100): string {
   if (!text || text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 }
 
-// Helper function to determine if a URL is a Supabase storage URL
 export function isSupabaseStorageUrl(url: string): boolean {
   const supabaseUrlPattern = /supabase\.co\/storage\/v1\/object\/public\//;
   return supabaseUrlPattern.test(url);
 }
 
-// Format Supabase storage URLs correctly for display
 export function formatStorageUrl(url: string | null): string {
   if (!url) return '';
   
-  // Return as-is if it's already a fully formed URL
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
   
-  // Construct the Supabase storage URL
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
   return `${supabaseUrl}/storage/v1/object/public/${url}`;
 } 

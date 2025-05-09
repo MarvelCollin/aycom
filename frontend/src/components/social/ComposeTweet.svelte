@@ -5,10 +5,12 @@
     BarChart2Icon, 
     SmileIcon, 
     MapPinIcon,
-    XIcon
+    XIcon,
+    ZapIcon
   } from 'svelte-feather-icons';
   import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
   import { getCategories } from '../../api/categories';
+  import { predictThreadCategory } from '../../api/ai';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { getAuthToken } from '../../utils/auth';
@@ -16,12 +18,11 @@
   import type { ITweet } from '../../interfaces/ISocialMedia';
   import { generateFilePreview, handleApiError } from '../../utils/common';
   
-  // Create a logger for this component
   const logger = createLoggerWithPrefix('ComposeTweet');
   
   export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   export let isDarkMode = false;
-  export let replyTo: ITweet | null = null; // Add proper typing for the tweet being replied to
+  export let replyTo: ITweet | null = null;
   
   let newTweet = '';
   let files: File[] = [];
@@ -31,31 +32,29 @@
   let isPosting = false;
   let errorMessage = '';
   let availableCategories: Array<{id: string, name: string}> = [];
+  let suggestedCategories: string[] = [];
+  let isLoadingSuggestions = false;
+  let showSuggestions = false;
   const maxWords = 280;
   
-  // Additional UI state for reply mode
   $: isReplyMode = replyTo !== null;
   $: modalTitle = isReplyMode ? 'Reply to Tweet' : 'New Post';
   
-  // Load available categories
   async function loadCategories() {
     try {
       const data = await getCategories();
       if (data.success) {
         availableCategories = data.categories;
       } else {
-        // Default categories already included in the API response
         availableCategories = data.categories;
       }
       
       logger.debug('Loaded categories', { count: availableCategories.length });
     } catch (error) {
       logger.error('Failed to load categories', { error });
-      // Fallback handled by the API
     }
   }
   
-  // Add a category to the selected list
   function addCategory(category: string) {
     if (!categories.includes(category) && category.trim()) {
       categories = [...categories, category.trim()];
@@ -64,13 +63,11 @@
     }
   }
   
-  // Remove a category from the selected list
   function removeCategory(category: string) {
     categories = categories.filter(c => c !== category);
     logger.debug('Removed category', { category, totalCategories: categories.length });
   }
   
-  // Handle category input keydown events
   function handleCategoryKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && categoryInput.trim()) {
       e.preventDefault();
@@ -90,22 +87,18 @@
     try {
       let response;
       
-      // Check if we're replying to a tweet or creating a new one
       if (isReplyMode && replyTo) {
-        // Prepare reply data
         const replyData = {
           content: newTweet,
           thread_id: replyTo.threadId || replyTo.id,
           parent_id: replyTo.id,
-          mentioned_user_ids: categories, // Use categories for mentions in replies
+          mentioned_user_ids: categories,
         };
         
         logger.debug('Posting reply with data:', replyData);
         
-        // Call the reply API
         response = await replyToThread(replyTo.id.toString(), replyData);
         
-        // Upload media if files are present
         if (files.length > 0 && response.id) {
           try {
             logger.debug(`Uploading ${files.length} media files for reply ${response.id}`);
@@ -118,7 +111,6 @@
         
         toastStore.showToast('Your reply was posted successfully', 'success');
       } else {
-        // Prepare thread data
         const data = {
           content: newTweet,
           hashtags: categories,
@@ -126,10 +118,8 @@
         
         logger.debug('Posting tweet with data:', data);
         
-        // Post to backend
         response = await createThread(data);
         
-        // Handle media uploads if present
         if (files.length > 0 && response.id) {
           try {
             logger.debug(`Uploading ${files.length} media files for thread ${response.id}`);
@@ -143,12 +133,10 @@
         toastStore.showToast('Your post was created successfully', 'success');
       }
       
-      // Clear form
       newTweet = '';
       files = [];
       categories = [];
       
-      // Notify parent
       dispatch('tweet', response);
     } catch (error) {
       logger.error('Error creating tweet/reply:', error);
@@ -169,7 +157,6 @@
     }
   }
 
-  // Preview files that have been added
   function getFilePreview(file: File) {
     return generateFilePreview(file);
   }
@@ -185,7 +172,6 @@
     dispatch('close'); 
   }
   
-  // Initialize component
   onMount(() => {
     loadCategories();
   });
@@ -199,6 +185,52 @@
         !categories.includes(c.name)
       )
     : [];
+
+  async function getSuggestedCategories() {
+    if (newTweet.trim().length < 10) {
+      return;
+    }
+
+    isLoadingSuggestions = true;
+    showSuggestions = true;
+    
+    try {
+      const result = await predictThreadCategory(newTweet);
+      
+      if (result.success) {
+        const threshold = 0.05;
+        suggestedCategories = Object.entries(result.all_categories)
+          .filter(([_, confidence]) => (confidence as number) >= threshold)
+          .map(([category]) => category)
+          .filter(category => !categories.includes(category));
+        
+        logger.debug('Got AI suggested categories', { count: suggestedCategories.length });
+      } else {
+        suggestedCategories = [];
+      }
+    } catch (error) {
+      logger.error('Failed to get AI suggested categories', { error });
+      suggestedCategories = [];
+    } finally {
+      isLoadingSuggestions = false;
+    }
+  }
+
+  function addSuggestedCategory(category: string) {
+    if (!categories.includes(category)) {
+      categories = [...categories, category];
+      suggestedCategories = suggestedCategories.filter(c => c !== category);
+      logger.debug('Added suggested category', { category });
+    }
+  }
+
+  let debounceTimeout: ReturnType<typeof setTimeout>;
+  $: {
+    if (newTweet && !isReplyMode) {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(getSuggestedCategories, 500);
+    }
+  }
 </script>
 
 <div class="modal-container">
@@ -301,9 +333,7 @@
             <div class="text-red-500 text-sm mb-3">{errorMessage}</div>
           {/if}
 
-          <!-- Categories Section -->
           <div class="mb-3">
-            <!-- Selected Categories -->
             {#if categories.length > 0}
               <div class="flex flex-wrap gap-2 mb-2">
                 {#each categories as category}
@@ -315,7 +345,6 @@
               </div>
             {/if}
             
-            <!-- Category Input with Autocomplete -->
             <div class="relative">
               <input 
                 type="text" 
@@ -339,9 +368,34 @@
                 </div>
               {/if}
             </div>
+            
+            {#if showSuggestions && suggestedCategories.length > 0}
+              <div class="mt-2">
+                <div class="flex items-center gap-1 mb-1">
+                  <ZapIcon size="14" color="#FBBF24" />
+                  <span class="text-xs {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">AI-suggested categories:</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#each suggestedCategories as category}
+                    <button 
+                      class="suggested-category-tag {isDarkMode ? 'suggested-category-tag-dark' : ''}"
+                      on:click={() => addSuggestedCategory(category)}
+                    >
+                      {category}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+            
+            {#if isLoadingSuggestions}
+              <div class="mt-2 flex items-center gap-1">
+                <div class="loading-spinner"></div>
+                <span class="text-xs {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Analyzing content...</span>
+              </div>
+            {/if}
           </div>
 
-          <!-- Reply Permission Setting -->
           <div class="mb-3">
             <select 
               bind:value={replyPermission} 
@@ -581,7 +635,6 @@
     color: #f3f4f6;
   }
 
-  /* Category Tags */
   .category-tag {
     display: inline-flex;
     align-items: center;
@@ -597,7 +650,6 @@
     color: #f3f4f6;
   }
   
-  /* Category Dropdown */
   .category-dropdown {
     position: absolute;
     top: 100%;
@@ -636,5 +688,47 @@
   
   .category-option-dark:hover {
     background-color: #374151;
+  }
+
+  .suggested-category-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #1f2937;
+    border: 1px dashed #3b82f6;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    margin-right: 0.25rem;
+    transition: all 0.2s ease;
+  }
+  
+  .suggested-category-tag:hover {
+    background-color: rgba(59, 130, 246, 0.25);
+    border-style: solid;
+  }
+  
+  .suggested-category-tag-dark {
+    background-color: rgba(96, 165, 250, 0.15);
+    color: #f3f4f6;
+    border-color: #60a5fa;
+  }
+  
+  .suggested-category-tag-dark:hover {
+    background-color: rgba(96, 165, 250, 0.25);
+  }
+  
+  .loading-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-radius: 50%;
+    border-top-color: #3b82f6;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>

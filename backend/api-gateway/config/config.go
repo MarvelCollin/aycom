@@ -44,6 +44,7 @@ type ServicesConfig struct {
 	UserService      string
 	ThreadService    string
 	CommunityService string
+	AIService        string
 }
 
 // RateLimitConfig holds rate limiting configuration
@@ -73,6 +74,8 @@ func LoadConfig() (*Config, error) {
 	threadServicePort := getEnv("THREAD_SERVICE_PORT", "9092")
 	communityServiceHost := getEnv("COMMUNITY_SERVICE_HOST", "localhost")
 	communityServicePort := getEnv("COMMUNITY_SERVICE_PORT", "9093")
+	aiServiceHost := getEnv("AI_SERVICE_HOST", "localhost")
+	aiServicePort := getEnv("AI_SERVICE_PORT", "5000")
 
 	cfg := &Config{
 		Server: ServerConfig{
@@ -92,6 +95,7 @@ func LoadConfig() (*Config, error) {
 			UserService:      fmt.Sprintf("%s:%s", userServiceHost, userServicePort),
 			ThreadService:    fmt.Sprintf("%s:%s", threadServiceHost, threadServicePort),
 			CommunityService: fmt.Sprintf("%s:%s", communityServiceHost, communityServicePort),
+			AIService:        fmt.Sprintf("%s:%s", aiServiceHost, aiServicePort),
 		},
 		RateLimit: RateLimitConfig{
 			Limit:    getInt64Env("RATE_LIMIT", 10),
@@ -204,6 +208,7 @@ func GetDefaultConfig() *Config {
 			UserService:      fmt.Sprintf("%s:%s", getEnv("USER_SERVICE_HOST", "localhost"), getEnv("USER_SERVICE_PORT", "50052")),
 			ThreadService:    fmt.Sprintf("%s:%s", getEnv("THREAD_SERVICE_HOST", "localhost"), getEnv("THREAD_SERVICE_PORT", "9092")),
 			CommunityService: fmt.Sprintf("%s:%s", getEnv("COMMUNITY_SERVICE_HOST", "localhost"), getEnv("COMMUNITY_SERVICE_PORT", "9093")),
+			AIService:        fmt.Sprintf("%s:%s", getEnv("AI_SERVICE_HOST", "localhost"), getEnv("AI_SERVICE_PORT", "5000")),
 		},
 		RateLimit: RateLimitConfig{
 			Limit:    100,

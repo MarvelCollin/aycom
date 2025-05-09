@@ -1,19 +1,15 @@
-/* First import the reset for a clean base */
 @import url("./src/reset.css");
 
-/* Core utilities */
 @import url("./src/colors.css");
 @import url("./src/typography.css");
 @import url("./src/spacing-sizing.css");
 @import url("./src/background-border.css");
 @import url("./src/utilities.css");
 
-/* Layout utilities */
 @import url("./src/layout-flex.css");
 @import url("./src/flexbox.css");
 @import url("./src/grid.css");
 
-/* Effects and animations */
 @import url("./src/filter-effect.css");
 @import url("./src/keyframes.css");
 @import url("./src/transform.css");
@@ -21,14 +17,11 @@
 @import url("./src/dark-mode.css");
 @import url("./src/responsive-layout.css");
 
-/* Interaction utilities */
 @import url("./src/interaction.css");
 
-/* Responsive utilities */
 @import url("./src/responsive.css");
 
 
-/* Base styles */
 :root {
   --color-primary: #3b82f6;
   --color-secondary: #6b7280;
@@ -39,7 +32,6 @@
   --color-light: #f3f4f6;
   --color-dark: #1f2937;
   
-  /* Light mode defaults */
   --bg-primary: #ffffff;
   --bg-secondary: #f3f4f6;
   --text-primary: #374151;
@@ -47,7 +39,6 @@
   --border-color: #e5e7eb;
 }
 
-/* Dark mode variables */
 .dark-mode, :root.dark {
   --bg-primary: #1f2937;
   --bg-secondary: #111827;
@@ -55,7 +46,6 @@
   --text-secondary: #e5e7eb;
   --border-color: #4b5563;
   
-  /* Extended dark theme variables */
   --dark-bg-surface: #1f2937;
   --dark-bg-surface-lighter: #374151;
   --dark-bg-surface-darker: #111827;
@@ -79,7 +69,6 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Background utilities */
 .bg-white {
   background-color: #ffffff;
 }
@@ -132,7 +121,6 @@ body {
   background-color: #2563eb;
 }
 
-/* Border utilities */
 .border-gray-200 {
   border-color: #e5e7eb;
 }
@@ -149,7 +137,6 @@ body {
   border-color: #1f2937;
 }
 
-/* Text utilities */
 .text-white {
   color: #ffffff;
 }
@@ -170,7 +157,6 @@ body {
   color: #4b5563;
 }
 
-/* Hover utilities */
 .hover\:bg-gray-100:hover {
   background-color: #f3f4f6;
 }
@@ -191,7 +177,6 @@ body {
   color: #000000;
 }
 
-/* Dark mode utilities */
 .dark\:bg-gray-800 {
   background-color: #1f2937;
 }
@@ -216,7 +201,6 @@ body {
   background-color: #1f2937;
 }
 
-/* Extended Dark Mode Background Variations */
 .dark\:bg-black\/80 {
   background-color: rgba(0, 0, 0, 0.8);
 }
@@ -257,7 +241,6 @@ body {
   background-color: rgba(23, 37, 84, 0.9);
 }
 
-/* Advanced Dark Mode Text Colors */
 .dark\:text-gray-50 {
   color: #f9fafb;
 }
@@ -286,7 +269,6 @@ body {
   color: #60a5fa;
 }
 
-/* Dark Mode Gradient Backgrounds */
 .dark\:bg-gradient-to-r-dark-blue {
   background: linear-gradient(to right, #0f172a, #1e3a8a);
 }
@@ -303,7 +285,6 @@ body {
   background: radial-gradient(circle at center, #1f2937, #111827);
 }
 
-/* Dark Mode Component Styles */
 .dark-card {
   background-color: #1f2937;
   border: 1px solid #374151;
@@ -349,7 +330,6 @@ body {
   border-top: 1px solid #1f2937;
 }
 
-/* Glass Morphism for Dark Mode */
 .dark-glass {
   background: rgba(31, 41, 55, 0.6);
   backdrop-filter: blur(12px);
@@ -364,7 +344,6 @@ body {
   border: 1px solid rgba(63, 63, 70, 0.4);
 }
 
-/* Dark Mode Shadow Variations */
 .dark\:shadow-md {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
 }
@@ -381,7 +360,6 @@ body {
   box-shadow: 0 4px 14px 0 rgba(29, 78, 216, 0.3);
 }
 
-/* Social Media App Specific Styles */
 .dark-tweet-card {
   background-color: #111827;
   border-bottom: 1px solid #1f2937;
@@ -431,7 +409,6 @@ body {
   font-weight: 700;
 }
 
-/* Custom Scrollbar for Dark Mode */
 .dark-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #4b5563 #1f2937;
@@ -450,7 +427,6 @@ body {
   border-radius: 20px;
 }
 
-/* Responsive Layout Utilities */
 .responsive-grid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
@@ -467,7 +443,7 @@ body {
   }
   
   .sm\: {
-    /* Small screen breakpoint */
+    
   }
 }
 
@@ -481,7 +457,7 @@ body {
   }
   
   .md\: {
-    /* Medium screen breakpoint */
+    
   }
 }
 
@@ -495,7 +471,7 @@ body {
   }
   
   .lg\: {
-    /* Large screen breakpoint */
+    
   }
 }
 
@@ -509,7 +485,7 @@ body {
   }
   
   .xl\: {
-    /* Extra large screen breakpoint */
+    
   }
 }
 
@@ -523,11 +499,10 @@ body {
   }
   
   .\2xl\: {
-    /* 2xl screen breakpoint */
+    
   }
 }
 
-/* Responsive Content Container */
 .content-container {
   width: 100%;
   padding-left: 1rem;
@@ -566,7 +541,6 @@ body {
   }
 }
 
-/* Social Media App Layout */
 .social-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -592,7 +566,6 @@ body {
   }
 }
 
-/* Responsive Visibility Classes */
 .hide-on-mobile {
   display: none;
 }

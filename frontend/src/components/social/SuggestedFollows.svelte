@@ -26,7 +26,6 @@
     }
   ];
   
-  // Format follower count for display
   function formatFollowerCount(count: number): string {
     if (count >= 1000000) {
       return (count / 1000000).toFixed(1) + 'M';
@@ -36,7 +35,6 @@
     return count.toString();
   }
   
-  // Toggle follow state (in a real app, this would call an API)
   function toggleFollow(index: number) {
     suggestedUsers = suggestedUsers.map((user, i) => {
       if (i === index) {

@@ -12,7 +12,6 @@
   
   export let showAllTrends = false;
   
-  // Display only 5 trends by default
   $: displayTrends = showAllTrends ? trends : trends.slice(0, 5);
 </script>
 
