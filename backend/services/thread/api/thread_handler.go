@@ -299,12 +299,34 @@ func (h *ThreadHandler) RemoveRepost(ctx context.Context, req *thread.RemoveRepo
 
 // BookmarkThread bookmarks a thread
 func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *thread.BookmarkThreadRequest) (*emptypb.Empty, error) {
+	log.Printf("API Handler: BookmarkThread called with userID=%s, threadID=%s", req.UserId, req.ThreadId)
+
+	// Validate request
+	if req.UserId == "" {
+		log.Printf("ERROR: BookmarkThread - Missing userID")
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	if req.ThreadId == "" {
+		log.Printf("ERROR: BookmarkThread - Missing threadID")
+		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
+
+	// Log metadata from context
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		for key, values := range md {
+			log.Printf("Context metadata: %s=%v", key, values)
+		}
+	}
+
 	// Call the interaction service to bookmark the thread
 	err := h.interactionService.BookmarkThread(ctx, req.UserId, req.ThreadId)
 	if err != nil {
+		log.Printf("ERROR: Failed to bookmark thread: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Successfully bookmarked thread %s for user %s at API handler level", req.ThreadId, req.UserId)
 	return &emptypb.Empty{}, nil
 }
 

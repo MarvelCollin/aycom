@@ -537,6 +537,32 @@
     }
   }
   
+  // Handle tweet bookmark - add bookmark to the backend
+  async function handleTweetBookmark(event: CustomEvent) {
+    const tweetId = event.detail;
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to bookmark posts', 'warning');
+      return;
+    }
+    logger.info('Bookmark tweet action', { tweetId });
+    
+    try {
+      await bookmarkThread(tweetId);
+      toastStore.showToast('Tweet bookmarked', 'success');
+      
+      // Update bookmarks count in the local state
+      bookmarkedTweets = bookmarkedTweets.map(tweet => {
+        if (tweet.id === tweetId) {
+          return { ...tweet, bookmarks: (tweet.bookmarks || 0) + 1, isBookmarked: true };
+        }
+        return tweet;
+      });
+    } catch (error) {
+      console.error('Error bookmarking tweet:', error);
+      toastStore.showToast('Failed to bookmark tweet', 'error');
+    }
+  }
+  
   // Load replies for a specific thread
   async function handleLoadReplies(event: CustomEvent) {
     const threadId = event.detail;
@@ -733,7 +759,7 @@
             on:unlike={handleTweetUnlike}
             on:repost={(e) => tweet.isReposted ? handleTweetUnrepost(e) : handleTweetRepost(e)}
             on:reply={handleTweetReply}
-            on:bookmark={() => {}}
+            on:bookmark={handleTweetBookmark}
             on:removeBookmark={handleTweetUnbookmark}
             on:loadReplies={handleLoadReplies}
           />

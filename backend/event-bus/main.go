@@ -17,13 +17,11 @@ import (
 )
 
 func main() {
-	// Load environment variables
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("Warning: .env file not found, using environment variables")
 	}
 
-	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
@@ -31,24 +29,20 @@ func main() {
 
 	fmt.Println("Event bus service starting...")
 
-	// Create publisher with connection management
 	pub, err := publisher.NewEventPublisher(cfg.RabbitMQURL)
 	if err != nil {
 		log.Printf("Warning: Initial connection to RabbitMQ failed: %v", err)
 		log.Println("The system will continue to attempt reconnection in the background")
 	}
 
-	// Make sure to close the publisher when the application exits
 	defer func() {
 		if err := pub.Close(); err != nil {
 			log.Printf("Error closing publisher: %v", err)
 		}
 	}()
 
-	// Initialize and start event handlers
 	var wg sync.WaitGroup
 
-	// Start user event handler
 	userHandler := handlers.NewUserEventHandler(pub)
 	wg.Add(1)
 	go func() {
@@ -59,7 +53,6 @@ func main() {
 		}
 	}()
 
-	// Start order event handler
 	orderHandler := handlers.NewOrderEventHandler(pub)
 	wg.Add(1)
 	go func() {
@@ -70,7 +63,6 @@ func main() {
 		}
 	}()
 
-	// Start product event handler
 	productHandler := handlers.NewProductEventHandler(pub)
 	wg.Add(1)
 	go func() {
@@ -83,14 +75,12 @@ func main() {
 
 	log.Println("Event bus service started successfully")
 
-	// Set up graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down event bus...")
 
-	// Give handlers time to finish ongoing processing
 	time.Sleep(5 * time.Second)
 
 	log.Println("Event bus stopped")

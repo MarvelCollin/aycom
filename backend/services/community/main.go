@@ -43,7 +43,6 @@ func main() {
 			log.Fatalf("Failed to run migrations: %v", err)
 		}
 
-		// Initialize repositories
 		communityRepo := repository.NewCommunityRepository(dbConn)
 		memberRepo := repository.NewCommunityMemberRepository(dbConn)
 		joinRequestRepo := repository.NewCommunityJoinRequestRepository(dbConn)
@@ -53,7 +52,6 @@ func main() {
 		participantRepo := repository.NewParticipantRepository(dbConn)
 		deletedChatRepo := repository.NewDeletedChatRepository(dbConn)
 
-		// Initialize the services
 		communityService := service.NewCommunityService(communityRepo, memberRepo, joinRequestRepo, ruleRepo)
 		chatService := service.NewChatService(
 			chatRepo,

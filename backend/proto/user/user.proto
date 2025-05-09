@@ -255,19 +255,21 @@ message RequestPasswordResetRequest {
 message RequestPasswordResetResponse {
   bool success = 1;
   string message = 2;
-  string security_question = 3; // User's security question if email exists and is not banned
+  string token = 3;
+  string expiry = 4;
 }
 
 // Request to verify a password reset token
 message VerifyResetTokenRequest {
   string token = 1;
+  string email = 2;
 }
 
 // Response for token verification
 message VerifyResetTokenResponse {
   bool valid = 1;
-  string email = 2; // User's email if token is valid
-  string message = 3;
+  string message = 2;
+  string email = 3;
 }
 
 // Request to verify security answer before password reset
@@ -280,14 +282,14 @@ message VerifySecurityAnswerRequest {
 message VerifySecurityAnswerResponse {
   bool success = 1;
   string message = 2;
-  string reset_token = 3; // Token to use for password reset if answer is correct
+  string token = 3;
 }
 
 // Request to reset password using a token
 message ResetPasswordRequest {
   string token = 1;
-  string new_password = 2;
-  string email = 3;      // Added for additional verification
+  string email = 2;
+  string new_password = 3;
 }
 
 // Response for password reset
@@ -301,7 +303,7 @@ message GetAllUsersRequest {
   int32 page = 1;     // Pagination - page number
   int32 limit = 2;    // Pagination - items per page
   string sort_by = 3; // Optional: field to sort by (e.g. "username", "created_at")
-  bool ascending = 4; // Optional: sort direction (true = ascending, false = descending)
+  bool sort_desc = 4; // Optional: sort direction (true = descending, false = ascending)
 }
 
 // Response containing all users
@@ -309,5 +311,5 @@ message GetAllUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
   int32 page = 3;
-  int32 total_pages = 4;
+  int32 limit = 4;
 } 

@@ -636,9 +636,11 @@ export async function bookmarkThread(threadId: string) {
     const token = getAuthToken();
     
     if (!token) {
-      console.error("No auth token available for bookmarking thread");
+      console.error("[API] No auth token available for bookmarking thread");
       throw new Error("Authentication required");
     }
+    
+    console.log(`[API] Sending bookmark request for thread: ${threadId}`);
     
     // Add retry logic with backoff
     let retries = 0;
@@ -646,58 +648,40 @@ export async function bookmarkThread(threadId: string) {
     
     while (retries <= maxRetries) {
       try {
-        const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+        const endpoint = `${API_BASE_URL}/threads/${threadId}/bookmark`;
+        console.log(`[API] Making request to: ${endpoint}`);
+        
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
-          },
-          credentials: "include",
+          }
         });
         
-        if (response.ok) {
-          return response.json();
+        console.log(`[API] Bookmark response status: ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[API] Bookmark error: ${errorText}`);
+          throw new Error(`Failed to bookmark thread: ${response.statusText} (${response.status})`);
         }
         
-        // Handle 409 Conflict (already bookmarked) as success
-        if (response.status === 409) {
-          console.log("Thread was already bookmarked, treating as success");
-          return { success: true, message: "Already bookmarked" };
+        console.log(`[API] Successfully bookmarked thread: ${threadId}`);
+        return true;
+      } catch (error: any) {
+        retries++;
+        if (retries > maxRetries) {
+          console.error(`[API] Final bookmark error (after ${maxRetries} retries):`, error);
+          throw error;
         }
-        
-        // If server error, try again
-        if (response.status >= 500 && retries < maxRetries) {
-          retries++;
-          // Wait before retrying (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        
-        // Handle error response
-        try {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || 
-            errorData.error?.message || 
-            `Failed to bookmark thread: ${response.status} ${response.statusText}`
-          );
-        } catch (parseError) {
-          throw new Error(`Failed to bookmark thread: ${response.status} ${response.statusText}`);
-        }
-      } catch (fetchError) {
-        // If network error and we can retry, do so
-        if (retries < maxRetries) {
-          retries++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        throw fetchError;
+        console.warn(`[API] Bookmark request failed, retrying (${retries}/${maxRetries}):`, error);
+        // Wait with exponential backoff
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries - 1)));
       }
     }
-    
-    throw new Error("Failed to bookmark thread after multiple attempts");
-  } catch (error) {
-    console.error("Error in bookmarkThread:", error);
+  } catch (error: any) {
+    console.error("[API] Error in bookmarkThread:", error);
     throw error;
   }
 }

@@ -729,11 +729,20 @@ func (c *GRPCThreadServiceClient) BookmarkThread(threadID, userID string) error 
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
 	}
 
+	log.Printf("Attempting to bookmark thread %s for user %s", threadID, userID)
+
 	_, err := c.client.BookmarkThread(ctx, &threadProto.BookmarkThreadRequest{
 		ThreadId: threadID,
 		UserId:   userID,
 	})
-	return err
+
+	if err != nil {
+		log.Printf("Error bookmarking thread: %v", err)
+		return err
+	}
+
+	log.Printf("Successfully bookmarked thread %s for user %s", threadID, userID)
+	return nil
 }
 
 // RemoveBookmark implements ThreadServiceClient
@@ -771,6 +780,43 @@ func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit in
 		"user_id": userID,
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	// Try to use the GetBookmarksByUser method which should be available in the thread service
+	bookmarksMethod := reflect.ValueOf(c.client).MethodByName("GetBookmarksByUser")
+	if bookmarksMethod.IsValid() {
+		// Set up arguments
+		ctxArg := reflect.ValueOf(ctx)
+		reqArg := reflect.New(bookmarksMethod.Type().In(1).Elem()).Interface()
+
+		// Set fields via reflection
+		reqVal := reflect.ValueOf(reqArg).Elem()
+		reqVal.FieldByName("UserId").SetString(userID)
+		reqVal.FieldByName("Page").SetInt(int64(page))
+		reqVal.FieldByName("Limit").SetInt(int64(limit))
+
+		// Invoke method
+		results := bookmarksMethod.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
+		if !results[1].IsNil() {
+			return nil, results[1].Interface().(error)
+		}
+
+		resp := results[0].Interface()
+		threadsResp := resp.(*threadProto.ThreadsResponse)
+
+		// Convert ThreadResponse objects to Thread structs
+		threads := make([]*Thread, len(threadsResp.Threads))
+		for i, t := range threadsResp.Threads {
+			thread := convertProtoToThread(t)
+			// Mark as bookmarked since these are bookmarks
+			thread.IsBookmarked = true
+			threads[i] = thread
+		}
+
+		log.Printf("Successfully retrieved %d bookmarks using GetBookmarksByUser", len(threads))
+		return threads, nil
+	}
+
+	log.Printf("GetBookmarksByUser method not found, falling back to original approach")
 
 	// Call the method using reflection since it might not be directly available
 	method := reflect.ValueOf(c.client).MethodByName("GetThreadsByUser")

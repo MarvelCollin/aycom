@@ -879,7 +879,7 @@
         >
           For you
         </button>
-        <button 
+      <button 
           class="flex-1 py-4 dark:bg-black text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
           on:click={() => handleTabChange('following')}
         >

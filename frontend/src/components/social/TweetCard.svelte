@@ -160,25 +160,29 @@
     }
 
     if (!processedTweet?.id) {
+      console.warn('Cannot bookmark - tweet ID is missing');
       return;
     }
 
-    console.log(`Bookmark action on tweet ${processedTweet.id}. Current bookmark state: ${isBookmarked}`);
+    console.log(`[TweetCard] Bookmark action on tweet ${processedTweet.id}. Current state: ${isBookmarked ? 'bookmarked' : 'not bookmarked'}`);
 
     const currentlyBookmarked = isBookmarked;
     
+    // Optimistically update UI state
     isBookmarked = !currentlyBookmarked;
     
     try {
       if (currentlyBookmarked) {
+        console.log(`[TweetCard] Dispatching removeBookmark event for tweet ${processedTweet.id}`);
         dispatch('removeBookmark', processedTweet.id);
       } else {
+        console.log(`[TweetCard] Dispatching bookmark event for tweet ${processedTweet.id}`);
         dispatch('bookmark', processedTweet.id);
       }
     } catch (error) {
-      console.error('Error processing bookmark action:', error);
+      console.error('[TweetCard] Error dispatching bookmark event:', error);
+      // Revert UI state if dispatch fails
       isBookmarked = currentlyBookmarked;
-      toastStore.showToast('Failed to process bookmark action', 'error');
     }
   }
 

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"errors"
+	"fmt"
+	"log"
 
 	"aycom/backend/services/thread/model"
 
@@ -233,13 +235,23 @@ func (r *PostgresInteractionRepository) CountThreadReposts(threadID string) (int
 
 // BookmarkThread adds a bookmark to a thread
 func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) error {
+	log.Printf("Repository BookmarkThread called with userID: %s, threadID: %s", userID, threadID)
+
+	// Check DB connection before proceeding
+	if err := r.CheckDBConnection(); err != nil {
+		log.Printf("ERROR: Database connection check failed before bookmarking: %v", err)
+		return fmt.Errorf("database connection error: %w", err)
+	}
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("ERROR: Invalid UUID format for user ID: %s - %v", userID, err)
 		return errors.New("invalid UUID format for user ID")
 	}
 
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
+		log.Printf("ERROR: Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
 	}
 
@@ -248,7 +260,38 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 		ThreadID: threadUUID,
 	}
 
-	return r.db.Create(&bookmark).Error
+	log.Printf("Creating bookmark in database for userID: %s, threadID: %s", userID, threadID)
+
+	// Start a transaction for better error handling
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("ERROR: Failed to begin transaction: %v", tx.Error)
+		return tx.Error
+	}
+
+	result := tx.Create(&bookmark)
+	if result.Error != nil {
+		tx.Rollback()
+		log.Printf("ERROR: Failed to create bookmark in database, rolling back: %v", result.Error)
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		log.Printf("WARNING: No rows affected when creating bookmark - possible constraint issue")
+		return errors.New("no rows affected when creating bookmark")
+	} else {
+		log.Printf("Successfully created bookmark in database: %d rows affected", result.RowsAffected)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("ERROR: Failed to commit transaction: %v", err)
+		return err
+	}
+
+	log.Printf("Transaction committed successfully for bookmark")
+	return nil
 }
 
 // RemoveBookmark removes a bookmark from a thread
@@ -420,4 +463,99 @@ func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, 
 	}
 
 	return threadIDs, nil
+}
+
+// inspectBookmarksTableSchema checks if the bookmarks table exists and logs its schema
+func (r *PostgresInteractionRepository) inspectBookmarksTableSchema() {
+	log.Println("Inspecting bookmarks table schema...")
+
+	// Check if table exists
+	var tableExists bool
+	r.db.Raw("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'bookmarks')").Scan(&tableExists)
+
+	if !tableExists {
+		log.Println("ERROR: bookmarks table does not exist!")
+		return
+	}
+
+	log.Println("bookmarks table exists, checking columns...")
+
+	// Get column information
+	type ColumnInfo struct {
+		ColumnName string
+		DataType   string
+		IsNullable string
+	}
+
+	var columns []ColumnInfo
+	r.db.Raw(`
+		SELECT column_name, data_type, is_nullable
+		FROM information_schema.columns
+		WHERE table_name = 'bookmarks'
+		ORDER BY ordinal_position
+	`).Scan(&columns)
+
+	for _, col := range columns {
+		log.Printf("Column: %s, Type: %s, Nullable: %s", col.ColumnName, col.DataType, col.IsNullable)
+	}
+
+	// Check primary key constraints
+	var primaryKey string
+	r.db.Raw(`
+		SELECT tc.constraint_name
+		FROM information_schema.table_constraints tc
+		WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = 'bookmarks'
+	`).Scan(&primaryKey)
+
+	if primaryKey == "" {
+		log.Println("WARNING: bookmarks table has no primary key constraint")
+	} else {
+		log.Printf("Primary key constraint: %s", primaryKey)
+	}
+
+	// Check unique constraints
+	var uniqueConstraints []string
+	r.db.Raw(`
+		SELECT tc.constraint_name
+		FROM information_schema.table_constraints tc
+		WHERE tc.constraint_type = 'UNIQUE' AND tc.table_name = 'bookmarks'
+	`).Scan(&uniqueConstraints)
+
+	if len(uniqueConstraints) == 0 {
+		log.Println("WARNING: bookmarks table has no unique constraints")
+	} else {
+		for _, uc := range uniqueConstraints {
+			log.Printf("Unique constraint: %s", uc)
+		}
+	}
+}
+
+// CheckDBConnection verifies that the database connection is working
+func (r *PostgresInteractionRepository) CheckDBConnection() error {
+	log.Println("Checking database connection...")
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		log.Printf("ERROR: Failed to get SQL DB from GORM: %v", err)
+		return err
+	}
+
+	err = sqlDB.Ping()
+	if err != nil {
+		log.Printf("ERROR: Database ping failed: %v", err)
+		return err
+	}
+
+	// Inspect bookmarks table schema
+	r.inspectBookmarksTableSchema()
+
+	// Try a simple query
+	var count int64
+	result := r.db.Table("bookmarks").Count(&count)
+	if result.Error != nil {
+		log.Printf("ERROR: Failed to execute count query on bookmarks table: %v", result.Error)
+		return result.Error
+	}
+
+	log.Printf("Database connection is healthy. Total bookmarks in database: %d", count)
+	return nil
 }

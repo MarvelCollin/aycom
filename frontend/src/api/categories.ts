@@ -5,6 +5,7 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CategoriesAPI');
 
+// Default categories for fallback
 const DEFAULT_CATEGORIES = [
   {"id": "technology", "name": "Technology"},
   {"id": "health", "name": "Health"},
@@ -19,6 +20,10 @@ const DEFAULT_CATEGORIES = [
   {"id": "other", "name": "Other"}
 ];
 
+/**
+ * Fetch available categories from the API
+ * @returns Array of category objects
+ */
 export async function getCategories() {
   try {
     logger.debug('Fetching categories from API');
@@ -28,6 +33,8 @@ export async function getCategories() {
       categories: DEFAULT_CATEGORIES
     };
     
+   
+    
   } catch (error) {
     logger.error('Failed to fetch categories:', error);
     
@@ -36,4 +43,4 @@ export async function getCategories() {
       categories: DEFAULT_CATEGORIES
     };
   }
-}
+} 
