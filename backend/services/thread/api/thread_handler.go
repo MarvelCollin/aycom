@@ -589,6 +589,34 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 			// Also set ViewCount for backward compatibility
 			protoThread.ViewCount = bookmarkCount
 		}
+
+		// Get metadata from context if available
+		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			// Check if user ID is in metadata
+			userIDs := md.Get("user_id")
+			if len(userIDs) > 0 {
+				userID := userIDs[0]
+
+				// Check if user has liked this thread
+				hasLiked, err := h.interactionService.HasUserLikedThread(ctx, userID, threadID)
+				if err == nil {
+					response.LikedByUser = hasLiked
+				}
+
+				// Check if user has reposted this thread
+				hasReposted, err := h.interactionService.HasUserReposted(ctx, userID, threadID)
+				if err == nil {
+					response.RepostedByUser = hasReposted
+				}
+
+				// Check if user has bookmarked this thread
+				hasBookmarked, err := h.interactionService.HasUserBookmarked(ctx, userID, threadID)
+				if err == nil {
+					response.BookmarkedByUser = hasBookmarked
+				}
+			}
+		}
 	}
 
 	// Fetch user information if available

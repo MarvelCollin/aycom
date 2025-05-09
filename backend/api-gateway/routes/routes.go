@@ -103,7 +103,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.POST("/:id/repost", handlers.RepostThread)
 		threads.DELETE("/:id/repost", handlers.RemoveRepost)
 		threads.POST("/:id/bookmark", handlers.BookmarkThread)
-		threads.DELETE("/:id/bookmark", handlers.RemoveThreadBookmark) // Changed to match renamed function
+		threads.DELETE("/:id/bookmark", handlers.RemoveBookmark)
 	}
 
 	// Reply routes - new group
@@ -191,6 +191,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		bookmarks.GET("", handlers.GetUserBookmarks)
 		bookmarks.GET("/search", handlers.SearchBookmarks)
+		bookmarks.DELETE("/:id", handlers.DeleteBookmarkById)
 	}
 
 	// Media routes - new group for general media upload

@@ -34,7 +34,7 @@ type InteractionService interface {
 	RemoveBookmark(ctx context.Context, userID, threadID string) error
 	HasUserBookmarked(ctx context.Context, userID, threadID string) (bool, error)
 	GetUserBookmarks(ctx context.Context, userID string, page, limit int) ([]*Thread, int64, error)
-	
+
 	// Reply bookmark operations
 	BookmarkReply(ctx context.Context, userID, replyID string) error
 	RemoveReplyBookmark(ctx context.Context, userID, replyID string) error
@@ -263,8 +263,9 @@ func (s *interactionService) BookmarkThread(ctx context.Context, userID, threadI
 		return status.Errorf(codes.Internal, "Failed to check if user has bookmarked thread: %v", err)
 	}
 
+	// If already bookmarked, just return success - this makes the API idempotent
 	if hasBookmarked {
-		return status.Error(codes.AlreadyExists, "User has already bookmarked this thread")
+		return nil // Return success instead of an error
 	}
 
 	// Add bookmark
@@ -287,8 +288,9 @@ func (s *interactionService) RemoveBookmark(ctx context.Context, userID, threadI
 		return status.Errorf(codes.Internal, "Failed to check if user has bookmarked thread: %v", err)
 	}
 
+	// If not bookmarked, just return success - this makes the API idempotent
 	if !hasBookmarked {
-		return status.Error(codes.NotFound, "User has not bookmarked this thread")
+		return nil // Return success instead of an error
 	}
 
 	// Remove bookmark

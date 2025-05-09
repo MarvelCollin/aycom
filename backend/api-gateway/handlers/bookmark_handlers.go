@@ -86,7 +86,7 @@ func GetUserBookmarks(c *gin.Context) {
 		}
 
 		// Add media if available
-		if thread.Media != nil && len(thread.Media) > 0 {
+		if len(thread.Media) > 0 {
 			media := make([]map[string]interface{}, len(thread.Media))
 			for j, m := range thread.Media {
 				media[j] = map[string]interface{}{
@@ -165,7 +165,7 @@ func SearchBookmarks(c *gin.Context) {
 // @Failure 401 {object} models.ErrorResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /api/v1/bookmarks/{id} [delete]
-func RemoveBookmark(c *gin.Context) {
+func DeleteBookmarkById(c *gin.Context) {
 	// Get current user ID from JWT token
 	_, exists := c.Get("userId")
 	if !exists {

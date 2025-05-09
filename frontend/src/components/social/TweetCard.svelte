@@ -180,21 +180,32 @@
       toastStore.showToast('Please log in to bookmark posts', 'info');
       return;
     }
-    
-    // Log current state for debugging
-    console.log(`Bookmark action on tweet ${processedTweet.id}. Current bookmark state: ${isBookmarked}`);
-    
-    // Dispatch different events based on current bookmark state
-    if (isBookmarked) {
-      console.log(`Removing bookmark for tweet ${processedTweet.id}`);
-      dispatch('removeBookmark', processedTweet.id);
-    } else {
-      console.log(`Adding bookmark for tweet ${processedTweet.id}`);
-      dispatch('bookmark', processedTweet.id);
+
+    if (!processedTweet?.id) {
+      return;
     }
+
+    console.log(`Bookmark action on tweet ${processedTweet.id}. Current bookmark state: ${isBookmarked}`);
+
+    // Get the current bookmark state and toggle it
+    const currentlyBookmarked = isBookmarked;
     
-    // Don't toggle state locally - let the parent component update state based on API response
-    // isBookmarked = !isBookmarked;
+    // Optimistically update the UI
+    isBookmarked = !currentlyBookmarked;
+    
+    try {
+      // Dispatch relevant event based on the previous state
+      if (currentlyBookmarked) {
+        dispatch('removeBookmark', processedTweet.id);
+      } else {
+        dispatch('bookmark', processedTweet.id);
+      }
+    } catch (error) {
+      // If there's an error in the event handling, revert the optimistic update
+      console.error('Error processing bookmark action:', error);
+      isBookmarked = currentlyBookmarked;
+      toastStore.showToast('Failed to process bookmark action', 'error');
+    }
   }
 
   function toggleReplies() {

@@ -822,188 +822,121 @@ func RemoveRepost(c *gin.Context) {
 	})
 }
 
-// BookmarkThread handles the API request to bookmark a thread
+// BookmarkThread adds a bookmark for a thread
 // @Summary Bookmark a thread
-// @Description Adds a bookmark for a thread
+// @Description Add a bookmark for a thread
 // @Tags Social
+// @Accept json
 // @Produce json
 // @Param id path string true "Thread ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /api/v1/threads/{id}/bookmark [post]
 func BookmarkThread(c *gin.Context) {
-	// Get user ID from token
-	userIDAny, exists := c.Get("userId")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
-		return
-	}
-
-	userID, ok := userIDAny.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
-		return
-	}
-
-	// Get thread ID from URL
+	// Get thread ID from path parameter
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+	// Get user ID from token
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
+	// Call thread service client
+	err := threadServiceClient.BookmarkThread(threadID, userID.(string))
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	_, err = client.BookmarkThread(ctx, &threadProto.BookmarkThreadRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
+	// Handle errors
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+		// Check for specific error types from the gRPC service
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
+				return
+			case codes.AlreadyExists:
+				// This is not truly an error - return success with a note
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "Thread was already bookmarked",
+				})
+				return
+			default:
+				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error bookmarking thread: %v", st.Message()))
+				return
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to bookmark thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
 		}
+
+		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error bookmarking thread")
 		return
 	}
 
+	// Return success
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread bookmarked successfully",
 	})
 }
 
-// RemoveThreadBookmark handles the API request to remove a bookmark
-// @Summary Remove a bookmark
-// @Description Removes a bookmark for a thread
+// RemoveBookmark removes a bookmark from a thread
+// @Summary Remove a thread bookmark
+// @Description Remove a bookmark from a thread
 // @Tags Social
+// @Accept json
 // @Produce json
 // @Param id path string true "Thread ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /api/v1/threads/{id}/bookmark [delete]
-func RemoveThreadBookmark(c *gin.Context) {
-	// Get user ID from token
-	userIDAny, exists := c.Get("userId")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
-		return
-	}
-
-	userID, ok := userIDAny.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
-		return
-	}
-
-	// Get thread ID from URL
+func RemoveBookmark(c *gin.Context) {
+	// Get thread ID from path parameter
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
 	}
 
-	// Get connection to thread service
-	conn, err := threadConnPool.Get()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+	// Get user ID from token
+	userID, exists := c.Get("userId")
+	if !exists {
+		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	// Create thread service client
-	client := threadProto.NewThreadServiceClient(conn)
+	// Call thread service client
+	err := threadServiceClient.RemoveBookmark(threadID, userID.(string))
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	// Call thread service
-	_, err = client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
+	// Handle errors
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+		// Check for specific error types from the gRPC service
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				// This is not truly an error for removing a bookmark - return success with a note
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "Thread was not bookmarked",
+				})
+				return
+			default:
+				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error removing bookmark: %v", st.Message()))
+				return
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to remove bookmark: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
 		}
+
+		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error removing bookmark")
 		return
 	}
 
+	// Return success
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Bookmark removed successfully",

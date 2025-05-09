@@ -398,6 +398,11 @@ func (c *GRPCThreadServiceClient) GetThreadByID(threadID string, userID string) 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Add user ID to the context metadata to pass to service for auth checks
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
+
 	resp, err := c.client.GetThreadById(ctx, &threadProto.GetThreadRequest{
 		ThreadId: threadID,
 		// Note: ThreadId is the only field in GetThreadRequest according to the proto
@@ -407,7 +412,14 @@ func (c *GRPCThreadServiceClient) GetThreadByID(threadID string, userID string) 
 	}
 
 	// Convert proto thread to Thread struct
-	return convertProtoToThread(resp.Thread), nil
+	thread := convertProtoToThread(resp.Thread)
+
+	// Set bookmarked status based on response
+	if resp.BookmarkedByUser {
+		thread.IsBookmarked = true
+	}
+
+	return thread, nil
 }
 
 // GetThreadsByUserID implements ThreadServiceClient
@@ -418,6 +430,11 @@ func (c *GRPCThreadServiceClient) GetThreadsByUserID(userID string, requestingUs
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Add requesting user ID to the context metadata to pass to service for auth checks
+	if requestingUserID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", requestingUserID)
+	}
 
 	resp, err := c.client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
 		UserId: userID,
@@ -445,6 +462,11 @@ func (c *GRPCThreadServiceClient) GetAllThreads(userID string, page, limit int) 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Add user ID to the context metadata to pass to service for auth checks
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
 
 	resp, err := c.client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
 		Page:  int32(page),
@@ -598,6 +620,11 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Add user ID to the context metadata to pass to service for auth checks
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
+
 	resp, err := c.client.GetRepliesByThread(ctx, &threadProto.GetRepliesByThreadRequest{
 		ThreadId: threadID,
 		Page:     int32(page),
@@ -649,6 +676,7 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 			LikeCount:      int(replyResp.LikesCount),
 			ReplyCount:     0, // Replies don't have nested replies in this implementation
 			IsLiked:        replyResp.LikedByUser,
+			IsBookmarked:   replyResp.BookmarkedByUser,
 			ParentID:       threadID,
 		}
 
@@ -709,6 +737,11 @@ func (c *GRPCThreadServiceClient) BookmarkThread(threadID, userID string) error 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Add user ID to the context metadata to pass to service for auth checks
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
+
 	_, err := c.client.BookmarkThread(ctx, &threadProto.BookmarkThreadRequest{
 		ThreadId: threadID,
 		UserId:   userID,
@@ -724,6 +757,11 @@ func (c *GRPCThreadServiceClient) RemoveBookmark(threadID, userID string) error 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Add user ID to the context metadata to pass to service for auth checks
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
 
 	_, err := c.client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
 		ThreadId: threadID,

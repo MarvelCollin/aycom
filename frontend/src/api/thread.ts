@@ -681,6 +681,12 @@ export async function bookmarkThread(threadId: string) {
           return response.json();
         }
         
+        // Handle 409 Conflict (already bookmarked) as success
+        if (response.status === 409) {
+          console.log("Thread was already bookmarked, treating as success");
+          return { success: true, message: "Already bookmarked" };
+        }
+        
         // If server error, try again
         if (response.status >= 500 && retries < maxRetries) {
           retries++;
@@ -760,6 +766,12 @@ export async function removeBookmark(threadId: string) {
             console.log("Empty response body from remove bookmark");
             return { success: true };
           }
+        }
+        
+        // Handle 404 Not Found (wasn't bookmarked) as success
+        if (response.status === 404) {
+          console.log("Thread wasn't bookmarked, treating as success");
+          return { success: true, message: "Wasn't bookmarked" };
         }
         
         // Try to get response text for better debugging

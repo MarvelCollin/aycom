@@ -75,7 +75,7 @@
     // navigateTo(`/explore/hashtags/${trend.title.replace('#', '')}`);
   }
 
-  // Directly fetch trending hashtags
+  // Fetch trending hashtags from API
   async function fetchTrendingHashtags() {
     isTrendsLoading = true;
     try {
@@ -104,18 +104,18 @@
         }));
         logger.debug(`Fetched ${trends.length} trends`);
       } else {
-        // Use hardcoded trends if API fails
-        useFallbackTrends();
+        logger.error('Invalid or empty trends data from API');
+        trends = [];
       }
     } catch (error) {
       logger.error('Error fetching trends:', error);
-      useFallbackTrends();
+      trends = [];
     } finally {
       isTrendsLoading = false;
     }
   }
   
-  // Directly fetch suggested users to follow
+  // Fetch suggested users to follow from API
   async function fetchSuggestedUsers() {
     isSuggestedFollowsLoading = true;
     try {
@@ -146,57 +146,15 @@
         }));
         logger.debug(`Fetched ${suggestedFollows.length} suggested users`);
       } else {
-        // Use hardcoded users if API fails
-        useFallbackUsers();
+        logger.error('Invalid or empty user data from API');
+        suggestedFollows = [];
       }
     } catch (error) {
       logger.error('Error fetching suggested users:', error);
-      useFallbackUsers();
+      suggestedFollows = [];
     } finally {
       isSuggestedFollowsLoading = false;
     }
-  }
-
-  // Fallback functions when API calls fail
-  function useFallbackTrends() {
-    trends = [
-      { id: 'trend-1', category: 'Technology', title: '#AI', postCount: '125K' },
-      { id: 'trend-2', category: 'Entertainment', title: '#Music', postCount: '98K' },
-      { id: 'trend-3', category: 'News', title: '#BreakingNews', postCount: '87K' },
-      { id: 'trend-4', category: 'Sports', title: '#Basketball', postCount: '76K' },
-      { id: 'trend-5', category: 'Politics', title: '#Election', postCount: '65K' }
-    ];
-    logger.debug('Using fallback trends');
-  }
-  
-  function useFallbackUsers() {
-    suggestedFollows = [
-      { 
-        username: 'tech_insider', 
-        displayName: 'Tech Insider', 
-        avatar: 'https://i.pravatar.cc/150?u=tech_insider', 
-        verified: true,
-        followerCount: 1240000,
-        isFollowing: false
-      },
-      { 
-        username: 'travel_adventures', 
-        displayName: 'Travel Adventures', 
-        avatar: 'https://i.pravatar.cc/150?u=travel_adventures', 
-        verified: true,
-        followerCount: 890000,
-        isFollowing: false
-      },
-      { 
-        username: 'photo_daily', 
-        displayName: 'Photography Daily', 
-        avatar: 'https://i.pravatar.cc/150?u=photo_daily', 
-        verified: false,
-        followerCount: 625000,
-        isFollowing: false
-      }
-    ];
-    logger.debug('Using fallback users');
   }
 
   // Fetch data on component mount
