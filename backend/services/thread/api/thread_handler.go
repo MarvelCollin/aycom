@@ -528,6 +528,142 @@ func (h *ThreadHandler) GetRepliesByParentReply(ctx context.Context, req *thread
 	}, nil
 }
 
+// GetRepliesByUser retrieves replies created by a user with pagination
+func (h *ThreadHandler) GetRepliesByUser(ctx context.Context, req *thread.GetRepliesByUserRequest) (*thread.RepliesResponse, error) {
+	// Validate required fields
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Get pagination parameters
+	page := 1
+	limit := 20
+	if req.Page > 0 {
+		page = int(req.Page)
+	}
+	if req.Limit > 0 && req.Limit <= 100 {
+		limit = int(req.Limit)
+	}
+
+	// Get replies by user from service
+	replies, err := h.replyService.GetRepliesByUserID(ctx, req.UserId, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert replies to response format
+	replyResponses := make([]*thread.ReplyResponse, 0, len(replies))
+	for _, reply := range replies {
+		response, err := h.convertReplyToResponse(ctx, reply)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
+		}
+		replyResponses = append(replyResponses, response)
+	}
+
+	return &thread.RepliesResponse{
+		Replies: replyResponses,
+		Total:   int32(len(replies)),
+	}, nil
+}
+
+// GetLikedThreadsByUser retrieves threads liked by a user with pagination
+func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.GetLikedThreadsByUserRequest) (*thread.ThreadsResponse, error) {
+	// Validate required fields
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Get pagination parameters
+	page := 1
+	limit := 20
+	if req.Page > 0 {
+		page = int(req.Page)
+	}
+	if req.Limit > 0 && req.Limit <= 100 {
+		limit = int(req.Limit)
+	}
+
+	// Get liked thread IDs from the interaction service
+	threadIDs, err := h.interactionService.GetLikedThreadsByUserID(ctx, req.UserId, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the actual threads using the IDs
+	threadResponses := make([]*thread.ThreadResponse, 0, len(threadIDs))
+	for _, id := range threadIDs {
+		// Get full thread details
+		t, err := h.threadService.GetThreadByID(ctx, id)
+		if err != nil {
+			log.Printf("Failed to get thread %s: %v", id, err)
+			continue // Skip this thread if there's an error
+		}
+
+		// Convert to response
+		response, err := h.convertThreadToResponse(ctx, t)
+		if err != nil {
+			log.Printf("Failed to convert thread %s to response: %v", id, err)
+			continue
+		}
+
+		// Mark as liked since we know the user liked it
+		response.LikedByUser = true
+		threadResponses = append(threadResponses, response)
+	}
+
+	return &thread.ThreadsResponse{
+		Threads: threadResponses,
+		Total:   int32(len(threadResponses)),
+	}, nil
+}
+
+// GetMediaByUser retrieves media from a user's threads and replies with pagination
+func (h *ThreadHandler) GetMediaByUser(ctx context.Context, req *thread.GetMediaByUserRequest) (*thread.GetMediaByUserResponse, error) {
+	// Validate required fields
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Get pagination parameters
+	page := 1
+	limit := 20
+	if req.Page > 0 {
+		page = int(req.Page)
+	}
+	if req.Limit > 0 && req.Limit <= 100 {
+		limit = int(req.Limit)
+	}
+
+	// Get media from the thread service
+	mediaItems, err := h.threadService.GetMediaByUserID(ctx, req.UserId, page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to response format
+	mediaResponses := make([]*thread.MediaItem, 0, len(mediaItems))
+	for _, m := range mediaItems {
+		threadID := ""
+		if m.ThreadID != nil {
+			threadID = m.ThreadID.String()
+		}
+
+		mediaResponses = append(mediaResponses, &thread.MediaItem{
+			Id:        m.MediaID.String(),
+			Url:       m.URL,
+			Type:      m.Type,
+			ThreadId:  threadID,
+			CreatedAt: timestamppb.New(m.CreatedAt),
+		})
+	}
+
+	return &thread.GetMediaByUserResponse{
+		Media: mediaResponses,
+		Total: int32(len(mediaResponses)),
+	}, nil
+}
+
 // Helper function to convert a Thread model to a ThreadResponse proto
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {
 	// Create the nested Thread structure

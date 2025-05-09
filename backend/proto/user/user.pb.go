@@ -1621,6 +1621,446 @@ func (x *GetRecommendedUsersResponse) GetUsers() []*User {
 	return nil
 }
 
+// Request for password reset
+type RequestPasswordResetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPasswordResetRequest) Reset() {
+	*x = RequestPasswordResetRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPasswordResetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPasswordResetRequest) ProtoMessage() {}
+
+func (x *RequestPasswordResetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPasswordResetRequest.ProtoReflect.Descriptor instead.
+func (*RequestPasswordResetRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *RequestPasswordResetRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+// Response for password reset request
+type RequestPasswordResetResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Success          bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message          string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	SecurityQuestion string                 `protobuf:"bytes,3,opt,name=security_question,json=securityQuestion,proto3" json:"security_question,omitempty"` // User's security question if email exists and is not banned
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RequestPasswordResetResponse) Reset() {
+	*x = RequestPasswordResetResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPasswordResetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPasswordResetResponse) ProtoMessage() {}
+
+func (x *RequestPasswordResetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPasswordResetResponse.ProtoReflect.Descriptor instead.
+func (*RequestPasswordResetResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RequestPasswordResetResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RequestPasswordResetResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *RequestPasswordResetResponse) GetSecurityQuestion() string {
+	if x != nil {
+		return x.SecurityQuestion
+	}
+	return ""
+}
+
+// Request to verify a password reset token
+type VerifyResetTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyResetTokenRequest) Reset() {
+	*x = VerifyResetTokenRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyResetTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyResetTokenRequest) ProtoMessage() {}
+
+func (x *VerifyResetTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyResetTokenRequest.ProtoReflect.Descriptor instead.
+func (*VerifyResetTokenRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *VerifyResetTokenRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+// Response for token verification
+type VerifyResetTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"` // User's email if token is valid
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyResetTokenResponse) Reset() {
+	*x = VerifyResetTokenResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyResetTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyResetTokenResponse) ProtoMessage() {}
+
+func (x *VerifyResetTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyResetTokenResponse.ProtoReflect.Descriptor instead.
+func (*VerifyResetTokenResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *VerifyResetTokenResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *VerifyResetTokenResponse) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *VerifyResetTokenResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Request to verify security answer before password reset
+type VerifySecurityAnswerRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Email          string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	SecurityAnswer string                 `protobuf:"bytes,2,opt,name=security_answer,json=securityAnswer,proto3" json:"security_answer,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *VerifySecurityAnswerRequest) Reset() {
+	*x = VerifySecurityAnswerRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifySecurityAnswerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifySecurityAnswerRequest) ProtoMessage() {}
+
+func (x *VerifySecurityAnswerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifySecurityAnswerRequest.ProtoReflect.Descriptor instead.
+func (*VerifySecurityAnswerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *VerifySecurityAnswerRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *VerifySecurityAnswerRequest) GetSecurityAnswer() string {
+	if x != nil {
+		return x.SecurityAnswer
+	}
+	return ""
+}
+
+// Response for security answer verification
+type VerifySecurityAnswerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	ResetToken    string                 `protobuf:"bytes,3,opt,name=reset_token,json=resetToken,proto3" json:"reset_token,omitempty"` // Token to use for password reset if answer is correct
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifySecurityAnswerResponse) Reset() {
+	*x = VerifySecurityAnswerResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifySecurityAnswerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifySecurityAnswerResponse) ProtoMessage() {}
+
+func (x *VerifySecurityAnswerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifySecurityAnswerResponse.ProtoReflect.Descriptor instead.
+func (*VerifySecurityAnswerResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *VerifySecurityAnswerResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *VerifySecurityAnswerResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *VerifySecurityAnswerResponse) GetResetToken() string {
+	if x != nil {
+		return x.ResetToken
+	}
+	return ""
+}
+
+// Request to reset password using a token
+type ResetPasswordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	NewPassword   string                 `protobuf:"bytes,2,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"` // Added for additional verification
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetPasswordRequest) Reset() {
+	*x = ResetPasswordRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPasswordRequest) ProtoMessage() {}
+
+func (x *ResetPasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPasswordRequest.ProtoReflect.Descriptor instead.
+func (*ResetPasswordRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ResetPasswordRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *ResetPasswordRequest) GetNewPassword() string {
+	if x != nil {
+		return x.NewPassword
+	}
+	return ""
+}
+
+func (x *ResetPasswordRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+// Response for password reset
+type ResetPasswordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetPasswordResponse) Reset() {
+	*x = ResetPasswordResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPasswordResponse) ProtoMessage() {}
+
+func (x *ResetPasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPasswordResponse.ProtoReflect.Descriptor instead.
+func (*ResetPasswordResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ResetPasswordResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ResetPasswordResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -1752,7 +2192,35 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\"?\n" +
 	"\x1bGetRecommendedUsersResponse\x12 \n" +
 	"\x05users\x18\x01 \x03(\v2\n" +
-	".user.UserR\x05users2\xda\a\n" +
+	".user.UserR\x05users\"3\n" +
+	"\x1bRequestPasswordResetRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\"\x7f\n" +
+	"\x1cRequestPasswordResetResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12+\n" +
+	"\x11security_question\x18\x03 \x01(\tR\x10securityQuestion\"/\n" +
+	"\x17VerifyResetTokenRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"`\n" +
+	"\x18VerifyResetTokenResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\\\n" +
+	"\x1bVerifySecurityAnswerRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12'\n" +
+	"\x0fsecurity_answer\x18\x02 \x01(\tR\x0esecurityAnswer\"s\n" +
+	"\x1cVerifySecurityAnswerResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1f\n" +
+	"\vreset_token\x18\x03 \x01(\tR\n" +
+	"resetToken\"e\n" +
+	"\x14ResetPasswordRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12!\n" +
+	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\"K\n" +
+	"\x15ResetPasswordResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xbd\n" +
+	"\n" +
 	"\vUserService\x128\n" +
 	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
 	"\n" +
@@ -1770,7 +2238,11 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\fGetFollowers\x12\x19.user.GetFollowersRequest\x1a\x1a.user.GetFollowersResponse\"\x00\x12G\n" +
 	"\fGetFollowing\x12\x19.user.GetFollowingRequest\x1a\x1a.user.GetFollowingResponse\"\x00\x12D\n" +
 	"\vSearchUsers\x12\x18.user.SearchUsersRequest\x1a\x19.user.SearchUsersResponse\"\x00\x12\\\n" +
-	"\x13GetRecommendedUsers\x12 .user.GetRecommendedUsersRequest\x1a!.user.GetRecommendedUsersResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
+	"\x13GetRecommendedUsers\x12 .user.GetRecommendedUsersRequest\x1a!.user.GetRecommendedUsersResponse\"\x00\x12_\n" +
+	"\x14RequestPasswordReset\x12!.user.RequestPasswordResetRequest\x1a\".user.RequestPasswordResetResponse\"\x00\x12S\n" +
+	"\x10VerifyResetToken\x12\x1d.user.VerifyResetTokenRequest\x1a\x1e.user.VerifyResetTokenResponse\"\x00\x12J\n" +
+	"\rResetPassword\x12\x1a.user.ResetPasswordRequest\x1a\x1b.user.ResetPasswordResponse\"\x00\x12_\n" +
+	"\x14VerifySecurityAnswer\x12!.user.VerifySecurityAnswerRequest\x1a\".user.VerifySecurityAnswerResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -1784,7 +2256,7 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_proto_user_user_proto_goTypes = []any{
 	(*User)(nil),                                 // 0: user.User
 	(*GetUserRequest)(nil),                       // 1: user.GetUserRequest
@@ -1813,6 +2285,14 @@ var file_proto_user_user_proto_goTypes = []any{
 	(*SearchUsersResponse)(nil),                  // 24: user.SearchUsersResponse
 	(*GetRecommendedUsersRequest)(nil),           // 25: user.GetRecommendedUsersRequest
 	(*GetRecommendedUsersResponse)(nil),          // 26: user.GetRecommendedUsersResponse
+	(*RequestPasswordResetRequest)(nil),          // 27: user.RequestPasswordResetRequest
+	(*RequestPasswordResetResponse)(nil),         // 28: user.RequestPasswordResetResponse
+	(*VerifyResetTokenRequest)(nil),              // 29: user.VerifyResetTokenRequest
+	(*VerifyResetTokenResponse)(nil),             // 30: user.VerifyResetTokenResponse
+	(*VerifySecurityAnswerRequest)(nil),          // 31: user.VerifySecurityAnswerRequest
+	(*VerifySecurityAnswerResponse)(nil),         // 32: user.VerifySecurityAnswerResponse
+	(*ResetPasswordRequest)(nil),                 // 33: user.ResetPasswordRequest
+	(*ResetPasswordResponse)(nil),                // 34: user.ResetPasswordResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 0: user.GetUserResponse.user:type_name -> user.User
@@ -1839,21 +2319,29 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	21, // 21: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
 	23, // 22: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
 	25, // 23: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
-	2,  // 24: user.UserService.GetUser:output_type -> user.GetUserResponse
-	4,  // 25: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 26: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	8,  // 27: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	10, // 28: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
-	12, // 29: user.UserService.LoginUser:output_type -> user.LoginUserResponse
-	14, // 30: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
-	16, // 31: user.UserService.FollowUser:output_type -> user.FollowUserResponse
-	18, // 32: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
-	20, // 33: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
-	22, // 34: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
-	24, // 35: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
-	26, // 36: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
-	24, // [24:37] is the sub-list for method output_type
-	11, // [11:24] is the sub-list for method input_type
+	27, // 24: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
+	29, // 25: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
+	33, // 26: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
+	31, // 27: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
+	2,  // 28: user.UserService.GetUser:output_type -> user.GetUserResponse
+	4,  // 29: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	6,  // 30: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
+	8,  // 31: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	10, // 32: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
+	12, // 33: user.UserService.LoginUser:output_type -> user.LoginUserResponse
+	14, // 34: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
+	16, // 35: user.UserService.FollowUser:output_type -> user.FollowUserResponse
+	18, // 36: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
+	20, // 37: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
+	22, // 38: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
+	24, // 39: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
+	26, // 40: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
+	28, // 41: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
+	30, // 42: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
+	34, // 43: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
+	32, // 44: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
+	28, // [28:45] is the sub-list for method output_type
+	11, // [11:28] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
 	11, // [11:11] is the sub-list for extension extendee
 	0,  // [0:11] is the sub-list for field type_name
@@ -1870,7 +2358,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -23,6 +23,7 @@ type ThreadService interface {
 	GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error)
 	UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*model.Thread, error)
 	DeleteThread(ctx context.Context, threadID, userID string) error
+	GetMediaByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Media, error)
 
 	// Pinning operations
 	PinThread(ctx context.Context, threadID, userID string) error
@@ -531,4 +532,27 @@ func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) 
 	}
 
 	return nil
+}
+
+// GetMediaByUserID retrieves media for a specific user with pagination
+func (s *threadService) GetMediaByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Media, error) {
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Default pagination values if not provided
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Get media from repository
+	media, err := s.mediaRepo.FindMediaByUserID(userID, page, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve user media: %v", err)
+	}
+
+	return media, nil
 }

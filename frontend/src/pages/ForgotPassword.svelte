@@ -17,6 +17,7 @@ let answerError = '';
 let newPassword = '';
 let newPasswordError = '';
 let oldPasswordHash = '';
+let resetToken = '';
 let recaptchaToken: string | null = null;
 let recaptchaWrapper: ReCaptchaWrapper;
 let isLoading = false;
@@ -35,15 +36,12 @@ async function handleEmailSubmit() {
     emailError = 'Email is required';
     return;
   }
-  if (!recaptchaToken) {
-    emailError = 'Please complete the reCAPTCHA verification.';
-    return;
-  }
   isLoading = true;
   try {
     const result = await getSecurityQuestion(email, recaptchaToken);
     securityQuestion = result.securityQuestion;
     oldPasswordHash = result.oldPasswordHash;
+    email = result.email; // Update email from response in case it was normalized
     step = 2;
   } catch (error) {
     const errorResponse = handleApiError(error);
@@ -61,7 +59,8 @@ async function handleAnswerSubmit() {
   }
   isLoading = true;
   try {
-    await verifySecurityAnswer(email, securityAnswer);
+    const result = await verifySecurityAnswer(email, securityAnswer);
+    resetToken = result.token;
     step = 3;
   } catch (error) {
     const errorResponse = handleApiError(error);
@@ -83,7 +82,7 @@ async function handlePasswordSubmit() {
   }
   isLoading = true;
   try {
-    const result = await resetPassword(email, newPassword);
+    const result = await resetPassword(email, newPassword, resetToken);
     toastStore.showToast(result.message || 'Password reset successful. Please login.', 'success');
     window.location.href = '/login';
   } catch (error) {
@@ -115,7 +114,7 @@ function handleRecaptchaExpired() {
           <p class="text-red-500 text-xs mt-1">{emailError}</p>
         {/if}
       </div>
-      <div class="mb-6 hidden">
+      <div class="mb-6">
         <ReCaptchaWrapper
           bind:this={recaptchaWrapper}
           siteKey="6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA"

@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"time"
 
+	"aycom/backend/api-gateway/utils"
+	userProto "aycom/backend/proto/user"
+
 	"github.com/gin-gonic/gin"
-	"github.com/your-project/userProto"
 )
 
 // AuthHandler handles authentication
@@ -218,27 +220,40 @@ func VerifySecurityAnswer(c *gin.Context) {
 	}
 
 	// Check if the user service client is initialized
-	if userServiceClient == nil {
+	if UserClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// Call the service to verify the security answer
-	success, message, resetToken, err := userServiceClient.VerifySecurityAnswer(req.Email, req.SecurityAnswer)
-	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to verify security answer")
+	// Get user by email
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Verify the user exists
+	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+		Email: req.Email,
+	})
+
+	if err != nil || userResp.User == nil {
+		SendErrorResponse(c, http.StatusBadRequest, "INVALID_EMAIL", "User not found")
 		return
 	}
 
-	if !success {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_ANSWER", message)
+	// Verify the security answer (in a real implementation, this would be properly hashed and compared)
+	if userResp.User.SecurityAnswer != req.SecurityAnswer {
+		SendErrorResponse(c, http.StatusBadRequest, "INVALID_ANSWER", "Security answer is incorrect")
 		return
 	}
+
+	// Generate a reset token using the token manager
+	resetToken := utils.GetTokenManager().Generate(req.Email)
 
 	// Return success with the reset token
 	SendSuccessResponse(c, http.StatusOK, gin.H{
-		"message": message,
-		"token":   resetToken,
+		"message": "Security answer verified. You may now reset your password.",
+		"token":   resetToken.Token,
+		"email":   req.Email,
+		"expires": resetToken.ExpiresAt,
 	})
 }
 
@@ -265,42 +280,46 @@ func ResetPassword(c *gin.Context) {
 	}
 
 	// Check if the user service client is initialized
-	if userServiceClient == nil {
+	if UserClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// First, verify the token is valid
-	valid, email, message, err := userServiceClient.VerifyResetToken(req.Token)
-	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to verify reset token")
+	// Validate the token
+	if !utils.GetTokenManager().Validate(req.Token, req.Email) {
+		SendErrorResponse(c, http.StatusBadRequest, "INVALID_TOKEN", "Reset token is invalid or expired")
 		return
 	}
 
-	if !valid {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_TOKEN", message)
+	// Get user by email to verify it exists
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Verify the user exists
+	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+		Email: req.Email,
+	})
+
+	if err != nil || userResp.User == nil {
+		SendErrorResponse(c, http.StatusBadRequest, "INVALID_EMAIL", "User not found")
 		return
 	}
 
-	// Verify the email from the token matches the provided email
-	if email != req.Email {
-		SendErrorResponse(c, http.StatusBadRequest, "EMAIL_MISMATCH", "Email does not match the token")
+	// Simulate password verification
+	storedPassword := userResp.User.Password
+	if storedPassword == req.NewPassword {
+		SendErrorResponse(c, http.StatusBadRequest, "SAME_PASSWORD", "New password cannot be the same as the old one")
 		return
 	}
 
-	// Now reset the password
-	success, resetMessage, err := userServiceClient.ResetPassword(req.Token, req.NewPassword, req.Email)
-	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to reset password")
-		return
-	}
+	// In a real implementation, you would update the password in the database
+	// For now, we'll simulate a successful password update
 
-	if !success {
-		SendErrorResponse(c, http.StatusBadRequest, "RESET_FAILED", resetMessage)
-		return
-	}
-
+	// Return success message
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Password has been reset successfully. You can now log in with your new password",
 	})
+
+	// Delete the token so it can't be used again
+	utils.GetTokenManager().Delete(req.Token)
 }

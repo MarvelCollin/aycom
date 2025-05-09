@@ -55,6 +55,34 @@
   let repliesMap = new Map();
   let nestedRepliesMap = new Map(); // For storing replies to replies
 
+  // State for search functionality
+  let searchQuery = '';
+  let filteredBookmarks: ITweet[] = [];
+  
+  // Filter bookmarks based on search query
+  $: {
+    if (searchQuery.trim() === '') {
+      filteredBookmarks = bookmarkedTweets;
+    } else {
+      const query = searchQuery.toLowerCase();
+      filteredBookmarks = bookmarkedTweets.filter(tweet => 
+        tweet.content.toLowerCase().includes(query) || 
+        tweet.username.toLowerCase().includes(query) || 
+        tweet.displayName.toLowerCase().includes(query)
+      );
+    }
+  }
+  
+  // Function to handle search input change
+  function handleSearchInput(event: Event) {
+    searchQuery = (event.target as HTMLInputElement).value;
+  }
+
+  // Clear search query
+  function clearSearch() {
+    searchQuery = '';
+  }
+
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
     // Check if we have debugging enabled
@@ -614,6 +642,32 @@
       <div class="p-4">
         <h1 class="text-xl font-bold">Bookmarks</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400">Your saved tweets</p>
+        
+        <!-- Search bar -->
+        <div class="mt-3 relative">
+          <input
+            type="text"
+            placeholder="Search bookmarks..."
+            value={searchQuery}
+            on:input={handleSearchInput}
+            class="w-full px-4 py-2 pl-10 border rounded-full {isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-gray-100 border-gray-200 text-gray-800 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div class="absolute left-3 top-2.5 text-gray-500">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          {#if searchQuery}
+            <button 
+              class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              on:click={clearSearch}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
     
@@ -658,9 +712,20 @@
             Explore Content
           </a>
         </div>
+      <!-- Search query with no results -->
+      {:else if searchQuery && filteredBookmarks.length === 0}
+        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+          <p class="mb-4">No bookmarks match your search</p>
+          <button 
+            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+            on:click={clearSearch}
+          >
+            Clear Search
+          </button>
+        </div>
       <!-- Bookmarked tweets list -->
       {:else}
-        {#each bookmarkedTweets as tweet (tweet.id)}
+        {#each filteredBookmarks as tweet (tweet.id)}
           <TweetCard 
             {tweet}
             {isDarkMode}
@@ -688,8 +753,8 @@
           <div class="flex justify-center items-center p-4">
             <div class="h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
           </div>
-        <!-- Load more button -->
-        {:else if hasMore}
+        <!-- Load more button - only show when no search is active -->
+        {:else if hasMore && !searchQuery}
           <div class="p-4 text-center">
             <button 
               class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 

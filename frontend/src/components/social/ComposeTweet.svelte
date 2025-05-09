@@ -196,8 +196,8 @@
     
     try {
       // Add a timeout to prevent UI hanging if the AI service is slow
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('AI suggestion timeout')), 8000)
+      const timeoutPromise = new Promise<any>((_, reject) => 
+        setTimeout(() => reject(new Error('AI suggestion timeout')), 10000)
       );
       
       const resultPromise = predictThreadCategory(newTweet);
@@ -205,7 +205,7 @@
       // Race between the actual API call and timeout
       const result = await Promise.race([resultPromise, timeoutPromise]);
       
-      if (result.success) {
+      if (result.success && result.all_categories && Object.keys(result.all_categories).length > 0) {
         // Always select the highest confidence category
         const sortedCategories = Object.entries(result.all_categories)
           .sort((a, b) => (b[1] as number) - (a[1] as number));
@@ -223,17 +223,26 @@
         
         logger.debug('Got AI suggested categories', { 
           selected: topCategory,
+          confidence: result.all_categories[topCategory],
           suggestions: suggestedCategories.length
         });
       } else {
-        logger.warn('AI prediction failed:', result.error);
-        toastStore.showToast('Couldn\'t suggest categories', 'warning');
+        logger.warn('AI prediction failed:', result.error || 'No categories returned');
         suggestedCategories = [];
+        
+        // Only show toast for specific errors, not for normal API failures
+        if (result.error && !result.error.includes('too short')) {
+          toastStore.showToast('Couldn\'t suggest categories', 'warning');
+        }
       }
     } catch (error) {
       logger.error('Failed to get AI suggested categories', { error });
       suggestedCategories = [];
-      toastStore.showToast('Couldn\'t suggest categories', 'warning');
+      
+      // Don't display timeout errors to users
+      if (!(error instanceof Error && error.message === 'AI suggestion timeout')) {
+        toastStore.showToast('Couldn\'t suggest categories', 'warning');
+      }
     } finally {
       isLoadingSuggestions = false;
     }

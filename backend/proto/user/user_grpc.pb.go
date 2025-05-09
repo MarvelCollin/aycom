@@ -32,6 +32,10 @@ const (
 	UserService_GetFollowing_FullMethodName                 = "/user.UserService/GetFollowing"
 	UserService_SearchUsers_FullMethodName                  = "/user.UserService/SearchUsers"
 	UserService_GetRecommendedUsers_FullMethodName          = "/user.UserService/GetRecommendedUsers"
+	UserService_RequestPasswordReset_FullMethodName         = "/user.UserService/RequestPasswordReset"
+	UserService_VerifyResetToken_FullMethodName             = "/user.UserService/VerifyResetToken"
+	UserService_ResetPassword_FullMethodName                = "/user.UserService/ResetPassword"
+	UserService_VerifySecurityAnswer_FullMethodName         = "/user.UserService/VerifySecurityAnswer"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -66,6 +70,14 @@ type UserServiceClient interface {
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
 	// Get recommended users (sorted by highest follower count)
 	GetRecommendedUsers(ctx context.Context, in *GetRecommendedUsersRequest, opts ...grpc.CallOption) (*GetRecommendedUsersResponse, error)
+	// Request a password reset
+	RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error)
+	// Verify a reset token
+	VerifyResetToken(ctx context.Context, in *VerifyResetTokenRequest, opts ...grpc.CallOption) (*VerifyResetTokenResponse, error)
+	// Reset password with a valid token
+	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error)
+	// Verify security answer before password reset
+	VerifySecurityAnswer(ctx context.Context, in *VerifySecurityAnswerRequest, opts ...grpc.CallOption) (*VerifySecurityAnswerResponse, error)
 }
 
 type userServiceClient struct {
@@ -206,6 +218,46 @@ func (c *userServiceClient) GetRecommendedUsers(ctx context.Context, in *GetReco
 	return out, nil
 }
 
+func (c *userServiceClient) RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestPasswordResetResponse)
+	err := c.cc.Invoke(ctx, UserService_RequestPasswordReset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) VerifyResetToken(ctx context.Context, in *VerifyResetTokenRequest, opts ...grpc.CallOption) (*VerifyResetTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyResetTokenResponse)
+	err := c.cc.Invoke(ctx, UserService_VerifyResetToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetPasswordResponse)
+	err := c.cc.Invoke(ctx, UserService_ResetPassword_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) VerifySecurityAnswer(ctx context.Context, in *VerifySecurityAnswerRequest, opts ...grpc.CallOption) (*VerifySecurityAnswerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifySecurityAnswerResponse)
+	err := c.cc.Invoke(ctx, UserService_VerifySecurityAnswer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -238,6 +290,14 @@ type UserServiceServer interface {
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
 	// Get recommended users (sorted by highest follower count)
 	GetRecommendedUsers(context.Context, *GetRecommendedUsersRequest) (*GetRecommendedUsersResponse, error)
+	// Request a password reset
+	RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error)
+	// Verify a reset token
+	VerifyResetToken(context.Context, *VerifyResetTokenRequest) (*VerifyResetTokenResponse, error)
+	// Reset password with a valid token
+	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error)
+	// Verify security answer before password reset
+	VerifySecurityAnswer(context.Context, *VerifySecurityAnswerRequest) (*VerifySecurityAnswerResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -286,6 +346,18 @@ func (UnimplementedUserServiceServer) SearchUsers(context.Context, *SearchUsersR
 }
 func (UnimplementedUserServiceServer) GetRecommendedUsers(context.Context, *GetRecommendedUsersRequest) (*GetRecommendedUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRecommendedUsers not implemented")
+}
+func (UnimplementedUserServiceServer) RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestPasswordReset not implemented")
+}
+func (UnimplementedUserServiceServer) VerifyResetToken(context.Context, *VerifyResetTokenRequest) (*VerifyResetTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyResetToken not implemented")
+}
+func (UnimplementedUserServiceServer) ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetPassword not implemented")
+}
+func (UnimplementedUserServiceServer) VerifySecurityAnswer(context.Context, *VerifySecurityAnswerRequest) (*VerifySecurityAnswerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifySecurityAnswer not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -542,6 +614,78 @@ func _UserService_GetRecommendedUsers_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_RequestPasswordReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestPasswordResetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RequestPasswordReset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RequestPasswordReset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RequestPasswordReset(ctx, req.(*RequestPasswordResetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_VerifyResetToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyResetTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).VerifyResetToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_VerifyResetToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).VerifyResetToken(ctx, req.(*VerifyResetTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ResetPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ResetPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ResetPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ResetPassword(ctx, req.(*ResetPasswordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_VerifySecurityAnswer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifySecurityAnswerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).VerifySecurityAnswer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_VerifySecurityAnswer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).VerifySecurityAnswer(ctx, req.(*VerifySecurityAnswerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -600,6 +744,22 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRecommendedUsers",
 			Handler:    _UserService_GetRecommendedUsers_Handler,
+		},
+		{
+			MethodName: "RequestPasswordReset",
+			Handler:    _UserService_RequestPasswordReset_Handler,
+		},
+		{
+			MethodName: "VerifyResetToken",
+			Handler:    _UserService_VerifyResetToken_Handler,
+		},
+		{
+			MethodName: "ResetPassword",
+			Handler:    _UserService_ResetPassword_Handler,
+		},
+		{
+			MethodName: "VerifySecurityAnswer",
+			Handler:    _UserService_VerifySecurityAnswer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

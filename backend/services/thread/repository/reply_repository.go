@@ -15,6 +15,7 @@ type ReplyRepository interface {
 	FindReplyByID(id string) (*model.Reply, error)
 	FindRepliesByThreadID(threadID string, page, limit int) ([]*model.Reply, error)
 	FindRepliesByParentID(parentReplyID string, page, limit int) ([]*model.Reply, error)
+	FindRepliesByUserID(userID string, page, limit int) ([]*model.Reply, error)
 	UpdateReply(reply *model.Reply) error
 	DeleteReply(id string) error
 	CountRepliesByParentID(parentID string) (int, error)
@@ -77,6 +78,7 @@ func (r *PostgresReplyRepository) FindRepliesByThreadID(threadID string, page, l
 	return replies, nil
 }
 
+// FindRepliesByParentID finds all replies for a specific parent reply
 func (r *PostgresReplyRepository) FindRepliesByParentID(parentReplyID string, page, limit int) ([]*model.Reply, error) {
 	parentUUID, err := uuid.Parse(parentReplyID)
 	if err != nil {
@@ -87,6 +89,27 @@ func (r *PostgresReplyRepository) FindRepliesByParentID(parentReplyID string, pa
 	offset := (page - 1) * limit
 	result := r.db.Where("parent_reply_id = ?", parentUUID).
 		Order("created_at ASC").
+		Offset(offset).
+		Limit(limit).
+		Find(&replies)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return replies, nil
+}
+
+// FindRepliesByUserID finds all replies created by a specific user
+func (r *PostgresReplyRepository) FindRepliesByUserID(userID string, page, limit int) ([]*model.Reply, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, errors.New("invalid UUID format for user ID")
+	}
+
+	var replies []*model.Reply
+	offset := (page - 1) * limit
+	result := r.db.Where("user_id = ?", userUUID).
+		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&replies)

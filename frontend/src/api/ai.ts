@@ -10,11 +10,22 @@ const baseUrl = `${appConfig.api.baseUrl}/ai`;
 const predictionCache = new Map<string, any>();
 
 /**
+ * Category prediction response interface
+ */
+interface ICategoryPredictionResponse {
+  success: boolean;
+  category?: string;
+  confidence?: number;
+  all_categories?: Record<string, number>;
+  error?: string;
+}
+
+/**
  * Predicts the most suitable category for a thread based on its content
  * @param content The content of the thread
  * @returns Promise with the predicted category and confidence score
  */
-export async function predictThreadCategory(content: string) {
+export async function predictThreadCategory(content: string): Promise<ICategoryPredictionResponse> {
   try {
     // Skip API call for very short content
     if (!content || content.trim().length < 5) {
@@ -37,8 +48,17 @@ export async function predictThreadCategory(content: string) {
     const response = await axios.post(`${baseUrl}/predict-category`, {
       content: trimmed
     }, { 
-      timeout: 5000 // Increased timeout for model loading
+      timeout: 8000 // Increased timeout for model loading
     });
+    
+    // Check for error in response data
+    if (response.data && response.data.error) {
+      logger.warn('AI service returned error:', response.data.error);
+      return {
+        success: false,
+        error: response.data.error
+      };
+    }
     
     logger.debug('Category prediction result:', response.data);
     

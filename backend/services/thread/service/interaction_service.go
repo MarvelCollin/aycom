@@ -39,6 +39,9 @@ type InteractionService interface {
 	BookmarkReply(ctx context.Context, userID, replyID string) error
 	RemoveReplyBookmark(ctx context.Context, userID, replyID string) error
 	HasUserBookmarkedReply(ctx context.Context, userID, replyID string) (bool, error)
+
+	// New method
+	GetLikedThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]string, error)
 }
 
 // interactionService implements the InteractionService interface
@@ -391,4 +394,27 @@ func (s *interactionService) HasUserBookmarkedReply(ctx context.Context, userID,
 	}
 
 	return s.interactionRepo.IsReplyBookmarkedByUser(userID, replyID)
+}
+
+// GetLikedThreadsByUserID retrieves thread IDs liked by a specific user with pagination
+func (s *interactionService) GetLikedThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]string, error) {
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Default pagination values if not provided
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Get thread IDs from repository
+	threadIDs, err := s.interactionRepo.FindLikedThreadsByUserID(userID, page, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve liked threads: %v", err)
+	}
+
+	return threadIDs, nil
 }

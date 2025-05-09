@@ -39,6 +39,9 @@ type InteractionRepository interface {
 	RemoveReplyBookmark(userID, replyID string) error
 	IsReplyBookmarkedByUser(userID, replyID string) (bool, error)
 	CountReplyBookmarks(replyID string) (int64, error)
+
+	// New methods
+	FindLikedThreadsByUserID(userID string, page, limit int) ([]string, error)
 }
 
 // PostgresInteractionRepository implements the InteractionRepository interface
@@ -381,4 +384,40 @@ func (r *PostgresInteractionRepository) CountReplyBookmarks(replyID string) (int
 	var count int64
 	r.db.Model(&model.Bookmark{}).Where("reply_id = ?", replyUUID).Count(&count)
 	return count, nil
+}
+
+// FindLikedThreadsByUserID finds all thread IDs that were liked by a specific user
+func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, page, limit int) ([]string, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, errors.New("invalid UUID format for user ID")
+	}
+
+	var threadIDs []string
+	offset := (page - 1) * limit
+
+	// Find all thread likes by the user
+	rows, err := r.db.Table("likes").
+		Select("target_id").
+		Where("user_id = ? AND target_type = ?", userUUID, "thread").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Rows()
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Convert UUIDs to strings
+	for rows.Next() {
+		var targetID uuid.UUID
+		if err := rows.Scan(&targetID); err != nil {
+			return nil, err
+		}
+		threadIDs = append(threadIDs, targetID.String())
+	}
+
+	return threadIDs, nil
 }

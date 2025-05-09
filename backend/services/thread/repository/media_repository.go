@@ -15,6 +15,7 @@ type MediaRepository interface {
 	FindMediaByID(id string) (*model.Media, error)
 	FindMediaByThreadID(threadID string) ([]*model.Media, error)
 	FindMediaByReplyID(replyID string) ([]*model.Media, error)
+	FindMediaByUserID(userID string, page, limit int) ([]*model.Media, error)
 	DeleteMedia(id string) error
 }
 
@@ -76,6 +77,31 @@ func (r *PostgresMediaRepository) FindMediaByReplyID(replyID string) ([]*model.M
 
 	var media []*model.Media
 	result := r.db.Where("reply_id = ?", replyUUID).Find(&media)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return media, nil
+}
+
+func (r *PostgresMediaRepository) FindMediaByUserID(userID string, page, limit int) ([]*model.Media, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, errors.New("invalid UUID format for user ID")
+	}
+
+	var media []*model.Media
+	offset := (page - 1) * limit
+
+	// Use a join query to get media for both threads and replies created by the user
+	result := r.db.Raw(`
+		SELECT m.* FROM media m
+		LEFT JOIN threads t ON m.thread_id = t.thread_id
+		LEFT JOIN replies r ON m.reply_id = r.reply_id
+		WHERE (t.user_id = ? OR r.user_id = ?)
+		ORDER BY m.created_at DESC
+		LIMIT ? OFFSET ?
+	`, userUUID, userUUID, limit, offset).Scan(&media)
+
 	if result.Error != nil {
 		return nil, result.Error
 	}

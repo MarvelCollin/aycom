@@ -38,14 +38,18 @@ services:
       - FLASK_ENV=development
       - LOG_LEVEL=INFO
       - CORS_ORIGIN=http://localhost:3000
+      - TF_CPP_MIN_LOG_LEVEL=2
+      - PYTHONDONTWRITEBYTECODE=1
+      - AI_DEBUG_MODE=false  # Ensure we use the real production model
     volumes:
       - ./ai-service:/app
+      - ai_model_data:/app/models
     restart: always
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 1G
+          cpus: '0.5'
+          memory: 2G
 
   # API Gateway
   api_gateway:
@@ -352,3 +356,4 @@ volumes:
   community_service_go_build_cache:
   event_bus_go_mod_cache:
   event_bus_go_build_cache:
+  ai_model_data:
