@@ -10,17 +10,13 @@ import (
 )
 
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
-	// Set the config for handlers
 	handlers.AppConfig = cfg
 
-	// Add global middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
 
-	// API v1 group
 	v1 := router.Group("/api/v1")
 
-	// Public routes with rate limiting
 	auth := v1.Group("/auth")
 	auth.Use(handlers.RateLimitMiddleware)
 	{
@@ -35,13 +31,11 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.POST("/reset-password", handlers.ResetPassword)
 	}
 
-	// AI routes - accessible to both authenticated and non-authenticated users
 	ai := v1.Group("/ai")
 	{
 		ai.POST("/predict-category", handlers.PredictCategory)
 	}
 
-	// Public user registration and login
 	publicUsers := v1.Group("/users")
 	{
 		publicUsers.POST("/register", handlers.RegisterUser)
@@ -53,7 +47,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.GET("/all", handlers.GetAllUsers)
 	}
 
-	// Public thread routes
 	publicThreads := v1.Group("/threads")
 	publicThreads.Use(middleware.OptionalJWTAuth(string(handlers.GetJWTSecret())))
 	{
@@ -61,23 +54,18 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicThreads.GET("/search", handlers.SearchThreads)
 	}
 
-	// Public trends route
 	v1.Group("/trends").GET("", handlers.GetTrends)
 
-	// Public Categories route
 	v1.Group("/categories").GET("", handlers.GetCategories)
 
-	// Public WebSocket endpoints
 	publicWebsockets := v1.Group("/chats")
 	{
 		publicWebsockets.GET("/:id/ws", handlers.HandleCommunityChat)
 	}
 
-	// Protected routes - using JWT authentication middleware
 	protected := v1.Group("")
 	protected.Use(middleware.JWTAuth(string(handlers.GetJWTSecret())))
 
-	// User routes
 	users := protected.Group("/users")
 	{
 		users.GET("/profile", handlers.GetUserProfile)
@@ -91,7 +79,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/recommendations", handlers.GetUserRecommendations)
 	}
 
-	// Thread routes
 	threads := protected.Group("/threads")
 	{
 		threads.POST("", handlers.CreateThread)
@@ -108,7 +95,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.POST("/:id/pin", handlers.PinThread)
 		threads.DELETE("/:id/pin", handlers.UnpinThread)
 
-		// Social interaction routes
 		threads.POST("/:id/like", handlers.LikeThread)
 		threads.DELETE("/:id/like", handlers.UnlikeThread)
 		threads.POST("/:id/replies", handlers.ReplyToThread)
@@ -119,33 +105,18 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.DELETE("/:id/bookmark", handlers.RemoveBookmark)
 	}
 
-	// Reply routes - new group
 	replies := protected.Group("/replies")
 	{
 		replies.POST("/:id/like", handlers.LikeReply)
 		replies.DELETE("/:id/like", handlers.UnlikeReply)
 		replies.POST("/:id/bookmark", handlers.BookmarkReply)
 		replies.DELETE("/:id/bookmark", handlers.RemoveReplyBookmark)
-		replies.POST("/:id/replies", handlers.ReplyToThread)          // Reusing the same handler for reply-to-reply
-		replies.GET("/:id/replies", handlers.GetRepliesByParentReply) // Get replies to a specific reply
+		replies.POST("/:id/replies", handlers.ReplyToThread)
+		replies.GET("/:id/replies", handlers.GetRepliesByParentReply)
 		replies.POST("/:id/pin", handlers.PinReply)
 		replies.DELETE("/:id/pin", handlers.UnpinReply)
 	}
 
-	// Product routes
-	// Comment out until implemented
-	/*
-		products := protected.Group("/products")
-		{
-			products.GET("", handlers.ListProducts)
-			products.GET("/:id", handlers.GetProduct)
-			products.POST("", handlers.CreateProduct)
-			products.PUT("/:id", handlers.UpdateProduct)
-			products.DELETE("/:id", handlers.DeleteProduct)
-		}
-	*/
-
-	// Community routes
 	communities := protected.Group("/communities")
 	{
 		communities.POST("", handlers.CreateCommunity)
@@ -171,7 +142,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.POST("/:id/join-requests/:requestId/reject", handlers.RejectJoinRequest)
 	}
 
-	// Chat routes
 	chats := protected.Group("/chats")
 	{
 		chats.POST("", handlers.CreateChat)
@@ -188,7 +158,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		chats.GET("/:id/messages/search", handlers.SearchMessages)
 	}
 
-	// Notification routes
 	notifications := protected.Group("/notifications")
 	{
 		notifications.GET("", handlers.GetUserNotifications)
@@ -199,7 +168,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		notifications.GET("/ws", handlers.HandleNotificationsWebSocket)
 	}
 
-	// Bookmarks routes - new group
 	bookmarks := protected.Group("/bookmarks")
 	{
 		bookmarks.GET("", handlers.GetUserBookmarks)
@@ -207,7 +175,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		bookmarks.DELETE("/:id", handlers.DeleteBookmarkById)
 	}
 
-	// Media routes - new group for general media upload
 	media := protected.Group("/media")
 	{
 		media.POST("", handlers.UploadMedia)

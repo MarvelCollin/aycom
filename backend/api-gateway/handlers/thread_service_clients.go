@@ -129,14 +129,17 @@ func InitThreadServiceClient(cfg *config.Config) {
 		}
 	}
 
-	// Test the connection with a simple request that should always work
-	_, testErr := threadServiceClient.GetTrendingHashtags(1)
+	// Only test the connection if threadServiceClient has been initialized properly
+	if threadServiceClient != nil {
+		// Test the connection with a simple request that should always work
+		_, testErr := threadServiceClient.GetTrendingHashtags(1)
 
-	if testErr != nil {
-		log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
-	} else {
-		log.Println("Thread service client initialized with gRPC implementation")
-		return
+		if testErr != nil {
+			log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
+		} else {
+			log.Println("Thread service client initialized with gRPC implementation")
+			return
+		}
 	}
 
 	// Fallback to local implementation if all connection attempts fail

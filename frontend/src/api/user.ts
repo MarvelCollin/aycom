@@ -471,12 +471,12 @@ export async function getUserById(userId: string) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to get user: ${response.status}`);
+      throw new Error(`Failed to fetch user: ${response.status}`);
     }
     
     return response.json();
   } catch (err) {
-    console.error(`Failed to get user with ID ${userId}:`, err);
+    console.error('Failed to fetch user:', err);
     throw err;
   }
 }

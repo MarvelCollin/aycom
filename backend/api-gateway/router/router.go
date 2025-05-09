@@ -2,7 +2,7 @@ package router
 
 import (
 	"aycom/backend/api-gateway/config"
-	"aycom/backend/api-gateway/docs" // Import swagger docs
+	"aycom/backend/api-gateway/docs"
 	"aycom/backend/api-gateway/routes"
 
 	"github.com/gin-gonic/gin"
