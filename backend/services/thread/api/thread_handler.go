@@ -66,15 +66,43 @@ func (h *ThreadHandler) CreateThread(ctx context.Context, req *thread.CreateThre
 
 // GetThreadById retrieves a thread by its ID
 func (h *ThreadHandler) GetThreadById(ctx context.Context, req *thread.GetThreadRequest) (*thread.ThreadResponse, error) {
-	t, err := h.threadService.GetThreadByID(ctx, req.ThreadId)
+	threadID := req.ThreadId
+
+	// Get thread from service
+	threadModel, err := h.threadService.GetThreadByID(ctx, threadID)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Failed to get thread: %v", err)
 	}
 
-	// Convert thread to response
-	response, err := h.convertThreadToResponse(ctx, t)
+	if threadModel == nil {
+		return nil, status.Error(codes.NotFound, "Thread not found")
+	}
+
+	// Convert to response
+	response, err := h.convertThreadToResponse(ctx, threadModel)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to convert thread to response: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to convert thread: %v", err)
+	}
+
+	// Extract user ID from metadata if present, for checking interactions
+	var userID string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		userIDs := md.Get("user_id")
+		if len(userIDs) > 0 {
+			userID = userIDs[0]
+			log.Printf("User ID from context metadata: %s", userID)
+
+			// Explicitly check bookmark status again to ensure it's accurate
+			if userID != "" {
+				hasBookmarked, err := h.interactionService.HasUserBookmarked(ctx, userID, threadID)
+				if err != nil {
+					log.Printf("WARNING: Error checking bookmark status in GetThreadById: %v", err)
+				} else {
+					response.BookmarkedByUser = hasBookmarked
+					log.Printf("Thread %s bookmark status for user %s: %v", threadID, userID, hasBookmarked)
+				}
+			}
+		}
 	}
 
 	return response, nil
@@ -324,6 +352,16 @@ func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *thread.Bookmark
 	if err != nil {
 		log.Printf("ERROR: Failed to bookmark thread: %v", err)
 		return nil, err
+	}
+
+	// Verify the bookmark was created successfully
+	isBookmarked, err := h.interactionService.HasUserBookmarked(ctx, req.UserId, req.ThreadId)
+	if err != nil {
+		log.Printf("WARNING: Error verifying bookmark status: %v", err)
+	} else if !isBookmarked {
+		log.Printf("WARNING: Bookmark verification failed - bookmark not found after creation")
+	} else {
+		log.Printf("Bookmark verification successful - bookmark found")
 	}
 
 	log.Printf("Successfully bookmarked thread %s for user %s at API handler level", req.ThreadId, req.UserId)

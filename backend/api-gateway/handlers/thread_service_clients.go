@@ -108,43 +108,44 @@ func InitThreadServiceClient(cfg *config.Config) {
 		return
 	}
 
-	// Try direct connection if pool is not available
-	if threadConnPool == nil {
-		log.Printf("Thread connection pool not available, connecting directly to %s", cfg.Services.ThreadService)
+	log.Printf("Attempting to connect to Thread service at %s", cfg.Services.ThreadService)
 
-		conn, err := grpc.Dial(cfg.Services.ThreadService,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
+	// Try direct connection
+	conn, err := grpc.Dial(
+		cfg.Services.ThreadService,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+		grpc.WithTimeout(10*time.Second),
+	)
 
-		if err == nil {
-			grpcClient := threadProto.NewThreadServiceClient(conn)
-			threadServiceClient = &GRPCThreadServiceClient{
-				client: grpcClient,
-				conn:   conn,
-			}
-			log.Println("Thread service client initialized with direct gRPC connection")
-			return
-		} else {
-			log.Printf("Warning: Failed to establish direct gRPC connection: %v", err)
-		}
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to Thread service at %s: %v", cfg.Services.ThreadService, err)
+		log.Println("Falling back to local implementation")
+		threadServiceClient = &localThreadServiceClient{}
+		return
 	}
 
-	// Only test the connection if threadServiceClient has been initialized properly
-	if threadServiceClient != nil {
-		// Test the connection with a simple request that should always work
-		_, testErr := threadServiceClient.GetTrendingHashtags(1)
+	log.Printf("Successfully connected to Thread service at %s", cfg.Services.ThreadService)
 
-		if testErr != nil {
-			log.Printf("Warning: Thread service connection test failed: %v, falling back to local implementation", testErr)
-		} else {
-			log.Println("Thread service client initialized with gRPC implementation")
-			return
-		}
+	// Initialize client with the connection
+	grpcClient := threadProto.NewThreadServiceClient(conn)
+	threadServiceClient = &GRPCThreadServiceClient{
+		client: grpcClient,
+		conn:   conn,
 	}
 
-	// Fallback to local implementation if all connection attempts fail
-	threadServiceClient = &localThreadServiceClient{}
-	log.Println("Thread service client initialized with local implementation (fallback)")
+	// Test the connection with a simple request
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, testErr := grpcClient.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{Limit: 1})
+	if testErr != nil {
+		log.Printf("WARNING: Thread service connection test failed: %v", testErr)
+		log.Println("Connection established but service not responding correctly")
+		log.Println("Will continue with gRPC implementation but service may not be fully operational")
+	} else {
+		log.Println("Thread service connection test successful - service is operational")
+	}
 }
 
 // GetThreadServiceClient returns the thread service client instance
@@ -540,14 +541,59 @@ func (c *GRPCThreadServiceClient) LikeThread(threadID, userID string) error {
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// Maximum retry attempts
+	maxRetries := 3
+	var lastErr error
 
-	_, err := c.client.LikeThread(ctx, &threadProto.LikeThreadRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
-	return err
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // Increased timeout
+
+		// Add user ID to context metadata
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+
+		log.Printf("Attempt %d: Liking thread %s for user %s", attempt, threadID, userID)
+
+		_, err := c.client.LikeThread(ctx, &threadProto.LikeThreadRequest{
+			ThreadId: threadID,
+			UserId:   userID,
+		})
+
+		cancel() // Cancel context immediately after request
+
+		if err == nil {
+			log.Printf("Successfully liked thread %s for user %s", threadID, userID)
+
+			// Verify like was actually created
+			verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer verifyCancel()
+
+			// Pass user ID via metadata for verification
+			verifyCtx = metadata.AppendToOutgoingContext(verifyCtx, "user_id", userID)
+
+			resp, verifyErr := c.client.GetThreadById(verifyCtx, &threadProto.GetThreadRequest{
+				ThreadId: threadID,
+			})
+
+			if verifyErr != nil {
+				log.Printf("Warning: Verification check error after liking thread: %v", verifyErr)
+			} else if resp != nil && resp.LikedByUser {
+				log.Printf("Verified thread %s is liked by user %s", threadID, userID)
+			} else {
+				log.Printf("Warning: Thread %s shows as NOT liked after operation", threadID)
+			}
+
+			return nil
+		}
+
+		lastErr = err
+		log.Printf("Error liking thread (attempt %d): %v", attempt, err)
+
+		// Wait before retrying
+		time.Sleep(time.Duration(attempt*500) * time.Millisecond)
+	}
+
+	log.Printf("Failed to like thread after %d attempts: %v", maxRetries, lastErr)
+	return lastErr
 }
 
 // UnlikeThread implements ThreadServiceClient
@@ -556,14 +602,59 @@ func (c *GRPCThreadServiceClient) UnlikeThread(threadID, userID string) error {
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// Maximum retry attempts
+	maxRetries := 3
+	var lastErr error
 
-	_, err := c.client.UnlikeThread(ctx, &threadProto.UnlikeThreadRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
-	return err
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // Increased timeout
+
+		// Add user ID to context metadata
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+
+		log.Printf("Attempt %d: Unliking thread %s for user %s", attempt, threadID, userID)
+
+		_, err := c.client.UnlikeThread(ctx, &threadProto.UnlikeThreadRequest{
+			ThreadId: threadID,
+			UserId:   userID,
+		})
+
+		cancel() // Cancel context immediately after request
+
+		if err == nil {
+			log.Printf("Successfully unliked thread %s for user %s", threadID, userID)
+
+			// Verify like was actually removed
+			verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer verifyCancel()
+
+			// Pass user ID via metadata for verification
+			verifyCtx = metadata.AppendToOutgoingContext(verifyCtx, "user_id", userID)
+
+			resp, verifyErr := c.client.GetThreadById(verifyCtx, &threadProto.GetThreadRequest{
+				ThreadId: threadID,
+			})
+
+			if verifyErr != nil {
+				log.Printf("Warning: Verification check error after unliking thread: %v", verifyErr)
+			} else if resp != nil && !resp.LikedByUser {
+				log.Printf("Verified thread %s is not liked by user %s", threadID, userID)
+			} else {
+				log.Printf("Warning: Thread %s still shows as liked after unlike operation", threadID)
+			}
+
+			return nil
+		}
+
+		lastErr = err
+		log.Printf("Error unliking thread (attempt %d): %v", attempt, err)
+
+		// Wait before retrying
+		time.Sleep(time.Duration(attempt*500) * time.Millisecond)
+	}
+
+	log.Printf("Failed to unlike thread after %d attempts: %v", maxRetries, lastErr)
+	return lastErr
 }
 
 // ReplyToThread implements ThreadServiceClient
@@ -724,12 +815,11 @@ func (c *GRPCThreadServiceClient) BookmarkThread(threadID, userID string) error 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Add user ID to the context metadata to pass to service for auth checks
-	if userID != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
-	}
+	// Debug the context and request
+	log.Printf("Sending BookmarkThread request to thread service - threadID: %s, userID: %s", threadID, userID)
 
-	log.Printf("Attempting to bookmark thread %s for user %s", threadID, userID)
+	// Add user_id to metadata - this matches LikeThread which works
+	ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
 
 	_, err := c.client.BookmarkThread(ctx, &threadProto.BookmarkThreadRequest{
 		ThreadId: threadID,
@@ -737,11 +827,11 @@ func (c *GRPCThreadServiceClient) BookmarkThread(threadID, userID string) error 
 	})
 
 	if err != nil {
-		log.Printf("Error bookmarking thread: %v", err)
+		log.Printf("Error during BookmarkThread call to thread service: %v", err)
 		return err
 	}
 
-	log.Printf("Successfully bookmarked thread %s for user %s", threadID, userID)
+	log.Printf("Successfully sent BookmarkThread request to thread service")
 	return nil
 }
 
@@ -751,19 +841,59 @@ func (c *GRPCThreadServiceClient) RemoveBookmark(threadID, userID string) error 
 		return fmt.Errorf("thread service client not initialized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// Maximum retry attempts
+	maxRetries := 3
+	var lastErr error
 
-	// Add user ID to the context metadata to pass to service for auth checks
-	if userID != "" {
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // Increased timeout
+
+		// Add user ID to context metadata
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+
+		log.Printf("Attempt %d: Removing bookmark for thread %s by user %s", attempt, threadID, userID)
+
+		_, err := c.client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
+			ThreadId: threadID,
+			UserId:   userID,
+		})
+
+		cancel() // Cancel context immediately after request
+
+		if err == nil {
+			log.Printf("Successfully removed bookmark for thread %s by user %s", threadID, userID)
+
+			// Verify bookmark was actually removed
+			verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer verifyCancel()
+
+			// Pass user ID via metadata for verification
+			verifyCtx = metadata.AppendToOutgoingContext(verifyCtx, "user_id", userID)
+
+			resp, verifyErr := c.client.GetThreadById(verifyCtx, &threadProto.GetThreadRequest{
+				ThreadId: threadID,
+			})
+
+			if verifyErr != nil {
+				log.Printf("Warning: Verification check error after removing bookmark: %v", verifyErr)
+			} else if resp != nil && !resp.BookmarkedByUser {
+				log.Printf("Verified thread %s is not bookmarked by user %s", threadID, userID)
+			} else {
+				log.Printf("Warning: Thread %s still shows as bookmarked after removal", threadID)
+			}
+
+			return nil
+		}
+
+		lastErr = err
+		log.Printf("Error removing bookmark (attempt %d): %v", attempt, err)
+
+		// Wait before retrying
+		time.Sleep(time.Duration(attempt*500) * time.Millisecond)
 	}
 
-	_, err := c.client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
-		ThreadId: threadID,
-		UserId:   userID,
-	})
-	return err
+	log.Printf("Failed to remove bookmark after %d attempts: %v", maxRetries, lastErr)
+	return lastErr
 }
 
 // GetUserBookmarks implements ThreadServiceClient

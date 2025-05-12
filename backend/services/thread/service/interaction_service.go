@@ -48,14 +48,25 @@ type InteractionService interface {
 // interactionService implements the InteractionService interface
 type interactionService struct {
 	interactionRepo repository.InteractionRepository
+	threadRepo      repository.ThreadRepository
+	userRepo        repository.UserRepository
 }
 
 // NewInteractionService creates a new interaction service
 func NewInteractionService(
 	interactionRepo repository.InteractionRepository,
+	threadRepo repository.ThreadRepository,
+	userRepo repository.UserRepository,
 ) InteractionService {
+	// Log a warning if userRepo is nil, but allow the service to be created
+	if userRepo == nil {
+		log.Printf("Warning: UserRepository is nil in InteractionService constructor")
+	}
+
 	return &interactionService{
 		interactionRepo: interactionRepo,
+		threadRepo:      threadRepo,
+		userRepo:        userRepo,
 	}
 }
 
@@ -257,34 +268,25 @@ func (s *interactionService) HasUserReposted(ctx context.Context, userID, thread
 
 // BookmarkThread bookmarks a thread
 func (s *interactionService) BookmarkThread(ctx context.Context, userID, threadID string) error {
-	log.Printf("BookmarkThread called with userID: %s, threadID: %s", userID, threadID)
-
 	if userID == "" || threadID == "" {
-		log.Printf("ERROR: BookmarkThread - Missing required parameters: userID: %s, threadID: %s", userID, threadID)
 		return status.Error(codes.InvalidArgument, "User ID and Thread ID are required")
 	}
 
 	// Check if user has already bookmarked this thread
 	hasBookmarked, err := s.interactionRepo.IsThreadBookmarkedByUser(userID, threadID)
 	if err != nil {
-		log.Printf("ERROR: Failed to check if user has bookmarked thread: %v", err)
 		return status.Errorf(codes.Internal, "Failed to check if user has bookmarked thread: %v", err)
 	}
 
-	// If already bookmarked, just return success - this makes the API idempotent
 	if hasBookmarked {
-		log.Printf("User %s has already bookmarked thread %s, skipping", userID, threadID)
-		return nil // Return success instead of an error
+		return status.Error(codes.AlreadyExists, "User has already bookmarked this thread")
 	}
 
 	// Add bookmark
-	log.Printf("Attempting to bookmark thread %s for user %s", threadID, userID)
 	if err := s.interactionRepo.BookmarkThread(userID, threadID); err != nil {
-		log.Printf("ERROR: Failed to bookmark thread in repository: %v", err)
 		return status.Errorf(codes.Internal, "Failed to bookmark thread: %v", err)
 	}
 
-	log.Printf("Successfully bookmarked thread %s for user %s", threadID, userID)
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"aycom/backend/services/thread/model"
 
@@ -44,6 +45,10 @@ type InteractionRepository interface {
 
 	// New methods
 	FindLikedThreadsByUserID(userID string, page, limit int) ([]string, error)
+
+	// Bookmark operations
+	BookmarkExists(userID, threadID string) (bool, error)
+	CreateBookmark(bookmark *model.Bookmark) error
 }
 
 // PostgresInteractionRepository implements the InteractionRepository interface
@@ -235,13 +240,37 @@ func (r *PostgresInteractionRepository) CountThreadReposts(threadID string) (int
 
 // BookmarkThread adds a bookmark to a thread
 func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) error {
-	log.Printf("Repository BookmarkThread called with userID: %s, threadID: %s", userID, threadID)
-
-	// Check DB connection before proceeding
-	if err := r.CheckDBConnection(); err != nil {
-		log.Printf("ERROR: Database connection check failed before bookmarking: %v", err)
-		return fmt.Errorf("database connection error: %w", err)
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return errors.New("invalid UUID format for user ID")
 	}
+
+	threadUUID, err := uuid.Parse(threadID)
+	if err != nil {
+		return errors.New("invalid UUID format for thread ID")
+	}
+
+	// Check if user has already bookmarked this thread
+	hasBookmarked, err := r.IsThreadBookmarkedByUser(userID, threadID)
+	if err != nil {
+		return err
+	}
+
+	if hasBookmarked {
+		return nil // Return success for idempotence
+	}
+
+	bookmark := model.Bookmark{
+		UserID:   userUUID,
+		ThreadID: threadUUID,
+	}
+
+	return r.db.Create(&bookmark).Error
+}
+
+// RemoveBookmark removes a bookmark from a thread
+func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) error {
+	log.Printf("Repository RemoveBookmark called with userID: %s, threadID: %s", userID, threadID)
 
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -255,75 +284,58 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	bookmark := model.Bookmark{
-		UserID:   userUUID,
-		ThreadID: threadUUID,
-	}
-
-	log.Printf("Creating bookmark in database for userID: %s, threadID: %s", userID, threadID)
-
-	// Start a transaction for better error handling
-	tx := r.db.Begin()
-	if tx.Error != nil {
-		log.Printf("ERROR: Failed to begin transaction: %v", tx.Error)
-		return tx.Error
-	}
-
-	result := tx.Create(&bookmark)
-	if result.Error != nil {
-		tx.Rollback()
-		log.Printf("ERROR: Failed to create bookmark in database, rolling back: %v", result.Error)
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		tx.Rollback()
-		log.Printf("WARNING: No rows affected when creating bookmark - possible constraint issue")
-		return errors.New("no rows affected when creating bookmark")
-	} else {
-		log.Printf("Successfully created bookmark in database: %d rows affected", result.RowsAffected)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit().Error; err != nil {
-		log.Printf("ERROR: Failed to commit transaction: %v", err)
+	// Check if the bookmark exists before attempting to remove
+	exists, err := r.IsThreadBookmarkedByUser(userID, threadID)
+	if err != nil {
+		log.Printf("ERROR: Failed to check if bookmark exists: %v", err)
 		return err
 	}
 
-	log.Printf("Transaction committed successfully for bookmark")
+	if !exists {
+		log.Printf("Bookmark does not exist for userID: %s, threadID: %s, returning success", userID, threadID)
+		return nil // Return success for idempotence
+	}
+
+	// Use soft delete by setting deleted_at timestamp
+	result := r.db.Model(&model.Bookmark{}).Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Update("deleted_at", time.Now())
+
+	if result.Error != nil {
+		log.Printf("ERROR: Failed to remove bookmark: %v", result.Error)
+		return result.Error
+	}
+
+	log.Printf("Successfully removed bookmark for userID: %s, threadID: %s, rows affected: %d", userID, threadID, result.RowsAffected)
 	return nil
-}
-
-// RemoveBookmark removes a bookmark from a thread
-func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) error {
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		return errors.New("invalid UUID format for user ID")
-	}
-
-	threadUUID, err := uuid.Parse(threadID)
-	if err != nil {
-		return errors.New("invalid UUID format for thread ID")
-	}
-
-	return r.db.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Bookmark{}).Error
 }
 
 // IsThreadBookmarkedByUser checks if a thread is bookmarked by a specific user
 func (r *PostgresInteractionRepository) IsThreadBookmarkedByUser(userID, threadID string) (bool, error) {
+	log.Printf("Checking if thread is bookmarked - userID: %s, threadID: %s", userID, threadID)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("ERROR: Invalid UUID format for user ID: %s - %v", userID, err)
 		return false, errors.New("invalid UUID format for user ID")
 	}
 
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
+		log.Printf("ERROR: Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return false, errors.New("invalid UUID format for thread ID")
 	}
 
 	var count int64
-	r.db.Model(&model.Bookmark{}).Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Count(&count)
-	return count > 0, nil
+	result := r.db.Model(&model.Bookmark{}).Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).Count(&count)
+
+	if result.Error != nil {
+		log.Printf("ERROR: Failed to check if thread is bookmarked: %v", result.Error)
+		return false, result.Error
+	}
+
+	isBookmarked := count > 0
+	log.Printf("Thread bookmarked check result - userID: %s, threadID: %s, isBookmarked: %v", userID, threadID, isBookmarked)
+
+	return isBookmarked, nil
 }
 
 // GetUserBookmarks gets all bookmarked threads for a user with pagination
@@ -557,5 +569,62 @@ func (r *PostgresInteractionRepository) CheckDBConnection() error {
 	}
 
 	log.Printf("Database connection is healthy. Total bookmarks in database: %d", count)
+	return nil
+}
+
+// BookmarkExists checks if a bookmark already exists
+func (r *PostgresInteractionRepository) BookmarkExists(userID, threadID string) (bool, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	threadUUID, err := uuid.Parse(threadID)
+	if err != nil {
+		return false, fmt.Errorf("invalid thread ID format: %w", err)
+	}
+
+	var count int64
+	result := r.db.Model(&model.Bookmark{}).
+		Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).
+		Count(&count)
+
+	if result.Error != nil {
+		return false, fmt.Errorf("error checking bookmark existence: %w", result.Error)
+	}
+
+	return count > 0, nil
+}
+
+// CreateBookmark creates a new bookmark record
+func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark) error {
+	// Debugging: print the bookmark details
+	log.Printf("Creating bookmark: user=%s, thread=%s", bookmark.UserID, bookmark.ThreadID)
+
+	// Explicitly check if bookmark exists first
+	var exists bool
+	err := r.db.Raw("SELECT EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ? AND thread_id = ?)",
+		bookmark.UserID, bookmark.ThreadID).Scan(&exists).Error
+
+	if err != nil {
+		log.Printf("Error checking existence before create: %v", err)
+		return err
+	}
+
+	if exists {
+		log.Printf("Bookmark already exists, skipping creation")
+		return nil
+	}
+
+	// If not exists, create the bookmark
+	log.Printf("Bookmark doesn't exist, creating now")
+	result := r.db.Create(bookmark)
+
+	if result.Error != nil {
+		log.Printf("Error in Create operation: %v", result.Error)
+		return result.Error
+	}
+
+	log.Printf("Bookmark created successfully, rows affected: %d", result.RowsAffected)
 	return nil
 }

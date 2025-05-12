@@ -1,5 +1,3 @@
-<!-- This will act like Home Page -->
-
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
@@ -18,7 +16,6 @@
   import { toastStore } from '../stores/toastStore';
   import { getProfile } from '../api/user';
   
-  // Import Feather icons
   import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
   import FileIcon from 'svelte-feather-icons/src/icons/FileIcon.svelte';
   import BarChartIcon from 'svelte-feather-icons/src/icons/BarChartIcon.svelte';
@@ -26,22 +23,17 @@
 
   const logger = createLoggerWithPrefix('Feed');
 
-  // Get auth store methods
   const { getAuthState } = useAuth();
-  // Get theme store
   const { theme } = useTheme();
 
-  // Reactive declarations for auth and theme
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
   $: isDarkMode = $theme === 'dark';
-  
-  // User profile data
+
   let username = '';
   let displayName = '';
-  let avatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar image URL
+  let avatar = 'https://secure.gravatar.com/avatar/0?d=mp'; 
   let isLoadingProfile = true;
 
-  // State for tweets and compose modal
   let tweetsForYou: ITweet[] = [];
   let tweetsFollowing: ITweet[] = [];
   let isLoadingForYou = true;
@@ -51,17 +43,14 @@
   let showComposeModal: boolean = false;
   let selectedTweet: ITweet | null = null;
   
-  // Tab state
   let activeTab: 'for-you' | 'following' = 'for-you';
   
-  // Pagination for both tabs
   let pageForYou = 1;
   let pageFollowing = 1;
   let limit = 10;
   let hasMoreForYou = true;
   let hasMoreFollowing = true;
   
-  // Trends data
   let trends: ITrend[] = [];
   let isTrendsLoading = true;
   
@@ -174,16 +163,15 @@
       replies: thread.reply_count || thread.metrics?.replies || 0,
       reposts: thread.repost_count || thread.metrics?.reposts || 0,
       bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
-      views: '0', // We're temporarily using view_count for bookmarks, so display 0 for now
+      views: '0', 
       media: thread.media || [],
       isLiked: thread.is_liked || false,
       isReposted: thread.is_repost || false,
       isBookmarked: thread.is_bookmarked || false,
-      replyTo: null, // Will be populated later if this is a reply
+      replyTo: null,
       isAdvertisement: thread.is_advertisement || false,
       communityId: thread.community_id || null,
       communityName: thread.community_name || null,
-      // Include additional fields for replies
       authorId: thread.author_id || thread.authorId,
       authorName: thread.author_name || thread.authorName || displayName,
       authorUsername: thread.author_username || thread.authorUsername || username,
@@ -694,7 +682,6 @@
     }
   }
   
-  // New function: Handle tweet bookmark
   async function handleTweetBookmark(event: CustomEvent) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
@@ -707,7 +694,6 @@
       await bookmarkThread(tweetId);
       toastStore.showToast('Tweet bookmarked', 'success');
       
-      // Update both tweet arrays
       tweetsForYou = tweetsForYou.map(tweet => {
         if (tweet.id === tweetId) {
           return { ...tweet, bookmarks: (tweet.bookmarks || 0) + 1, isBookmarked: true };

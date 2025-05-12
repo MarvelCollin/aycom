@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 
 	"aycom/backend/services/thread/model"
 
@@ -18,6 +19,7 @@ type ThreadRepository interface {
 	FindAllThreads(page, limit int) ([]*model.Thread, error)
 	UpdateThread(thread *model.Thread) error
 	DeleteThread(id string) error
+	ThreadExists(threadID string) (bool, error)
 }
 
 // PostgresThreadRepository is the PostgreSQL implementation of ThreadRepository
@@ -105,4 +107,23 @@ func (r *PostgresThreadRepository) DeleteThread(id string) error {
 	}
 
 	return r.db.Delete(&model.Thread{}, "thread_id = ?", threadID).Error
+}
+
+// ThreadExists checks if a thread exists by ID
+func (r *PostgresThreadRepository) ThreadExists(threadID string) (bool, error) {
+	threadUUID, err := uuid.Parse(threadID)
+	if err != nil {
+		return false, fmt.Errorf("invalid thread ID format: %w", err)
+	}
+
+	var count int64
+	result := r.db.Model(&model.Thread{}).
+		Where("id = ?", threadUUID).
+		Count(&count)
+
+	if result.Error != nil {
+		return false, fmt.Errorf("error checking thread existence: %w", result.Error)
+	}
+
+	return count > 0, nil
 }

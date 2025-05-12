@@ -632,166 +632,109 @@ export async function removeRepost(repostId: string) {
 }
 
 export async function bookmarkThread(threadId: string) {
-  try {
-    const token = getAuthToken();
-    
-    if (!token) {
-      console.error("[API] No auth token available for bookmarking thread");
-      throw new Error("Authentication required");
-    }
-    
-    console.log(`[API] Sending bookmark request for thread: ${threadId}`);
-    
-    // Add retry logic with backoff
-    let retries = 0;
-    const maxRetries = 2;
-    
-    while (retries <= maxRetries) {
-      try {
-        const endpoint = `${API_BASE_URL}/threads/${threadId}/bookmark`;
-        console.log(`[API] Making request to: ${endpoint}`);
-        
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        
-        console.log(`[API] Bookmark response status: ${response.status}`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[API] Bookmark error: ${errorText}`);
-          throw new Error(`Failed to bookmark thread: ${response.statusText} (${response.status})`);
-        }
-        
-        console.log(`[API] Successfully bookmarked thread: ${threadId}`);
-        return true;
-      } catch (error: any) {
-        retries++;
-        if (retries > maxRetries) {
-          console.error(`[API] Final bookmark error (after ${maxRetries} retries):`, error);
-          throw error;
-        }
-        console.warn(`[API] Bookmark request failed, retrying (${retries}/${maxRetries}):`, error);
-        // Wait with exponential backoff
-        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries - 1)));
+  const token = getAuthToken();
+  const maxRetries = 3;
+  let currentRetry = 0;
+
+  while (currentRetry < maxRetries) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ''
+        },
+        credentials: "include",
+      });
+
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again later.");
       }
+
+      if (response.status >= 500) {
+        // If server error, try again
+        currentRetry++;
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, currentRetry)));
+        continue;
+      }
+
+      if (!response.ok) {
+        // Handle error response
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to bookmark thread: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return response.json();
+    } catch (fetchError) {
+      // If network error and we can retry, do so
+      if (currentRetry < maxRetries) {
+        currentRetry++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, currentRetry)));
+        continue;
+      }
+      throw fetchError;
     }
-  } catch (error: any) {
-    console.error("[API] Error in bookmarkThread:", error);
-    throw error;
   }
+
+  throw new Error("Failed to bookmark thread after multiple attempts");
 }
 
 export async function removeBookmark(threadId: string) {
-  try {
-    const token = getAuthToken();
-    
-    if (!token) {
-      console.error("No auth token available for removing bookmark");
-      throw new Error("Authentication required");
-    }
-    
-    console.log(`Attempting to remove bookmark for thread: ${threadId}`);
-    
-    // Add retry logic with backoff
-    let retries = 0;
-    const maxRetries = 2;
-    
-    while (retries <= maxRetries) {
-      try {
-        // Ensure we're sending DELETE request to the correct endpoint
-        const endpoint = `${API_BASE_URL}/threads/${threadId}/bookmark`;
-        console.log(`Sending DELETE request to endpoint: ${endpoint}`);
-        
-        const response = await fetch(endpoint, {
-          method: "DELETE",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          credentials: "include",
-        });
-        
-        // Log the response status
-        console.log(`Remove bookmark response status: ${response.status}`);
-        
-        if (response.ok) {
-          console.log("Successfully removed bookmark");
-          // Try to parse JSON, but handle case where response might be empty
-          try {
-            return await response.json();
-          } catch (jsonError) {
-            console.log("Empty response body from remove bookmark");
-            return { success: true };
-          }
-        }
-        
-        // Handle 404 Not Found (wasn't bookmarked) as success
-        if (response.status === 404) {
-          console.log("Thread wasn't bookmarked, treating as success");
-          return { success: true, message: "Wasn't bookmarked" };
-        }
-        
-        // Try to get response text for better debugging
-        let responseText = '';
-        try {
-          responseText = await response.text();
-          console.error(`Error response from server: ${responseText}`);
-        } catch (textError) {
-          console.error("Could not read response text");
-        }
-        
-        // If server error, try again
-        if (response.status >= 500 && retries < maxRetries) {
-          console.log(`Server error (${response.status}), retrying...`);
-          retries++;
-          // Wait before retrying (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        
-        // Handle error response
-        try {
-          let errorMessage = `Failed to remove bookmark: ${response.status} ${response.statusText}`;
-          
-          // Try to parse the response text as JSON if possible
-          if (responseText) {
-            try {
-              const errorData = JSON.parse(responseText);
-              errorMessage = errorData.message || 
-                            errorData.error?.message || 
-                            errorMessage;
-            } catch (e) {
-              // If not valid JSON, use the raw text in the error
-              errorMessage = `${errorMessage}. Response: ${responseText}`;
-            }
-          }
-          
-          throw new Error(errorMessage);
-        } catch (parseError) {
-          throw new Error(`Failed to remove bookmark: ${response.status} ${response.statusText}`);
-        }
-      } catch (fetchError) {
-        // If network error and we can retry, do so
-        if (retries < maxRetries) {
-          console.log(`Network error, retrying (${retries + 1}/${maxRetries})...`);
-          retries++;
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
-          continue;
-        }
-        throw fetchError;
+  const token = getAuthToken();
+  const maxRetries = 3;
+  let currentRetry = 0;
+
+  while (currentRetry < maxRetries) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ''
+        },
+        credentials: "include",
+      });
+
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again later.");
       }
+
+      if (response.status >= 500) {
+        // If server error, try again
+        currentRetry++;
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, currentRetry)));
+        continue;
+      }
+
+      if (!response.ok) {
+        // Handle error response
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to remove bookmark: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return response.json();
+    } catch (fetchError) {
+      // If network error and we can retry, do so
+      if (currentRetry < maxRetries) {
+        currentRetry++;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, currentRetry)));
+        continue;
+      }
+      throw fetchError;
     }
-    
-    throw new Error("Failed to remove bookmark after multiple attempts");
-  } catch (error) {
-    console.error("Error in removeBookmark:", error);
-    throw error;
   }
+
+  throw new Error("Failed to remove bookmark after multiple attempts");
 }
 
 export async function getFollowingThreads(page = 1, limit = 20) {
@@ -1488,9 +1431,9 @@ export async function getUserBookmarks(page = 1, limit = 20) {
     } catch (error) {
       console.error('Error parsing bookmarks response:', error);
       console.error('Response text was:', responseText);
-      throw new Error(`Failed to parse bookmarks response: ${error.message}`);
+      throw new Error(`Failed to parse bookmarks response: ${(error as Error).message}`);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error in getUserBookmarks:', error);
     // Return empty bookmarks structure rather than throwing
     return { bookmarks: [] };

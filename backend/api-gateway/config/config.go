@@ -77,6 +77,13 @@ func LoadConfig() (*Config, error) {
 	aiServiceHost := getEnv("AI_SERVICE_HOST", "localhost")
 	aiServicePort := getEnv("AI_SERVICE_PORT", "5000")
 
+	// Log the service addresses for debugging
+	fmt.Printf("Loading configuration with the following service addresses:\n")
+	fmt.Printf("- User Service: %s:%s\n", userServiceHost, userServicePort)
+	fmt.Printf("- Thread Service: %s:%s\n", threadServiceHost, threadServicePort)
+	fmt.Printf("- Community Service: %s:%s\n", communityServiceHost, communityServicePort)
+	fmt.Printf("- AI Service: %s:%s\n", aiServiceHost, aiServicePort)
+
 	cfg := &Config{
 		Server: ServerConfig{
 			Port:         getEnv("API_GATEWAY_PORT", "8083"),

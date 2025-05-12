@@ -2,13 +2,12 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"aycom/backend/api-gateway/utils"
@@ -96,73 +95,91 @@ func CreateThread(c *gin.Context) {
 func GetThread(c *gin.Context) {
 	threadID := c.Param("id")
 	if threadID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Thread ID is required")
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Success: false,
+			Message: "Thread ID is required",
+			Code:    "INVALID_REQUEST",
+		})
 		return
 	}
 
-	userID, exists := c.Get("userID")
-	var userIDStr string
+	// Extract user ID from context if available
+	userIDAny, exists := c.Get("userId")
+	var userID string
 	if exists {
-		userIDStr = userID.(string)
+		userIDStr, ok := userIDAny.(string)
+		if ok {
+			userID = userIDStr
+			log.Printf("Getting thread %s for authenticated user %s", threadID, userID)
+		}
+	} else {
+		log.Printf("Getting thread %s for unauthenticated user", threadID)
 	}
 
 	if threadServiceClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Thread service client not initialized",
+			Code:    "SERVICE_UNAVAILABLE",
+		})
 		return
 	}
 
-	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
+	thread, err := threadServiceClient.GetThreadByID(threadID, userID)
 	if err != nil {
-		st, ok := status.FromError(err)
-		if ok {
-			switch st.Code() {
-			case 5:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
-			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve thread: "+st.Message())
-			}
-		} else {
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while retrieving thread")
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Success: false,
+				Message: "Thread not found",
+				Code:    "THREAD_NOT_FOUND",
+			})
+			return
 		}
-		log.Printf("Error retrieving thread: %v", err)
+
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Error retrieving thread: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
+		})
 		return
 	}
 
-	threadData := map[string]interface{}{
-		"id":                  thread.ID,
-		"thread_id":           thread.ID,
-		"content":             thread.Content,
-		"user_id":             thread.UserID,
-		"created_at":          thread.CreatedAt,
-		"updated_at":          thread.UpdatedAt,
-		"like_count":          thread.LikeCount,
-		"reply_count":         thread.ReplyCount,
-		"repost_count":        thread.RepostCount,
-		"is_liked":            thread.IsLiked,
-		"is_repost":           thread.IsReposted,
-		"is_bookmarked":       thread.IsBookmarked,
-		"username":            thread.Username,
-		"display_name":        thread.DisplayName,
-		"profile_picture_url": thread.ProfilePicture,
+	// Create response with additional fields
+	response := gin.H{
+		"id":              thread.ID,
+		"content":         thread.Content,
+		"created_at":      thread.CreatedAt,
+		"updated_at":      thread.UpdatedAt,
+		"likes":           thread.LikeCount,
+		"replies":         thread.ReplyCount,
+		"reposts":         thread.RepostCount,
+		"is_liked":        thread.IsLiked,
+		"is_reposted":     thread.IsReposted,
+		"is_bookmarked":   thread.IsBookmarked,
+		"is_pinned":       thread.IsPinned,
+		"user_id":         thread.UserID,
+		"username":        thread.Username,
+		"display_name":    thread.DisplayName,
+		"profile_picture": thread.ProfilePicture,
 	}
 
+	// Add media if available
 	if len(thread.Media) > 0 {
-		media := make([]map[string]interface{}, len(thread.Media))
+		mediaResponse := make([]map[string]interface{}, len(thread.Media))
 		for i, m := range thread.Media {
-			media[i] = map[string]interface{}{
+			mediaResponse[i] = map[string]interface{}{
 				"id":   m.ID,
-				"type": m.Type,
 				"url":  m.URL,
+				"type": m.Type,
 			}
 		}
-		threadData["media"] = media
-	} else {
-		threadData["media"] = []interface{}{}
+		response["media"] = mediaResponse
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
-		"thread": threadData,
-	})
+	// Log bookmark status for debugging
+	log.Printf("Thread %s bookmark status for user %s: %v", threadID, userID, thread.IsBookmarked)
+
+	c.JSON(http.StatusOK, response)
 }
 
 func GetThreadsByUser(c *gin.Context) {
@@ -1187,11 +1204,85 @@ func UnpinThread(c *gin.Context) {
 	})
 }
 
-func getDBConnection() (*sql.DB, error) {
-	connStr := os.Getenv("DB_CONNECTION_STRING")
-	if connStr == "" {
-		connStr = "postgres://postgres:postgres@localhost:5432/aycom?sslmode=disable"
+func BookmarkThreadHandler(c *gin.Context) {
+	threadID := c.Param("id")
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("BookmarkThreadHandler: No user ID found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
 	}
 
-	return sql.Open("postgres", connStr)
+	userIDStr, ok := userID.(string)
+	if !ok {
+		log.Printf("BookmarkThreadHandler: User ID is not a string: %v", userID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	if threadID == "" {
+		log.Printf("BookmarkThreadHandler: No thread ID provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
+		return
+	}
+
+	log.Printf("BookmarkThreadHandler: Request received - threadID=%s, userID=%s", threadID, userIDStr)
+
+	// Check if thread service client is initialized
+	if threadServiceClient == nil {
+		log.Printf("BookmarkThreadHandler: Thread service client is nil")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Thread service unavailable",
+		})
+		return
+	}
+
+	// Attempt to bookmark the thread
+	log.Printf("BookmarkThreadHandler: Calling threadServiceClient.BookmarkThread")
+	err := threadServiceClient.BookmarkThread(threadID, userIDStr)
+	if err != nil {
+		log.Printf("BookmarkThreadHandler: Error from thread service: %v", err)
+
+		// Check for specific error types and return appropriate status codes
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		if strings.Contains(err.Error(), "Invalid") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to bookmark thread: " + err.Error(),
+		})
+		return
+	}
+
+	log.Printf("BookmarkThreadHandler: Successfully bookmarked thread %s for user %s", threadID, userIDStr)
+
+	// After bookmarking, let's verify the thread really got bookmarked
+	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
+	if err == nil && thread != nil {
+		log.Printf("BookmarkThreadHandler: Verification - Thread %s for user %s: bookmark status is now %v",
+			threadID, userIDStr, thread.IsBookmarked)
+	} else if err != nil {
+		log.Printf("BookmarkThreadHandler: Error verifying bookmark: %v", err)
+	} else {
+		log.Printf("BookmarkThreadHandler: Thread not found during verification")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Thread bookmarked successfully",
+	})
 }

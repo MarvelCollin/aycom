@@ -13,6 +13,8 @@ import (
 // UserClient defines the interface for user operations
 type UserClient interface {
 	GetUserById(ctx context.Context, userId string) (*UserInfo, error)
+	UserExists(userId string) (bool, error)
+	GetUserDetails(userId string) (map[string]interface{}, error)
 }
 
 // UserInfo represents user information returned by the user service
@@ -76,4 +78,52 @@ func (c *realUserClient) GetUserById(ctx context.Context, userId string) (*UserI
 
 	log.Printf("Successfully retrieved real user data for %s (username: %s)", user.Id, user.Username)
 	return user, nil
+}
+
+// UserExists checks if a user exists in the user service
+func (c *realUserClient) UserExists(userId string) (bool, error) {
+	log.Printf("Checking if user exists: %s", userId)
+
+	if c.client == nil {
+		log.Printf("Warning: User service client is nil")
+		return true, nil // Assume user exists if we can't check
+	}
+
+	// Try to get the user - if successful, the user exists
+	ctx := context.Background()
+	_, err := c.GetUserById(ctx, userId)
+	if err != nil {
+		if err.Error() == fmt.Sprintf("no user data found for ID: %s", userId) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+// GetUserDetails retrieves user details from the user service
+func (c *realUserClient) GetUserDetails(userId string) (map[string]interface{}, error) {
+	log.Printf("Getting user details for: %s", userId)
+
+	if c.client == nil {
+		log.Printf("Warning: User service client is nil")
+		return map[string]interface{}{}, nil
+	}
+
+	ctx := context.Background()
+	user, err := c.GetUserById(ctx, userId)
+	if err != nil {
+		return map[string]interface{}{}, err
+	}
+
+	return map[string]interface{}{
+		"id":                  user.Id,
+		"username":            user.Username,
+		"display_name":        user.DisplayName,
+		"email":               user.Email,
+		"profile_picture_url": user.ProfilePictureUrl,
+		"bio":                 user.Bio,
+		"is_verified":         user.IsVerified,
+	}, nil
 }

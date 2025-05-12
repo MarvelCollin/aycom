@@ -70,9 +70,12 @@ func initThreadService() {
 
 	userClient := connectToUserService()
 
+	// Create a user repository adapter using the user client
+	userRepo := repository.NewUserRepositoryAdapter(userClient)
+
 	threadService := service.NewThreadService(threadRepo, mediaRepo, hashtagRepo, replyRepo)
 	replyService := service.NewReplyService(replyRepo, threadRepo, mediaRepo)
-	interactionService := service.NewInteractionService(interactionRepo)
+	interactionService := service.NewInteractionService(interactionRepo, threadRepo, userRepo)
 	pollService := service.NewPollService(pollRepo)
 
 	handler := handlers.NewThreadHandler(
