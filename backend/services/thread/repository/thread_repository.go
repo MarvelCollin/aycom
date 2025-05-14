@@ -118,7 +118,7 @@ func (r *PostgresThreadRepository) ThreadExists(threadID string) (bool, error) {
 
 	var count int64
 	result := r.db.Model(&model.Thread{}).
-		Where("id = ?", threadUUID).
+		Where("thread_id = ?", threadUUID).
 		Count(&count)
 
 	if result.Error != nil {

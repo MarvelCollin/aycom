@@ -691,11 +691,16 @@
     logger.info('Bookmark tweet action', { tweetId });
     
     try {
-      await bookmarkThread(tweetId);
+      // Attempt to bookmark the thread
+      console.log(`Attempting to bookmark thread: ${tweetId}`);
+      const response = await bookmarkThread(tweetId);
+      console.log(`Bookmark response:`, response);
       toastStore.showToast('Tweet bookmarked', 'success');
       
+      // Update UI state to reflect the bookmark
       tweetsForYou = tweetsForYou.map(tweet => {
         if (tweet.id === tweetId) {
+          console.log(`Marking tweet ${tweetId} as bookmarked`);
           return { ...tweet, bookmarks: (tweet.bookmarks || 0) + 1, isBookmarked: true };
         }
         return tweet;
@@ -708,11 +713,11 @@
         return tweet;
       });
     } catch (error) {
+      console.error('Error bookmarking tweet:', error);
       toastStore.showToast('Failed to bookmark tweet', 'error');
     }
   }
   
-  // New function: Handle tweet unbookmark
   async function handleTweetUnbookmark(event: CustomEvent) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
@@ -722,12 +727,16 @@
     logger.info('Unbookmark tweet action', { tweetId });
     
     try {
-      await removeBookmark(tweetId);
+      // Attempt to remove the bookmark
+      console.log(`Attempting to remove bookmark from thread: ${tweetId}`);
+      const response = await removeBookmark(tweetId);
+      console.log(`Unbookmark response:`, response);
       toastStore.showToast('Bookmark removed', 'success');
       
-      // Update both tweet arrays
+      // Update UI state to reflect the unbookmark
       tweetsForYou = tweetsForYou.map(tweet => {
         if (tweet.id === tweetId) {
+          console.log(`Marking tweet ${tweetId} as not bookmarked`);
           return { ...tweet, bookmarks: Math.max(0, (tweet.bookmarks || 0) - 1), isBookmarked: false };
         }
         return tweet;
@@ -740,6 +749,7 @@
         return tweet;
       });
     } catch (error) {
+      console.error('Error removing bookmark:', error);
       toastStore.showToast('Failed to remove bookmark', 'error');
     }
   }
@@ -1012,7 +1022,10 @@
               on:unlike={handleTweetUnlike}
               on:repost={(e) => tweet.isReposted ? handleTweetUnrepost(e) : handleTweetRepost(e)}
               on:reply={handleTweetReply}
-              on:bookmark={handleTweetBookmark}
+              on:bookmark={(e) => {
+                console.log(`Tweet ${tweet.id} - Bookmark status: ${tweet.isBookmarked ? 'bookmarked' : 'not bookmarked'}`);
+                return tweet.isBookmarked ? handleTweetUnbookmark(e) : handleTweetBookmark(e);
+              }}
               on:removeBookmark={handleTweetUnbookmark}
               on:loadReplies={handleLoadReplies}
             />

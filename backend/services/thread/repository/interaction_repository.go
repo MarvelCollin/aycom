@@ -63,42 +63,150 @@ func NewInteractionRepository(db *gorm.DB) InteractionRepository {
 
 // LikeThread adds a like to a thread
 func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) error {
+	log.Printf("LikeThread called with userID: %s, threadID: %s", userID, threadID)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("Invalid UUID format for user ID: %s - %v", userID, err)
 		return errors.New("invalid UUID format for user ID")
 	}
 
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
+		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	like := model.Like{
-		UserID:   userUUID,
-		ThreadID: &threadUUID,
+	// Let's first check if the like already exists outside the transaction
+	hasLiked, err := r.IsThreadLikedByUser(userID, threadID)
+	if err != nil {
+		log.Printf("Error checking if thread is already liked: %v", err)
+		return err
 	}
 
-	return r.db.Create(&like).Error
+	if hasLiked {
+		log.Printf("Thread %s is already liked by user %s, returning success", threadID, userID)
+		return nil
+	}
+
+	// Start a transaction to make this operation atomic
+	log.Printf("Starting transaction for new like")
+	tx := r.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in LikeThread: %v", r)
+			tx.Rollback()
+		}
+	}()
+
+	// Check if the like already exists in a transaction
+	var count int64
+	if err := tx.Model(&model.Like{}).Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).Count(&count).Error; err != nil {
+		log.Printf("Error counting likes in transaction: %v", err)
+		tx.Rollback()
+		return err
+	}
+
+	// Only insert if it doesn't exist
+	if count == 0 {
+		log.Printf("No existing like found, creating new like")
+		like := model.Like{
+			UserID:   userUUID,
+			ThreadID: &threadUUID,
+		}
+
+		if err := tx.Create(&like).Error; err != nil {
+			log.Printf("Error creating like: %v", err)
+			tx.Rollback()
+			return err
+		}
+		log.Printf("Like created successfully")
+	} else {
+		log.Printf("Like already exists in transaction check, skipping creation")
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return err
+	}
+
+	log.Printf("Transaction committed successfully, thread %s liked by user %s", threadID, userID)
+	return nil
 }
 
 // LikeReply adds a like to a reply
 func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error {
+	log.Printf("LikeReply called with userID: %s, replyID: %s", userID, replyID)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("Invalid UUID format for user ID: %s - %v", userID, err)
 		return errors.New("invalid UUID format for user ID")
 	}
 
 	replyUUID, err := uuid.Parse(replyID)
 	if err != nil {
+		log.Printf("Invalid UUID format for reply ID: %s - %v", replyID, err)
 		return errors.New("invalid UUID format for reply ID")
 	}
 
-	like := model.Like{
-		UserID:  userUUID,
-		ReplyID: &replyUUID,
+	// Let's first check if the like already exists outside the transaction
+	hasLiked, err := r.IsReplyLikedByUser(userID, replyID)
+	if err != nil {
+		log.Printf("Error checking if reply is already liked: %v", err)
+		return err
 	}
 
-	return r.db.Create(&like).Error
+	if hasLiked {
+		log.Printf("Reply %s is already liked by user %s, returning success", replyID, userID)
+		return nil
+	}
+
+	// Start a transaction to make this operation atomic
+	log.Printf("Starting transaction for new reply like")
+	tx := r.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in LikeReply: %v", r)
+			tx.Rollback()
+		}
+	}()
+
+	// Check if the like already exists in a transaction
+	var count int64
+	if err := tx.Model(&model.Like{}).Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", userUUID, replyUUID).Count(&count).Error; err != nil {
+		log.Printf("Error counting reply likes in transaction: %v", err)
+		tx.Rollback()
+		return err
+	}
+
+	// Only insert if it doesn't exist
+	if count == 0 {
+		log.Printf("No existing reply like found, creating new like")
+		like := model.Like{
+			UserID:  userUUID,
+			ReplyID: &replyUUID,
+		}
+
+		if err := tx.Create(&like).Error; err != nil {
+			log.Printf("Error creating reply like: %v", err)
+			tx.Rollback()
+			return err
+		}
+		log.Printf("Reply like created successfully")
+	} else {
+		log.Printf("Reply like already exists in transaction check, skipping creation")
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return err
+	}
+
+	log.Printf("Transaction committed successfully, reply %s liked by user %s", replyID, userID)
+	return nil
 }
 
 // UnlikeThread removes a like from a thread
@@ -144,7 +252,15 @@ func (r *PostgresInteractionRepository) IsThreadLikedByUser(userID, threadID str
 	}
 
 	var count int64
-	r.db.Model(&model.Like{}).Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Count(&count)
+	err = r.db.Model(&model.Like{}).
+		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
+		Count(&count).Error
+
+	if err != nil {
+		log.Printf("Error checking if thread is liked by user: %v", err)
+		return false, err
+	}
+
 	return count > 0, nil
 }
 
@@ -161,7 +277,15 @@ func (r *PostgresInteractionRepository) IsReplyLikedByUser(userID, replyID strin
 	}
 
 	var count int64
-	r.db.Model(&model.Like{}).Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).Count(&count)
+	err = r.db.Model(&model.Like{}).
+		Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", userUUID, replyUUID).
+		Count(&count).Error
+
+	if err != nil {
+		log.Printf("Error checking if reply is liked by user: %v", err)
+		return false, err
+	}
+
 	return count > 0, nil
 }
 
@@ -260,6 +384,18 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 		return nil // Return success for idempotence
 	}
 
+	// Check if there's a soft-deleted bookmark we can reactivate
+	var softDeletedBookmark model.Bookmark
+	result := r.db.Unscoped().Where("user_id = ? AND thread_id = ? AND deleted_at IS NOT NULL",
+		userUUID, threadUUID).First(&softDeletedBookmark)
+
+	if result.Error == nil {
+		// Found a soft-deleted bookmark, reactivate it
+		log.Printf("Reactivating soft-deleted bookmark for userID: %s, threadID: %s", userID, threadID)
+		return r.db.Model(&softDeletedBookmark).Update("deleted_at", nil).Error
+	}
+
+	// No existing bookmark, create a new one
 	bookmark := model.Bookmark{
 		UserID:   userUUID,
 		ThreadID: threadUUID,
@@ -297,11 +433,22 @@ func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) 
 	}
 
 	// Use soft delete by setting deleted_at timestamp
+	// This is better than hard delete since it allows restoration and preserves history
 	result := r.db.Model(&model.Bookmark{}).Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Update("deleted_at", time.Now())
 
 	if result.Error != nil {
 		log.Printf("ERROR: Failed to remove bookmark: %v", result.Error)
 		return result.Error
+	}
+
+	// Verify bookmark was actually marked as deleted
+	isStillBookmarked, verifyErr := r.IsThreadBookmarkedByUser(userID, threadID)
+	if verifyErr != nil {
+		log.Printf("WARNING: Could not verify bookmark removal: %v", verifyErr)
+	} else if isStillBookmarked {
+		log.Printf("WARNING: Bookmark appears to still be active after removal attempt")
+	} else {
+		log.Printf("Successfully verified bookmark was removed for userID: %s, threadID: %s", userID, threadID)
 	}
 
 	log.Printf("Successfully removed bookmark for userID: %s, threadID: %s, rows affected: %d", userID, threadID, result.RowsAffected)

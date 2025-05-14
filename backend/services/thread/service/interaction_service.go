@@ -83,11 +83,19 @@ func (s *interactionService) LikeThread(ctx context.Context, userID, threadID st
 	}
 
 	if hasLiked {
-		return status.Error(codes.AlreadyExists, "User has already liked this thread")
+		// If the user has already liked the thread, just return success
+		// This prevents duplicate errors from being shown to the user
+		return nil
 	}
 
 	// Add like
 	if err := s.interactionRepo.LikeThread(userID, threadID); err != nil {
+		// Check if it's a unique constraint violation (which could happen in race conditions)
+		if err.Error() == "ERROR: duplicate key value violates unique constraint \"likes_pkey\" (SQLSTATE 23505)" {
+			// This is a race condition where the user already liked the thread
+			// Just return success since the like already exists
+			return nil
+		}
 		return status.Errorf(codes.Internal, "Failed to like thread: %v", err)
 	}
 
@@ -107,7 +115,9 @@ func (s *interactionService) UnlikeThread(ctx context.Context, userID, threadID 
 	}
 
 	if !hasLiked {
-		return status.Error(codes.NotFound, "User has not liked this thread")
+		// If the user hasn't liked the thread, just return success instead of an error
+		// This makes the API idempotent and prevents 404 errors in the frontend
+		return nil
 	}
 
 	// Remove like
@@ -131,11 +141,19 @@ func (s *interactionService) LikeReply(ctx context.Context, userID, replyID stri
 	}
 
 	if hasLiked {
-		return status.Error(codes.AlreadyExists, "User has already liked this reply")
+		// If the user has already liked the reply, just return success
+		// This prevents duplicate errors from being shown to the user
+		return nil
 	}
 
 	// Add like
 	if err := s.interactionRepo.LikeReply(userID, replyID); err != nil {
+		// Check if it's a unique constraint violation (which could happen in race conditions)
+		if err.Error() == "ERROR: duplicate key value violates unique constraint \"likes_pkey\" (SQLSTATE 23505)" {
+			// This is a race condition where the user already liked the reply
+			// Just return success since the like already exists
+			return nil
+		}
 		return status.Errorf(codes.Internal, "Failed to like reply: %v", err)
 	}
 
@@ -155,7 +173,9 @@ func (s *interactionService) UnlikeReply(ctx context.Context, userID, replyID st
 	}
 
 	if !hasLiked {
-		return status.Error(codes.NotFound, "User has not liked this reply")
+		// If the user hasn't liked the reply, just return success instead of an error
+		// This makes the API idempotent and prevents 404 errors in the frontend
+		return nil
 	}
 
 	// Remove like
@@ -246,7 +266,9 @@ func (s *interactionService) RemoveRepost(ctx context.Context, userID, threadID 
 	}
 
 	if !hasReposted {
-		return status.Error(codes.NotFound, "User has not reposted this thread")
+		// If the user hasn't reposted the thread, just return success
+		// This makes the API idempotent
+		return nil
 	}
 
 	// Remove repost

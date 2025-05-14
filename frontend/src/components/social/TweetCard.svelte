@@ -159,6 +159,8 @@
       return;
     }
     
+    console.log(`Bookmark action - current status: ${isBookmarked ? 'bookmarked' : 'not bookmarked'}`);
+    
     if (isBookmarked) {
       dispatch('removeBookmark', processedTweet.id);
     } else {
