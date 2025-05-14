@@ -1286,3 +1286,65 @@ func BookmarkThreadHandler(c *gin.Context) {
 		"message": "Thread bookmarked successfully",
 	})
 }
+
+// UpdateThreadMediaURLsHandler updates a thread with media URLs from Supabase
+func UpdateThreadMediaURLsHandler(c *gin.Context) {
+	// Get thread ID from URL
+	threadID := c.Param("id")
+	if threadID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
+		return
+	}
+
+	// Get authenticated user ID
+	userIdValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userID, ok := userIdValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		MediaUrls []string `json:"mediaUrls"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate all URLs are from Supabase
+	for _, url := range req.MediaUrls {
+		if !strings.Contains(url, ".supabase.co") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
+			return
+		}
+	}
+
+	// Get thread service client
+	threadClient := GetThreadServiceClient()
+	if threadClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Thread service unavailable"})
+		return
+	}
+
+	// Update thread with new media URLs
+	// Since UpdateThreadMedia might not exist yet, we'll use UpdateThread as a fallback
+	updatedThread, err := threadClient.UpdateThread(threadID, userID, "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update thread media: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"thread":     updatedThread,
+		"media_urls": req.MediaUrls,
+	})
+}

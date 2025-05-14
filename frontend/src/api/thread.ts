@@ -1,5 +1,6 @@
 import { getAuthToken, getUserId } from '../utils/auth';
 import appConfig from '../config/appConfig';
+import { uploadMultipleThreadMedia } from '../utils/supabase';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 
@@ -120,14 +121,10 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
 }
 
 export async function getAllThreads(page = 1, limit = 20) {
-  const token = getAuthToken();
-  
   try {
-    console.log(`Fetching all threads, page: ${page}, limit: ${limit}`);
+    const token = getAuthToken();
     
-    const endpoint = `${API_BASE_URL}/threads?page=${page}&limit=${limit}`;
-    console.log(`Making request to: ${endpoint}`);
-    
+    // Define headers - allow unauthenticated access but add token if available
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -136,47 +133,81 @@ export async function getAllThreads(page = 1, limit = 20) {
       headers["Authorization"] = `Bearer ${token}`;
     }
     
-    const response = await fetch(endpoint, {
+    console.log(`Fetching threads - page ${page}, limit ${limit}`);
+    console.log(`Auth token present: ${!!token}`);
+    
+    const response = await fetch(`${API_BASE_URL}/threads?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: headers,
       credentials: "include",
     });
     
+    console.log(`API response status: ${response.status}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Log like status of threads for debugging
+      if (data && data.threads && data.threads.length > 0) {
+        console.log(`Received ${data.threads.length} threads from API`);
+        console.log('Like status of first few threads:', data.threads.slice(0, 3).map(t => ({ 
+          id: t.id, 
+          is_liked: t.is_liked, 
+          isLiked: t.isLiked 
+        })));
+      }
+      
+      // Get liked threads from localStorage for client-side verification
+      let likedThreads: string[] = [];
+      try {
+        likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '[]');
+      } catch (err) {
+        console.error('Error parsing liked threads from localStorage:', err);
+      }
+      
+      // Ensure threads have consistent like status from localStorage
+      if (data.threads) {
+        data.threads = data.threads.map(thread => {
+          // If the thread is in our liked threads localStorage, make sure it shows as liked
+          if (likedThreads.includes(thread.id)) {
+            return {
+              ...thread,
+              is_liked: true,
+              isLiked: true
+            };
+          }
+          return thread;
+        });
+      }
+      
+      return data;
+    }
+    
+    // If 401 Unauthorized, return empty results instead of throwing
     if (response.status === 401) {
       console.warn("Unauthorized when fetching threads - returning empty results");
-      return { 
-        threads: [],
-        total_count: 0,
-        page: page,
-        limit: limit
-      };
+      return { threads: [], total_count: 0, page, limit };
     }
     
-    if (!response.ok) {
-      let errorMessage = `Failed to fetch threads: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || 
-                      errorData.error?.message || 
-                      errorMessage;
-        console.error("API error response:", errorData);
-      } catch (parseError) {
-        console.error("Could not parse error response:", parseError);
-      }
-      throw new Error(errorMessage);
+    // If 500 server error, return empty results with a log message instead of throwing
+    if (response.status === 500) {
+      console.error("Server error (500) when fetching threads - returning empty results");
+      return { threads: [], total_count: 0, page, limit };
     }
     
-    const data = await response.json();
-    console.log(`Successfully retrieved ${data.threads?.length || 0} threads`);
-    return data;
-  } catch (error: any) {
+    // For other errors, try to parse the error message but don't throw
+    try {
+      const errorData = await response.json();
+      console.error(`Error in getAllThreads: ${errorData.message || `Failed to fetch threads: ${response.status}`}`);
+      return { threads: [], total_count: 0, page, limit };
+    } catch (parseError) {
+      console.error(`Error in getAllThreads: Failed to fetch threads: ${response.status}`);
+      return { threads: [], total_count: 0, page, limit };
+    }
+  } catch (error) {
     console.error("Error in getAllThreads:", error);
-    return { 
-      threads: [],
-      total_count: 0,
-      page: page,
-      limit: limit
-    };
+    // Return empty results instead of throwing to avoid breaking the UI
+    return { threads: [], total_count: 0, page, limit };
   }
 }
 
@@ -238,38 +269,77 @@ export async function deleteThread(id: string) {
 }
 
 export async function uploadThreadMedia(threadId: string, files: File[]) {
-  const token = getAuthToken();
-  
-  const formData = new FormData();
-  formData.append('thread_id', threadId);
-  
-  files.forEach((file, index) => {
-    formData.append(`file`, file);
-  });
-  
-  const response = await fetch(`${API_BASE_URL}/threads/media`, {
-    method: 'POST',
-    headers: {
-      "Authorization": token ? `Bearer ${token}` : ''
-    },
-    body: formData,
-    credentials: 'include',
-  });
-  
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(
-        errorData.message || 
-        errorData.error?.message || 
-        `Failed to upload media: ${response.status} ${response.statusText}`
-      );
-    } catch (parseError) {
-      throw new Error(`Failed to upload media: ${response.status} ${response.statusText}`);
+  try {
+    // First try to upload directly to Supabase
+    const urls = await uploadMultipleThreadMedia(files, threadId);
+    
+    if (urls && urls.length > 0) {
+      const token = getAuthToken();
+      
+      // Update thread with the Supabase media URLs
+      const response = await fetch(`${API_BASE_URL}/threads/${threadId}/media/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ mediaUrls: urls }),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || 
+            errorData.error?.message || 
+            `Failed to update thread with media URLs: ${response.status}`
+          );
+        } catch (parseError) {
+          throw new Error(`Failed to update thread with media URLs: ${response.status}`);
+        }
+      }
+      
+      return response.json();
     }
+    
+    // Fall back to the API if Supabase upload fails
+    const token = getAuthToken();
+    
+    const formData = new FormData();
+    formData.append('thread_id', threadId);
+    
+    files.forEach((file, index) => {
+      formData.append(`file`, file);
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/threads/media`, {
+      method: 'POST',
+      headers: {
+        "Authorization": token ? `Bearer ${token}` : ''
+      },
+      body: formData,
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 
+          errorData.error?.message || 
+          `Failed to upload media: ${response.status} ${response.statusText}`
+        );
+      } catch (parseError) {
+        throw new Error(`Failed to upload media: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error("Error in uploadThreadMedia:", error);
+    throw error;
   }
-  
-  return response.json();
 }
 
 // Social Features
@@ -299,7 +369,21 @@ export async function likeThread(threadId: string) {
       );
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log(`Successfully liked thread ${threadId}`, data);
+    
+    // Add the thread to local storage to track liked status
+    try {
+      const likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '[]');
+      if (!likedThreads.includes(threadId)) {
+        likedThreads.push(threadId);
+        localStorage.setItem('likedThreads', JSON.stringify(likedThreads));
+      }
+    } catch (err) {
+      console.error('Error saving liked status to localStorage:', err);
+    }
+    
+    return data;
   } catch (error) {
     console.error("Error in likeThread:", error);
     throw error;
@@ -340,7 +424,19 @@ export async function unlikeThread(threadId: string) {
       }
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log(`Successfully unliked thread ${threadId}`, data);
+    
+    // Remove thread from local storage
+    try {
+      const likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '[]');
+      const updatedLikes = likedThreads.filter(id => id !== threadId);
+      localStorage.setItem('likedThreads', JSON.stringify(updatedLikes));
+    } catch (err) {
+      console.error('Error updating liked status in localStorage:', err);
+    }
+    
+    return data;
   } catch (error) {
     console.error("Error in unlikeThread:", error);
     throw error;
@@ -967,49 +1063,67 @@ export async function removeReplyBookmark(replyId: string) {
 export async function getUserThreads(userId: string, page: number = 1, limit: number = 10) {
   try {
     const token = getAuthToken();
-    let actualUserId = userId;
     
-    if (userId === 'me') {
-      const currentUserId = getUserId();
-      console.log('Current user ID from auth:', currentUserId);
-      
-      if (!currentUserId) {
-        throw new Error('User ID is required');
-      }
-      actualUserId = currentUserId;
+    // Set up headers - allow unauthenticated access but add auth if available
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
     
-    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}?page=${page}&limit=${limit}`;
-    console.log(`Making request to: ${endpoint}`);
+    console.log(`Fetching threads for user ${userId}, page: ${page}, limit: ${limit}`);
     
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: "include"
+    const response = await fetch(`${API_BASE_URL}/threads/user/${userId}?page=${page}&limit=${limit}`, {
+      method: "GET",
+      headers: headers,
+      credentials: "include",
     });
     
     if (!response.ok) {
-      if (response.status === 400) {
-        let errorMessage = `Bad request when getting user threads`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-          console.error("API error response:", errorData);
-        } catch (parseError) {
-          console.error("Could not parse error response:", parseError);
-        }
-        throw new Error(errorMessage);
-      }
-      throw new Error(`Failed to get user threads: ${response.status}`);
+      const error = await response.text();
+      throw new Error(`Failed to get user threads: ${response.status} - ${error}`);
     }
     
-    return await response.json();
-  } catch (err) {
-    console.error('Error getting user threads:', err);
-    throw err;
+    // Get liked threads from localStorage for client-side verification
+    let likedThreads: string[] = [];
+    try {
+      likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '[]');
+    } catch (err) {
+      console.error('Error parsing liked threads from localStorage:', err);
+    }
+    
+    const data = await response.json();
+    
+    // Log thread data to debug like status
+    console.log(`Received ${data.threads?.length || 0} threads for user ${userId}`);
+    
+    // Check for any thread with is_liked = true
+    if (data.threads && data.threads.length > 0) {
+      const likedCount = data.threads.filter(t => t.is_liked || t.isLiked).length;
+      console.log(`Threads with is_liked=true from API: ${likedCount}`);
+      
+      // Ensure threads have consistent like status from localStorage
+      data.threads = data.threads.map(thread => {
+        // If the thread is in our liked threads localStorage, make sure it shows as liked
+        // This is a failsafe in case the API doesn't return the correct like status
+        if (likedThreads.includes(thread.id)) {
+          return {
+            ...thread,
+            is_liked: true,
+            isLiked: true
+          };
+        }
+        return thread;
+      });
+    }
+    
+    return data;
+    
+  } catch (error) {
+    console.error("Error in getUserThreads:", error);
+    throw error;
   }
 }
 

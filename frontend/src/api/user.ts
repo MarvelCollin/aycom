@@ -1,5 +1,6 @@
 import appConfig from '../config/appConfig';
 import { getAuthToken } from '../utils/auth';
+import { uploadProfilePicture as supabaseUploadProfilePicture, uploadBanner as supabaseUploadBanner } from '../utils/supabase';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 
@@ -246,6 +247,35 @@ export async function searchUsers(query: string, page: number = 1, limit: number
 
 export async function uploadProfilePicture(file: File) {
   try {
+    // First try to upload directly to Supabase
+    const url = await supabaseUploadProfilePicture(file, getUserId());
+    
+    if (url) {
+      // If successful, update the user's profile with the new URL
+      const token = getAuthToken();
+      
+      const response = await fetch(`${API_BASE_URL}/users/profile-picture/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ profilePictureUrl: url })
+      });
+      
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to update profile picture in the database");
+        } catch (parseError) {
+          throw new Error(`Failed to update profile picture in the database: ${response.status}`);
+        }
+      }
+      
+      return { success: true, url };
+    }
+    
+    // Fall back to the API if Supabase upload fails
     const token = getAuthToken();
     
     const formData = new FormData();
@@ -275,8 +305,58 @@ export async function uploadProfilePicture(file: File) {
   }
 }
 
+// Helper function to get user ID from localStorage
+function getUserId(): string {
+  try {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      return user.id || '';
+    }
+    return '';
+  } catch (err) {
+    console.error('Failed to get user ID from localStorage:', err);
+    return '';
+  }
+}
+
 export async function uploadBanner(file: File) {
   try {
+    console.log('Starting banner upload process with file:', file.name, file.type, file.size);
+    
+    // First try to upload directly to Supabase
+    const url = await supabaseUploadBanner(file, getUserId());
+    console.log('Supabase banner upload result URL:', url);
+    
+    if (url) {
+      // If successful, update the user's profile with the new banner URL
+      const token = getAuthToken();
+      
+      console.log('Updating backend with new banner URL:', url);
+      const response = await fetch(`${API_BASE_URL}/users/banner/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ bannerUrl: url })
+      });
+      
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to update banner in the database");
+        } catch (parseError) {
+          throw new Error(`Failed to update banner in the database: ${response.status}`);
+        }
+      }
+      
+      console.log('Banner URL successfully updated in backend');
+      return { success: true, url };
+    }
+    
+    // Fall back to the API if Supabase upload fails
+    console.log('Falling back to API upload (Supabase upload failed)');
     const token = getAuthToken();
     
     const formData = new FormData();
@@ -299,7 +379,9 @@ export async function uploadBanner(file: File) {
       }
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('API banner upload result:', result);
+    return result;
   } catch (err) {
     console.error('Failed to upload banner:', err);
     throw err;
@@ -311,7 +393,7 @@ export async function pinThread(threadId: string) {
     const token = getAuthToken();
     
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
@@ -348,8 +430,8 @@ export async function unpinThread(threadId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/unpin`, {
-      method: 'PUT',
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
@@ -387,7 +469,7 @@ export async function pinReply(replyId: string) {
     const token = getAuthToken();
     
     const response = await fetch(`${API_BASE_URL}/replies/${replyId}/pin`, {
-      method: 'PUT',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
@@ -424,8 +506,8 @@ export async function unpinReply(replyId: string) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/unpin`, {
-      method: 'PUT',
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/pin`, {
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''

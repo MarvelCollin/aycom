@@ -45,6 +45,7 @@ type User struct {
 	Email             string
 	Name              string
 	ProfilePictureURL string
+	BannerURL         string
 	Bio               string
 	IsVerified        bool
 	FollowerCount     int
@@ -407,6 +408,7 @@ func convertProtoToUser(u *userProto.User) *User {
 		Email:             u.Email,
 		Name:              u.Name,
 		ProfilePictureURL: u.ProfilePictureUrl,
+		BannerURL:         u.BannerUrl,
 		// Fields that might not be in the proto are given default values
 		Bio:            "",
 		FollowerCount:  0,

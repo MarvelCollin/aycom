@@ -25,6 +25,7 @@ export interface ITweet {
   views: string;
   media?: IMedia[];
   isLiked?: boolean;
+  is_liked?: boolean;
   isReposted?: boolean;
   isBookmarked?: boolean;
   is_pinned?: boolean;

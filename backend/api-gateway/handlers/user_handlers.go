@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"aycom/backend/api-gateway/utils"
@@ -59,15 +60,18 @@ func GetUserProfile(c *gin.Context) {
 
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":                  user.ID,
-			"name":                user.Name,
-			"username":            user.Username,
-			"email":               user.Email,
-			"profile_picture_url": user.ProfilePictureURL,
-			"bio":                 user.Bio,
-			"is_verified":         user.IsVerified,
-			"follower_count":      user.FollowerCount,
-			"following_count":     user.FollowingCount,
+			"id":                    user.ID,
+			"name":                  user.Name,
+			"username":              user.Username,
+			"email":                 user.Email,
+			"profile_picture_url":   user.ProfilePictureURL,
+			"banner_url":            user.BannerURL,
+			"background_banner_url": user.BannerURL, // For backward compatibility
+			"bio":                   user.Bio,
+			"is_verified":           user.IsVerified,
+			"follower_count":        user.FollowerCount,
+			"following_count":       user.FollowingCount,
+			"created_at":            user.CreatedAt,
 		},
 	})
 }
@@ -130,15 +134,18 @@ func UpdateUserProfile(c *gin.Context) {
 
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":                  updatedUser.ID,
-			"name":                updatedUser.Name,
-			"username":            updatedUser.Username,
-			"email":               updatedUser.Email,
-			"profile_picture_url": updatedUser.ProfilePictureURL,
-			"bio":                 updatedUser.Bio,
-			"is_verified":         updatedUser.IsVerified,
-			"follower_count":      updatedUser.FollowerCount,
-			"following_count":     updatedUser.FollowingCount,
+			"id":                    updatedUser.ID,
+			"name":                  updatedUser.Name,
+			"username":              updatedUser.Username,
+			"email":                 updatedUser.Email,
+			"profile_picture_url":   updatedUser.ProfilePictureURL,
+			"banner_url":            updatedUser.BannerURL,
+			"background_banner_url": updatedUser.BannerURL, // For backward compatibility
+			"bio":                   updatedUser.Bio,
+			"is_verified":           updatedUser.IsVerified,
+			"follower_count":        updatedUser.FollowerCount,
+			"following_count":       updatedUser.FollowingCount,
+			"created_at":            updatedUser.CreatedAt,
 		},
 	})
 }
@@ -684,4 +691,108 @@ func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
 	})
 
 	log.Printf("Provided %d fallback users for page %d (limit %d)", len(pageUsers), page, limit)
+}
+
+// UpdateProfilePictureURLHandler updates a user's profile picture URL directly
+func UpdateProfilePictureURLHandler(c *gin.Context) {
+	userIdValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userID, ok := userIdValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	var req struct {
+		ProfilePictureUrl string `json:"profilePictureUrl"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate the URL is from Supabase
+	if !strings.Contains(req.ProfilePictureUrl, ".supabase.co") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
+		return
+	}
+
+	// Update the user's profile with the new URL
+	if UserClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "User service unavailable"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	updateReq := &userProto.UpdateUserRequest{
+		UserId:            userID,
+		ProfilePictureUrl: req.ProfilePictureUrl,
+	}
+
+	_, err := UserClient.UpdateUser(ctx, updateReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update profile: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.ProfilePictureUrl})
+}
+
+// UpdateBannerURLHandler updates a user's banner URL directly
+func UpdateBannerURLHandler(c *gin.Context) {
+	userIdValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userID, ok := userIdValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	var req struct {
+		BannerUrl string `json:"bannerUrl"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate the URL is from Supabase
+	if !strings.Contains(req.BannerUrl, ".supabase.co") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
+		return
+	}
+
+	// Update the user's profile with the new URL
+	if UserClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "User service unavailable"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	updateReq := &userProto.UpdateUserRequest{
+		UserId:    userID,
+		BannerUrl: req.BannerUrl,
+	}
+
+	_, err := UserClient.UpdateUser(ctx, updateReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update profile: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.BannerUrl})
 }

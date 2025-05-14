@@ -183,6 +183,7 @@
       views: String(views),
       media: thread.media || [],
       isLiked: isLiked,
+      is_liked: isLiked, // Add the backend format as well for consistency
       isReposted: isReposted,
       isBookmarked: isBookmarked,
       is_pinned: isPinned,
@@ -355,6 +356,15 @@
   async function loadTabContent(tab: string) {
     isLoading = true;
     try {
+      // Get liked threads from localStorage for client-side verification
+      let likedThreadIds: string[] = [];
+      try {
+        likedThreadIds = JSON.parse(localStorage.getItem('likedThreads') || '[]');
+        console.log('Liked threads from localStorage:', likedThreadIds);
+      } catch (err) {
+        console.error('Error parsing liked threads from localStorage:', err);
+      }
+      
       if (tab === 'posts') {
         // Load user's threads
         const postsData = await getUserThreads(profileUserId);
@@ -363,7 +373,14 @@
         console.log('Raw thread data from API:', postsData.threads);
         
         // Convert threads and ensure proper format
-        let allPosts = (postsData.threads || []).map(thread => ensureTweetFormat(thread));
+        let allPosts = (postsData.threads || []).map(thread => {
+          // Check if this thread is in our liked threads
+          if (likedThreadIds.includes(thread.id)) {
+            thread.is_liked = true;
+            thread.isLiked = true;
+          }
+          return ensureTweetFormat(thread);
+        });
         
         // Sort: pinned posts first, then by creation date
         allPosts.sort((a, b) => {
@@ -378,12 +395,19 @@
         });
         
         posts = allPosts;
-        console.log(`Loaded ${posts.length} posts (${posts.filter(p => p.is_pinned).length} pinned)`);
+        console.log(`Loaded ${posts.length} posts (${posts.filter(p => p.is_pinned).length} pinned, ${posts.filter(p => p.isLiked || p.is_liked).length} liked)`);
       } 
       else if (tab === 'replies') {
         // Load user's replies
         const repliesData = await getUserReplies(profileUserId);
-        replies = (repliesData.replies || []).map(reply => ensureTweetFormat(reply));
+        replies = (repliesData.replies || []).map(reply => {
+          // Check if this reply is in our liked threads
+          if (likedThreadIds.includes(reply.id)) {
+            reply.is_liked = true;
+            reply.isLiked = true;
+          }
+          return ensureTweetFormat(reply);
+        });
         
         // Sort replies by date (newest first)
         replies.sort((a, b) => {
@@ -391,11 +415,18 @@
           const dateB = new Date(b.timestamp);
           return dateB.getTime() - dateA.getTime();
         });
+        
+        console.log(`Loaded ${replies.length} replies (${replies.filter(r => r.isLiked || r.is_liked).length} liked)`);
       } 
       else if (tab === 'likes') {
         // Load user's liked threads
         const likesData = await getUserLikedThreads(profileUserId);
-        likes = (likesData.threads || []).map(thread => ensureTweetFormat(thread));
+        likes = (likesData.threads || []).map(thread => {
+          // Liked threads should always be marked as liked
+          thread.is_liked = true;
+          thread.isLiked = true;
+          return ensureTweetFormat(thread);
+        });
         
         // Sort by date (newest first)
         likes.sort((a, b) => {
@@ -403,6 +434,8 @@
           const dateB = new Date(b.timestamp);
           return dateB.getTime() - dateA.getTime();
         });
+        
+        console.log(`Loaded ${likes.length} liked threads`);
       } 
       else if (tab === 'media') {
         // Load user's media posts
@@ -450,7 +483,7 @@
           displayName: response.user.display_name || '',
           bio: response.user.bio || '',
           profilePicture: response.user.profile_picture_url || '',
-          backgroundBanner: response.user.background_banner_url || '',
+          backgroundBanner: response.user.banner_url || response.user.background_banner_url || '',
           followerCount: response.user.follower_count || 0,
           followingCount: response.user.following_count || 0,
           joinedDate: response.user.created_at ? new Date(response.user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
@@ -458,6 +491,8 @@
           dateOfBirth: isOwnProfile ? (response.user.date_of_birth || '') : '',
           gender: isOwnProfile ? (response.user.gender || '') : ''
         };
+        
+        console.log('Profile data loaded:', profileData);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -497,7 +532,13 @@
       // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
-          return { ...post, isLiked: true, is_liked: true, likes: (post.likes || 0) + 1, likes_count: (post.likes_count || 0) + 1 };
+          return { 
+            ...post, 
+            isLiked: true, 
+            is_liked: true, 
+            likes: (post.likes || 0) + 1, 
+            likes_count: (post.likes_count || 0) + 1 
+          };
         }
         return post;
       });
@@ -505,7 +546,13 @@
       // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
-          return { ...like, isLiked: true, is_liked: true, likes: (like.likes || 0) + 1, likes_count: (like.likes_count || 0) + 1 };
+          return { 
+            ...like, 
+            isLiked: true, 
+            is_liked: true, 
+            likes: (like.likes || 0) + 1, 
+            likes_count: (like.likes_count || 0) + 1 
+          };
         }
         return like;
       });
@@ -513,7 +560,13 @@
       // Update replies tab if the same thread ID exists
       replies = replies.map(reply => {
         if (reply.id === threadId) {
-          return { ...reply, isLiked: true, is_liked: true, likes: (reply.likes || 0) + 1, likes_count: (reply.likes_count || 0) + 1 };
+          return { 
+            ...reply, 
+            isLiked: true, 
+            is_liked: true, 
+            likes: (reply.likes || 0) + 1, 
+            likes_count: (reply.likes_count || 0) + 1 
+          };
         }
         return reply;
       });
@@ -557,10 +610,6 @@
         }
         return like;
       });
-      
-      // Also remove from likes tab if we're unliking
-      // This is optional and depends on your UX requirements
-      // likes = likes.filter(like => like.id !== threadId);
       
       // Update replies tab if the same thread ID exists
       replies = replies.map(reply => {
@@ -796,6 +845,21 @@
   // Computed property for filtered posts
   $: filteredPosts = filterPosts(posts);
   
+  // Handlers for repost functionality
+  async function handleRepost(event) {
+    const threadId = event.detail;
+    // In a real implementation, this would call an API
+    console.log('Repost thread:', threadId);
+    toastStore.showToast('Repost functionality not implemented yet', 'info');
+  }
+  
+  async function handleUnrepost(event) {
+    const threadId = event.detail;
+    // In a real implementation, this would call an API
+    console.log('Unrepost thread:', threadId);
+    toastStore.showToast('Unrepost functionality not implemented yet', 'info');
+  }
+  
   onMount(async () => {
     try {
       await loadProfileData();
@@ -952,22 +1016,22 @@
                 {/if}
                 <TweetCard 
                   tweet={ensureTweetFormat(post)} 
-                  {isDarkMode} 
-                  isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={post.is_liked || post.isLiked || false}
-                  isBookmarked={post.is_bookmarked || post.isBookmarked || false}
-                  isReposted={post.is_reposted || post.isReposted || false}
-                  replies={repliesMap.get(post.id) || []}
-                  showReplies={false}
-                  nestingLevel={0}
-                  nestedRepliesMap={new Map()}
+                  isDarkMode={isDarkMode} 
+                  isAuthenticated={true}
+                  isLiked={post.isLiked || post.is_liked}
+                  isReposted={post.isReposted || post.is_repost}
+                  isBookmarked={post.isBookmarked || post.is_bookmarked}
                   on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  on:click={handleThreadClick}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
                   on:like={handleLike}
                   on:unlike={handleUnlike}
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
+                  on:loadReplies={handleLoadReplies}
+                  replies={repliesMap.get(post.id) || []}
+                  showReplies={false}
+                  nestedRepliesMap={nestedRepliesMap}
                 />
                 {#if isOwnProfile}
                   <button 
@@ -999,22 +1063,22 @@
                 </div>
                 <TweetCard 
                   tweet={ensureTweetFormat(reply)} 
-                  {isDarkMode} 
-                  isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={reply.is_liked || reply.isLiked || false}
-                  isBookmarked={reply.is_bookmarked || reply.isBookmarked || false}
-                  isReposted={reply.is_reposted || reply.isReposted || false}
-                  replies={repliesMap.get(reply.id) || []}
-                  showReplies={false}
-                  nestingLevel={0}
-                  nestedRepliesMap={new Map()}
+                  isDarkMode={isDarkMode} 
+                  isAuthenticated={true}
+                  isLiked={reply.isLiked || reply.is_liked}
+                  isReposted={reply.isReposted || reply.is_repost}
+                  isBookmarked={reply.isBookmarked || reply.is_bookmarked}
                   on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  on:click={handleThreadClick}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
                   on:like={handleLike}
                   on:unlike={handleUnlike}
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
+                  on:loadReplies={handleLoadReplies}
+                  replies={repliesMap.get(reply.id) || []}
+                  showReplies={false}
+                  nestedRepliesMap={nestedRepliesMap}
                 />
                 {#if isOwnProfile}
                   <button 
@@ -1037,22 +1101,22 @@
               <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                 <TweetCard 
                   tweet={ensureTweetFormat(like)} 
-                  {isDarkMode} 
-                  isAuthenticated={!!authState.isAuthenticated}
-                  isLiked={like.is_liked || like.isLiked || true}
-                  isBookmarked={like.is_bookmarked || like.isBookmarked || false}
-                  isReposted={like.is_reposted || like.isReposted || false}
-                  replies={repliesMap.get(like.id) || []}
-                  showReplies={false}
-                  nestingLevel={0}
-                  nestedRepliesMap={new Map()}
+                  isDarkMode={isDarkMode} 
+                  isAuthenticated={true}
+                  isLiked={like.isLiked || like.is_liked}
+                  isReposted={like.isReposted || like.is_repost}
+                  isBookmarked={like.isBookmarked || like.is_bookmarked}
                   on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  on:click={handleThreadClick}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
                   on:like={handleLike}
                   on:unlike={handleUnlike}
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
+                  on:loadReplies={handleLoadReplies}
+                  replies={repliesMap.get(like.id) || []}
+                  showReplies={false}
+                  nestedRepliesMap={nestedRepliesMap}
                 />
               </div>
             {/each}

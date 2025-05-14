@@ -5,6 +5,7 @@
   import { toastStore } from '../../stores/toastStore';
   import type { IUserProfile } from '../../interfaces/IUser';
   import { useTheme } from '../../hooks/useTheme';
+  import { isSupabaseStorageUrl } from '../../utils/supabase';
   
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
@@ -44,8 +45,18 @@
   
   onMount(() => {
     if (profile) {
+      // Handle profile picture URL - could be Supabase URL or relative path
       profilePicturePreview = profile.profile_picture || null;
+      
+      // Handle banner URL - check all possible banner URL properties
       bannerPreview = profile.banner || null;
+      
+      console.log('[ProfileEditModal] Banner preview initialized:', {
+        profileBanner: profile.banner,
+        profileBannerUrl: profile.banner_url,
+        backgroundBannerUrl: profile.background_banner_url,
+        preview: bannerPreview
+      });
     }
   });
   
@@ -112,9 +123,11 @@
     try {
       // Upload profile picture if selected
       if (profilePictureFile) {
+        console.log('Uploading profile picture:', profilePictureFile.name);
         const profileResult = await uploadProfilePicture(profilePictureFile);
         if (profileResult && profileResult.success) {
           toastStore.showToast('Profile picture updated successfully', 'success');
+          console.log('Profile picture updated successfully:', profileResult.url);
           dispatch('profilePictureUpdated', { url: profileResult.url });
         } else {
           throw new Error('Failed to upload profile picture');
@@ -123,9 +136,11 @@
       
       // Upload banner if selected
       if (bannerFile) {
+        console.log('Uploading banner:', bannerFile.name);
         const bannerResult = await uploadBanner(bannerFile);
         if (bannerResult && bannerResult.success) {
           toastStore.showToast('Banner updated successfully', 'success');
+          console.log('Banner updated successfully:', bannerResult.url);
           dispatch('bannerUpdated', { url: bannerResult.url });
         } else {
           throw new Error('Failed to upload banner');

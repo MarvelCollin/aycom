@@ -3,8 +3,8 @@ import { createLoggerWithPrefix } from './logger';
 
 const logger = createLoggerWithPrefix('Supabase');
 
-const supabaseUrl = 'https://sdhtnvlmuywinhcglfsu.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU5MDE4NzUsImV4cCI6MjA2MTQ3Nzg3NX0.Jknb2LNtRgma15sEX0sgLHMPegpCQ1f-05QbZEgHq8M';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU5MDE4NzUsImV4cCI6MjA2MTQ3Nzg3NX0.Jknb2LNtRgma15sEX0sgLHMPegpCQ1f-05QbZEgHq8M';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -233,7 +233,63 @@ export async function uploadProfilePicture(file: File, userId: string): Promise<
 }
 
 export async function uploadBanner(file: File, userId: string): Promise<string | null> {
-  return uploadFile(file, SUPABASE_BUCKETS.BANNERS, userId);
+  logger.debug(`Uploading banner for user ${userId}, fileType: ${file.type}, fileSize: ${file.size}`);
+  
+  try {
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      logger.error('Banner validation failed:', validation.error);
+      return null;
+    }
+    
+    const fileName = generateUniqueFilename(file);
+    const filePath = `${userId}/${fileName}`;
+    logger.debug(`Banner upload path: ${filePath} in bucket: ${SUPABASE_BUCKETS.BANNERS}`);
+    
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKETS.BANNERS)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+      
+    if (error) {
+      logger.error(`Banner upload error for ${userId}:`, error);
+      
+      // Try fallback bucket
+      logger.debug(`Attempting banner upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
+      
+      const fallbackPath = `banners/${userId}/${fileName}`;
+      const fallbackResult = await supabase.storage
+        .from(SUPABASE_BUCKETS.FALLBACK)
+        .upload(fallbackPath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+      if (fallbackResult.error) {
+        logger.error('Fallback banner upload also failed:', fallbackResult.error);
+        return null;
+      }
+      
+      const { data: fallbackUrlData } = supabase.storage
+        .from(SUPABASE_BUCKETS.FALLBACK)
+        .getPublicUrl(fallbackPath);
+        
+      logger.debug('Fallback banner upload successful:', fallbackUrlData.publicUrl);
+      return fallbackUrlData.publicUrl;
+    }
+    
+    const { data: urlData } = supabase.storage
+      .from(SUPABASE_BUCKETS.BANNERS)
+      .getPublicUrl(filePath);
+      
+    logger.debug('Banner upload successful:', urlData.publicUrl);
+    return urlData.publicUrl;
+  } catch (err) {
+    logger.error('Exception during banner upload:', err);
+    return null;
+  }
 }
 
 export async function uploadThreadMedia(file: File, threadId: string): Promise<string | null> {

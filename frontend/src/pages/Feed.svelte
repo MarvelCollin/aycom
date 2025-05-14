@@ -532,7 +532,7 @@
     toggleComposeModal();
   }
   
-  // Handle tweet actions - simplified versions that update both feed arrays
+  // Handle tweet like
   async function handleTweetLike(event: CustomEvent) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
@@ -548,22 +548,24 @@
       // Update both tweet arrays
       tweetsForYou = tweetsForYou.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, likes: (tweet.likes || 0) + 1, isLiked: true };
+          return { ...tweet, likes: (tweet.likes || 0) + 1, isLiked: true, is_liked: true };
         }
         return tweet;
       });
       
       tweetsFollowing = tweetsFollowing.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, likes: (tweet.likes || 0) + 1, isLiked: true };
+          return { ...tweet, likes: (tweet.likes || 0) + 1, isLiked: true, is_liked: true };
         }
         return tweet;
       });
     } catch (error) {
+      console.error('Error liking tweet:', error);
       toastStore.showToast('Failed to like tweet', 'error');
     }
   }
   
+  // Handle tweet unlike
   async function handleTweetUnlike(event: CustomEvent) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
@@ -579,18 +581,19 @@
       // Update both tweet arrays
       tweetsForYou = tweetsForYou.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, likes: Math.max(0, (tweet.likes || 0) - 1), isLiked: false };
+          return { ...tweet, likes: Math.max(0, (tweet.likes || 0) - 1), isLiked: false, is_liked: false };
         }
         return tweet;
       });
       
       tweetsFollowing = tweetsFollowing.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, likes: Math.max(0, (tweet.likes || 0) - 1), isLiked: false };
+          return { ...tweet, likes: Math.max(0, (tweet.likes || 0) - 1), isLiked: false, is_liked: false };
         }
         return tweet;
       });
     } catch (error) {
+      console.error('Error unliking tweet:', error);
       toastStore.showToast('Failed to unlike tweet', 'error');
     }
   }
@@ -1007,27 +1010,23 @@
             </div>
           {:else}
             <TweetCard 
-              {tweet}
-              {isDarkMode}
+              tweet={tweet} 
+              isDarkMode={isDarkMode} 
               isAuthenticated={authState.isAuthenticated}
-              isLiked={tweet.isLiked || false}
-              isReposted={tweet.isReposted || false}
-              isBookmarked={tweet.isBookmarked || false}
-              inReplyToTweet={tweet.replyTo || null}
-              replies={repliesMap.get(tweet.id) || []}
-              nestedRepliesMap={nestedRepliesMap}
-              nestingLevel={0}
-              on:click={() => openThreadModal(tweet)}
+              isLiked={tweet.isLiked || tweet.is_liked || false}
+              isReposted={tweet.isReposted || tweet.is_repost || false}
+              isBookmarked={tweet.isBookmarked || tweet.is_bookmarked || false}
+              on:reply={handleTweetReply}
+              on:repost={handleTweetRepost}
+              on:unrepost={handleTweetUnrepost}
               on:like={handleTweetLike}
               on:unlike={handleTweetUnlike}
-              on:repost={(e) => tweet.isReposted ? handleTweetUnrepost(e) : handleTweetRepost(e)}
-              on:reply={handleTweetReply}
-              on:bookmark={(e) => {
-                console.log(`Tweet ${tweet.id} - Bookmark status: ${tweet.isBookmarked ? 'bookmarked' : 'not bookmarked'}`);
-                return tweet.isBookmarked ? handleTweetUnbookmark(e) : handleTweetBookmark(e);
-              }}
+              on:bookmark={handleTweetBookmark}
               on:removeBookmark={handleTweetUnbookmark}
               on:loadReplies={handleLoadReplies}
+              replies={repliesMap.get(tweet.id) || []}
+              showReplies={false}
+              nestedRepliesMap={nestedRepliesMap}
             />
           {/if}
         {/each}

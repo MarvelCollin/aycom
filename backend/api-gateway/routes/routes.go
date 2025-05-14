@@ -72,6 +72,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/me", handlers.GetUserProfile)
 		users.PUT("/profile", handlers.UpdateUserProfile)
 		users.POST("/media", handlers.UploadProfileMedia)
+		users.POST("/profile-picture/update", handlers.UpdateProfilePictureURLHandler)
+		users.POST("/banner/update", handlers.UpdateBannerURLHandler)
 		users.POST("/:userId/follow", handlers.FollowUser)
 		users.POST("/:userId/unfollow", handlers.UnfollowUser)
 		users.GET("/:userId/followers", handlers.GetFollowers)
@@ -92,6 +94,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.DELETE("/:id", handlers.DeleteThread)
 		threads.GET("/following", handlers.GetThreadsFromFollowing)
 		threads.POST("/media", handlers.UploadThreadMedia)
+		threads.POST("/:id/media/update", handlers.UpdateThreadMediaURLsHandler)
 		threads.POST("/:id/pin", handlers.PinThread)
 		threads.DELETE("/:id/pin", handlers.UnpinThread)
 
