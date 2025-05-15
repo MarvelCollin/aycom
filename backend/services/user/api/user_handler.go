@@ -36,8 +36,14 @@ func mapUserModelToProto(u *model.User) *user.User {
 		Username:          u.Username,
 		Email:             u.Email,
 		Gender:            u.Gender,
+		Bio:               u.Bio,
+		Location:          u.Location,
+		Website:           u.Website,
 		ProfilePictureUrl: u.ProfilePictureURL,
 		BannerUrl:         u.BannerURL,
+		FollowerCount:     int32(u.FollowerCount),
+		FollowingCount:    int32(u.FollowingCount),
+		IsVerified:        u.IsVerified,
 	}
 
 	if u.DateOfBirth != nil {
@@ -143,35 +149,35 @@ func (h *UserHandler) GetRecommendedUsers(ctx context.Context, req *user.GetReco
 }
 
 func (h *UserHandler) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequest) (*user.GetAllUsersResponse, error) {
-	page := int(req.Page)
+	page := int(req.GetPage())
 	if page <= 0 {
 		page = 1
 	}
-	
-	limit := int(req.Limit)
+
+	limit := int(req.GetLimit())
 	if limit <= 0 || limit > 100 {
 		limit = 10 // Default limit
 	}
-	
-	users, total, err := h.svc.GetAllUsers(ctx, page, limit, req.SortBy, req.Ascending)
+
+	// Use !GetSortDesc() instead of GetAscending()
+	users, total, err := h.svc.GetAllUsers(ctx, page, limit, req.GetSortBy(), !req.GetSortDesc())
 	if err != nil {
 		return nil, err
 	}
-	
+
 	userProtos := make([]*user.User, 0, len(users))
 	for _, u := range users {
 		userProto := mapUserModelToProto(u)
 		if userProto != nil {
+			userProto.IsVerified = u.IsVerified
 			userProtos = append(userProtos, userProto)
 		}
 	}
-	
-	totalPages := (total + limit - 1) / limit // Calculate ceiling division
-	
+
 	return &user.GetAllUsersResponse{
 		Users:      userProtos,
 		TotalCount: int32(total),
 		Page:       int32(page),
-		TotalPages: int32(totalPages),
+		// Remove TotalPages field as it doesn't exist in the proto
 	}, nil
 }

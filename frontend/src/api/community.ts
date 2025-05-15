@@ -415,6 +415,8 @@ export async function searchCommunities(
     
     const token = getAuthToken();
     
+    logger.debug('Searching communities', { query, page, limit });
+    
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
@@ -425,42 +427,38 @@ export async function searchCommunities(
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to search communities: ${response.status}`);
+      // Handle 401 Unauthorized by returning empty results instead of throwing
+      if (response.status === 401) {
+        logger.warn('Unauthorized when searching communities - returning empty results');
+        return { communities: [], total_count: 0, page, limit };
+      }
+      
+      // For 500 server errors, return empty results with a log message instead of throwing
+      if (response.status === 500) {
+        logger.error(`Server error (500) when searching communities - returning empty results`);
+        return { communities: [], total_count: 0, page, limit };
+      }
+      
+      const errorMessage = `Failed to search communities: ${response.status}`;
+      logger.error(errorMessage);
+      throw new Error(errorMessage);
     }
     
-    return await response.json();
+    const data = await response.json();
+    logger.debug('Communities search results', { 
+      count: data.communities?.length || 0,
+      totalCount: data.total_count || 0
+    });
+    
+    return data;
   } catch (error) {
-    console.error('Error searching communities:', error);
+    logger.error('Error searching communities:', error);
+    // Return empty results instead of throwing to avoid breaking the UI
     return {
-      communities: [
-        {
-          id: 'c1',
-          name: 'Tech Enthusiasts',
-          description: 'A community for technology lovers and early adopters. We discuss the latest gadgets, software releases, and tech trends.',
-          logo: null,
-          member_count: 1247,
-          is_joined: false,
-          is_pending: false
-        },
-        {
-          id: 'c2',
-          name: 'Travel Adventures',
-          description: 'Share your travel experiences, photos, tips, and recommendations. Connect with fellow travelers around the world!',
-          logo: null,
-          member_count: 3768,
-          is_joined: true,
-          is_pending: false
-        },
-        {
-          id: 'c3',
-          name: 'Coding Experts',
-          description: 'A community dedicated to programming, software development, and coding best practices. Join to share knowledge and learn from others.',
-          logo: null,
-          member_count: 829,
-          is_joined: false,
-          is_pending: true
-        }
-      ]
+      communities: [],
+      total_count: 0,
+      page,
+      limit
     };
   }
 }

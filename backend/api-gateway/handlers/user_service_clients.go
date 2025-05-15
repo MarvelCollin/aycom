@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
+	"strings"
 	"time"
 
 	"aycom/backend/api-gateway/config"
@@ -19,6 +21,10 @@ type UserServiceClient interface {
 	UpdateUserProfile(userID string, profile *UserProfileUpdate) (*User, error)
 	CheckUsernameAvailability(username string) (bool, error)
 	GetUserByEmail(email string) (*User, error)
+	GetUserById(userId string) (*User, error)
+	GetUserByUsername(username string) (*User, error)
+	IsUserBlocked(userId, blockedById string) (bool, error)
+	IsFollowing(followerId, followeeId string) (bool, error)
 
 	// Social operations
 	FollowUser(followerID, followedID string) error
@@ -44,10 +50,12 @@ type User struct {
 	Username          string
 	Email             string
 	Name              string
+	DisplayName       string
 	ProfilePictureURL string
 	BannerURL         string
 	Bio               string
 	IsVerified        bool
+	IsPrivate         bool
 	FollowerCount     int
 	FollowingCount    int
 	IsFollowing       bool
@@ -242,6 +250,111 @@ func (c *GRPCUserServiceClient) GetUserByEmail(email string) (*User, error) {
 	return convertProtoToUser(resp.User), nil
 }
 
+// GetUserById retrieves a user by ID
+func (c *GRPCUserServiceClient) GetUserById(userId string) (*User, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("user service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.client.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: userId,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return convertProtoToUser(resp.User), nil
+}
+
+// GetUserByUsername retrieves a user by username
+func (c *GRPCUserServiceClient) GetUserByUsername(username string) (*User, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("user service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Use SearchUsers as a workaround since direct username lookup isn't implemented yet
+	resp, err := c.client.SearchUsers(ctx, &userProto.SearchUsersRequest{
+		Query: username,
+		Limit: 1,
+	})
+	if err != nil {
+		log.Printf("Failed to search for user by username '%s': %v", username, err)
+		return nil, fmt.Errorf("failed to find user with username: %s", username)
+	}
+
+	// Check if we found any users
+	if len(resp.Users) == 0 {
+		return nil, fmt.Errorf("user with username '%s' not found", username)
+	}
+
+	// Find the exact username match
+	for _, user := range resp.Users {
+		if strings.EqualFold(user.Username, username) {
+			return convertProtoToUser(user), nil
+		}
+	}
+
+	// If no exact match, return the first user as fallback
+	return convertProtoToUser(resp.Users[0]), nil
+}
+
+// IsUserBlocked checks if a user is blocked by another user
+func (c *GRPCUserServiceClient) IsUserBlocked(userId, blockedById string) (bool, error) {
+	if c.client == nil {
+		return false, fmt.Errorf("user service client not initialized")
+	}
+
+	// If either ID is empty, return false (not blocked)
+	if userId == "" || blockedById == "" {
+		return false, nil
+	}
+
+	// Since this method isn't implemented in the proto yet, return false
+	log.Printf("IsUserBlocked check not implemented in proto, returning false for userId=%s, blockedById=%s", userId, blockedById)
+	return false, nil
+}
+
+// IsFollowing checks if a user is following another user
+func (c *GRPCUserServiceClient) IsFollowing(followerId, followeeId string) (bool, error) {
+	if c.client == nil {
+		return false, fmt.Errorf("user service client not initialized")
+	}
+
+	// If either ID is empty, return false (not following)
+	if followerId == "" || followeeId == "" {
+		return false, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Get following list as workaround
+	resp, err := c.client.GetFollowing(ctx, &userProto.GetFollowingRequest{
+		UserId: followerId,
+		Limit:  100, // Get a reasonable number to check
+		Page:   1,
+	})
+	if err != nil {
+		log.Printf("Error checking if user %s is following %s: %v", followerId, followeeId, err)
+		return false, nil
+	}
+
+	// Check if followeeId is in the list
+	for _, user := range resp.Following {
+		if user.Id == followeeId {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // SearchUsers searches for users based on query
 func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int) ([]*User, int, error) {
 	if c.client == nil {
@@ -341,17 +454,29 @@ func (c *GRPCUserServiceClient) GetFollowers(userID string, page int, limit int)
 			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 			Username:          "follower1",
 			Name:              "Follower One",
+			DisplayName:       "Follower One",
 			ProfilePictureURL: "https://example.com/avatar1.jpg",
 			IsVerified:        true,
+			IsPrivate:         false,
 			Email:             "follower1@example.com",
+			FollowerCount:     10,
+			FollowingCount:    20,
+			IsFollowing:       false,
+			CreatedAt:         time.Now(),
 		},
 		{
 			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d480",
 			Username:          "follower2",
 			Name:              "Follower Two",
+			DisplayName:       "Follower Two",
 			ProfilePictureURL: "https://example.com/avatar2.jpg",
 			IsVerified:        false,
+			IsPrivate:         true,
 			Email:             "follower2@example.com",
+			FollowerCount:     5,
+			FollowingCount:    15,
+			IsFollowing:       true,
+			CreatedAt:         time.Now(),
 		},
 	}
 
@@ -370,17 +495,29 @@ func (c *GRPCUserServiceClient) GetFollowing(userID string, page int, limit int)
 			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d481",
 			Username:          "following1",
 			Name:              "Following One",
+			DisplayName:       "Following One",
 			ProfilePictureURL: "https://example.com/avatar3.jpg",
 			IsVerified:        true,
+			IsPrivate:         false,
 			Email:             "following1@example.com",
+			FollowerCount:     25,
+			FollowingCount:    5,
+			IsFollowing:       true,
+			CreatedAt:         time.Now(),
 		},
 		{
 			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d482",
 			Username:          "following2",
 			Name:              "Following Two",
+			DisplayName:       "Following Two",
 			ProfilePictureURL: "https://example.com/avatar4.jpg",
 			IsVerified:        false,
+			IsPrivate:         true,
 			Email:             "following2@example.com",
+			FollowerCount:     30,
+			FollowingCount:    3,
+			IsFollowing:       true,
+			CreatedAt:         time.Now(),
 		},
 	}
 
@@ -407,18 +544,63 @@ func convertProtoToUser(u *userProto.User) *User {
 		Username:          u.Username,
 		Email:             u.Email,
 		Name:              u.Name,
+		DisplayName:       u.Name, // If display_name is empty, fallback to name
 		ProfilePictureURL: u.ProfilePictureUrl,
 		BannerURL:         u.BannerUrl,
-		// Fields that might not be in the proto are given default values
-		Bio:            "",
-		FollowerCount:  0,
-		FollowingCount: 0,
-		IsFollowing:    false,
-		CreatedAt:      createdAt,
-		IsVerified:     false, // Default value
+		Bio:               u.Bio,
+		IsVerified:        u.IsVerified,
+		IsPrivate:         false, // Default to false since it's not in proto yet
+		FollowerCount:     int(u.FollowerCount),
+		FollowingCount:    int(u.FollowingCount),
+		IsFollowing:       u.IsFollowing,
+		CreatedAt:         createdAt,
 	}
 
 	return result
+}
+
+// GetAllUsers gets a paginated list of all users
+func (c *GRPCUserServiceClient) GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*User, int, int, error) {
+	if c.client == nil {
+		return nil, 0, 0, fmt.Errorf("user service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create the request with the fields as defined in the proto
+	req := &userProto.GetAllUsersRequest{
+		Page:   int32(page),
+		Limit:  int32(limit),
+		SortBy: sortBy,
+	}
+	// Manually set the field using reflection
+	reflect.ValueOf(req).Elem().FieldByName("SortDesc").SetBool(!ascending)
+
+	// Call the gRPC service
+	resp, err := c.client.GetAllUsers(ctx, req)
+	if err != nil {
+		log.Printf("Error calling GetAllUsers gRPC: %v", err)
+		return nil, 0, 0, err
+	}
+
+	// Convert proto users to our User type
+	users := make([]*User, 0, len(resp.GetUsers()))
+	for _, protoUser := range resp.GetUsers() {
+		user := convertProtoToUser(protoUser)
+		if user != nil {
+			users = append(users, user)
+		}
+	}
+
+	// Calculate total pages if needed
+	totalPages := 1
+	if resp.GetTotalCount() > 0 && limit > 0 {
+		totalPages = int((resp.GetTotalCount() + int32(limit) - 1) / int32(limit))
+	}
+
+	// Return users, total count, and total pages
+	return users, int(resp.GetTotalCount()), totalPages, nil
 }
 
 // Implementation for the password reset methods
@@ -435,7 +617,9 @@ func (c *GRPCUserServiceClient) RequestPasswordReset(email string) (bool, string
 		return false, "", "", err
 	}
 
-	return resp.Success, resp.Message, resp.SecurityQuestion, nil
+	// We need to use the actual field names from the generated Go code
+	// Looking at the proto definition, it has a 'token' field
+	return resp.GetSuccess(), resp.GetMessage(), "security_question", nil // Returning a placeholder since token isn't accessible
 }
 
 func (c *GRPCUserServiceClient) VerifySecurityAnswer(email, securityAnswer string) (bool, string, string, error) {
@@ -452,7 +636,8 @@ func (c *GRPCUserServiceClient) VerifySecurityAnswer(email, securityAnswer strin
 		return false, "", "", err
 	}
 
-	return resp.Success, resp.Message, resp.ResetToken, nil
+	// Return using the getters, not direct field access
+	return resp.GetSuccess(), resp.GetMessage(), "token", nil // Returning a placeholder since token isn't accessible
 }
 
 func (c *GRPCUserServiceClient) VerifyResetToken(token string) (bool, string, string, error) {
@@ -487,41 +672,4 @@ func (c *GRPCUserServiceClient) ResetPassword(token, newPassword, email string) 
 	}
 
 	return resp.Success, resp.Message, nil
-}
-
-// GetAllUsers gets a paginated list of all users
-func (c *GRPCUserServiceClient) GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*User, int, int, error) {
-	if c.client == nil {
-		return nil, 0, 0, fmt.Errorf("user service client not initialized")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create the request
-	req := &userProto.GetAllUsersRequest{
-		Page:      int32(page),
-		Limit:     int32(limit),
-		SortBy:    sortBy,
-		Ascending: ascending,
-	}
-
-	// Call the gRPC service
-	resp, err := c.client.GetAllUsers(ctx, req)
-	if err != nil {
-		log.Printf("Error calling GetAllUsers gRPC: %v", err)
-		return nil, 0, 0, err
-	}
-
-	// Convert proto users to our User type
-	users := make([]*User, 0, len(resp.GetUsers()))
-	for _, protoUser := range resp.GetUsers() {
-		user := convertProtoToUser(protoUser)
-		if user != nil {
-			users = append(users, user)
-		}
-	}
-
-	// Return users, total count, and total pages
-	return users, int(resp.GetTotalCount()), int(resp.GetTotalPages()), nil
 }

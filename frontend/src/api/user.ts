@@ -212,6 +212,19 @@ export async function searchUsers(query: string, page: number = 1, limit: number
       if (options.sort) {
         url.searchParams.append('sort', options.sort);
       }
+      
+      if (options.filter === 'following') {
+        url.searchParams.append('following', 'true');
+      }
+      
+      if (options.filter === 'verified') {
+        url.searchParams.append('verified', 'true');
+      }
+      
+      // Add fuzzy search flag if needed
+      if (options.fuzzy) {
+        url.searchParams.append('fuzzy', 'true');
+      }
     }
     
     const token = getAuthToken();
@@ -231,6 +244,35 @@ export async function searchUsers(query: string, page: number = 1, limit: number
     }
     
     const data = await response.json();
+    
+    // Apply client-side fuzzy search if requested and API doesn't support it
+    if (options?.clientFuzzy && query.trim()) {
+      // Import the fuzzy search function
+      const { fuzzySearch } = await import('../utils/helpers');
+      
+      // If the API doesn't indicate it did fuzzy searching, do it client-side
+      if (!data.fuzzy_search_applied) {
+        // Apply fuzzy search on both username and display_name
+        const allUsers = [...(data.users || [])];
+        const fuzzyMatches = fuzzySearch(
+          query,
+          allUsers,
+          'username',
+          0.5 // Lower threshold for username matches
+        );
+        
+        const nameMatches = fuzzySearch(
+          query,
+          allUsers.filter(user => !fuzzyMatches.includes(user)), // Remove already matched users
+          'display_name',
+          0.6
+        );
+        
+        // Combine and keep original order if possible
+        data.users = [...new Set([...fuzzyMatches, ...nameMatches])];
+        console.log(`Applied client-side fuzzy search, found ${data.users.length} matches`);
+      }
+    }
     
     // Standardize the response format
     return {
@@ -544,6 +586,17 @@ export async function getUserById(userId: string) {
   try {
     const token = getAuthToken();
     
+    // Check if the userId looks like a UUID (basic check)
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isUuid = uuidPattern.test(userId);
+    
+    // If it doesn't look like a UUID, assume it's a username and try that endpoint
+    if (!isUuid && !userId.match(/^\d+$/)) {
+      console.log(`Input '${userId}' doesn't look like an ID, trying to fetch by username instead`);
+      return getUserByUsername(userId);
+    }
+    
+    console.log(`Fetching user with ID: ${userId}`);
     const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
       method: 'GET',
       headers: {
@@ -553,12 +606,46 @@ export async function getUserById(userId: string) {
     });
     
     if (!response.ok) {
+      if (response.status === 404) {
+        // If ID lookup fails with 404, try username as fallback
+        console.log(`User ID ${userId} not found, trying as username`);
+        return getUserByUsername(userId);
+      }
       throw new Error(`Failed to fetch user: ${response.status}`);
     }
     
     return response.json();
   } catch (err) {
     console.error('Failed to fetch user:', err);
+    throw err;
+  }
+}
+
+/**
+ * Get user by username
+ * @param username Username to look up
+ * @returns Promise resolving to the user data
+ */
+export async function getUserByUsername(username: string): Promise<any> {
+  try {
+    const token = getAuthToken();
+    
+    console.log(`Fetching user with username: ${username}`);
+    const response = await fetch(`${API_BASE_URL}/users/username/${username}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user by username: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (err) {
+    console.error('Failed to fetch user by username:', err);
     throw err;
   }
 }
@@ -601,5 +688,141 @@ export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: 
   } catch (err) {
     console.error('Failed to fetch users:', err);
     return { users: [], totalCount: 0, page: 1, totalPages: 0 };
+  }
+}
+
+/**
+ * Report a user for review by administrators
+ * @param userId The ID of the user to report
+ * @param reason The reason for reporting the user
+ * @returns Promise resolving to an object containing success status
+ */
+export async function reportUser(userId: string, reason: string): Promise<{ success: boolean, message?: string }> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/report`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify({ reason }),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to report user: ${response.status}`);
+      } catch (parseError) {
+        throw new Error(`Failed to report user: ${response.status}`);
+      }
+    }
+    
+    const data = await response.json();
+    return { success: true, message: data.message || 'User reported successfully' };
+  } catch (err) {
+    console.error('Failed to report user:', err);
+    throw err;
+  }
+}
+
+/**
+ * Block a user to prevent them from seeing your content and vice versa
+ * @param userId The ID of the user to block
+ * @returns Promise resolving to an object containing success status
+ */
+export async function blockUser(userId: string): Promise<{ success: boolean, message?: string }> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/block`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to block user: ${response.status}`);
+      } catch (parseError) {
+        throw new Error(`Failed to block user: ${response.status}`);
+      }
+    }
+    
+    const data = await response.json();
+    return { success: true, message: data.message || 'User blocked successfully' };
+  } catch (err) {
+    console.error('Failed to block user:', err);
+    throw err;
+  }
+}
+
+/**
+ * Unblock a previously blocked user
+ * @param userId The ID of the user to unblock
+ * @returns Promise resolving to an object containing success status
+ */
+export async function unblockUser(userId: string): Promise<{ success: boolean, message?: string }> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/block`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to unblock user: ${response.status}`);
+      } catch (parseError) {
+        throw new Error(`Failed to unblock user: ${response.status}`);
+      }
+    }
+    
+    const data = await response.json();
+    return { success: true, message: data.message || 'User unblocked successfully' };
+  } catch (err) {
+    console.error('Failed to unblock user:', err);
+    throw err;
+  }
+}
+
+/**
+ * Get a list of users that the current user has blocked
+ * @returns Promise resolving to an array of blocked users
+ */
+export async function getBlockedUsers(): Promise<any[]> {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/users/blocked`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get blocked users: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.blocked_users || [];
+  } catch (err) {
+    console.error('Failed to get blocked users:', err);
+    return [];
   }
 } 

@@ -12,14 +12,43 @@
   $: isDarkMode = $theme === 'dark';
   
   // Props
-  export let communityResults: any[] = [];
+  export let communityResults: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    logo?: string | null;
+    memberCount?: number;
+    isJoined?: boolean;
+    isPending?: boolean;
+  }> = [];
   export let isLoading = false;
   export let communitiesPerPage = 25;
+  export let currentPage = 1;
+  export let totalCount = 0;
+  
+  // Calculate total pages
+  $: totalPages = Math.ceil(totalCount / communitiesPerPage);
+  
+  // Handle page change
+  function changePage(page: number) {
+    logger.debug('Changing page', { page });
+    dispatch('pageChange', page);
+  }
+  
+  // Page size options
+  const perPageOptions = [25, 30, 35];
+  
+  // Handle per page change
+  function handlePerPageChange(e) {
+    const newValue = parseInt(e.target.value);
+    logger.debug('Changing results per page', { value: newValue });
+    dispatch('communitiesPerPageChange', newValue);
+  }
   
   // Handle join request
   function handleJoinRequest(event) {
-    const communityId = event.detail;
-    logger.debug('Join community request initiated', { communityId });
+    const { communityId } = event.detail;
+    logger.debug('Join request for community', { communityId });
     dispatch('joinRequest', communityId);
   }
   
@@ -84,41 +113,68 @@
   
   {#if isLoading}
     <div class="animate-pulse space-y-4">
-      {#each Array(5) as _}
-        <div class="flex space-x-4">
-          <div class="rounded-md bg-gray-300 dark:bg-gray-700 h-16 w-16"></div>
-          <div class="flex-1 space-y-2 py-1">
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/4"></div>
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
-          </div>
-          <div class="w-28 h-8 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
-        </div>
+      {#each Array(3) as _}
+        <div class="bg-gray-200 dark:bg-gray-800 h-24 rounded-lg"></div>
       {/each}
     </div>
-  {:else if communityResults.length > 0}
-    <ul class="divide-y divide-gray-200 dark:divide-gray-800">
+  {:else if communityResults.length === 0}
+    <div class="text-center py-8">
+      <p class="text-gray-500 dark:text-gray-400">No communities found matching your search.</p>
+    </div>
+  {:else}
+    <div class="space-y-4">
       {#each communityResults as community}
-        <li>
           <CommunityCard {community} on:joinRequest={handleJoinRequest} />
-        </li>
       {/each}
-    </ul>
-    
-    <!-- Load more button -->
-    {#if !isLoading}
-      <div class="mt-4 text-center">
+      
+      <!-- Pagination controls -->
+      {#if totalCount > communitiesPerPage}
+        <div class="mt-6 flex flex-wrap justify-between items-center gap-4 border-t border-gray-200 dark:border-gray-800 pt-4">
+          <div class="flex items-center">
+            <span class="text-sm text-gray-500 dark:text-gray-400 mr-2">Show:</span>
+            <select 
+              class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-2 py-1 text-sm"
+              bind:value={communitiesPerPage}
+              on:change={handlePerPageChange}
+            >
+              {#each perPageOptions as option}
+                <option value={option}>{option} per page</option>
+              {/each}
+            </select>
+          </div>
+          
+          <div class="flex items-center space-x-1">
+            <button 
+              class="px-3 py-1 rounded {currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800'}"
+              disabled={currentPage === 1}
+              on:click={() => changePage(currentPage - 1)}
+            >
+              Previous
+            </button>
+            
+            {#each Array(Math.min(5, totalPages)) as _, i}
+              {#if totalPages <= 5 || (i < 3 && currentPage <= 3) || (i >= totalPages - 3 && currentPage >= totalPages - 2) || (i >= currentPage - 2 && i <= currentPage)}
+                <button 
+                  class="w-8 h-8 rounded-full flex items-center justify-center {i + 1 === currentPage ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}"
+                  on:click={() => changePage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              {:else if (i === 3 && currentPage > 3) || (i === totalPages - 4 && currentPage < totalPages - 2)}
+                <span class="px-1">...</span>
+              {/if}
+            {/each}
+            
         <button 
-          class="px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-full text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-700"
-          on:click={handleLoadMore}
+              class="px-3 py-1 rounded {currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800'}"
+              disabled={currentPage === totalPages}
+              on:click={() => changePage(currentPage + 1)}
         >
-          Load more
+              Next
         </button>
+          </div>
       </div>
     {/if}
-  {:else}
-    <div class="text-center py-10">
-      <p class="text-gray-500 dark:text-gray-400">No communities found</p>
     </div>
   {/if}
 </div>

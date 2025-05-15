@@ -1,137 +1,186 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
+  import { createLoggerWithPrefix } from '../../utils/logger';
   import LoadingSkeleton from '../common/LoadingSkeleton.svelte';
   
+  const logger = createLoggerWithPrefix('ExploreMediaResults');
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
-  // Props
-  export let media: any[] = [];
-  export let hasMore = false;
-  export let isLoading = false;
   
   // Reactive declarations
   $: isDarkMode = $theme === 'dark';
   
-  // Intersection observer for infinite scrolling
-  let loadMoreTrigger;
+  // Props
+  export let media: Array<{
+    id: string;
+    media?: Array<{
+      url: string;
+      type: string;
+    }>;
+  }> = [];
+  export let isLoading = false;
+  export let hasMore = true;
   
-  function setupInfiniteScroll() {
-    if (typeof IntersectionObserver === 'undefined') {
-      // Fallback for browsers that don't support IntersectionObserver
-      return;
-    }
-    
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (entry.isIntersecting && hasMore && !isLoading) {
-        dispatch('loadMore');
+  // Infinite scroll handling
+  let observer: IntersectionObserver;
+  let loadMoreTrigger: HTMLDivElement;
+  let isIntersecting = false;
+  
+  // Set up intersection observer for infinite scroll
+  function setupIntersectionObserver() {
+    if (typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          isIntersecting = entry.isIntersecting;
+          
+          if (isIntersecting && hasMore && !isLoading) {
+            logger.debug('Load more trigger intersected, loading more media');
+            loadMore();
       }
-    }, { threshold: 0.1 });
+        },
+        {
+          root: null,
+          rootMargin: '100px',
+          threshold: 0.1
+        }
+      );
     
     if (loadMoreTrigger) {
       observer.observe(loadMoreTrigger);
     }
+    }
+  }
+  
+  // Load more media
+  function loadMore() {
+    logger.debug('Loading more media items');
+    dispatch('loadMore');
+  }
+  
+  // Get appropriate media element based on type
+  function getMediaElement(mediaItem: { url: string; type: string }) {
+    if (!mediaItem || !mediaItem.url) {
+      return null;
+    }
     
-    return () => {
-      if (loadMoreTrigger) {
-        observer.unobserve(loadMoreTrigger);
-      }
+    if (mediaItem.type && mediaItem.type.includes('video')) {
+      return {
+        type: 'video',
+        url: mediaItem.url
+      };
+    } else if (mediaItem.type && mediaItem.type.includes('gif')) {
+      return {
+        type: 'gif',
+        url: mediaItem.url
+      };
+    } else {
+      return {
+        type: 'image',
+        url: mediaItem.url
     };
   }
-  
-  onMount(setupInfiniteScroll);
-  
-  $: if (media && !isLoading) {
-    setupInfiniteScroll();
   }
+  
+  // Navigate to thread detail
+  function navigateToThread(threadId: string) {
+    window.location.href = `/thread/${threadId}`;
+  }
+  
+  // Get all media items flattened
+  $: flattenedMedia = media
+    .filter(item => item.media && item.media.length > 0)
+    .flatMap(item => item.media.map(mediaItem => ({
+      threadId: item.id,
+      media: getMediaElement(mediaItem)
+    })))
+    .filter(item => item.media !== null);
+  
+  onMount(() => {
+    setupIntersectionObserver();
+  });
+  
+  onDestroy(() => {
+    if (observer && loadMoreTrigger) {
+      observer.unobserve(loadMoreTrigger);
+  }
+  });
 </script>
 
 <div class="p-4">
   <h2 class="font-bold text-xl mb-4">Media</h2>
   
-  {#if media.length > 0}
-    <div class="grid grid-cols-3 gap-1">
-      {#each media as item}
-        {#if item.media && item.media.length > 0}
-          <a 
-            href={`/thread/${item.id}`} 
-            class="aspect-square block overflow-hidden bg-gray-200 dark:bg-gray-800 relative"
-          >
-            <!-- Display appropriate media based on type -->
-            {#if item.media[0].type === 'image'}
-              <img 
-                src={item.media[0].url} 
-                alt="Media content" 
-                class="w-full h-full object-cover"
-              />
-            {:else if item.media[0].type === 'video'}
-              <div class="w-full h-full flex items-center justify-center">
-                <div class="absolute inset-0 bg-black opacity-50"></div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <video 
-                  src={item.media[0].url} 
-                  class="w-full h-full object-cover absolute inset-0"
-                ></video>
-              </div>
-            {:else if item.media[0].type === 'gif'}
-              <img 
-                src={item.media[0].url} 
-                alt="GIF content" 
-                class="w-full h-full object-cover"
-              />
+  {#if isLoading && media.length === 0}
+    <div class="animate-pulse grid grid-cols-3 gap-2">
+      {#each Array(9) as _}
+        <div class="aspect-square bg-gray-200 dark:bg-gray-800 rounded-md"></div>
+      {/each}
+    </div>
+  {:else if flattenedMedia.length === 0}
+    <div class="text-center py-8">
+      <p class="text-gray-500 dark:text-gray-400">No media found matching your search.</p>
+    </div>
+  {:else}
+    <div class="grid grid-cols-3 gap-2">
+      {#each flattenedMedia as item}
+        <button 
+          class="aspect-square bg-gray-100 dark:bg-gray-900 flex items-center justify-center overflow-hidden rounded-md hover:opacity-90 transition-opacity"
+          on:click={() => navigateToThread(item.threadId)}
+        >
+          {#if item.media.type === 'video'}
+            <video src={item.media.url} class="w-full h-full object-cover" />
+          {:else if item.media.type === 'gif'}
+            <img src={item.media.url} alt="GIF" class="w-full h-full object-cover" />
+          {:else}
+            <img src={item.media.url} alt="Image" class="w-full h-full object-cover" />
             {/if}
-          </a>
-        {/if}
+        </button>
       {/each}
     </div>
     
-    <!-- Infinite scroll trigger -->
+    <!-- Infinite scroll load trigger -->
     {#if hasMore}
       <div 
-        class="py-8 flex justify-center" 
         bind:this={loadMoreTrigger}
+        class="w-full h-10 flex items-center justify-center my-4"
       >
         {#if isLoading}
-          <div class="flex items-center space-x-2">
-            <div class="w-4 h-4 rounded-full bg-blue-500 animate-pulse"></div>
-            <div class="w-4 h-4 rounded-full bg-blue-500 animate-pulse" style="animation-delay: 0.2s"></div>
-            <div class="w-4 h-4 rounded-full bg-blue-500 animate-pulse" style="animation-delay: 0.4s"></div>
-          </div>
+          <div class="loader"></div>
         {:else}
-          <span class="text-gray-500 dark:text-gray-400 text-sm">Loading more media...</span>
+          <div class="w-full h-1"></div>
         {/if}
       </div>
     {/if}
-  {:else if isLoading}
-    <LoadingSkeleton type="media" />
-  {:else}
-    <p class="text-center text-gray-500 dark:text-gray-400 py-8">
-      No media content found for your search.
-    </p>
   {/if}
 </div>
 
 <style>
-  /* Skeleton loading animation */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-  }
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   
-  /* Spinner animation */
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  
+  .loader {
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 2px solid #3498db;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+  }
+  
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  .animate-spin {
-    animation: spin 1s linear infinite;
+  
+  :global(.dark) .loader {
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top: 2px solid #3498db;
   }
 </style> 

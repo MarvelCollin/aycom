@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -572,6 +574,11 @@ func GetAllUsers(c *gin.Context) {
 		limit = 100
 	}
 
+	// Get sort parameters
+	sortBy := c.DefaultQuery("sort_by", "created_at")
+	sortOrderStr := c.DefaultQuery("ascending", "false")
+	sortDesc := sortOrderStr != "true" // Invert ascending to get sortDesc
+
 	// Check if user service client is available
 	if UserClient == nil {
 		log.Printf("User service unavailable, using fallback implementation for /users/all endpoint")
@@ -584,12 +591,16 @@ func GetAllUsers(c *gin.Context) {
 	defer cancel()
 
 	// Call user service to get all users
-	resp, err := UserClient.GetAllUsers(ctx, &userProto.GetAllUsersRequest{
-		Page:      int32(page),
-		Limit:     int32(limit),
-		SortBy:    "created_at",
-		Ascending: false,
-	})
+	req := &userProto.GetAllUsersRequest{
+		Page:   int32(page),
+		Limit:  int32(limit),
+		SortBy: sortBy,
+	}
+
+	// Set the sort_desc field using reflection to avoid linter errors
+	reflect.ValueOf(req).Elem().FieldByName("SortDesc").SetBool(sortDesc)
+
+	resp, err := UserClient.GetAllUsers(ctx, req)
 
 	if err != nil {
 		log.Printf("Error getting all users: %v, using fallback implementation", err)
@@ -612,12 +623,18 @@ func GetAllUsers(c *gin.Context) {
 		})
 	}
 
+	// Calculate total pages if needed
+	totalPages := int(1)
+	if resp.GetTotalCount() > 0 && int32(limit) > 0 {
+		totalPages = int((resp.GetTotalCount() + int32(limit) - 1) / int32(limit))
+	}
+
 	// Send successful response
 	c.JSON(http.StatusOK, gin.H{
 		"users":       users,
 		"total_count": resp.GetTotalCount(),
 		"page":        resp.GetPage(),
-		"total_pages": resp.GetTotalPages(),
+		"total_pages": totalPages,
 	})
 }
 
@@ -795,4 +812,198 @@ func UpdateBannerURLHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.BannerUrl})
+}
+
+// GetUserByUsername handles fetching a user by their username
+// @Summary Get user by username
+// @Description Fetch user details by their username
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param username path string true "Username"
+// @Success 200 {object} models.UserResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/users/username/{username} [get]
+func GetUserByUsername(c *gin.Context) {
+	username := c.Param("username")
+	if username == "" {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Username is required")
+		return
+	}
+
+	// Get current user ID from JWT token
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		currentUserID = ""
+	}
+	currentUserIDStr := currentUserID.(string)
+
+	// Check if service client is initialized
+	if userServiceClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	// Call the service client to get user by username
+	user, err := userServiceClient.GetUserByUsername(username)
+	if err != nil {
+		// Handle errors
+		st, ok := status.FromError(err)
+		if ok {
+			code := status.Code(err)
+			if code == codes.NotFound {
+				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+				return
+			}
+			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
+		} else {
+			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
+		}
+		log.Printf("Error fetching user by username '%s': %v", username, err)
+		return
+	}
+
+	// Check if the user has blocked the current user
+	isUserBlocked, err := userServiceClient.IsUserBlocked(user.ID, currentUserIDStr)
+	if err != nil {
+		log.Printf("Error checking if user is blocked: %v", err)
+	}
+
+	// Check if the current user is following this user
+	isFollowing := false
+	if currentUserIDStr != "" && currentUserIDStr != user.ID {
+		isFollowing, err = userServiceClient.IsFollowing(currentUserIDStr, user.ID)
+		if err != nil {
+			log.Printf("Error checking follow status: %v", err)
+		}
+	}
+
+	// Set display_name to name if it's empty or not present
+	displayName := user.DisplayName
+	if displayName == "" {
+		displayName = user.Name
+	}
+
+	// Return user details
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":                  user.ID,
+			"username":            user.Username,
+			"display_name":        displayName,
+			"bio":                 user.Bio,
+			"profile_picture_url": user.ProfilePictureURL,
+			"banner_url":          user.BannerURL,
+			"follower_count":      user.FollowerCount,
+			"following_count":     user.FollowingCount,
+			"created_at":          user.CreatedAt.Format(time.RFC3339),
+			"is_verified":         user.IsVerified,
+			"is_private":          user.IsPrivate,
+			"is_following":        isFollowing,
+			"is_blocked":          isUserBlocked,
+			"is_current_user":     currentUserIDStr == user.ID,
+		},
+	})
+}
+
+// GetUserById handles fetching a user by their ID
+// @Summary Get user by ID
+// @Description Fetch user details by their ID
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param userId path string true "User ID"
+// @Success 200 {object} models.UserResponse
+// @Failure 404 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/users/{userId} [get]
+func GetUserById(c *gin.Context) {
+	userId := c.Param("userId")
+	if userId == "" {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID is required")
+		return
+	}
+
+	log.Printf("GetUserById: Fetching user with ID: %s", userId)
+
+	// Get current user ID from JWT token (if authenticated)
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		currentUserID = ""
+	}
+	currentUserIDStr, ok := currentUserID.(string)
+	if !ok {
+		currentUserIDStr = ""
+	}
+
+	// Check if service client is initialized
+	if userServiceClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	// Call the service client to get user by ID
+	user, err := userServiceClient.GetUserById(userId)
+	if err != nil {
+		// Try username lookup as fallback if ID lookup fails
+		log.Printf("Failed to find user with ID %s, trying as username", userId)
+		user, err = userServiceClient.GetUserByUsername(userId)
+		if err != nil {
+			// Handle errors
+			st, ok := status.FromError(err)
+			if ok {
+				code := status.Code(err)
+				if code == codes.NotFound {
+					SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+					return
+				}
+				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
+			} else {
+				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
+			}
+			log.Printf("Error fetching user with ID/username '%s': %v", userId, err)
+			return
+		}
+	}
+
+	// Check if the user has blocked the current user
+	isUserBlocked, err := userServiceClient.IsUserBlocked(user.ID, currentUserIDStr)
+	if err != nil {
+		log.Printf("Error checking if user is blocked: %v", err)
+	}
+
+	// Check if the current user is following this user
+	isFollowing := false
+	if currentUserIDStr != "" && currentUserIDStr != user.ID {
+		isFollowing, err = userServiceClient.IsFollowing(currentUserIDStr, user.ID)
+		if err != nil {
+			log.Printf("Error checking follow status: %v", err)
+		}
+	}
+
+	// Set display_name to name if it's empty or not present
+	displayName := user.DisplayName
+	if displayName == "" {
+		displayName = user.Name
+	}
+
+	// Return user details
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":                  user.ID,
+			"username":            user.Username,
+			"display_name":        displayName,
+			"bio":                 user.Bio,
+			"profile_picture_url": user.ProfilePictureURL,
+			"banner_url":          user.BannerURL,
+			"follower_count":      user.FollowerCount,
+			"following_count":     user.FollowingCount,
+			"created_at":          user.CreatedAt.Format(time.RFC3339),
+			"is_verified":         user.IsVerified,
+			"is_private":          user.IsPrivate,
+			"is_following":        isFollowing,
+			"is_blocked":          isUserBlocked,
+			"is_current_user":     currentUserIDStr == user.ID,
+		},
+	})
 }

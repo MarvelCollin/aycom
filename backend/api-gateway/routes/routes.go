@@ -42,6 +42,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.POST("/login", handlers.LoginUser)
 		publicUsers.POST("/by-email", handlers.GetUserByEmail)
 		publicUsers.GET("/check-username", handlers.CheckUsernameAvailability)
+		publicUsers.GET("/username/:username", handlers.GetUserByUsername)
+		publicUsers.GET("/:userId", handlers.GetUserById)
 		publicUsers.GET("/search", handlers.SearchUsers)
 		publicUsers.GET("/suggestions", handlers.GetUserSuggestions)
 		publicUsers.GET("/all", handlers.GetAllUsers)

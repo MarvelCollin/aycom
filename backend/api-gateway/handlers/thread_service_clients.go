@@ -110,12 +110,16 @@ func InitThreadServiceClient(cfg *config.Config) {
 
 	log.Printf("Attempting to connect to Thread service at %s", cfg.Services.ThreadService)
 
-	// Try direct connection
-	conn, err := grpc.Dial(
+	// Using the modern approach with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Modern connection approach using DialContext without deprecated options
+	conn, err := grpc.DialContext(
+		ctx,
 		cfg.Services.ThreadService,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-		grpc.WithTimeout(10*time.Second),
+		grpc.WithReturnConnectionError(), // Return connection errors instead of blocking indefinitely
 	)
 
 	if err != nil {
@@ -135,7 +139,7 @@ func InitThreadServiceClient(cfg *config.Config) {
 	}
 
 	// Test the connection with a simple request
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	_, testErr := grpcClient.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{Limit: 1})

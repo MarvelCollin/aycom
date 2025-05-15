@@ -27,6 +27,15 @@ service UserService {
   // Get user by email
   rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
 
+  // Get user by username
+  rpc GetUserByUsername(GetUserByUsernameRequest) returns (GetUserByUsernameResponse) {}
+
+  // Check if user is blocked
+  rpc IsUserBlocked(IsUserBlockedRequest) returns (IsUserBlockedResponse) {}
+
+  // Check if user is following another user
+  rpc IsFollowing(IsFollowingRequest) returns (IsFollowingResponse) {}
+
   // Follow a user
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse) {}
 
@@ -167,6 +176,38 @@ message GetUserByEmailResponse {
   User user = 1;
 }
 
+// Request for getting user by username
+message GetUserByUsernameRequest {
+  string username = 1;
+}
+
+// Response for getting user by username
+message GetUserByUsernameResponse {
+  User user = 1;
+}
+
+// Request to check if user is blocked
+message IsUserBlockedRequest {
+  string user_id = 1;    // The user we're checking
+  string blocked_by_id = 2; // The user who might have blocked
+}
+
+// Response for checking if user is blocked
+message IsUserBlockedResponse {
+  bool is_blocked = 1;
+}
+
+// Request to check if user is following another user
+message IsFollowingRequest {
+  string follower_id = 1;
+  string followed_id = 2;
+}
+
+// Response for checking if user is following another user
+message IsFollowingResponse {
+  bool is_following = 1;
+}
+
 // Request to follow a user
 message FollowUserRequest {
   string follower_id = 1; // ID of the user who is following
@@ -262,23 +303,22 @@ message RequestPasswordResetResponse {
 // Request to verify a password reset token
 message VerifyResetTokenRequest {
   string token = 1;
-  string email = 2;
 }
 
-// Response for token verification
+// Response for verifying reset token
 message VerifyResetTokenResponse {
   bool valid = 1;
-  string message = 2;
-  string email = 3;
+  string email = 2;
+  string message = 3;
 }
 
-// Request to verify security answer before password reset
+// Request for verifying security answer
 message VerifySecurityAnswerRequest {
   string email = 1;
   string security_answer = 2;
 }
 
-// Response for security answer verification
+// Response for verifying security answer
 message VerifySecurityAnswerResponse {
   bool success = 1;
   string message = 2;
@@ -288,8 +328,8 @@ message VerifySecurityAnswerResponse {
 // Request to reset password using a token
 message ResetPasswordRequest {
   string token = 1;
-  string email = 2;
-  string new_password = 3;
+  string new_password = 2;
+  string email = 3;
 }
 
 // Response for password reset
@@ -298,15 +338,15 @@ message ResetPasswordResponse {
   string message = 2;
 }
 
-// Request to get all users with pagination
+// Request for getting all users with pagination
 message GetAllUsersRequest {
-  int32 page = 1;     // Pagination - page number
-  int32 limit = 2;    // Pagination - items per page
-  string sort_by = 3; // Optional: field to sort by (e.g. "username", "created_at")
-  bool sort_desc = 4; // Optional: sort direction (true = descending, false = ascending)
+  int32 page = 1;
+  int32 limit = 2;
+  string sort_by = 3;
+  bool sort_desc = 4;
 }
 
-// Response containing all users
+// Response for getting all users
 message GetAllUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;

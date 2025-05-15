@@ -252,7 +252,10 @@
     
     isLoadingRecommendations = true;
     try {
-      const { users } = await searchUsers(query, 1, 3);
+      const { users } = await searchUsers(query, 1, 3, {
+        clientFuzzy: true, // Enable client-side fuzzy matching
+        sort: 'follower_count' // Sort by follower count
+      });
       searchResults.top.profiles = users.map(user => ({
         id: user.id,
         username: user.username,
@@ -307,7 +310,11 @@
       // Fetch data for all tabs in parallel
       const [peopleData, topThreadsData, latestThreadsData, mediaData, communitiesData] = await Promise.all([
         // People tab data (also used for top profiles)
-        searchUsers(searchQuery, 1, 25, { filter: filterOption }),
+        searchUsers(searchQuery, 1, peoplePerPage, { 
+          filter: filterOption,
+          clientFuzzy: true,
+          sort: 'follower_count'
+        }),
         
         // Top threads
         searchThreads(searchQuery, 1, 10, {
@@ -330,13 +337,18 @@
         }),
         
         // Communities tab data
-        searchCommunities(searchQuery, 1, 25)
+        searchCommunities(searchQuery, 1, communitiesPerPage)
       ]);
+      
+      // Get top 3 profiles sorted by follower count for the Top tab
+      const topProfiles = [...peopleData.users]
+        .sort((a, b) => ((b as any).follower_count || 0) - ((a as any).follower_count || 0))
+        .slice(0, 3);
       
       // Update search results
       searchResults = {
         top: {
-          profiles: peopleData.users.slice(0, 3).map(user => ({
+          profiles: topProfiles.map(user => ({
             id: user.id,
             username: user.username,
             displayName: user.display_name || user.username,
@@ -386,7 +398,7 @@
             followerCount: (user as any).follower_count || 0,
             isFollowing: user.is_following || false
           })) || [],
-          totalCount: peopleData.total_count || 0,
+          totalCount: peopleData.totalCount || 0,
           isLoading: false
         },
         media: {
@@ -470,15 +482,24 @@
   // Pagination for people tab
   async function handlePeoplePageChange(event) {
     const page = event.detail;
+    peopleCurrentPage = page;
     searchResults.people.isLoading = true;
     
     try {
       const filterOption = searchFilter === 'following' ? 'following' : (searchFilter === 'verified' ? 'verified' : 'all');
-      const { users, total_count } = await searchUsers(searchQuery, page, 25, { filter: filterOption });
+      const { users, totalCount } = await searchUsers(
+        searchQuery, 
+        page, 
+        peoplePerPage, 
+        { 
+          filter: filterOption,
+          clientFuzzy: true
+        }
+      );
       
       searchResults.people = {
         users: users || [],
-        totalCount: total_count || 0,
+        totalCount: totalCount || 0,
         isLoading: false
       };
     } catch (error) {
@@ -490,17 +511,20 @@
   
   // Change people results per page
   function handlePeoplePerPageChange(event) {
+    peoplePerPage = event.detail;
     searchResults.people.isLoading = true;
+    peopleCurrentPage = 1;
     executeSearch();
   }
   
   // Pagination for communities tab
   async function handleCommunitiesPageChange(event) {
     const page = event.detail;
+    communitiesCurrentPage = page;
     searchResults.communities.isLoading = true;
     
     try {
-      const { communities, total_count } = await searchCommunities(searchQuery, page, 25);
+      const { communities, total_count } = await searchCommunities(searchQuery, page, communitiesPerPage);
       
       searchResults.communities = {
         communities: communities || [],
@@ -516,7 +540,9 @@
   
   // Change communities results per page
   function handleCommunitiesPerPageChange(event) {
+    communitiesPerPage = event.detail;
     searchResults.communities.isLoading = true;
+    communitiesCurrentPage = 1;
     executeSearch();
   }
   

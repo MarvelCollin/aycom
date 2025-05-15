@@ -199,13 +199,15 @@
     {:else if trends.length > 0}
       <ul>
         {#each trends as trend}
-          <li 
-            class="py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors {trends.indexOf(trend) !== trends.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}"
-            on:click={() => handleTrendClick(trend)}
-          >
-            <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.category}</p>
-            <p class="font-semibold {isDarkMode ? 'text-white' : 'text-black'} my-0.5">{trend.title}</p>
-            <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.postCount} posts</p>
+          <li class="py-3 {trends.indexOf(trend) !== trends.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
+            <button 
+              class="w-full text-left cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-0 bg-transparent p-0"
+              on:click={() => handleTrendClick(trend)}
+            >
+              <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.category}</p>
+              <p class="font-semibold {isDarkMode ? 'text-white' : 'text-black'} my-0.5">{trend.title}</p>
+              <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.postCount} posts</p>
+            </button>
           </li>
         {/each}
       </ul>

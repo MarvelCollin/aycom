@@ -39,46 +39,264 @@
   
   $: processedReplies = replies.map(reply => processTweetContent(reply));
   
+  function isValidUsername(username: string | undefined | null): boolean {
+    return !!username && 
+           username !== 'anonymous' && 
+           username !== 'user' && 
+           username !== 'unknown' &&
+           username !== 'undefined';
+  }
+
+  function isValidDisplayName(name: string | undefined | null): boolean {
+    return !!name && 
+           name !== 'User' && 
+           name !== 'Anonymous User' &&
+           name !== 'Anonymous' &&
+           name !== 'undefined';
+  }
+
   function processTweetContent(originalTweet: ITweet): ITweet {
+    console.log('Processing tweet content for tweet:', originalTweet.id, {
+      rawTweet: originalTweet,
+      hasUsername: !!originalTweet.username,
+      hasDisplayName: !!originalTweet.displayName,
+      hasAuthorId: !!originalTweet.authorId,
+      hasUserId: !!originalTweet.userId,
+      threadInfo: originalTweet.thread || originalTweet.threadInfo,
+      author_id: originalTweet.author_id,
+      user_id: originalTweet.user_id
+    });
+    
     const processedTweet = { ...originalTweet };
     
-    if (processedTweet.authorUsername) {
+    // Store the original ID as tweetId if not already set
+    if (processedTweet.id && !processedTweet.tweetId) {
+      processedTweet.tweetId = String(processedTweet.id);
+    }
+    
+    // When tweet comes from a bookmarked thread, extract the actual author information
+    if (processedTweet.thread_id && !isValidUsername(processedTweet.username)) {
+      console.log(`[${processedTweet.id}] This appears to be a bookmarked tweet with thread_id`, processedTweet.thread_id);
+    }
+    
+    // Extract author information from all possible locations
+    
+    // Check for embedded author object
+    if (processedTweet.author && typeof processedTweet.author === 'object') {
+      console.log(`[${processedTweet.id}] Found author object`, processedTweet.author);
+      if (isValidUsername(processedTweet.author.username) && !isValidUsername(processedTweet.username)) {
+        console.log(`[${processedTweet.id}] Using author.username:`, processedTweet.author.username);
+        processedTweet.username = processedTweet.author.username;
+      }
+      if (isValidDisplayName(processedTweet.author.name) && !isValidDisplayName(processedTweet.displayName)) {
+        console.log(`[${processedTweet.id}] Using author.name:`, processedTweet.author.name);
+        processedTweet.displayName = processedTweet.author.name;
+      }
+    }
+    
+    // Check if thread or reply object contains author information
+    if (processedTweet.thread && typeof processedTweet.thread === 'object') {
+      console.log(`[${processedTweet.id}] Found thread object`, processedTweet.thread);
+      if (processedTweet.thread.author) {
+        const threadAuthor = processedTweet.thread.author;
+        // Extract from thread author if available
+        if (threadAuthor.username && !processedTweet.username) {
+          console.log(`[${processedTweet.id}] Using thread.author.username:`, threadAuthor.username);
+          processedTweet.username = threadAuthor.username;
+        }
+        if (threadAuthor.name && !processedTweet.displayName) {
+          console.log(`[${processedTweet.id}] Using thread.author.name:`, threadAuthor.name);
+          processedTweet.displayName = threadAuthor.name;
+        }
+        if (threadAuthor.id && !processedTweet.userId) {
+          console.log(`[${processedTweet.id}] Using thread.author.id:`, threadAuthor.id);
+          processedTweet.userId = threadAuthor.id;
+        }
+        if (threadAuthor.profile_picture_url && !processedTweet.avatar) {
+          console.log(`[${processedTweet.id}] Using thread.author.profile_picture_url`);
+          processedTweet.avatar = threadAuthor.profile_picture_url;
+        }
+      }
+    }
+    
+    // Check if user or author object contains information
+    if (processedTweet.user && typeof processedTweet.user === 'object') {
+      console.log(`[${processedTweet.id}] Found user object`, processedTweet.user);
+      const user = processedTweet.user;
+      // Extract from user if available
+      if (user.username && !processedTweet.username) {
+        console.log(`[${processedTweet.id}] Using user.username:`, user.username);
+        processedTweet.username = user.username;
+      }
+      if (user.name && !processedTweet.displayName) {
+        console.log(`[${processedTweet.id}] Using user.name:`, user.name);
+        processedTweet.displayName = user.name;
+      }
+      if (user.id && !processedTweet.userId) {
+        console.log(`[${processedTweet.id}] Using user.id:`, user.id);
+        processedTweet.userId = user.id;
+      }
+      if (user.profile_picture_url && !processedTweet.avatar) {
+        console.log(`[${processedTweet.id}] Using user.profile_picture_url`);
+        processedTweet.avatar = user.profile_picture_url;
+      }
+    }
+    
+    // Handle user ID fields - use snake_case variants too
+    if (processedTweet.authorId && !processedTweet.userId) {
+      console.log(`[${processedTweet.id}] Using authorId as userId:`, processedTweet.authorId);
+      processedTweet.userId = processedTweet.authorId;
+    } else if (processedTweet.author_id && !processedTweet.userId) {
+      console.log(`[${processedTweet.id}] Using author_id as userId:`, processedTweet.author_id);
+      processedTweet.userId = processedTweet.author_id;
+    } else if (processedTweet.user_id && !processedTweet.userId) {
+      console.log(`[${processedTweet.id}] Using user_id as userId:`, processedTweet.user_id);
+      processedTweet.userId = processedTweet.user_id;
+    }
+    
+    // Handle username fields - try camelCase and snake_case
+    if (processedTweet.authorUsername && !processedTweet.username) {
+      console.log(`[${processedTweet.id}] Using authorUsername as username:`, processedTweet.authorUsername);
       processedTweet.username = processedTweet.authorUsername;
+    } else if (processedTweet.author_username && !processedTweet.username) {
+      console.log(`[${processedTweet.id}] Using author_username as username:`, processedTweet.author_username);
+      processedTweet.username = processedTweet.author_username;
     }
     
-    if (processedTweet.authorName) {
+    // Handle display name fields - try all variants with different cases
+    if (processedTweet.authorName && !processedTweet.displayName) {
+      console.log(`[${processedTweet.id}] Using authorName as displayName:`, processedTweet.authorName);
       processedTweet.displayName = processedTweet.authorName;
+    } else if (processedTweet.author_name && !processedTweet.displayName) {
+      console.log(`[${processedTweet.id}] Using author_name as displayName:`, processedTweet.author_name);
+      processedTweet.displayName = processedTweet.author_name;
+    } else if (processedTweet.name && !processedTweet.displayName) {
+      console.log(`[${processedTweet.id}] Using name as displayName:`, processedTweet.name);
+      processedTweet.displayName = processedTweet.name;
+    } else if (processedTweet.display_name && !processedTweet.displayName) {
+      console.log(`[${processedTweet.id}] Using display_name as displayName:`, processedTweet.display_name);
+      processedTweet.displayName = processedTweet.display_name;
     }
     
-    if (processedTweet.username && 
-        processedTweet.username !== 'anonymous' && 
-        processedTweet.username !== 'user' &&
-        processedTweet.username !== 'unknown') {
-      return processedTweet;
+    // Handle avatar/profile picture - try all variants
+    if (processedTweet.authorAvatar && !processedTweet.avatar) {
+      console.log(`[${processedTweet.id}] Using authorAvatar as avatar`);
+      processedTweet.avatar = processedTweet.authorAvatar;
+    } else if (processedTweet.author_avatar && !processedTweet.avatar) {
+      console.log(`[${processedTweet.id}] Using author_avatar as avatar`);
+      processedTweet.avatar = processedTweet.author_avatar;
+    } else if (processedTweet.profile_picture_url && !processedTweet.avatar) {
+      console.log(`[${processedTweet.id}] Using profile_picture_url as avatar:`, processedTweet.profile_picture_url);
+      processedTweet.avatar = processedTweet.profile_picture_url;
     }
     
-    if (typeof processedTweet.content === 'string') {
+    // If timestamp is in created_at but not in timestamp field
+    if (processedTweet.created_at && !processedTweet.timestamp) {
+      console.log(`[${processedTweet.id}] Using created_at as timestamp`);
+      processedTweet.timestamp = processedTweet.created_at;
+    }
+    
+    // Process content for embedded metadata if still missing key fields
+    if ((typeof processedTweet.content === 'string') && 
+        (!processedTweet.username || processedTweet.username === 'anonymous' || 
+         processedTweet.username === 'user' || processedTweet.username === 'unknown')) {
+      console.log(`[${processedTweet.id}] Extracting username/displayName from content`);
       const processed = processUserMetadata(processedTweet.content);
       
-      if (processed.username) {
+      if (processed.username && !processedTweet.username) {
+        console.log(`[${processedTweet.id}] Extracted username from content:`, processed.username);
         processedTweet.username = processed.username;
       }
       
-      if (processed.displayName) {
+      if (processed.displayName && !processedTweet.displayName) {
+        console.log(`[${processedTweet.id}] Extracted displayName from content:`, processed.displayName);
         processedTweet.displayName = processed.displayName;
       }
       
       processedTweet.content = processed.content;
     }
     
-    if (!processedTweet.username || processedTweet.username === 'anonymous' || processedTweet.username === 'unknown') {
-      console.log('Using fallback for username in tweet:', processedTweet.id);
-      processedTweet.username = 'user';
+    // Handle special case - if username is 'anonymous' try to find a better username
+    if (processedTweet.username === 'anonymous') {
+      console.log(`[${processedTweet.id}] Found 'anonymous' username, searching for better alternatives`);
+      
+      // Look in user_data if it exists
+      if (processedTweet.user_data && typeof processedTweet.user_data === 'object') {
+        if (isValidUsername(processedTweet.user_data.username)) {
+          console.log(`[${processedTweet.id}] Using user_data.username instead of anonymous:`, processedTweet.user_data.username);
+          processedTweet.username = processedTweet.user_data.username;
+        }
+        if (isValidDisplayName(processedTweet.user_data.name)) {
+          console.log(`[${processedTweet.id}] Using user_data.name:`, processedTweet.user_data.name);
+          processedTweet.displayName = processedTweet.user_data.name;
+        }
+      }
+      
+      // Try to extract username from the URL if it exists in content
+      if (processedTweet.content && processedTweet.content.includes('/profile/') && !isValidUsername(processedTweet.username)) {
+        const urlMatch = processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/);
+        if (urlMatch && urlMatch[1]) {
+          console.log(`[${processedTweet.id}] Extracted username from profile URL:`, urlMatch[1]);
+          processedTweet.username = urlMatch[1];
+        }
+      }
     }
     
-    if (!processedTweet.displayName) {
+    // Modify the final username/displayName checks to use the helper methods
+    if (!isValidUsername(processedTweet.username)) {
+      console.warn(`⚠️ [${processedTweet.id}] USING FALLBACK for username! No valid username found in:`, {
+        username: originalTweet.username,
+        authorUsername: originalTweet.authorUsername,
+        author_username: originalTweet.author_username,
+        extractedFromURL: processedTweet.content && processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/) 
+          ? processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/)[1] 
+          : null
+      });
+      
+      // If this is a bookmarked tweet, try to extract author info from content or metadata
+      if (processedTweet.content && processedTweet.content.includes('wrote:')) {
+        const contentMatch = processedTweet.content.match(/([a-zA-Z0-9_]+)\s+wrote:/);
+        if (contentMatch && contentMatch[1]) {
+          console.log(`[${processedTweet.id}] Extracted username from content:`, contentMatch[1]);
+          processedTweet.username = contentMatch[1];
+          // Also try to extract display name if we can
+          if (!isValidDisplayName(processedTweet.displayName) && processedTweet.content.includes('(')) {
+            const nameMatch = processedTweet.content.match(/\(([^)]+)\)/);
+            if (nameMatch && nameMatch[1]) {
+              console.log(`[${processedTweet.id}] Extracted display name from content:`, nameMatch[1]);
+              processedTweet.displayName = nameMatch[1];
+            }
+          }
+        } else {
+          processedTweet.username = 'user';
+        }
+      } else {
+        processedTweet.username = 'user';
+      }
+    }
+    
+    if (!isValidDisplayName(processedTweet.displayName)) {
+      console.warn(`⚠️ [${processedTweet.id}] USING FALLBACK for displayName! No valid display name found in:`, {
+        displayName: originalTweet.displayName,
+        authorName: originalTweet.authorName,
+        author_name: originalTweet.author_name,
+        name: originalTweet.name,
+        display_name: originalTweet.display_name
+      });
       processedTweet.displayName = 'User';
     }
+    
+    if (!processedTweet.avatar) {
+      console.log(`[${processedTweet.id}] No avatar found, using null`);
+      processedTweet.avatar = null;
+    }
+    
+    console.log('Tweet processing result:', {
+      id: processedTweet.id,
+      username: processedTweet.username,
+      displayName: processedTweet.displayName,
+      hasAvatar: !!processedTweet.avatar
+    });
     
     return processedTweet;
   }
@@ -297,6 +515,133 @@
       if (reply) reply.isBookmarked = true;
     }
   }
+
+  function navigateToUserProfile(event: MouseEvent | KeyboardEvent, username: string, userId?: string | number | null) {
+    event.stopPropagation(); // Prevent the main tweet click
+    
+    // Get the userId from the processed tweet, ensuring it's a string
+    // Try all possible ID field variants in order of preference
+    const effectiveUserId = userId ? String(userId) : 
+      processedTweet.userId ? String(processedTweet.userId) : 
+      processedTweet.authorId ? String(processedTweet.authorId) : 
+      processedTweet.author_id ? String(processedTweet.author_id) : 
+      processedTweet.user_id ? String(processedTweet.user_id) : null;
+    
+    // For debugging
+    console.log("🔍 User Navigation Debug:", { 
+      username, 
+      providedUserId: userId,
+      effectiveUserId,
+      availableFields: {
+        userId: processedTweet.userId,
+        authorId: processedTweet.authorId,
+        author_id: processedTweet.author_id,
+        user_id: processedTweet.user_id,
+        displayName: processedTweet.displayName,
+      },
+      tweetInfo: {
+        id: processedTweet.id,
+        content: processedTweet.content?.substring(0, 30) + '...',
+      }
+    });
+    
+    // If we have a user ID, use that for navigation (most reliable)
+    if (effectiveUserId) {
+      console.log(`✅ Using userId for navigation: ${effectiveUserId}`);
+      window.location.href = `/user/${effectiveUserId}`;
+      return;
+    }
+    
+    // Otherwise fall back to username if it's valid
+    if (username && username !== 'anonymous' && username !== 'user' && username !== 'unknown') {
+      console.log(`✅ Falling back to username for navigation: ${username}`);
+      window.location.href = `/user/${username}`;
+    } else {
+      console.error("❌ Navigation failed: No valid ID or username available", { 
+        username, providedUserId: userId 
+      });
+    }
+  }
+
+  function debugUserData() {
+    // This function can be called to inspect all tweets in the component
+    console.group('🔍 TWEET DEBUGGING');
+    console.log('Main tweet:', {
+      id: tweet.id,
+      thread_id: tweet.thread_id || tweet.threadId,
+      username: {
+        processed: processedTweet.username,
+        original: tweet.username,
+        authorUsername: tweet.authorUsername,
+        author_username: tweet.author_username,
+        fromThread: tweet.thread?.author?.username,
+        fromUser: tweet.user?.username,
+        fromAuthor: tweet.author?.username,
+        fromUserData: tweet.user_data?.username,
+        isValid: isValidUsername(processedTweet.username),
+      },
+      displayName: {
+        processed: processedTweet.displayName,
+        original: tweet.displayName,
+        authorName: tweet.authorName, 
+        name: tweet.name,
+        display_name: tweet.display_name,
+        fromThread: tweet.thread?.author?.name,
+        fromUser: tweet.user?.name,
+        fromAuthor: tweet.author?.name,
+        fromUserData: tweet.user_data?.name,
+        isValid: isValidDisplayName(processedTweet.displayName),
+      },
+      userId: {
+        processed: processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id,
+        original: tweet.userId,
+        authorId: tweet.authorId,
+        author_id: tweet.author_id,
+        user_id: tweet.user_id,
+        fromThread: tweet.thread?.author?.id,
+        fromUser: tweet.user?.id,
+        fromAuthor: tweet.author?.id,
+        fromUserData: tweet.user_data?.id,
+      },
+      bookmarkedThread: tweet.bookmarked_thread || null,
+      contenWithUsers: tweet.content && tweet.content.includes('@') ? 
+        tweet.content.match(/@([a-zA-Z0-9_]+)/g) : null
+    });
+    
+    if (replies.length > 0) {
+      console.log('First reply:', {
+        id: replies[0].id,
+        thread_id: replies[0].thread_id || replies[0].threadId,
+        username: {
+          original: replies[0].username,
+          authorUsername: replies[0].authorUsername,
+          author_username: replies[0].author_username,
+          fromThread: replies[0].thread?.author?.username,
+          fromUser: replies[0].user?.username,
+          fromAuthor: replies[0].author?.username,
+          fromUserData: replies[0].user_data?.username
+        },
+        displayName: {
+          original: replies[0].displayName,
+          authorName: replies[0].authorName, 
+          name: replies[0].name,
+          display_name: replies[0].display_name,
+          fromThread: replies[0].thread?.author?.name,
+          fromUser: replies[0].user?.name,
+          fromAuthor: replies[0].author?.name,
+          fromUserData: replies[0].user_data?.name
+        }
+      });
+    }
+    console.groupEnd();
+  }
+
+  // Call this when the component mounts
+  $: {
+    if (tweet) {
+      setTimeout(debugUserData, 500); // Delay to allow processing to complete
+    }
+  }
 </script>
 
 <div 
@@ -304,14 +649,19 @@
   style="margin-left: {nestingLevel * 12}px;"
   on:click={handleClick}
   on:keydown={(e) => e.key === 'Enter' && handleClick()}
-  role="button"
+  role="article"
   tabindex="0"
+  aria-label="Tweet by {processedTweet.displayName}"
 >
   {#if inReplyToTweet && nestingLevel === 0}
     <div class="reply-context px-4 pt-2 pb-0">
       <div class="flex items-center text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
         <CornerUpRightIcon size="16" class="mr-2" />
-        <span>Replying to <span class="text-blue-500 hover:underline">@{inReplyToTweet.username}</span></span>
+        <span>Replying to <a 
+          href={`/user/${inReplyToTweet.userId || inReplyToTweet.authorId || inReplyToTweet.author_id || inReplyToTweet.user_id || inReplyToTweet.username}`}
+          class="text-blue-500 hover:underline"
+          on:click|preventDefault={(e) => navigateToUserProfile(e, inReplyToTweet.username, inReplyToTweet.userId || inReplyToTweet.authorId || inReplyToTweet.author_id || inReplyToTweet.user_id)}
+        >@{inReplyToTweet.username}</a></span>
       </div>
       <div class="ml-5 pl-4 border-l {isDarkMode ? 'border-gray-700' : 'border-gray-200'} my-1">
         <div class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-600'} line-clamp-1">
@@ -327,18 +677,47 @@
 
   <div class="tweet-header p-4 relative">
     <div class="flex items-start">
-      <div class="tweet-avatar-container w-12 h-12 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3">
+      <a 
+        href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+        class="tweet-avatar-container w-12 h-12 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3"
+        on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+        on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+      >
         {#if typeof processedTweet.avatar === 'string' && processedTweet.avatar.startsWith('http')}
           <img src={processedTweet.avatar} alt={processedTweet.username} class="w-full h-full object-cover" />
         {:else}
           <div class="text-xl {isDarkMode ? 'text-gray-100' : ''}">{processedTweet.avatar}</div>
         {/if}
-      </div>
+      </a>
       
       <div class="flex-1 min-w-0">
         <div class="flex items-center">
-          <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5">{processedTweet.displayName || 'User'}</span>
-          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{processedTweet.username || 'user'}</span>
+          <a 
+            href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+            class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5 hover:underline"
+            on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+            on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+          >
+            {#if processedTweet.displayName === 'User'}
+              {console.warn('❌ MISSING DISPLAY NAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, username: processedTweet.username})}
+              <span class="text-red-500">User</span>
+            {:else}
+              {processedTweet.displayName}
+            {/if}
+          </a>
+          <a 
+            href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+            class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate hover:underline"
+            on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+            on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+          >
+            {#if processedTweet.username === 'user'}
+              {console.warn('❌ MISSING USERNAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, displayName: processedTweet.displayName})}
+              <span class="text-red-500">@user</span>
+            {:else}
+              @{processedTweet.username}
+            {/if}
+          </a>
           <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
           <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(processedTweet.timestamp)}</span>
         </div>
@@ -462,16 +841,13 @@
         <div class="animate-pulse">Loading replies...</div>
       </div>
     {:else}
-      {#each processedReplies as reply, index (reply.id || `reply-${reply.timestamp}-${reply.username}-${index}`)}
-        {#if index === 0}
-          {console.log('First reply data:', reply)}
-        {/if}
-        {#if nestingLevel < MAX_NESTING_LEVEL}
+      {#if replies.length > 0 && nestingLevel < MAX_NESTING_LEVEL}
+        {#each processedReplies as reply (reply.id || reply.tweetId)}
           <svelte:self 
             tweet={reply}
             {isDarkMode}
             {isAuthenticated}
-            isLiked={reply.isLiked || false}
+            isLiked={reply.isLiked || reply.is_liked || false}
             isReposted={reply.isReposted || false}
             isBookmarked={reply.isBookmarked || false}
             inReplyToTweet={null}
@@ -487,20 +863,37 @@
             on:removeBookmark={handleNestedBookmark}
             on:loadReplies={handleLoadNestedReplies}
           />
-        {:else}
+        {/each}
+      {:else if replies.length > 0}
+        {#each processedReplies as reply, index (reply.id || reply.tweetId || `reply-${reply.timestamp}-${reply.username}-${index}`)}
           <div class="reply-item py-3 {isDarkMode ? 'border-b border-gray-800' : 'border-b border-gray-200'}">
             <div class="flex">
-              <div class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3 flex-shrink-0">
+              <a 
+                href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
+                class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3 flex-shrink-0"
+                on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
+                on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
+              >
                 {#if typeof reply.avatar === 'string' && reply.avatar.startsWith('http')}
                   <img src={reply.avatar} alt={reply.username} class="w-full h-full object-cover" />
                 {:else}
                   <div class="text-lg {isDarkMode ? 'text-gray-100' : ''}">{reply.avatar}</div>
                 {/if}
-              </div>
+              </a>
               <div class="flex-1">
                 <div class="flex items-center">
-                  <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5">{reply.displayName || 'User'}</span>
-                  <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{reply.username || 'user'}</span>
+                  <a 
+                    href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
+                    class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5 hover:underline"
+                    on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
+                    on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
+                  >{reply.displayName || 'User'}</a>
+                  <a 
+                    href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
+                    class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate hover:underline"
+                    on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
+                    on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
+                  >@{reply.username || 'user'}</a>
                   <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
                   <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(reply.timestamp)}</span>
                 </div>
@@ -548,14 +941,7 @@
               </div>
             </div>
           </div>
-        {/if}
-      {/each}
-      {#if replies.length > 0 && nestingLevel === 0}
-        <div class="text-center py-2">
-          <button class="text-blue-500 text-sm hover:underline px-3 py-1.5 rounded-full {isDarkMode ? 'dark-btn hover:bg-blue-900/20' : 'light-btn hover:bg-blue-50'}">
-            Show more replies
-          </button>
-        </div>
+        {/each}
       {/if}
     {/if}
   </div>

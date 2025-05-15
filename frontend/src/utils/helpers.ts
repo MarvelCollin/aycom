@@ -113,3 +113,45 @@ export function stringSimilarity(a: string, b: string): number {
   
   return 1.0 - (distance / maxLength);
 }
+
+/**
+ * Fuzzy search function that uses Damerau-Levenshtein distance to find matches
+ * @param needle The string to search for
+ * @param haystack The array of strings to search in
+ * @param key If haystack is an array of objects, the key to use for comparison
+ * @param threshold The similarity threshold (0-1) where 1 is an exact match
+ * @returns Array of matches sorted by similarity
+ */
+export function fuzzySearch<T>(
+  needle: string,
+  haystack: T[],
+  key?: string,
+  threshold: number = 0.6
+): T[] {
+  if (!needle || !haystack || !haystack.length) return [];
+  
+  const cleanNeedle = needle.toLowerCase().trim();
+  if (!cleanNeedle) return [];
+  
+  const results = haystack
+    .map(item => {
+      // If haystack is an array of strings
+      let targetString = '';
+      if (typeof item === 'string') {
+        targetString = item;
+      } 
+      // If haystack is an array of objects with the specified key
+      else if (key && typeof item === 'object' && item !== null) {
+        const objItem = item as any;
+        targetString = objItem[key]?.toString() || '';
+      }
+      
+      const similarity = stringSimilarity(cleanNeedle, targetString.toLowerCase());
+      return { item, similarity };
+    })
+    .filter(result => result.similarity >= threshold)
+    .sort((a, b) => b.similarity - a.similarity)
+    .map(result => result.item);
+  
+  return results;
+}

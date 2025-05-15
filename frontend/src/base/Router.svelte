@@ -21,20 +21,26 @@
   
   function handleNavigation() {
     const fullPath = window.location.pathname;
+    console.log('Handling navigation to:', fullPath);
     
     // Check for user profile route pattern
     const userProfileMatch = fullPath.match(/^\/user\/([^\/]+)$/);
     if (userProfileMatch) {
       userId = userProfileMatch[1];
       route = '/user';
+      console.log(`User profile route matched with userId: ${userId}`);
       
-      // Update the route store
+      // Update the route store with the userId parameter
       updatePageStore();
     } else {
       route = fullPath;
+      
+      // Update the route store for other routes too
+      updatePageStore();
     }
     
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
+    console.log(`Authentication status: ${isAuthenticated}`);
     
     // Skip auth checks if disabled in config
     if (!appConfig.auth.enabled) {
@@ -50,6 +56,7 @@
          route === '/communities' ||
          route === '/profile' ||
          route === '/user')) {
+      console.log('Unauthenticated access to protected route, redirecting to login');
       window.history.replaceState({}, '', '/login');
       route = '/login';
     }
@@ -58,6 +65,7 @@
         (route === '/login' || 
          route === '/register' || 
          route === '/')) {
+      console.log('Authenticated access to auth route, redirecting to feed');
       window.history.replaceState({}, '', '/feed');
       route = '/feed';
     }
@@ -116,7 +124,7 @@
   {:else if route === '/profile'}
     <OwnProfile />
   {:else if route === '/user'}
-    <UserProfile />
+    <UserProfile {userId} />
   {:else if route === '/explore'}
     <Explore />
   {:else if route === '/notifications'}

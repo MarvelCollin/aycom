@@ -122,8 +122,8 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
 
 export async function getAllThreads(page = 1, limit = 20) {
   try {
-    const token = getAuthToken();
-    
+  const token = getAuthToken();
+  
     // Define headers - allow unauthenticated access but add token if available
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -170,7 +170,7 @@ export async function getAllThreads(page = 1, limit = 20) {
         data.threads = data.threads.map(thread => {
           // If the thread is in our liked threads localStorage, make sure it shows as liked
           if (likedThreads.includes(thread.id)) {
-            return {
+      return { 
               ...thread,
               is_liked: true,
               isLiked: true
@@ -196,11 +196,11 @@ export async function getAllThreads(page = 1, limit = 20) {
     }
     
     // For other errors, try to parse the error message but don't throw
-    try {
-      const errorData = await response.json();
+      try {
+        const errorData = await response.json();
       console.error(`Error in getAllThreads: ${errorData.message || `Failed to fetch threads: ${response.status}`}`);
       return { threads: [], total_count: 0, page, limit };
-    } catch (parseError) {
+      } catch (parseError) {
       console.error(`Error in getAllThreads: Failed to fetch threads: ${response.status}`);
       return { threads: [], total_count: 0, page, limit };
     }
@@ -304,38 +304,38 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
     }
     
     // Fall back to the API if Supabase upload fails
-    const token = getAuthToken();
-    
-    const formData = new FormData();
-    formData.append('thread_id', threadId);
-    
-    files.forEach((file, index) => {
-      formData.append(`file`, file);
-    });
-    
-    const response = await fetch(`${API_BASE_URL}/threads/media`, {
-      method: 'POST',
-      headers: {
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      body: formData,
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
-          errorData.error?.message || 
-          `Failed to upload media: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        throw new Error(`Failed to upload media: ${response.status} ${response.statusText}`);
-      }
+  const token = getAuthToken();
+  
+  const formData = new FormData();
+  formData.append('thread_id', threadId);
+  
+  files.forEach((file, index) => {
+    formData.append(`file`, file);
+  });
+  
+  const response = await fetch(`${API_BASE_URL}/threads/media`, {
+    method: 'POST',
+    headers: {
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    body: formData,
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    try {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 
+        errorData.error?.message || 
+        `Failed to upload media: ${response.status} ${response.statusText}`
+      );
+    } catch (parseError) {
+      throw new Error(`Failed to upload media: ${response.status} ${response.statusText}`);
     }
-    
-    return response.json();
+  }
+  
+  return response.json();
   } catch (error) {
     console.error("Error in uploadThreadMedia:", error);
     throw error;
@@ -1068,7 +1068,7 @@ export async function getUserThreads(userId: string, page: number = 1, limit: nu
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    
+      
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -1114,7 +1114,7 @@ export async function getUserThreads(userId: string, page: number = 1, limit: nu
             is_liked: true,
             isLiked: true
           };
-        }
+    }
         return thread;
       });
     }

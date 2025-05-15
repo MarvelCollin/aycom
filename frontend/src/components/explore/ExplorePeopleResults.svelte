@@ -12,27 +12,53 @@
   $: isDarkMode = $theme === 'dark';
   
   // Props
-  export let peopleResults: any[] = [];
+  export let peopleResults: Array<{
+    id: string;
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    bio?: string;
+    isVerified: boolean;
+    followerCount: number;
+    isFollowing: boolean;
+  }> = [];
   export let isLoading = false;
   export let peoplePerPage = 25;
+  export let currentPage = 1;
+  export let totalCount = 0;
+  
+  // Calculate total pages
+  $: totalPages = Math.ceil(totalCount / peoplePerPage);
+  
+  // Handle page change
+  function changePage(page: number) {
+    logger.debug('Changing page', { page });
+    dispatch('pageChange', page);
+  }
+  
+  // Page size options
+  const perPageOptions = [25, 30, 35];
+  
+  // Handle per page change
+  function handlePerPageChange(e) {
+    const newValue = parseInt(e.target.value);
+    logger.debug('Changing results per page', { value: newValue });
+    dispatch('peoplePerPageChange', newValue);
+  }
+  
+  // Handle load more
+  function loadMore() {
+    if (currentPage < totalPages) {
+      logger.debug('Loading more people', { newPage: currentPage + 1 });
+      dispatch('loadMore');
+    }
+  }
   
   // Handle follow user
   function handleFollow(event) {
     const userId = event.detail;
     logger.debug('Follow request initiated', { userId });
     dispatch('follow', userId);
-  }
-  
-  // Handle people per page change
-  function handlePeoplePerPageChange(perPage) {
-    logger.debug('Changing people per page', { from: peoplePerPage, to: perPage });
-    dispatch('peoplePerPageChange', perPage);
-  }
-  
-  // Handle load more
-  function handleLoadMore() {
-    logger.debug('Loading more people results');
-    dispatch('loadMore');
   }
   
   // Log when people results change
@@ -47,94 +73,82 @@
   }
 </script>
 
-<!-- Rest of the component remains the same -->
 <div class="p-4">
-  <!-- Pagination options -->
-  <div class="mb-4 flex justify-end">
-    <div class="relative inline-block text-left group">
-      <button class="px-3 py-1 border border-gray-300 dark:border-gray-700 rounded-full text-sm font-medium flex items-center {isDarkMode ? 'text-white' : 'text-black'} hover:bg-gray-100 dark:hover:bg-gray-800">
-        Show {peoplePerPage} per page
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      <div class="absolute right-0 mt-1 w-36 rounded-md shadow-lg bg-white dark:bg-gray-900 ring-1 ring-black ring-opacity-5 hidden group-hover:block z-20">
-        <div class="py-1">
-          <button
-            class="block px-4 py-2 text-sm w-full text-left {peoplePerPage === 25 ? 'bg-gray-100 dark:bg-gray-800' : ''}"
-            on:click={() => handlePeoplePerPageChange(25)}
-          >
-            Show 25 per page
-          </button>
-          <button
-            class="block px-4 py-2 text-sm w-full text-left {peoplePerPage === 30 ? 'bg-gray-100 dark:bg-gray-800' : ''}"
-            on:click={() => handlePeoplePerPageChange(30)}
-          >
-            Show 30 per page
-          </button>
-          <button
-            class="block px-4 py-2 text-sm w-full text-left {peoplePerPage === 35 ? 'bg-gray-100 dark:bg-gray-800' : ''}"
-            on:click={() => handlePeoplePerPageChange(35)}
-          >
-            Show 35 per page
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
   {#if isLoading}
     <div class="animate-pulse space-y-4">
-      {#each Array(5) as _}
-        <div class="flex space-x-4">
-          <div class="rounded-full bg-gray-300 dark:bg-gray-700 h-12 w-12"></div>
-          <div class="flex-1 space-y-2 py-1">
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/4"></div>
-            <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
-          </div>
-          <div class="w-20 h-8 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
-        </div>
+      {#each Array(3) as _}
+        <div class="bg-gray-200 dark:bg-gray-800 h-24 rounded-lg"></div>
       {/each}
     </div>
-  {:else if peopleResults.length > 0}
-    <ul class="divide-y divide-gray-200 dark:divide-gray-800">
-      {#each peopleResults as profile}
-        <li>
-          <ProfileCard {profile} on:follow={handleFollow} />
-        </li>
+  {:else if peopleResults.length === 0}
+    <div class="text-center py-8">
+      <p class="text-gray-500 dark:text-gray-400">No people found matching your search.</p>
+    </div>
+  {:else}
+    <div class="space-y-4">
+      {#each peopleResults as person}
+        <ProfileCard profile={person} on:follow={handleFollow} />
       {/each}
-    </ul>
-    
-    <!-- Load more button -->
-    {#if !isLoading}
-      <div class="mt-4 text-center">
+      
+      <!-- Pagination controls -->
+      {#if totalCount > peoplePerPage}
+        <div class="mt-6 flex flex-wrap justify-between items-center gap-4 border-t border-gray-200 dark:border-gray-800 pt-4">
+          <div class="flex items-center">
+            <span class="text-sm text-gray-500 dark:text-gray-400 mr-2">Show:</span>
+            <select 
+              class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-2 py-1 text-sm"
+              bind:value={peoplePerPage}
+              on:change={handlePerPageChange}
+            >
+              {#each perPageOptions as option}
+                <option value={option}>{option} per page</option>
+              {/each}
+            </select>
+          </div>
+          
+          <div class="flex items-center space-x-1">
+            <button 
+              class="px-3 py-1 rounded {currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800'}"
+              disabled={currentPage === 1}
+              on:click={() => changePage(currentPage - 1)}
+            >
+              Previous
+            </button>
+            
+            {#each Array(Math.min(5, totalPages)) as _, i}
+              {#if totalPages <= 5 || (i < 3 && currentPage <= 3) || (i >= totalPages - 3 && currentPage >= totalPages - 2) || (i >= currentPage - 2 && i <= currentPage)}
+                <button 
+                  class="w-8 h-8 rounded-full flex items-center justify-center {i + 1 === currentPage ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}"
+                  on:click={() => changePage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              {:else if (i === 3 && currentPage > 3) || (i === totalPages - 4 && currentPage < totalPages - 2)}
+                <span class="px-1">...</span>
+              {/if}
+            {/each}
+            
         <button 
-          class="px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-full text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-700"
-          on:click={handleLoadMore}
+              class="px-3 py-1 rounded {currentPage === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800'}"
+              disabled={currentPage === totalPages}
+              on:click={() => changePage(currentPage + 1)}
         >
-          Load more
+              Next
         </button>
+          </div>
       </div>
     {/if}
-  {:else}
-    <div class="text-center py-10">
-      <p class="text-gray-500 dark:text-gray-400">No users found</p>
     </div>
   {/if}
 </div>
 
 <style>
-  /* Skeleton loading animation */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-  }
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   
-  /* Fix for dropdown display */
-  .group:hover .hidden.group-hover\:block {
-    display: block;
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 </style> 
