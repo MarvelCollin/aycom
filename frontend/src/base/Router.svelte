@@ -4,6 +4,7 @@
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
+  import Landing from '../pages/Landing.svelte';
   import GoogleCallback from '../pages/GoogleCallback.svelte';
   import Explore from '../pages/Explore.svelte';
   import Message from '../pages/Message.svelte';
@@ -17,7 +18,7 @@
   
   let route = '/';
   let isAuthenticated = false;
-  let userId = '';
+  let userProfileId = '';
   
   function handleNavigation() {
     const fullPath = window.location.pathname;
@@ -26,9 +27,9 @@
     // Check for user profile route pattern
     const userProfileMatch = fullPath.match(/^\/user\/([^\/]+)$/);
     if (userProfileMatch) {
-      userId = userProfileMatch[1];
+      userProfileId = userProfileMatch[1];
       route = '/user';
-      console.log(`User profile route matched with userId: ${userId}`);
+      console.log(`User profile route matched with userId: ${userProfileId}`);
       
       // Update the route store with the userId parameter
       updatePageStore();
@@ -63,8 +64,7 @@
     
     if (isAuthenticated && 
         (route === '/login' || 
-         route === '/register' || 
-         route === '/')) {
+         route === '/register')) {
       console.log('Authenticated access to auth route, redirecting to feed');
       window.history.replaceState({}, '', '/feed');
       route = '/feed';
@@ -109,7 +109,7 @@
     {#if isAuthenticated}
       <Feed />
     {:else}
-      <Login />
+      <Landing />
     {/if}
   {:else if route === '/login'}
     <Login />
@@ -124,7 +124,7 @@
   {:else if route === '/profile'}
     <OwnProfile />
   {:else if route === '/user'}
-    <UserProfile {userId} />
+    <UserProfile userId={userProfileId} />
   {:else if route === '/explore'}
     <Explore />
   {:else if route === '/notifications'}
@@ -152,8 +152,8 @@
   .not-found {
     text-align: center;
     padding: 50px 20px;
-    background-color: #000;
-    color: #fff;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -162,22 +162,22 @@
   }
   
   .not-found h1 {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
+    font-size: var(--font-size-3xl);
+    margin-bottom: var(--space-4);
   }
   
   .not-found a {
     display: inline-block;
-    margin-top: 1.5rem;
-    padding: 0.5rem 1rem;
-    background-color: #1d9bf0;
+    margin-top: var(--space-6);
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--color-primary);
     color: white;
     text-decoration: none;
-    border-radius: 9999px;
-    font-weight: bold;
+    border-radius: var(--radius-full);
+    font-weight: var(--font-weight-bold);
   }
   
   .not-found a:hover {
-    background-color: #1a8cd8;
+    background-color: var(--color-primary-hover);
   }
 </style>

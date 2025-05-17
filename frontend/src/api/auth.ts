@@ -100,6 +100,7 @@ export async function resendVerification(email: string) {
 
 export async function googleLogin(tokenId: string) {
   try {
+    console.log('Sending Google token to backend API for verification');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
@@ -112,18 +113,26 @@ export async function googleLogin(tokenId: string) {
     });
 
     clearTimeout(timeoutId);
+    
+    console.log('Google login API response status:', response.status);
 
     if (!response.ok) {
       try {
         const errorData = await response.json();
+        console.error('Google login API error:', errorData);
         throw new Error(errorData.message || "Google login failed");
       } catch (parseError) {
-        throw new Error("Google login failed");
+        console.error('Failed to parse Google login error response', parseError);
+        throw new Error(`Google login failed with status code: ${response.status}`);
       }
     }
-    return response.json();
+    
+    const data = await response.json();
+    console.log('Google login successful');
+    return data;
   } catch (error) {
-    if (error.name === 'AbortError') {
+    console.error('Google login request error:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
       throw new Error("Request timed out. The server might be down or not responding.");
     }
     throw error;

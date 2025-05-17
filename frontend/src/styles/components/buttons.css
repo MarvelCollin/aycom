@@ -1,0 +1,202 @@
+/* Button styles similar to Twitter */
+
+/* Base button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4);
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+  font-size: var(--font-size-sm);
+  border: none;
+  outline: none;
+}
+
+/* Primary button - Blue */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* Secondary button - White/Black outline */
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background-color: var(--hover-bg);
+}
+
+/* Text/ghost button */
+.btn-text {
+  background-color: transparent;
+  color: var(--text-primary);
+  padding: var(--space-2);
+}
+
+.btn-text:hover {
+  background-color: var(--hover-bg);
+  color: var(--color-primary);
+}
+
+/* Danger button */
+.btn-danger {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: rgba(244, 33, 46, 0.9);
+}
+
+/* Button sizes */
+.btn-xs {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+.btn-md {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.btn-lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--font-size-md);
+}
+
+/* Full width button */
+.btn-block {
+  display: flex;
+  width: 100%;
+}
+
+/* Icon button - for circular icon buttons */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: transparent;
+  padding: var(--space-2);
+  cursor: pointer;
+  border: none;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-icon:hover {
+  background-color: var(--hover-bg);
+  color: var(--color-primary);
+}
+
+.btn-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Icon button sizes */
+.btn-icon-sm svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.btn-icon-lg svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Social action buttons (like, retweet, etc.) */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  background-color: transparent;
+  padding: var(--space-2);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.action-btn:hover {
+  background-color: rgba(29, 155, 240, 0.1); 
+  color: var(--color-primary);
+}
+
+.action-btn.liked {
+  color: var(--color-danger);
+}
+
+.action-btn.liked:hover {
+  background-color: rgba(244, 33, 46, 0.1);
+}
+
+.action-btn.retweeted {
+  color: var(--color-success);
+}
+
+.action-btn.retweeted:hover {
+  background-color: rgba(0, 186, 124, 0.1);
+}
+
+/* Disabled state */
+.btn:disabled,
+.btn-icon:disabled,
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Float action button (like Twitter's compose button) */
+.float-action-btn {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  border: none;
+  z-index: var(--z-fixed);
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.float-action-btn:hover {
+  background-color: var(--color-primary-hover);
+  transform: scale(1.05);
+}
+
+.float-action-btn:active {
+  transform: scale(0.98);
+}
+
+@media (min-width: 768px) {
+  .float-action-btn {
+    bottom: 20px;
+  }
+} 

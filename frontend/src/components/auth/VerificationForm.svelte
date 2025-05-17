@@ -14,25 +14,25 @@
   $: isDarkMode = $theme === 'dark';
 </script>
 
-<div class="mb-6">
-  <label for="verificationCode" class="block text-sm font-medium mb-1">Verification code</label>
+<div class="auth-input-group">
+  <label for="verificationCode" class="auth-label">Verification code</label>
   <input 
     type="text" 
     id="verificationCode" 
     bind:value={verificationCode} 
-    class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+    class="auth-input {isDarkMode ? 'auth-input-dark' : ''}"
     placeholder="Verification code"
     data-cy="verification-code-input"
   />
 </div>
 
 {#if !showResendOption}
-  <p class="text-sm text-center mb-4 text-gray-600 dark:text-gray-400" data-cy="resend-timer">Code expires in {timeLeft}</p>
+  <p class="verification-timer" data-cy="resend-timer">Code expires in {timeLeft}</p>
 {/if}
 
 {#if showResendOption}
   <button 
-    class="w-full text-blue-500 hover:underline mb-4 text-center"
+    class="auth-link block text-center mb-4 w-full"
     on:click={onResend}
     data-cy="resend-button"
   >
@@ -41,7 +41,7 @@
 {/if}
 
 <button 
-  class="w-full py-3 bg-blue-500 text-white text-center rounded-full font-semibold hover:bg-blue-600 transition-colors"
+  class="auth-btn"
   on:click={onVerify}
   data-cy="verify-button"
 >

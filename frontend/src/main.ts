@@ -1,6 +1,6 @@
 import { mount } from 'svelte';
-import './styles/magniview.css';
-import './styles/global.css';
+import './styles/reset.css';
+import './styles/index.css';
 import App from './App.svelte'
 
 const app = mount(App, {

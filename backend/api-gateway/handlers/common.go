@@ -241,8 +241,10 @@ func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
 func GetJWTSecret() []byte {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	if len(jwtSecret) == 0 {
-		jwtSecret = []byte("wompwomp123") // Fallback to default in .env
-		log.Println("Warning: JWT_SECRET environment variable not set, using default.")
+		log.Println("Warning: JWT_SECRET environment variable not set or empty, using fallback value. This is not secure for production use.")
+		// Use an empty string as fallback, which will cause token validation to fail in production
+		// This forces proper configuration in production environments
+		jwtSecret = []byte("insecure_fallback_jwt_key")
 	}
 	return jwtSecret
 }

@@ -62,6 +62,23 @@
   let repliesMap = new Map();
   let nestedRepliesMap = new Map(); // For storing replies to replies
 
+  // Add isMobile variable near the top of the script
+  let isMobile = false;
+
+  // Check for mobile view on mount
+  onMount(() => {
+    // Simple check for mobile screens - can be replaced with a more sophisticated check
+    isMobile = window.innerWidth < 768;
+    
+    // Add resize listener
+    const handleResize = () => {
+      isMobile = window.innerWidth < 768;
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
+
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
     // Check if we have debugging enabled
@@ -858,98 +875,77 @@
   }
 </script>
 
-<MainLayout
-  username={username}
-  displayName={displayName}
-  avatar={avatar}
-  trends={trends}
-  suggestedFollows={suggestedUsers}
-  on:toggleComposeModal={toggleComposeModal}
->
-  <!-- Content Area -->
-  <div class="min-h-screen border-x feed-container">
-    <!-- Header with Tabs -->
-    <div class="sticky top-0 z-10 header-tabs border-b {isDarkMode ? 'bg-black border-gray-800' : 'bg-white border-gray-200'}">
-      <!-- Tabs -->
-      <div class="flex justify-between">
-        <button 
-          class="flex-1 py-4 dark:bg-black text-center font-medium tab-button {activeTab === 'for-you' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
-          on:click={() => handleTabChange('for-you')}
-        >
-          For you
-        </button>
-      <button 
-          class="flex-1 py-4 dark:bg-black text-center font-medium tab-button {activeTab === 'following' ? 'tab-active' : ''} {isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}"
-          on:click={() => handleTabChange('following')}
-        >
-          Following
-        </button>
-      </div>
+<MainLayout on:toggleComposeModal={toggleComposeModal} {username} {displayName} {avatar}>
+  <div class="feed-container {isDarkMode ? 'dark-theme' : ''}">
+    <div class="feed-header">
+      <h1 class="feed-title">Home</h1>
     </div>
-    
-    <!-- Compose Tweet Form - Only visible for authenticated users -->
-    {#if authState.isAuthenticated}
-      <div class="p-4 border-b feed-container">
-        <div class="flex">
-          <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
-            <span>{avatar}</span>
-          </div>
-          <div class="flex-1">
-            <button 
-              class="w-full min-h-[40px] px-4 py-2 rounded-3xl border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
-              on:click={toggleComposeModal}
-              aria-label="Compose new post"
-            >
-              What's happening?
+
+    <div class="feed-tabs">
+      <button 
+        class="feed-tab {activeTab === 'for-you' ? 'active' : ''}" 
+        on:click={() => handleTabChange('for-you')}
+        aria-selected={activeTab === 'for-you'}
+        role="tab"
+      >
+        For You
+      </button>
+      <button 
+        class="feed-tab {activeTab === 'following' ? 'active' : ''}" 
+        on:click={() => handleTabChange('following')}
+        aria-selected={activeTab === 'following'}
+        role="tab"
+      >
+        Following
+      </button>
+    </div>
+
+    <!-- Mobile compose tweet button for smaller screens -->
+    {#if isMobile}
+      <div class="feed-compose">
+        <div class="compose-avatar">
+          <img src={avatar} alt={username} />
+        </div>
+        <div class="compose-input-container">
+          <button 
+            class="compose-input" 
+            on:click={toggleComposeModal}
+            aria-label="Compose new post"
+          >
+            What's happening?
+          </button>
+          <div class="compose-tools">
+            <button class="compose-tweet-tool">
+              <ImageIcon size="20" />
             </button>
-            <div class="flex mt-2 -ml-2">
-              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
-                <span class="sr-only">Add image</span>
-                <ImageIcon size="20" />
-              </button>
-              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
-                <span class="sr-only">Add gif</span>
-                <FileIcon size="20" />
-              </button>
-              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
-                <span class="sr-only">Add poll</span>
-                <BarChartIcon size="20" />
-              </button>
-              <button class="p-2 dark:bg-black text-primary rounded-full hover:bg-primary/10">
-                <span class="sr-only">Add emoji</span>
-                <SmileIcon size="20" />
-              </button>
-            </div>
+            <button class="compose-tweet-tool">
+              <FileIcon size="20" />
+            </button>
+            <button class="compose-tweet-tool">
+              <BarChartIcon size="20" />
+            </button>
+            <button class="compose-tweet-tool">
+              <SmileIcon size="20" />
+            </button>
           </div>
         </div>
       </div>
     {/if}
     
     <!-- Tweet List -->
-    <div class="tweet-list">
+    <div class="feed-items">
       <!-- Loading state when first loading tab -->
       {#if isLoading && currentTweets.length === 0}
-        <div class="space-y-4 p-4">
-          {#each Array(5) as _, i}
-            <div class="animate-pulse flex space-x-4">
-              <div class="rounded-full bg-gray-300 dark:bg-gray-700 h-10 w-10"></div>
-              <div class="flex-1 space-y-3 py-1">
-                <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                <div class="space-y-2">
-                  <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                  <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
-                </div>
-                <div class="h-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
-              </div>
-            </div>
-          {/each}
+        <div class="feed-loading">
+          <div class="feed-loading-spinner"></div>
         </div>
       <!-- Error state -->
       {:else if error}
-        <div class="p-8 text-center">
-          <p class="text-red-500 mb-4">{error}</p>
+        <div class="empty-state">
+          <div class="empty-state-title">Something went wrong</div>
+          <div class="empty-state-message">{error}</div>
           <button 
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+            class="btn btn-primary" 
             on:click={() => activeTab === 'for-you' ? fetchTweetsForYou(true) : fetchTweetsFollowing(true)}
           >
             Try Again
@@ -957,17 +953,24 @@
         </div>
       <!-- Empty state -->
       {:else if currentTweets.length === 0 && !isLoading}
-        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-          <p class="mb-4">
+        <div class="empty-state">
+          <div class="empty-state-title">
             {#if activeTab === 'for-you'}
               No posts yet
             {:else}
-              You're not following anyone yet, or they haven't posted
+              You're not following anyone yet
             {/if}
-          </p>
+          </div>
+          <div class="empty-state-message">
+            {#if activeTab === 'for-you'}
+              Start the conversation by creating your first post
+            {:else}
+              When you follow people, their posts will show up here
+            {/if}
+          </div>
           {#if activeTab === 'for-you'}
             <button 
-              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+              class="btn btn-primary" 
               on:click={toggleComposeModal}
             >
               Create First Post
@@ -975,7 +978,7 @@
           {:else}
             <a 
               href="/explore" 
-              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 inline-block"
+              class="btn btn-primary"
             >
               Find People to Follow
             </a>
@@ -985,26 +988,24 @@
       {:else}
         {#each currentTweets as tweet, index (tweet.id || `tweet-${index}`)}
           {#if tweet.isAdvertisement}
-            <div class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-              <div class="flex items-center text-xs text-gray-500 mb-2">
-                <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-full">Advertisement</span>
-              </div>
-              <div class="flex space-x-3">
-                <div class="flex-shrink-0">
-                  <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                    <img src={tweet.avatar} alt="Advertisement" class="w-8 h-8 object-cover rounded-full" />
-                  </div>
+            <!-- Advertisement card using our CSS classes -->
+            <div class="tweet-card">
+              <div class="tweet-header">
+                <div class="tweet-avatar">
+                  <img src={tweet.avatar} alt="Advertisement" />
                 </div>
-                <div class="flex-1">
-                  <div class="font-bold text-blue-600 dark:text-blue-500">
-                    {tweet.displayName}
-                  </div>
-                  <div class="text-gray-700 dark:text-gray-300 mt-2">
-                    {tweet.content}
-                  </div>
-                  <div class="bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 p-3 mt-3">
-                    <p class="text-gray-600 dark:text-gray-400">Sponsored content goes here</p>
-                  </div>
+                <div class="tweet-user-info">
+                  <span class="tweet-user-name">{tweet.displayName}</span>
+                  <span class="tweet-user-handle">@{tweet.username}</span>
+                  <span class="tweet-ad-label">Advertisement</span>
+                </div>
+              </div>
+              <div class="tweet-content">
+                {tweet.content}
+              </div>
+              <div class="tweet-media">
+                <div class="ad-content">
+                  <p>Sponsored content goes here</p>
                 </div>
               </div>
             </div>
@@ -1013,9 +1014,9 @@
               tweet={tweet} 
               isDarkMode={isDarkMode} 
               isAuthenticated={authState.isAuthenticated}
-              isLiked={tweet.isLiked || tweet.is_liked || false}
-              isReposted={tweet.isReposted || tweet.is_repost || false}
-              isBookmarked={tweet.isBookmarked || tweet.is_bookmarked || false}
+              isLiked={tweet.isLiked || false}
+              isReposted={tweet.isReposted || false}
+              isBookmarked={tweet.isBookmarked || false}
               on:reply={handleTweetReply}
               on:repost={handleTweetRepost}
               on:unrepost={handleTweetUnrepost}
@@ -1033,14 +1034,14 @@
         
         <!-- Loading more state -->
         {#if isLoading}
-          <div class="flex justify-center items-center p-4">
-            <div class="h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+          <div class="feed-loading">
+            <div class="feed-loading-spinner"></div>
           </div>
         <!-- Load more button -->
         {:else if hasMore}
-          <div class="p-4 text-center">
+          <div class="feed-pagination">
             <button 
-              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
+              class="feed-load-more" 
               on:click={loadMoreTweets}
             >
               Load More
@@ -1048,6 +1049,7 @@
           </div>
         {/if}
       {/if}
+      
     </div>
   </div>
 </MainLayout>
@@ -1069,82 +1071,20 @@
 <DebugPanel />
 
 <style>
-  /* Theme colors */
-  :global(.theme-light) {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f5f8fa;
-    --bg-tertiary: #ebeef0;
-    --bg-overlay: rgba(255, 255, 255, 0.9);
-    --border-color: #e1e8ed;
-    --text-primary: #14171a;
-    --text-secondary: #657786;
-    --text-tertiary: #aab8c2;
-    --accent-color: #1d9bf0;
-    --accent-hover: #1a8cd8;
-    --error-color: #e0245e;
-    --success-color: #17bf63;
+  .tweet-ad-label {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    margin-left: var(--space-2);
   }
 
-  :global(.theme-dark) {
-    --bg-primary: #000000;
-    --bg-secondary: #15181c;
-    --bg-tertiary: #212327;
-    --bg-overlay: rgba(0, 0, 0, 0.9);
-    --border-color: #2f3336;
-    --text-primary: #ffffff;
-    --text-secondary: #8899a6;
-    --text-tertiary: #66757f;
-    --accent-color: #1d9bf0;
-    --accent-hover: #1a8cd8;
-    --error-color: #e0245e;
-    --success-color: #17bf63;
-  }
-
-  /* Apply theme variables to specific elements */
-  .feed-container {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    border-color: var(--border-color);
-  }
-
-  .header-tabs {
-    background-color: var(--bg-overlay);
-    backdrop-filter: blur(12px);
-    border-color: var(--border-color);
-  }
-
-  .tab-button {
+  .ad-content {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
     color: var(--text-secondary);
   }
-
-  .tab-button:hover {
-    color: var(--text-primary);
-  }
-
-  .tab-active {
-    color: var(--accent-color);
-    border-bottom: 2px solid var(--accent-color);
-  }
-
-  .tweet-list {
-    background-color: var(--bg-primary);
-  }
-
-  /* Skeleton loading animation */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-  }
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
   
-  /* Spinner animation */
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  .animate-spin {
-    animation: spin 1s linear infinite;
-  }
 </style>

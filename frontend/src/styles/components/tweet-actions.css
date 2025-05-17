@@ -1,0 +1,285 @@
+/* Tweet action components styles */
+
+/* Tweet action container */
+.tweet-actions-container {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  max-width: 425px; /* Match Twitter's layout */
+}
+
+/* Individual action button */
+.tweet-action-button {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+  background: transparent;
+  border: none;
+  padding: var(--space-2);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Hover states for different action types */
+.tweet-action-button.reply:hover {
+  color: var(--color-primary);
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+.tweet-action-button.retweet:hover {
+  color: var(--color-success);
+  background-color: rgba(0, 186, 124, 0.1);
+}
+
+.tweet-action-button.like:hover {
+  color: var(--color-danger);
+  background-color: rgba(244, 33, 46, 0.1);
+}
+
+.tweet-action-button.bookmark:hover {
+  color: var(--color-primary);
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+.tweet-action-button.share:hover {
+  color: var(--color-primary);
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+/* Active states */
+.tweet-action-button.retweet.active {
+  color: var(--color-success);
+}
+
+.tweet-action-button.like.active {
+  color: var(--color-danger);
+}
+
+.tweet-action-button.bookmark.active {
+  color: var(--color-primary);
+}
+
+/* Action count display */
+.tweet-action-count {
+  font-size: var(--font-size-xs);
+  margin-left: var(--space-1);
+}
+
+/* Action tooltip */
+.tweet-action-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bg-tooltip);
+  color: var(--text-on-tooltip);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: var(--z-tooltip);
+}
+
+.tweet-action-button:hover .tweet-action-tooltip {
+  opacity: 1;
+}
+
+/* Animation for like action */
+@keyframes heart-burst {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tweet-action-button.like.animate svg {
+  animation: heart-burst 0.3s ease-in-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+  .tweet-actions-container {
+    max-width: 100%;
+  }
+  
+  .tweet-action-count {
+    font-size: var(--font-size-xs);
+  }
+  
+  .tweet-action-tooltip {
+    display: none;
+  }
+}
+
+/* Tweet actions styling */
+
+/* Container for all action buttons */
+.tweet-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.tweet-actions-dark {
+  color: var(--text-secondary-dark);
+}
+
+/* Each action button container */
+.tweet-action-item {
+  display: flex;
+  align-items: center;
+}
+
+/* Common button styles for all action types */
+.tweet-action-btn {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2);
+  border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+}
+
+.tweet-action-btn-dark {
+  color: var(--text-secondary-dark);
+}
+
+/* Reply button specific styles */
+.tweet-reply-btn {
+  color: var(--text-secondary);
+}
+
+.tweet-reply-btn:hover, 
+.tweet-reply-btn.has-replies {
+  color: var(--color-primary);
+  background-color: var(--color-primary-bg);
+}
+
+.tweet-reply-btn-dark:hover,
+.tweet-reply-btn-dark.has-replies {
+  color: var(--color-primary-light);
+  background-color: rgba(var(--color-primary-rgb), 0.2);
+}
+
+.tweet-reply-count-highlight {
+  background-color: var(--color-primary-bg);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-full);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.tweet-reply-count-highlight-dark {
+  background-color: rgba(var(--color-primary-rgb), 0.4);
+  color: var(--color-primary-light);
+}
+
+.tweet-reply-arrow {
+  margin-left: var(--space-0-5);
+  color: var(--color-primary);
+}
+
+/* Repost/Retweet button specific styles */
+.tweet-repost-btn {
+  color: var(--text-secondary);
+}
+
+.tweet-repost-btn:hover, 
+.tweet-repost-btn.active {
+  color: var(--color-success);
+  background-color: var(--color-success-bg);
+}
+
+.tweet-repost-btn-dark:hover,
+.tweet-repost-btn-dark.active {
+  color: var(--color-success-light);
+  background-color: rgba(var(--color-success-rgb), 0.2);
+}
+
+/* Like button specific styles */
+.tweet-like-btn {
+  color: var(--text-secondary);
+}
+
+.tweet-like-btn:hover, 
+.tweet-like-btn.active {
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
+.tweet-like-btn-dark:hover,
+.tweet-like-btn-dark.active {
+  color: var(--color-danger-light);
+  background-color: rgba(var(--color-danger-rgb), 0.2);
+}
+
+/* Bookmark button specific styles */
+.tweet-bookmark-btn {
+  color: var(--text-secondary);
+}
+
+.tweet-bookmark-btn:hover, 
+.tweet-bookmark-btn.active {
+  color: var(--color-primary);
+  background-color: var(--color-primary-bg);
+}
+
+.tweet-bookmark-btn-dark:hover,
+.tweet-bookmark-btn-dark.active {
+  color: var(--color-primary-light);
+  background-color: rgba(var(--color-primary-rgb), 0.2);
+}
+
+/* Views count container */
+.tweet-views-count {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2);
+  border-radius: var(--radius-full);
+  transition: background-color var(--transition-fast);
+}
+
+.tweet-views-count:hover {
+  background-color: var(--bg-hover);
+}
+
+.tweet-views-count-dark {
+  color: var(--text-secondary-dark);
+}
+
+.tweet-views-count-dark:hover {
+  background-color: var(--bg-hover-dark);
+}
+
+/* Common elements */
+.tweet-action-icon {
+  margin-right: var(--space-1-5);
+}
+
+.tweet-action-count {
+  font-size: var(--font-size-sm);
+}
+
+/* Mobile styles */
+@media (max-width: 640px) {
+  .tweet-actions {
+    margin-top: var(--space-2);
+  }
+  
+  .tweet-action-btn {
+    padding: var(--space-1);
+  }
+  
+  .tweet-action-icon {
+    margin-right: var(--space-1);
+  }
+} 

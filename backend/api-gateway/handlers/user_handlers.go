@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -154,20 +155,21 @@ func UpdateUserProfile(c *gin.Context) {
 
 func RegisterUser(c *gin.Context) {
 	var req struct {
-		Name                  string `json:"name"`
-		Username              string `json:"username"`
-		Email                 string `json:"email"`
-		Password              string `json:"password"`
-		ConfirmPassword       string `json:"confirm_password"`
-		Gender                string `json:"gender"`
-		DateOfBirth           string `json:"date_of_birth"`
-		SecurityQuestion      string `json:"securityQuestion"`
-		SecurityAnswer        string `json:"securityAnswer"`
+		Name                  string `json:"name" binding:"required,min=4,max=50"`
+		Username              string `json:"username" binding:"required,min=3,max=15"`
+		Email                 string `json:"email" binding:"required,email"`
+		Password              string `json:"password" binding:"required,min=8"`
+		ConfirmPassword       string `json:"confirm_password" binding:"required,eqfield=Password"`
+		Gender                string `json:"gender" binding:"required,oneof=male female"`
+		DateOfBirth           string `json:"date_of_birth" binding:"required"`
+		SecurityQuestion      string `json:"securityQuestion" binding:"required"`
+		SecurityAnswer        string `json:"securityAnswer" binding:"required,min=3"`
 		SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
 		RecaptchaToken        string `json:"recaptcha_token"`
 		ProfilePictureUrl     string `json:"profile_picture_url,omitempty"`
 		BannerUrl             string `json:"banner_url,omitempty"`
 	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
 		return
@@ -175,6 +177,18 @@ func RegisterUser(c *gin.Context) {
 
 	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
+		return
+	}
+
+	// Basic password validation before sending to backend
+	// This is a fallback only - the full validation is in backend service
+	if len(req.Password) < 8 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Password must be at least 8 characters"})
+		return
+	}
+
+	if req.Password != req.ConfirmPassword {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Password and confirmation password do not match"})
 		return
 	}
 
@@ -193,15 +207,26 @@ func RegisterUser(c *gin.Context) {
 		SecurityAnswer:        req.SecurityAnswer,
 		SubscribeToNewsletter: req.SubscribeToNewsletter,
 	}
+
 	createReq := &userProto.CreateUserRequest{User: user}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
+
 	resp, err := UserClient.CreateUser(ctx, createReq)
 	if err != nil {
 		st, ok := status.FromError(err)
-		if ok && st.Code() == 6 {
-			c.JSON(http.StatusConflict, ErrorResponse{Success: false, Message: "User already exists"})
-			return
+		if ok {
+			switch st.Code() {
+			case codes.AlreadyExists:
+				c.JSON(http.StatusConflict, ErrorResponse{Success: false, Message: "User already exists"})
+				return
+			case codes.InvalidArgument:
+				c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: st.Message()})
+				return
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to register user: " + err.Error()})
+				return
+			}
 		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to register user: " + err.Error()})
 		return
@@ -257,6 +282,12 @@ func LoginUser(c *gin.Context) {
 		return
 	}
 
+	// Get JWT expiry from environment variable or use default
+	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
+	if err != nil || expirySeconds <= 0 {
+		expirySeconds = 3600 // Default to 1 hour if not set or invalid
+	}
+
 	// Construct and send the response
 	response := AuthServiceResponse{
 		Success:      true,
@@ -265,7 +296,7 @@ func LoginUser(c *gin.Context) {
 		RefreshToken: "",
 		UserId:       loginResp.User.Id,
 		TokenType:    "Bearer",
-		ExpiresIn:    3600, // 1 hour in seconds
+		ExpiresIn:    int64(expirySeconds),
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -307,10 +338,16 @@ func GetUserByEmail(c *gin.Context) {
 
 // generateJWT generates a JSON Web Token for the given userID
 func generateJWT(userID string) (string, error) {
+	// Get JWT expiry from environment variable or use default
+	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
+	if err != nil || expirySeconds <= 0 {
+		expirySeconds = 3600 // Default to 1 hour if not set or invalid
+	}
+
 	// Create token with claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
+		"exp":     time.Now().Add(time.Duration(expirySeconds) * time.Second).Unix(),
 		"iat":     time.Now().Unix(),
 	})
 

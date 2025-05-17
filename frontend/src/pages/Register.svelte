@@ -144,13 +144,16 @@
   
   // Handle Google authentication success
   function handleGoogleAuthSuccess(result: any) {
+    console.log('Google auth success in Register page');
+    toastStore.showToast('Google registration successful', 'success'); 
     window.location.href = '/feed';
   }
   
   // Handle Google authentication error
   function handleGoogleAuthError(errorMsg: string) { // Renamed param
+    console.error('Google auth error in Register page:', errorMsg);
     formState.update(state => ({ ...state, error: errorMsg }));
-    if (appConfig.ui.showErrorToasts) toastStore.showToast(`Google Auth Error: ${errorMsg}`);
+    if (appConfig.ui.showErrorToasts) toastStore.showToast(`Google Auth Error: ${errorMsg}`, 'error');
   }
   
   // Make the function async to use await
@@ -273,11 +276,11 @@
       />
     </div>
       
-    <p class="text-sm mt-6 text-center">
-      Already have an account? <a href="/login" class="text-blue-500 hover:underline" data-cy="login-link">Sign in</a>
-    </p>
+    <div class="auth-footer">
+      Already have an account? <a href="/login" class="auth-link" data-cy="login-link">Sign in</a>
+    </div>
   {:else}
-    <p class="text-center mb-6 text-gray-700 dark:text-gray-300">Enter it below to verify {$formData.email}</p>
+    <p class="auth-subtitle">Enter it below to verify {$formData.email}</p>
     
     <VerificationForm
       bind:verificationCode={$formData.verificationCode}

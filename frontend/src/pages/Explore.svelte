@@ -12,6 +12,7 @@
   import { searchThreads, searchThreadsWithMedia, getThreadsByHashtag } from '../api/thread';
   import { searchCommunities } from '../api/community';
   import { debounce } from '../utils/helpers';
+  import { formatTimeAgo } from '../utils/common';
   
   // Import newly created components
   import ExploreSearch from '../components/explore/ExploreSearch.svelte';
@@ -42,6 +43,7 @@
   // Trends data
   let trends: ITrend[] = [];
   let isTrendsLoading = true;
+  let suggestedFollows = [];
   
   // Search state
   let searchQuery = '';
@@ -607,12 +609,14 @@
   username={sidebarUsername}
   displayName={sidebarDisplayName}
   avatar={sidebarAvatar}
-  trends={trends}
-  on:toggleComposeModal={() => {}}
+  {trends}
+  {suggestedFollows}
 >
-  <div class="min-h-screen border-x border-gray-200 dark:border-gray-800">
+  <div class="explore-page {isDarkMode ? 'explore-page-dark' : ''}">
     <!-- Header -->
-    <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+    <div class="explore-header {isDarkMode ? 'explore-header-dark' : ''}">
+      <h1 class="explore-title">Explore</h1>
+      
       <!-- Search component -->
       <ExploreSearch 
         {searchQuery}
@@ -639,14 +643,14 @@
     </div>
     
     <!-- Content Area -->
-    <div>
+    <div class="explore-content">
       {#if hasSearched}
         <!-- Tabs for search results -->
         <ExploreTabs {activeTab} on:tabChange={handleTabChange} />
         
         <!-- Tab content -->
         {#if isSearching}
-          <div class="p-4">
+          <div class="explore-loading">
             <LoadingSkeleton type="search-results" />
           </div>
         {:else}
@@ -686,12 +690,9 @@
             />
           {:else if activeTab === 'media'}
             <ExploreMediaResults 
-              media={searchResults.media.threads.map(thread => ({
-                id: thread.id,
-                media: thread.media || []
-              }))}
-              hasMore={searchResults.media.threads.length >= 12}
+              media={searchResults.media.threads}
               isLoading={searchResults.media.isLoading}
+              hasMore={searchResults.media.threads.length >= 12}
               on:loadMore={loadMoreMedia}
             />
           {:else if activeTab === 'communities'}
@@ -714,44 +715,227 @@
           {/if}
         {/if}
       {:else}
-        <!-- Trending section when not searching -->
-        <div class="p-4">
-          {#if isTrendsLoading}
-            <LoadingSkeleton type="trends" />
-          {:else if trends.length > 0}
-            <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-4">
-              <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-800">
-                <h2 class="font-bold text-xl">Trending Now</h2>
-              </div>
-              
-              <div class="divide-y divide-gray-200 dark:divide-gray-800">
-                {#each trends as trend, i}
-                  <div class="py-3">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <button 
-                          class="text-blue-500 font-medium hover:underline"
-                          on:click={() => getThreadsByHashtagName(trend.title)}
-                        >
-                          #{trend.title}
-                        </button>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{trend.postCount || 0} posts</p>
-                      </div>
-                      <span class="text-gray-500 dark:text-gray-400 text-sm">#{i + 1}</span>
-                    </div>
-                  </div>
-                {/each}
-              </div>
+        <!-- Show trending content when not searching -->
+        <div class="explore-trending-section">
+          <div class="explore-section">
+            <h2 class="explore-section-title">What's happening</h2>
+            <ExploreTrending 
+              {trends}
+              {isTrendsLoading}
+              on:viewThreads={(event) => {
+                // Handle viewing threads by hashtag
+                const hashtag = event.detail;
+                if (hashtag) {
+                  searchQuery = hashtag;
+                  executeSearch();
+                }
+              }}
+            />
+          </div>
+          
+          <div class="explore-section">
+            <h2 class="explore-section-title">Suggested topics to follow</h2>
+            <div class="explore-topic-list">
+              {#each ['technology', 'programming', 'design', 'svelte', 'webdev'] as topic}
+                <button 
+                  class="explore-topic-chip {isDarkMode ? 'explore-topic-chip-dark' : ''}" 
+                  on:click={() => {
+                    searchQuery = topic;
+                    executeSearch();
+                  }}
+                >
+                  #{topic}
+                </button>
+              {/each}
             </div>
-          {:else}
-            <p class="text-center text-gray-500 dark:text-gray-400 py-8">No trending topics available.</p>
-          {/if}
+          </div>
         </div>
       {/if}
     </div>
   </div>
 </MainLayout>
 
+<Toast />
+
 <style>
-  /* No unused styles */
+  .explore-page {
+    min-height: 100vh;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+  
+  .explore-page-dark {
+    background-color: var(--bg-primary-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .explore-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--bg-primary);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .explore-header-dark {
+    background-color: var(--bg-primary-dark);
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .explore-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-3);
+  }
+  
+  .explore-content {
+    padding-bottom: var(--space-4);
+  }
+  
+  .explore-loading {
+    padding: var(--space-4);
+  }
+  
+  .explore-trending-section {
+    padding: var(--space-3) var(--space-4);
+  }
+  
+  .explore-section {
+    margin-bottom: var(--space-6);
+  }
+  
+  .explore-section-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-3);
+  }
+  
+  .explore-topic-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  
+  .explore-topic-chip {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-full);
+    border: none;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .explore-topic-chip-dark {
+    background-color: var(--bg-tertiary-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .explore-topic-chip:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .explore-topic-chip-dark:hover {
+    background-color: var(--bg-hover-dark);
+  }
+  
+  .explore-thread-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  
+  .explore-thread-card {
+    display: flex;
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+  }
+  
+  .explore-thread-card-dark {
+    background-color: var(--bg-secondary-dark);
+    border: 1px solid var(--border-color-dark);
+  }
+  
+  .explore-thread-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: var(--space-3);
+    flex-shrink: 0;
+  }
+  
+  .explore-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .explore-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+  }
+  
+  .explore-thread-content {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .explore-thread-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: var(--space-1);
+  }
+  
+  .explore-thread-name {
+    font-weight: var(--font-weight-bold);
+    margin-right: var(--space-1);
+  }
+  
+  .explore-thread-username {
+    color: var(--text-secondary);
+    margin-right: var(--space-1);
+  }
+  
+  .explore-thread-date {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  
+  .explore-thread-text {
+    margin: var(--space-1) 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+  
+  .explore-thread-stats {
+    display: flex;
+    gap: var(--space-4);
+    margin-top: var(--space-2);
+  }
+  
+  .explore-thread-stat {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  
+  .explore-stat-icon {
+    margin-right: var(--space-1);
+  }
 </style>

@@ -74,9 +74,9 @@
   }
 </script>
 
-<div class="relative">
+<div class="search-container">
   <!-- Search bar -->
-  <div class="relative">
+  <div class="search-input-wrapper">
     <input 
       type="text" 
       placeholder="Search AYCOM" 
@@ -84,13 +84,14 @@
       on:input={handleSearchInput}
       on:focus={handleFocus}
       on:keydown={handleKeydown}
-      class="w-full py-2 pl-12 pr-4 rounded-full {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-200 text-black'} border focus:outline-none focus:ring-2 focus:ring-blue-500"
+      class="search-input {isDarkMode ? 'search-input-dark' : ''}"
     />
     <button 
-      class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400"
+      class="search-icon-button {isDarkMode ? 'search-icon-button-dark' : ''}"
       on:click={executeSearch}
+      aria-label="Search"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     </button>
@@ -98,24 +99,24 @@
   
   <!-- Recent searches dropdown -->
   {#if showRecentSearches && recentSearches.length > 0 && !searchQuery}
-    <div class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
-      <div class="flex justify-between items-center px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-        <h3 class="font-medium">Recent searches</h3>
+    <div class="search-dropdown {isDarkMode ? 'search-dropdown-dark' : ''}">
+      <div class="search-dropdown-header">
+        <h3 class="search-dropdown-title">Recent searches</h3>
         <button 
-          class="text-blue-500 text-sm hover:text-blue-600"
+          class="search-dropdown-clear-button"
           on:click={clearRecentSearches}
         >
           Clear all
         </button>
       </div>
-      <ul>
+      <ul class="search-recent-list">
         {#each recentSearches as search}
           <li>
             <button 
-              class="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
+              class="search-recent-item {isDarkMode ? 'search-recent-item-dark' : ''}"
               on:click={() => selectRecentSearch(search)}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="search-recent-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {search}
@@ -128,42 +129,42 @@
   
   <!-- Recommended profiles dropdown -->
   {#if searchQuery && recommendedProfiles.length > 0 && !isSearching}
-    <div class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
-      <ul>
+    <div class="search-dropdown {isDarkMode ? 'search-dropdown-dark' : ''}">
+      <ul class="search-profiles-list">
         {#each recommendedProfiles as profile}
           <li>
             <a 
-              href={`/profile/${profile.username}`}
-              class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800"
+              href={`/user/${profile.username}`}
+              class="search-profile-item {isDarkMode ? 'search-profile-item-dark' : ''}"
             >
-              <div class="flex items-center">
-                <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center overflow-hidden mr-3">
+              <div class="search-profile-content">
+                <div class="search-profile-avatar {isDarkMode ? 'search-profile-avatar-dark' : ''}">
                   {#if typeof profile.avatar === 'string' && profile.avatar.startsWith('http')}
-                    <img src={profile.avatar} alt={profile.username} class="w-full h-full object-cover" />
+                    <img src={profile.avatar} alt={profile.username} class="search-profile-img" />
                   {:else}
-                    <span class="text-lg">{profile.avatar}</span>
+                    <span class="search-profile-placeholder">{profile.displayName.charAt(0)}</span>
                   {/if}
                 </div>
-                <div>
-                  <div class="flex items-center">
-                    <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'}">{profile.displayName}</p>
+                <div class="search-profile-info">
+                  <div class="search-profile-name-wrapper">
+                    <p class="search-profile-name {isDarkMode ? 'search-profile-name-dark' : ''}">{profile.displayName}</p>
                     {#if profile.isVerified}
-                      <span class="ml-1 text-blue-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <span class="search-profile-verified">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="search-verified-icon" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                         </svg>
                       </span>
                     {/if}
                   </div>
-                  <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">@{profile.username}</p>
+                  <p class="search-profile-username {isDarkMode ? 'search-profile-username-dark' : ''}">@{profile.username}</p>
                 </div>
               </div>
             </a>
           </li>
         {/each}
-        <li class="border-t border-gray-200 dark:border-gray-700">
+        <li class="search-dropdown-footer">
           <button 
-            class="w-full px-4 py-3 text-blue-500 text-center hover:bg-gray-100 dark:hover:bg-gray-800"
+            class="search-query-button"
             on:click={executeSearch}
           >
             Search for "{searchQuery}"
@@ -172,4 +173,263 @@
       </ul>
     </div>
   {/if}
-</div> 
+</div>
+
+<style>
+  .search-container {
+    position: relative;
+    width: 100%;
+  }
+  
+  .search-input-wrapper {
+    position: relative;
+  }
+  
+  .search-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-12);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    transition: all var(--transition-fast);
+  }
+  
+  .search-input-dark {
+    border-color: var(--border-color-dark);
+    background-color: var(--bg-tertiary-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .search-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background-color: var(--bg-primary);
+  }
+  
+  .search-icon-button {
+    position: absolute;
+    left: var(--space-4);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .search-icon-button-dark {
+    color: var(--text-tertiary-dark);
+  }
+  
+  .search-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: var(--space-1);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    z-index: var(--z-dropdown);
+    overflow: hidden;
+  }
+  
+  .search-dropdown-dark {
+    background-color: var(--bg-primary-dark);
+    border-color: var(--border-color-dark);
+    box-shadow: var(--shadow-md-dark);
+  }
+  
+  .search-dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .search-dropdown-dark .search-dropdown-header {
+    border-bottom-color: var(--border-color-dark);
+  }
+  
+  .search-dropdown-title {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+  }
+  
+  .search-dropdown-dark .search-dropdown-title {
+    color: var(--text-primary-dark);
+  }
+  
+  .search-dropdown-clear-button {
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .search-dropdown-clear-button:hover {
+    text-decoration: underline;
+  }
+  
+  .search-recent-list,
+  .search-profiles-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  
+  .search-recent-item {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+  }
+  
+  .search-recent-item-dark {
+    color: var(--text-primary-dark);
+  }
+  
+  .search-recent-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .search-recent-item-dark:hover {
+    background-color: var(--bg-hover-dark);
+  }
+  
+  .search-recent-icon {
+    height: 16px;
+    width: 16px;
+    margin-right: var(--space-3);
+    color: var(--text-tertiary);
+  }
+  
+  .search-profile-item {
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    text-decoration: none;
+  }
+  
+  .search-profile-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .search-profile-item-dark:hover {
+    background-color: var(--bg-hover-dark);
+  }
+  
+  .search-profile-content {
+    display: flex;
+    align-items: center;
+  }
+  
+  .search-profile-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: var(--space-3);
+    background-color: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .search-profile-avatar-dark {
+    background-color: var(--bg-tertiary-dark);
+  }
+  
+  .search-profile-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .search-profile-placeholder {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+  }
+  
+  .search-profile-info {
+    flex: 1;
+  }
+  
+  .search-profile-name-wrapper {
+    display: flex;
+    align-items: center;
+  }
+  
+  .search-profile-name {
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin: 0;
+  }
+  
+  .search-profile-name-dark {
+    color: var(--text-primary-dark);
+  }
+  
+  .search-profile-verified {
+    margin-left: var(--space-1);
+    color: var(--color-primary);
+  }
+  
+  .search-verified-icon {
+    height: 16px;
+    width: 16px;
+  }
+  
+  .search-profile-username {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  
+  .search-profile-username-dark {
+    color: var(--text-secondary-dark);
+  }
+  
+  .search-dropdown-footer {
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .search-dropdown-dark .search-dropdown-footer {
+    border-top-color: var(--border-color-dark);
+  }
+  
+  .search-query-button {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    text-align: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-primary);
+  }
+  
+  .search-query-button:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .search-dropdown-dark .search-query-button:hover {
+    background-color: var(--bg-hover-dark);
+  }
+</style> 

@@ -1326,3 +1326,78 @@ export async function getUserBookmarks(page = 1, limit = 20) {
     return { bookmarks: [] };
   }
 }
+
+export async function getReplyReplies(replyId: string) {
+  try {
+    const token = getAuthToken();
+    
+    // Set up headers - allow unauthenticated access but add auth if available
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    console.log(`Fetching replies for reply ${replyId}`);
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/replies`, {
+      method: "GET",
+      headers: headers,
+      credentials: "include",
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`Reply replies data for reply ${replyId}:`, data);
+      
+      // Check if we have user data properly included
+      if (data.replies && data.replies.length > 0) {
+        // Check the first reply's structure
+        const firstReply = data.replies[0];
+        console.log(`First nested reply structure from API:`, firstReply);
+        
+        // Add user data fields if they're missing but can be derived from nested structures
+        data.replies = data.replies.map(reply => {
+          // Check if reply has a valid user field
+          if (reply.user) {
+            // Ensure user data is accessible from top level of the reply object as well
+            return {
+              ...reply,
+              author_username: reply.user.username,
+              author_name: reply.user.name,
+              author_avatar: reply.user.profile_picture_url,
+            };
+          }
+          return reply;
+        });
+      }
+      
+      return data;
+    }
+    
+    // If 401 unauthorized, we could return empty results
+    if (response.status === 401) {
+      console.warn("Unauthorized when fetching reply replies - returning empty results");
+      return { 
+        replies: [],
+        total_count: 0
+      };
+    }
+    
+    // Handle error response
+    try {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || 
+        errorData.error?.message || 
+        `Failed to fetch reply replies: ${response.status} ${response.statusText}`
+      );
+    } catch (parseError) {
+      throw new Error(`Failed to fetch reply replies: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error("Error in getReplyReplies:", error);
+    throw error;
+  }
+}

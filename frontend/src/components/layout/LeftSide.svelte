@@ -146,22 +146,26 @@
   });
 </script>
 
-<div class="flex flex-col h-full py-2 px-2 {isDarkMode ? 'text-white' : 'text-black'}">
-  <div class="px-3 mb-4">
-    <a href="/" class="flex items-center justify-center md:justify-start p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800">
-      <div class="text-3xl font-bold text-blue-500">AY</div>
+<div class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
+  <div class="sidebar-logo">
+    <a href="/" aria-label="Home">
+      {#if isDarkMode}
+        <img src="/assets/light-logo.jpeg" alt="AYCOM" class="logo-img" />
+      {:else}
+        <img src="/assets/dark-logo.jpeg" alt="AYCOM" class="logo-img" />
+      {/if}
     </a>
   </div>
 
-  <nav class="flex-1">
-    <ul class="space-y-1">
+  <nav class="sidebar-nav">
+    <ul>
       {#each navigationItems as item}
         <li>
           <a 
             href={item.path} 
-            class="flex items-center px-4 py-3 rounded-full {currentPath === item.path ? 'font-bold' : 'font-normal'} {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-200'}"
+            class="sidebar-nav-item {currentPath === item.path ? 'active' : ''} {isDarkMode ? 'sidebar-nav-item-dark' : ''}"
           >
-            <div class="flex items-center justify-center w-6 h-6">
+            <div class="sidebar-nav-icon">
               {#if item.icon === 'home'}
                 <HomeIcon size="24" />
               {:else if item.icon === 'hash'}
@@ -180,136 +184,270 @@
                 <SettingsIcon size="24" />
               {/if}
             </div>
-            <span class="hidden md:block text-xl ml-4">{item.label}</span>
+            <span class="sidebar-nav-text">{item.label}</span>
           </a>
         </li>
       {/each}
     </ul>
 
-    <div class="mt-4 px-3">
-      <button 
-        class="w-full py-3 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600"
-        on:click={handleToggleComposeModal}
-      >
-        <span class="md:hidden">
-          <PlusIcon size="24" />
-        </span>
-        <span class="hidden md:block text-lg">Post</span>
-      </button>
-    </div>
+    <button 
+      class="sidebar-tweet-btn {isDarkMode ? 'sidebar-tweet-btn-dark' : ''}"
+      on:click={handleToggleComposeModal}
+    >
+      <span class="sidebar-tweet-btn-icon">
+        <PlusIcon size="24" />
+      </span>
+      <span class="sidebar-tweet-btn-text">Post</span>
+    </button>
 
-    <div class="mt-4 px-3">
-      <div class="flex justify-center md:justify-start p-2">
-        <ThemeToggle size="md" />
-      </div>
+    <div class="sidebar-theme-toggle">
+      <ThemeToggle size="md" />
     </div>
   </nav>
 
-  <div class="mt-4 px-3 mb-4 relative">
-    <button 
-      class="flex items-center w-full p-3 rounded-full relative {isDarkMode ? 'bg-gray-800 hover:bg-gray-800' : 'hover:bg-gray-200'}"
-      on:click={toggleUserMenu}
-      on:dblclick={toggleDebug}
+  <div 
+    class="sidebar-profile"
+    on:click={toggleUserMenu}
+    on:keydown={(e) => e.key === 'Enter' && toggleUserMenu()}
+    role="button"
+    tabindex="0"
+  >
+    <div class="sidebar-profile-avatar">
+      <img 
+        src={userDetails.avatar || "https://secure.gravatar.com/avatar/0?d=mp"} 
+        alt={userDetails.displayName}
+      />
+    </div>
+    <div class="sidebar-profile-info">
+      <div class="sidebar-profile-name">{userDetails.displayName}</div>
+      <div class="sidebar-profile-username">@{userDetails.username}</div>
+    </div>
+    <div class="sidebar-profile-more">
+      <MoreHorizontalIcon size="20" />
+    </div>
+  </div>
+
+  {#if showUserMenu}
+    <div 
+      class="sidebar-user-menu {isDarkMode ? 'sidebar-user-menu-dark' : ''}"
     >
-      <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full {isAuthenticated() ? 'bg-green-500' : 'bg-gray-500'} border-2 {isDarkMode ? 'border-gray-900' : 'border-white'}"></div>
-      
-      <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden">
-        {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
-          <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
-        {:else}
-          <span class="text-lg">{userDetails.avatar}</span>
+      <div class="sidebar-user-header {isDarkMode ? 'sidebar-user-header-dark' : ''}">
+        <div class="sidebar-profile-name">{userDetails.displayName}</div>
+        <div class="sidebar-profile-username">@{userDetails.username}</div>
+        
+        {#if userDetails.isVerified}
+          <div class="sidebar-user-verified">
+            <div class="sidebar-user-verified-icon">
+              <CheckCircleIcon size="14" />
+            </div>
+            <span>Verified Account</span>
+          </div>
+        {/if}
+        
+        {#if userDetails.email}
+          <div class="sidebar-user-email">{userDetails.email}</div>
+        {/if}
+        
+        {#if userDetails.joinDate}
+          <div class="sidebar-user-join">
+            <div class="sidebar-user-join-icon">
+              <CalendarIcon size="14" />
+            </div>
+            <span>Joined {userDetails.joinDate}</span>
+          </div>
         {/if}
       </div>
-      <div class="hidden md:block ml-3 flex-1 text-left">
-        <p class="font-bold text-sm {isDarkMode ? 'text-white' : 'text-black'}">{userDetails.displayName}</p>
-        <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{userDetails.username}</p>
-      </div>
-      <div class="hidden md:flex">
-        <MoreHorizontalIcon size="20" />
-      </div>
-    </button>
-    
-    {#if showUserMenu}
-      <div 
-        class="absolute bottom-20 left-2 w-72 rounded-lg shadow border {isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} z-50"
-      >
-        <div class="py-3 px-4 border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'}">
-          <div class="flex items-center mb-2">
-            <div class="w-12 h-12 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center overflow-hidden mr-3">
-              {#if typeof userDetails.avatar === 'string' && userDetails.avatar.startsWith('http')}
-                <img src={userDetails.avatar} alt={userDetails.username} class="w-full h-full object-cover" />
-              {:else}
-                <span class="text-lg">{userDetails.avatar}</span>
-              {/if}
-            </div>
-            
-            <div>
-              <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'}">{userDetails.displayName}</p>
-              <p class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">@{userDetails.username}</p>
-            </div>
+      
+      {#if isAuthenticated()}
+        <a 
+          href="/settings"
+          class="sidebar-user-menu-item {isDarkMode ? 'sidebar-user-menu-item-dark' : ''}"
+        >
+          <div class="sidebar-user-menu-icon">
+            <SettingsIcon size="20" />
           </div>
-          
-          {#if isAuthenticated()}
-            <div class="text-xs {isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-2">
-              <div class="flex items-center mb-1">
-                <MailIcon size="16" class="mr-1" />
-                {userDetails.email}
-              </div>
-              
-              {#if userDetails.isVerified}
-                <div class="flex items-center mb-1">
-                  <CheckCircleIcon size="16" class="mr-1 text-green-500" />
-                  Verified account
-                </div>
-              {/if}
-              
-              {#if userDetails.joinDate}
-                <div class="flex items-center">
-                  <CalendarIcon size="16" class="mr-1" />
-                  Joined {userDetails.joinDate}
-                </div>
-              {/if}
-            </div>
-          {/if}
-          
-          {#if debugging}
-            <div class="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto max-h-36">
-              <p class="font-bold">Debug Info:</p>
-              <p>Auth state: {isAuthenticated() ? 'Authenticated' : 'Not authenticated'}</p>
-              <p>User ID: {getUserId() || 'Not found'}</p>
-              <p>Has token: {!!getAuthToken()}</p>
-              <p>API response:</p>
-              <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
-              <button 
-                class="mt-1 bg-blue-500 text-white px-2 py-1 rounded text-xs"
-                on:click|stopPropagation={() => fetchUserProfile()}
-              >
-                Refresh Profile
-              </button>
-            </div>
-          {/if}
-        </div>
+          <span>Settings</span>
+        </a>
         
-        <div class="py-2">
-          {#if isAuthenticated()}
-            <button
-              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
-              on:click={handleLogout}
-            >
-              <LogOutIcon size="20" class="mr-3" />
-              Log out
-            </button>
-          {:else}
-            <a
-              href="/login"
-              class="flex items-center w-full px-4 py-3 {isDarkMode ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}"
-            >
-              <LogInIcon size="20" class="mr-3" />
-              Log in
-            </a>
-          {/if}
+        <button 
+          class="sidebar-user-menu-item {isDarkMode ? 'sidebar-user-menu-item-dark' : ''}"
+          on:click={handleLogout}
+        >
+          <div class="sidebar-user-menu-icon">
+            <LogOutIcon size="20" />
+          </div>
+          <span>Logout</span>
+        </button>
+      {:else}
+        <a 
+          href="/login"
+          class="sidebar-user-menu-item {isDarkMode ? 'sidebar-user-menu-item-dark' : ''}"
+        >
+          <div class="sidebar-user-menu-icon">
+            <LogInIcon size="20" />
+          </div>
+          <span>Login</span>
+        </a>
+      {/if}
+      
+      {#if debugging}
+        <div class="sidebar-debug">
+          <div class="sidebar-debug-title">Debug Info:</div>
+          <div class="sidebar-debug-content">
+            {#if apiResponse}
+              <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
+            {:else}
+              No API response data
+            {/if}
+          </div>
         </div>
-      </div>
-    {/if}
-  </div>
+      {/if}
+    </div>
+  {/if}
 </div>
+
+<style>
+  .sidebar-theme-toggle {
+    margin-top: var(--space-4);
+    display: flex;
+    justify-content: center;
+  }
+  
+  .online-indicator {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-primary);
+  }
+  
+  .online-indicator.active {
+    background-color: var(--color-success);
+  }
+  
+  .online-indicator.inactive {
+    background-color: var(--text-tertiary);
+  }
+  
+  .verified-icon {
+    color: var(--color-success);
+  }
+  
+  .debug-panel {
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    overflow: auto;
+    max-height: 200px;
+  }
+  
+  .debug-title {
+    font-weight: 700;
+    margin-bottom: var(--space-1);
+  }
+  
+  .debug-refresh-btn {
+    margin-top: var(--space-1);
+    background-color: var(--color-primary);
+    color: white;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    border: none;
+    cursor: pointer;
+  }
+  
+  .sidebar-user-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 280px;
+    border-radius: var(--radius-lg);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    z-index: var(--z-dropdown);
+    overflow: hidden;
+  }
+  
+  .sidebar-user-menu-header {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .sidebar-user-menu-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+    background-color: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .sidebar-user-menu-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .sidebar-user-menu-info {
+    margin-bottom: var(--space-2);
+  }
+  
+  .sidebar-user-menu-name {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  
+  .sidebar-user-menu-username {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  
+  .sidebar-user-menu-details {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+  
+  .sidebar-user-menu-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--space-1);
+  }
+  
+  .sidebar-user-menu-item svg {
+    margin-right: var(--space-1);
+  }
+  
+  .sidebar-user-menu-actions {
+    padding: var(--space-2) 0;
+  }
+  
+  .sidebar-user-menu-action {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+    text-align: left;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .sidebar-user-menu-action:hover {
+    background-color: var(--hover-bg);
+  }
+  
+  .sidebar-user-menu-action svg {
+    margin-right: var(--space-3);
+  }
+</style>

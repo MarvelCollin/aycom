@@ -3,7 +3,7 @@
   import type { ITweet } from '../../interfaces/ISocialMedia.d.ts';
   import { toastStore } from '../../stores/toastStore';
   import { formatTimeAgo, processUserMetadata } from '../../utils/common';
-  import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark } from '../../api/thread';
+  import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark, getReplyReplies } from '../../api/thread';
   
   import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
   import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
@@ -349,29 +349,50 @@
     dispatch('reply', processedTweet.id);
   }
 
-  function handleRetweet() {
+  async function handleRetweet() {
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to repost', 'info');
       return;
     }
     dispatch('repost', processedTweet.id);
-    isReposted = !isReposted;
   }
 
-  function handleLike() {
+  async function handleLike() {
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to like posts', 'info');
       return;
     }
     
-    if (isLiked) {
-      dispatch('unlike', processedTweet.id);
-    } else {
-      dispatch('like', processedTweet.id);
+    try {
+      if (isLiked) {
+        // Optimistic UI update
+        const prevLikeCount = processedTweet.likes;
+        dispatch('unlike', processedTweet.id);
+        
+        // Call API
+        await unlikeThread(processedTweet.id);
+      } else {
+        // Optimistic UI update
+        const prevLikeCount = processedTweet.likes;
+        dispatch('like', processedTweet.id);
+        
+        // Call API
+        await likeThread(processedTweet.id);
+      }
+    } catch (error) {
+      console.error('Error in handleLike:', error);
+      // Revert the optimistic update by dispatching the opposite event
+      if (isLiked) {
+        dispatch('like', processedTweet.id);
+        toastStore.showToast('Failed to unlike. Please try again.', 'error');
+      } else {
+        dispatch('unlike', processedTweet.id);
+        toastStore.showToast('Failed to like. Please try again.', 'error');
+      }
     }
   }
 
-  function handleBookmark() {
+  async function handleBookmark() {
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to bookmark posts', 'info');
       return;
@@ -379,10 +400,30 @@
     
     console.log(`Bookmark action - current status: ${isBookmarked ? 'bookmarked' : 'not bookmarked'}`);
     
-    if (isBookmarked) {
-      dispatch('removeBookmark', processedTweet.id);
-    } else {
-      dispatch('bookmark', processedTweet.id);
+    try {
+      if (isBookmarked) {
+        // Optimistic UI update
+        dispatch('removeBookmark', processedTweet.id);
+        
+        // Call API
+        await removeBookmark(processedTweet.id);
+      } else {
+        // Optimistic UI update
+        dispatch('bookmark', processedTweet.id);
+        
+        // Call API
+        await bookmarkThread(processedTweet.id);
+      }
+    } catch (error) {
+      console.error('Error in handleBookmark:', error);
+      // Revert the optimistic update by dispatching the opposite event
+      if (isBookmarked) {
+        dispatch('bookmark', processedTweet.id);
+        toastStore.showToast('Failed to remove bookmark. Please try again.', 'error');
+      } else {
+        dispatch('removeBookmark', processedTweet.id);
+        toastStore.showToast('Failed to bookmark. Please try again.', 'error');
+      }
     }
   }
 
@@ -391,6 +432,25 @@
     if (showReplies) {
       console.log('Loading replies for tweet:', processedTweet.id);
       dispatch('loadReplies', processedTweet.id);
+      
+      // Auto-load nested replies for all first-level replies when expanding
+      if (replies && replies.length > 0 && nestingLevel === 0) {
+        replies.forEach(async (reply) => {
+          if (reply.replies > 0) {
+            try {
+              // Ensure we have a string ID
+              const replyId = String(reply.id);
+              const nestedRepliesData = await getReplyReplies(replyId);
+              if (nestedRepliesData && nestedRepliesData.replies) {
+                nestedRepliesMap.set(replyId, nestedRepliesData.replies.map(r => processTweetContent(r)));
+                nestedRepliesMap = new Map(nestedRepliesMap);
+              }
+            } catch (error) {
+              console.error(`Error pre-loading nested replies for ${reply.id}:`, error);
+            }
+          }
+        });
+      }
     } else {
       console.log('Hiding replies for tweet:', processedTweet.id);
     }
@@ -408,8 +468,72 @@
     dispatch('reply', event.detail);
   }
 
-  function handleLoadNestedReplies(event) {
-    dispatch('loadReplies', event.detail);
+  async function handleLoadNestedReplies(event) {
+    const replyId = event.detail;
+    
+    try {
+      // Check if this is a reply ID - if so, we need to load replies to a reply
+      if (replyId && typeof replyId === 'string' && nestedRepliesMap) {
+        console.log(`Loading nested replies for reply: ${replyId}`);
+        
+        // Fetch replies to the reply
+        const response = await getReplyReplies(replyId);
+        
+        if (response && response.replies && response.replies.length > 0) {
+          console.log(`Received ${response.replies.length} nested replies for reply ${replyId}`);
+          
+          // Process replies for display
+          const processedReplies = response.replies.map(reply => {
+            // Extract data
+            const replyData = reply.reply || reply;
+            const userData = reply.user || {};
+            
+            // Build a standardized reply object
+            const enrichedReply = {
+              id: replyData.id,
+              threadId: replyData.thread_id,
+              content: replyData.content || '',
+              timestamp: replyData.created_at || new Date().toISOString(),
+              userId: userData.id || replyData.user_id || replyData.author_id,
+              username: userData.username || reply.author_username || reply.username || 'user',
+              displayName: userData.name || userData.display_name || reply.author_name || reply.displayName || 'User',
+              avatar: userData.profile_picture_url || reply.author_avatar || reply.avatar,
+              parentReplyId: replyData.parent_reply_id || replyId,
+              isLiked: reply.is_liked || false,
+              isBookmarked: reply.is_bookmarked || false,
+              likes: reply.likes_count || 0,
+              replies: reply.replies_count || 0
+            };
+            
+            // Process the tweet content (usernames, links, etc.)
+            return processTweetContent(enrichedReply);
+          });
+          
+          // Update the nested replies map
+          nestedRepliesMap.set(replyId, processedReplies);
+          nestedRepliesMap = nestedRepliesMap;
+          
+          // Force reactivity update
+          nestedRepliesMap = new Map(nestedRepliesMap);
+        } else {
+          console.warn(`No nested replies returned for reply ${replyId}`);
+          nestedRepliesMap.set(replyId, []);
+          nestedRepliesMap = nestedRepliesMap;
+        }
+      } else {
+        // Just pass the event up to parent for thread replies
+        dispatch('loadReplies', event.detail);
+      }
+    } catch (error) {
+      console.error(`Error loading nested replies for reply ${replyId}:`, error);
+      toastStore.showToast('Failed to load replies. Please try again.', 'error');
+      
+      // Set empty array for this reply's replies
+      if (nestedRepliesMap && replyId) {
+        nestedRepliesMap.set(replyId, []);
+        nestedRepliesMap = nestedRepliesMap;
+      }
+    }
   }
 
   function handleNestedLike(event) {
@@ -446,13 +570,25 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
+      // Optimistic UI update
       reply.isLiked = true;
+      if (typeof reply.likes === 'number') {
+        reply.likes += 1;
+      }
       
+      // Call API
       await likeReply(String(replyId));
     } catch (error) {
       console.error('Error liking reply:', error);
+      // Revert optimistic update
       const reply = replies.find(r => r.id === replyId);
-      if (reply) reply.isLiked = false;
+      if (reply) {
+        reply.isLiked = false;
+        if (typeof reply.likes === 'number' && reply.likes > 0) {
+          reply.likes -= 1;
+        }
+        toastStore.showToast('Failed to like reply. Please try again.', 'error');
+      }
     }
   }
 
@@ -466,13 +602,25 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
+      // Optimistic UI update
       reply.isLiked = false;
+      if (typeof reply.likes === 'number' && reply.likes > 0) {
+        reply.likes -= 1;
+      }
       
+      // Call API
       await unlikeReply(String(replyId));
     } catch (error) {
       console.error('Error unliking reply:', error);
+      // Revert optimistic update
       const reply = replies.find(r => r.id === replyId);
-      if (reply) reply.isLiked = true;
+      if (reply) {
+        reply.isLiked = true;
+        if (typeof reply.likes === 'number') {
+          reply.likes += 1;
+        }
+        toastStore.showToast('Failed to unlike reply. Please try again.', 'error');
+      }
     }
   }
 
@@ -486,13 +634,25 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
+      // Optimistic UI update
       reply.isBookmarked = true;
+      if (typeof reply.bookmarks === 'number') {
+        reply.bookmarks += 1;
+      }
       
+      // Call API
       await bookmarkReply(String(replyId));
     } catch (error) {
       console.error('Error bookmarking reply:', error);
+      // Revert optimistic update
       const reply = replies.find(r => r.id === replyId);
-      if (reply) reply.isBookmarked = false;
+      if (reply) {
+        reply.isBookmarked = false;
+        if (typeof reply.bookmarks === 'number' && reply.bookmarks > 0) {
+          reply.bookmarks -= 1;
+        }
+        toastStore.showToast('Failed to bookmark reply. Please try again.', 'error');
+      }
     }
   }
 
@@ -506,13 +666,25 @@
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
+      // Optimistic UI update
       reply.isBookmarked = false;
+      if (typeof reply.bookmarks === 'number' && reply.bookmarks > 0) {
+        reply.bookmarks -= 1;
+      }
       
+      // Call API
       await removeReplyBookmark(String(replyId));
     } catch (error) {
       console.error('Error unbookmarking reply:', error);
+      // Revert optimistic update
       const reply = replies.find(r => r.id === replyId);
-      if (reply) reply.isBookmarked = true;
+      if (reply) {
+        reply.isBookmarked = true;
+        if (typeof reply.bookmarks === 'number') {
+          reply.bookmarks += 1;
+        }
+        toastStore.showToast('Failed to remove bookmark from reply. Please try again.', 'error');
+      }
     }
   }
 
@@ -642,168 +814,166 @@
       setTimeout(debugUserData, 500); // Delay to allow processing to complete
     }
   }
+
+  // Handle refresh events from ComposeTweet component
+  export function handleRefreshReplies(event) {
+    const { threadId, parentReplyId, newReply } = event.detail;
+    
+    // Process the new reply through our content processor
+    const processedNewReply = processTweetContent(newReply);
+    
+    // If refreshing replies for a thread
+    if (threadId === processedTweet.id && !parentReplyId) {
+      // Add the new reply to our replies array
+      replies = [processedNewReply, ...replies];
+      // Make sure replies are visible
+      showReplies = true;
+    }
+    // If refreshing replies for a specific reply (nested reply)
+    else if (parentReplyId) {
+      // Get the current nested replies for this parent reply
+      let currentNestedReplies = nestedRepliesMap.get(parentReplyId) || [];
+      // Add the new reply to the nested replies
+      nestedRepliesMap.set(parentReplyId, [processedNewReply, ...currentNestedReplies]);
+      // Update the map to trigger reactivity
+      nestedRepliesMap = new Map(nestedRepliesMap);
+      
+      // Increment the reply count on the parent reply
+      const parentReply = replies.find(r => r.id === parentReplyId);
+      if (parentReply) {
+        parentReply.replies = (parseInt(parentReply.replies || '0') + 1).toString();
+      }
+    }
+  }
 </script>
 
-<div 
-  class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''} {nestingLevel > 0 ? 'nested-tweet' : 'main-tweet'} border-b {isDarkMode ? 'border-gray-800' : 'border-gray-200'} hover:bg-opacity-50 {isDarkMode ? 'hover:bg-gray-800 bg-gray-900 text-white' : 'hover:bg-gray-50 bg-white text-black'} transition-colors cursor-pointer"
-  style="margin-left: {nestingLevel * 12}px;"
-  on:click={handleClick}
-  on:keydown={(e) => e.key === 'Enter' && handleClick()}
-  role="article"
-  tabindex="0"
-  aria-label="Tweet by {processedTweet.displayName}"
->
-  {#if inReplyToTweet && nestingLevel === 0}
-    <div class="reply-context px-4 pt-2 pb-0">
-      <div class="flex items-center text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
-        <CornerUpRightIcon size="16" class="mr-2" />
-        <span>Replying to <a 
-          href={`/user/${inReplyToTweet.userId || inReplyToTweet.authorId || inReplyToTweet.author_id || inReplyToTweet.user_id || inReplyToTweet.username}`}
-          class="text-blue-500 hover:underline"
-          on:click|preventDefault={(e) => navigateToUserProfile(e, inReplyToTweet.username, inReplyToTweet.userId || inReplyToTweet.authorId || inReplyToTweet.author_id || inReplyToTweet.user_id)}
-        >@{inReplyToTweet.username}</a></span>
-      </div>
-      <div class="ml-5 pl-4 border-l {isDarkMode ? 'border-gray-700' : 'border-gray-200'} my-1">
-        <div class="text-sm {isDarkMode ? 'text-gray-300' : 'text-gray-600'} line-clamp-1">
-          {inReplyToTweet.content}
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  {#if nestingLevel > 0}
-    <div class="nested-reply-indicator {isDarkMode ? 'border-gray-700' : 'border-gray-300'}"></div>
-  {/if}
-
-  <div class="tweet-header p-4 relative">
-    <div class="flex items-start">
-      <a 
-        href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
-        class="tweet-avatar-container w-12 h-12 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3"
-        on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-        on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-      >
-        {#if typeof processedTweet.avatar === 'string' && processedTweet.avatar.startsWith('http')}
-          <img src={processedTweet.avatar} alt={processedTweet.username} class="w-full h-full object-cover" />
-        {:else}
-          <div class="text-xl {isDarkMode ? 'text-gray-100' : ''}">{processedTweet.avatar}</div>
-        {/if}
-      </a>
-      
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center">
-          <a 
-            href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
-            class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5 hover:underline"
-            on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-            on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-          >
-            {#if processedTweet.displayName === 'User'}
-              {console.warn('❌ MISSING DISPLAY NAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, username: processedTweet.username})}
-              <span class="text-red-500">User</span>
-            {:else}
-              {processedTweet.displayName}
-            {/if}
-          </a>
-          <a 
-            href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
-            class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate hover:underline"
-            on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-            on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-          >
-            {#if processedTweet.username === 'user'}
-              {console.warn('❌ MISSING USERNAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, displayName: processedTweet.displayName})}
-              <span class="text-red-500">@user</span>
-            {:else}
-              @{processedTweet.username}
-            {/if}
-          </a>
-          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
-          <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(processedTweet.timestamp)}</span>
-        </div>
-        
-        <div class="tweet-content my-2 {isDarkMode ? 'text-gray-100' : 'text-black'}">
-          <p>{processedTweet.content || ''}</p>
-        </div>
-        
-        {#if processedTweet.media && processedTweet.media.length > 0}
-          <div class="media-container mt-2 rounded-xl overflow-hidden {isDarkMode ? 'border border-gray-700' : ''}">
-            {#if processedTweet.media.length === 1}
-              <div class="single-media h-64 w-full">
-                {#if processedTweet.media[0].type === 'Image'}
-                  <img src={processedTweet.media[0].url} alt="Media" class="h-full w-full object-cover" />
-                {:else if processedTweet.media[0].type === 'Video'}
-                  <video src={processedTweet.media[0].url} controls class="h-full w-full object-contain">
-                    <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
-                  </video>
-                {:else}
-                  <img src={processedTweet.media[0].url} alt="GIF" class="h-full w-full object-cover" />
-                {/if}
-              </div>
-            {:else if processedTweet.media.length > 1}
-              <div class="media-grid grid gap-1" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
-                  <div class="media-item h-40">
-                    {#if media.type === 'Image'}
-                      <img src={media.url} alt="Media" class="h-full w-full object-cover" />
-                    {:else if media.type === 'Video'}
-                      <video src={media.url} class="h-full w-full object-cover">
-                        <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
-                      </video>
-                    {:else}
-                      <img src={media.url} alt="GIF" class="h-full w-full object-cover" />
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/if}
-        
-        <div class="flex justify-between mt-3 {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
-          <div class="flex items-center">
-            <button class="tweet-action-btn flex items-center rounded-full p-2 transition-colors {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'} hover:text-blue-500 {processedTweet.replies > 0 ? 'has-replies text-blue-500' : ''}" on:click|stopPropagation={handleReply} aria-label="Reply to tweet">
-              <MessageCircleIcon size="20" class="mr-1.5" />
-              <span class="reply-count {processedTweet.replies > 0 ? 'bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full text-blue-600 dark:text-blue-400 font-medium' : ''}">{isNaN(processedTweet.replies) ? 0 : processedTweet.replies}</span>
-              {#if processedTweet.replies > 0}
-                <ChevronRightIcon size="14" class="ml-0.5 text-blue-500" />
+<div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}">
+  <div class="tweet-card-container">
+    <div class="tweet-card-content">
+      <div class="tweet-card-header">
+        <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+          class="tweet-avatar"
+          on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+          on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
+          {#if typeof processedTweet.avatar === 'string' && processedTweet.avatar.startsWith('http')}
+            <img src={processedTweet.avatar} alt={processedTweet.username} class="tweet-avatar-image" />
+          {:else}
+            <div class="tweet-avatar-placeholder">
+              <div class="tweet-avatar-text">{processedTweet.username ? processedTweet.username[0].toUpperCase() : 'U'}</div>
+            </div>
+          {/if}
+        </a>
+        <div class="tweet-content-container">
+          <div class="tweet-author-info">
+            <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+              class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
+              on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+              on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
+              {#if processedTweet.displayName === 'User'}
+                {console.warn('❌ MISSING DISPLAY NAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, username: processedTweet.username})}
+                <span class="tweet-error-text">User</span>
+              {:else}
+                {processedTweet.displayName}
               {/if}
-            </button>
+            </a>
+            <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+              class="tweet-author-username {isDarkMode ? 'tweet-author-username-dark' : ''}"
+              on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+              on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
+              {#if processedTweet.username === 'user'}
+                {console.warn('❌ MISSING USERNAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, displayName: processedTweet.displayName})}
+                <span class="tweet-error-text">@user</span>
+              {:else}
+                @{processedTweet.username}
+              {/if}
+            </a>
+            <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
+            <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(processedTweet.timestamp)}</span>
           </div>
-          <div class="flex items-center">
-            <button 
-              class="tweet-action-btn flex items-center rounded-full p-2 transition-colors {isDarkMode ? 'dark-btn hover:bg-green-900/30' : 'light-btn hover:bg-green-100'} {isReposted ? 'text-green-500' : ''} hover:text-green-500" 
-              on:click|stopPropagation={handleRetweet}
-              aria-label="{isReposted ? 'Undo repost' : 'Repost'}"
-            >
-              <RefreshCwIcon size="20" class="mr-1.5" />
-              <span class="count-badge">{isNaN(processedTweet.reposts) ? 0 : processedTweet.reposts}</span>
-            </button>
+          
+          <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
+            <p>{processedTweet.content || ''}</p>
           </div>
-          <div class="flex items-center">
-            <button 
-              class="tweet-action-btn flex items-center rounded-full p-2 transition-colors {isDarkMode ? 'dark-btn hover:bg-red-900/30' : 'light-btn hover:bg-red-100'} {isLiked ? 'text-red-500' : ''} hover:text-red-500" 
-              on:click|stopPropagation={handleLike}
-              aria-label="{isLiked ? 'Unlike' : 'Like'}"
-            >
-              <HeartIcon size="20" fill={isLiked ? "currentColor" : "none"} class="mr-1.5" />
-              <span class="count-badge">{isNaN(processedTweet.likes) ? 0 : processedTweet.likes}</span>
-            </button>
-          </div>
-          <div class="flex items-center">
-            <button 
-              class="tweet-action-btn flex items-center rounded-full p-2 transition-colors {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'} {isBookmarked ? 'text-blue-500' : ''} hover:text-blue-500" 
-              on:click|stopPropagation={handleBookmark}
-              aria-label="{isBookmarked ? 'Remove bookmark' : 'Bookmark'}"
-            >
-              <BookmarkIcon size="20" fill={isBookmarked ? "currentColor" : "none"} class="mr-1.5" />
-              <span class="count-badge">{isNaN(processedTweet.bookmarks) ? 0 : processedTweet.bookmarks}</span>
-            </button>
-          </div>
-          <div class="flex items-center">
-            <div class="flex items-center p-2 rounded-full transition-colors {isDarkMode ? 'dark-btn hover:bg-gray-700' : 'light-btn hover:bg-gray-100'}">
-              <EyeIcon size="20" class="mr-1.5" />
-              <span class="count-badge">{typeof processedTweet.views === 'string' ? processedTweet.views : '0'}</span>
+          
+          {#if processedTweet.media && processedTweet.media.length > 0}
+            <div class="tweet-media-container {isDarkMode ? 'tweet-media-container-dark' : ''}">
+              {#if processedTweet.media.length === 1}
+                <div class="tweet-media-single">
+                  {#if processedTweet.media[0].type === 'Image'}
+                    <img src={processedTweet.media[0].url} alt="Media" class="tweet-media-img" />
+                  {:else if processedTweet.media[0].type === 'Video'}
+                    <video src={processedTweet.media[0].url} controls class="tweet-media-video">
+                      <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
+                    </video>
+                  {:else}
+                    <img src={processedTweet.media[0].url} alt="GIF" class="tweet-media-img" />
+                  {/if}
+                </div>
+              {:else if processedTweet.media.length > 1}
+                <div class="tweet-media-grid">
+                  {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
+                    <div class="tweet-media-item">
+                      {#if media.type === 'Image'}
+                        <img src={media.url} alt="Media" class="tweet-media-img" />
+                      {:else if media.type === 'Video'}
+                        <video src={media.url} class="tweet-media-video">
+                          <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
+                        </video>
+                      {:else}
+                        <img src={media.url} alt="GIF" class="tweet-media-img" />
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
+          
+          <div class="tweet-actions {isDarkMode ? 'tweet-actions-dark' : ''}">
+            <div class="tweet-action-item">
+              <button class="tweet-action-btn tweet-reply-btn {processedTweet.replies > 0 ? 'has-replies' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" on:click|stopPropagation={handleReply} aria-label="Reply to tweet">
+                <MessageCircleIcon size="20" class="tweet-action-icon" />
+                <span class="tweet-action-count {processedTweet.replies > 0 ? 'tweet-reply-count-highlight' : ''}">{isNaN(processedTweet.replies) ? 0 : processedTweet.replies}</span>
+                {#if processedTweet.replies > 0}
+                  <ChevronRightIcon size="14" class="tweet-reply-arrow" />
+                {/if}
+              </button>
+            </div>
+            <div class="tweet-action-item">
+              <button 
+                class="tweet-action-btn tweet-repost-btn {isReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                on:click|stopPropagation={handleRetweet}
+                aria-label="{isReposted ? 'Undo repost' : 'Repost'}"
+              >
+                <RefreshCwIcon size="20" class="tweet-action-icon" />
+                <span class="tweet-action-count">{isNaN(processedTweet.reposts) ? 0 : processedTweet.reposts}</span>
+              </button>
+            </div>
+            <div class="tweet-action-item">
+              <button 
+                class="tweet-action-btn tweet-like-btn {isLiked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                on:click|stopPropagation={handleLike}
+                aria-label="{isLiked ? 'Unlike' : 'Like'}"
+              >
+                <HeartIcon size="20" fill={isLiked ? "currentColor" : "none"} class="tweet-action-icon" />
+                <span class="tweet-action-count">{isNaN(processedTweet.likes) ? 0 : processedTweet.likes}</span>
+              </button>
+            </div>
+            <div class="tweet-action-item">
+              <button 
+                class="tweet-action-btn tweet-bookmark-btn {isBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                on:click|stopPropagation={handleBookmark}
+                aria-label="{isBookmarked ? 'Remove bookmark' : 'Bookmark'}"
+              >
+                <BookmarkIcon size="20" fill={isBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
+                <span class="tweet-action-count">{isNaN(processedTweet.bookmarks) ? 0 : processedTweet.bookmarks}</span>
+              </button>
+            </div>
+            <div class="tweet-action-item">
+              <div class="tweet-views-count {isDarkMode ? 'tweet-views-count-dark' : ''}">
+                <EyeIcon size="20" class="tweet-action-icon" />
+                <span class="tweet-action-count">{typeof processedTweet.views === 'string' ? processedTweet.views : '0'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -813,17 +983,17 @@
 </div>
 
 {#if nestingLevel === 0 && (replies.length > 0 || processedTweet.replies > 0)}
-  <div class="ml-12 mt-1 mb-2">
+  <div class="tweet-replies-toggle-container">
     <button 
-      class="text-sm flex items-center p-1.5 rounded-full {isDarkMode ? 'dark-btn text-gray-400 hover:text-blue-400 hover:bg-blue-900/20' : 'light-btn text-gray-500 hover:text-blue-500 hover:bg-blue-100'}"
+      class="tweet-replies-toggle {isDarkMode ? 'tweet-replies-toggle-dark' : ''}"
       on:click|stopPropagation={toggleReplies}
       aria-expanded={showReplies}
       aria-controls="replies-container"
     >
       {#if showReplies}
-        <ChevronUpIcon size="16" class="mr-1.5" />
+        <ChevronUpIcon size="16" class="tweet-replies-toggle-icon" />
       {:else}
-        <ChevronDownIcon size="16" class="mr-1.5" />
+        <ChevronDownIcon size="16" class="tweet-replies-toggle-icon" />
       {/if}
       {#if replies.length > 0}
         {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
@@ -835,10 +1005,10 @@
 {/if}
 
 {#if showReplies}
-  <div id="replies-container" class="replies-container {isDarkMode ? 'bg-gray-900' : 'bg-white'} ml-12 border-l {isDarkMode ? 'border-gray-700' : 'border-gray-200'} pl-4 pb-2">
+  <div id="replies-container" class="tweet-replies-container {isDarkMode ? 'tweet-replies-container-dark' : ''}">
     {#if replies.length === 0}
-      <div class="py-4 text-center {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">
-        <div class="animate-pulse">Loading replies...</div>
+      <div class="tweet-replies-loading {isDarkMode ? 'tweet-replies-loading-dark' : ''}">
+        <div class="tweet-replies-loading-indicator">Loading replies...</div>
       </div>
     {:else}
       {#if replies.length > 0 && nestingLevel < MAX_NESTING_LEVEL}
@@ -866,74 +1036,74 @@
         {/each}
       {:else if replies.length > 0}
         {#each processedReplies as reply, index (reply.id || reply.tweetId || `reply-${reply.timestamp}-${reply.username}-${index}`)}
-          <div class="reply-item py-3 {isDarkMode ? 'border-b border-gray-800' : 'border-b border-gray-200'}">
-            <div class="flex">
+          <div class="tweet-reply-item {isDarkMode ? 'tweet-reply-item-dark' : ''}">
+            <div class="tweet-reply-content">
               <a 
                 href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
-                class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mr-3 flex-shrink-0"
+                class="tweet-reply-avatar"
                 on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
                 on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
               >
                 {#if typeof reply.avatar === 'string' && reply.avatar.startsWith('http')}
-                  <img src={reply.avatar} alt={reply.username} class="w-full h-full object-cover" />
+                  <img src={reply.avatar} alt={reply.username} class="tweet-reply-avatar-img" />
                 {:else}
-                  <div class="text-lg {isDarkMode ? 'text-gray-100' : ''}">{reply.avatar}</div>
+                  <div class="tweet-reply-avatar-placeholder">{reply.avatar}</div>
                 {/if}
               </a>
-              <div class="flex-1">
-                <div class="flex items-center">
+              <div class="tweet-reply-body">
+                <div class="tweet-reply-author">
                   <a 
                     href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
-                    class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1.5 hover:underline"
+                    class="tweet-reply-author-name {isDarkMode ? 'tweet-reply-author-name-dark' : ''}"
                     on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
                     on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
                   >{reply.displayName || 'User'}</a>
                   <a 
                     href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
-                    class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate hover:underline"
+                    class="tweet-reply-author-username {isDarkMode ? 'tweet-reply-author-username-dark' : ''}"
                     on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
                     on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
                   >@{reply.username || 'user'}</a>
-                  <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} mx-1.5">·</span>
-                  <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{formatTimeAgo(reply.timestamp)}</span>
+                  <span class="tweet-reply-dot-separator {isDarkMode ? 'tweet-reply-dot-separator-dark' : ''}">·</span>
+                  <span class="tweet-reply-timestamp {isDarkMode ? 'tweet-reply-timestamp-dark' : ''}">{formatTimeAgo(reply.timestamp)}</span>
                 </div>
-                <div class="my-2 {isDarkMode ? 'text-gray-100' : 'text-black'}">
+                <div class="tweet-reply-text {isDarkMode ? 'tweet-reply-text-dark' : ''}">
                   <p>{reply.content || 'No content available'}</p>
                   
                   {#if reply.media && reply.media.length > 0}
-                    <div class="mt-2 rounded-lg overflow-hidden">
-                      <img src={reply.media[0].url} alt="Media" class="h-40 w-full object-cover" />
+                    <div class="tweet-reply-media">
+                      <img src={reply.media[0].url} alt="Media" class="tweet-reply-media-img" />
                     </div>
                   {/if}
                 </div>
-                <div class="flex text-sm {isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-2">
-                  <button class="flex items-center mr-4 hover:text-blue-500 p-1 rounded-full {isDarkMode ? 'dark-btn hover:bg-blue-900/30' : 'light-btn hover:bg-blue-100'}" on:click|stopPropagation={() => dispatch('reply', reply.id)}>
-                    <MessageCircleIcon size="16" class="mr-1" />
+                <div class="tweet-reply-actions {isDarkMode ? 'tweet-reply-actions-dark' : ''}">
+                  <button class="tweet-reply-action-btn tweet-reply-reply-btn {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" on:click|stopPropagation={() => dispatch('reply', reply.id)}>
+                    <MessageCircleIcon size="16" class="tweet-reply-action-icon" />
                     <span>Reply</span>
                   </button>
                   
-                  <button class="flex items-center mr-4 p-1 rounded-full {reply.isLiked ? 'text-red-500' : ''} {isDarkMode ? 'dark-btn hover:bg-red-900/30 hover:text-red-500' : 'light-btn hover:bg-red-100 hover:text-red-500'}" 
+                  <button class="tweet-reply-action-btn tweet-reply-like-btn {reply.isLiked ? 'active' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
                       reply.isLiked ? handleUnlikeReply(reply.id) : handleLikeReply(reply.id);
                     }}>
                     {#if reply.isLiked}
-                      <HeartIcon size="16" fill="currentColor" class="mr-1" />
+                      <HeartIcon size="16" fill="currentColor" class="tweet-reply-action-icon" />
                     {:else}
-                      <HeartIcon size="16" class="mr-1" />
+                      <HeartIcon size="16" class="tweet-reply-action-icon" />
                     {/if}
                     <span>Like</span>
                   </button>
                   
-                  <button class="flex items-center mr-4 p-1 rounded-full {reply.isBookmarked ? 'text-blue-500' : ''} {isDarkMode ? 'dark-btn hover:bg-blue-900/30 hover:text-blue-500' : 'light-btn hover:bg-blue-100 hover:text-blue-500'}" 
+                  <button class="tweet-reply-action-btn tweet-reply-bookmark-btn {reply.isBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
                       reply.isBookmarked ? handleUnbookmarkReply(reply.id) : handleBookmarkReply(reply.id);
                     }}>
                     {#if reply.isBookmarked}
-                      <BookmarkIcon size="16" fill="currentColor" class="mr-1" />
+                      <BookmarkIcon size="16" fill="currentColor" class="tweet-reply-action-icon" />
                     {:else}
-                      <BookmarkIcon size="16" class="mr-1" />
+                      <BookmarkIcon size="16" class="tweet-reply-action-icon" />
                     {/if}
                     <span>Save</span>
                   </button>
@@ -947,52 +1117,19 @@
   </div>
 {/if}
 
-{#if nestingLevel === 0}
-  <div class="mt-1 mb-2 ml-14">
-    <button 
-      class="flex items-center text-sm py-1.5 px-3 rounded-full border {isDarkMode ? 'bg-gray-800 border-gray-700 text-blue-400 hover:bg-gray-700' : 'bg-gray-50 border-gray-200 text-blue-500 hover:bg-gray-100'} transition-colors"
-      on:click|stopPropagation={toggleReplies}
-      aria-expanded={showReplies}
-    >
-      {#if !showReplies}
-        <ChevronRightIcon size="16" class="mr-1.5" />
-      {:else}
-        <ChevronUpIcon size="16" class="mr-1.5" />
-      {/if}
-      
-      {#if processedTweet.replies > 0}
-        {showReplies ? 'Hide' : 'View'} {processedTweet.replies} {processedTweet.replies === 1 ? 'reply' : 'replies'}
-      {:else}
-        {showReplies ? 'Hide thread' : 'Reply to thread'}
-      {/if}
-    </button>
-  </div>
-{/if}
-
-{#if nestingLevel > 0 && !showReplies}
-  <div class="mt-1 mb-2 ml-12">
-    <button 
-      class="flex items-center text-xs py-1 px-2 rounded-full border {isDarkMode ? 'bg-gray-800 border-gray-700 text-blue-400 hover:bg-gray-700' : 'bg-gray-50 border-gray-200 text-blue-500 hover:bg-gray-100'} transition-colors"
-      on:click|stopPropagation={toggleReplies}
-    >
-      <ChevronRightIcon size="14" class="mr-1.5" />
-      
-      {#if processedTweet.replies > 0}
-        {processedTweet.replies} {processedTweet.replies === 1 ? 'reply' : 'replies'}
-      {:else}
-        Continue thread
-      {/if}
-    </button>
-  </div>
-{/if}
-
 <style>
   .tweet-card {
     padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color var(--transition-fast);
   }
   
   .tweet-card-dark {
-    background-color: #1a202c;
+    background-color: var(--bg-primary-dark);
+    color: var(--text-primary-dark);
+    border-bottom: 1px solid var(--border-color-dark);
   }
 
   .nested-tweet {
@@ -1011,6 +1148,11 @@
     border-left-width: 2px;
     width: 2px;
     opacity: 0.7;
+    background-color: var(--border-color);
+  }
+  
+  .tweet-card-dark .nested-reply-indicator {
+    background-color: var(--border-color-dark);
   }
 
   .tweet-avatar-container {
@@ -1019,6 +1161,34 @@
   
   .tweet-action-btn {
     transition: all 0.2s;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    border-radius: var(--radius-full);
+    padding: 0.375rem 0.625rem;
+  }
+  
+  .tweet-action-btn-dark {
+    background-color: var(--bg-secondary-dark);
+    color: var(--text-secondary-dark);
+  }
+  
+  .tweet-action-btn:hover {
+    background-color: var(--hover-primary);
+    color: var(--color-primary);
+  }
+  
+  .tweet-action-btn-dark:hover {
+    background-color: var(--hover-primary);
+    color: var(--color-primary);
+  }
+  
+  .tweet-action-btn.active {
+    color: var(--color-primary);
   }
   
   .dark-btn {
@@ -1026,7 +1196,7 @@
   }
   
   .dark-btn:hover {
-    background-color: rgba(59, 130, 246, 0.2);
+    background-color: var(--hover-primary);
   }
   
   .light-btn {
@@ -1034,12 +1204,13 @@
   }
   
   .light-btn:hover {
-    background-color: rgba(29, 155, 240, 0.1);
+    background-color: var(--hover-primary);
   }
   
   .media-grid {
     max-height: 300px;
     overflow: hidden;
+    border-radius: var(--radius-md);
   }
   
   .line-clamp-1 {
@@ -1074,8 +1245,12 @@
     top: 0;
     bottom: 0;
     width: 2px;
-    background-color: currentColor;
-    opacity: 0.2;
+    background-color: var(--border-color);
+    opacity: 0.4;
+  }
+  
+  .tweet-card-dark .replies-container:before {
+    background-color: var(--border-color-dark);
   }
 
   .has-replies {
@@ -1089,8 +1264,40 @@
     display: inline-block;
   }
   
-  .tweet-action-btn {
-    padding: 6px 10px;
-    border-radius: 9999px;
+  /* Additional styles for tweet reply action buttons */
+  .tweet-reply-action-btn {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 0.375rem 0.625rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tweet-reply-action-btn-dark {
+    background-color: var(--bg-secondary-dark);
+    color: var(--text-secondary-dark);
+  }
+
+  .tweet-reply-action-btn:hover {
+    background-color: var(--hover-primary);
+    color: var(--color-primary);
+  }
+
+  .tweet-reply-action-btn-dark:hover {
+    background-color: var(--hover-primary);
+    color: var(--color-primary);
+  }
+
+  .tweet-reply-action-btn.active {
+    color: var(--color-primary);
+  }
+
+  .tweet-reply-action-btn-dark.active {
+    color: var(--color-primary);
   }
 </style>

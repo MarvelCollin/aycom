@@ -1,0 +1,132 @@
+/* Feed page styles */
+
+.feed-container {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.feed-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-primary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feed-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.feed-compose {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+}
+
+.compose-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin-right: var(--space-3);
+  flex-shrink: 0;
+}
+
+.compose-input-container {
+  flex: 1;
+}
+
+.compose-input {
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  resize: none;
+}
+
+.compose-input:focus {
+  outline: none;
+}
+
+.compose-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.compose-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.compose-tools {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.feed-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feed-tab {
+  flex: 1;
+  padding: var(--space-3) 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+}
+
+.feed-tab.active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.feed-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 4px;
+  border-radius: 9999px;
+  background-color: var(--color-primary);
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Load more button at the bottom of feed */
+.load-more {
+  padding: var(--space-4);
+  text-align: center;
+}
+
+/* Empty state */
+.empty-state {
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+}
+
+.empty-state-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.empty-state-message {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+} 

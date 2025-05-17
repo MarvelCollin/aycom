@@ -1,0 +1,236 @@
+/* Compose tweet component styles */
+
+/* Main compose tweet container */
+.compose-tweet-container {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+/* Header layout */
+.compose-tweet-header {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* User avatar */
+.compose-tweet-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin-right: var(--space-3);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* Input area container */
+.compose-tweet-input-area {
+  flex: 1;
+  min-width: 0; /* Ensures proper text truncation */
+}
+
+/* The primary text input */
+.compose-tweet-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: var(--space-3) 0;
+  border: none;
+  background-color: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  resize: none;
+  overflow-y: auto;
+}
+
+.compose-tweet-textarea:focus {
+  outline: none;
+}
+
+.compose-tweet-textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Character count indicator */
+.compose-tweet-char-count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  align-self: flex-end;
+}
+
+.compose-tweet-char-count.near-limit {
+  color: var(--color-warning);
+}
+
+.compose-tweet-char-count.over-limit {
+  color: var(--color-danger);
+}
+
+/* Media preview area */
+.compose-tweet-media-preview {
+  margin-top: var(--space-3);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+}
+
+.compose-tweet-media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  border-radius: var(--radius-md);
+}
+
+.compose-tweet-media-grid.single {
+  grid-template-columns: 1fr;
+}
+
+.compose-tweet-media-item {
+  position: relative;
+  aspect-ratio: 16/9;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.compose-tweet-media-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.compose-tweet-media-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+}
+
+/* Action bar at the bottom */
+.compose-tweet-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-color);
+}
+
+/* Left side tools */
+.compose-tweet-tools {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.compose-tweet-tool {
+  color: var(--color-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast);
+}
+
+.compose-tweet-tool:hover {
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+.compose-tweet-tool:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Right side submit button */
+.compose-tweet-submit {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.compose-tweet-submit:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.compose-tweet-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Image upload input (hidden) */
+.compose-tweet-file-input {
+  display: none;
+}
+
+/* Poll creation styles */
+.compose-tweet-poll {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.compose-tweet-poll-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.compose-tweet-poll-option {
+  display: flex;
+  align-items: center;
+}
+
+.compose-tweet-poll-option-input {
+  flex: 1;
+  padding: var(--space-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.compose-tweet-poll-duration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+  .compose-tweet-container {
+    padding: var(--space-3);
+  }
+  
+  .compose-tweet-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .compose-tweet-textarea {
+    font-size: var(--font-size-md);
+  }
+  
+  .compose-tweet-tools {
+    gap: var(--space-2);
+  }
+} 

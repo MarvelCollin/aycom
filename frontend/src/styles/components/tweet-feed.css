@@ -1,0 +1,261 @@
+/* Tweet feed component styles */
+
+/* Main feed container */
+.feed-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+}
+
+/* Feed header */
+.feed-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feed-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Feed status tabs */
+.feed-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.feed-tab {
+  flex: 1;
+  padding: var(--space-3) 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition-fast);
+  background-color: transparent;
+  border: none;
+  font-size: 15px;
+}
+
+.feed-tab:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.feed-tab.active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.feed-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 4px;
+  border-radius: 9999px;
+  background-color: var(--color-primary);
+}
+
+/* Dark mode specific styles */
+:global(.dark-theme) .feed-tab {
+  color: #71767b;
+}
+
+:global(.dark-theme) .feed-tab:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  color: #e7e9ea;
+}
+
+:global(.dark-theme) .feed-tab.active {
+  color: #e7e9ea;
+}
+
+:global(.dark-theme) .feed-tab.active::after {
+  background-color: #1d9bf0;
+}
+
+/* Feed items container */
+.feed-items {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Loading state */
+.feed-loading {
+  padding: var(--space-8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.feed-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty feed state */
+.feed-empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.feed-empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-4);
+  color: var(--text-tertiary);
+}
+
+.feed-empty-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.feed-empty-message {
+  margin-bottom: var(--space-4);
+}
+
+/* Feed pagination */
+.feed-pagination {
+  padding: var(--space-4);
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+}
+
+.feed-load-more {
+  background-color: transparent;
+  color: var(--color-primary);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.feed-load-more:hover {
+  background-color: var(--hover-bg);
+}
+
+.feed-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* New tweets available notification */
+.new-tweets-notification {
+  position: sticky;
+  top: 60px;
+  z-index: var(--z-sticky);
+  background-color: var(--color-primary);
+  color: white;
+  text-align: center;
+  padding: var(--space-2);
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color var(--transition-fast);
+  border-radius: var(--radius-full);
+  margin: var(--space-2) auto;
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+
+.new-tweets-notification:hover {
+  background-color: var(--color-primary-hover);
+}
+
+/* Gap between tweets */
+.tweet-separator {
+  height: 8px;
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Mobile compose tweet area */
+.feed-compose {
+  display: flex;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.compose-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-right: var(--space-3);
+  flex-shrink: 0;
+}
+
+.compose-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.compose-input-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.compose-input {
+  background-color: transparent;
+  border: none;
+  padding: var(--space-2) 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.compose-tools {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.compose-tweet-tool {
+  color: var(--color-primary);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+  .feed-tab {
+    padding: var(--space-2) 0;
+  }
+  
+  .feed-empty {
+    padding: var(--space-4);
+  }
+} 

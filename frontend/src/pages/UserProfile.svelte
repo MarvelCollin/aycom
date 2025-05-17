@@ -12,8 +12,10 @@
 
   const logger = createLoggerWithPrefix('UserProfile');
 
+  // Define userId prop explicitly
+  export let userId: string = '';
+  
   // Extract userId from the URL path
-  let userId: string = '';
   let isLoading = true;
   let error: string | null = null;
   let username = '';
@@ -38,8 +40,8 @@
         
         loadUserBasicInfo(userId);
       }
-    } else {
-      // No userId in params, try parsing from the URL
+    } else if (!userId) {
+      // No userId in params or props, try parsing from the URL
       parseUserIdFromUrl();
     }
   });
@@ -114,10 +116,19 @@
   onMount(() => {
     logger.debug('UserProfile component mounted');
     
-    // Check if we already have a userId from the page store
+    // Check if we already have a userId from the page store or props
     if (!userId) {
-      logger.debug('No userId from page store, parsing from URL');
+      logger.debug('No userId from page store or props, parsing from URL');
       parseUserIdFromUrl();
+    } else {
+      logger.debug(`Using provided userId: ${userId}`);
+      
+      // Determine if this is the user's own profile
+      const currentUserId = getUserId();
+      isOwnProfile = userId === 'me' || userId === currentUserId;
+      logger.debug(`Is own profile: ${isOwnProfile}, currentUserId: ${currentUserId}`);
+      
+      loadUserBasicInfo(userId);
     }
 
     // Set up event listener for popstate events

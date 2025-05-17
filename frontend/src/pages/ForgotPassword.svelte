@@ -104,17 +104,25 @@ function handleRecaptchaExpired() {
 }
 </script>
 
-<AuthLayout title="Forgotten Account">
+<AuthLayout title="Recover your password">
   {#if step === 1}
     <form on:submit|preventDefault={handleEmailSubmit} class="mb-4">
-      <div class="mb-4">
-        <label for="email" class="block text-sm font-medium mb-1">Email</label>
-        <input type="email" id="email" bind:value={email} class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Email" required />
+      <div class="auth-input-group">
+        <label for="email" class="auth-label">Email</label>
+        <input 
+          type="email" 
+          id="email" 
+          bind:value={email} 
+          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {emailError ? 'auth-input-error' : ''}" 
+          placeholder="Enter your account email" 
+          required 
+        />
         {#if emailError}
-          <p class="text-red-500 text-xs mt-1">{emailError}</p>
+          <p class="auth-error-message">{emailError}</p>
         {/if}
       </div>
-      <div class="mb-6">
+      
+      <div class="auth-input-group">
         <ReCaptchaWrapper
           bind:this={recaptchaWrapper}
           siteKey="6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA"
@@ -124,33 +132,76 @@ function handleRecaptchaExpired() {
           on:expired={handleRecaptchaExpired}
         />
       </div>
-      <button type="submit" class="w-full py-3 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors" disabled={isLoading}>Next</button>
+      
+      <button 
+        type="submit" 
+        class="auth-btn"
+        disabled={isLoading}
+      >
+        {isLoading ? 'Processing...' : 'Continue'}
+      </button>
     </form>
-    <a href="/" class="text-xs text-blue-500 hover:underline">Back to Landing Page</a>
+    
+    <div class="auth-footer">
+      <a href="/login" class="auth-link">Back to login</a>
+    </div>
   {:else if step === 2}
     <form on:submit|preventDefault={handleAnswerSubmit} class="mb-4">
-      <div class="mb-4">
-        <label class="block text-sm font-medium mb-1">Security Question</label>
-        <div class="mb-2">{securityQuestion}</div>
-        <input type="text" bind:value={securityAnswer} class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Your answer" required />
+      <div class="auth-input-group">
+        <label class="auth-label">Security Question</label>
+        <div class="mb-2 text-sm">{securityQuestion}</div>
+        <input 
+          type="text" 
+          bind:value={securityAnswer} 
+          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {answerError ? 'auth-input-error' : ''}" 
+          placeholder="Your answer" 
+          required 
+        />
         {#if answerError}
-          <p class="text-red-500 text-xs mt-1">{answerError}</p>
+          <p class="auth-error-message">{answerError}</p>
         {/if}
       </div>
-      <button type="submit" class="w-full py-3 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors" disabled={isLoading}>Next</button>
+      
+      <button 
+        type="submit" 
+        class="auth-btn"
+        disabled={isLoading}
+      >
+        {isLoading ? 'Verifying...' : 'Verify Answer'}
+      </button>
     </form>
-    <a href="/" class="text-xs text-blue-500 hover:underline">Back to Landing Page</a>
+    
+    <div class="auth-footer">
+      <a href="/login" class="auth-link">Back to login</a>
+    </div>
   {:else if step === 3}
     <form on:submit|preventDefault={handlePasswordSubmit} class="mb-4">
-      <div class="mb-4">
-        <label for="newPassword" class="block text-sm font-medium mb-1">New Password</label>
-        <input type="password" id="newPassword" bind:value={newPassword} class="w-full p-2 border {isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'} rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="New Password" required />
+      <div class="auth-input-group">
+        <label for="newPassword" class="auth-label">New Password</label>
+        <input 
+          type="password" 
+          id="newPassword" 
+          bind:value={newPassword} 
+          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {newPasswordError ? 'auth-input-error' : ''}" 
+          placeholder="Enter new password" 
+          required 
+        />
         {#if newPasswordError}
-          <p class="text-red-500 text-xs mt-1">{newPasswordError}</p>
+          <p class="auth-error-message">{newPasswordError}</p>
         {/if}
       </div>
-      <button type="submit" class="w-full py-3 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors" disabled={isLoading}>Reset Password</button>
+      
+      <button 
+        type="submit" 
+        class="auth-btn"
+        disabled={isLoading}
+      >
+        {isLoading ? 'Resetting...' : 'Reset Password'}
+      </button>
     </form>
-    <a href="/" class="text-xs text-blue-500 hover:underline">Back to Landing Page</a>
+    
+    <div class="auth-footer">
+      <a href="/login" class="auth-link">Back to login</a>
+    </div>
   {/if}
 </AuthLayout> 

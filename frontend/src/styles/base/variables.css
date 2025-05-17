@@ -1,0 +1,163 @@
+:root {
+  /* Color Palette */
+  --color-primary: #1d9bf0;
+  --color-primary-hover: #1a8cd8;
+  --color-secondary: #536471;
+  --color-success: #00ba7c;
+  --color-danger: #f4212e;
+  --color-warning: #ffd400;
+  
+  /* RGB versions for opacity adjustments */
+  --color-primary-rgb: 29, 155, 240;
+  --color-success-rgb: 0, 186, 124;
+  --color-danger-rgb: 244, 33, 46;
+  --color-warning-rgb: 255, 212, 0;
+  
+  /* Background color variants for buttons/hovers */
+  --color-primary-bg: rgba(29, 155, 240, 0.1);
+  --color-success-bg: rgba(0, 186, 124, 0.1);
+  --color-danger-bg: rgba(244, 33, 46, 0.1);
+  --color-warning-bg: rgba(255, 212, 0, 0.1);
+  
+  /* Light variants for dark theme */
+  --color-primary-light: #1d9bf0;
+  --color-success-light: #00ba7c;
+  --color-danger-light: #f4212e;
+  --color-warning-light: #ffd400;
+  
+  /* Light Theme Colors */
+  --light-bg-primary: #ffffff;
+  --light-bg-secondary: #f7f9fa;
+  --light-bg-tertiary: #eff3f4;
+  --light-text-primary: #0f1419;
+  --light-text-secondary: #536471;
+  --light-text-tertiary: #8899a6;
+  --light-border-color: #eff3f4;
+  --light-hover-bg: #f7f9fa;
+  --light-active-bg: #e6ecf0;
+  --light-disabled-bg: #f5f8fa;
+  --light-disabled-text: #a5acb1;
+  --light-card-bg: #ffffff;
+  --light-hover-primary: rgba(29, 155, 240, 0.1);
+  
+  /* Dark Theme Colors */
+  --dark-bg-primary: #000000;
+  --dark-bg-secondary: #16181c;
+  --dark-bg-tertiary: #212327;
+  --dark-text-primary: #e7e9ea;
+  --dark-text-secondary: #a7a9ac;
+  --dark-text-tertiary: #71767b;
+  --dark-border-color: #2f3336;
+  --dark-hover-bg: rgba(255, 255, 255, 0.03);
+  --dark-active-bg: rgba(255, 255, 255, 0.08);
+  --dark-disabled-bg: #202327;
+  --dark-disabled-text: #71767b;
+  --dark-card-bg: #16181c;
+  --dark-hover-primary: rgba(29, 155, 240, 0.1);
+  
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-md: 1rem;       /* 16px */
+  --font-size-lg: 1.25rem;    /* 20px */
+  --font-size-xl: 1.5rem;     /* 24px */
+  --font-size-2xl: 1.875rem;  /* 30px */
+  
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+  
+  /* Spacing */
+  --space-0-5: 0.125rem; /* 2px */
+  --space-1: 0.25rem;    /* 4px */
+  --space-1-5: 0.375rem; /* 6px */
+  --space-2: 0.5rem;     /* 8px */
+  --space-3: 0.75rem;    /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;     /* 24px */
+  --space-8: 2rem;       /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+  
+  /* Border Radius */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.5rem;   /* 8px */
+  --radius-lg: 1rem;     /* 16px */
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-sm-dark: 0 1px 2px rgba(255, 255, 255, 0.05);
+  --shadow-md-dark: 0 4px 6px -1px rgba(255, 255, 255, 0.07), 0 2px 4px -1px rgba(255, 255, 255, 0.06);
+  --shadow-lg-dark: 0 10px 15px -3px rgba(255, 255, 255, 0.05), 0 4px 6px -2px rgba(255, 255, 255, 0.03);
+  
+  /* Z-index */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  
+  /* Animation */
+  --transition-fast: 0.15s;
+  --transition-normal: 0.3s;
+  --transition-slow: 0.5s;
+  
+  /* Breakpoints (for reference, used in media queries) */
+  --breakpoint-sm: 500px;   /* Mobile landscape */
+  --breakpoint-md: 768px;   /* Tablet */
+  --breakpoint-lg: 1024px;  /* Desktop */
+  --breakpoint-xl: 1280px;  /* Large desktop */
+}
+
+/* Apply light theme variables by default */
+:root {
+  --bg-primary: var(--light-bg-primary);
+  --bg-secondary: var(--light-bg-secondary);
+  --bg-tertiary: var(--light-bg-tertiary);
+  --text-primary: var(--light-text-primary);
+  --text-secondary: var(--light-text-secondary);
+  --text-tertiary: var(--light-text-tertiary);
+  --border-color: var(--light-border-color);
+  --bg-hover: var(--light-hover-bg);
+  --bg-active: var(--light-active-bg);
+  --disabled-bg: var(--light-disabled-bg);
+  --disabled-text: var(--light-disabled-text);
+  --card-bg: var(--light-card-bg);
+  --hover-primary: var(--light-hover-primary);
+}
+
+/* Dark theme variables applied when .dark-theme class is present */
+.dark-theme {
+  --bg-primary: var(--dark-bg-primary);
+  --bg-secondary: var(--dark-bg-secondary);
+  --bg-tertiary: var(--dark-bg-tertiary);
+  --text-primary: var(--dark-text-primary);
+  --text-secondary: var(--dark-text-secondary);
+  --text-tertiary: var(--dark-text-tertiary);
+  --border-color: var(--dark-border-color);
+  --bg-hover: var(--dark-hover-bg);
+  --bg-active: var(--dark-active-bg);
+  --disabled-bg: var(--dark-disabled-bg);
+  --disabled-text: var(--dark-disabled-text);
+  --card-bg: var(--dark-card-bg);
+  --hover-primary: var(--dark-hover-primary);
+  
+  /* Dark theme specific variables */
+  --bg-primary-dark: var(--dark-bg-primary);
+  --bg-secondary-dark: var(--dark-bg-secondary);
+  --bg-tertiary-dark: var(--dark-bg-tertiary);
+  --text-primary-dark: var(--dark-text-primary);
+  --text-secondary-dark: var(--dark-text-secondary);
+  --text-tertiary-dark: var(--dark-text-tertiary);
+  --border-color-dark: var(--dark-border-color);
+  --bg-hover-dark: var(--dark-hover-bg);
+} 

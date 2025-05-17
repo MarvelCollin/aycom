@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"aycom/backend/proto/user"
 	"aycom/backend/services/user/db"
 	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/utils"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -50,12 +53,58 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUse
 	if req.User == nil {
 		return nil, status.Error(codes.InvalidArgument, "Missing user information")
 	}
+
 	userProto := req.User
-	if userProto.Username == "" || userProto.Email == "" || userProto.Name == "" || userProto.Password == "" {
-		return nil, status.Error(codes.InvalidArgument, "Missing required user profile information (incl. password)")
+
+	// Validate all required fields with proper validation
+	var validationErrors []string
+
+	// 1. Validate name
+	if err := utils.ValidateName(userProto.Name); err != nil {
+		validationErrors = append(validationErrors, err.Error())
 	}
+
+	// 2. Validate username
+	if err := utils.ValidateUsername(userProto.Username); err != nil {
+		validationErrors = append(validationErrors, err.Error())
+	}
+
+	// 3. Validate email
+	if err := utils.ValidateEmail(userProto.Email); err != nil {
+		validationErrors = append(validationErrors, err.Error())
+	}
+
+	// 4. Validate password
+	if passwordErrors := utils.ValidatePassword(userProto.Password); len(passwordErrors) > 0 {
+		for _, err := range passwordErrors {
+			validationErrors = append(validationErrors, err.Error())
+		}
+	}
+
+	// 5. Validate gender
+	if err := utils.ValidateGender(userProto.Gender); err != nil {
+		validationErrors = append(validationErrors, err.Error())
+	}
+
+	// 6. Validate date of birth
+	if err := utils.ValidateDateOfBirth(userProto.DateOfBirth); err != nil {
+		validationErrors = append(validationErrors, err.Error())
+	}
+
+	// 7. Validate security question and answer
+	if err := utils.ValidateSecurityQuestion(userProto.SecurityQuestion, userProto.SecurityAnswer); err != nil {
+		validationErrors = append(validationErrors, err.Error())
+	}
+
+	// If there are validation errors, return them
+	if len(validationErrors) > 0 {
+		errorMsg := fmt.Sprintf("Validation failed: %s", strings.Join(validationErrors, "; "))
+		return nil, status.Error(codes.InvalidArgument, errorMsg)
+	}
+
 	userID := uuid.New()
 
+	// Check if email already exists
 	existingUser, err := s.repo.FindUserByEmail(userProto.Email)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "User with this email already exists")
@@ -65,6 +114,7 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUse
 		return nil, status.Error(codes.Internal, "Failed to check email existence")
 	}
 
+	// Check if username already exists
 	existingUser, err = s.repo.FindUserByUsername(userProto.Username)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "Username already taken")
@@ -74,12 +124,14 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUse
 		return nil, status.Error(codes.Internal, "Failed to check username existence")
 	}
 
+	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userProto.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Error hashing password: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to process registration")
 	}
 
+	// Create user object
 	user := &model.User{
 		ID:                    userID,
 		Username:              userProto.Username,
@@ -97,8 +149,9 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUse
 		UpdatedAt:             time.Now(),
 	}
 
+	// Parse date of birth properly
 	if userProto.DateOfBirth != "" {
-		dob, err := time.Parse("2006-01-02", userProto.DateOfBirth)
+		dob, err := utils.ParseCustomDateFormat(userProto.DateOfBirth)
 		if err == nil {
 			user.DateOfBirth = &dob
 		} else {
@@ -106,6 +159,7 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUse
 		}
 	}
 
+	// Save the user to database
 	err = s.repo.CreateUser(user)
 	if err != nil {
 		log.Printf("Error creating user in repository: %v", err)
@@ -201,13 +255,20 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 }
 
 func (s *userService) LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error) {
-	if req.Email == "" || req.Password == "" {
-		return nil, status.Error(codes.InvalidArgument, "Email and password are required")
+	// Validate email format
+	if err := utils.ValidateEmail(req.Email); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid email format")
+	}
+
+	// Password is required
+	if req.Password == "" {
+		return nil, status.Error(codes.InvalidArgument, "Password is required")
 	}
 
 	user, err := s.repo.FindUserByEmail(req.Email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Use generic error message to avoid user enumeration
 			return nil, status.Error(codes.NotFound, "Invalid email or password")
 		}
 		log.Printf("Error finding user by email for login: %v", err)
@@ -216,6 +277,7 @@ func (s *userService) LoginUser(ctx context.Context, req *user.LoginUserRequest)
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
+		// Use generic error message to avoid user enumeration
 		return nil, status.Error(codes.Unauthenticated, "Invalid email or password")
 	}
 

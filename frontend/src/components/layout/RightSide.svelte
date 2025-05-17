@@ -1,340 +1,411 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getAuthToken } from '../../utils/auth';
-  import appConfig from '../../config/appConfig';
+  import { useTheme } from '../../hooks/useTheme';
+  import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
-  import { createEventDispatcher } from 'svelte';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { page } from '../../stores/routeStore';
+  import { getTrends } from '../../api/trends';
+  import { getSuggestedUsers } from '../../api/suggestions';
+  import { followUser, unfollowUser } from '../../api/user';
+  import { toastStore } from '../../stores/toastStore';
 
-  export let isDarkMode: boolean = false;
-  
-  let trends: ITrend[] = [];
-  let suggestedFollows: ISuggestedFollow[] = [];
-  let isLoading = true;
-
-  const API_BASE_URL = appConfig.api.baseUrl;
-  const logger = createLoggerWithPrefix('RightSide');
-  const dispatch = createEventDispatcher();
-
-  function navigateTo(path) {
-    console.log(`Navigating to: ${path}`);
-    window.location.href = path;
+  // Extend the ISuggestedFollow interface with our UI-specific properties
+  interface ExtendedSuggestedFollow extends ISuggestedFollow {
+    isFollowingLoading?: boolean;
   }
 
-  function formatSupabaseImageUrl(url: string): string {
-    if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
-    
-    if (url.startsWith('http')) return url;
-    
-    if (url.includes('👤')) return 'https://secure.gravatar.com/avatar/0?d=mp';
-    
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
-    return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
-  }
+  export let isDarkMode = false;
+  export let trends: ITrend[] = [];
+  export let suggestedFollows: ExtendedSuggestedFollow[] = [];
 
-  function handleFollow(username: string) {
-    const user = suggestedFollows.find(user => user.username === username);
-    if (user) {
-      user.isFollowing = !user.isFollowing;
-      suggestedFollows = [...suggestedFollows];
-      
-      try {
-        if (user.isFollowing) {
-          logger.debug(`Following user: ${username}`);
-        } else {
-          logger.debug(`Unfollowing user: ${username}`);
-        }
-      } catch (error) {
-        logger.error(`Error ${user.isFollowing ? 'following' : 'unfollowing'} user:`, error);
-        user.isFollowing = !user.isFollowing;
-        suggestedFollows = [...suggestedFollows];
-      }
-    }
-  }
+  let isTrendsLoading = true;
+  let isFollowSuggestionsLoading = true;
 
-  function handleTrendClick(trend: ITrend) {
-    dispatch('trendClick', trend);
-    logger.debug(`Clicked on trend: ${trend.title}`);
-  }
+  onMount(async () => {
+    fetchTrends();
+    fetchSuggestedUsers();
+  });
 
   async function fetchTrends() {
+    isTrendsLoading = true;
     try {
-      const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/trends?limit=5`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch trends: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      logger.debug('Trends response:', JSON.stringify(data, null, 2));
-      
-      if (data && data.trends && Array.isArray(data.trends)) {
-        trends = data.trends.map(trend => ({
-          id: trend.id,
-          category: trend.category || 'Trending',
-          title: trend.title,
-          postCount: trend.post_count || 0
-        }));
-        logger.debug(`Fetched ${trends.length} trends`);
-      } else {
-        logger.error('Invalid or empty trends data from API');
-        trends = [];
-      }
+      const fetchedTrends = await getTrends(5);
+      trends = fetchedTrends || [];
     } catch (error) {
-      logger.error('Error fetching trends:', error);
+      console.error('Error loading trends:', error);
+      toastStore.showToast('Failed to load trends', 'error');
       trends = [];
-    }
-  }
-
-  async function fetchUserSuggestions() {
-    try {
-      const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/users/suggestions?limit=3`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user suggestions: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      logger.debug('User suggestions raw response:', JSON.stringify(data, null, 2));
-      
-      interface UserApiData {
-        id: string;
-        username: string;
-        display_name?: string;
-        avatar_url?: string;
-        verified?: boolean;
-        follower_count?: number;
-        is_following?: boolean;
-      }
-      
-      let usersData: UserApiData[] = [];
-      if (data && data.users && Array.isArray(data.users)) {
-        usersData = data.users;
-      }
-      
-      if (usersData.length > 0) {
-        suggestedFollows = usersData.map(user => ({
-          username: user.username,
-          displayName: user.display_name || user.username,
-          avatar: user.avatar_url || 'https://secure.gravatar.com/avatar/0?d=mp',
-          verified: user.verified || false,
-          followerCount: user.follower_count || 0,
-          isFollowing: user.is_following || false
-        }));
-        logger.debug(`Mapped ${suggestedFollows.length} suggested users:`, JSON.stringify(suggestedFollows, null, 2));
-      } else {
-        logger.error('Empty users array in user suggestions response');
-        suggestedFollows = [];
-      }
-    } catch (error) {
-      logger.error('Error fetching user suggestions:', error);
-      suggestedFollows = [];
-    }
-  }
-
-  async function fetchHomeContent() {
-    isLoading = true;
-    try {
-      await Promise.all([fetchTrends(), fetchUserSuggestions()]);
-    } catch (error) {
-      logger.error('Error fetching home content:', error);
     } finally {
-      isLoading = false;
+      isTrendsLoading = false;
     }
   }
 
-  onMount(() => {
-    fetchHomeContent();
-  });
+  async function fetchSuggestedUsers() {
+    isFollowSuggestionsLoading = true;
+    try {
+      const users = await getSuggestedUsers();
+      suggestedFollows = users || [];
+    } catch (error) {
+      console.error('Error loading suggested users:', error);
+      toastStore.showToast('Failed to load suggested users', 'error');
+      suggestedFollows = [];
+    } finally {
+      isFollowSuggestionsLoading = false;
+    }
+  }
+
+  async function handleFollowToggle(user: ExtendedSuggestedFollow) {
+    if (!user) return;
+    
+    // Optimistic UI update
+    const index = suggestedFollows.findIndex(u => u.username === user.username);
+    if (index === -1) return;
+    
+    const isCurrentlyFollowing = suggestedFollows[index].isFollowing;
+    
+    // Create a copy of the array with the updated user
+    const updatedSuggestedFollows = [...suggestedFollows];
+    updatedSuggestedFollows[index] = {
+      ...updatedSuggestedFollows[index],
+      isFollowing: !isCurrentlyFollowing,
+      isFollowingLoading: true
+    };
+    suggestedFollows = updatedSuggestedFollows;
+    
+    try {
+      if (isCurrentlyFollowing) {
+        await unfollowUser(user.username);
+        toastStore.showToast(`Unfollowed @${user.username}`, 'success');
+      } else {
+        await followUser(user.username);
+        toastStore.showToast(`Followed @${user.username}`, 'success');
+      }
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+      toastStore.showToast(`Failed to ${isCurrentlyFollowing ? 'unfollow' : 'follow'} user`, 'error');
+      
+      // Revert the optimistic update
+      const revertedSuggestedFollows = [...suggestedFollows];
+      revertedSuggestedFollows[index] = {
+        ...revertedSuggestedFollows[index],
+        isFollowing: isCurrentlyFollowing,
+        isFollowingLoading: false
+      };
+      suggestedFollows = revertedSuggestedFollows;
+    } finally {
+      // Update isFollowingLoading state
+      const finalSuggestedFollows = [...suggestedFollows];
+      finalSuggestedFollows[index] = {
+        ...finalSuggestedFollows[index],
+        isFollowingLoading: false
+      };
+      suggestedFollows = finalSuggestedFollows;
+    }
+  }
 </script>
 
-<div class="search-container {isDarkMode ? 'search-dark' : ''} sticky top-0 z-10 pb-3 bg-inherit">
-  <div class="relative">
-    <input 
-      type="text" 
-      placeholder="Search" 
-      class="search-input w-full rounded-full {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-200'}"
-    />
-    <div class="search-icon">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
+<div class="widgets-container">
+  <!-- Trends Widget -->
+  <div class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
+    <div class="sidebar-section">
+      <h3 class="sidebar-title">Trends for you</h3>
+      
+      {#if isTrendsLoading}
+        <div class="trends-loading">
+          <div class="trends-loading-spinner"></div>
+        </div>
+      {:else if trends.length === 0}
+        <div class="trends-empty">
+          <p>No trends available</p>
+        </div>
+      {:else}
+        <div class="trends-list">
+          {#each trends as trend, i}
+            <div class="trend-item {isDarkMode ? 'trend-item-dark' : ''}">
+              <div class="trend-header">
+                <span class="trend-location">{trend.category || 'Trending'}</span>
+                <button 
+                  class="trend-more-options {isDarkMode ? 'trend-more-options-dark' : ''}" 
+                  aria-label="More options"
+                >
+                  <MoreHorizontalIcon size="16" />
+                </button>
+              </div>
+              <div class="trend-name">
+                <a href={`/explore?q=${encodeURIComponent(trend.title)}`}>
+                  {trend.title}
+                </a>
+              </div>
+              <div class="trend-count">{trend.postCount || '0'} posts</div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      
+      <a href="/explore" class="trends-show-more {isDarkMode ? 'trends-show-more-dark' : ''}">
+        Show more
+      </a>
+    </div>
+  </div>
+
+  <!-- Who to Follow Widget -->
+  <div class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
+    <div class="sidebar-section">
+      <h3 class="sidebar-title">Who to follow</h3>
+      
+      {#if isFollowSuggestionsLoading}
+        <div class="suggestions-loading">
+          <div class="suggestions-loading-spinner"></div>
+        </div>
+      {:else if suggestedFollows.length === 0}
+        <div class="suggestions-empty">
+          <p>No suggestions available</p>
+        </div>
+      {:else}
+        <div class="suggestions-list">
+          {#each suggestedFollows as user, i}
+            <div class="suggestion-item {isDarkMode ? 'suggestion-item-dark' : ''}">
+              <div class="suggestion-avatar">
+                <a href={`/user/${user.username}`}>
+                  <img 
+                    src={user.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'} 
+                    alt={user.displayName || user.username || 'User'} 
+                  />
+                </a>
+              </div>
+              <div class="suggestion-details">
+                <a href={`/user/${user.username}`} class="suggestion-name">
+                  {user.displayName || user.username || 'User'}
+                </a>
+                <a href={`/user/${user.username}`} class="suggestion-username">
+                  @{user.username || 'user'}
+                </a>
+              </div>
+              <div class="suggestion-action">
+                <button 
+                  class="follow-button {user.isFollowing ? 'following' : ''} {isDarkMode ? 'follow-button-dark' : ''}"
+                  on:click={() => handleFollowToggle(user)}
+                  disabled={user.isFollowingLoading}
+                >
+                  {#if user.isFollowingLoading}
+                    <span class="loading-dot"></span>
+                  {:else if user.isFollowing}
+                    Following
+                  {:else}
+                    Follow
+                  {/if}
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      
+      <a href="/connect" class="suggestions-show-more {isDarkMode ? 'suggestions-show-more-dark' : ''}">
+        Show more
+      </a>
     </div>
   </div>
 </div>
 
-<div class="sidebar {isDarkMode ? 'sidebar-dark' : ''} rounded-xl mb-4">
-  <div class="sidebar-section">
-    <h2 class="sidebar-title text-xl font-bold">What's happening</h2>
-    
-    {#if isLoading}
-      <div class="py-4">
-        <div class="animate-pulse">
-          {#each Array(3) as _, i}
-            <div class="py-3 {i !== 2 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
-              <div class="h-4 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded w-1/3 mb-2"></div>
-              <div class="h-5 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded w-3/4 mb-2"></div>
-              <div class="h-4 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded w-1/4"></div>
-            </div>
-          {/each}
-        </div>
-      </div>
-    {:else if trends.length > 0}
-      <ul>
-        {#each trends as trend}
-          <li class="py-3 {trends.indexOf(trend) !== trends.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
-            <button 
-              class="w-full text-left cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-0 bg-transparent p-0"
-              on:click={() => handleTrendClick(trend)}
-            >
-              <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.category}</p>
-              <p class="font-semibold {isDarkMode ? 'text-white' : 'text-black'} my-0.5">{trend.title}</p>
-              <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm">{trend.postCount} posts</p>
-            </button>
-          </li>
-        {/each}
-      </ul>
-      <div class="mt-3 pt-2">
-        <a href="/explore" class="text-blue-500 hover:text-blue-600 text-sm font-medium">
-          Show more
-        </a>
-      </div>
-    {:else}
-      <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} py-4">No trends available</p>
-    {/if}
-  </div>
-</div>
-
-<div class="sidebar {isDarkMode ? 'sidebar-dark' : ''} rounded-xl mb-4">
-  <div class="sidebar-section">
-    <h2 class="sidebar-title text-xl font-bold">Who to follow</h2>
-    
-    {#if isLoading}
-      <div class="py-4">
-        <div class="animate-pulse">
-          {#each Array(2) as _, i}
-            <div class="flex items-center gap-3 py-3 {i !== 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
-              <div class="w-10 h-10 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}"></div>
-              <div class="flex-1">
-                <div class="h-4 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded w-3/4 mb-2"></div>
-                <div class="h-3 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded w-1/2"></div>
-              </div>
-              <div class="h-8 w-20 {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full"></div>
-            </div>
-          {/each}
-        </div>
-      </div>
-    {:else if suggestedFollows.length > 0}
-      <ul>
-        {#each suggestedFollows as follow}
-          <li class="flex items-center gap-3 py-3 {suggestedFollows.indexOf(follow) !== suggestedFollows.length - 1 ? 'border-b' : ''} {isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
-            <div class="w-10 h-10 rounded-full overflow-hidden {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex-shrink-0 flex items-center justify-center">
-              <div class="flex items-center justify-center w-full h-full text-lg">
-                <img src={formatSupabaseImageUrl(follow.avatar)} alt={follow.username} class="w-full h-full object-cover rounded-full" />
-              </div>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center">
-                <p class="font-semibold {isDarkMode ? 'text-white' : 'text-black'} truncate">{follow.displayName}</p>
-                {#if follow.verified}
-                  <span class="ml-1 text-blue-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                    </svg>
-                  </span>
-                {/if}
-              </div>
-              <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm truncate">@{follow.username}</p>
-            </div>
-            <button 
-              class="follow-button rounded-full text-sm font-bold px-4 py-1.5 transition-colors {follow.isFollowing 
-                ? isDarkMode 
-                  ? 'bg-transparent border border-gray-400 text-white hover:bg-gray-800' 
-                  : 'bg-transparent border border-gray-300 text-black hover:bg-gray-100' 
-                : isDarkMode 
-                  ? 'bg-white text-black hover:bg-gray-200' 
-                  : 'bg-black text-white hover:bg-gray-800'}"
-              on:click={() => handleFollow(follow.username)}
-            >
-              {follow.isFollowing ? 'Following' : 'Follow'}
-            </button>
-          </li>
-        {/each}
-      </ul>
-      <div class="mt-3 pt-2">
-        <a href="/connect" class="text-blue-500 hover:text-blue-600 text-sm font-medium">
-          Show more
-        </a>
-      </div>
-    {:else}
-      <p class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} py-4">No suggestions available</p>
-    {/if}
-  </div>
-</div>
-
-<div class="mt-4 text-center footer-links {isDarkMode ? 'footer-dark' : ''}">
-  <div class="flex flex-wrap text-xs justify-between {isDarkMode ? 'text-gray-500' : 'text-gray-500'}">
-    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/terms')}>Terms of Service</button>
-    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/privacy')}>Privacy Policy</button>
-    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/cookies')}>Cookie Policy</button>
-    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/accessibility')}>Accessibility</button>
-    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/ads')}>Ads Info</button>
-    <button class="dark:bg-black hover:underline mb-2" on:click={() => navigateTo('/about')}>About</button>
-  </div>
-  <p class="text-xs mt-2 {isDarkMode ? 'text-gray-500' : 'text-gray-500'}">© 2023 AYCOM, Inc.</p>
-</div>
-
 <style>
-  .sidebar {
-    background-color: #f7f9fa;
-    border: 1px solid #eff3f4;
-    padding: 1rem;
+  /* Loading indicators */
+  .trends-loading, .suggestions-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-4);
   }
   
-  .sidebar-dark {
-    background-color: #16181c;
-    border: 1px solid #2f3336;
+  .trends-loading-spinner, .suggestions-loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
   }
   
-  .search-input {
-    padding: 0.75rem 1rem 0.75rem 3rem;
-    outline: none;
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
   
-  .search-icon {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #536471;
+  /* Empty states */
+  .trends-empty, .suggestions-empty {
+    padding: var(--space-4);
+    color: var(--text-secondary);
+    text-align: center;
+    font-size: 14px;
   }
   
-  .footer-links button {
-    transition: color 0.2s;
+  /* Trend items */
+  .trend-item {
+    padding: var(--space-3);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid var(--border-color);
   }
   
-  .footer-dark button:hover {
-    color: #e5e7eb;
+  .trend-item-dark {
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .trend-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .trend-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-1);
+  }
+  
+  .trend-location {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  
+  .trend-more-options {
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .trend-more-options:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.1);
+    color: var(--color-primary);
+  }
+  
+  .trend-name {
+    font-weight: 700;
+    margin-bottom: var(--space-1);
+  }
+  
+  .trend-name a {
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+  
+  .trend-count {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  
+  /* Suggestion items */
+  .suggestion-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .suggestion-item-dark {
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .suggestion-avatar {
+    width: 48px;
+    height: 48px;
+    margin-right: var(--space-3);
+    border-radius: 50%;
+    overflow: hidden;
+  }
+  
+  .suggestion-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .suggestion-details {
+    flex: 1;
+    min-width: 0;
+    margin-right: var(--space-2);
+  }
+  
+  .suggestion-name {
+    font-weight: 700;
+    color: var(--text-primary);
+    text-decoration: none;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .suggestion-username {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .suggestion-action {
+    flex-shrink: 0;
   }
   
   .follow-button {
-    transition: background-color 0.2s ease;
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: 9999px;
+    padding: 6px 16px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .follow-button-dark {
+    background-color: var(--text-primary-dark);
+    color: var(--bg-primary-dark);
+  }
+  
+  .follow-button:hover {
+    opacity: 0.9;
+  }
+  
+  .follow-button.following {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+  }
+  
+  .follow-button-dark.following {
+    color: var(--text-primary-dark);
+    border: 1px solid var(--border-color-dark);
+  }
+  
+  .loading-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.8s linear infinite;
+  }
+  
+  /* Show more links */
+  .trends-show-more, .suggestions-show-more {
+    display: block;
+    padding: var(--space-3);
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  
+  .trends-show-more:hover, .suggestions-show-more:hover {
+    background-color: var(--bg-hover);
   }
 </style>

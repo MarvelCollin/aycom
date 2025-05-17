@@ -28,23 +28,23 @@
   }
 </script>
 
-<div class="pt-3 flex flex-wrap items-center gap-2">
+<div class="filter-container">
   <!-- People filter buttons -->
-  <div class="flex bg-gray-100 dark:bg-gray-800 rounded-full p-1 mr-2">
+  <div class="filter-button-group {isDarkMode ? 'filter-button-group-dark' : ''}">
     <button 
-      class={`px-3 py-1 text-sm rounded-full ${searchFilter === 'all' ? 'bg-white dark:bg-gray-900 shadow' : 'text-gray-600 dark:text-gray-300'}`}
+      class="filter-button {searchFilter === 'all' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
       on:click={() => handleFilterChange('all')}
     >
       Everyone
     </button>
     <button 
-      class={`px-3 py-1 text-sm rounded-full ${searchFilter === 'following' ? 'bg-white dark:bg-gray-900 shadow' : 'text-gray-600 dark:text-gray-300'}`}
+      class="filter-button {searchFilter === 'following' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
       on:click={() => handleFilterChange('following')}
     >
       People you follow
     </button>
     <button 
-      class={`px-3 py-1 text-sm rounded-full ${searchFilter === 'verified' ? 'bg-white dark:bg-gray-900 shadow' : 'text-gray-600 dark:text-gray-300'}`}
+      class="filter-button {searchFilter === 'verified' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
       on:click={() => handleFilterChange('verified')}
     >
       Verified only
@@ -52,9 +52,9 @@
   </div>
   
   <!-- Category dropdown -->
-  <div class="flex-1">
+  <div class="category-container">
     <select 
-      class="w-full md:w-auto bg-gray-100 dark:bg-gray-800 border-0 rounded-full text-sm px-3 py-2 focus:ring-blue-500"
+      class="category-select {isDarkMode ? 'category-select-dark' : ''}"
       value={selectedCategory}
       on:change={handleCategoryChange}
     >
@@ -66,8 +66,95 @@
 </div>
 
 <style>
-  /* Fix for dropdown display */
-  .group:hover .hidden.group-hover\:block {
-    display: block;
+  .filter-container {
+    padding-top: var(--space-3);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  
+  .filter-button-group {
+    display: flex;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    padding: var(--space-1);
+    margin-right: var(--space-2);
+  }
+  
+  .filter-button-group-dark {
+    background-color: var(--bg-tertiary-dark);
+  }
+  
+  .filter-button {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-full);
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+  
+  .filter-button-dark {
+    color: var(--text-secondary-dark);
+  }
+  
+  .filter-button:hover {
+    color: var(--text-primary);
+  }
+  
+  .filter-button-dark:hover {
+    color: var(--text-primary-dark);
+  }
+  
+  .filter-button.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .filter-button-dark.active {
+    background-color: var(--bg-primary-dark);
+    color: var(--text-primary-dark);
+    box-shadow: var(--shadow-sm-dark);
+  }
+  
+  .category-container {
+    flex: 1;
+  }
+  
+  .category-select {
+    width: 100%;
+    background-color: var(--bg-tertiary);
+    border: none;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    padding: var(--space-2) var(--space-3);
+    color: var(--text-primary);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right var(--space-2) center;
+    background-size: 16px;
+    cursor: pointer;
+  }
+  
+  .category-select-dark {
+    background-color: var(--bg-tertiary-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .category-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+  
+  @media (min-width: 768px) {
+    .category-select {
+      width: auto;
+    }
   }
 </style> 

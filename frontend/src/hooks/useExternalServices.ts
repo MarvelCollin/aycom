@@ -8,11 +8,14 @@ export function useExternalServices() {
   const getRecaptchaSiteKey = (): string => 
     import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA';
     
-  const getGoogleClientId = (): string => 
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || '161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com';
+  const getGoogleClientId = (): string => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com';
+    console.log('Using Google Client ID:', clientId);
+    return clientId;
+  }
     
   const getGoogleRedirectUri = (): string => 
-    import.meta.env.VITE_GOOGLE_REDIRECT_URI || 'http://localhost:3000/register';
+    import.meta.env.VITE_GOOGLE_REDIRECT_URI || 'http://localhost:5173';
   
   const loadRecaptcha = (
     callback: (token: string) => void, 
@@ -97,21 +100,39 @@ export function useExternalServices() {
     isDarkMode: boolean,
     callback: (response: IGoogleCredentialResponse) => void
   ): (() => void) => {
-    (window as ICustomWindow).handleGoogleCredentialResponse = callback;
+    // Store the callback in the window object
+    (window as ICustomWindow).handleGoogleCredentialResponse = (response) => {
+      console.log('Google credential response received:', response);
+      callback(response);
+    };
     
+    // Check if Google API is already loaded
     if ((window as ICustomWindow).google?.accounts) {
+      console.log('Google accounts API already loaded, initializing...');
       initializeGoogleAuth(buttonId, isDarkMode);
-      return () => {};
+      return () => {
+        delete (window as ICustomWindow).handleGoogleCredentialResponse;
+      };
     }
     
+    console.log('Loading Google accounts API...');
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
     
     script.onload = () => {
+      console.log('Google accounts API loaded successfully');
       googleAuthLoaded = true;
       initializeGoogleAuth(buttonId, isDarkMode);
+    };
+    
+    script.onerror = (error) => {
+      console.error('Failed to load Google accounts API:', error);
+      const buttonElement = document.getElementById(buttonId);
+      if (buttonElement) {
+        buttonElement.innerHTML = '<div class="p-2 text-center text-red-500">Failed to load Google Sign-In</div>';
+      }
     };
     
     document.head.appendChild(script);
@@ -129,7 +150,10 @@ export function useExternalServices() {
   
   const initializeGoogleAuth = (buttonId: string, isDarkMode: boolean) => {
     const customWindow = window as ICustomWindow;
-    if (!customWindow.google?.accounts) return;
+    if (!customWindow.google?.accounts) {
+      console.error('Google accounts API not available');
+      return;
+    }
     
     try {
       const buttonElement = document.getElementById(buttonId);
@@ -141,9 +165,11 @@ export function useExternalServices() {
       const clientId = getGoogleClientId();
       if (!clientId) {
         console.error('Google Client ID not provided');
+        buttonElement.innerHTML = '<div class="p-2 text-center text-red-500">Missing Google Client ID</div>';
         return;
       }
       
+      console.log('Initializing Google Sign-In with client ID and callback');
       customWindow.google.accounts.id.initialize({
         client_id: clientId,
         callback: customWindow.handleGoogleCredentialResponse,
@@ -151,6 +177,7 @@ export function useExternalServices() {
         cancel_on_tap_outside: true
       });
       
+      console.log('Rendering Google Sign-In button');
       customWindow.google.accounts.id.renderButton(buttonElement, {
         theme: isDarkMode ? 'filled_black' : 'outline',
         size: 'large',
@@ -162,6 +189,10 @@ export function useExternalServices() {
       });
     } catch (error) {
       console.error('Error initializing Google Sign-In:', error);
+      const buttonElement = document.getElementById(buttonId);
+      if (buttonElement) {
+        buttonElement.innerHTML = '<div class="p-2 text-center text-red-500">Error initializing Google Sign-In</div>';
+      }
     }
   };
   

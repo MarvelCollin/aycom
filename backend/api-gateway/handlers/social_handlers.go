@@ -330,7 +330,7 @@ func GetFollowing(c *gin.Context) {
 
 // LikeThread handles the API request to like a thread
 // @Summary Like a thread
-// @Description Adds a like to a thread
+// @Description Add a like for a thread
 // @Tags Social
 // @Accept json
 // @Produce json
@@ -396,24 +396,41 @@ func LikeThread(c *gin.Context) {
 		ThreadId: threadID,
 		UserId:   userID,
 	})
+
 	if err != nil {
+		// Check for specific error codes
 		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+			switch st.Code() {
+			case codes.NotFound:
+				c.JSON(http.StatusNotFound, ErrorResponse{
+					Success: false,
+					Message: "Thread not found",
+					Code:    "NOT_FOUND",
+				})
+				return
+			case codes.AlreadyExists:
+				// This is not truly an error for likes - return success
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "Thread already liked",
+					"code":    "ALREADY_LIKED",
+				})
+				return
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "Failed to like thread: " + st.Message(),
+					Code:    "INTERNAL_ERROR",
+				})
+				return
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to like thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
 		}
+
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to like thread: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
+		})
 		return
 	}
 
@@ -954,6 +971,9 @@ func BookmarkThread(c *gin.Context) {
 		return
 	}
 
+	// Log the bookmark request
+	log.Printf("BookmarkThread: Attempting to bookmark thread %s for user %s", threadID, userID)
+
 	// Call thread service client
 	err := threadServiceClient.BookmarkThread(threadID, userID.(string))
 
@@ -971,7 +991,14 @@ func BookmarkThread(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
 					"message": "Thread was already bookmarked",
+					"code":    "ALREADY_BOOKMARKED",
 				})
+				return
+			case codes.InvalidArgument:
+				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				return
+			case codes.PermissionDenied:
+				SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "You do not have permission to bookmark this thread")
 				return
 			default:
 				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error bookmarking thread: %v", st.Message()))
@@ -979,9 +1006,13 @@ func BookmarkThread(c *gin.Context) {
 			}
 		}
 
+		log.Printf("Error in BookmarkThread: %v", err)
 		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error bookmarking thread")
 		return
 	}
+
+	// Log successful bookmark
+	log.Printf("Successfully bookmarked thread %s for user %s", threadID, userID)
 
 	// Return success
 	c.JSON(http.StatusOK, gin.H{
@@ -1346,6 +1377,9 @@ func BookmarkReply(c *gin.Context) {
 		return
 	}
 
+	// Log the bookmark request
+	log.Printf("BookmarkReply: Attempting to bookmark reply %s for user %s", replyID, userID)
+
 	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
@@ -1370,26 +1404,46 @@ func BookmarkReply(c *gin.Context) {
 		ReplyId: replyID,
 		UserId:  userID,
 	})
+
 	if err != nil {
+		// Check for specific error codes
 		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+			switch st.Code() {
+			case codes.NotFound:
+				c.JSON(http.StatusNotFound, ErrorResponse{
+					Success: false,
+					Message: "Reply not found",
+					Code:    "NOT_FOUND",
+				})
+				return
+			case codes.AlreadyExists:
+				// This is not truly an error - return success
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "Reply already bookmarked",
+					"code":    "ALREADY_BOOKMARKED",
+				})
+				return
+			default:
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "Failed to bookmark reply: " + st.Message(),
+					Code:    "INTERNAL_ERROR",
+				})
+				return
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to bookmark reply: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
 		}
+
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Success: false,
+			Message: "Failed to bookmark reply: " + err.Error(),
+			Code:    "INTERNAL_ERROR",
+		})
 		return
 	}
+
+	// Log successful bookmark
+	log.Printf("Successfully bookmarked reply %s for user %s", replyID, userID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

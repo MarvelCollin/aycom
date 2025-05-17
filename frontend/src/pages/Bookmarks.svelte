@@ -14,6 +14,8 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getProfile } from '../api/user';
+  import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
 
   const logger = createLoggerWithPrefix('Bookmarks');
 
@@ -58,6 +60,7 @@
   // State for search functionality
   let searchQuery = '';
   let filteredBookmarks: ITweet[] = [];
+  let searchInputElement: HTMLInputElement;
   
   // Filter bookmarks based on search query
   $: {
@@ -67,8 +70,8 @@
       const query = searchQuery.toLowerCase();
       filteredBookmarks = bookmarkedTweets.filter(tweet => 
         tweet.content.toLowerCase().includes(query) || 
-        tweet.username.toLowerCase().includes(query) || 
-        tweet.displayName.toLowerCase().includes(query)
+        (tweet.username && tweet.username.toLowerCase().includes(query)) || 
+        (tweet.displayName && tweet.displayName.toLowerCase().includes(query))
       );
     }
   }
@@ -81,6 +84,9 @@
   // Clear search query
   function clearSearch() {
     searchQuery = '';
+    if (searchInputElement) {
+      searchInputElement.focus();
+    }
   }
 
   // Convert thread data to tweet format
@@ -248,20 +254,11 @@
           avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
         }
         
-        logger.debug('Profile loaded successfully', { username });
-      } else {
-        logger.warn('No user data received from API');
-        // Set default values
-        username = 'user';
-        displayName = 'Guest User';
-        avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+        logger.debug('User profile loaded', { username, displayName });
       }
-    } catch (error) {
-      logger.error('Error fetching user profile:', error);
-      // Set default values
-      username = 'user';
-      displayName = 'Guest User';
-      avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+    } catch (err) {
+      logger.error('Error loading user profile', err);
+      toastStore.showToast('Failed to load your profile. Some features may be limited.', 'error');
     } finally {
       isLoadingProfile = false;
     }
@@ -363,28 +360,16 @@
     }
   }
 
-  onMount(async () => {
-    console.log('Bookmarks page - Auth state:', authState.isAuthenticated, 'Current path:', window.location.pathname);
-    
-    // Let the Router handle redirects rather than doing it directly
-    if (!authState.isAuthenticated) {
-      logger.info('User not authenticated, letting Router handle the redirect');
-      return;
+  onMount(() => {
+    logger.debug('Bookmarks page mounted');
+    if (checkAuth()) {
+      // First load user profile
+      fetchUserProfile()
+        .then(() => {
+          // Then load bookmarks
+          loadBookmarks();
+        });
     }
-    
-    // Load user profile first
-    await fetchUserProfile();
-    
-    // Then fetch bookmarked tweets
-    fetchBookmarkedTweets();
-    
-    // Fetch trends and suggestions in parallel
-    Promise.all([
-      fetchTrends(),
-      fetchSuggestedUsers()
-    ]).catch(error => {
-      logger.error('Error fetching additional data:', error);
-    });
   });
 
   function openThreadModal(tweet: ITweet) {
@@ -658,127 +643,102 @@
   username={username}
   displayName={displayName}
   avatar={avatar}
-  trends={trends}
-  suggestedFollows={suggestedUsers}
 >
-  <div class="min-h-screen border-x feed-container">
-    <div class="sticky top-0 z-10 header-tabs border-b {isDarkMode ? 'bg-black border-gray-800' : 'bg-white border-gray-200'}">
-      <div class="p-4">
-        <h1 class="text-xl font-bold">Bookmarks</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400">Your saved tweets</p>
-        
-        <div class="mt-3 relative">
+  <div class="bookmarks-container">
+    <!-- Header -->
+    <div class="bookmarks-header">
+      <h1 class="page-title">Bookmarks</h1>
+      <p class="page-subtitle">@{username}</p>
+      
+      <!-- Search box -->
+      <div class="search-container">
+        <div class="search-input-wrapper">
+          <div class="search-icon">
+            <SearchIcon size="18" />
+          </div>
           <input
+            bind:this={searchInputElement}
             type="text"
-            placeholder="Search bookmarks..."
+            placeholder="Search your bookmarks"
+            class="search-input"
             value={searchQuery}
             on:input={handleSearchInput}
-            class="w-full px-4 py-2 pl-10 border rounded-full {isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-gray-100 border-gray-200 text-gray-800 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <div class="absolute left-3 top-2.5 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-            </svg>
-          </div>
           {#if searchQuery}
-            <button 
-              class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-              on:click={clearSearch}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
+            <button class="search-clear-button" on:click={clearSearch} aria-label="Clear search">
+              <XIcon size="18" />
             </button>
           {/if}
         </div>
       </div>
     </div>
     
-    <div class="tweet-list">
-      {#if isLoading && bookmarkedTweets.length === 0}
-        <div class="space-y-4 p-4">
-          {#each Array(5) as _, i}
-            <div class="animate-pulse flex space-x-4">
-              <div class="rounded-full bg-gray-300 dark:bg-gray-700 h-10 w-10"></div>
-              <div class="flex-1 space-y-3 py-1">
-                <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                <div class="space-y-2">
-                  <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                  <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
+    <!-- Content Area -->
+    <div class="bookmarks-content">
+      {#if isLoading}
+        <div class="bookmarks-loading">
+          <div class="bookmarks-skeleton">
+            {#each Array(3) as _}
+              <div class="tweet-skeleton">
+                <div class="tweet-skeleton-avatar"></div>
+                <div class="tweet-skeleton-content">
+                  <div class="tweet-skeleton-header"></div>
+                  <div class="tweet-skeleton-body"></div>
+                  <div class="tweet-skeleton-actions"></div>
                 </div>
-                <div class="h-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
               </div>
-            </div>
-          {/each}
+            {/each}
+          </div>
         </div>
       {:else if error}
-        <div class="p-8 text-center">
-          <p class="text-red-500 mb-4">{error}</p>
-          <button 
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
-            on:click={() => fetchBookmarkedTweets(true)}
-          >
-            Try Again
-          </button>
+        <div class="bookmarks-error">
+          <p class="error-message">{error}</p>
+          <button class="retry-button" on:click={() => fetchBookmarkedTweets(true)}>Try Again</button>
         </div>
-      {:else if bookmarkedTweets.length === 0 && !isLoading}
-        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-          <p class="mb-4">You haven't bookmarked any tweets yet</p>
-          <a 
-            href="/explore" 
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 inline-block"
-          >
-            Explore Content
-          </a>
-        </div>
-      {:else if searchQuery && filteredBookmarks.length === 0}
-        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-          <p class="mb-4">No bookmarks match your search</p>
-          <button 
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
-            on:click={clearSearch}
-          >
-            Clear Search
-          </button>
+      {:else if filteredBookmarks.length === 0}
+        <div class="bookmarks-empty">
+          {#if searchQuery}
+            <h2 class="empty-title">No results found</h2>
+            <p class="empty-message">We couldn't find any results for "{searchQuery}"</p>
+            <button class="clear-search-button" on:click={clearSearch}>Clear search</button>
+          {:else}
+            <h2 class="empty-title">You haven't saved any posts yet</h2>
+            <p class="empty-message">When you do, they'll show up here.</p>
+          {/if}
         </div>
       {:else}
-        {#each filteredBookmarks as tweet (tweet.id)}
-          <TweetCard 
-            {tweet}
-            {isDarkMode}
-            isAuthenticated={authState.isAuthenticated}
-            isLiked={tweet.isLiked || false}
-            isReposted={tweet.isReposted || false}
-            isBookmarked={true}
-            inReplyToTweet={tweet.replyTo || null}
-            replies={repliesMap.get(tweet.id) || []}
-            nestedRepliesMap={nestedRepliesMap}
-            nestingLevel={0}
-            on:click={() => openThreadModal(tweet)}
-            on:like={handleTweetLike}
-            on:unlike={handleTweetUnlike}
-            on:repost={(e) => tweet.isReposted ? handleTweetUnrepost(e) : handleTweetRepost(e)}
-            on:reply={handleTweetReply}
-            on:bookmark={handleTweetBookmark}
-            on:removeBookmark={handleTweetUnbookmark}
-            on:loadReplies={handleLoadReplies}
-          />
-        {/each}
-        
-        {#if isLoading}
-          <div class="flex justify-center items-center p-4">
-            <div class="h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-          </div>
-        {:else if hasMore && !searchQuery}
-          <div class="p-4 text-center">
-            <button 
-              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" 
-              on:click={loadMoreBookmarks}
-            >
-              Load More
-            </button>
-          </div>
-        {/if}
+        <div class="bookmarks-list">
+          {#each filteredBookmarks as tweet}
+            <div class="bookmark-item {isDarkMode ? 'bookmark-item-dark' : ''}">
+              <TweetCard 
+                {tweet}
+                {authState}
+                isDarkMode={isDarkMode}
+                on:like={async (e) => handleTweetLike(e)}
+                on:unlike={async (e) => handleTweetUnlike(e)}
+                on:repost={async (e) => handleTweetRepost(e)}
+                on:unrepost={async (e) => handleTweetUnrepost(e)}
+                on:bookmark={async (e) => handleTweetBookmark(e)}
+                on:unbookmark={async (e) => handleTweetUnbookmark(e)}
+                on:reply={async (e) => handleTweetReply(e)}
+                on:viewReplies={async (e) => handleLoadReplies(e)}
+                on:showProfile={(e) => openThreadModal(e.detail)}
+              />
+            </div>
+          {/each}
+          
+          {#if hasMore}
+            <div class="load-more-container">
+              <button 
+                class="load-more-button {isDarkMode ? 'load-more-button-dark' : ''}"
+                on:click={loadMoreBookmarks}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Loading...' : 'Load More'}
+              </button>
+            </div>
+          {/if}
+        </div>
       {/if}
     </div>
   </div>
@@ -789,56 +749,276 @@
 <DebugPanel />
 
 <style>
-  :global(.theme-light) {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f5f8fa;
-    --bg-tertiary: #ebeef0;
-    --bg-overlay: rgba(255, 255, 255, 0.9);
-    --border-color: #e1e8ed;
-    --text-primary: #14171a;
-    --text-secondary: #657786;
-    --text-tertiary: #aab8c2;
-    --accent-color: #1d9bf0;
-    --accent-hover: #1a8cd8;
-    --error-color: #e0245e;
-    --success-color: #17bf63;
-  }
-
-  :global(.theme-dark) {
-    --bg-primary: #000000;
-    --bg-secondary: #15181c;
-    --bg-tertiary: #212327;
-    --bg-overlay: rgba(0, 0, 0, 0.9);
-    --border-color: #2f3336;
-    --text-primary: #ffffff;
-    --text-secondary: #8899a6;
-    --text-tertiary: #66757f;
-    --accent-color: #1d9bf0;
-    --accent-hover: #1a8cd8;
-    --error-color: #e0245e;
-    --success-color: #17bf63;
-  }
-
-  .feed-container {
+  .bookmarks-container {
+    min-height: 100vh;
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    border-color: var(--border-color);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
   }
-
-  .header-tabs {
-    background-color: var(--bg-overlay);
-    backdrop-filter: blur(12px);
-    border-color: var(--border-color);
+  
+  .bookmarks-container-dark {
+    background-color: var(--bg-primary-dark);
+    color: var(--text-primary-dark);
+    border-left: 1px solid var(--border-color-dark);
+    border-right: 1px solid var(--border-color-dark);
   }
-
-  .tweet-list {
+  
+  .bookmarks-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    padding: var(--space-3) var(--space-4);
     background-color: var(--bg-primary);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
   }
-
+  
+  .bookmarks-header-dark {
+    background-color: var(--bg-primary-dark);
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .page-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-3);
+  }
+  
+  .page-subtitle {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+  }
+  
+  .search-container {
+    margin-top: var(--space-3);
+    margin-bottom: var(--space-1);
+  }
+  
+  .search-input-wrapper {
+    position: relative;
+  }
+  
+  .search-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-10);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    transition: all var(--transition-fast);
+  }
+  
+  .search-input-dark {
+    border-color: var(--border-color-dark);
+    background-color: var(--bg-tertiary-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .search-input:focus {
+    outline: none;
+    background-color: var(--bg-primary);
+    border-color: var(--color-primary);
+  }
+  
+  .search-icon {
+    position: absolute;
+    left: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .search-icon-dark {
+    color: var(--text-tertiary-dark);
+  }
+  
+  .search-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .search-clear-button {
+    position: absolute;
+    right: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .search-clear-button-dark {
+    color: var(--text-tertiary-dark);
+  }
+  
+  .clear-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .bookmarks-content {
+    padding-bottom: var(--space-6);
+  }
+  
+  .bookmarks-loading {
+    padding: var(--space-4);
+  }
+  
+  .bookmarks-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  
+  .tweet-skeleton {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .tweet-skeleton-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--bg-tertiary);
+    flex-shrink: 0;
+  }
+  
+  .tweet-skeleton-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  
+  .tweet-skeleton-header {
+    height: 20px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    width: 60%;
+  }
+  
+  .tweet-skeleton-body {
+    height: 60px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    width: 100%;
+  }
+  
+  .tweet-skeleton-actions {
+    height: 20px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    width: 80%;
+  }
+  
+  .bookmarks-error {
+    padding: var(--space-8);
+    text-align: center;
+  }
+  
+  .error-message {
+    color: var(--color-error);
+    margin-bottom: var(--space-4);
+  }
+  
+  .retry-button {
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .bookmarks-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-16) var(--space-4);
+    text-align: center;
+  }
+  
+  .empty-title {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-2);
+  }
+  
+  .empty-message {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+    max-width: 400px;
+  }
+  
+  .clear-search-button {
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .bookmarks-list {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .bookmark-item {
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .bookmark-item-dark {
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .load-more-container {
+    padding: var(--space-4);
+    display: flex;
+    justify-content: center;
+  }
+  
+  .load-more-button {
+    padding: var(--space-2) var(--space-6);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .load-more-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  .load-more-button-dark {
+    background-color: var(--color-primary-dark);
+  }
+  
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+    50% { opacity: 0.8; }
   }
+  
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }

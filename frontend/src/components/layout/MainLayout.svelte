@@ -6,6 +6,15 @@
   import { useTheme } from '../../hooks/useTheme';
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
   import { createEventDispatcher } from 'svelte';
+  import { onMount } from 'svelte';
+  
+  // Icons for mobile navigation
+  import HomeIcon from 'svelte-feather-icons/src/icons/HomeIcon.svelte';
+  import HashIcon from 'svelte-feather-icons/src/icons/HashIcon.svelte';
+  import BellIcon from 'svelte-feather-icons/src/icons/BellIcon.svelte';
+  import MailIcon from 'svelte-feather-icons/src/icons/MailIcon.svelte';
+  import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
+  import PlusIcon from 'svelte-feather-icons/src/icons/PlusIcon.svelte';
 
   export let username = "";
   export let displayName = "";
@@ -16,6 +25,23 @@
   export let showLeftSidebar = true;
   export let showRightSidebar = true;
 
+  // Setup mobile detection
+  let isMobile = false;
+
+  onMount(() => {
+    // Check if the viewport is mobile on mount
+    const checkMobile = () => {
+      isMobile = window.innerWidth < 768;
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  });
+
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
 
@@ -23,39 +49,96 @@
     dispatch('toggleComposeModal');
   }
 
+  // Get the current path for active link styling
+  let currentPath = '';
+  onMount(() => {
+    currentPath = window.location.pathname;
+  });
+
   const dispatch = createEventDispatcher();
 </script>
 
-<div class="flex relative w-full h-screen {isDarkMode ? 'bg-black text-white' : 'bg-white text-black'}">
-  {#if showLeftSidebar}
-    <div class="fixed left-0 top-0 z-40 h-screen border-r {isDarkMode ? 'border-gray-800' : 'border-gray-200'} overflow-y-auto {isDarkMode ? 'bg-black' : 'bg-white'}" style="width: 275px;">
+<div class="app-container {isDarkMode ? 'app-container-dark dark-theme' : ''}">
+  <div class="app-layout">
+    {#if showLeftSidebar}
       <LeftSide 
         {username}
         {displayName}
         {avatar}
         on:toggleComposeModal={handleToggleComposeModal}
       />
-    </div>
-    <div class="flex-shrink-0" style="width: 275px;"></div>
-  {/if}
-  
-  <main class="flex-grow h-screen overflow-y-auto relative {isDarkMode ? 'bg-black' : 'bg-white'}">
-    <slot></slot>
-  </main>
-  
-  {#if showRightSidebar}
-    <div class="hidden md:block fixed right-0 top-0 z-40 h-screen {isDarkMode ? 'bg-black' : 'bg-white'} border-l {isDarkMode ? 'border-gray-800' : 'border-gray-200'} overflow-y-auto" style="width: 350px;">
-      <div class="p-4">
+    {/if}
+    
+    <main class="main-content {isDarkMode ? 'main-content-dark' : ''}">
+      <slot></slot>
+    </main>
+    
+    {#if showRightSidebar}
+      <div class="widgets-container">
         <RightSide 
           {isDarkMode}
-          {trends}
-          suggestedFollows={suggestedFollows}
         />
       </div>
-    </div>
-    <div class="hidden md:block flex-shrink-0" style="width: 350px;"></div>
+    {/if}
+  </div>
+  
+  <!-- Mobile navigation bar for smaller screens -->
+  {#if isMobile}
+    <nav class="mobile-nav {isDarkMode ? 'mobile-nav-dark' : ''}">
+      <a href="/feed" class="mobile-nav-item {currentPath === '/feed' ? 'active' : ''}">
+        <div class="mobile-nav-icon">
+          <HomeIcon size="20" />
+        </div>
+      </a>
+      <a href="/explore" class="mobile-nav-item {currentPath === '/explore' ? 'active' : ''}">
+        <div class="mobile-nav-icon">
+          <HashIcon size="20" />
+        </div>
+      </a>
+      <button 
+        class="mobile-compose-btn"
+        on:click={handleToggleComposeModal}
+        aria-label="Compose new post"
+      >
+        <PlusIcon size="20" />
+      </button>
+      <a href="/notifications" class="mobile-nav-item {currentPath === '/notifications' ? 'active' : ''}">
+        <div class="mobile-nav-icon">
+          <BellIcon size="20" />
+        </div>
+      </a>
+      <a href="/profile" class="mobile-nav-item {currentPath === '/profile' ? 'active' : ''}">
+        <div class="mobile-nav-icon">
+          <UserIcon size="20" />
+        </div>
+      </a>
+    </nav>
   {/if}
   
   <Toast />
   <DebugPanel />
 </div>
+
+<style>
+  /* Mobile compose button */
+  .mobile-compose-btn {
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    margin-top: -20px;
+    transition: background-color 0.2s;
+    cursor: pointer;
+  }
+  
+  .mobile-compose-btn:hover,
+  .mobile-compose-btn:active {
+    background-color: var(--color-primary-hover);
+  }
+</style>

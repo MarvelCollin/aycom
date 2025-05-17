@@ -88,16 +88,25 @@
       let response;
       
       if (isReplyMode && replyTo) {
-        const replyData = {
+        const replyData: any = {
           content: newTweet,
-          thread_id: replyTo.threadId || replyTo.id,
-          parent_id: replyTo.id,
+          thread_id: replyTo.threadId || replyTo.thread_id || replyTo.id,
           mentioned_user_ids: selectedCategory ? [selectedCategory] : [],
         };
         
+        // Check if we're replying to a reply or to a thread
+        // @ts-ignore - parentReplyId might be from our custom enriched objects
+        if (replyTo.parentReplyId || replyTo.parent_reply_id) {
+          // This is a reply-to-reply
+          replyData.parent_reply_id = replyTo.id;
+        }
+        
         logger.debug('Posting reply with data:', replyData);
         
-        response = await replyToThread(replyTo.id.toString(), replyData);
+        // Get the thread ID from the reply or use reply's ID if no thread ID
+        const threadId = String(replyTo.threadId || replyTo.thread_id || replyTo.id);
+        
+        response = await replyToThread(threadId, replyData);
         
         if (files.length > 0 && response.id) {
           try {
@@ -110,6 +119,13 @@
         }
         
         toastStore.showToast('Your reply was posted successfully', 'success');
+        
+        // Auto-refresh to show the new reply - emit refresh event
+        dispatch('refreshReplies', {
+          threadId: threadId,
+          parentReplyId: replyData.parent_reply_id,
+          newReply: response
+        });
       } else {
         const data = {
           content: newTweet,
@@ -131,6 +147,9 @@
         }
         
         toastStore.showToast('Your post was created successfully', 'success');
+        
+        // Auto-refresh feed
+        dispatch('refreshFeed');
       }
       
       newTweet = '';
@@ -138,6 +157,9 @@
       selectedCategory = '';
       
       dispatch('tweet', response);
+      
+      // Close the modal after posting
+      closeModal();
     } catch (error) {
       logger.error('Error creating tweet/reply:', error);
       const errorResponse = handleApiError(error);
@@ -265,59 +287,61 @@
   }
 </script>
 
-<div class="modal-container">
-  <div class="modal-overlay" on:click={closeModal} on:keydown={(e) => e.key === 'Escape' && closeModal()} role="button" tabindex="0"></div>
-  <div class="modal-content {isDarkMode ? 'modal-content-dark' : ''}">
-    <div class="modal-header {isDarkMode ? 'modal-header-dark' : ''}">
+<div class="compose-tweet-container">
+  <div class="compose-tweet-overlay" on:click={closeModal} on:keydown={(e) => e.key === 'Escape' && closeModal()} role="button" tabindex="0"></div>
+  <div class="compose-tweet-modal {isDarkMode ? 'compose-tweet-modal-dark' : ''}">
+    <div class="compose-tweet-header {isDarkMode ? 'compose-tweet-header-dark' : ''}">
       <button 
-        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        class="compose-tweet-close-btn"
         on:click={closeModal}
         aria-label="Close dialog"
       >
         <XIcon size="24" />
       </button>
-      <span class="text-gray-600 dark:text-gray-300">{modalTitle}</span>
-      <div style="width:2.5rem"></div>
+      <span class="compose-tweet-title">{modalTitle}</span>
+      <div class="compose-tweet-spacer"></div>
     </div>
-    <div class="modal-body {isDarkMode ? 'bg-gray-900' : 'bg-white'}">
+    <div class="compose-tweet-body {isDarkMode ? 'compose-tweet-body-dark' : ''}">
       {#if isReplyMode && replyTo}
-        <div class="reply-to-container mb-3 p-3 {isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-200'} border rounded-lg">
-          <div class="flex items-start">
-            <div class="flex-shrink-0 mr-2">
+        <div class="compose-tweet-reply-to {isDarkMode ? 'compose-tweet-reply-to-dark' : ''}">
+          <div class="compose-tweet-reply-content">
+            <div class="compose-tweet-reply-avatar-container">
               {#if typeof replyTo.avatar === 'string' && replyTo.avatar.startsWith('http')}
-                <img src={replyTo.avatar} alt={replyTo.username} class="w-8 h-8 rounded-full" />
+                <img src={replyTo.avatar} alt={replyTo.username} class="compose-tweet-reply-avatar" />
               {:else}
-                <div class="w-8 h-8 rounded-full {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center">
+                <div class="compose-tweet-reply-avatar-placeholder">
                   {replyTo.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'}
                 </div>
               {/if}
             </div>
-            <div class="flex-1 min-w-0 text-sm">
-              <div class="flex items-center">
-                <span class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{replyTo.displayName || 'User'}</span>
-                <span class="{isDarkMode ? 'text-gray-400' : 'text-gray-500'} truncate">@{replyTo.username || 'user'}</span>
+            <div class="compose-tweet-reply-info">
+              <div class="compose-tweet-reply-author">
+                <span class="compose-tweet-reply-name">{replyTo.displayName || 'User'}</span>
+                <span class="compose-tweet-reply-username">@{replyTo.username || 'user'}</span>
               </div>
-              <p class="text-sm truncate {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">{replyTo.content}</p>
+              <p class="compose-tweet-reply-text">{replyTo.content}</p>
             </div>
           </div>
         </div>
       {/if}
       
-      <div class="flex mb-4">
-        <div class="w-12 h-12 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center mr-4 overflow-hidden flex-shrink-0">
-          <span>{avatar}</span>
+      <div class="compose-tweet-input-wrapper">
+        <div class="compose-tweet-avatar-wrapper">
+          <div class="compose-tweet-avatar">
+            <span>{avatar}</span>
+          </div>
         </div>
-        <div class="flex-1">
+        <div class="compose-tweet-input-area">
           <textarea 
             bind:value={newTweet}
             placeholder="What is happening?!"
-            class="compose-textarea {isDarkMode ? 'compose-textarea-dark' : ''}"
+            class="compose-tweet-textarea"
             rows="3"
             maxlength={maxWords * 6}
           ></textarea>
 
-          <div class="flex items-center gap-2 mb-3">
-            <div class="compose-word-circle">
+          <div class="compose-tweet-word-count">
+            <div class="compose-tweet-word-circle">
               <svg viewBox="0 0 36 36">
                 <path
                   d="M18 2a16 16 0 1 1 0 32 16 16 0 0 1 0-32"
@@ -335,65 +359,67 @@
                   style="transition: stroke-dashoffset 0.2s ease;"
                 />
               </svg>
-              <span class="compose-word-circle-text {isDarkMode ? 'text-white' : 'text-gray-900'} {isNearLimit ? 'compose-word-limit' : ''}">{wordCount}</span>
+              <span class="compose-tweet-word-count-text {isNearLimit ? 'near-limit' : ''}">{wordCount}</span>
             </div>
-            <span class="text-xs {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">/ {maxWords} words</span>
+            <span class="compose-tweet-word-limit">/ {maxWords} words</span>
           </div>
 
           {#if files.length > 0}
-            <div class="compose-file-preview">
-              {#each files as file, i}
-                <div class="compose-file-thumb {isDarkMode ? 'compose-file-thumb-dark' : ''}">
-                  {#if file.type.startsWith('image/')}
-                    <img src={URL.createObjectURL(file)} alt="preview" class="w-full h-full object-cover" />
-                  {:else if file.type.startsWith('video/')}
-                    <video src={URL.createObjectURL(file)} class="w-full h-full object-cover">
-                      <track kind="captions" src="" label="English" />
-                    </video>
-                  {:else}
-                    <div class="flex items-center justify-center h-full p-2 text-center">
-                      <span class="text-xs overflow-hidden">{file.name}</span>
-                    </div>
-                  {/if}
-                  <button class="compose-file-remove" type="button" on:click={() => removeFile(i)}>&times;</button>
-                </div>
-              {/each}
+            <div class="compose-tweet-media-preview">
+              <div class="compose-tweet-media-grid {files.length === 1 ? 'single' : ''}">
+                {#each files as file, i}
+                  <div class="compose-tweet-media-item">
+                    {#if file.type.startsWith('image/')}
+                      <img src={URL.createObjectURL(file)} alt="preview" class="compose-tweet-media-img" />
+                    {:else if file.type.startsWith('video/')}
+                      <video src={URL.createObjectURL(file)} class="compose-tweet-media-img">
+                        <track kind="captions" src="" label="English" />
+                      </video>
+                    {:else}
+                      <div class="compose-tweet-media-placeholder">
+                        <span>{file.name}</span>
+                      </div>
+                    {/if}
+                    <button class="compose-tweet-media-remove" type="button" on:click={() => removeFile(i)}>&times;</button>
+                  </div>
+                {/each}
+              </div>
             </div>
           {/if}
 
           {#if errorMessage}
-            <div class="text-red-500 text-sm mb-3">{errorMessage}</div>
+            <div class="compose-tweet-error">{errorMessage}</div>
           {/if}
 
-          <div class="mb-3">
-            <div class="flex justify-between items-center mb-2">
-              <span class="text-sm font-medium {isDarkMode ? 'text-gray-300' : 'text-gray-700'}">Category</span>
+          <div class="compose-tweet-category">
+            <div class="compose-tweet-category-header">
+              <span class="compose-tweet-category-label">Category</span>
             </div>
             
             {#if selectedCategory}
-              <div class="flex flex-wrap gap-2 mb-2">
-                <div class="category-tag {isDarkMode ? 'category-tag-dark' : ''}">
+              <div class="compose-tweet-category-tags">
+                <div class="compose-tweet-category-tag {isDarkMode ? 'compose-tweet-category-tag-dark' : ''}">
                   {selectedCategory}
-                  <button class="ml-1 text-sm" on:click={clearCategory}>×</button>
+                  <button class="compose-tweet-category-remove" on:click={clearCategory}>×</button>
                 </div>
               </div>
             {/if}
             
-            <div class="relative">
+            <div class="compose-tweet-category-input-wrapper">
               <input 
                 type="text" 
                 placeholder="Select a category" 
                 bind:value={categoryInput} 
                 on:keydown={handleCategoryKeydown}
-                class="compose-category-input {isDarkMode ? 'compose-category-input-dark' : ''}"
+                class="compose-tweet-category-input {isDarkMode ? 'compose-tweet-category-input-dark' : ''}"
                 aria-label="Select a category"
               />
               
               {#if filteredCategories.length > 0 && categoryInput.trim()}
-                <div class="category-dropdown {isDarkMode ? 'category-dropdown-dark' : ''}">
+                <div class="compose-tweet-category-dropdown {isDarkMode ? 'compose-tweet-category-dropdown-dark' : ''}">
                   {#each filteredCategories as category}
                     <button 
-                      class="category-option {isDarkMode ? 'category-option-dark' : ''}" 
+                      class="compose-tweet-category-option {isDarkMode ? 'compose-tweet-category-option-dark' : ''}" 
                       on:click={() => setCategory(category.name)}
                     >
                       {category.name}
@@ -404,15 +430,15 @@
             </div>
             
             {#if showSuggestions && suggestedCategories.length > 0}
-              <div class="mt-2">
-                <div class="flex items-center gap-1 mb-1">
+              <div class="compose-tweet-suggestions">
+                <div class="compose-tweet-suggestions-header">
                   <ZapIcon size="14" color="#FBBF24" />
-                  <span class="text-xs {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Other suggested categories:</span>
+                  <span class="compose-tweet-suggestions-label">Other suggested categories:</span>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div class="compose-tweet-suggestions-tags">
                   {#each suggestedCategories as category}
                     <button 
-                      class="suggested-category-tag {isDarkMode ? 'suggested-category-tag-dark' : ''}"
+                      class="compose-tweet-suggestion-tag {isDarkMode ? 'compose-tweet-suggestion-tag-dark' : ''}"
                       on:click={() => selectSuggestedCategory(category)}
                     >
                       {category}
@@ -423,17 +449,17 @@
             {/if}
             
             {#if isLoadingSuggestions}
-              <div class="mt-2 flex items-center gap-1">
-                <div class="loading-spinner"></div>
-                <span class="text-xs {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Analyzing content...</span>
+              <div class="compose-tweet-loading">
+                <div class="compose-tweet-loading-spinner"></div>
+                <span class="compose-tweet-loading-text">Analyzing content...</span>
               </div>
             {/if}
           </div>
 
-          <div class="mb-3">
+          <div class="compose-tweet-reply-settings">
             <select 
               bind:value={replyPermission} 
-              class="compose-reply-select {isDarkMode ? 'compose-reply-select-dark' : ''}"
+              class="compose-tweet-reply-select {isDarkMode ? 'compose-tweet-reply-select-dark' : ''}"
             >
               <option value="everyone">Everyone can reply</option>
               <option value="following">Accounts you follow</option>
@@ -441,28 +467,28 @@
             </select>
           </div>
 
-          <div class="compose-controls {isDarkMode ? 'compose-controls-dark' : ''}">
-            <div class="flex flex-1 gap-1">
-              <input type="file" multiple accept="image/*,video/*,.gif" on:change={handleFileChange} class="hidden" id="file-upload" />
-              <label for="file-upload" class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add media">
+          <div class="compose-tweet-actions">
+            <div class="compose-tweet-tools">
+              <input type="file" multiple accept="image/*,video/*,.gif" on:change={handleFileChange} class="compose-tweet-file-input" id="file-upload" />
+              <label for="file-upload" class="compose-tweet-tool" title="Add media">
                 <ImageIcon size="18" />
               </label>
-              <button class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add poll">
+              <button class="compose-tweet-tool" title="Add poll">
                 <BarChart2Icon size="18" />
               </button>
-              <button class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add emoji">
+              <button class="compose-tweet-tool" title="Add emoji">
                 <SmileIcon size="18" />
               </button>
-              <button class="compose-action-btn {isDarkMode ? 'compose-action-btn-dark' : ''}" title="Add location">
+              <button class="compose-tweet-tool" title="Add location">
                 <MapPinIcon size="18" />
               </button>
               {#if files.length > 0}
-                <span class="text-xs self-center ml-2 {isDarkMode ? 'text-gray-400' : 'text-gray-500'}">{files.length} {files.length === 1 ? 'file' : 'files'}</span>
+                <span class="compose-tweet-file-count">{files.length} {files.length === 1 ? 'file' : 'files'}</span>
               {/if}
             </div>
             <button 
               on:click={handlePost}
-              class="compose-submit-btn"
+              class="compose-tweet-submit"
               disabled={newTweet.trim() === '' || wordCount > maxWords || isPosting}
             >
               {isPosting ? 'Posting...' : 'Post'}
@@ -475,303 +501,5 @@
 </div>
 
 <style>
-  .modal-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-  }
-  
-  .modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-  }
-  
-  .modal-content {
-    position: relative;
-    width: 100%;
-    max-width: 600px;
-    border-radius: 16px;
-    overflow: hidden;
-    background-color: white;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  
-  .modal-content-dark {
-    background-color: #1a202c;
-  }
-  
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
-  }
-  
-  .modal-header-dark {
-    border-bottom: 1px solid #374151;
-  }
-  
-  .modal-body {
-    padding: 1rem;
-  }
-  
-  .compose-textarea {
-    width: 100%;
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
-    border: none;
-    resize: none;
-    background-color: transparent;
-    font-size: 1.25rem;
-    outline: none;
-    color: #1f2937;
-  }
-  
-  .compose-textarea-dark {
-    color: #f3f4f6;
-  }
-  
-  .compose-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 0.5rem;
-    border-top: 1px solid #e5e7eb;
-  }
-  
-  .compose-controls-dark {
-    border-top: 1px solid #374151;
-  }
-  
-  .compose-action-btn {
-    padding: 0.5rem;
-    border-radius: 9999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #3b82f6;
-    transition: background-color 0.2s;
-  }
-  
-  .compose-action-btn:hover {
-    background-color: rgba(59, 130, 246, 0.1);
-  }
-  
-  .compose-action-btn-dark {
-    color: #60a5fa;
-  }
-  
-  .compose-action-btn-dark:hover {
-    background-color: rgba(96, 165, 250, 0.1);
-  }
-  
-  .compose-submit-btn {
-    padding: 0.5rem 1rem;
-    border-radius: 9999px;
-    background-color: #3b82f6;
-    color: white;
-    font-weight: 700;
-    transition: background-color 0.2s;
-  }
-  
-  .compose-submit-btn:hover:not(:disabled) {
-    background-color: #2563eb;
-  }
-  
-  .compose-submit-btn:disabled {
-    background-color: #93c5fd;
-    cursor: not-allowed;
-  }
-  
-  .compose-word-circle {
-    position: relative;
-    width: 2rem;
-    height: 2rem;
-  }
-  
-  .compose-word-circle-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  
-  .compose-word-limit {
-    color: #ef4444;
-  }
-  
-  .compose-file-preview {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  
-  .compose-file-thumb {
-    position: relative;
-    width: 100px;
-    height: 100px;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    background-color: #f3f4f6;
-    border: 1px solid #e5e7eb;
-  }
-  
-  .compose-file-thumb-dark {
-    background-color: #374151;
-    border: 1px solid #4b5563;
-  }
-  
-  .compose-file-remove {
-    position: absolute;
-    top: 0.25rem;
-    right: 0.25rem;
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 9999px;
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    font-weight: 700;
-  }
-  
-  .compose-category-input,
-  .compose-reply-select {
-    width: 100%;
-    padding: 0.5rem;
-    border-radius: 0.375rem;
-    border: 1px solid #e5e7eb;
-    background-color: white;
-    color: #1f2937;
-    font-size: 0.875rem;
-  }
-  
-  .compose-category-input-dark,
-  .compose-reply-select-dark {
-    border: 1px solid #4b5563;
-    background-color: #1a202c;
-    color: #f3f4f6;
-  }
-
-  .category-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.5rem;
-    background-color: #e5e7eb;
-    color: #1f2937;
-    border-radius: 9999px;
-    font-size: 0.875rem;
-  }
-  
-  .category-tag-dark {
-    background-color: #374151;
-    color: #f3f4f6;
-  }
-  
-  .category-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background-color: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    margin-top: 0.25rem;
-    max-height: 12rem;
-    overflow-y: auto;
-    z-index: 10;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  
-  .category-dropdown-dark {
-    background-color: #1a202c;
-    border: 1px solid #4b5563;
-  }
-  
-  .category-option {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 0.5rem;
-    color: #1f2937;
-  }
-  
-  .category-option:hover {
-    background-color: #f3f4f6;
-  }
-  
-  .category-option-dark {
-    color: #f3f4f6;
-  }
-  
-  .category-option-dark:hover {
-    background-color: #374151;
-  }
-
-  .suggested-category-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.5rem;
-    background-color: rgba(59, 130, 246, 0.15);
-    color: #1f2937;
-    border: 1px dashed #3b82f6;
-    border-radius: 9999px;
-    font-size: 0.875rem;
-    margin-top: 0.25rem;
-    margin-right: 0.25rem;
-    transition: all 0.2s ease;
-  }
-  
-  .suggested-category-tag:hover {
-    background-color: rgba(59, 130, 246, 0.25);
-    border-style: solid;
-  }
-  
-  .suggested-category-tag-dark {
-    background-color: rgba(96, 165, 250, 0.15);
-    color: #f3f4f6;
-    border-color: #60a5fa;
-  }
-  
-  .suggested-category-tag-dark:hover {
-    background-color: rgba(96, 165, 250, 0.25);
-  }
-  
-  .loading-spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(59, 130, 246, 0.3);
-    border-radius: 50%;
-    border-top-color: #3b82f6;
-    animation: spin 1s linear infinite;
-  }
-  
-  .loading-spinner-sm {
-    width: 10px;
-    height: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  /* All the existing style can be removed since we're now using the component CSS classes from compose-tweet.css */
 </style>

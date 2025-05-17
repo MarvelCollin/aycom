@@ -1,0 +1,210 @@
+/* Notification components styles */
+
+/* Notifications container */
+.notifications-container {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+/* Notifications header */
+.notifications-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-primary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: var(--z-sticky);
+}
+
+.notifications-title {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+}
+
+/* Notifications tabs */
+.notifications-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.notifications-tab {
+  flex: 1;
+  padding: var(--space-3) 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+}
+
+.notifications-tab.active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.notifications-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 4px;
+  border-radius: 9999px;
+  background-color: var(--color-primary);
+}
+
+/* Notification item */
+.notification-item {
+  display: flex;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+  transition: background-color var(--transition-fast);
+}
+
+.notification-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.notification-item.unread::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+}
+
+/* Notification type icon */
+.notification-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--space-3);
+  flex-shrink: 0;
+}
+
+.notification-icon.like {
+  color: white;
+  background-color: var(--color-danger);
+}
+
+.notification-icon.retweet {
+  color: white;
+  background-color: var(--color-success);
+}
+
+.notification-icon.follow {
+  color: white;
+  background-color: var(--color-primary);
+}
+
+.notification-icon.mention {
+  color: white;
+  background-color: var(--color-primary);
+}
+
+/* Notification content */
+.notification-content {
+  flex: 1;
+}
+
+.notification-users {
+  display: flex;
+  margin-bottom: var(--space-1);
+}
+
+.notification-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+  object-fit: cover;
+  margin-right: -8px;
+}
+
+.notification-avatar:last-child {
+  margin-right: 0;
+}
+
+.notification-text {
+  margin-top: var(--space-2);
+  color: var(--text-primary);
+}
+
+.notification-user {
+  font-weight: 700;
+}
+
+.notification-action {
+  color: var(--text-secondary);
+}
+
+.notification-content-preview {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: background-color var(--transition-fast);
+}
+
+.notification-content-preview:hover {
+  background-color: var(--hover-bg);
+}
+
+.notification-time {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-1);
+}
+
+/* Empty notifications state */
+.notifications-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+  text-align: center;
+}
+
+.notifications-empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-4);
+  color: var(--text-tertiary);
+}
+
+.notifications-empty-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.notifications-empty-message {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+  max-width: 300px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+  .notification-item {
+    padding: var(--space-3);
+  }
+  
+  .notifications-empty {
+    padding: var(--space-6);
+  }
+} 

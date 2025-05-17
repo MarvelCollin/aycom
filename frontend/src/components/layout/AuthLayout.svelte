@@ -3,10 +3,12 @@
   import Logo from '../common/Logo.svelte';
   import Toast from '../common/Toast.svelte';
   import { onMount } from 'svelte';
+  import lightLogo from '../../assets/logo/light-logo.jpeg';
+  import darkLogo from '../../assets/logo/dark-logo.jpeg';
   
   export let title = '';
   export let showLogo = true;
-  export let showCloseButton = true;
+  export let showCloseButton = false;
   export let showBackButton = false;
   export let onBack = () => {};
   
@@ -25,51 +27,51 @@
 <!-- Render the Toast component here -->
 <Toast />
 
-<div class="theme-container {isDarkMode ? 'dark-mode' : 'light-mode'} min-h-screen w-full flex justify-center items-center p-4">
-  <div class="{isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'} w-full max-w-md rounded-lg shadow-lg p-6 transition-colors">
-    <div class="flex items-center justify-between mb-6">
-      {#if showBackButton}
-        <button 
-          class="text-blue-500 hover:text-blue-600 transition-colors"
-          on:click={onBack}
-          data-cy="back-button"
-          aria-label="Go back"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-        </button>
-      {:else if showCloseButton}
-        <a 
-          href="/" 
-          class="text-blue-500 hover:text-blue-600 transition-colors" 
-          data-cy="close-button"
-          aria-label="Close"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </a>
+<div class="auth-container {isDarkMode ? 'auth-container-dark' : ''}">
+  <div class="auth-left">
+    <div class="auth-left-logo">
+      {#if isDarkMode}
+        <img src={lightLogo} alt="AYCOM Logo" class="auth-logo-image" />
       {:else}
-        <div class="w-6"></div> <!-- spacer -->
+        <img src={darkLogo} alt="AYCOM Logo" class="auth-logo-image" />
       {/if}
-      
-      {#if showLogo}
-        <div class="mx-auto">
-          <Logo size="small" />
-        </div>
-      {:else}
-        <div></div> <!-- empty div for flex layout -->
-      {/if}
-      
-      <div class="w-6"></div> <!-- spacer for balance -->
     </div>
-    
-    {#if title}
-      <h1 class="text-2xl font-bold mb-6 text-center" data-cy="page-title">{title}</h1>
-    {/if}
-    
-    <slot />
+    <div class="auth-left-bg"></div>
+  </div>
+  
+  <div class="auth-right">
+    <div class="auth-form">
+      <div class="auth-header">
+        {#if showBackButton}
+          <button 
+            class="text-blue-500 hover:text-blue-600 transition-colors absolute top-4 left-4"
+            on:click={onBack}
+            data-cy="back-button"
+            aria-label="Go back"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+        {/if}
+        
+        {#if showLogo}
+          <div class="auth-logo">
+            {#if isDarkMode}
+              <img src={lightLogo} alt="AYCOM Logo" class="auth-header-logo-image" />
+            {:else}
+              <img src={darkLogo} alt="AYCOM Logo" class="auth-header-logo-image" />
+            {/if}
+          </div>
+        {/if}
+        
+        {#if title}
+          <h1 class="auth-title" data-cy="page-title">{title}</h1>
+        {/if}
+      </div>
+      
+      <slot />
+    </div>
   </div>
 </div>
 
@@ -78,6 +80,25 @@
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  .auth-left-logo {
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .auth-logo-image {
+    width: 60%;
+    height: auto;
+    max-width: 400px;
+  }
+  
+  .auth-header-logo-image {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
   }
   
   /* Apply these styles to auth buttons so they look more like Twitter */
