@@ -101,8 +101,17 @@ func UpdateUserProfile(c *gin.Context) {
 
 	var input struct {
 		Name              string `json:"name"`
+		DisplayName       string `json:"displayName"` // Frontend uses displayName
 		Bio               string `json:"bio"`
+		Email             string `json:"email"`
+		DateOfBirth       string `json:"dateOfBirth"` // Frontend uses dateOfBirth (camelCase)
+		Gender            string `json:"gender"`
 		ProfilePictureURL string `json:"profile_picture_url"`
+		ProfilePicture    string `json:"profilePicture"` // Alternative name
+		Avatar            string `json:"avatar"`         // Alternative name
+		BannerURL         string `json:"banner_url"`
+		Banner            string `json:"banner"`           // Alternative name
+		BackgroundBanner  string `json:"backgroundBanner"` // Alternative name
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -110,10 +119,38 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
+	// Use displayName if name is not provided
+	name := input.Name
+	if name == "" && input.DisplayName != "" {
+		name = input.DisplayName
+	}
+
+	// Check all possible profile picture field names
+	profilePictureURL := input.ProfilePictureURL
+	if profilePictureURL == "" && input.ProfilePicture != "" {
+		profilePictureURL = input.ProfilePicture
+	}
+	if profilePictureURL == "" && input.Avatar != "" {
+		profilePictureURL = input.Avatar
+	}
+
+	// Check all possible banner field names
+	bannerURL := input.BannerURL
+	if bannerURL == "" && input.Banner != "" {
+		bannerURL = input.Banner
+	}
+	if bannerURL == "" && input.BackgroundBanner != "" {
+		bannerURL = input.BackgroundBanner
+	}
+
 	profileUpdate := &UserProfileUpdate{
-		Name:              input.Name,
+		Name:              name,
 		Bio:               input.Bio,
-		ProfilePictureURL: input.ProfilePictureURL,
+		Email:             input.Email,
+		DateOfBirth:       input.DateOfBirth,
+		Gender:            input.Gender,
+		ProfilePictureURL: profilePictureURL,
+		BannerURL:         bannerURL,
 	}
 
 	updatedUser, err := userServiceClient.UpdateUserProfile(userIDStr, profileUpdate)

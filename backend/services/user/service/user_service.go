@@ -207,6 +207,8 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUse
 	}
 
 	updated := false
+
+	// Handle direct fields
 	if req.Name != "" {
 		user.Name = req.Name
 		updated = true
@@ -218,6 +220,31 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUse
 	if req.BannerUrl != "" {
 		user.BannerURL = req.BannerUrl
 		updated = true
+	}
+	if req.Email != "" {
+		user.Email = req.Email
+		updated = true
+	}
+
+	// Handle fields from the User object
+	if req.User != nil {
+		if req.User.Bio != "" {
+			user.Bio = req.User.Bio
+			updated = true
+		}
+		if req.User.Gender != "" {
+			user.Gender = req.User.Gender
+			updated = true
+		}
+		if req.User.DateOfBirth != "" {
+			// Convert string date to time.Time if needed
+			if date, err := time.Parse("2006-01-02", req.User.DateOfBirth); err == nil {
+				user.DateOfBirth = &date
+				updated = true
+			} else {
+				log.Printf("Warning: Invalid date format for DateOfBirth: %s", req.User.DateOfBirth)
+			}
+		}
 	}
 
 	if !updated {

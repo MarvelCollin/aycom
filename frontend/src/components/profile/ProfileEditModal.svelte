@@ -47,11 +47,23 @@
   
   onMount(() => {
     if (profile) {
-      // Handle profile picture URL - directly use the URL without formatting
-      profilePicturePreview = profile.profile_picture_url || profile.profile_picture || profile.avatar || DEFAULT_AVATAR;
+      // Handle all possible profile picture field names
+      profilePicturePreview = 
+        profile.profile_picture_url || 
+        profile.profilePictureUrl || 
+        profile.profile_picture || 
+        profile.profilePicture || 
+        profile.avatar || 
+        DEFAULT_AVATAR;
       
-      // Handle banner URL - directly use the URL without formatting
-      bannerPreview = profile.banner_url || profile.banner || profile.background_banner_url || '';
+      // Handle all possible banner field names
+      bannerPreview = 
+        profile.banner_url || 
+        profile.bannerUrl || 
+        profile.banner || 
+        profile.background_banner_url || 
+        profile.backgroundBanner || 
+        '';
       
       console.log('[ProfileEditModal] Profile data:', {
         profilePicture: profilePicturePreview,

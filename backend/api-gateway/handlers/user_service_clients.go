@@ -66,7 +66,11 @@ type User struct {
 type UserProfileUpdate struct {
 	Name              string
 	Bio               string
+	Email             string
+	DateOfBirth       string
+	Gender            string
 	ProfilePictureURL string
+	BannerURL         string
 }
 
 // UserAuthResponse contains authentication response data
@@ -192,13 +196,23 @@ func (c *GRPCUserServiceClient) UpdateUserProfile(userID string, profile *UserPr
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Create a user object with only fields supported by the UpdateUserRequest
-	// and exclude Bio which is causing the "unknown field" error
-	resp, err := c.client.UpdateUser(ctx, &userProto.UpdateUserRequest{
+	// Only include fields that exist in the UpdateUserRequest proto message
+	req := &userProto.UpdateUserRequest{
 		UserId:            userID,
 		Name:              profile.Name,
+		Email:             profile.Email,
 		ProfilePictureUrl: profile.ProfilePictureURL,
-	})
+		BannerUrl:         profile.BannerURL,
+	}
+
+	// Create a user object with all the fields that need to be updated
+	req.User = &userProto.User{
+		Bio:         profile.Bio,
+		Gender:      profile.Gender,
+		DateOfBirth: profile.DateOfBirth,
+	}
+
+	resp, err := c.client.UpdateUser(ctx, req)
 	if err != nil {
 		return nil, err
 	}

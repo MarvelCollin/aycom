@@ -15,7 +15,9 @@ export interface IUserProfile {
   avatar?: string;
   banner?: string;
   profile_picture?: string;
+  profile_picture_url?: string;
   background_banner_url?: string;
+  banner_url?: string;
   verified: boolean;
   followerCount: number;
   followingCount: number;

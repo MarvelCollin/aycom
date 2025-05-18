@@ -29,13 +29,30 @@ export async function getProfile() {
 export async function updateProfile(data: Record<string, any>) {
   const token = getAuthToken();
   
+  console.log('Updating profile with data:', data);
+  
+  // Ensure we have consistent field names with what the backend expects
+  const formattedData = {
+    ...data,
+    // Convert displayName to name if present
+    name: data.displayName || data.name,
+    // Convert dateOfBirth to date_of_birth if present
+    date_of_birth: data.dateOfBirth || data.date_of_birth,
+    // Handle profile picture fields
+    profile_picture_url: data.profilePicture || data.profile_picture_url || data.profile_picture || data.avatar,
+    // Handle banner fields
+    banner_url: data.backgroundBanner || data.banner_url || data.banner,
+  };
+  
+  console.log('Formatted profile update data:', formattedData);
+  
   const response = await fetch(`${API_BASE_URL}/users/profile`, {
     method: "PUT",
     headers: { 
       "Content-Type": "application/json",
       "Authorization": token ? `Bearer ${token}` : ''
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(formattedData),
     credentials: "include",
   });
   if (!response.ok) {

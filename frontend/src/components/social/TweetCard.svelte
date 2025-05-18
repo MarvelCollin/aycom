@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import type { ITweet } from '../../interfaces/ISocialMedia.d.ts';
   import { toastStore } from '../../stores/toastStore';
+  import { tweetInteractionStore } from '../../stores/tweetStore';
   import { formatTimeAgo, processUserMetadata } from '../../utils/common';
   import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark, getReplyReplies } from '../../api/thread';
   
@@ -38,6 +39,46 @@
   $: processedTweet = processTweetContent(tweet);
   
   $: processedReplies = replies.map(reply => processTweetContent(reply));
+  
+  // Subscribe to the tweet interaction store
+  let storeInteraction: any = undefined;
+  $: tweetId = typeof processedTweet.id === 'number' ? String(processedTweet.id) : processedTweet.id;
+  
+  // Initialize the tweet in the store on mount
+  onMount(() => {
+    if (processedTweet) {
+      tweetInteractionStore.initTweet(processedTweet);
+    }
+  });
+
+  // When processedTweet changes, make sure it's initialized in the store
+  $: if (processedTweet && processedTweet.id) {
+    tweetInteractionStore.initTweet(processedTweet);
+  }
+
+  // Subscribe to the store for this specific tweet
+  $: {
+    if (tweetId) {
+      tweetInteractionStore.subscribe(store => {
+        storeInteraction = store.interactions.get(tweetId);
+      });
+    }
+  }
+
+  // Use store values for interaction counts and status if available
+  $: effectiveIsLiked = storeInteraction?.isLiked ?? isLiked;
+  $: effectiveIsReposted = storeInteraction?.isReposted ?? isReposted;
+  $: effectiveIsBookmarked = storeInteraction?.isBookmarked ?? isBookmarked;
+  
+  // For count values, use the store if available, otherwise use the tweet's values
+  $: effectiveLikes = storeInteraction?.likes ?? parseCount(processedTweet.likes);
+  $: effectiveReplies = storeInteraction?.replies ?? parseCount(processedTweet.replies);
+  $: effectiveReposts = storeInteraction?.reposts ?? parseCount(processedTweet.reposts);
+  $: effectiveBookmarks = storeInteraction?.bookmarks ?? parseCount(processedTweet.bookmarks);
+  
+  // Update the conditional rendering logic to make the replies toggle more visible
+  // First, modify how we determine if a tweet has replies
+  $: hasReplies = effectiveReplies > 0 || parseCount(processedTweet.replies) > 0;
   
   function isValidUsername(username: string | undefined | null): boolean {
     return !!username && 
@@ -341,12 +382,41 @@
     }
   }
 
+  // Helper function to safely parse interaction counts
+  function parseCount(value: any): number {
+    if (value === undefined || value === null) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = parseInt(value, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  }
+  
+  // Safely convert a value to string for event dispatching
+  function safeToString(value: any): string {
+    if (value === undefined || value === null) return '';
+    return String(value);
+  }
+
   function handleReply() {
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to reply to posts', 'info');
       return;
     }
-    dispatch('reply', processedTweet.id);
+    
+    console.log(`Triggering reply for tweet: ${processedTweet.id}`);
+    
+    // Add visual feedback for the click
+    const replyBtn = document.querySelector('.tweet-reply-btn');
+    if (replyBtn) {
+      replyBtn.classList.add('clicked');
+      setTimeout(() => {
+        replyBtn.classList.remove('clicked');
+      }, 300);
+    }
+    
+    dispatch('reply', safeToString(processedTweet.id));
   }
 
   async function handleRetweet() {
@@ -354,7 +424,10 @@
       toastStore.showToast('Please log in to repost', 'info');
       return;
     }
-    dispatch('repost', processedTweet.id);
+
+    // Update the repost state through the store
+    tweetInteractionStore.updateRepost(tweetId, !effectiveIsReposted);
+    dispatch('repost', tweetId);
   }
 
   async function handleLike() {
@@ -364,29 +437,31 @@
     }
     
     try {
-      if (isLiked) {
-        // Optimistic UI update
-        const prevLikeCount = processedTweet.likes;
-        dispatch('unlike', processedTweet.id);
+      if (effectiveIsLiked) {
+        // Optimistic UI update through the store
+        tweetInteractionStore.updateLike(tweetId, false);
+        dispatch('unlike', tweetId);
         
         // Call API
-        await unlikeThread(processedTweet.id);
+        await unlikeThread(tweetId);
       } else {
-        // Optimistic UI update
-        const prevLikeCount = processedTweet.likes;
-        dispatch('like', processedTweet.id);
+        // Optimistic UI update through the store
+        tweetInteractionStore.updateLike(tweetId, true);
+        dispatch('like', tweetId);
         
         // Call API
-        await likeThread(processedTweet.id);
+        await likeThread(tweetId);
       }
     } catch (error) {
       console.error('Error in handleLike:', error);
-      // Revert the optimistic update by dispatching the opposite event
-      if (isLiked) {
-        dispatch('like', processedTweet.id);
+      // Revert the optimistic update
+      if (effectiveIsLiked) {
+        tweetInteractionStore.updateLike(tweetId, true);
+        dispatch('like', tweetId);
         toastStore.showToast('Failed to unlike. Please try again.', 'error');
       } else {
-        dispatch('unlike', processedTweet.id);
+        tweetInteractionStore.updateLike(tweetId, false);
+        dispatch('unlike', tweetId);
         toastStore.showToast('Failed to like. Please try again.', 'error');
       }
     }
@@ -398,30 +473,34 @@
       return;
     }
     
-    console.log(`Bookmark action - current status: ${isBookmarked ? 'bookmarked' : 'not bookmarked'}`);
+    console.log(`Bookmark action - current status: ${effectiveIsBookmarked ? 'bookmarked' : 'not bookmarked'}`);
     
     try {
-      if (isBookmarked) {
-        // Optimistic UI update
-        dispatch('removeBookmark', processedTweet.id);
+      if (effectiveIsBookmarked) {
+        // Optimistic UI update through the store
+        tweetInteractionStore.updateBookmark(tweetId, false);
+        dispatch('removeBookmark', tweetId);
         
         // Call API
-        await removeBookmark(processedTweet.id);
+        await removeBookmark(tweetId);
       } else {
-        // Optimistic UI update
-        dispatch('bookmark', processedTweet.id);
+        // Optimistic UI update through the store
+        tweetInteractionStore.updateBookmark(tweetId, true);
+        dispatch('bookmark', tweetId);
         
         // Call API
-        await bookmarkThread(processedTweet.id);
+        await bookmarkThread(tweetId);
       }
     } catch (error) {
       console.error('Error in handleBookmark:', error);
-      // Revert the optimistic update by dispatching the opposite event
-      if (isBookmarked) {
-        dispatch('bookmark', processedTweet.id);
+      // Revert the optimistic update
+      if (effectiveIsBookmarked) {
+        tweetInteractionStore.updateBookmark(tweetId, true);
+        dispatch('bookmark', tweetId);
         toastStore.showToast('Failed to remove bookmark. Please try again.', 'error');
       } else {
-        dispatch('removeBookmark', processedTweet.id);
+        tweetInteractionStore.updateBookmark(tweetId, false);
+        dispatch('removeBookmark', tweetId);
         toastStore.showToast('Failed to bookmark. Please try again.', 'error');
       }
     }
@@ -429,17 +508,26 @@
 
   function toggleReplies() {
     showReplies = !showReplies;
-    if (showReplies) {
+    
+    if (showReplies && (!replies || replies.length === 0)) {
       console.log('Loading replies for tweet:', processedTweet.id);
-      dispatch('loadReplies', processedTweet.id);
+      
+      // Show loading state
+      const replyContainer = document.getElementById(`replies-container-${tweetId}`);
+      if (replyContainer) {
+        replyContainer.classList.add('loading-replies');
+      }
+      
+      // Dispatch event to load replies
+      dispatch('loadReplies', safeToString(processedTweet.id));
       
       // Auto-load nested replies for all first-level replies when expanding
       if (replies && replies.length > 0 && nestingLevel === 0) {
         replies.forEach(async (reply) => {
-          if (reply.replies > 0) {
+          if (reply && reply.replies > 0) {
             try {
               // Ensure we have a string ID
-              const replyId = String(reply.id);
+              const replyId = safeToString(reply.id);
               const nestedRepliesData = await getReplyReplies(replyId);
               if (nestedRepliesData && nestedRepliesData.replies) {
                 nestedRepliesMap.set(replyId, nestedRepliesData.replies.map(r => processTweetContent(r)));
@@ -488,8 +576,8 @@
             const replyData = reply.reply || reply;
             const userData = reply.user || {};
             
-            // Build a standardized reply object
-            const enrichedReply = {
+            // Build a standardized reply object that satisfies ITweet interface
+            const enrichedReply: ITweet = {
               id: replyData.id,
               threadId: replyData.thread_id,
               content: replyData.content || '',
@@ -498,11 +586,13 @@
               username: userData.username || reply.author_username || reply.username || 'user',
               displayName: userData.name || userData.display_name || reply.author_name || reply.displayName || 'User',
               avatar: userData.profile_picture_url || reply.author_avatar || reply.avatar,
-              parentReplyId: replyData.parent_reply_id || replyId,
-              isLiked: reply.is_liked || false,
-              isBookmarked: reply.is_bookmarked || false,
-              likes: reply.likes_count || 0,
-              replies: reply.replies_count || 0
+              likes: parseCount(reply.likes_count || reply.like_count || reply.likes || 0),
+              replies: parseCount(reply.replies_count || reply.reply_count || reply.replies || 0),
+              reposts: parseCount(reply.reposts_count || reply.repost_count || reply.reposts || 0),
+              bookmarks: parseCount(reply.bookmarks_count || reply.bookmark_count || reply.bookmarks || 0),
+              views: String(reply.views_count || reply.view_count || reply.views || '0'),
+              isLiked: reply.is_liked || reply.isLiked || false,
+              isBookmarked: reply.is_bookmarked || reply.isBookmarked || false
             };
             
             // Process the tweet content (usernames, links, etc.)
@@ -931,48 +1021,62 @@
           
           <div class="tweet-actions {isDarkMode ? 'tweet-actions-dark' : ''}">
             <div class="tweet-action-item">
-              <button class="tweet-action-btn tweet-reply-btn {processedTweet.replies > 0 ? 'has-replies' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" on:click|stopPropagation={handleReply} aria-label="Reply to tweet">
+              <button 
+                class="tweet-action-btn tweet-reply-btn {hasReplies ? 'has-replies' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                on:click|stopPropagation={handleReply} 
+                aria-label="Reply to tweet"
+              >
                 <MessageCircleIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count {processedTweet.replies > 0 ? 'tweet-reply-count-highlight' : ''}">{isNaN(processedTweet.replies) ? 0 : processedTweet.replies}</span>
-                {#if processedTweet.replies > 0}
-                  <ChevronRightIcon size="14" class="tweet-reply-arrow" />
-                {/if}
+                <span class="tweet-action-count {hasReplies ? 'tweet-reply-count-highlight' : ''}">{effectiveReplies}</span>
               </button>
+              {#if !showReplies}
+                <button 
+                  class="view-replies-btn" 
+                  on:click|stopPropagation={toggleReplies}
+                  aria-label="View all replies"
+                >
+                  {#if hasReplies}
+                    View {effectiveReplies} {effectiveReplies === 1 ? 'reply' : 'replies'}
+                  {:else}
+                    View replies
+                  {/if}
+                </button>
+              {/if}
             </div>
             <div class="tweet-action-item">
               <button 
-                class="tweet-action-btn tweet-repost-btn {isReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                class="tweet-action-btn tweet-repost-btn {effectiveIsReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
                 on:click|stopPropagation={handleRetweet}
-                aria-label="{isReposted ? 'Undo repost' : 'Repost'}"
+                aria-label="{effectiveIsReposted ? 'Undo repost' : 'Repost'}"
               >
                 <RefreshCwIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count">{isNaN(processedTweet.reposts) ? 0 : processedTweet.reposts}</span>
+                <span class="tweet-action-count">{effectiveReposts}</span>
               </button>
             </div>
             <div class="tweet-action-item">
               <button 
-                class="tweet-action-btn tweet-like-btn {isLiked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
                 on:click|stopPropagation={handleLike}
-                aria-label="{isLiked ? 'Unlike' : 'Like'}"
+                aria-label="{effectiveIsLiked ? 'Unlike' : 'Like'}"
               >
-                <HeartIcon size="20" fill={isLiked ? "currentColor" : "none"} class="tweet-action-icon" />
-                <span class="tweet-action-count">{isNaN(processedTweet.likes) ? 0 : processedTweet.likes}</span>
+                <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon" />
+                <span class="tweet-action-count">{effectiveLikes}</span>
               </button>
             </div>
             <div class="tweet-action-item">
               <button 
-                class="tweet-action-btn tweet-bookmark-btn {isBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
                 on:click|stopPropagation={handleBookmark}
-                aria-label="{isBookmarked ? 'Remove bookmark' : 'Bookmark'}"
+                aria-label="{effectiveIsBookmarked ? 'Remove bookmark' : 'Bookmark'}"
               >
-                <BookmarkIcon size="20" fill={isBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
-                <span class="tweet-action-count">{isNaN(processedTweet.bookmarks) ? 0 : processedTweet.bookmarks}</span>
+                <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
+                <span class="tweet-action-count">{effectiveBookmarks}</span>
               </button>
             </div>
             <div class="tweet-action-item">
               <div class="tweet-views-count {isDarkMode ? 'tweet-views-count-dark' : ''}">
                 <EyeIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count">{typeof processedTweet.views === 'string' ? processedTweet.views : '0'}</span>
+                <span class="tweet-action-count">{processedTweet.views || '0'}</span>
               </div>
             </div>
           </div>
@@ -982,33 +1086,45 @@
   </div>
 </div>
 
-{#if nestingLevel === 0 && (replies.length > 0 || processedTweet.replies > 0)}
+{#if nestingLevel === 0}
   <div class="tweet-replies-toggle-container">
     <button 
       class="tweet-replies-toggle {isDarkMode ? 'tweet-replies-toggle-dark' : ''}"
       on:click|stopPropagation={toggleReplies}
       aria-expanded={showReplies}
-      aria-controls="replies-container"
+      aria-controls="replies-container-{tweetId}"
     >
       {#if showReplies}
         <ChevronUpIcon size="16" class="tweet-replies-toggle-icon" />
+        Hide replies
       {:else}
         <ChevronDownIcon size="16" class="tweet-replies-toggle-icon" />
-      {/if}
-      {#if replies.length > 0}
-        {showReplies ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
-      {:else}
-        {showReplies ? 'Hide replies' : 'Show replies'}
+        {#if hasReplies}
+          View replies ({effectiveReplies})
+        {:else}
+          View replies
+        {/if}
       {/if}
     </button>
   </div>
 {/if}
 
 {#if showReplies}
-  <div id="replies-container" class="tweet-replies-container {isDarkMode ? 'tweet-replies-container-dark' : ''}">
+  <div id="replies-container-{tweetId}" class="tweet-replies-container {isDarkMode ? 'tweet-replies-container-dark' : ''}">
     {#if replies.length === 0}
-      <div class="tweet-replies-loading {isDarkMode ? 'tweet-replies-loading-dark' : ''}">
-        <div class="tweet-replies-loading-indicator">Loading replies...</div>
+      <div class="tweet-replies-empty {isDarkMode ? 'tweet-replies-empty-dark' : ''}">
+        <div class="tweet-replies-empty-icon">
+          <MessageCircleIcon size="20" />
+        </div>
+        <div class="tweet-replies-empty-text">
+          No replies yet. Be the first to reply!
+        </div>
+        <button 
+          class="tweet-replies-empty-btn" 
+          on:click|stopPropagation={handleReply}
+        >
+          Reply
+        </button>
       </div>
     {:else}
       {#if replies.length > 0 && nestingLevel < MAX_NESTING_LEVEL}
@@ -1159,36 +1275,146 @@
     flex-shrink: 0;
   }
   
+  .tweet-actions {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    margin-top: 0.5rem;
+  }
+  
+  .tweet-actions-dark {
+    color: var(--text-secondary-dark);
+  }
+
+  .tweet-action-item {
+    display: flex;
+    align-items: center;
+  }
+
   .tweet-action-btn {
-    transition: all 0.2s;
-    background-color: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 50%;
+    cursor: pointer;
     color: var(--text-secondary);
+    transition: color 0.2s, background-color 0.2s;
+  }
+
+  .tweet-action-btn:hover {
+    background-color: rgba(29, 155, 240, 0.1);
+    color: var(--color-primary);
+  }
+
+  .tweet-action-btn.active {
+    color: var(--color-primary);
+  }
+
+  .tweet-action-icon {
+    margin-right: 0.25rem;
+  }
+
+  .tweet-action-count {
+    font-size: 0.875rem;
+  }
+
+  .view-replies-btn {
+    background-color: var(--hover-primary);
+    border: 1px solid var(--color-primary-light);
+    color: var(--color-primary);
+    font-size: 0.9rem;
+    margin-left: 0.75rem;
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-full);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .view-replies-btn:hover {
+    background-color: var(--color-primary-light);
+    transform: translateY(-2px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  }
+
+  .view-replies-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .tweet-replies-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.5rem;
+    background-color: var(--hover-primary);
     border: none;
+    color: var(--color-primary);
+    font-weight: 600;
+    padding: 0.75rem;
     cursor: pointer;
-    border-radius: var(--radius-full);
-    padding: 0.375rem 0.625rem;
+    width: 100%;
+    border-radius: var(--radius-md);
+    margin-top: 0.5rem;
+    transition: all 0.2s;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
-  
-  .tweet-action-btn-dark {
+
+  .tweet-replies-toggle:hover {
+    background-color: var(--color-primary-light);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  }
+
+  .tweet-replies-toggle-dark {
     background-color: var(--bg-secondary-dark);
-    color: var(--text-secondary-dark);
+    border-color: var(--border-color-dark);
+  }
+
+  .loading-replies {
+    position: relative;
+  }
+
+  .loading-replies::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-primary),
+      transparent
+    );
+    animation: loading-animation 1.5s infinite;
+  }
+
+  @keyframes loading-animation {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .tweet-reply-count-highlight {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .tweet-action-btn.clicked {
+    transform: scale(1.1);
+    transition: transform 0.2s;
   }
   
-  .tweet-action-btn:hover {
-    background-color: var(--hover-primary);
-    color: var(--color-primary);
-  }
-  
-  .tweet-action-btn-dark:hover {
-    background-color: var(--hover-primary);
-    color: var(--color-primary);
-  }
-  
-  .tweet-action-btn.active {
-    color: var(--color-primary);
+  .tweet-replies-toggle-icon {
+    transition: transform 0.2s;
   }
   
   .dark-btn {
@@ -1207,56 +1433,15 @@
     background-color: var(--hover-primary);
   }
   
-  .media-grid {
-    max-height: 300px;
-    overflow: hidden;
-    border-radius: var(--radius-md);
-  }
-  
-  .line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-  .animate-pulse {
-    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
   .reply-count {
     min-width: 1rem;
     text-align: center;
   }
-
-  .replies-container {
-    position: relative;
-  }
-
-  .replies-container:before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background-color: var(--border-color);
-    opacity: 0.4;
-  }
   
-  .tweet-card-dark .replies-container:before {
-    background-color: var(--border-color-dark);
-  }
-
   .has-replies {
     font-weight: 500;
   }
-
+  
   .count-badge {
     min-width: 1.5rem;
     text-align: center;
@@ -1299,5 +1484,49 @@
 
   .tweet-reply-action-btn-dark.active {
     color: var(--color-primary);
+  }
+
+  .tweet-replies-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    text-align: center;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin: 1rem 0;
+  }
+  
+  .tweet-replies-empty-dark {
+    background-color: var(--bg-secondary-dark);
+  }
+  
+  .tweet-replies-empty-icon {
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+  }
+  
+  .tweet-replies-empty-text {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+  
+  .tweet-replies-empty-btn {
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .tweet-replies-empty-btn:hover {
+    background-color: var(--color-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 </style>

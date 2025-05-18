@@ -517,7 +517,18 @@
     isUpdatingProfile = true;
     
     try {
-      const response = await updateProfile(updatedData);
+      // Map the form field names to what the backend API expects
+      const apiData = {
+        name: updatedData.displayName,      // Backend uses 'name' instead of 'displayName'
+        bio: updatedData.bio,
+        email: updatedData.email,
+        date_of_birth: updatedData.dateOfBirth,  // Backend uses snake_case 'date_of_birth'
+        gender: updatedData.gender
+        // profile_picture_url and banner_url are handled separately via their own handlers
+      };
+
+      console.log('Sending profile update:', apiData);
+      const response = await updateProfile(apiData);
       if (response && response.success) {
         toastStore.showToast('Profile updated successfully!', 'success');
         loadProfileData();
@@ -1255,8 +1266,8 @@
         username: profileData.username,
         displayName: profileData.displayName,
         bio: profileData.bio,
-        profile_picture: profileData.profilePicture,
-        banner: profileData.backgroundBanner,
+        profile_picture_url: profileData.profilePicture,
+        banner_url: profileData.backgroundBanner,
         email: profileData.email,
         dateOfBirth: profileData.dateOfBirth,
         gender: profileData.gender,
