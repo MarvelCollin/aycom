@@ -11,6 +11,7 @@
   import TweetCard from '../components/social/TweetCard.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import ProfileEditModal from '../components/profile/ProfileEditModal.svelte';
+  import { formatStorageUrl, isSupabaseStorageUrl } from '../utils/common';
   import type { ITweet } from '../interfaces/ISocialMedia';
   
   // Import Feather icons
@@ -87,13 +88,39 @@
   $: isDarkMode = $theme === 'dark';
   $: authState = getAuthState();
   
+  // Define default image URL for fallback
+  const DEFAULT_AVATAR = "https://secure.gravatar.com/avatar/0?d=mp";
+  
+  // Debug variable to store API response
+  let rawApiResponse = null;
+  let showDebugInfo = false;
+  
+  // Function to fetch and display raw API response
+  async function showRawApiData() {
+    try {
+      const response = await getProfile();
+      rawApiResponse = response;
+      console.log('Raw API response:', rawApiResponse);
+      showDebugInfo = true;
+      toastStore.showToast('API data fetched. Check console and debug panel.', 'info');
+    } catch (err) {
+      console.error('Failed to fetch API data:', err);
+      toastStore.showToast('Failed to fetch API data', 'error');
+    }
+  }
+  
+  // Function to toggle debug panel
+  function toggleDebugInfo() {
+    showDebugInfo = !showDebugInfo;
+  }
+  
   // Profile data
   let profileData = {
     id: '',
     username: '',
     displayName: '',
     bio: '',
-    profilePicture: '',
+    profilePicture: DEFAULT_AVATAR,
     backgroundBanner: '',
     followerCount: 0,
     followingCount: 0,
@@ -477,29 +504,34 @@
       }
       
       if (response && response.user) {
+        console.log('Raw profile data received:', response.user);
+        
+        // Extract user data exactly like in LeftSide.svelte
+        const userData = response.user;
+        
         profileData = {
-          id: response.user.id || '',
-          username: response.user.username || '',
-          displayName: response.user.display_name || '',
-          bio: response.user.bio || '',
-          profilePicture: response.user.profile_picture_url || '',
-          backgroundBanner: response.user.banner_url || response.user.background_banner_url || '',
-          followerCount: response.user.follower_count || 0,
-          followingCount: response.user.following_count || 0,
-          joinedDate: response.user.created_at ? new Date(response.user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
-          email: isOwnProfile ? (response.user.email || '') : '',
-          dateOfBirth: isOwnProfile ? (response.user.date_of_birth || '') : '',
-          gender: isOwnProfile ? (response.user.gender || '') : ''
+          id: userData.id || '',
+          username: userData.username || '',
+          displayName: userData.name || userData.display_name || '',
+          bio: userData.bio || '',
+          profilePicture: userData.profile_picture_url || DEFAULT_AVATAR,
+          backgroundBanner: userData.banner_url || userData.background_banner_url || '',
+          followerCount: userData.follower_count || 0,
+          followingCount: userData.following_count || 0,
+          joinedDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
+          email: isOwnProfile ? (userData.email || '') : '',
+          dateOfBirth: isOwnProfile ? (userData.date_of_birth || '') : '',
+          gender: isOwnProfile ? (userData.gender || '') : ''
         };
         
-        console.log('Profile data loaded:', profileData);
+        console.log('Profile loaded with avatar URL:', profileData.profilePicture);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      toastStore.showToast('Failed to load profile data. Please try again.', 'error');
+      errorMessage = 'Failed to load profile. Please try again later.';
+      toastStore.showToast('Failed to load profile. Please try again.', 'error');
     } finally {
       isLoading = false;
-      loadTabContent('posts');
     }
   }
   
@@ -522,6 +554,20 @@
       isUpdatingProfile = false;
       showEditModal = false;
     }
+  }
+  
+  // Handler for profile picture updated event
+  function handleProfilePictureUpdated(e) {
+    const url = e.detail.url;
+    profileData = { ...profileData, profilePicture: url };
+    console.log('Profile picture updated:', getProfileImageUrl(url));
+  }
+  
+  // Handler for banner updated event
+  function handleBannerUpdated(e) {
+    const url = e.detail.url;
+    profileData = { ...profileData, backgroundBanner: url };
+    console.log('Banner updated:', getBannerImageUrl(url));
   }
   
   async function handleLike(event) {
@@ -860,18 +906,146 @@
     toastStore.showToast('Unrepost functionality not implemented yet', 'info');
   }
   
+  // Get profile picture URL ensuring it's a full URL
+  function getProfileImageUrl(url) {
+    if (!url || url === '') {
+      console.log('No profile image URL provided, using default');
+      return DEFAULT_AVATAR;
+    }
+    
+    console.log('Processing profile image URL:', url);
+    const formattedUrl = formatStorageUrl(url);
+    console.log('Formatted profile image URL:', formattedUrl);
+    return formattedUrl;
+  }
+
+  // Get banner image URL ensuring it's a full URL
+  function getBannerImageUrl(url) {
+    if (!url || url === '') {
+      console.log('No banner image URL provided, using default');
+      return DEFAULT_AVATAR;
+    }
+    
+    console.log('Processing banner image URL:', url);
+    const formattedUrl = formatStorageUrl(url);
+    console.log('Formatted banner image URL:', formattedUrl);
+    return formattedUrl;
+  }
+  
+  // Function to check localStorage for user data - for debugging
+  function checkLocalStorage() {
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        console.log("User data from localStorage:", user);
+        
+        if (user.profile_picture_url) {
+          console.log("Found profile picture in localStorage:", user.profile_picture_url);
+          profileData.profilePicture = user.profile_picture_url;
+        }
+        
+        if (user.banner_url) {
+          console.log("Found banner in localStorage:", user.banner_url);
+          profileData.backgroundBanner = user.banner_url;
+        }
+        
+        // Force refreshing the profile data
+        profileData = {...profileData};
+        
+        toastStore.showToast("Local user data loaded", "info");
+      } else {
+        console.log("No user data found in localStorage");
+        toastStore.showToast("No user data in localStorage", "warning");
+      }
+    } catch (error) {
+      console.error("Error accessing localStorage:", error);
+      toastStore.showToast("Error reading localStorage", "error");
+    }
+  }
+  
+  // Function to manually apply placeholder images
+  function applyPlaceholderImages() {
+    // Use the constants for default images
+    console.log("Applying placeholder images:");
+    console.log("Profile picture:", DEFAULT_AVATAR);
+    console.log("Banner:", DEFAULT_AVATAR);
+    
+    // Update profile data
+    profileData = {
+      ...profileData,
+      profilePicture: DEFAULT_AVATAR,
+      backgroundBanner: DEFAULT_AVATAR
+    };
+    
+    toastStore.showToast("Applied placeholder images", "success");
+  }
+  
+  // A simple fetch profile function that matches LeftSide.svelte approach
+  async function fetchProfile() {
+    if (!isAuthenticated()) {
+      console.log('User not authenticated, skipping profile fetch');
+      return;
+    }
+    
+    console.log('Fetching user profile using same approach as LeftSide...');
+    try {
+      const response = await getProfile();
+      
+      const userData = response.user || (response.data && response.data.user);
+      
+      if (userData) {
+        // Update profile data with the exact same structure as LeftSide.svelte
+        profileData = {
+          ...profileData,
+          username: userData.username || profileData.username,
+          displayName: userData.name || userData.display_name || profileData.displayName,
+          profilePicture: userData.profile_picture_url || DEFAULT_AVATAR,
+          id: userData.id || profileData.id,
+          bio: userData.bio || profileData.bio,
+          backgroundBanner: userData.banner_url || userData.background_banner_url || profileData.backgroundBanner,
+        };
+        
+        console.log('Profile loaded successfully using LeftSide approach:', {
+          username: profileData.username,
+          displayName: profileData.displayName,
+          avatar: profileData.profilePicture
+        });
+      } else {
+        console.warn('Response received but no user data found');
+      }
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err);
+      toastStore.showToast('Failed to load user profile. Please try again.', 'error');
+    }
+  }
+  
   onMount(async () => {
     try {
-      await loadProfileData();
-      // Only call troubleshooting for own profile
+      isLoading = true;
+      
+      // First try the simple approach that works in the sidebar
+      await fetchProfile();
+      
+      // Then load thread content
+      await loadTabContent(activeTab);
+      
+      // Only call troubleshooting for own profile if needed
       if (isOwnProfile) {
         await troubleshootPinnedThreads();
       }
-      await loadTabContent(activeTab);
+      
       console.log('UserProfile component mounted successfully');
+      console.log('Final profile data:', {
+        avatar: profileData.profilePicture,
+        banner: profileData.backgroundBanner
+      });
+      
     } catch (error) {
       console.error('Failed to load user profile:', error);
       errorMessage = 'Failed to load profile. Please try again later.';
+    } finally {
+      isLoading = false;
     }
   });
 </script>
@@ -879,139 +1053,137 @@
 <MainLayout
   username={profileData.username}
   displayName={profileData.displayName}
-  avatar={profileData.profilePicture}
+  avatar={profileData.profilePicture || DEFAULT_AVATAR}
 >
-  <div class="w-full min-h-screen border-x border-gray-200 dark:border-gray-800">
+  <div class="profile-container">
     {#if isLoading && !profileData.id}
       <LoadingSkeleton type="profile" />
     {:else}
-      <div class="w-full h-48 overflow-hidden relative">
-        {#if profileData.backgroundBanner}
+      <!-- Profile Header Container -->
+      <div class="profile-header-container">
+        <div class="profile-banner-wrapper">
           <img 
-            src={profileData.backgroundBanner} 
-            alt="Banner" 
-            class="w-full h-full object-cover"
+            src={profileData.backgroundBanner || '/assets/default-banner.jpg'} 
+            alt="Profile banner" 
+            class="profile-banner"
           />
-        {:else}
-          <div class="w-full h-full bg-blue-500"></div>
-        {/if}
+        </div>
       </div>
       
-      <div class="flex justify-between px-4 -mt-16 relative z-10">
-        <div class="relative">
+      <!-- Profile Info Section -->
+      <div class="profile-info-section">
+        <!-- Avatar Container -->
+        <div class="profile-avatar-container">
           <button 
-            class="block border-4 border-white dark:border-black rounded-full overflow-hidden cursor-pointer"
+            class="profile-avatar-wrapper"
             on:click={() => showPicturePreview = true}
+            aria-label="View profile picture"
           >
-            {#if profileData.profilePicture}
-              <img 
-                src={profileData.profilePicture} 
-                alt={profileData.displayName} 
-                class="w-32 h-32 object-cover"
-              />
-            {:else}
-              <div class="w-32 h-32 flex items-center justify-center bg-blue-200 dark:bg-blue-700 text-4xl font-bold">
-                {profileData.displayName.charAt(0).toUpperCase()}
-              </div>
-            {/if}
+            <img 
+              src={profileData.profilePicture || DEFAULT_AVATAR} 
+              alt={profileData.displayName}
+              class="profile-avatar"
+            />
           </button>
         </div>
         
-        <div class="mt-16">
+        <!-- Profile Actions -->
+        <div class="profile-actions">
           {#if isOwnProfile}
             <button 
-              class="px-4 py-2 rounded-full dark:bg-black border border-gray-100 dark:border-black font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              class="profile-edit-button"
               on:click={() => showEditModal = true}
             >
               Edit profile
             </button>
           {:else}
-            <!-- Add follow/unfollow button here if needed -->
+            <button class="profile-follow-button">
+              Follow
+            </button>
           {/if}
         </div>
       </div>
       
-      <div class="p-4 mt-2">
-        <h1 class="text-xl font-bold dark:text-white">{profileData.displayName}</h1>
-        <p class="text-gray-500 dark:text-gray-400">@{profileData.username}</p>
-        
-        {#if profileData.bio}
-          <p class="my-3 dark:text-white whitespace-pre-wrap">{profileData.bio}</p>
-        {/if}
-        
-        <div class="flex items-center mt-3 text-gray-500 dark:text-gray-400 text-sm">
-          <span class="flex items-center">
-            <CalendarIcon size="16" class="mr-1" />
-            {formatJoinDate(profileData.joinedDate)}
-          </span>
+      <div class="profile-details">
+        <div class="profile-name-container">
+          <h1 class="profile-name">
+            {profileData.displayName}
+            <!-- Add verified badge if applicable -->
+          </h1>
+          <p class="profile-username">@{profileData.username}</p>
         </div>
         
-        <div class="flex mt-3 gap-5">
-          <a href={`/following/${profileData.id}`} class="flex items-center gap-1 hover:underline text-gray-600 dark:text-gray-300">
-            <span class="font-bold text-black dark:text-white">{profileData.followingCount}</span>
-            <span>Following</span>
+        {#if profileData.bio}
+          <p class="profile-bio">{profileData.bio}</p>
+        {/if}
+        
+        <div class="profile-meta">
+          <div class="profile-meta-item">
+            <span class="meta-icon">@</span>
+          </div>
+          
+          <div class="profile-meta-item">
+            <CalendarIcon size="16" strokeWidth="1.5" />
+            <span>{formatJoinDate(profileData.joinedDate)}</span>
+          </div>
+        </div>
+        
+        <div class="profile-stats">
+          <a href={`/following/${profileData.id}`} class="profile-stat">
+            <span class="profile-stat-count">{profileData.followingCount}</span>
+            <span class="profile-stat-label">Following</span>
           </a>
-          <a href={`/followers/${profileData.id}`} class="flex items-center gap-1 hover:underline text-gray-600 dark:text-gray-300">
-            <span class="font-bold text-black dark:text-white">{profileData.followerCount}</span>
-            <span>Followers</span>
+          <a href={`/followers/${profileData.id}`} class="profile-stat">
+            <span class="profile-stat-count">{profileData.followerCount}</span>
+            <span class="profile-stat-label">Followers</span>
           </a>
         </div>
       </div>
       
-      <div class="flex border-b border-gray-200 dark:border-gray-800">
+      <div class="profile-tabs">
         <button 
-          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'posts' ? 'text-blue-500 font-bold' : ''}"
+          class="profile-tab {activeTab === 'posts' ? 'active' : ''}"
           on:click={() => setActiveTab('posts')}
         >
           Posts
-          {#if activeTab === 'posts'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-t"></div>
-          {/if}
         </button>
         <button 
-          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 dark:bg-black font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'replies' ? 'text-blue-500 font-bold' : ''}"
+          class="profile-tab {activeTab === 'replies' ? 'active' : ''}"
           on:click={() => setActiveTab('replies')}
         >
           Replies
-          {#if activeTab === 'replies'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-t"></div>
-          {/if}
         </button>
         <button 
-          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'likes' ? 'text-blue-500 font-bold' : ''}"
+          class="profile-tab {activeTab === 'likes' ? 'active' : ''}"
           on:click={() => setActiveTab('likes')}
         >
           Likes
-          {#if activeTab === 'likes'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-t"></div>
-          {/if}
         </button>
         <button 
-          class="flex-1 py-4 text-gray-500 dark:bg-black dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-900 relative {activeTab === 'media' ? 'text-blue-500 font-bold' : ''}"
+          class="profile-tab {activeTab === 'media' ? 'active' : ''}"
           on:click={() => setActiveTab('media')}
         >
           Media
-          {#if activeTab === 'media'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-blue-500 rounded-t"></div>
-          {/if}
         </button>
       </div>
       
-      <div class="p-4">
+      <div class="profile-content">
         {#if isLoading}
           <LoadingSkeleton type="threads" count={3} />
         {:else if activeTab === 'posts'}
           {#if posts.length === 0}
-            <div class="flex flex-col items-center justify-center py-8">
-              <p class="text-gray-500 dark:text-gray-400">No posts yet</p>
+            <div class="profile-content-empty">
+              <div class="profile-content-empty-icon">📝</div>
+              <h3 class="profile-content-empty-title">No posts yet</h3>
+              <p class="profile-content-empty-text">When you post, your posts will show up here.</p>
             </div>
           {:else}
             {#each posts as post (post.id)}
-              <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800 {post.is_pinned ? 'bg-gray-50 dark:bg-gray-900 border-l-4 border-l-blue-500' : ''}">
+              <div class="tweet-card-container {post.is_pinned ? 'pinned' : ''}">
                 {#if post.is_pinned}
-                  <div class="flex items-center text-blue-500 text-xs font-bold mb-2">
-                    <PinIcon size="14" class="mr-1" />
-                    Pinned post
+                  <div class="pinned-indicator">
+                    <PinIcon size="14" />
+                    <span>Pinned post</span>
                   </div>
                 {/if}
                 <TweetCard 
@@ -1035,7 +1207,7 @@
                 />
                 {#if isOwnProfile}
                   <button 
-                    class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
+                    class="pin-action-button"
                     on:click={() => handlePinThread(post.id, post.is_pinned)}
                   >
                     {post.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
@@ -1046,20 +1218,22 @@
           {/if}
         {:else if activeTab === 'replies'}
           {#if replies.length === 0}
-            <div class="flex flex-col items-center justify-center py-8">
-              <p class="text-gray-500 dark:text-gray-400">No replies yet</p>
+            <div class="profile-content-empty">
+              <div class="profile-content-empty-icon">💬</div>
+              <h3 class="profile-content-empty-title">No replies yet</h3>
+              <p class="profile-content-empty-text">When you reply to someone else's post, it will show up here.</p>
             </div>
           {:else}
             {#each replies as reply (reply.id)}
-              <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800 {reply.is_pinned ? 'bg-gray-50 dark:bg-gray-900 border-l-4 border-l-blue-500' : ''}">
+              <div class="tweet-card-container {reply.is_pinned ? 'pinned' : ''}">
                 {#if reply.is_pinned}
-                  <div class="flex items-center text-blue-500 text-xs font-bold mb-2">
-                    <PinIcon size="14" class="mr-1" />
-                    Pinned
+                  <div class="pinned-indicator">
+                    <PinIcon size="14" />
+                    <span>Pinned reply</span>
                   </div>
                 {/if}
-                <div class="text-sm text-blue-500 mb-2">
-                  Replying to <a href={`/thread/${reply.thread_id}`} class="hover:underline">thread</a>
+                <div class="reply-indicator">
+                  Replying to <a href={`/thread/${reply.thread_id}`}>thread</a>
                 </div>
                 <TweetCard 
                   tweet={ensureTweetFormat(reply)} 
@@ -1082,7 +1256,7 @@
                 />
                 {#if isOwnProfile}
                   <button 
-                    class="mt-2 text-xs dark:bg-black text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline"
+                    class="pin-action-button"
                     on:click={() => handlePinReply(reply.id, reply.is_pinned)}
                   >
                     {reply.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
@@ -1093,12 +1267,14 @@
           {/if}
         {:else if activeTab === 'likes'}
           {#if likes.length === 0}
-            <div class="flex flex-col items-center justify-center py-8">
-              <p class="text-gray-500 dark:text-gray-400">No likes yet</p>
+            <div class="profile-content-empty">
+              <div class="profile-content-empty-icon">❤️</div>
+              <h3 class="profile-content-empty-title">No likes yet</h3>
+              <p class="profile-content-empty-text">When you like a post, it will show up here.</p>
             </div>
           {:else}
             {#each likes as like (like.id)}
-              <div class="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+              <div class="tweet-card-container">
                 <TweetCard 
                   tweet={ensureTweetFormat(like)} 
                   isDarkMode={isDarkMode} 
@@ -1123,30 +1299,32 @@
           {/if}
         {:else if activeTab === 'media'}
           {#if media.length === 0}
-            <div class="flex flex-col items-center justify-center py-8">
-              <p class="text-gray-500 dark:text-gray-400">No media yet</p>
+            <div class="profile-content-empty">
+              <div class="profile-content-empty-icon">📷</div>
+              <h3 class="profile-content-empty-title">No media yet</h3>
+              <p class="profile-content-empty-text">When you post photos or videos, they will show up here.</p>
             </div>
           {:else}
-            <div class="grid grid-cols-3 gap-1 sm:gap-2 md:gap-3">
+            <div class="media-grid">
               {#each media as item (item.id)}
-                <a href={`/thread/${item.thread_id}`} class="aspect-square overflow-hidden relative rounded-lg border border-gray-200 dark:border-gray-800">
+                <a href={`/thread/${item.thread_id}`} class="media-grid-item">
                   {#if item.type === 'image'}
-                    <img src={item.url} alt="Media content" class="w-full h-full object-cover" loading="lazy" />
+                    <img src={item.url} alt="Media content" class="media-image" loading="lazy" />
                   {:else if item.type === 'video'}
-                    <div class="relative w-full h-full">
-                      <video src={item.url} class="w-full h-full object-cover">
+                    <div class="media-video-container">
+                      <video src={item.url} class="media-video">
                         <track kind="captions" label="English" src="" default />
                       </video>
-                      <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-black/60 rounded-full flex items-center justify-center text-white">
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <div class="media-video-play-button">
+                        <svg class="media-video-play-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M8 5.14L19 12L8 18.86V5.14Z" fill="currentColor"/>
                         </svg>
                       </div>
                     </div>
                   {:else if item.type === 'gif'}
-                    <div class="relative w-full h-full">
-                      <img src={item.url} alt="GIF content" class="w-full h-full object-cover" loading="lazy" />
-                      <div class="absolute bottom-2 left-2 bg-black/60 text-white text-xs font-bold px-1.5 py-0.5 rounded">
+                    <div class="media-gif-container">
+                      <img src={item.url} alt="GIF content" class="media-image" loading="lazy" />
+                      <div class="media-gif-indicator">
                         GIF
                       </div>
                     </div>
@@ -1181,12 +1359,8 @@
       isOpen={showEditModal}
       on:close={() => showEditModal = false}
       on:updateProfile={handleProfileUpdate}
-      on:profilePictureUpdated={(e) => {
-        profileData = {...profileData, profilePicture: e.detail.url};
-      }}
-      on:bannerUpdated={(e) => {
-        profileData = {...profileData, backgroundBanner: e.detail.url};
-      }}
+      on:profilePictureUpdated={handleProfilePictureUpdated}
+      on:bannerUpdated={handleBannerUpdated}
     />
   {/if}
   
@@ -1210,33 +1384,474 @@
       </button>
       
       <img 
-        src={profileData.profilePicture} 
+        src={profileData.profilePicture || DEFAULT_AVATAR} 
         alt={profileData.displayName} 
         class="max-w-full max-h-[80vh] rounded-lg"
       />
+      
+      <!-- Simple debug info -->
+      <div class="mt-2 text-white text-xs">
+        <p>Profile picture URL: {profileData.profilePicture}</p>
+      </div>
     </div>
   </dialog>
   {/if}
 </MainLayout>
 
+<!-- Debug panel -->
+{#if showDebugInfo}
+  <div class="fixed bottom-0 left-0 right-0 bg-black/90 text-white p-4 z-50 max-h-[50vh] overflow-auto">
+    <div class="flex justify-between items-center mb-2">
+      <h3 class="text-lg font-bold">Debug Information</h3>
+      <button 
+        class="text-white bg-red-600 px-2 py-1 rounded"
+        on:click={() => showDebugInfo = false}
+      >
+        Close
+      </button>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <h4 class="font-bold mb-1">Profile Data:</h4>
+        <pre class="text-xs">{JSON.stringify(profileData, null, 2)}</pre>
+      </div>
+      <div>
+        <h4 class="font-bold mb-1">Raw API Response:</h4>
+        <pre class="text-xs">{JSON.stringify(rawApiResponse, null, 2)}</pre>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Global keyboard handler for ESC key -->
 <svelte:window on:keydown={(e) => {
-  if (e.key === 'Escape' && showPicturePreview) {
-    showPicturePreview = false;
+  if (e.key === 'Escape') {
+    if (showPicturePreview) {
+      showPicturePreview = false;
+    }
+    if (showDebugInfo) {
+      showDebugInfo = false;
+    }
   }
 }} />
 
 <style>
-  /* Only keeping background-related native CSS as requested */
+  /* Base theme variables */
   :global(:root) {
     --bg-color: #ffffff;
     --bg-secondary: #f7f9fa;
     --bg-highlight: #f7f9fa;
+    --text-primary: #0f1419;
+    --text-secondary: #536471;
+    --border-color: #eff3f4;
+    --color-primary: #1da1f2;
+    --color-primary-light: rgba(29, 161, 242, 0.1);
+    --bg-hover: rgba(0, 0, 0, 0.03);
+    --transition-fast: 0.2s;
+    --radius-md: 12px;
+    --radius-full: 9999px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-md: 16px;
+    --font-weight-bold: 700;
   }
 
   :global([data-theme="dark"]) {
     --bg-color: #000000;
     --bg-secondary: #16181c;
     --bg-highlight: #080808;
+    --text-primary: #e7e9ea;
+    --text-secondary: #71767b;
+    --border-color: #2f3336;
+    --bg-hover: rgba(255, 255, 255, 0.03);
+  }
+
+  /* Profile container styling */
+  .profile-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    position: relative;
+    background-color: var(--bg-color);
+  }
+
+  /* Profile header styling */
+  .profile-header-container {
+    position: relative;
+    width: 100%;
+    height: 150px;
+    overflow: hidden;
+    background-color: #1da1f2;
+  }
+
+  .profile-banner-wrapper {
+    width: 100%;
+    height: 100%;
+  }
+
+  .profile-banner {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-banner-default {
+    width: 100%;
+    height: 100%;
+    background-color: #1da1f2;
+  }
+
+  /* Profile info section */
+  .profile-info-section {
+    position: relative;
+    padding: 0 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-top: -45px;
+  }
+
+  /* Avatar styling */
+  .profile-avatar-container {
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  .profile-avatar-wrapper {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    border: 4px solid var(--bg-color);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #222;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+  }
+
+  .profile-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    background-color: #333;
+    color: #fff;
+  }
+
+  /* Profile actions */
+  .profile-actions {
+    padding-top: 16px;
+  }
+
+  .profile-edit-button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid #536471;
+    background-color: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .profile-edit-button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .profile-follow-button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    background-color: var(--text-primary);
+    color: var(--bg-color);
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .profile-follow-button:hover {
+    opacity: 0.9;
+  }
+
+  /* Profile details */
+  .profile-details {
+    padding: 4px 16px;
+  }
+
+  .profile-name-container {
+    margin-bottom: 0;
+  }
+
+  .profile-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .profile-username {
+    font-size: 15px;
+    color: #536471;
+    margin: 0;
+  }
+
+  .profile-bio {
+    font-size: 15px;
+    margin: 12px 0;
+    white-space: pre-wrap;
+    color: var(--text-primary);
+  }
+
+  .profile-meta {
+    display: flex;
+    gap: 16px;
+    margin: 8px 0;
+    color: #536471;
+  }
+
+  .profile-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #536471;
+    font-size: 14px;
+  }
+
+  .meta-icon {
+    color: #536471;
+    font-size: 14px;
+  }
+
+  /* Profile stats */
+  .profile-stats {
+    display: flex;
+    gap: 20px;
+    margin: 8px 0 12px 0;
+    color: #536471;
+  }
+
+  .profile-stat {
+    display: flex;
+    gap: 4px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .profile-stat:hover {
+    text-decoration: underline;
+  }
+
+  .profile-stat-count {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .profile-stat-label {
+    color: #536471;
+  }
+
+  /* Profile tabs */
+  .profile-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-top: 8px;
+  }
+
+  .profile-tab {
+    flex: 1;
+    padding: 14px 0;
+    text-align: center;
+    font-weight: 600;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    color: #536471;
+  }
+
+  .profile-tab.active {
+    color: #1da1f2;
+    border-bottom-color: #1da1f2;
+  }
+
+  /* Content styling */
+  .profile-content {
+    padding: 0 16px;
+  }
+
+  .profile-content-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 0;
+    text-align: center;
+  }
+
+  .profile-content-empty-icon {
+    font-size: 32px;
+    margin-bottom: 16px;
+  }
+
+  .profile-content-empty-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+  }
+
+  .profile-content-empty-text {
+    font-size: 15px;
+    color: #536471;
+    max-width: 300px;
+  }
+
+  /* Tweet card styling */
+  .tweet-card-container {
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 0;
+  }
+
+  .tweet-card-container.pinned {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  .pinned-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #536471;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
+  .reply-indicator {
+    font-size: 13px;
+    color: #536471;
+    margin-bottom: 4px;
+  }
+
+  .reply-indicator a {
+    color: #1da1f2;
+    text-decoration: none;
+  }
+
+  .pin-action-button {
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    font-size: 13px;
+    color: #1da1f2;
+    cursor: pointer;
+  }
+
+  .pin-action-button:hover {
+    text-decoration: underline;
+  }
+
+  /* Media grid */
+  .media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+  }
+
+  .media-grid-item {
+    aspect-ratio: 1/1;
+    overflow: hidden;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .media-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .media-video-container, 
+  .media-gif-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .media-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .media-video-play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .media-video-play-icon {
+    width: 20px;
+    height: 20px;
+    color: white;
+  }
+
+  .media-gif-indicator {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* Debug styling */
+  .debug-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 4px;
+    font-size: 10px;
+    z-index: 5;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-debug {
+    bottom: 0;
+    border-radius: 0 0 50% 50%;
+    text-align: center;
   }
 </style>

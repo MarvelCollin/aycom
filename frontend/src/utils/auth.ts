@@ -1,4 +1,5 @@
 import { createLoggerWithPrefix } from './logger';
+import appConfig from '../config/appConfig';
 
 const logger = createLoggerWithPrefix('Auth');
 const TOKEN_VALIDATION_INTERVAL = 1000 * 60 * 5;
@@ -194,5 +195,65 @@ export function updateTokenExpiry(newExpiresAt: number): void {
     }
   } catch (err) {
     logger.error("Error updating token expiry:", err);
+  }
+}
+
+/**
+ * Gets the user's role from auth data or fetches it from the API
+ * @returns User role: 'admin', 'moderator', or 'user' (default)
+ */
+export async function getUserRole(): Promise<string> {
+  try {
+    // First check if we have the role cached in auth data
+    const authData = getAuthData();
+    if (authData && authData.userRole) {
+      logger.debug(`Using cached user role: ${authData.userRole}`);
+      return authData.userRole;
+    }
+    
+    // If not, fetch from the API
+    const userId = getUserId();
+    if (!userId) {
+      logger.warn('Cannot get user role - not logged in');
+      return 'user';
+    }
+    
+    const token = getAuthToken();
+    if (!token) {
+      logger.warn('Cannot get user role - no auth token');
+      return 'user';
+    }
+    
+    const API_BASE_URL = appConfig.api.baseUrl;
+    logger.debug('Fetching user role from API');
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      logger.warn(`Failed to get user role: ${response.status} ${response.statusText}`);
+      return 'user';
+    }
+    
+    const data = await response.json();
+    const role = data.role || 'user';
+    
+    // Cache the role in auth data
+    if (authData) {
+      authData.userRole = role;
+      localStorage.setItem('auth', JSON.stringify(authData));
+      logger.debug(`Cached user role: ${role}`);
+    }
+    
+    return role;
+  } catch (error) {
+    logger.error('Error getting user role:', error);
+    return 'user';
   }
 }

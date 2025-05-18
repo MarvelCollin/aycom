@@ -7,6 +7,15 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   
+  // Import icons
+  import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
+  import FilterIcon from 'svelte-feather-icons/src/icons/FilterIcon.svelte';
+  import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
+  import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
+  import LockIcon from 'svelte-feather-icons/src/icons/LockIcon.svelte';
+  import PlusIcon from 'svelte-feather-icons/src/icons/PlusIcon.svelte';
+  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
+  
   const logger = createLoggerWithPrefix('Communities');
   
   const { getAuthState } = useAuth();
@@ -41,14 +50,8 @@
   let searchQuery = '';
   let selectedCategories: string[] = [];
   
-  const paginationOptions = [25, 30, 35];
-  let joinedPerPage = 25;
-  let pendingPerPage = 25;
-  let availablePerPage = 25;
-  
-  let joinedCurrentPage = 1;
-  let pendingCurrentPage = 1;
-  let availableCurrentPage = 1;
+  // Current active tab
+  let activeTab = 'discover'; // 'joined', 'pending', 'discover'
   
   const categories = [
     'Gaming', 'Sports', 'Food', 'Technology', 'Art', 'Music', 
@@ -233,18 +236,6 @@
       
       return matchesQuery && matchesCategories;
     });
-    
-    joinedCurrentPage = 1;
-    pendingCurrentPage = 1;
-    availableCurrentPage = 1;
-    
-    logger.debug('Communities filtered', { 
-      query,
-      categories: selectedCategories,
-      filteredJoined: filteredJoinedCommunities.length,
-      filteredPending: filteredPendingCommunities.length,
-      filteredAvailable: filteredAvailableCommunities.length
-    });
   }
   
   function toggleCategory(category: string) {
@@ -253,473 +244,449 @@
     } else {
       selectedCategories = [...selectedCategories, category];
     }
+    
     filterCommunities();
   }
   
-  async function requestToJoin(communityId: number) {
-    try {
-      const community = availableCommunities.find(c => c.id === communityId);
-      if (community) {
+  function joinCommunity(communityId: number) {
+    if (!authState.isAuthenticated) {
+      toastStore.showToast('You need to log in to join communities', 'warning');
+      return;
+    }
+    
+    logger.debug('Join community', { communityId });
+    
+    // Find the community in the available list
+    const communityIndex = availableCommunities.findIndex(c => c.id === communityId);
+    
+    if (communityIndex !== -1) {
+      const community = availableCommunities[communityIndex];
+      
+      // If it's a private community, move to pending
+      if (community.isPrivate) {
+        // Update status
         community.status = 'pending';
+        
+        // Remove from available list
         availableCommunities = availableCommunities.filter(c => c.id !== communityId);
-        pendingCommunities = [...pendingCommunities, community];
         
-        filteredAvailableCommunities = filteredAvailableCommunities.filter(c => c.id !== communityId);
-        filteredPendingCommunities = [...filteredPendingCommunities, community];
+        // Add to pending list
+        pendingCommunities = [community, ...pendingCommunities];
         
-        logger.debug('Join request sent', { communityId });
-        toastStore.showToast('Join request sent', 'success');
+        // Update filtered lists
+        filterCommunities();
+        
+        toastStore.showToast('Your request to join has been sent to the community moderators.', 'success');
+      } else {
+        // If it's public, move to joined
+        community.status = 'joined';
+        
+        // Remove from available list
+        availableCommunities = availableCommunities.filter(c => c.id !== communityId);
+        
+        // Add to joined list
+        joinedCommunities = [community, ...joinedCommunities];
+        
+        // Update filtered lists
+        filterCommunities();
+        
+        toastStore.showToast('You have joined the community!', 'success');
       }
-    } catch (error) {
-      console.error('Error requesting to join community:', error);
-      toastStore.showToast('Failed to send join request. Please try again.', 'error');
     }
   }
   
-  function navigateToCommunity(communityId: number) {
-    window.location.href = `/communities/${communityId}`;
+  function leaveCommunity(communityId: number) {
+    logger.debug('Leave community', { communityId });
+    
+    // Find the community in the joined list
+    const communityIndex = joinedCommunities.findIndex(c => c.id === communityId);
+    
+    if (communityIndex !== -1) {
+      const community = joinedCommunities[communityIndex];
+      
+      // Update status
+      community.status = 'available';
+      
+      // Remove from joined list
+      joinedCommunities = joinedCommunities.filter(c => c.id !== communityId);
+      
+      // Add to available list
+      availableCommunities = [community, ...availableCommunities];
+      
+      // Update filtered lists
+      filterCommunities();
+      
+      toastStore.showToast('You have left the community.', 'info');
+    }
   }
   
-  function navigateToCreateCommunity() {
-    window.location.href = '/create-community';
+  function cancelRequest(communityId: number) {
+    logger.debug('Cancel request', { communityId });
+    
+    // Find the community in the pending list
+    const communityIndex = pendingCommunities.findIndex(c => c.id === communityId);
+    
+    if (communityIndex !== -1) {
+      const community = pendingCommunities[communityIndex];
+      
+      // Update status
+      community.status = 'available';
+      
+      // Remove from pending list
+      pendingCommunities = pendingCommunities.filter(c => c.id !== communityId);
+      
+      // Add to available list
+      availableCommunities = [community, ...availableCommunities];
+      
+      // Update filtered lists
+      filterCommunities();
+      
+      toastStore.showToast('Your request has been cancelled.', 'info');
+    }
   }
   
-  function getPaginatedJoinedCommunities() {
-    const start = (joinedCurrentPage - 1) * joinedPerPage;
-    const end = start + joinedPerPage;
-    return filteredJoinedCommunities.slice(start, end);
-  }
-  
-  function getPaginatedPendingCommunities() {
-    const start = (pendingCurrentPage - 1) * pendingPerPage;
-    const end = start + pendingPerPage;
-    return filteredPendingCommunities.slice(start, end);
-  }
-  
-  function getPaginatedAvailableCommunities() {
-    const start = (availableCurrentPage - 1) * availablePerPage;
-    const end = start + availablePerPage;
-    return filteredAvailableCommunities.slice(start, end);
-  }
-  
-  $: if (searchQuery !== undefined) {
+  function clearFilters() {
+    searchQuery = '';
+    selectedCategories = [];
     filterCommunities();
   }
   
+  function setActiveTab(tabName) {
+    activeTab = tabName;
+  }
+  
+  function handleCommunityClick(communityId) {
+    window.location.href = `/communities/${communityId}`;
+  }
+  
   onMount(() => {
-    logger.debug('Communities page mounted', { authState });
     if (checkAuth()) {
       fetchCommunities();
     }
   });
+  
+  $: {
+    if (searchQuery !== undefined) {
+      filterCommunities();
+    }
+  }
 </script>
 
-<MainLayout
-  username={sidebarUsername}
-  displayName={sidebarDisplayName}
-  avatar={sidebarAvatar}
-  on:toggleComposeModal={() => {}}
->
-  <div class="min-h-screen border-x border-gray-200 dark:border-gray-800">
-    <!-- Header -->
-    <div class="sticky top-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-      <div class="flex items-center justify-between">
-        <h1 class="text-xl font-bold">Communities</h1>
-        <button 
-          class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold"
-          on:click={navigateToCreateCommunity}
-        >
-          Create Community
+<MainLayout username={sidebarUsername} displayName={sidebarDisplayName} avatar={sidebarAvatar}>
+  <div class="communities-container">
+    <div class="communities-header">
+      <h1 class="communities-title">Communities</h1>
+      
+      <div class="search-filter-container">
+        <div class="search-input-wrapper">
+          <div class="search-icon">
+            <SearchIcon size="16" />
+          </div>
+          <input 
+            type="text" 
+            bind:value={searchQuery} 
+            placeholder="Search communities" 
+            class="search-input"
+          />
+        </div>
+        
+        <button class="filter-button" on:click={clearFilters}>
+          <FilterIcon size="16" />
+          <span>Clear Filters</span>
         </button>
       </div>
       
-      <!-- Search -->
-      <div class="relative mt-3">
-        <input 
-          type="text" 
-          bind:value={searchQuery}
-          placeholder="Search Communities" 
-          class="w-full rounded-full pl-10 pr-4 py-2 {isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-100 border-gray-200'}"
-        />
-        <div class="absolute left-3 top-2.5 text-gray-500">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
-      </div>
-      
-      <!-- Categories Filter -->
-      <div class="mt-3 flex flex-wrap gap-2">
+      <div class="categories-wrapper">
         {#each categories as category}
           <button 
-            class="px-3 py-1 rounded-full text-sm {selectedCategories.includes(category) ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}"
+            class="category-chip {selectedCategories.includes(category) ? 'selected' : ''}"
             on:click={() => toggleCategory(category)}
           >
             {category}
+            {#if selectedCategories.includes(category)}
+              <span><CheckIcon size="12" /></span>
+            {/if}
           </button>
         {/each}
       </div>
     </div>
     
-    <!-- Content -->
-    <div class="p-4 space-y-8">
-      {#if isLoading}
-        <div class="animate-pulse space-y-6">
-          {#each Array(3) as _}
-            <div>
-              <div class="h-6 bg-gray-300 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
-              {#each Array(3) as _}
-                <div class="rounded-lg bg-gray-300 dark:bg-gray-700 h-24 mb-3"></div>
-              {/each}
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <!-- Joined Communities Section -->
-        <div>
-          <h2 class="text-lg font-bold mb-3">Your Communities</h2>
-          
-          {#if filteredJoinedCommunities.length === 0}
-            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p class="text-gray-500 dark:text-gray-400">
-                {joinedCommunities.length === 0 
-                  ? "You haven't joined any communities yet." 
-                  : "No communities match your search criteria."}
-              </p>
-            </div>
-          {:else}
-            <!-- Pagination Controls -->
-            <div class="flex justify-between items-center mb-3">
-              <div class="flex items-center space-x-2">
-                <span class="text-sm text-gray-500 dark:text-gray-400">Show:</span>
-                <select 
-                  bind:value={joinedPerPage}
-                  class="bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 text-sm"
-                >
-                  {#each paginationOptions as option}
-                    <option value={option}>{option}</option>
-                  {/each}
-                </select>
-              </div>
-              
-              <div class="flex items-center space-x-2">
-                <button 
-                  class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-sm {joinedCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}"
-                  disabled={joinedCurrentPage === 1}
-                  on:click={() => joinedCurrentPage--}
-                >
-                  Previous
-                </button>
-                <span class="text-sm">
-                  Page {joinedCurrentPage} of {Math.ceil(filteredJoinedCommunities.length / joinedPerPage) || 1}
-                </span>
-                <button 
-                  class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-sm {joinedCurrentPage >= Math.ceil(filteredJoinedCommunities.length / joinedPerPage) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}"
-                  disabled={joinedCurrentPage >= Math.ceil(filteredJoinedCommunities.length / joinedPerPage)}
-                  on:click={() => joinedCurrentPage++}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-            
-            <!-- Community List -->
-            <div class="space-y-3">
-              {#each getPaginatedJoinedCommunities() as community}
-                <div 
-                  class="relative p-4 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
-                  role="button"
-                  tabindex="0"
-                  on:click={() => navigateToCommunity(community.id)}
-                  on:keydown={(e) => e.key === 'Enter' && navigateToCommunity(community.id)}
-                >
-                  <div class="flex items-start">
-                    <div class="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xl flex-shrink-0">
-                      {#if community.logo}
-                        <img src={community.logo} alt={community.name} class="w-full h-full rounded-full object-cover" />
-                      {:else}
-                        <span>{community.name.charAt(0)}</span>
-                      {/if}
-                    </div>
-                    <div class="ml-3 flex-1">
-                      <div class="flex items-center">
-                        <h3 
-                          class="text-lg font-semibold hover:underline cursor-pointer"
-                          role="button"
-                          tabindex="0"
-                          on:click={() => navigateToCommunity(community.id)}
-                          on:keydown={(e) => e.key === 'Enter' && navigateToCommunity(community.id)}
-                        >
-                          {community.name}
-                        </h3>
-                        {#if community.isPrivate}
-                          <span class="ml-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Private</span>
-                        {/if}
-                      </div>
-                      <p class="text-gray-600 dark:text-gray-400 text-sm mt-1 line-clamp-2">{community.description}</p>
-                      <div class="flex items-center mt-2">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{community.memberCount.toLocaleString()} members</span>
-                        <div class="mx-3 h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                        <div class="flex flex-wrap gap-1">
-                          {#each community.categories as category}
-                            <span class="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">{category}</span>
-                          {/each}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-        
-        <!-- Pending Communities Section -->
-        <div>
-          <h2 class="text-lg font-bold mb-3">Pending Requests</h2>
-          
-          {#if filteredPendingCommunities.length === 0}
-            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p class="text-gray-500 dark:text-gray-400">
-                {pendingCommunities.length === 0 
-                  ? "You don't have any pending community requests." 
-                  : "No pending requests match your search criteria."}
-              </p>
-            </div>
-          {:else}
-            <!-- Pagination Controls -->
-            <div class="flex justify-between items-center mb-3">
-              <div class="flex items-center space-x-2">
-                <span class="text-sm text-gray-500 dark:text-gray-400">Show:</span>
-                <select 
-                  bind:value={pendingPerPage}
-                  class="bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 text-sm"
-                >
-                  {#each paginationOptions as option}
-                    <option value={option}>{option}</option>
-                  {/each}
-                </select>
-              </div>
-              
-              <div class="flex items-center space-x-2">
-                <button 
-                  class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-sm {pendingCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}"
-                  disabled={pendingCurrentPage === 1}
-                  on:click={() => pendingCurrentPage--}
-                >
-                  Previous
-                </button>
-                <span class="text-sm">
-                  Page {pendingCurrentPage} of {Math.ceil(filteredPendingCommunities.length / pendingPerPage) || 1}
-                </span>
-                <button 
-                  class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-sm {pendingCurrentPage >= Math.ceil(filteredPendingCommunities.length / pendingPerPage) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}"
-                  disabled={pendingCurrentPage >= Math.ceil(filteredPendingCommunities.length / pendingPerPage)}
-                  on:click={() => pendingCurrentPage++}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-            
-            <!-- Community List -->
-            <div class="space-y-3">
-              {#each getPaginatedPendingCommunities() as community}
-                <div 
-                  class="relative p-4 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
-                  role="button"
-                  tabindex="0"
-                  on:click={() => navigateToCommunity(community.id)}
-                  on:keydown={(e) => e.key === 'Enter' && navigateToCommunity(community.id)}
-                >
-                  <div class="flex items-start">
-                    <div class="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xl flex-shrink-0">
-                      {#if community.logo}
-                        <img src={community.logo} alt={community.name} class="w-full h-full rounded-full object-cover" />
-                      {:else}
-                        <span>{community.name.charAt(0)}</span>
-                      {/if}
-                    </div>
-                    <div class="ml-3 flex-1">
-                      <div class="flex items-center">
-                        <h3 
-                          class="text-lg font-semibold hover:underline cursor-pointer"
-                          role="button"
-                          tabindex="0"
-                          on:click={() => navigateToCommunity(community.id)}
-                          on:keydown={(e) => e.key === 'Enter' && navigateToCommunity(community.id)}
-                        >
-                          {community.name}
-                        </h3>
-                        {#if community.isPrivate}
-                          <span class="ml-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Private</span>
-                        {/if}
-                        <span class="ml-2 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded text-xs">Pending</span>
-                      </div>
-                      <p class="text-gray-600 dark:text-gray-400 text-sm mt-1 line-clamp-2">{community.description}</p>
-                      <div class="flex items-center mt-2">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{community.memberCount.toLocaleString()} members</span>
-                        <div class="mx-3 h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                        <div class="flex flex-wrap gap-1">
-                          {#each community.categories as category}
-                            <span class="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">{category}</span>
-                          {/each}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-        
-        <!-- Available Communities Section -->
-        <div>
-          <h2 class="text-lg font-bold mb-3">Discover Communities</h2>
-          
-          {#if filteredAvailableCommunities.length === 0}
-            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p class="text-gray-500 dark:text-gray-400">
-                {availableCommunities.length === 0 
-                  ? "There are no available communities at the moment." 
-                  : "No available communities match your search criteria."}
-              </p>
-            </div>
-          {:else}
-            <!-- Pagination Controls -->
-            <div class="flex justify-between items-center mb-3">
-              <div class="flex items-center space-x-2">
-                <span class="text-sm text-gray-500 dark:text-gray-400">Show:</span>
-                <select 
-                  bind:value={availablePerPage}
-                  class="bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 text-sm"
-                >
-                  {#each paginationOptions as option}
-                    <option value={option}>{option}</option>
-                  {/each}
-                </select>
-              </div>
-              
-              <div class="flex items-center space-x-2">
-                <button 
-                  class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-sm {availableCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}"
-                  disabled={availableCurrentPage === 1}
-                  on:click={() => availableCurrentPage--}
-                >
-                  Previous
-                </button>
-                <span class="text-sm">
-                  Page {availableCurrentPage} of {Math.ceil(filteredAvailableCommunities.length / availablePerPage) || 1}
-                </span>
-                <button 
-                  class="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-sm {availableCurrentPage >= Math.ceil(filteredAvailableCommunities.length / availablePerPage) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300 dark:hover:bg-gray-600'}"
-                  disabled={availableCurrentPage >= Math.ceil(filteredAvailableCommunities.length / availablePerPage)}
-                  on:click={() => availableCurrentPage++}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-            
-            <!-- Community List -->
-            <div class="space-y-3">
-              {#each getPaginatedAvailableCommunities() as community}
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                  <div class="flex items-start">
-                    <div class="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xl flex-shrink-0">
-                      {#if community.logo}
-                        <img src={community.logo} alt={community.name} class="w-full h-full rounded-full object-cover" />
-                      {:else}
-                        <span>{community.name.charAt(0)}</span>
-                      {/if}
-                    </div>
-                    <div class="ml-3 flex-1">
-                      <div class="flex items-center">
-                        <h3 
-                          class="text-lg font-semibold hover:underline cursor-pointer"
-                          role="button"
-                          tabindex="0"
-                          on:click={() => navigateToCommunity(community.id)}
-                          on:keydown={(e) => e.key === 'Enter' && navigateToCommunity(community.id)}
-                        >
-                          {community.name}
-                        </h3>
-                        {#if community.isPrivate}
-                          <span class="ml-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">Private</span>
-                        {/if}
-                      </div>
-                      <p class="text-gray-600 dark:text-gray-400 text-sm mt-1 line-clamp-2">{community.description}</p>
-                      <div class="flex items-center justify-between mt-2">
-                        <div class="flex items-center">
-                          <span class="text-sm text-gray-500 dark:text-gray-400">{community.memberCount.toLocaleString()} members</span>
-                          <div class="mx-3 h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                          <div class="flex flex-wrap gap-1">
-                            {#each community.categories as category}
-                              <span class="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">{category}</span>
-                            {/each}
-                          </div>
-                        </div>
-                        <button 
-                          class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded-full text-sm"
-                          on:click|stopPropagation={() => requestToJoin(community.id)}
-                        >
-                          Request to Join
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {/if}
+    <!-- Tabs Navigation -->
+    <div class="communities-tabs">
+      <button 
+        class="communities-tab {activeTab === 'discover' ? 'active' : ''}" 
+        on:click={() => setActiveTab('discover')}
+      >
+        Discover
+      </button>
+      <button 
+        class="communities-tab {activeTab === 'joined' ? 'active' : ''}"
+        on:click={() => setActiveTab('joined')}
+      >
+        Joined
+        {#if filteredJoinedCommunities.length > 0}
+          <span class="tab-count">{filteredJoinedCommunities.length}</span>
+        {/if}
+      </button>
+      <button 
+        class="communities-tab {activeTab === 'pending' ? 'active' : ''}"
+        on:click={() => setActiveTab('pending')}
+      >
+        Pending
+        {#if filteredPendingCommunities.length > 0}
+          <span class="tab-count">{filteredPendingCommunities.length}</span>
+        {/if}
+      </button>
     </div>
+    
+    {#if isLoading}
+      <div class="empty-state">
+        <div class="empty-icon">⌛</div>
+        <p class="empty-title">Loading communities...</p>
+      </div>
+    {:else}
+      <!-- Discover Tab Content -->
+      {#if activeTab === 'discover'}
+        {#if filteredAvailableCommunities.length > 0}
+          <div class="communities-grid">
+            {#each filteredAvailableCommunities as community (community.id)}
+              <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
+                <div class="community-banner">
+                  <div class="community-avatar">
+                    {community.name[0].toUpperCase()}
+                  </div>
+                </div>
+                <div class="community-content">
+                  <div class="community-header">
+                    <h3 class="community-name">{community.name}</h3>
+                    <p class="community-handle">#{community.categories[0]}</p>
+                  </div>
+                  
+                  <p class="community-description">{community.description}</p>
+                  
+                  <div class="community-meta">
+                    <div class="community-stats">
+                      <div class="community-stat">
+                        <UsersIcon size="14" />
+                        <span>{community.memberCount.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="community-type">
+                      {#if community.isPrivate}
+                        <LockIcon size="14" />
+                        <span>Private</span>
+                      {/if}
+                    </div>
+                  </div>
+                  
+                  <div class="community-action">
+                    <button 
+                      class="join-button"
+                      on:click={() => joinCommunity(community.id)}
+                    >
+                      {community.isPrivate ? 'Request to Join' : 'Join'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <h3 class="empty-title">No communities found</h3>
+            <p class="empty-text">We couldn't find any communities matching your search criteria.</p>
+            <button class="create-community-button" on:click={clearFilters}>
+              <FilterIcon size="16" />
+              Clear Filters
+            </button>
+          </div>
+        {/if}
+      {/if}
+      
+      <!-- Joined Tab Content -->
+      {#if activeTab === 'joined'}
+        {#if filteredJoinedCommunities.length > 0}
+          <div class="communities-grid">
+            {#each filteredJoinedCommunities as community (community.id)}
+              <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
+                <div class="community-banner">
+                  <div class="community-avatar">
+                    {community.name[0].toUpperCase()}
+                  </div>
+                </div>
+                <div class="community-content">
+                  <div class="community-header">
+                    <h3 class="community-name">{community.name}</h3>
+                    <p class="community-handle">#{community.categories[0]}</p>
+                  </div>
+                  
+                  <p class="community-description">{community.description}</p>
+                  
+                  <div class="community-meta">
+                    <div class="community-stats">
+                      <div class="community-stat">
+                        <UsersIcon size="14" />
+                        <span>{community.memberCount.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="community-type">
+                      {#if community.isPrivate}
+                        <LockIcon size="14" />
+                        <span>Private</span>
+                      {/if}
+                    </div>
+                  </div>
+                  
+                  <div class="community-action">
+                    <button 
+                      class="joined-button"
+                      on:click={() => leaveCommunity(community.id)}
+                    >
+                      Leave
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="empty-state">
+            <div class="empty-icon">👋</div>
+            <h3 class="empty-title">You haven't joined any communities yet</h3>
+            <p class="empty-text">Join some communities to see them here!</p>
+            <button class="create-community-button" on:click={() => setActiveTab('discover')}>
+              <PlusIcon size="16" />
+              Discover Communities
+            </button>
+          </div>
+        {/if}
+      {/if}
+      
+      <!-- Pending Tab Content -->
+      {#if activeTab === 'pending'}
+        {#if filteredPendingCommunities.length > 0}
+          <div class="communities-grid">
+            {#each filteredPendingCommunities as community (community.id)}
+              <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
+                <div class="community-banner">
+                  <div class="community-avatar">
+                    {community.name[0].toUpperCase()}
+                  </div>
+                </div>
+                <div class="community-content">
+                  <div class="community-header">
+                    <h3 class="community-name">{community.name}</h3>
+                    <p class="community-handle">#{community.categories[0]}</p>
+                  </div>
+                  
+                  <p class="community-description">{community.description}</p>
+                  
+                  <div class="community-meta">
+                    <div class="community-stats">
+                      <div class="community-stat">
+                        <UsersIcon size="14" />
+                        <span>{community.memberCount.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    
+                    <div class="community-type">
+                      {#if community.isPrivate}
+                        <LockIcon size="14" />
+                        <span>Private</span>
+                      {/if}
+                    </div>
+                  </div>
+                  
+                  <div class="community-action">
+                    <button 
+                      class="joined-button"
+                      on:click={() => cancelRequest(community.id)}
+                    >
+                      Cancel Request
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="empty-state">
+            <div class="empty-icon">✉️</div>
+            <h3 class="empty-title">No pending requests</h3>
+            <p class="empty-text">You don't have any pending join requests.</p>
+            <button class="create-community-button" on:click={() => setActiveTab('discover')}>
+              <PlusIcon size="16" />
+              Discover Communities
+            </button>
+          </div>
+        {/if}
+      {/if}
+    {/if}
   </div>
 </MainLayout>
 
 <style>
-  /* Limit text to 2 lines */
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .categories-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
   }
   
-  /* Skeleton loading animation */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-  }
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  .community-description {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .category-chip {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
   }
   
-  /* Tabs */
-  .tab-active {
-    color: rgb(29, 155, 240);
-    font-weight: 600;
+  .category-chip:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
   }
   
-  .tab-active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background-color: rgb(29, 155, 240);
-    border-radius: 9999px;
+  .category-chip.selected {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+  
+  .tab-count {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    padding: 0 var(--space-1);
+    font-size: var(--font-size-xs);
+    margin-left: var(--space-1);
+    min-width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .communities-tab.active .tab-count {
+    background-color: var(--color-primary);
+    color: white;
+  }
+  
+  .community-card {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .community-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 </style>

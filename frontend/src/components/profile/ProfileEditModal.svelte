@@ -5,7 +5,7 @@
   import { toastStore } from '../../stores/toastStore';
   import type { IUserProfile } from '../../interfaces/IUser';
   import { useTheme } from '../../hooks/useTheme';
-  import { isSupabaseStorageUrl } from '../../utils/supabase';
+  import { formatStorageUrl } from '../../utils/common';
   
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
@@ -43,19 +43,28 @@
     };
   }
   
+  // Format URL for image display
+  function getFormattedUrl(url: string | null | undefined) {
+    if (!url) return null;
+    console.log('ProfileEditModal: Processing URL:', url);
+    const formattedUrl = formatStorageUrl(url);
+    console.log('ProfileEditModal: Formatted URL:', formattedUrl);
+    return formattedUrl;
+  }
+  
   onMount(() => {
     if (profile) {
-      // Handle profile picture URL - could be Supabase URL or relative path
-      profilePicturePreview = profile.profile_picture || null;
+      // Handle profile picture URL - check both possible field names
+      profilePicturePreview = getFormattedUrl(profile.profile_picture || profile.avatar);
       
-      // Handle banner URL - check all possible banner URL properties
-      bannerPreview = profile.banner || null;
+      // Handle banner URL - check both possible field names
+      bannerPreview = getFormattedUrl(profile.banner || profile.background_banner_url);
       
-      console.log('[ProfileEditModal] Banner preview initialized:', {
-        profileBanner: profile.banner,
-        profileBannerUrl: profile.banner_url,
-        backgroundBannerUrl: profile.background_banner_url,
-        preview: bannerPreview
+      console.log('[ProfileEditModal] Profile data:', {
+        profilePicture: profile.profile_picture || profile.avatar,
+        formattedProfile: profilePicturePreview,
+        banner: profile.banner || profile.background_banner_url,
+        formattedBanner: bannerPreview
       });
     }
   });
@@ -149,7 +158,6 @@
       
       // Close the modal after successful upload
       dispatch('close');
-      
     } catch (err) {
       console.error('Error updating profile media:', err);
       errorMessage = err instanceof Error ? err.message : 'Failed to update profile media';
@@ -173,7 +181,7 @@
 
 {#if isOpen}
 <div 
-  class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" 
+  class="modal-overlay"
   on:click={handleClose}
   on:keydown={handleKeyDown}
   role="dialog" 
@@ -182,35 +190,35 @@
   tabindex="0"
 >
   <div 
-    class="bg-white dark:bg-gray-900 rounded-xl w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto"
+    class="modal-container"
     on:click|stopPropagation
     on:keydown|stopPropagation
     role="document"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-      <div class="flex items-center gap-4">
+    <div class="modal-header">
+      <div class="header-left">
         <button 
           on:click={handleClose} 
-          class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+          class="close-button"
           aria-label="Close modal"
         >
           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
-        <h2 id="modal-title" class="text-xl font-bold dark:text-white">Edit profile</h2>
+        <h2 id="modal-title" class="modal-title">Edit profile</h2>
       </div>
       
       <button 
-        class="py-1.5 px-4 bg-blue-500 text-white font-bold rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="save-button"
         disabled={isUploading}
         on:click={handleSave}
         aria-label="Save profile changes"
       >
         {#if isUploading}
-          <span class="flex items-center gap-2">
-            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <span class="loading-indicator">
+            <svg class="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -223,30 +231,30 @@
     </div>
     
     <!-- Banner image -->
-    <div class="relative h-48">
-      <div class="absolute inset-0 overflow-hidden">
+    <div class="banner-container">
+      <div class="banner-wrapper">
         {#if bannerPreview}
           <img 
             src={bannerPreview} 
             alt="Banner preview" 
-            class="w-full h-full object-cover"
+            class="banner-image"
           />
         {:else}
-          <div class="w-full h-full bg-blue-500"></div>
+          <div class="banner-placeholder"></div>
         {/if}
       </div>
       
-      <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-        <label class="flex flex-col items-center justify-center cursor-pointer">
-          <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div class="banner-overlay">
+        <label class="upload-label">
+          <svg class="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <span class="text-white font-medium mt-1">Add banner photo</span>
+          <span class="upload-text">Add banner photo</span>
           <input 
             type="file" 
             accept="image/*" 
-            class="hidden" 
+            class="file-input" 
             on:change={handleBannerChange}
           />
         </label>
@@ -254,31 +262,31 @@
     </div>
     
     <!-- Profile picture -->
-    <div class="px-4 -mt-16 mb-4 relative z-10">
-      <div class="relative inline-block">
-        <div class="border-4 border-white dark:border-gray-900 rounded-full overflow-hidden">
+    <div class="profile-picture-container">
+      <div class="profile-picture-wrapper">
+        <div class="profile-picture-border">
           {#if profilePicturePreview}
             <img 
               src={profilePicturePreview} 
               alt="Profile preview" 
-              class="w-32 h-32 object-cover"
+              class="profile-picture"
             />
           {:else}
-            <div class="w-32 h-32 flex items-center justify-center bg-blue-200 dark:bg-blue-700 text-4xl font-bold">
+            <div class="profile-picture-placeholder">
               {formData.displayName.charAt(0).toUpperCase()}
             </div>
           {/if}
         </div>
         
-        <label class="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 cursor-pointer">
-          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <label class="profile-picture-overlay">
+          <svg class="upload-icon-small" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <input 
             type="file" 
             accept="image/*" 
-            class="hidden" 
+            class="file-input" 
             on:change={handleProfilePictureChange}
           />
         </label>
@@ -286,10 +294,10 @@
     </div>
     
     <!-- Form fields -->
-    <form class="p-4 space-y-4" on:submit|preventDefault={handleSave}>
+    <form class="form-container" on:submit|preventDefault={handleSave}>
       <!-- Display name -->
-      <div>
-        <label for="displayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      <div class="form-field">
+        <label for="displayName" class="form-label">
           Display name
         </label>
         <input 
@@ -297,17 +305,17 @@
           id="displayName"
           bind:value={formData.displayName}
           maxlength="50"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          class="form-input"
           placeholder="Your display name"
         />
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 text-right">
+        <p class="form-help-text">
           {formData.displayName.length}/50
         </p>
       </div>
       
       <!-- Bio -->
-      <div>
-        <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      <div class="form-field">
+        <label for="bio" class="form-label">
           Bio
         </label>
         <textarea 
@@ -315,50 +323,50 @@
           bind:value={formData.bio}
           maxlength="160"
           rows="3"
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+          class="form-textarea"
           placeholder="Tell us about yourself"
         ></textarea>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 text-right">
+        <p class="form-help-text">
           {formData.bio.length}/160
         </p>
       </div>
       
       <!-- Email -->
-      <div>
-        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      <div class="form-field">
+        <label for="email" class="form-label">
           Email
         </label>
         <input 
           type="email" 
           id="email"
           bind:value={formData.email}
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          class="form-input"
           placeholder="Your email address"
         />
       </div>
       
       <!-- Date of birth -->
-      <div>
-        <label for="dateOfBirth" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      <div class="form-field">
+        <label for="dateOfBirth" class="form-label">
           Date of birth
         </label>
         <input 
           type="date" 
           id="dateOfBirth"
           bind:value={formData.dateOfBirth}
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          class="form-input"
         />
       </div>
       
       <!-- Gender -->
-      <div>
-        <label for="gender" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      <div class="form-field">
+        <label for="gender" class="form-label">
           Gender
         </label>
         <select 
           id="gender"
           bind:value={formData.gender}
-          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          class="form-select"
         >
           <option value="">Prefer not to say</option>
           <option value="male">Male</option>
@@ -372,14 +380,287 @@
 {/if}
 
 <style>
-  /* Only native CSS for backgrounds as requested */
+  /* Base theme variables */
   :global(:root) {
     --bg-color: #ffffff;
     --bg-secondary: #f7f9fa;
+    --text-primary: #0f1419;
+    --text-secondary: #536471;
+    --border-color: #eff3f4;
+    --color-primary: #1da1f2;
+    --color-primary-hover: #1a91da;
+    --modal-overlay-bg: rgba(0, 0, 0, 0.6);
   }
 
   :global([data-theme="dark"]) {
     --bg-color: #000000;
     --bg-secondary: #16181c;
+    --text-primary: #e7e9ea;
+    --text-secondary: #71767b;
+    --border-color: #2f3336;
+  }
+
+  /* Modal overlay */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: var(--modal-overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+
+  /* Modal container */
+  .modal-container {
+    background-color: var(--bg-color);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Modal header */
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .close-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+
+  .close-button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .save-button {
+    padding: 6px 16px;
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: 700;
+    border-radius: 9999px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .save-button:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+  }
+
+  .save-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .loading-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .spinner {
+    animation: spin 1s linear infinite;
+    height: 16px;
+    width: 16px;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Banner styling */
+  .banner-container {
+    position: relative;
+    width: 100%;
+    height: 200px;
+  }
+
+  .banner-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .banner-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .banner-placeholder {
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-primary);
+  }
+
+  .banner-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+
+  /* Profile picture styling */
+  .profile-picture-container {
+    padding: 0 16px;
+    margin-top: -64px;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .profile-picture-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+
+  .profile-picture-border {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    border: 4px solid var(--bg-color);
+    overflow: hidden;
+  }
+
+  .profile-picture {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-picture-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #333;
+    color: white;
+    font-size: 48px;
+    font-weight: bold;
+  }
+
+  .profile-picture-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+  }
+
+  /* Upload elements */
+  .upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .upload-icon {
+    width: 32px;
+    height: 32px;
+    color: white;
+  }
+
+  .upload-icon-small {
+    width: 24px;
+    height: 24px;
+    color: white;
+  }
+
+  .upload-text {
+    color: white;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+
+  .file-input {
+    display: none;
+  }
+
+  /* Form styling */
+  .form-container {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .form-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .form-input,
+  .form-textarea,
+  .form-select {
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-size: 16px;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+
+  .form-input:focus,
+  .form-textarea:focus,
+  .form-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(29, 161, 242, 0.2);
+  }
+
+  .form-textarea {
+    resize: none;
+  }
+
+  .form-help-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    margin: 2px 0 0 0;
   }
 </style> 

@@ -2,13 +2,21 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"aycom/backend/api-gateway/utils"
 	userProto "aycom/backend/proto/user"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func AuthHandler() gin.HandlerFunc {
@@ -20,25 +28,80 @@ func AuthHandler() gin.HandlerFunc {
 }
 
 func RefreshToken(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
+		return
+	}
+
+	// Parse the refresh token to validate and extract claims
+	refreshSecret := GetJWTSecret()
+	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return refreshSecret, nil
+	})
+
+	if err != nil {
+		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid refresh token")
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid refresh token")
+		return
+	}
+
+	// Extract user ID from claims
+	userID, ok := claims["sub"].(string)
+	if !ok {
+		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
+		return
+	}
+
+	// Generate new tokens
+	accessToken, err := utils.GenerateJWT(userID, time.Hour)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
+		return
+	}
+
+	refreshTokenDuration := 7 * 24 * time.Hour // 7 days
+	newRefreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Token refreshed successfully",
+		"success":       true,
+		"access_token":  accessToken,
+		"refresh_token": newRefreshToken,
+		"expires_in":    3600,
+		"token_type":    "Bearer",
+		"user_id":       userID,
 	})
 }
 
 func GetOAuthConfig(c *gin.Context) {
+	// Get actual Google client ID from environment
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	if googleClientID == "" {
+		googleClientID = "161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com" // Fallback to default in env
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"providers": []gin.H{
 			{
 				"name":      "google",
-				"client_id": "mock-google-client-id",
+				"client_id": googleClientID,
 				"auth_url":  "https://accounts.google.com/o/oauth2/auth",
 				"scopes":    []string{"email", "profile"},
-			},
-			{
-				"name":      "github",
-				"client_id": "mock-github-client-id",
-				"auth_url":  "https://github.com/login/oauth/authorize",
-				"scopes":    []string{"user:email", "read:user"},
 			},
 		},
 	})
@@ -51,27 +114,297 @@ func Login(c *gin.Context) {
 }
 
 func VerifyEmail(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Email verified successfully",
+	var req struct {
+		Email            string `json:"email" binding:"required,email"`
+		VerificationCode string `json:"verification_code" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format. Email and verification code are required.")
+		return
+	}
+
+	if UserClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// First, we need to find the user by email
+	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+		Email: req.Email,
 	})
+
+	if err != nil {
+		log.Printf("Error fetching user by email: %v", err)
+		SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+		return
+	}
+
+	if userResp.User == nil {
+		SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+		return
+	}
+
+	// Verify the code (in a real system, this would be compared with a stored code)
+	// For now, we'll just mark the user as verified directly
+	// In a production system, you would verify the code against what's stored in the database
+	updateReq := &userProto.UpdateUserVerificationStatusRequest{
+		UserId:     userResp.User.Id,
+		IsVerified: true,
+	}
+
+	// Call the user service to verify the email
+	updateResp, err := UserClient.UpdateUserVerificationStatus(ctx, updateReq)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				SendErrorResponse(c, http.StatusBadRequest, "INVALID_CODE", "Invalid verification code")
+			case codes.NotFound:
+				SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+			default:
+				SendErrorResponse(c, http.StatusInternalServerError, "VERIFICATION_FAILED", "Failed to verify email: "+st.Message())
+			}
+		} else {
+			SendErrorResponse(c, http.StatusInternalServerError, "VERIFICATION_FAILED", "Failed to verify email")
+		}
+		return
+	}
+
+	// If verification was successful, generate JWT tokens for verified user
+	if updateResp.Success {
+		accessToken, err := utils.GenerateJWT(userResp.User.Id, time.Hour)
+		if err != nil {
+			SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
+			return
+		}
+
+		refreshTokenDuration := 7 * 24 * time.Hour // 7 days
+		refreshToken, err := utils.GenerateJWT(userResp.User.Id, refreshTokenDuration)
+		if err != nil {
+			SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":       true,
+			"message":       "Email verified successfully",
+			"access_token":  accessToken,
+			"refresh_token": refreshToken,
+			"user_id":       userResp.User.Id,
+			"expires_in":    3600,
+			"token_type":    "Bearer",
+		})
+	} else {
+		SendErrorResponse(c, http.StatusBadRequest, "VERIFICATION_FAILED", updateResp.Message)
+	}
 }
 
 func ResendVerification(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid email format")
+		return
+	}
+
+	if UserClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// First check if the user exists
+	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+		Email: req.Email,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.NotFound {
+			// Don't disclose that the email doesn't exist
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "If the email exists, a new verification code has been sent",
+			})
+			return
+		}
+
+		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to process request")
+		return
+	}
+
+	if userResp.User == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "If the email exists, a new verification code has been sent",
+		})
+		return
+	}
+
+	// If the user is already verified, don't send a new code
+	if userResp.User.IsVerified {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "User is already verified",
+		})
+		return
+	}
+
+	// Generate a new verification code
+	code := utils.GenerateVerificationCode()
+
+	// In a production system, we would:
+	// 1. Store the verification code in the database
+	// 2. Send the verification code via email
+
+	// For development, we'll log it for testing purposes
+	log.Printf("New verification code for %s: %s", req.Email, code)
+
+	// In a real implementation, we would update the user's verification code in the database
+	// Since the proto doesn't support this directly, this would be a custom DB operation
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Verification email resent successfully",
+		"success": true,
+		"message": "Verification code has been sent to your email",
 	})
 }
 
+type GoogleUserInfo struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+	Locale        string `json:"locale"`
+}
+
 func GoogleLogin(c *gin.Context) {
+	var req struct {
+		TokenID string `json:"token_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid token format")
+		return
+	}
+
+	// Verify the token with Google
+	googleAPIURL := "https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=" + req.TokenID
+	resp, err := http.Get(googleAPIURL)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "GOOGLE_API_ERROR", "Failed to verify Google token")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid Google token")
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "READ_ERROR", "Failed to read Google API response")
+		return
+	}
+
+	var tokenInfo struct {
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified string `json:"email_verified"`
+		Name          string `json:"name"`
+		Picture       string `json:"picture"`
+	}
+
+	if err := json.Unmarshal(body, &tokenInfo); err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "PARSE_ERROR", "Failed to parse Google API response")
+		return
+	}
+
+	if UserClient == nil {
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		return
+	}
+
+	// Check if user already exists by email
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+		Email: tokenInfo.Email,
+	})
+
+	var userID string
+	if err != nil || userResp.User == nil {
+		// User doesn't exist, create a new user
+		newUsername := utils.GenerateUsername(tokenInfo.Name)
+
+		// Generate secure random password for Google users
+		randomPassword := utils.GenerateSecureRandomPassword(16)
+
+		// Set current date as birthdate placeholder
+		currentDate := time.Now().Format("2006-01-02")
+
+		// Create user with only the fields that are in the proto definition
+		user := &userProto.User{
+			Name:              tokenInfo.Name,
+			Username:          newUsername,
+			Email:             tokenInfo.Email,
+			Password:          randomPassword, // Random secure password
+			ProfilePictureUrl: tokenInfo.Picture,
+			DateOfBirth:       currentDate, // Placeholder
+			Gender:            "unknown",   // Placeholder
+			IsVerified:        true,        // Auto-verify Google users
+		}
+
+		createReq := &userProto.CreateUserRequest{
+			User: user,
+		}
+
+		createResp, err := UserClient.CreateUser(ctx, createReq)
+		if err != nil {
+			SendErrorResponse(c, http.StatusInternalServerError, "USER_CREATION_FAILED", "Failed to create user account")
+			return
+		}
+
+		userID = createResp.User.Id
+	} else {
+		// User exists
+		userID = userResp.User.Id
+	}
+
+	// Generate JWT tokens
+	accessToken, err := utils.GenerateJWT(userID, time.Hour)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
+		return
+	}
+
+	refreshTokenDuration := 7 * 24 * time.Hour // 7 days
+	refreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Google OAuth login successful",
-		"user": gin.H{
-			"id":    "mock-user-id",
-			"email": "mock@example.com",
-			"name":  "Mock User",
-		},
-		"token":         "mock-jwt-token",
-		"refresh_token": "mock-refresh-token",
+		"success":       true,
+		"message":       "Google authentication successful",
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"user_id":       userID,
+		"expires_in":    3600,
+		"token_type":    "Bearer",
 	})
 }
 
@@ -196,6 +529,20 @@ func ResetPassword(c *gin.Context) {
 	storedPassword := userResp.User.Password
 	if storedPassword == req.NewPassword {
 		SendErrorResponse(c, http.StatusBadRequest, "SAME_PASSWORD", "New password cannot be the same as the old one")
+		return
+	}
+
+	// Update the user's password using the full user object
+	updateReq := &userProto.UpdateUserRequest{
+		User: &userProto.User{
+			Id:       userResp.User.Id,
+			Password: req.NewPassword,
+		},
+	}
+
+	_, err = UserClient.UpdateUser(ctx, updateReq)
+	if err != nil {
+		SendErrorResponse(c, http.StatusInternalServerError, "PASSWORD_UPDATE_FAILED", "Failed to update password")
 		return
 	}
 

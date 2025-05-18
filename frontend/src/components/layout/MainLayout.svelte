@@ -3,6 +3,7 @@
   import RightSide from './RightSide.svelte';
   import Toast from '../common/Toast.svelte';
   import DebugPanel from '../common/DebugPanel.svelte';
+  import ComposeTweetModal from '../social/ComposeTweetModal.svelte';
   import { useTheme } from '../../hooks/useTheme';
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
   import { createEventDispatcher } from 'svelte';
@@ -27,11 +28,14 @@
 
   // Setup mobile detection
   let isMobile = false;
+  let windowWidth = 0;
+  let showComposeModal = false;
 
   onMount(() => {
     // Check if the viewport is mobile on mount
     const checkMobile = () => {
-      isMobile = window.innerWidth < 768;
+      windowWidth = window.innerWidth;
+      isMobile = windowWidth < 768;
     };
     
     checkMobile();
@@ -46,7 +50,14 @@
   $: isDarkMode = $theme === 'dark';
 
   function handleToggleComposeModal() {
+    console.log('MainLayout: Toggle compose modal triggered');
+    showComposeModal = !showComposeModal;
     dispatch('toggleComposeModal');
+  }
+
+  function handleNewPost(event) {
+    showComposeModal = false;
+    dispatch('posted', event.detail);
   }
 
   // Get the current path for active link styling
@@ -73,12 +84,10 @@
       <slot></slot>
     </main>
     
-    {#if showRightSidebar}
-      <div class="widgets-container">
+    {#if showRightSidebar && windowWidth >= 880}
         <RightSide 
           {isDarkMode}
         />
-      </div>
     {/if}
   </div>
   
@@ -115,30 +124,13 @@
     </nav>
   {/if}
   
+  <ComposeTweetModal 
+    isOpen={showComposeModal}
+    {avatar}
+    on:close={() => showComposeModal = false}
+    on:posted={handleNewPost}
+  />
+  
   <Toast />
   <DebugPanel />
 </div>
-
-<style>
-  /* Mobile compose button */
-  .mobile-compose-btn {
-    background-color: var(--color-primary);
-    color: white;
-    border: none;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    margin-top: -20px;
-    transition: background-color 0.2s;
-    cursor: pointer;
-  }
-  
-  .mobile-compose-btn:hover,
-  .mobile-compose-btn:active {
-    background-color: var(--color-primary-hover);
-  }
-</style>

@@ -1063,6 +1063,18 @@ export async function removeReplyBookmark(replyId: string) {
 export async function getUserThreads(userId: string, page: number = 1, limit: number = 10) {
   try {
     const token = getAuthToken();
+    let actualUserId = userId;
+    
+    // If 'me' is specified, get the actual user ID
+    if (userId === 'me') {
+      const currentUserId = getUserId();
+      console.log('Current user ID from auth:', currentUserId);
+      
+      if (!currentUserId) {
+        throw new Error('User ID is required');
+      }
+      actualUserId = currentUserId;
+    }
     
     // Set up headers - allow unauthenticated access but add auth if available
     const headers: Record<string, string> = {
@@ -1073,9 +1085,9 @@ export async function getUserThreads(userId: string, page: number = 1, limit: nu
       headers["Authorization"] = `Bearer ${token}`;
     }
     
-    console.log(`Fetching threads for user ${userId}, page: ${page}, limit: ${limit}`);
+    console.log(`Fetching threads for user ${actualUserId}, page: ${page}, limit: ${limit}`);
     
-    const response = await fetch(`${API_BASE_URL}/threads/user/${userId}?page=${page}&limit=${limit}`, {
+    const response = await fetch(`${API_BASE_URL}/threads/user/${actualUserId}?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: headers,
       credentials: "include",
@@ -1097,7 +1109,7 @@ export async function getUserThreads(userId: string, page: number = 1, limit: nu
     const data = await response.json();
     
     // Log thread data to debug like status
-    console.log(`Received ${data.threads?.length || 0} threads for user ${userId}`);
+    console.log(`Received ${data.threads?.length || 0} threads for user ${actualUserId}`);
     
     // Check for any thread with is_liked = true
     if (data.threads && data.threads.length > 0) {

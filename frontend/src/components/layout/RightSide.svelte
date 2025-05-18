@@ -104,9 +104,9 @@
 </script>
 
 <div class="widgets-container">
+  <div class="right-sidebar {isDarkMode ? 'right-sidebar-dark' : ''}">
   <!-- Trends Widget -->
-  <div class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
-    <div class="sidebar-section">
+    <div class="sidebar-section {isDarkMode ? 'sidebar-section-dark' : ''}">
       <h3 class="sidebar-title">Trends for you</h3>
       
       {#if isTrendsLoading}
@@ -144,12 +144,10 @@
       <a href="/explore" class="trends-show-more {isDarkMode ? 'trends-show-more-dark' : ''}">
         Show more
       </a>
-    </div>
   </div>
 
   <!-- Who to Follow Widget -->
-  <div class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
-    <div class="sidebar-section">
+    <div class="sidebar-section {isDarkMode ? 'sidebar-section-dark' : ''}">
       <h3 class="sidebar-title">Who to follow</h3>
       
       {#if isFollowSuggestionsLoading}
@@ -200,14 +198,66 @@
         </div>
       {/if}
       
-      <a href="/connect" class="suggestions-show-more {isDarkMode ? 'suggestions-show-more-dark' : ''}">
+      <a href="/discover-people" class="trends-show-more {isDarkMode ? 'trends-show-more-dark' : ''}">
         Show more
       </a>
+    </div>
+    
+    <!-- Footer links -->
+    <div class="footer-links">
+      <div class="footer-links-list">
+        <a href="/about" class="footer-link">About</a>
+        <a href="/help" class="footer-link">Help Center</a>
+        <a href="/terms" class="footer-link">Terms of Service</a>
+        <a href="/privacy" class="footer-link">Privacy Policy</a>
+        <a href="/cookies" class="footer-link">Cookie Policy</a>
+        <a href="/accessibility" class="footer-link">Accessibility</a>
+        <a href="/ads-info" class="footer-link">Ads Info</a>
+      </div>
+      <div class="footer-copyright">© {new Date().getFullYear()} AYCOM, Inc.</div>
     </div>
   </div>
 </div>
 
 <style>
+  .widgets-container {
+    flex: 1 0 350px;
+    max-width: 33%;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+  }
+  
+  .right-sidebar {
+    padding: var(--space-4);
+    height: 100%;
+  }
+  
+  .sidebar-section {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+  
+  .sidebar-section-dark {
+    background-color: var(--dark-bg-secondary);
+  }
+  
+  .sidebar-title {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    margin-bottom: var(--space-3);
+    color: var(--text-primary);
+  }
+  
+  @media (max-width: 1280px) {
+    .widgets-container {
+      flex: 1 0 290px;
+    }
+  }
+  
   /* Loading indicators */
   .trends-loading, .suggestions-loading {
     display: flex;

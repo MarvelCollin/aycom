@@ -5,26 +5,68 @@ import { createLoggerWithPrefix } from './logger';
 
 const logger = createLoggerWithPrefix('common-utils');
 
+/**
+ * Format a timestamp into a relative time ago string
+ * @param {string} timestamp - ISO timestamp string
+ * @returns {string} - Formatted time ago string (e.g., "2h", "3d", "1w")
+ */
 export function formatTimeAgo(timestamp: string): string {
+  if (!timestamp) return 'now';
+  
   try {
     const date = new Date(timestamp);
+    
+    if (isNaN(date.getTime())) {
+      return 'now';
+    }
+    
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHour / 24);
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
-    if (diffSec < 60) return `${diffSec}s`;
-    if (diffMin < 60) return `${diffMin}m`;
-    if (diffHour < 24) return `${diffHour}h`;
-    if (diffDay < 7) return `${diffDay}d`;
-    if (diffDay < 30) return `${Math.floor(diffDay / 7)}w`;
-    if (diffDay < 365) return `${Math.floor(diffDay / 30)}mo`;
+    if (seconds < 0) return 'now';
     
-    return `${Math.floor(diffDay / 365)}y`;
-  } catch (e) {
-    return 'recently';
+    // Less than a minute
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    
+    // Less than an hour
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+    
+    // Less than a day
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h`;
+    }
+    
+    // Less than a week
+    const days = Math.floor(hours / 24);
+    if (days < 7) {
+      return `${days}d`;
+    }
+    
+    // Less than a month
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) {
+      return `${weeks}w`;
+    }
+    
+    // Less than a year
+    const months = Math.floor(days / 30);
+    if (months < 12) {
+      return `${months}mo`;
+    }
+    
+    // Years
+    const years = Math.floor(days / 365);
+    return `${years}y`;
+    
+  } catch (error) {
+    console.error('Error formatting timestamp:', error);
+    return 'now';
   }
 }
 
@@ -48,6 +90,11 @@ export function isWithinTime(timestamp: string, withinMs: number = 60000): boole
   }
 }
 
+/**
+ * Generate a preview object for a file
+ * @param {File} file - The file to generate a preview for
+ * @returns {IMedia} - Media object with URL and type
+ */
 export function generateFilePreview(file: File): IMedia {
   const url = URL.createObjectURL(file);
   const type = file.type.startsWith('image/') ? 'image' : 
@@ -60,6 +107,11 @@ export function generateFilePreview(file: File): IMedia {
   };
 }
 
+/**
+ * Extracts user metadata from content that might contain embedded information
+ * @param {string} content - Content string that might contain embedded metadata
+ * @returns {object} - Object with extracted username, displayName, and cleaned content
+ */
 export function processUserMetadata(content: string): { username?: string, displayName?: string, content: string } {
   if (!content) return { content: '' };
   
@@ -77,6 +129,11 @@ export function processUserMetadata(content: string): { username?: string, displ
   return { content };
 }
 
+/**
+ * Handle API errors in a consistent way
+ * @param {unknown} error - The error to handle
+ * @returns {object} - Standard error response object
+ */
 export function handleApiError(error: unknown): { success: false, message: string } {
   if (error instanceof Error) {
     if (error.name === 'AbortError') {
@@ -87,23 +144,82 @@ export function handleApiError(error: unknown): { success: false, message: strin
   return { success: false, message: 'An unexpected error occurred.' };
 }
 
+/**
+ * Truncate text to a specified length and add ellipsis
+ * @param {string} text - The text to truncate
+ * @param {number} maxLength - Maximum length before truncation
+ * @returns {string} - Truncated text with ellipsis if needed
+ */
 export function truncateText(text: string, maxLength: number = 100): string {
   if (!text || text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 }
 
+/**
+ * Check if a URL is a Supabase storage URL
+ * @param {string} url - URL to check
+ * @returns {boolean} - Whether the URL is a Supabase storage URL
+ */
 export function isSupabaseStorageUrl(url: string): boolean {
   const supabaseUrlPattern = /supabase\.co\/storage\/v1\/object\/public\//;
   return supabaseUrlPattern.test(url);
 }
 
+/**
+ * Format a storage URL to ensure it includes the full Supabase path
+ * @param {string|null} url - URL to format
+ * @returns {string} - Formatted URL
+ */
 export function formatStorageUrl(url: string | null): string {
   if (!url) return '';
   
+  // If the URL is already a complete URL, return it as is
   if (url.startsWith('http://') || url.startsWith('https://')) {
+    console.log('URL already complete:', url);
     return url;
   }
   
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
-  return `${supabaseUrl}/storage/v1/object/public/${url}`;
+  
+  // Handle case where URL is just a filename without proper path structure
+  if (!url.includes('/')) {
+    // First try the profile-pictures bucket for profile images
+    if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+      const formatted = `${supabaseUrl}/storage/v1/object/public/profile-pictures/${url}`;
+      console.log(`Formatted filename-only URL (profile): ${url} -> ${formatted}`);
+      return formatted;
+    }
+    
+    // Default to tpaweb bucket
+    const formatted = `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
+    console.log(`Formatted filename-only URL: ${url} -> ${formatted}`);
+    return formatted;
+  }
+  
+  // Handle case where URL is storage path but missing base URL
+  // Make sure we don't duplicate '/storage/v1/object/public/'
+  if (url.startsWith('storage/v1/object/public/')) {
+    const formatted = `${supabaseUrl}/${url}`;
+    console.log(`Formatted storage path URL: ${url} -> ${formatted}`);
+    return formatted;
+  }
+  
+  // Handle profile-pictures/filename.jpg format
+  if (url.startsWith('profile-pictures/')) {
+    const formatted = `${supabaseUrl}/storage/v1/object/public/${url}`;
+    console.log(`Formatted profile URL: ${url} -> ${formatted}`);
+    return formatted;
+  }
+  
+  // Handle banners/filename.jpg format
+  if (url.startsWith('banners/')) {
+    const formatted = `${supabaseUrl}/storage/v1/object/public/${url}`;
+    console.log(`Formatted banner URL: ${url} -> ${formatted}`);
+    return formatted;
+  }
+  
+  // Default case - add the standard storage path prefix
+  const formatted = `${supabaseUrl}/storage/v1/object/public/${url}`;
+  console.log(`Formatted default URL: ${url} -> ${formatted}`);
+  return formatted;
 } 

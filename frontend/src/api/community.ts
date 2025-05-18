@@ -5,6 +5,40 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
 
+/**
+ * Get a formatted list of communities for UI components
+ * @returns Object with success status and communities array (id, name)
+ */
+export async function getCommunities() {
+  try {
+    const response = await listCommunities();
+    
+    if (response && Array.isArray(response.communities)) {
+      return {
+        success: true,
+        communities: response.communities.map((community: any) => ({
+          id: community.id,
+          name: community.name
+        }))
+      };
+    }
+    
+    logger.warn('Unexpected response format from listCommunities', response);
+    return {
+      success: false,
+      communities: [],
+      error: 'Failed to parse communities data'
+    };
+  } catch (error) {
+    logger.error('Failed to get communities:', error);
+    return {
+      success: false,
+      communities: [],
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
 export async function createCommunity(data: Record<string, any>) {
   try {
     const token = getAuthToken();

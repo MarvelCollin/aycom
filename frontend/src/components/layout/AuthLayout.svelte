@@ -20,8 +20,26 @@
   
   onMount(() => {
     // Apply theme class to document when component mounts
-    document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
+    document.documentElement.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
+    
+    return () => {
+      // Cleanup when component is destroyed
+      document.documentElement.classList.remove(isDarkMode ? 'dark-theme' : 'light-theme');
+    };
   });
+  
+  // Update theme class when isDarkMode changes
+  $: {
+    if (typeof document !== 'undefined') {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark-theme');
+        document.documentElement.classList.remove('light-theme');
+      } else {
+        document.documentElement.classList.add('light-theme');
+        document.documentElement.classList.remove('dark-theme');
+      }
+    }
+  }
 </script>
 
 <!-- Render the Toast component here -->
@@ -44,7 +62,7 @@
       <div class="auth-header">
         {#if showBackButton}
           <button 
-            class="text-blue-500 hover:text-blue-600 transition-colors absolute top-4 left-4"
+            class="auth-back-button"
             on:click={onBack}
             data-cy="back-button"
             aria-label="Go back"
@@ -76,12 +94,6 @@
 </div>
 
 <style>
-  .theme-container {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-  
   .auth-left-logo {
     z-index: 10;
     display: flex;
@@ -101,22 +113,60 @@
     object-fit: contain;
   }
   
-  /* Apply these styles to auth buttons so they look more like Twitter */
+  .auth-back-button {
+    position: absolute;
+    top: var(--space-4);
+    left: var(--space-4);
+    color: var(--color-primary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .auth-back-button:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  /* Global styles for auth components */
   :global(.auth-btn) {
-    @apply w-full py-3 rounded-full font-semibold transition-colors;
+    width: 100%;
+    padding: var(--space-3);
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    transition: background-color var(--transition-fast);
   }
   
   :global(.auth-btn-primary) {
-    @apply bg-blue-500 text-white hover:bg-blue-600;
+    background-color: var(--color-primary);
+    color: white; 
+  }
+  
+  :global(.auth-btn-primary:hover) {
+    background-color: var(--color-primary-hover);
   }
   
   :global(.auth-btn-secondary) {
-    @apply border dark:border-gray-700 border-gray-300 text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800;
+    background-color: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--border-color);
   }
   
-  :global(.auth-input) {
-    @apply w-full p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500;
-    background-color: var(--bg-primary);
-    border-color: var(--border-color);
+  :global(.auth-btn-secondary:hover) {
+    background-color: var(--bg-hover);
+  }
+  
+  :global(.dark-theme .auth-btn-secondary) {
+    border-color: var(--dark-border-color);
+  }
+  
+  :global(.dark-theme .auth-btn-secondary:hover) {
+    background-color: var(--dark-hover-bg);
   }
 </style> 

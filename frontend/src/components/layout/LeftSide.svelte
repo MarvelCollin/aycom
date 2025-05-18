@@ -17,11 +17,13 @@
   import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
   import SettingsIcon from 'svelte-feather-icons/src/icons/SettingsIcon.svelte';
   import PlusIcon from 'svelte-feather-icons/src/icons/PlusIcon.svelte';
+  import StarIcon from 'svelte-feather-icons/src/icons/StarIcon.svelte';
   import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
   import LogOutIcon from 'svelte-feather-icons/src/icons/LogOutIcon.svelte';
   import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
   import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
   import LogInIcon from 'svelte-feather-icons/src/icons/LogInIcon.svelte';
+  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
 
   export let username = "";
   export let displayName = "";
@@ -46,6 +48,8 @@
     joinDate: ''
   };
   
+  let isAdmin = false;
+  
   async function fetchUserProfile() {
     if (!isAuthenticated()) {
       console.log('User not authenticated, skipping profile fetch');
@@ -69,6 +73,8 @@
           isVerified: userData.is_verified || false,
           joinDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : ''
         };
+        
+        isAdmin = isAuthenticated();
         
         username = userDetails.username;
         displayName = userDetails.displayName;
@@ -107,7 +113,10 @@
     { label: "Messages", path: "/messages", icon: "mail" },
     { label: "Bookmarks", path: "/bookmarks", icon: "bookmark" },
     { label: "Communities", path: "/communities", icon: "users" },
+    { label: "Premium", path: "/premium", icon: "star" },
     { label: "Profile", path: "/profile", icon: "user" },
+    { label: "Settings", path: "/settings", icon: "settings" },
+    ...(isAdmin ? [{ label: "Admin", path: "/admin", icon: "shield" }] : []),
   ];
   
   let showUserMenu = false;
@@ -120,6 +129,7 @@
   }
   
   function handleToggleComposeModal() {
+    console.log('LeftSide: Dispatching toggleComposeModal event');
     dispatch('toggleComposeModal');
   }
   
@@ -178,10 +188,14 @@
                 <BookmarkIcon size="24" />
               {:else if item.icon === 'users'}
                 <UsersIcon size="24" />
+              {:else if item.icon === 'star'}
+                <StarIcon size="24" />
               {:else if item.icon === 'user'}
                 <UserIcon size="24" />
               {:else if item.icon === 'settings'}
                 <SettingsIcon size="24" />
+              {:else if item.icon === 'shield'}
+                <ShieldIcon size="24" />
               {/if}
             </div>
             <span class="sidebar-nav-text">{item.label}</span>
@@ -228,9 +242,7 @@
   </div>
 
   {#if showUserMenu}
-    <div 
-      class="sidebar-user-menu {isDarkMode ? 'sidebar-user-menu-dark' : ''}"
-    >
+    <div class="sidebar-user-menu {isDarkMode ? 'sidebar-user-menu-dark' : ''}">
       <div class="sidebar-user-header {isDarkMode ? 'sidebar-user-header-dark' : ''}">
         <div class="sidebar-profile-name">{userDetails.displayName}</div>
         <div class="sidebar-profile-username">@{userDetails.username}</div>
@@ -258,196 +270,54 @@
         {/if}
       </div>
       
-      {#if isAuthenticated()}
-        <a 
-          href="/settings"
+      {#if userDetails.username !== 'guest'}
+        <div 
           class="sidebar-user-menu-item {isDarkMode ? 'sidebar-user-menu-item-dark' : ''}"
-        >
-          <div class="sidebar-user-menu-icon">
-            <SettingsIcon size="20" />
-          </div>
-          <span>Settings</span>
-        </a>
-        
-        <button 
-          class="sidebar-user-menu-item {isDarkMode ? 'sidebar-user-menu-item-dark' : ''}"
+          role="button"
+          tabindex="0"
           on:click={handleLogout}
+          on:keydown={(e) => e.key === 'Enter' && handleLogout()}
         >
           <div class="sidebar-user-menu-icon">
-            <LogOutIcon size="20" />
+            <LogOutIcon size="16" />
           </div>
-          <span>Logout</span>
-        </button>
+          <span>Log out @{userDetails.username}</span>
+        </div>
       {:else}
-        <a 
-          href="/login"
+        <div 
           class="sidebar-user-menu-item {isDarkMode ? 'sidebar-user-menu-item-dark' : ''}"
+          role="button"
+          tabindex="0"
+          on:click={() => window.location.href = '/login'}
+          on:keydown={(e) => e.key === 'Enter' && (window.location.href = '/login')}
         >
           <div class="sidebar-user-menu-icon">
-            <LogInIcon size="20" />
+            <LogInIcon size="16" />
           </div>
-          <span>Login</span>
-        </a>
+          <span>Log in</span>
+        </div>
       {/if}
       
-      {#if debugging}
+      {#if import.meta.env.DEV}
         <div class="sidebar-debug">
-          <div class="sidebar-debug-title">Debug Info:</div>
-          <div class="sidebar-debug-content">
-            {#if apiResponse}
-              <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
-            {:else}
-              No API response data
-            {/if}
+          <div 
+            class="sidebar-debug-title"
+            role="button"
+            tabindex="0"
+            on:click={toggleDebug}
+            on:keydown={(e) => e.key === 'Enter' && toggleDebug()}
+          >
+            Debug Info {debugging ? '▲' : '▼'}
           </div>
+          {#if debugging}
+            <div class="sidebar-debug-content">
+              <pre>Auth: {JSON.stringify(authState, null, 2)}</pre>
+              <pre>User: {JSON.stringify(userDetails, null, 2)}</pre>
+              <pre>API: {JSON.stringify(apiResponse, null, 2)}</pre>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
   {/if}
 </div>
-
-<style>
-  .sidebar-theme-toggle {
-    margin-top: var(--space-4);
-    display: flex;
-    justify-content: center;
-  }
-  
-  .online-indicator {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid var(--bg-primary);
-  }
-  
-  .online-indicator.active {
-    background-color: var(--color-success);
-  }
-  
-  .online-indicator.inactive {
-    background-color: var(--text-tertiary);
-  }
-  
-  .verified-icon {
-    color: var(--color-success);
-  }
-  
-  .debug-panel {
-    margin-top: var(--space-2);
-    padding: var(--space-2);
-    background-color: var(--bg-tertiary);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-xs);
-    overflow: auto;
-    max-height: 200px;
-  }
-  
-  .debug-title {
-    font-weight: 700;
-    margin-bottom: var(--space-1);
-  }
-  
-  .debug-refresh-btn {
-    margin-top: var(--space-1);
-    background-color: var(--color-primary);
-    color: white;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-xs);
-    border: none;
-    cursor: pointer;
-  }
-  
-  .sidebar-user-menu {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    width: 280px;
-    border-radius: var(--radius-lg);
-    background-color: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-md);
-    z-index: var(--z-dropdown);
-    overflow: hidden;
-  }
-  
-  .sidebar-user-menu-header {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border-color);
-  }
-  
-  .sidebar-user-menu-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    overflow: hidden;
-    margin-bottom: var(--space-2);
-    background-color: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .sidebar-user-menu-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .sidebar-user-menu-info {
-    margin-bottom: var(--space-2);
-  }
-  
-  .sidebar-user-menu-name {
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-  
-  .sidebar-user-menu-username {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
-  
-  .sidebar-user-menu-details {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-  }
-  
-  .sidebar-user-menu-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: var(--space-1);
-  }
-  
-  .sidebar-user-menu-item svg {
-    margin-right: var(--space-1);
-  }
-  
-  .sidebar-user-menu-actions {
-    padding: var(--space-2) 0;
-  }
-  
-  .sidebar-user-menu-action {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: var(--space-3) var(--space-4);
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-primary);
-    text-align: left;
-    transition: background-color var(--transition-fast);
-  }
-  
-  .sidebar-user-menu-action:hover {
-    background-color: var(--hover-bg);
-  }
-  
-  .sidebar-user-menu-action svg {
-    margin-right: var(--space-3);
-  }
-</style>

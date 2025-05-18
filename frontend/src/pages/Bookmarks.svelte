@@ -367,7 +367,7 @@
       fetchUserProfile()
         .then(() => {
           // Then load bookmarks
-          loadBookmarks();
+          fetchBookmarkedTweets();
         });
     }
   });
@@ -712,7 +712,6 @@
             <div class="bookmark-item {isDarkMode ? 'bookmark-item-dark' : ''}">
               <TweetCard 
                 {tweet}
-                {authState}
                 isDarkMode={isDarkMode}
                 on:like={async (e) => handleTweetLike(e)}
                 on:unlike={async (e) => handleTweetUnlike(e)}

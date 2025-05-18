@@ -9,7 +9,6 @@
   import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
   import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList } from '../api/chat';
   import { getProfile, searchUsers, getUserById, getAllUsers } from '../api/user';
-  import '../styles/magniview.css'
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
   import DebugPanel from '../components/common/DebugPanel.svelte';

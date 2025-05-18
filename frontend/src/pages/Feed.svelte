@@ -525,7 +525,15 @@
       toastStore.showToast('You need to log in to create posts', 'warning');
       return;
     }
+    
+    // Clear selectedTweet when opening for a new post (not a reply)
+    if (!showComposeModal) {
+      selectedTweet = null;
+    }
+    
     showComposeModal = !showComposeModal;
+    
+    logger.debug('Compose modal new state', { showComposeModal });
   }
   
   function openThreadModal(tweet: ITweet) {
@@ -539,7 +547,7 @@
   }
   
   // When a new tweet is created, refresh the feed
-  function handleNewTweet() {
+  function handleNewPost() {
     logger.info('New tweet created, refreshing feed');
     if (activeTab === 'for-you') {
       fetchTweetsForYou(true);
@@ -875,7 +883,7 @@
   }
 </script>
 
-<MainLayout on:toggleComposeModal={toggleComposeModal} {username} {displayName} {avatar}>
+<MainLayout {username} {displayName} {avatar} on:toggleComposeModal={toggleComposeModal} on:posted={handleNewPost}>
   <div class="feed-container {isDarkMode ? 'dark-theme' : ''}">
     <div class="feed-header">
       <h1 class="feed-title">Home</h1>
@@ -1054,16 +1062,6 @@
   </div>
 </MainLayout>
 
-{#if showComposeModal}
-  <ComposeTweet 
-    {isDarkMode}
-    on:close={toggleComposeModal}
-    on:tweet={handleNewTweet}
-    avatar={avatar}
-    replyTo={selectedTweet}
-  />
-{/if}
-
 <!-- Toast notifications -->
 <Toast />
 
@@ -1087,4 +1085,210 @@
     color: var(--text-secondary);
   }
   
+  /* Add missing feed styles */
+  .feed-container {
+    width: 100%;
+    border-right: 1px solid var(--border-color, #e5e7eb);
+    min-height: 100vh;
+  }
+  
+  .feed-container.dark-theme {
+    border-right: 1px solid var(--border-color-dark, #1e293b);
+  }
+  
+  .feed-header {
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-primary, #ffffff);
+    backdrop-filter: blur(10px);
+    z-index: 10;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+  }
+  
+  .dark-theme .feed-header {
+    background-color: var(--bg-primary-dark, #0f172a);
+    border-bottom: 1px solid var(--border-color-dark, #1e293b);
+  }
+  
+  .feed-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+  }
+  
+  .feed-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+  }
+  
+  .dark-theme .feed-tabs {
+    border-bottom: 1px solid var(--border-color-dark, #1e293b);
+  }
+  
+  .feed-tab {
+    flex: 1;
+    text-align: center;
+    padding: 16px 0;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    color: var(--text-primary, #1f2937);
+  }
+  
+  .dark-theme .feed-tab {
+    color: var(--text-primary-dark, #f8fafc);
+  }
+  
+  .feed-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 70px;
+    height: 4px;
+    background-color: var(--color-primary, #1d9bf0);
+    border-radius: 9999px;
+  }
+  
+  .feed-compose {
+    display: flex;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+  }
+  
+  .dark-theme .feed-compose {
+    border-bottom: 1px solid var(--border-color-dark, #1e293b);
+  }
+  
+  .compose-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 12px;
+  }
+  
+  .compose-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .compose-input-container {
+    flex: 1;
+  }
+  
+  .compose-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 12px 0;
+    font-size: 20px;
+    color: var(--text-secondary, #4b5563);
+    text-align: left;
+    cursor: pointer;
+  }
+  
+  .dark-theme .compose-input {
+    color: var(--text-secondary-dark, #94a3b8);
+  }
+  
+  .compose-tools {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  
+  .compose-tweet-tool {
+    background: transparent;
+    border: none;
+    color: var(--color-primary, #1d9bf0);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .feed-items {
+    padding-bottom: 16px;
+  }
+  
+  .feed-loading {
+    display: flex;
+    justify-content: center;
+    padding: 32px 0;
+  }
+  
+  .feed-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(29, 155, 240, 0.2);
+    border-top-color: var(--color-primary, #1d9bf0);
+    border-radius: 50%;
+    animation: spinner 1s ease-in-out infinite;
+  }
+  
+  @keyframes spinner {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .empty-state {
+    padding: 48px 16px;
+    text-align: center;
+  }
+  
+  .empty-state-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-primary, #1f2937);
+  }
+  
+  .dark-theme .empty-state-title {
+    color: var(--text-primary-dark, #f8fafc);
+  }
+  
+  .empty-state-message {
+    font-size: 15px;
+    color: var(--text-secondary, #4b5563);
+    margin-bottom: 16px;
+  }
+  
+  .dark-theme .empty-state-message {
+    color: var(--text-secondary-dark, #94a3b8);
+  }
+  
+  .btn {
+    padding: 8px 16px;
+    font-weight: 600;
+    border-radius: 9999px;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .btn-primary {
+    background-color: var(--color-primary, #1d9bf0);
+    color: white;
+  }
+  
+  .feed-pagination {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+  }
+  
+  .feed-load-more {
+    background-color: transparent;
+    border: 1px solid var(--color-primary, #1d9bf0);
+    color: var(--color-primary, #1d9bf0);
+    padding: 8px 16px;
+    border-radius: 9999px;
+    font-weight: 600;
+    cursor: pointer;
+  }
 </style>

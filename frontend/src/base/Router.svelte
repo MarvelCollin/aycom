@@ -11,14 +11,19 @@
   import Notification from '../pages/Notification.svelte';
   import Bookmarks from '../pages/Bookmarks.svelte';
   import Communities from '../pages/Communities.svelte';
+  import CommunityDetail from '../pages/CommunityDetail.svelte';
+  import Admin from '../pages/Admin.svelte';
   import ForgotPassword from '../pages/ForgotPassword.svelte';
   import appConfig from '../config/appConfig';
   import OwnProfile from '../pages/OwnProfile.svelte';
   import UserProfile from '../pages/UserProfile.svelte';
+  import Premium from '../pages/Premium.svelte';
+  import Setting from '../pages/Setting.svelte';
   
   let route = '/';
   let isAuthenticated = false;
   let userProfileId = '';
+  let communityId = '';
   
   function handleNavigation() {
     const fullPath = window.location.pathname;
@@ -33,12 +38,25 @@
       
       // Update the route store with the userId parameter
       updatePageStore();
-    } else {
-      route = fullPath;
-      
-      // Update the route store for other routes too
-      updatePageStore();
+      return;
     }
+    
+    // Check for community detail route pattern
+    const communityDetailMatch = fullPath.match(/^\/communities\/([^\/]+)$/);
+    if (communityDetailMatch) {
+      communityId = communityDetailMatch[1];
+      route = '/community-detail';
+      console.log(`Community detail route matched with communityId: ${communityId}`);
+      
+      // Update the route store with the communityId parameter
+      updatePageStore();
+      return;
+    }
+    
+    route = fullPath;
+    
+    // Update the route store for other routes too
+    updatePageStore();
     
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
     console.log(`Authentication status: ${isAuthenticated}`);
@@ -55,7 +73,11 @@
          route === '/messages' || 
          route === '/bookmarks' ||
          route === '/communities' ||
+         route === '/community-detail' ||
+         route === '/premium' ||
          route === '/profile' ||
+         route === '/settings' ||
+         route === '/admin' ||
          route === '/user')) {
       console.log('Unauthenticated access to protected route, redirecting to login');
       window.history.replaceState({}, '', '/login');
@@ -135,6 +157,14 @@
     <Bookmarks />
   {:else if route === '/communities'}
     <Communities />
+  {:else if route === '/community-detail'}
+    <CommunityDetail />
+  {:else if route === '/premium'}
+    <Premium />
+  {:else if route === '/settings'}
+    <Setting />
+  {:else if route === '/admin'}
+    <Admin />
   {:else}
     <div class="not-found">
       <h1>404 - Page Not Found</h1>

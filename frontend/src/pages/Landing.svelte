@@ -12,8 +12,26 @@
   
   onMount(() => {
     // Apply theme class to document when component mounts
-    document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
+    document.documentElement.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
+    
+    return () => {
+      // Cleanup when component is destroyed
+      document.documentElement.classList.remove(isDarkMode ? 'dark-theme' : 'light-theme');
+    };
   });
+  
+  // Update theme class when isDarkMode changes
+  $: {
+    if (typeof document !== 'undefined') {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark-theme');
+        document.documentElement.classList.remove('light-theme');
+      } else {
+        document.documentElement.classList.add('light-theme');
+        document.documentElement.classList.remove('dark-theme');
+      }
+    }
+  }
 </script>
 
 <div class="landing-container {isDarkMode ? 'landing-container-dark' : ''}">
@@ -53,10 +71,11 @@
     display: flex;
     min-height: 100vh;
     background-color: var(--bg-primary);
+    transition: background-color var(--transition-normal);
   }
 
   .landing-container-dark {
-    background-color: var(--bg-primary-dark);
+    background-color: var(--dark-bg-primary);
   }
 
   .landing-content {
@@ -100,21 +119,29 @@
     opacity: 0.1;
   }
 
-  /* Right side with content */
+  /* Right side with content - IMPROVED */
   .landing-right {
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: var(--space-6);
-    max-width: 550px;
+    padding: var(--space-4);
+    width: 100%;
+    max-width: 100%;
     margin: 0 auto;
+    position: relative;
+    overflow-y: auto;
   }
 
   .landing-form {
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
+    padding: var(--space-4);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: background-color var(--transition-normal), box-shadow var(--transition-normal);
   }
 
   .landing-header {
@@ -126,6 +153,7 @@
     font-weight: 800;
     margin-bottom: var(--space-4);
     color: var(--text-primary);
+    transition: color var(--transition-normal);
   }
 
   .landing-subtitle {
@@ -133,11 +161,13 @@
     font-weight: 700;
     margin-bottom: var(--space-2);
     color: var(--text-primary);
+    transition: color var(--transition-normal);
   }
 
   .landing-text {
     color: var(--text-secondary);
     margin-bottom: var(--space-6);
+    transition: color var(--transition-normal);
   }
 
   /* Button styles */
@@ -156,7 +186,7 @@
     font-size: var(--font-size-md);
     text-align: center;
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
     text-decoration: none;
   }
 
@@ -174,6 +204,7 @@
     background-color: transparent;
     color: var(--color-primary);
     border: 1px solid var(--border-color);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
   }
 
   .landing-btn-secondary:hover {
@@ -184,6 +215,21 @@
     text-align: center;
     color: var(--text-secondary);
     margin-bottom: var(--space-2);
+    transition: color var(--transition-normal);
+  }
+
+  /* Dark mode specific adjustments */
+  :global(.dark-theme) .landing-form {
+    background-color: var(--dark-bg-secondary);
+    box-shadow: var(--shadow-md-dark);
+  }
+
+  :global(.dark-theme) .landing-btn-secondary {
+    border-color: var(--dark-border-color);
+  }
+
+  :global(.dark-theme) .landing-btn-secondary:hover {
+    background-color: var(--dark-hover-bg);
   }
 
   /* Responsive styles */
@@ -194,12 +240,32 @@
     
     .landing-right {
       max-width: 50%;
+      padding: var(--space-6);
+    }
+    
+    .landing-form {
+      padding: var(--space-6);
+      box-shadow: var(--shadow-md);
     }
   }
 
   @media (max-width: 767px) {
     .landing-right {
       padding: var(--space-4);
+    }
+    
+    .landing-form {
+      max-width: 100%;
+      box-shadow: none;
+      padding: var(--space-2);
+    }
+    
+    .landing-title {
+      font-size: var(--font-size-3xl);
+    }
+    
+    .landing-subtitle {
+      font-size: var(--font-size-xl);
     }
   }
 </style> 

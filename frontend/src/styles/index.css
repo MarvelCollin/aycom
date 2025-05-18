@@ -2,6 +2,7 @@
 
 /* Base styles */
 @import './base/variables.css';
+@import './base/theme.css';
 @import './base/typography.css';
 
 /* Layout */
@@ -26,5 +27,6 @@
 @import './pages/thread.css';
 @import './pages/explore.css';
 @import './pages/messages.css';
+@import './pages/communities.css';
 
 /* Dark mode theme is controlled via CSS variables and .dark-theme class */ 

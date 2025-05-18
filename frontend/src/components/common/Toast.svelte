@@ -15,19 +15,19 @@
 
   const typeStyles = {
     info: {
-      bg: 'bg-blue-500',
+      className: 'toast-info',
       icon: InfoIcon
     },
     success: {
-      bg: 'bg-green-500',
+      className: 'toast-success',
       icon: CheckCircleIcon
     },
     warning: {
-      bg: 'bg-yellow-500',
+      className: 'toast-warning',
       icon: AlertTriangleIcon
     },
     error: {
-      bg: 'bg-red-500',
+      className: 'toast-error',
       icon: XCircleIcon
     }
   };
@@ -47,7 +47,7 @@
     <div class="toast-container {positionClasses[pos]}">
       {#each toasts.filter(t => t.position === pos) as toast (toast.id)}
         <div 
-          class="toast-item {typeStyles[toast.type].bg}"
+          class="toast-item {typeStyles[toast.type].className}"
           transition:fly={{ y: pos.startsWith('top') ? -20 : 20, duration: 300 }}
         >
           <div class="toast-content">
@@ -120,18 +120,62 @@
     border-radius: 0.5rem;
     overflow: hidden;
     pointer-events: auto;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     color: white;
+    backdrop-filter: blur(4px);
+  }
+  
+  /* Toast type styles with dark mode support */
+  .toast-info {
+    background-color: rgba(29, 161, 242, 0.95);
+    border-left: 4px solid #1a91da;
+  }
+  
+  .toast-success {
+    background-color: rgba(52, 211, 153, 0.95);
+    border-left: 4px solid #10b981;
+  }
+  
+  .toast-warning {
+    background-color: rgba(251, 191, 36, 0.95);
+    color: rgba(31, 41, 55, 0.95);
+    border-left: 4px solid #f59e0b;
+  }
+  
+  .toast-error {
+    background-color: rgba(239, 68, 68, 0.95);
+    border-left: 4px solid #dc2626;
+  }
+  
+  /* Dark mode adjustments */
+  :global([data-theme="dark"]) .toast-info {
+    background-color: rgba(29, 161, 242, 0.85);
+  }
+  
+  :global([data-theme="dark"]) .toast-success {
+    background-color: rgba(52, 211, 153, 0.85);
+  }
+  
+  :global([data-theme="dark"]) .toast-warning {
+    background-color: rgba(251, 191, 36, 0.85);
+    color: rgba(31, 41, 55, 0.95);
+  }
+  
+  :global([data-theme="dark"]) .toast-error {
+    background-color: rgba(239, 68, 68, 0.85);
   }
   
   .toast-content {
     display: flex;
     align-items: center;
-    padding: 1rem;
+    padding: 0.875rem 1rem;
   }
   
   .toast-icon {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   
   .toast-message {
@@ -139,6 +183,11 @@
     flex: 1;
     font-size: 0.875rem;
     font-weight: 500;
+    line-height: 1.4;
+  }
+  
+  .toast-message p {
+    margin: 0;
   }
   
   .toast-close {
@@ -148,9 +197,13 @@
   
   .toast-close-button {
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: white;
-    border-radius: 0.375rem;
-    padding: 0.25rem;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    padding: 0;
     transition: background-color 0.2s;
   }
   
@@ -161,5 +214,27 @@
   .toast-close-button:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
+  
+  /* Dark text color for warning toast close button */
+  .toast-warning .toast-close-button {
+    color: rgba(31, 41, 55, 0.95);
+  }
+  
+  .toast-warning .toast-close-button:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Screen reader only class */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
   }
 </style>
