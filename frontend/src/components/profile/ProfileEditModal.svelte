@@ -5,7 +5,9 @@
   import { toastStore } from '../../stores/toastStore';
   import type { IUserProfile } from '../../interfaces/IUser';
   import { useTheme } from '../../hooks/useTheme';
-  import { formatStorageUrl } from '../../utils/common';
+  
+  // Define default image URL for fallback
+  const DEFAULT_AVATAR = "https://secure.gravatar.com/avatar/0?d=mp";
   
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
@@ -43,28 +45,17 @@
     };
   }
   
-  // Format URL for image display
-  function getFormattedUrl(url: string | null | undefined) {
-    if (!url) return null;
-    console.log('ProfileEditModal: Processing URL:', url);
-    const formattedUrl = formatStorageUrl(url);
-    console.log('ProfileEditModal: Formatted URL:', formattedUrl);
-    return formattedUrl;
-  }
-  
   onMount(() => {
     if (profile) {
-      // Handle profile picture URL - check both possible field names
-      profilePicturePreview = getFormattedUrl(profile.profile_picture || profile.avatar);
+      // Handle profile picture URL - directly use the URL without formatting
+      profilePicturePreview = profile.profile_picture_url || profile.profile_picture || profile.avatar || DEFAULT_AVATAR;
       
-      // Handle banner URL - check both possible field names
-      bannerPreview = getFormattedUrl(profile.banner || profile.background_banner_url);
+      // Handle banner URL - directly use the URL without formatting
+      bannerPreview = profile.banner_url || profile.banner || profile.background_banner_url || '';
       
       console.log('[ProfileEditModal] Profile data:', {
-        profilePicture: profile.profile_picture || profile.avatar,
-        formattedProfile: profilePicturePreview,
-        banner: profile.banner || profile.background_banner_url,
-        formattedBanner: bannerPreview
+        profilePicture: profilePicturePreview,
+        banner: bannerPreview,
       });
     }
   });

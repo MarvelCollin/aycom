@@ -91,29 +91,6 @@
   // Define default image URL for fallback
   const DEFAULT_AVATAR = "https://secure.gravatar.com/avatar/0?d=mp";
   
-  // Debug variable to store API response
-  let rawApiResponse = null;
-  let showDebugInfo = false;
-  
-  // Function to fetch and display raw API response
-  async function showRawApiData() {
-    try {
-      const response = await getProfile();
-      rawApiResponse = response;
-      console.log('Raw API response:', rawApiResponse);
-      showDebugInfo = true;
-      toastStore.showToast('API data fetched. Check console and debug panel.', 'info');
-    } catch (err) {
-      console.error('Failed to fetch API data:', err);
-      toastStore.showToast('Failed to fetch API data', 'error');
-    }
-  }
-  
-  // Function to toggle debug panel
-  function toggleDebugInfo() {
-    showDebugInfo = !showDebugInfo;
-  }
-  
   // Profile data
   let profileData = {
     id: '',
@@ -932,70 +909,17 @@
     return formattedUrl;
   }
   
-  // Function to check localStorage for user data - for debugging
-  function checkLocalStorage() {
-    try {
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        const user = JSON.parse(userData);
-        console.log("User data from localStorage:", user);
-        
-        if (user.profile_picture_url) {
-          console.log("Found profile picture in localStorage:", user.profile_picture_url);
-          profileData.profilePicture = user.profile_picture_url;
-        }
-        
-        if (user.banner_url) {
-          console.log("Found banner in localStorage:", user.banner_url);
-          profileData.backgroundBanner = user.banner_url;
-        }
-        
-        // Force refreshing the profile data
-        profileData = {...profileData};
-        
-        toastStore.showToast("Local user data loaded", "info");
-      } else {
-        console.log("No user data found in localStorage");
-        toastStore.showToast("No user data in localStorage", "warning");
-      }
-    } catch (error) {
-      console.error("Error accessing localStorage:", error);
-      toastStore.showToast("Error reading localStorage", "error");
-    }
-  }
-  
-  // Function to manually apply placeholder images
-  function applyPlaceholderImages() {
-    // Use the constants for default images
-    console.log("Applying placeholder images:");
-    console.log("Profile picture:", DEFAULT_AVATAR);
-    console.log("Banner:", DEFAULT_AVATAR);
-    
-    // Update profile data
-    profileData = {
-      ...profileData,
-      profilePicture: DEFAULT_AVATAR,
-      backgroundBanner: DEFAULT_AVATAR
-    };
-    
-    toastStore.showToast("Applied placeholder images", "success");
-  }
-  
   // A simple fetch profile function that matches LeftSide.svelte approach
   async function fetchProfile() {
     if (!isAuthenticated()) {
-      console.log('User not authenticated, skipping profile fetch');
       return;
     }
     
-    console.log('Fetching user profile using same approach as LeftSide...');
     try {
       const response = await getProfile();
-      
       const userData = response.user || (response.data && response.data.user);
       
       if (userData) {
-        // Update profile data with the exact same structure as LeftSide.svelte
         profileData = {
           ...profileData,
           username: userData.username || profileData.username,
@@ -1005,14 +929,6 @@
           bio: userData.bio || profileData.bio,
           backgroundBanner: userData.banner_url || userData.background_banner_url || profileData.backgroundBanner,
         };
-        
-        console.log('Profile loaded successfully using LeftSide approach:', {
-          username: profileData.username,
-          displayName: profileData.displayName,
-          avatar: profileData.profilePicture
-        });
-      } else {
-        console.warn('Response received but no user data found');
       }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
@@ -1024,23 +940,16 @@
     try {
       isLoading = true;
       
-      // First try the simple approach that works in the sidebar
+      // Load profile data
       await fetchProfile();
       
-      // Then load thread content
+      // Load tab content
       await loadTabContent(activeTab);
       
-      // Only call troubleshooting for own profile if needed
+      // Handle pinned posts if needed
       if (isOwnProfile) {
         await troubleshootPinnedThreads();
       }
-      
-      console.log('UserProfile component mounted successfully');
-      console.log('Final profile data:', {
-        avatar: profileData.profilePicture,
-        banner: profileData.backgroundBanner
-      });
-      
     } catch (error) {
       console.error('Failed to load user profile:', error);
       errorMessage = 'Failed to load profile. Please try again later.';
@@ -1388,49 +1297,16 @@
         alt={profileData.displayName} 
         class="max-w-full max-h-[80vh] rounded-lg"
       />
-      
-      <!-- Simple debug info -->
-      <div class="mt-2 text-white text-xs">
-        <p>Profile picture URL: {profileData.profilePicture}</p>
-      </div>
     </div>
   </dialog>
   {/if}
 </MainLayout>
-
-<!-- Debug panel -->
-{#if showDebugInfo}
-  <div class="fixed bottom-0 left-0 right-0 bg-black/90 text-white p-4 z-50 max-h-[50vh] overflow-auto">
-    <div class="flex justify-between items-center mb-2">
-      <h3 class="text-lg font-bold">Debug Information</h3>
-      <button 
-        class="text-white bg-red-600 px-2 py-1 rounded"
-        on:click={() => showDebugInfo = false}
-      >
-        Close
-      </button>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <h4 class="font-bold mb-1">Profile Data:</h4>
-        <pre class="text-xs">{JSON.stringify(profileData, null, 2)}</pre>
-      </div>
-      <div>
-        <h4 class="font-bold mb-1">Raw API Response:</h4>
-        <pre class="text-xs">{JSON.stringify(rawApiResponse, null, 2)}</pre>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <!-- Global keyboard handler for ESC key -->
 <svelte:window on:keydown={(e) => {
   if (e.key === 'Escape') {
     if (showPicturePreview) {
       showPicturePreview = false;
-    }
-    if (showDebugInfo) {
-      showDebugInfo = false;
     }
   }
 }} />
@@ -1830,28 +1706,5 @@
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
-  }
-
-  /* Debug styling */
-  .debug-info {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 2px 4px;
-    font-size: 10px;
-    z-index: 5;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .profile-debug {
-    bottom: 0;
-    border-radius: 0 0 50% 50%;
-    text-align: center;
   }
 </style>
