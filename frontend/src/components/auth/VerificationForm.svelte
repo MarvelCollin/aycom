@@ -7,10 +7,8 @@
   export let onVerify: () => void;
   export let onResend: () => void;
   
-  // Get theme
   const { theme } = useTheme();
   
-  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
 </script>
 

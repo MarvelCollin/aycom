@@ -1,5 +1,4 @@
 <script lang="ts">
-  // Import app components
   import Router from './base/Router.svelte';
   import ThemeProvider from './components/common/ThemeProvider.svelte';
   import { useTheme } from './hooks/useTheme';

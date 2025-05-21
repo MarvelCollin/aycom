@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // InteractionRepository defines the methods for user-thread interactions (likes, reposts, bookmarks)
@@ -77,21 +78,31 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// Let's first check if the like already exists outside the transaction
-	hasLiked, err := r.IsThreadLikedByUser(userID, threadID)
+	// First check if like already exists outside transaction
+	exists, err := r.IsThreadLikedByUser(userID, threadID)
 	if err != nil {
 		log.Printf("Error checking if thread is already liked: %v", err)
 		return err
 	}
-
-	if hasLiked {
-		log.Printf("Thread %s is already liked by user %s, returning success", threadID, userID)
+	if exists {
+		log.Printf("Thread %s is already liked by user %s", threadID, userID)
 		return nil
 	}
 
-	// Start a transaction to make this operation atomic
-	log.Printf("Starting transaction for new like")
+	// Start transaction with serializable isolation level
 	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to begin transaction: %v", tx.Error)
+		return tx.Error
+	}
+
+	// Set transaction isolation level to serializable
+	if err := tx.Exec("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").Error; err != nil {
+		tx.Rollback()
+		log.Printf("Failed to set transaction isolation level: %v", err)
+		return err
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Recovered from panic in LikeThread: %v", r)
@@ -99,10 +110,13 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 		}
 	}()
 
-	// Check if the like already exists in a transaction
+	// Use FOR UPDATE SKIP LOCKED to prevent deadlocks
 	var count int64
-	if err := tx.Model(&model.Like{}).Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).Count(&count).Error; err != nil {
-		log.Printf("Error counting likes in transaction: %v", err)
+	if err := tx.Model(&model.Like{}).
+		Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
+		Count(&count).Error; err != nil {
+		log.Printf("Error checking for existing like in transaction: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -110,19 +124,20 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 	// Only insert if it doesn't exist
 	if count == 0 {
 		log.Printf("No existing like found, creating new like")
-		like := model.Like{
-			UserID:   userUUID,
-			ThreadID: &threadUUID,
-		}
 
-		if err := tx.Create(&like).Error; err != nil {
+		// Use INSERT ... ON CONFLICT DO NOTHING for additional safety
+		if err := tx.Exec(`
+			INSERT INTO likes (id, user_id, thread_id, created_at)
+			VALUES (?, ?, ?, NOW())
+			ON CONFLICT (user_id, thread_id) WHERE deleted_at IS NULL DO NOTHING`,
+			uuid.New(), userUUID, threadUUID).Error; err != nil {
 			log.Printf("Error creating like: %v", err)
 			tx.Rollback()
 			return err
 		}
 		log.Printf("Like created successfully")
 	} else {
-		log.Printf("Like already exists in transaction check, skipping creation")
+		log.Printf("Like already exists, skipping creation")
 	}
 
 	// Commit the transaction
@@ -211,17 +226,52 @@ func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error 
 
 // UnlikeThread removes a like from a thread
 func (r *PostgresInteractionRepository) UnlikeThread(userID, threadID string) error {
+	log.Printf("UnlikeThread called with userID: %s, threadID: %s", userID, threadID)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("Invalid UUID format for user ID: %s - %v", userID, err)
 		return errors.New("invalid UUID format for user ID")
 	}
 
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
+		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	return r.db.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Like{}).Error
+	// Start a transaction for safety
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to begin transaction: %v", tx.Error)
+		return tx.Error
+	}
+
+	// Set a deferred rollback that will be ignored if we commit successfully
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in UnlikeThread: %v", r)
+			tx.Rollback()
+		}
+	}()
+
+	// Use soft deletion to keep history if needed
+	result := tx.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Like{})
+	if result.Error != nil {
+		log.Printf("Error removing like: %v", result.Error)
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return err
+	}
+
+	// Return success even if no rows were affected (unlike was idempotent)
+	log.Printf("Successfully processed unlike for thread %s by user %s (rows affected: %d)", threadID, userID, result.RowsAffected)
+	return nil
 }
 
 // UnlikeReply removes a like from a reply
@@ -364,54 +414,123 @@ func (r *PostgresInteractionRepository) CountThreadReposts(threadID string) (int
 
 // BookmarkThread adds a bookmark to a thread
 func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) error {
+	log.Printf("BookmarkThread called with userID: %s, threadID: %s", userID, threadID)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("Invalid UUID format for user ID: %s - %v", userID, err)
 		return errors.New("invalid UUID format for user ID")
 	}
 
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
+		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// First, check if the bookmark already exists
+	// Start a transaction to make this operation atomic
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to begin transaction: %v", tx.Error)
+		return tx.Error
+	}
+
+	// Set a deferred rollback that will be ignored if we commit successfully
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in BookmarkThread: %v", r)
+			tx.Rollback()
+		}
+	}()
+
+	// Use FOR UPDATE locking to prevent race conditions
 	var count int64
-	if err := r.db.Model(&model.Bookmark{}).
-		Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).
+	if err := tx.Model(&model.Bookmark{}).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
 		Count(&count).Error; err != nil {
+		log.Printf("Error checking for existing bookmark in transaction: %v", err)
+		tx.Rollback()
 		return err
 	}
 
-	if count > 0 {
-		// Bookmark already exists, nothing to do
-		return nil
+	// Only insert if it doesn't exist
+	if count == 0 {
+		log.Printf("No existing bookmark found, creating new bookmark")
+
+		// Use native SQL for an upsert-like operation that's more race-condition resistant
+		if err := tx.Exec(`
+			INSERT INTO bookmarks (user_id, thread_id, created_at)
+			VALUES (?, ?, NOW())
+			ON CONFLICT DO NOTHING`,
+			userUUID, threadUUID).Error; err != nil {
+			log.Printf("Error creating bookmark: %v", err)
+			tx.Rollback()
+			return err
+		}
+		log.Printf("Bookmark created successfully")
+	} else {
+		log.Printf("Bookmark already exists, skipping creation")
 	}
 
-	// Create the bookmark
-	bookmark := model.Bookmark{
-		UserID:   userUUID,
-		ThreadID: threadUUID,
-		// No ReplyID for thread bookmarks
-		ReplyID: nil,
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return err
 	}
 
-	return r.db.Create(&bookmark).Error
+	log.Printf("Transaction committed successfully, thread %s bookmarked by user %s", threadID, userID)
+	return nil
 }
 
 // RemoveBookmark removes a bookmark from a thread
 func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) error {
+	log.Printf("RemoveBookmark called with userID: %s, threadID: %s", userID, threadID)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("Invalid UUID format for user ID: %s - %v", userID, err)
 		return errors.New("invalid UUID format for user ID")
 	}
 
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
+		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// Delete the bookmark
-	return r.db.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Bookmark{}).Error
+	// Start a transaction for safety
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to begin transaction: %v", tx.Error)
+		return tx.Error
+	}
+
+	// Set a deferred rollback that will be ignored if we commit successfully
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in RemoveBookmark: %v", r)
+			tx.Rollback()
+		}
+	}()
+
+	// Delete the bookmark - use soft delete to maintain history if needed
+	result := tx.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Bookmark{})
+	if result.Error != nil {
+		log.Printf("Error removing bookmark: %v", result.Error)
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return err
+	}
+
+	// Return success even if no rows were affected (unbookmark is idempotent)
+	log.Printf("Successfully processed unbookmark for thread %s by user %s (rows affected: %d)", threadID, userID, result.RowsAffected)
+	return nil
 }
 
 // IsThreadBookmarkedByUser checks if a thread is bookmarked by a specific user

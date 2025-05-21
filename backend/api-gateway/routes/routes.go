@@ -106,7 +106,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		threads.GET("/:id/replies", handlers.GetThreadReplies)
 		threads.POST("/:id/repost", handlers.RepostThread)
 		threads.DELETE("/:id/repost", handlers.RemoveRepost)
-		threads.POST("/:id/bookmark", handlers.BookmarkThreadHandler)
+		threads.POST("/:id/bookmark", handlers.BookmarkThread)
 		threads.DELETE("/:id/bookmark", handlers.RemoveBookmark)
 	}
 

@@ -350,6 +350,10 @@ export async function likeThread(threadId: string) {
     
     console.log(`Attempting to like thread ${threadId}`);
     
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
       method: "POST",
       headers: {
@@ -357,19 +361,33 @@ export async function likeThread(threadId: string) {
         "Authorization": token ? `Bearer ${token}` : ''
       },
       credentials: "include",
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+    
+    // Special handling for ALREADY_LIKED status - treat as success
+    if (data.code === "ALREADY_LIKED") {
+      console.log(`Thread ${threadId} is already liked by the user`);
+      return {
+        success: true,
+        message: "Thread already liked",
+        data: { thread_id: threadId }
+      };
+    }
 
     if (!response.ok) {
       // Handle error response
-      const errorData = await response.json();
-      throw new Error(
-        errorData.message || 
-        errorData.error?.message || 
-        `Failed to like thread: ${response.status} ${response.statusText}`
-      );
+      const errorMessage = data.message || 
+        data.error?.message || 
+        `Failed to like thread (${response.status} ${response.statusText})`;
+      
+      console.error(`Like thread error: ${errorMessage}`, data);
+      throw new Error(errorMessage);
     }
 
-    const data = await response.json();
     console.log(`Successfully liked thread ${threadId}`, data);
     
     // Add the thread to local storage to track liked status
@@ -381,10 +399,16 @@ export async function likeThread(threadId: string) {
       }
     } catch (err) {
       console.error('Error saving liked status to localStorage:', err);
+      // Continue even if local storage fails
     }
     
     return data;
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error("Like thread request timed out after 5 seconds");
+      throw new Error("Request timed out. Please try again.");
+    }
+    
     console.error("Error in likeThread:", error);
     throw error;
   }
@@ -396,10 +420,14 @@ export async function unlikeThread(threadId: string) {
     
     if (!token) {
       console.error("No auth token available for unliking thread");
-      throw new Error("Authentication required");
+      throw new Error("Authentication required to unlike a thread");
     }
     
     console.log(`Attempting to unlike thread ${threadId}`);
+    
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
       method: "DELETE",
@@ -408,19 +436,25 @@ export async function unlikeThread(threadId: string) {
         "Authorization": `Bearer ${token}`
       },
       credentials: "include",
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       // Handle error response
       try {
         const errorData = await response.json();
-        throw new Error(
-          errorData.message || 
+        const errorMessage = errorData.message || 
           errorData.error?.message || 
-          `Failed to unlike thread: ${response.status} ${response.statusText}`
-        );
+          `Failed to unlike thread (${response.status} ${response.statusText})`;
+        
+        console.error(`Unlike thread error: ${errorMessage}`, errorData);
+        throw new Error(errorMessage);
       } catch (parseError) {
-        throw new Error(`Failed to unlike thread: ${response.status} ${response.statusText}`);
+        // If the response is not valid JSON
+        console.error(`Unlike thread error (non-JSON response): ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to unlike thread (${response.status} ${response.statusText})`);
       }
     }
     
@@ -434,10 +468,16 @@ export async function unlikeThread(threadId: string) {
       localStorage.setItem('likedThreads', JSON.stringify(updatedLikes));
     } catch (err) {
       console.error('Error updating liked status in localStorage:', err);
+      // Continue even if local storage fails
     }
     
     return data;
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error("Unlike thread request timed out after 5 seconds");
+      throw new Error("Request timed out. Please try again.");
+    }
+    
     console.error("Error in unlikeThread:", error);
     throw error;
   }
@@ -640,6 +680,10 @@ export async function bookmarkThread(threadId: string) {
   try {
     console.log(`Attempting to bookmark thread ${threadId}`);
     
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
       method: "POST",
       headers: {
@@ -647,25 +691,68 @@ export async function bookmarkThread(threadId: string) {
         "Authorization": token ? `Bearer ${token}` : ''
       },
       credentials: "include",
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     console.log(`Bookmark API response status: ${response.status}`);
-
-    if (!response.ok) {
-      // Handle error response
-      const errorData = await response.json();
-      console.error("Bookmark failed with error:", errorData);
-      throw new Error(
-        errorData.message || 
-        errorData.error?.message || 
-        `Failed to bookmark thread: ${response.status} ${response.statusText}`
-      );
+    
+    const data = await response.json();
+    
+    // Special handling for ALREADY_BOOKMARKED status - treat as success
+    if (data.code === "ALREADY_BOOKMARKED") {
+      console.log(`Thread ${threadId} is already bookmarked by the user`);
+      return {
+        success: true,
+        message: "Thread already bookmarked",
+        data: { thread_id: threadId }
+      };
     }
 
-    const result = await response.json();
-    console.log(`Successfully bookmarked thread ${threadId}`, result);
-    return result;
+    // Handle specific HTTP status codes
+    if (response.status === 401) {
+      console.error('User not authenticated for bookmarking');
+      throw new Error('Authentication required to bookmark a thread');
+    }
+    
+    if (response.status === 404) {
+      console.error('Thread not found for bookmarking');
+      throw new Error('The thread you are trying to bookmark does not exist');
+    }
+
+    if (!response.ok) {
+      let errorMessage = `Failed to bookmark thread (${response.status})`;
+      
+      console.error("Bookmark failed with error:", data);
+      errorMessage = data.message || 
+                    data.error?.message || 
+                    errorMessage;
+      
+      throw new Error(errorMessage);
+    }
+
+    console.log(`Successfully bookmarked thread ${threadId}`, data);
+    
+    // Store bookmark state in localStorage for offline recovery
+    try {
+      const bookmarkedThreads = JSON.parse(localStorage.getItem('bookmarkedThreads') || '[]');
+      if (!bookmarkedThreads.includes(threadId)) {
+        bookmarkedThreads.push(threadId);
+        localStorage.setItem('bookmarkedThreads', JSON.stringify(bookmarkedThreads));
+      }
+    } catch (err) {
+      console.error('Error saving bookmark state to localStorage:', err);
+      // Continue even if local storage fails
+    }
+    
+    return data;
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error("Bookmark thread request timed out after 5 seconds");
+      throw new Error("Request timed out. Please try again.");
+    }
+    
     console.error(`Error in bookmark API call:`, error);
     throw error;
   }
@@ -679,6 +766,10 @@ export async function removeBookmark(threadId: string) {
   try {
     console.log(`Attempting to remove bookmark for thread ${threadId}`);
     
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
       method: "DELETE",
       headers: {
@@ -686,25 +777,56 @@ export async function removeBookmark(threadId: string) {
         "Authorization": token ? `Bearer ${token}` : ''
       },
       credentials: "include",
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     console.log(`Unbookmark API response status: ${response.status}`);
 
+    // Handle specific status codes
+    if (response.status === 401) {
+      console.error('User not authenticated for removing bookmark');
+      throw new Error('Authentication required to remove a bookmark');
+    }
+
     if (!response.ok) {
-      // Handle error response
-      const errorData = await response.json();
-      console.error("Unbookmark failed with error:", errorData);
-      throw new Error(
-        errorData.message || 
-        errorData.error?.message || 
-        `Failed to remove bookmark: ${response.status} ${response.statusText}`
-      );
+      let errorMessage = `Failed to remove bookmark (${response.status})`;
+      
+      try {
+        const errorData = await response.json();
+        console.error("Unbookmark failed with error:", errorData);
+        errorMessage = errorData.message || 
+                      errorData.error?.message || 
+                      errorMessage;
+      } catch (parseError) {
+        // If we can't parse the error, just use the status code message
+        console.error("Couldn't parse error response:", parseError);
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
     console.log(`Successfully removed bookmark for thread ${threadId}`, result);
+    
+    // Update localStorage for offline recovery
+    try {
+      const bookmarkedThreads = JSON.parse(localStorage.getItem('bookmarkedThreads') || '[]');
+      const updatedBookmarks = bookmarkedThreads.filter(id => id !== threadId);
+      localStorage.setItem('bookmarkedThreads', JSON.stringify(updatedBookmarks));
+    } catch (err) {
+      console.error('Error updating bookmark state in localStorage:', err);
+      // Continue even if local storage fails
+    }
+    
     return result;
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error("Unbookmark thread request timed out after 5 seconds");
+      throw new Error("Request timed out. Please try again.");
+    }
+    
     console.error(`Error in unbookmark API call:`, error);
     throw error;
   }
@@ -1339,8 +1461,30 @@ export async function getUserBookmarks(page = 1, limit = 20) {
   }
 }
 
-export async function getReplyReplies(replyId: string) {
+export async function getReplyReplies(replyId: string, page = 1, limit = 20): Promise<{ replies: any[], total_count: number, cached?: boolean }> {
   try {
+    console.log(`getReplyReplies: Fetching replies for reply ${replyId}, page=${page}, limit=${limit}`);
+    
+    // Check if we have cached replies for this parent
+    const cacheKey = `reply_replies_${replyId}_${page}_${limit}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    let useCache = false;
+    
+    if (cachedData) {
+      try {
+        const { data, timestamp } = JSON.parse(cachedData);
+        // Use cache if it's less than 30 seconds old
+        if (Date.now() - timestamp < 30000) {
+          console.log(`getReplyReplies: Using cached replies for ${replyId}`);
+          useCache = true;
+          return { ...data, cached: true };
+        }
+      } catch (error) {
+        console.error('Error parsing cached reply replies:', error);
+        // Continue with API call if cache parsing fails
+      }
+    }
+    
     const token = getAuthToken();
     
     // Set up headers - allow unauthenticated access but add auth if available
@@ -1352,45 +1496,90 @@ export async function getReplyReplies(replyId: string) {
       headers["Authorization"] = `Bearer ${token}`;
     }
     
-    console.log(`Fetching replies for reply ${replyId}`);
-    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/replies`, {
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    
+    console.log(`getReplyReplies: Making API request to GET /replies/${replyId}/replies`);
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/replies?page=${page}&limit=${limit}`, {
       method: "GET",
       headers: headers,
       credentials: "include",
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (response.ok) {
       const data = await response.json();
-      console.log(`Reply replies data for reply ${replyId}:`, data);
+      console.log(`getReplyReplies: Got ${data.replies?.length || 0} replies for reply ${replyId}`);
       
-      // Check if we have user data properly included
+      // Process the replies to ensure consistent field names
       if (data.replies && data.replies.length > 0) {
-        // Check the first reply's structure
-        const firstReply = data.replies[0];
-        console.log(`First nested reply structure from API:`, firstReply);
-        
-        // Add user data fields if they're missing but can be derived from nested structures
         data.replies = data.replies.map(reply => {
-          // Check if reply has a valid user field
+          // Create a standard reply object with consistent field names
+          const standardizedReply: any = {
+            id: reply.id || reply.reply_id,
+            threadId: reply.thread_id,
+            content: reply.content || '',
+            timestamp: reply.created_at || new Date().toISOString(),
+            userId: reply.user_id || reply.author_id,
+            username: '',
+            displayName: '',
+            avatar: null,
+            likes: reply.likes_count || reply.like_count || 0,
+            replies: reply.replies_count || reply.reply_count || 0,
+            bookmarks: reply.bookmarks_count || reply.bookmark_count || 0,
+            isLiked: reply.is_liked || false,
+            isBookmarked: reply.is_bookmarked || false,
+            
+            // Additional fields for frontend compatibility
+            author_username: '',
+            author_name: '',
+            author_avatar: null
+          };
+          
+          // Extract user info from all possible locations
           if (reply.user) {
-            // Ensure user data is accessible from top level of the reply object as well
-            return {
-              ...reply,
-              author_username: reply.user.username,
-              author_name: reply.user.name,
-              author_avatar: reply.user.profile_picture_url,
-            };
+            standardizedReply.username = reply.user.username;
+            standardizedReply.displayName = reply.user.name;
+            standardizedReply.avatar = reply.user.profile_picture_url;
           }
-          return reply;
+          
+          // For UI convenience, include these fields as well
+          standardizedReply.author_username = standardizedReply.username;
+          standardizedReply.author_name = standardizedReply.displayName;
+          standardizedReply.author_avatar = standardizedReply.avatar;
+          
+          return standardizedReply;
         });
+      }
+      
+      // Cache the replies for 30 seconds
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.error('Error caching reply replies:', error);
+        // Continue even if caching fails
       }
       
       return data;
     }
     
-    // If 401 unauthorized, we could return empty results
+    // Handle specific HTTP status codes
     if (response.status === 401) {
       console.warn("Unauthorized when fetching reply replies - returning empty results");
+      return { 
+        replies: [],
+        total_count: 0
+      };
+    }
+    
+    if (response.status === 404) {
+      console.warn(`Parent reply ${replyId} not found`);
       return { 
         replies: [],
         total_count: 0
@@ -1409,6 +1598,11 @@ export async function getReplyReplies(replyId: string) {
       throw new Error(`Failed to fetch reply replies: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error(`Request timeout fetching replies for reply ${replyId}`);
+      throw new Error("Request timed out. Please try again.");
+    }
+    
     console.error("Error in getReplyReplies:", error);
     throw error;
   }

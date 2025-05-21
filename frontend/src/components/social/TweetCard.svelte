@@ -19,6 +19,12 @@
   import ChevronLeftIcon from 'svelte-feather-icons/src/icons/ChevronLeftIcon.svelte';
   import CornerUpRightIcon from 'svelte-feather-icons/src/icons/CornerUpRightIcon.svelte';
 
+  // Define a TypeScript type for a tweet with extended properties
+  type ExtendedTweet = ITweet & { 
+    bookmarked_thread?: any; 
+    [key: string]: any; 
+  }
+
   export let tweet: ITweet;
   export let isDarkMode: boolean = false;
   export let isAuthenticated: boolean = false;
@@ -27,7 +33,8 @@
   export let isReposted: boolean = false;
   export let isBookmarked: boolean = false;
   
-  export let inReplyToTweet: ITweet | null = null;
+  // Changed from export let to export const since it's only for external reference
+  export const inReplyToTweet: ITweet | null = null;
   export let replies: ITweet[] = [];
   export let showReplies: boolean = false;
   export let nestingLevel: number = 0;
@@ -76,9 +83,26 @@
   $: effectiveReposts = storeInteraction?.reposts ?? parseCount(processedTweet.reposts);
   $: effectiveBookmarks = storeInteraction?.bookmarks ?? parseCount(processedTweet.bookmarks);
   
+  // Track loading states for interaction buttons
+  let isLikeLoading = false;
+  let isBookmarkLoading = false;
+  let isRepostLoading = false;
+  
+  // Track error states for retry functionality
+  let likeErrorState = false;
+  let bookmarkErrorState = false;
+  
+  // Request tracking to prevent race conditions
+  let currentLikeRequestId = 0;
+  let currentBookmarkRequestId = 0;
+  let isLikeRequestPending = false;
+  
   // Update the conditional rendering logic to make the replies toggle more visible
   // First, modify how we determine if a tweet has replies
   $: hasReplies = effectiveReplies > 0 || parseCount(processedTweet.replies) > 0;
+  
+  // Track loading and error states for reply actions
+  let replyActionsLoading = new Map<string, { like?: boolean, bookmark?: boolean }>();
   
   function isValidUsername(username: string | undefined | null): boolean {
     return !!username && 
@@ -127,11 +151,11 @@
       console.log(`[${processedTweet.id}] Found author object`, processedTweet.author);
       if (isValidUsername(processedTweet.author.username) && !isValidUsername(processedTweet.username)) {
         console.log(`[${processedTweet.id}] Using author.username:`, processedTweet.author.username);
-        processedTweet.username = processedTweet.author.username;
+        processedTweet.username = String(processedTweet.author.username || '');
       }
       if (isValidDisplayName(processedTweet.author.name) && !isValidDisplayName(processedTweet.displayName)) {
         console.log(`[${processedTweet.id}] Using author.name:`, processedTweet.author.name);
-        processedTweet.displayName = processedTweet.author.name;
+        processedTweet.displayName = String(processedTweet.author.name || '');
       }
     }
     
@@ -265,11 +289,11 @@
       if (processedTweet.user_data && typeof processedTweet.user_data === 'object') {
         if (isValidUsername(processedTweet.user_data.username)) {
           console.log(`[${processedTweet.id}] Using user_data.username instead of anonymous:`, processedTweet.user_data.username);
-          processedTweet.username = processedTweet.user_data.username;
+          processedTweet.username = String(processedTweet.user_data.username || '');
         }
         if (isValidDisplayName(processedTweet.user_data.name)) {
           console.log(`[${processedTweet.id}] Using user_data.name:`, processedTweet.user_data.name);
-          processedTweet.displayName = processedTweet.user_data.name;
+          processedTweet.displayName = String(processedTweet.user_data.name || '');
         }
       }
       
@@ -290,7 +314,7 @@
         authorUsername: originalTweet.authorUsername,
         author_username: originalTweet.author_username,
         extractedFromURL: processedTweet.content && processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/) 
-          ? processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/)[1] 
+          ? processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/)?.[1] || null 
           : null
       });
       
@@ -426,43 +450,91 @@
     }
 
     // Update the repost state through the store
-    tweetInteractionStore.updateRepost(tweetId, !effectiveIsReposted);
+    tweetInteractionStore.updateTweetInteraction(tweetId, {
+      isReposted: !effectiveIsReposted,
+      reposts: effectiveReposts + (!effectiveIsReposted ? 1 : -1),
+      pendingRepost: true
+    });
     dispatch('repost', tweetId);
   }
 
-  async function handleLike() {
+  // Handle like/unlike action
+  async function handleLikeClick() {
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to like posts', 'info');
       return;
     }
-    
+
+    if (isLikeLoading || isLikeRequestPending) {
+      console.log('Like request already in progress, ignoring click');
+      return;
+    }
+
+    const requestId = ++currentLikeRequestId;
+    isLikeRequestPending = true;
+    isLikeLoading = true;
+    likeErrorState = false;
+
+    // Determine if we're liking or unliking
+    const isLiking = !effectiveIsLiked;
+    const action = isLiking ? 'like' : 'unlike';
+
     try {
-      if (effectiveIsLiked) {
-        // Optimistic UI update through the store
-        tweetInteractionStore.updateLike(tweetId, false);
-        dispatch('unlike', tweetId);
-        
-        // Call API
-        await unlikeThread(tweetId);
-      } else {
-        // Optimistic UI update through the store
-        tweetInteractionStore.updateLike(tweetId, true);
-        dispatch('like', tweetId);
-        
-        // Call API
+      // Optimistically update UI
+      tweetInteractionStore.updateTweetInteraction(tweetId, {
+        isLiked: isLiking,
+        likes: effectiveLikes + (isLiking ? 1 : -1),
+        pendingLike: true
+      });
+
+      console.log(`${action} action started for tweet ${tweetId}, isLiking=${isLiking}`);
+
+      // Make API call
+      if (isLiking) {
         await likeThread(tweetId);
+      } else {
+        await unlikeThread(tweetId);
+      }
+
+      // If this is still the most recent request
+      if (requestId === currentLikeRequestId) {
+        console.log(`${action} action completed successfully for tweet ${tweetId}`);
+        // Update the store to remove pending state
+        tweetInteractionStore.updateTweetInteraction(tweetId, {
+          pendingLike: false
+        });
       }
     } catch (error) {
-      console.error('Error in handleLike:', error);
-      // Revert the optimistic update
-      if (effectiveIsLiked) {
-        tweetInteractionStore.updateLike(tweetId, true);
-        dispatch('like', tweetId);
-        toastStore.showToast('Failed to unlike. Please try again.', 'error');
-      } else {
-        tweetInteractionStore.updateLike(tweetId, false);
-        dispatch('unlike', tweetId);
-        toastStore.showToast('Failed to like. Please try again.', 'error');
+      console.error(`Error ${action}ing tweet:`, error);
+      
+      // Only revert UI if this is the most recent request
+      if (requestId === currentLikeRequestId) {
+        // Check if this was an "already in state" error - don't revert the UI in that case
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isAlreadyInState = (isLiking && errorMsg.includes('already liked')) || 
+                              (!isLiking && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
+        
+        if (!isAlreadyInState) {
+          // Revert optimistic update
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            isLiked: !isLiking,
+            likes: effectiveLikes,
+            pendingLike: false
+          });
+          likeErrorState = true;
+          toastStore.showToast(`Failed to ${action} the tweet. Please try again.`, 'error', 5000);
+        } else {
+          // If it was already in the desired state, just update the UI to match reality
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            pendingLike: false
+          });
+        }
+      }
+    } finally {
+      // Only reset loading state if this is the most recent request
+      if (requestId === currentLikeRequestId) {
+        isLikeLoading = false;
+        isLikeRequestPending = false;
       }
     }
   }
@@ -473,35 +545,104 @@
       return;
     }
     
-    console.log(`Bookmark action - current status: ${effectiveIsBookmarked ? 'bookmarked' : 'not bookmarked'}`);
+    // Prevent concurrent bookmark operations
+    if (isBookmarkLoading) {
+      return;
+    }
+    
+    isBookmarkLoading = true;
+    bookmarkErrorState = false;
+    const requestId = ++currentBookmarkRequestId;
     
     try {
-      if (effectiveIsBookmarked) {
-        // Optimistic UI update through the store
-        tweetInteractionStore.updateBookmark(tweetId, false);
-        dispatch('removeBookmark', tweetId);
-        
-        // Call API
-        await removeBookmark(tweetId);
+      // Ensure we have a valid ID
+      if (!tweetId) {
+        console.error('Cannot bookmark/unbookmark: Missing tweet ID');
+        toastStore.showToast('Cannot process action: Invalid tweet ID', 'error');
+        return;
+      }
+      
+      // Set optimistic UI update based on current state
+      const newBookmarkState = !effectiveIsBookmarked;
+      
+      // Optimistic UI update through the store
+      tweetInteractionStore.updateTweetInteraction(tweetId, {
+        isBookmarked: newBookmarkState,
+        bookmarks: effectiveBookmarks + (newBookmarkState ? 1 : -1),
+        pendingBookmark: true
+      });
+      
+      // Trigger proper event using a string ID
+      if (newBookmarkState) {
+        dispatch('bookmark', String(tweetId));
       } else {
-        // Optimistic UI update through the store
-        tweetInteractionStore.updateBookmark(tweetId, true);
-        dispatch('bookmark', tweetId);
+        dispatch('removeBookmark', String(tweetId));
+      }
+      
+      // Call the appropriate API
+      try {
+        if (newBookmarkState) {
+          await bookmarkThread(String(tweetId));
+        } else {
+          await removeBookmark(String(tweetId));
+        }
         
-        // Call API
-        await bookmarkThread(tweetId);
+        // Only update state if this is still the most recent request
+        if (requestId !== currentBookmarkRequestId) {
+          console.log('Ignoring stale bookmark response', requestId, currentBookmarkRequestId);
+          return;
+        }
+        
+        // Update the store to remove pending state
+        tweetInteractionStore.updateTweetInteraction(tweetId, {
+          pendingBookmark: false
+        });
+        
+        // Clear any error state on success
+        bookmarkErrorState = false;
+      } catch (error) {
+        console.error(`Error ${newBookmarkState ? 'bookmarking' : 'unbookmarking'} thread:`, error);
+        
+        // Only revert UI if this is still the most recent request
+        if (requestId !== currentBookmarkRequestId) {
+          console.log('Ignoring stale bookmark error', requestId, currentBookmarkRequestId);
+          return;
+        }
+        
+        // Check for already bookmarked/unbookmarked scenarios - don't revert the UI
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isAlreadyInState = (newBookmarkState && errorMsg.includes('already bookmarked')) || 
+                                (!newBookmarkState && (errorMsg.includes('not bookmarked') || errorMsg.includes('not found')));
+        
+        if (!isAlreadyInState) {
+          // Set error state for retry functionality
+          bookmarkErrorState = true;
+          
+          // Revert the optimistic update
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            isBookmarked: !newBookmarkState,
+            bookmarks: effectiveBookmarks,
+            pendingBookmark: false
+          });
+          
+          // Notify user
+          const errorMessage = error instanceof Error ? error.message : `Failed to ${newBookmarkState ? 'bookmark' : 'remove bookmark'}. Please try again.`;
+          toastStore.showToast(errorMessage, 'error', 5000);
+        } else {
+          // If it was already in the desired state, just update the UI to match reality
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            pendingBookmark: false
+          });
+        }
       }
     } catch (error) {
-      console.error('Error in handleBookmark:', error);
-      // Revert the optimistic update
-      if (effectiveIsBookmarked) {
-        tweetInteractionStore.updateBookmark(tweetId, true);
-        dispatch('bookmark', tweetId);
-        toastStore.showToast('Failed to remove bookmark. Please try again.', 'error');
-      } else {
-        tweetInteractionStore.updateBookmark(tweetId, false);
-        dispatch('removeBookmark', tweetId);
-        toastStore.showToast('Failed to bookmark. Please try again.', 'error');
+      console.error('Unhandled error in handleBookmark:', error);
+      toastStore.showToast('An unexpected error occurred. Please try again later.', 'error', 5000);
+      bookmarkErrorState = true;
+    } finally {
+      // Only reset loading state if this is still the most recent request
+      if (requestId === currentBookmarkRequestId) {
+        isBookmarkLoading = false;
       }
     }
   }
@@ -553,77 +694,127 @@
   }
 
   function handleNestedReply(event) {
-    dispatch('reply', event.detail);
+    // Ensure we're passing a string ID
+    const replyId = typeof event.detail === 'string' ? event.detail : String(event.detail);
+    dispatch('reply', replyId);
   }
 
   async function handleLoadNestedReplies(event) {
-    const replyId = event.detail;
+    // Ensure replyId is a string
+    const replyId = typeof event.detail === 'string' ? event.detail : String(event.detail);
+    
+    if (!replyId) {
+      console.error("Missing reply ID in handleLoadNestedReplies");
+      return;
+    }
     
     try {
       // Check if this is a reply ID - if so, we need to load replies to a reply
-      if (replyId && typeof replyId === 'string' && nestedRepliesMap) {
+      if (nestedRepliesMap) {
         console.log(`Loading nested replies for reply: ${replyId}`);
         
-        // Fetch replies to the reply
-        const response = await getReplyReplies(replyId);
+        // Add loading state to the specific reply
+        const replyContainer = document.querySelector(`#reply-${replyId}-container`);
+        if (replyContainer) {
+          replyContainer.classList.add('loading-nested-replies');
+        }
+
+        // Keep track of loading state
+        const loadingKey = `loading_${replyId}`;
+        // Fix the comparison by checking for the object's loading property instead of direct comparison
+        const isLoading = nestedRepliesMap.get(loadingKey) && 
+                         (nestedRepliesMap.get(loadingKey) as any)?.loading === true;
         
-        if (response && response.replies && response.replies.length > 0) {
-          console.log(`Received ${response.replies.length} nested replies for reply ${replyId}`);
-          
-          // Process replies for display
-          const processedReplies = response.replies.map(reply => {
-            // Extract data
-            const replyData = reply.reply || reply;
-            const userData = reply.user || {};
-            
-            // Build a standardized reply object that satisfies ITweet interface
-            const enrichedReply: ITweet = {
-              id: replyData.id,
-              threadId: replyData.thread_id,
-              content: replyData.content || '',
-              timestamp: replyData.created_at || new Date().toISOString(),
-              userId: userData.id || replyData.user_id || replyData.author_id,
-              username: userData.username || reply.author_username || reply.username || 'user',
-              displayName: userData.name || userData.display_name || reply.author_name || reply.displayName || 'User',
-              avatar: userData.profile_picture_url || reply.author_avatar || reply.avatar,
-              likes: parseCount(reply.likes_count || reply.like_count || reply.likes || 0),
-              replies: parseCount(reply.replies_count || reply.reply_count || reply.replies || 0),
-              reposts: parseCount(reply.reposts_count || reply.repost_count || reply.reposts || 0),
-              bookmarks: parseCount(reply.bookmarks_count || reply.bookmark_count || reply.bookmarks || 0),
-              views: String(reply.views_count || reply.view_count || reply.views || '0'),
-              isLiked: reply.is_liked || reply.isLiked || false,
-              isBookmarked: reply.is_bookmarked || reply.isBookmarked || false
-            };
-            
-            // Process the tweet content (usernames, links, etc.)
-            return processTweetContent(enrichedReply);
-          });
-          
-          // Update the nested replies map
-          nestedRepliesMap.set(replyId, processedReplies);
-          nestedRepliesMap = nestedRepliesMap;
-          
-          // Force reactivity update
+        // Only attempt to load if not already loading
+        if (!isLoading) {
+          // Use a temporary object for loading state to avoid type errors
+          const loadingState = { loading: true };
+          nestedRepliesMap.set(loadingKey, loadingState as any);
           nestedRepliesMap = new Map(nestedRepliesMap);
+        
+          try {
+            // Fetch replies to the reply with a page limit
+            const response = await getReplyReplies(replyId, 1, 20);
+            
+            if (response && response.replies && response.replies.length > 0) {
+              console.log(`Received ${response.replies.length} nested replies for reply ${replyId}`);
+              
+              // Process replies for display
+              const processedReplies = response.replies.map(reply => {
+                return processTweetContent(reply);
+              });
+              
+              // Update the nested replies map
+              nestedRepliesMap.set(replyId, processedReplies);
+              
+              // Update total count for pagination
+              const countKey = `total_count_${replyId}`;
+              const countObject = { count: response.total_count || processedReplies.length };
+              nestedRepliesMap.set(countKey, countObject as any);
+            } else {
+              console.warn(`No nested replies returned for reply ${replyId}`);
+              nestedRepliesMap.set(replyId, []);
+            }
+          } catch (error) {
+            console.error(`Error loading nested replies for reply ${replyId}:`, error);
+            // Add a retry flag as an object to avoid type errors
+            const retryKey = `retry_${replyId}`;
+            const retryObject = { retry: true };
+            nestedRepliesMap.set(retryKey, retryObject as any);
+            // Set empty array as a fallback
+            nestedRepliesMap.set(replyId, []);
+            
+            // Show user error message
+            toastStore.showToast('Failed to load replies. Please try again.', 'error');
+          } finally {
+            // Remove loading state
+            nestedRepliesMap.delete(loadingKey);
+            // Force reactivity update
+            nestedRepliesMap = new Map(nestedRepliesMap);
+            
+            // Remove loading class from reply container
+            if (replyContainer) {
+              replyContainer.classList.remove('loading-nested-replies');
+            }
+          }
         } else {
-          console.warn(`No nested replies returned for reply ${replyId}`);
-          nestedRepliesMap.set(replyId, []);
-          nestedRepliesMap = nestedRepliesMap;
+          console.log(`Already loading replies for ${replyId}, ignoring duplicate request`);
         }
       } else {
         // Just pass the event up to parent for thread replies
-        dispatch('loadReplies', event.detail);
+        dispatch('loadReplies', replyId);
       }
     } catch (error) {
-      console.error(`Error loading nested replies for reply ${replyId}:`, error);
+      console.error(`Error in handleLoadNestedReplies for reply ${replyId}:`, error);
       toastStore.showToast('Failed to load replies. Please try again.', 'error');
       
-      // Set empty array for this reply's replies
-      if (nestedRepliesMap && replyId) {
+      if (replyId && nestedRepliesMap) {
+        // Remove loading state
+        const loadingKey = `loading_${replyId}`;
+        nestedRepliesMap.delete(loadingKey);
+        
+        // Set empty array for this reply's replies
         nestedRepliesMap.set(replyId, []);
-        nestedRepliesMap = nestedRepliesMap;
+        
+        // Add a retry flag as an object to avoid type errors
+        const retryKey = `retry_${replyId}`;
+        const retryObject = { retry: true };
+        nestedRepliesMap.set(retryKey, retryObject as any);
+        
+        // Force reactivity update
+        nestedRepliesMap = new Map(nestedRepliesMap);
       }
     }
+  }
+  
+  // Function to retry loading nested replies
+  async function retryLoadNestedReplies(replyId) {
+    // Clear any existing retry flag
+    const retryKey = `retry_${replyId}`;
+    nestedRepliesMap.delete(retryKey);
+    
+    // Trigger load through normal channel
+    handleLoadNestedReplies({ detail: replyId });
   }
 
   function handleNestedLike(event) {
@@ -659,6 +850,15 @@
 
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
+      
+      // Check if already in loading state
+      const loadingState = replyActionsLoading.get(String(replyId)) || {};
+      if (loadingState.like) return;
+      
+      // Set loading state
+      loadingState.like = true;
+      replyActionsLoading.set(String(replyId), loadingState);
+      replyActionsLoading = new Map(replyActionsLoading);
 
       // Optimistic UI update
       reply.isLiked = true;
@@ -667,18 +867,32 @@
       }
       
       // Call API
-      await likeReply(String(replyId));
-    } catch (error) {
-      console.error('Error liking reply:', error);
-      // Revert optimistic update
-      const reply = replies.find(r => r.id === replyId);
-      if (reply) {
-        reply.isLiked = false;
-        if (typeof reply.likes === 'number' && reply.likes > 0) {
-          reply.likes -= 1;
+      try {
+        await likeReply(String(replyId));
+      } catch (error) {
+        console.error('Error liking reply:', error);
+        
+        // Check for "already liked" error - don't revert UI
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isAlreadyLiked = errorMsg.includes('already liked');
+        
+        if (!isAlreadyLiked) {
+          // Revert optimistic update
+          reply.isLiked = false;
+          if (typeof reply.likes === 'number' && reply.likes > 0) {
+            reply.likes -= 1;
+          }
+          toastStore.showToast('Failed to like reply. Please try again.', 'error');
         }
-        toastStore.showToast('Failed to like reply. Please try again.', 'error');
+      } finally {
+        // Clear loading state
+        loadingState.like = false;
+        replyActionsLoading.set(String(replyId), loadingState);
+        replyActionsLoading = new Map(replyActionsLoading);
       }
+    } catch (error) {
+      console.error('Unhandled error in handleLikeReply:', error);
+      toastStore.showToast('An unexpected error occurred. Please try again later.', 'error');
     }
   }
 
@@ -691,6 +905,15 @@
 
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
+      
+      // Check if already in loading state
+      const loadingState = replyActionsLoading.get(String(replyId)) || {};
+      if (loadingState.like) return;
+      
+      // Set loading state
+      loadingState.like = true;
+      replyActionsLoading.set(String(replyId), loadingState);
+      replyActionsLoading = new Map(replyActionsLoading);
 
       // Optimistic UI update
       reply.isLiked = false;
@@ -699,18 +922,32 @@
       }
       
       // Call API
-      await unlikeReply(String(replyId));
-    } catch (error) {
-      console.error('Error unliking reply:', error);
-      // Revert optimistic update
-      const reply = replies.find(r => r.id === replyId);
-      if (reply) {
-        reply.isLiked = true;
-        if (typeof reply.likes === 'number') {
-          reply.likes += 1;
+      try {
+        await unlikeReply(String(replyId));
+      } catch (error) {
+        console.error('Error unliking reply:', error);
+        
+        // Check for "not liked" or "not found" error - don't revert UI
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isNotLiked = errorMsg.includes('not liked') || errorMsg.includes('not found');
+        
+        if (!isNotLiked) {
+          // Revert optimistic update
+          reply.isLiked = true;
+          if (typeof reply.likes === 'number') {
+            reply.likes += 1;
+          }
+          toastStore.showToast('Failed to unlike reply. Please try again.', 'error');
         }
-        toastStore.showToast('Failed to unlike reply. Please try again.', 'error');
+      } finally {
+        // Clear loading state
+        loadingState.like = false;
+        replyActionsLoading.set(String(replyId), loadingState);
+        replyActionsLoading = new Map(replyActionsLoading);
       }
+    } catch (error) {
+      console.error('Unhandled error in handleUnlikeReply:', error);
+      toastStore.showToast('An unexpected error occurred. Please try again later.', 'error');
     }
   }
 
@@ -723,6 +960,15 @@
 
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
+      
+      // Check if already in loading state
+      const loadingState = replyActionsLoading.get(String(replyId)) || {};
+      if (loadingState.bookmark) return;
+      
+      // Set loading state
+      loadingState.bookmark = true;
+      replyActionsLoading.set(String(replyId), loadingState);
+      replyActionsLoading = new Map(replyActionsLoading);
 
       // Optimistic UI update
       reply.isBookmarked = true;
@@ -731,18 +977,32 @@
       }
       
       // Call API
-      await bookmarkReply(String(replyId));
-    } catch (error) {
-      console.error('Error bookmarking reply:', error);
-      // Revert optimistic update
-      const reply = replies.find(r => r.id === replyId);
-      if (reply) {
-        reply.isBookmarked = false;
-        if (typeof reply.bookmarks === 'number' && reply.bookmarks > 0) {
-          reply.bookmarks -= 1;
+      try {
+        await bookmarkReply(String(replyId));
+      } catch (error) {
+        console.error('Error bookmarking reply:', error);
+        
+        // Check for "already bookmarked" error - don't revert UI
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isAlreadyBookmarked = errorMsg.includes('already bookmarked');
+        
+        if (!isAlreadyBookmarked) {
+          // Revert optimistic update
+          reply.isBookmarked = false;
+          if (typeof reply.bookmarks === 'number' && reply.bookmarks > 0) {
+            reply.bookmarks -= 1;
+          }
+          toastStore.showToast('Failed to bookmark reply. Please try again.', 'error');
         }
-        toastStore.showToast('Failed to bookmark reply. Please try again.', 'error');
+      } finally {
+        // Clear loading state
+        loadingState.bookmark = false;
+        replyActionsLoading.set(String(replyId), loadingState);
+        replyActionsLoading = new Map(replyActionsLoading);
       }
+    } catch (error) {
+      console.error('Unhandled error in handleBookmarkReply:', error);
+      toastStore.showToast('An unexpected error occurred. Please try again later.', 'error');
     }
   }
 
@@ -755,6 +1015,15 @@
 
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
+      
+      // Check if already in loading state
+      const loadingState = replyActionsLoading.get(String(replyId)) || {};
+      if (loadingState.bookmark) return;
+      
+      // Set loading state
+      loadingState.bookmark = true;
+      replyActionsLoading.set(String(replyId), loadingState);
+      replyActionsLoading = new Map(replyActionsLoading);
 
       // Optimistic UI update
       reply.isBookmarked = false;
@@ -763,18 +1032,32 @@
       }
       
       // Call API
-      await removeReplyBookmark(String(replyId));
-    } catch (error) {
-      console.error('Error unbookmarking reply:', error);
-      // Revert optimistic update
-      const reply = replies.find(r => r.id === replyId);
-      if (reply) {
-        reply.isBookmarked = true;
-        if (typeof reply.bookmarks === 'number') {
-          reply.bookmarks += 1;
+      try {
+        await removeReplyBookmark(String(replyId));
+      } catch (error) {
+        console.error('Error unbookmarking reply:', error);
+        
+        // Check for "not bookmarked" or "not found" error - don't revert UI
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isNotBookmarked = errorMsg.includes('not bookmarked') || errorMsg.includes('not found');
+        
+        if (!isNotBookmarked) {
+          // Revert optimistic update
+          reply.isBookmarked = true;
+          if (typeof reply.bookmarks === 'number') {
+            reply.bookmarks += 1;
+          }
+          toastStore.showToast('Failed to remove bookmark from reply. Please try again.', 'error');
         }
-        toastStore.showToast('Failed to remove bookmark from reply. Please try again.', 'error');
+      } finally {
+        // Clear loading state
+        loadingState.bookmark = false;
+        replyActionsLoading.set(String(replyId), loadingState);
+        replyActionsLoading = new Map(replyActionsLoading);
       }
+    } catch (error) {
+      console.error('Unhandled error in handleUnbookmarkReply:', error);
+      toastStore.showToast('An unexpected error occurred. Please try again later.', 'error');
     }
   }
 
@@ -865,7 +1148,8 @@
         fromAuthor: tweet.author?.id,
         fromUserData: tweet.user_data?.id,
       },
-      bookmarkedThread: tweet.bookmarked_thread || null,
+      // Cast to ExtendedTweet to access non-standard properties
+      bookmarkedThread: (tweet as ExtendedTweet).bookmarked_thread || null,
       contenWithUsers: tweet.content && tweet.content.includes('@') ? 
         tweet.content.match(/@([a-zA-Z0-9_]+)/g) : null
     });
@@ -928,10 +1212,28 @@
       // Update the map to trigger reactivity
       nestedRepliesMap = new Map(nestedRepliesMap);
       
-      // Increment the reply count on the parent reply
-      const parentReply = replies.find(r => r.id === parentReplyId);
-      if (parentReply) {
-        parentReply.replies = (parseInt(parentReply.replies || '0') + 1).toString();
+      // Find the parent reply
+      const parentIndex = replies.findIndex(r => r.id === parentReplyId);
+      if (parentIndex >= 0) {
+        // Create a new array with all the existing replies
+        const newReplies = [...replies];
+        
+        // Create a new object for the parent reply with the incremented count
+        const oldParent = replies[parentIndex];
+        const replyCount = typeof oldParent.replies === 'number' ? 
+          oldParent.replies + 1 : 
+          Number(oldParent.replies || 0) + 1;
+        
+        // Create a new parent reply object with updated count
+        const newParent = { ...oldParent };
+        // Use TypeScript's any type for the assignment to bypass type checking
+        (newParent as any).replies = replyCount;
+        
+        // Replace the parent in the new array
+        newReplies[parentIndex] = newParent;
+        
+        // Update the replies array
+        replies = newReplies;
       }
     }
   }
@@ -1055,21 +1357,34 @@
             </div>
             <div class="tweet-action-item">
               <button 
-                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleLike}
+                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isLikeLoading ? 'loading' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                on:click|stopPropagation={handleLikeClick}
                 aria-label="{effectiveIsLiked ? 'Unlike' : 'Like'}"
+                disabled={isLikeLoading}
               >
-                <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon" />
+                {#if isLikeLoading}
+                  <div class="tweet-action-loading"></div>
+                  <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
+                {:else}
+                  <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon" />
+                {/if}
                 <span class="tweet-action-count">{effectiveLikes}</span>
+                <span class="like-status-text">{effectiveIsLiked ? 'Liked' : 'Like'}</span>
               </button>
             </div>
             <div class="tweet-action-item">
               <button 
-                class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isBookmarkLoading ? 'loading' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
                 on:click|stopPropagation={handleBookmark}
                 aria-label="{effectiveIsBookmarked ? 'Remove bookmark' : 'Bookmark'}"
+                disabled={isBookmarkLoading}
               >
-                <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
+                {#if isBookmarkLoading}
+                  <div class="tweet-action-loading"></div>
+                  <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
+                {:else}
+                  <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
+                {/if}
                 <span class="tweet-action-count">{effectiveBookmarks}</span>
               </button>
             </div>
@@ -1129,26 +1444,54 @@
     {:else}
       {#if replies.length > 0 && nestingLevel < MAX_NESTING_LEVEL}
         {#each processedReplies as reply (reply.id || reply.tweetId)}
-          <svelte:self 
-            tweet={reply}
-            {isDarkMode}
-            {isAuthenticated}
-            isLiked={reply.isLiked || reply.is_liked || false}
-            isReposted={reply.isReposted || false}
-            isBookmarked={reply.isBookmarked || false}
-            inReplyToTweet={null}
-            replies={nestedRepliesMap.get(String(reply.id)) || []} 
-            showReplies={false}
-            nestingLevel={nestingLevel + 1}
-            {nestedRepliesMap}
-            on:reply={handleNestedReply}
-            on:like={handleNestedLike}
-            on:unlike={handleNestedLike}
-            on:repost={handleNestedRepost}
-            on:bookmark={handleNestedBookmark}
-            on:removeBookmark={handleNestedBookmark}
-            on:loadReplies={handleLoadNestedReplies}
-          />
+          <div id="reply-{reply.id}-container" class="nested-reply-container">
+            <svelte:self 
+              tweet={reply}
+              {isDarkMode}
+              {isAuthenticated}
+              isLiked={reply.isLiked || reply.is_liked || false}
+              isReposted={reply.isReposted || false}
+              isBookmarked={reply.isBookmarked || false}
+              inReplyToTweet={null}
+              replies={nestedRepliesMap.get(String(reply.id)) || []} 
+              showReplies={false}
+              nestingLevel={nestingLevel + 1}
+              {nestedRepliesMap}
+              on:reply={handleNestedReply}
+              on:like={handleNestedLike}
+              on:unlike={handleNestedLike}
+              on:repost={handleNestedRepost}
+              on:bookmark={handleNestedBookmark}
+              on:removeBookmark={handleNestedBookmark}
+              on:loadReplies={handleLoadNestedReplies}
+            />
+            
+            {#if reply.replies > 0}
+              {#if nestedRepliesMap.has(`retry_${reply.id}`)}
+                <!-- Show retry button when loading failed -->
+                <div class="nested-replies-retry-container">
+                  <button 
+                    class="nested-replies-retry-btn" 
+                    on:click|stopPropagation={() => retryLoadNestedReplies(reply.id)}
+                  >
+                    <RefreshCwIcon size="14" />
+                    Failed to load replies. Retry?
+                  </button>
+                </div>
+              {:else if !nestedRepliesMap.has(String(reply.id)) && reply.replies > 0}
+                <!-- Show view replies button when not loaded yet -->
+                <div class="nested-replies-view-container">
+                  <button 
+                    class="nested-replies-view-btn" 
+                    on:click|stopPropagation={() => handleLoadNestedReplies({ detail: String(reply.id) })}
+                  >
+                    <ChevronDownIcon size="14" />
+                    View {reply.replies} {reply.replies === 1 ? 'reply' : 'replies'}
+                  </button>
+                </div>
+              {/if}
+            {/if}
+          </div>
         {/each}
       {:else if replies.length > 0}
         {#each processedReplies as reply, index (reply.id || reply.tweetId || `reply-${reply.timestamp}-${reply.username}-${index}`)}
@@ -1198,12 +1541,14 @@
                     <span>Reply</span>
                   </button>
                   
-                  <button class="tweet-reply-action-btn tweet-reply-like-btn {reply.isLiked ? 'active' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
+                  <button class="tweet-reply-action-btn tweet-reply-like-btn {reply.isLiked ? 'active' : ''} {(replyActionsLoading.get(String(reply.id))?.like) ? 'loading' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
                       reply.isLiked ? handleUnlikeReply(reply.id) : handleLikeReply(reply.id);
                     }}>
-                    {#if reply.isLiked}
+                    {#if replyActionsLoading.get(String(reply.id))?.like}
+                      <div class="tweet-reply-action-loading"></div>
+                    {:else if reply.isLiked}
                       <HeartIcon size="16" fill="currentColor" class="tweet-reply-action-icon" />
                     {:else}
                       <HeartIcon size="16" class="tweet-reply-action-icon" />
@@ -1211,12 +1556,14 @@
                     <span>Like</span>
                   </button>
                   
-                  <button class="tweet-reply-action-btn tweet-reply-bookmark-btn {reply.isBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
+                  <button class="tweet-reply-action-btn tweet-reply-bookmark-btn {reply.isBookmarked ? 'active' : ''} {(replyActionsLoading.get(String(reply.id))?.bookmark) ? 'loading' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
                       reply.isBookmarked ? handleUnbookmarkReply(reply.id) : handleBookmarkReply(reply.id);
                     }}>
-                    {#if reply.isBookmarked}
+                    {#if replyActionsLoading.get(String(reply.id))?.bookmark}
+                      <div class="tweet-reply-action-loading"></div>
+                    {:else if reply.isBookmarked}
                       <BookmarkIcon size="16" fill="currentColor" class="tweet-reply-action-icon" />
                     {:else}
                       <BookmarkIcon size="16" class="tweet-reply-action-icon" />
@@ -1234,6 +1581,8 @@
 {/if}
 
 <style>
+  /* Note: Some CSS selectors may appear unused but are needed for dynamic class creation
+     or are used by JavaScript functions like classList.add/remove */
   .tweet-card {
     padding: 0.5rem 0;
     border-bottom: 1px solid var(--border-color);
@@ -1241,39 +1590,14 @@
     color: var(--text-primary);
     transition: background-color var(--transition-fast);
   }
-  
+
   .tweet-card-dark {
     background-color: var(--bg-primary-dark);
     color: var(--text-primary-dark);
     border-bottom: 1px solid var(--border-color-dark);
   }
 
-  .nested-tweet {
-    padding-left: 0.5rem;
-    border-radius: 0.5rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
-    position: relative;
-  }
-
-  .nested-reply-indicator {
-    position: absolute;
-    top: 0;
-    left: -1px;
-    bottom: 0;
-    border-left-width: 2px;
-    width: 2px;
-    opacity: 0.7;
-    background-color: var(--border-color);
-  }
-  
-  .tweet-card-dark .nested-reply-indicator {
-    background-color: var(--border-color-dark);
-  }
-
-  .tweet-avatar-container {
-    flex-shrink: 0;
-  }
+    /* Tweet avatar container is not used in the template */
   
   .tweet-actions {
     display: flex;
@@ -1294,17 +1618,19 @@
   .tweet-action-btn {
     display: flex;
     align-items: center;
-    background: transparent;
-    border: none;
     padding: 0.5rem;
-    border-radius: 50%;
+    border-radius: 9999px;
+    transition: all var(--transition-fast);
     cursor: pointer;
+    background-color: transparent;
+    border: none;
     color: var(--text-secondary);
-    transition: color 0.2s, background-color 0.2s;
+    position: relative;
+    min-width: 65px;
   }
 
   .tweet-action-btn:hover {
-    background-color: rgba(29, 155, 240, 0.1);
+    background-color: rgba(var(--color-primary-rgb), 0.1);
     color: var(--color-primary);
   }
 
@@ -1312,12 +1638,66 @@
     color: var(--color-primary);
   }
 
+  .tweet-action-btn.loading {
+    pointer-events: none;
+  }
+
+  .tweet-action-loading {
+    position: absolute;
+    left: 0.5rem;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(var(--color-primary-rgb), 0.3);
+    border-radius: 50%;
+    border-top-color: var(--color-primary);
+    animation: spin 0.8s linear infinite;
+  }
+
   .tweet-action-icon {
     margin-right: 0.25rem;
+    flex-shrink: 0;
+  }
+  
+  .tweet-action-icon.hidden {
+    opacity: 0;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .tweet-action-count {
     font-size: 0.875rem;
+  }
+  
+  .like-status-text {
+    font-size: 0;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    position: absolute;
+    left: -9999px;
+  }
+  
+  /* Only show the like status on mobile and tablets */
+  @media (max-width: 768px) {
+    .like-status-text {
+      font-size: 0.75rem;
+      width: auto;
+      height: auto;
+      position: static;
+      margin-left: 0.25rem;
+      overflow: visible;
+      display: none;
+    }
+    
+    .tweet-like-btn.active .like-status-text {
+      display: inline;
+      color: var(--color-primary);
+      font-weight: 500;
+    }
   }
 
   .view-replies-btn {
@@ -1397,6 +1777,39 @@
     );
     animation: loading-animation 1.5s infinite;
   }
+  
+  .loading-nested-replies {
+    position: relative;
+    opacity: 0.8;
+  }
+  
+  .loading-nested-replies::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.1);
+    z-index: 1;
+  }
+  
+  .loading-nested-replies::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-primary),
+      transparent
+    );
+    animation: loading-animation 1.5s infinite;
+    z-index: 2;
+  }
 
   @keyframes loading-animation {
     0% { transform: translateX(-100%); }
@@ -1417,36 +1830,9 @@
     transition: transform 0.2s;
   }
   
-  .dark-btn {
-    background-color: transparent;
-  }
-  
-  .dark-btn:hover {
-    background-color: var(--hover-primary);
-  }
-  
-  .light-btn {
-    background-color: transparent;
-  }
-  
-  .light-btn:hover {
-    background-color: var(--hover-primary);
-  }
-  
-  .reply-count {
-    min-width: 1rem;
-    text-align: center;
-  }
-  
+  /* Used in the template */
   .has-replies {
     font-weight: 500;
-  }
-  
-  .count-badge {
-    min-width: 1.5rem;
-    text-align: center;
-    font-weight: 500;
-    display: inline-block;
   }
   
   /* Additional styles for tweet reply action buttons */
@@ -1528,5 +1914,73 @@
     background-color: var(--color-primary-hover);
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .nested-reply-container {
+    margin-left: 1rem;
+    border-left: 2px solid var(--border-color);
+    padding-left: 1rem;
+    position: relative;
+  }
+  
+  .nested-replies-retry-container,
+  .nested-replies-view-container {
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    padding-left: 3rem;
+  }
+  
+  .nested-replies-retry-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #e6a700;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .nested-replies-retry-btn:hover {
+    background-color: rgba(255, 193, 7, 0.2);
+    transform: translateY(-1px);
+  }
+  
+  .nested-replies-view-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(29, 155, 240, 0.1);
+    color: #1d9bf0;
+    border: 1px solid rgba(29, 155, 240, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .nested-replies-view-btn:hover {
+    background-color: rgba(29, 155, 240, 0.2);
+    transform: translateY(-1px);
+  }
+
+  /* Add to the existing styles */
+  .tweet-reply-action-btn.loading {
+    pointer-events: none;
+    opacity: 0.8;
+  }
+  
+  .tweet-reply-action-loading {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(var(--color-primary-rgb), 0.3);
+    border-radius: 50%;
+    border-top-color: var(--color-primary);
+    animation: spin 0.8s linear infinite;
+    margin-right: 0.25rem;
   }
 </style>

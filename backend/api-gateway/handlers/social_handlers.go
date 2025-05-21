@@ -188,9 +188,23 @@ func GetFollowers(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	// Get pagination parameters
+	page := 1
+	limit := 20
+
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
+			page = val
+		}
+	}
+
+	limitStr := c.Query("limit")
+	if limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 && val <= 100 {
+			limit = val
+		}
+	}
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -266,9 +280,23 @@ func GetFollowing(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	// Get pagination parameters
+	page := 1
+	limit := 20
+
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
+			page = val
+		}
+	}
+
+	limitStr := c.Query("limit")
+	if limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 && val <= 100 {
+			limit = val
+		}
+	}
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -343,6 +371,7 @@ func LikeThread(c *gin.Context) {
 	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
+		log.Printf("LikeThread: No userId in context")
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
 			Success: false,
 			Message: "User ID not found in token",
@@ -353,6 +382,7 @@ func LikeThread(c *gin.Context) {
 
 	userID, ok := userIDAny.(string)
 	if !ok {
+		log.Printf("LikeThread: Invalid userId format in context")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Invalid User ID format in token",
@@ -364,6 +394,7 @@ func LikeThread(c *gin.Context) {
 	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
+		log.Printf("LikeThread: Missing threadId parameter")
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Thread ID is required",
@@ -372,9 +403,12 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
+	log.Printf("LikeThread: Processing like for thread %s by user %s", threadID, userID)
+
 	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
+		log.Printf("LikeThread: Failed to get connection to thread service: %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to thread service: " + err.Error(),
@@ -402,6 +436,7 @@ func LikeThread(c *gin.Context) {
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.NotFound:
+				log.Printf("LikeThread: Thread %s not found", threadID)
 				c.JSON(http.StatusNotFound, ErrorResponse{
 					Success: false,
 					Message: "Thread not found",
@@ -410,13 +445,23 @@ func LikeThread(c *gin.Context) {
 				return
 			case codes.AlreadyExists:
 				// This is not truly an error for likes - return success
+				log.Printf("LikeThread: Thread %s already liked by user %s", threadID, userID)
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
 					"message": "Thread already liked",
 					"code":    "ALREADY_LIKED",
 				})
 				return
+			case codes.InvalidArgument:
+				log.Printf("LikeThread: Invalid argument - %s", st.Message())
+				c.JSON(http.StatusBadRequest, ErrorResponse{
+					Success: false,
+					Message: "Invalid request: " + st.Message(),
+					Code:    "INVALID_REQUEST",
+				})
+				return
 			default:
+				log.Printf("LikeThread: Error from thread service - %s", st.Message())
 				c.JSON(http.StatusInternalServerError, ErrorResponse{
 					Success: false,
 					Message: "Failed to like thread: " + st.Message(),
@@ -426,6 +471,7 @@ func LikeThread(c *gin.Context) {
 			}
 		}
 
+		log.Printf("LikeThread: Unclassified error - %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to like thread: " + err.Error(),
@@ -434,9 +480,14 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
+	log.Printf("LikeThread: Successfully liked thread %s by user %s", threadID, userID)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread liked successfully",
+		"data": gin.H{
+			"thread_id": threadID,
+			"user_id":   userID,
+		},
 	})
 }
 
@@ -455,6 +506,7 @@ func UnlikeThread(c *gin.Context) {
 	// Get user ID from token
 	userIDAny, exists := c.Get("userId")
 	if !exists {
+		log.Printf("UnlikeThread: No userId in context")
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
 			Success: false,
 			Message: "User ID not found in token",
@@ -465,6 +517,7 @@ func UnlikeThread(c *gin.Context) {
 
 	userID, ok := userIDAny.(string)
 	if !ok {
+		log.Printf("UnlikeThread: Invalid userId format in context")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Invalid User ID format in token",
@@ -476,6 +529,7 @@ func UnlikeThread(c *gin.Context) {
 	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
+		log.Printf("UnlikeThread: Missing threadId parameter")
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Success: false,
 			Message: "Thread ID is required",
@@ -484,9 +538,12 @@ func UnlikeThread(c *gin.Context) {
 		return
 	}
 
+	log.Printf("UnlikeThread: Processing unlike for thread %s by user %s", threadID, userID)
+
 	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
+		log.Printf("UnlikeThread: Failed to get connection to thread service: %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to thread service: " + err.Error(),
@@ -510,25 +567,44 @@ func UnlikeThread(c *gin.Context) {
 	})
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+			switch st.Code() {
+			case codes.NotFound:
+				log.Printf("UnlikeThread: Thread %s or like not found", threadID)
+				// Unlike is idempotent, so return success even if the thread or like doesn't exist
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"message": "Thread already not liked",
+				})
+				return
+			case codes.InvalidArgument:
+				log.Printf("UnlikeThread: Invalid argument - %s", st.Message())
+				c.JSON(http.StatusBadRequest, ErrorResponse{
+					Success: false,
+					Message: "Invalid request: " + st.Message(),
+					Code:    "INVALID_REQUEST",
+				})
+				return
+			default:
+				log.Printf("UnlikeThread: Error from thread service - %s", st.Message())
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Success: false,
+					Message: "Failed to unlike thread: " + st.Message(),
+					Code:    "INTERNAL_ERROR",
+				})
+				return
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
 		} else {
+			log.Printf("UnlikeThread: Unclassified error - %v", err)
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Success: false,
 				Message: "Failed to unlike thread: " + err.Error(),
 				Code:    "INTERNAL_ERROR",
 			})
+			return
 		}
-		return
 	}
 
+	log.Printf("UnlikeThread: Successfully unliked thread %s by user %s", threadID, userID)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread unliked successfully",
@@ -1761,7 +1837,9 @@ func UnpinReply(c *gin.Context) {
 // @Param page query int false "Page number"
 // @Param limit query int false "Items per page"
 // @Success 200 {object} threadProto.RepliesResponse
+// @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /api/v1/replies/{id}/replies [get]
 func GetRepliesByParentReply(c *gin.Context) {
 	// Get reply ID from URL
@@ -1774,6 +1852,8 @@ func GetRepliesByParentReply(c *gin.Context) {
 		})
 		return
 	}
+
+	log.Printf("GetRepliesByParentReply: Fetching replies for parent reply ID %s", parentReplyID)
 
 	// Get pagination parameters
 	page := 1
@@ -1796,6 +1876,7 @@ func GetRepliesByParentReply(c *gin.Context) {
 	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
+		log.Printf("GetRepliesByParentReply: Failed to connect to thread service: %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to thread service: " + err.Error(),
@@ -1812,18 +1893,34 @@ func GetRepliesByParentReply(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
-	resp, err := client.GetRepliesByParentReply(ctx, &threadProto.GetRepliesByParentReplyRequest{
+	// Create the request
+	req := &threadProto.GetRepliesByParentReplyRequest{
 		ParentReplyId: parentReplyID,
 		Page:          int32(page),
 		Limit:         int32(limit),
-	})
+	}
+
+	// Call thread service
+	resp, err := client.GetRepliesByParentReply(ctx, req)
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
+		st, ok := status.FromError(err)
+
+		log.Printf("GetRepliesByParentReply: Error from service: %v (status code: %v)", err, st.Code())
+
+		if ok {
 			httpStatus := http.StatusInternalServerError
-			if st.Code() == codes.NotFound {
+
+			switch st.Code() {
+			case codes.NotFound:
 				httpStatus = http.StatusNotFound
+			case codes.InvalidArgument:
+				httpStatus = http.StatusBadRequest
+			case codes.Unavailable:
+				httpStatus = http.StatusServiceUnavailable
+			case codes.DeadlineExceeded, codes.Canceled:
+				httpStatus = http.StatusGatewayTimeout
 			}
+
 			c.JSON(httpStatus, ErrorResponse{
 				Success: false,
 				Message: st.Message(),
@@ -1838,6 +1935,9 @@ func GetRepliesByParentReply(c *gin.Context) {
 		}
 		return
 	}
+
+	// Add cache headers for better performance
+	c.Header("Cache-Control", "public, max-age=10") // Cache for 10 seconds
 
 	c.JSON(http.StatusOK, resp)
 }
