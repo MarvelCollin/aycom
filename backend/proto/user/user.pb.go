@@ -2025,7 +2025,6 @@ func (x *RequestPasswordResetResponse) GetExpiry() string {
 type VerifyResetTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2067,19 +2066,12 @@ func (x *VerifyResetTokenRequest) GetToken() string {
 	return ""
 }
 
-func (x *VerifyResetTokenRequest) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
-// Response for token verification
+// Response for verifying reset token
 type VerifyResetTokenResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2121,13 +2113,6 @@ func (x *VerifyResetTokenResponse) GetValid() bool {
 	return false
 }
 
-func (x *VerifyResetTokenResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
 func (x *VerifyResetTokenResponse) GetEmail() string {
 	if x != nil {
 		return x.Email
@@ -2135,7 +2120,14 @@ func (x *VerifyResetTokenResponse) GetEmail() string {
 	return ""
 }
 
-// Request to verify security answer before password reset
+func (x *VerifyResetTokenResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Request for verifying security answer
 type VerifySecurityAnswerRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Email          string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
@@ -2188,7 +2180,7 @@ func (x *VerifySecurityAnswerRequest) GetSecurityAnswer() string {
 	return ""
 }
 
-// Response for security answer verification
+// Response for verifying security answer
 type VerifySecurityAnswerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -2253,8 +2245,8 @@ func (x *VerifySecurityAnswerResponse) GetToken() string {
 type ResetPasswordRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	NewPassword   string                 `protobuf:"bytes,3,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	NewPassword   string                 `protobuf:"bytes,2,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
+	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2296,16 +2288,16 @@ func (x *ResetPasswordRequest) GetToken() string {
 	return ""
 }
 
-func (x *ResetPasswordRequest) GetEmail() string {
+func (x *ResetPasswordRequest) GetNewPassword() string {
 	if x != nil {
-		return x.Email
+		return x.NewPassword
 	}
 	return ""
 }
 
-func (x *ResetPasswordRequest) GetNewPassword() string {
+func (x *ResetPasswordRequest) GetEmail() string {
 	if x != nil {
-		return x.NewPassword
+		return x.Email
 	}
 	return ""
 }
@@ -2363,13 +2355,13 @@ func (x *ResetPasswordResponse) GetMessage() string {
 	return ""
 }
 
-// Request to get all users with pagination
+// Request for getting all users with pagination
 type GetAllUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`                         // Pagination - page number
-	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                       // Pagination - items per page
-	SortBy        string                 `protobuf:"bytes,3,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`        // Optional: field to sort by (e.g. "username", "created_at")
-	SortDesc      bool                   `protobuf:"varint,4,opt,name=sort_desc,json=sortDesc,proto3" json:"sort_desc,omitempty"` // Optional: sort direction (true = descending, false = ascending)
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	SortBy        string                 `protobuf:"bytes,3,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
+	SortDesc      bool                   `protobuf:"varint,4,opt,name=sort_desc,json=sortDesc,proto3" json:"sort_desc,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2432,7 +2424,7 @@ func (x *GetAllUsersRequest) GetSortDesc() bool {
 	return false
 }
 
-// Response containing all users
+// Response for getting all users
 type GetAllUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
@@ -2657,14 +2649,13 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12\x16\n" +
-	"\x06expiry\x18\x04 \x01(\tR\x06expiry\"E\n" +
+	"\x06expiry\x18\x04 \x01(\tR\x06expiry\"/\n" +
 	"\x17VerifyResetTokenRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12\x14\n" +
-	"\x05email\x18\x02 \x01(\tR\x05email\"`\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"`\n" +
 	"\x18VerifyResetTokenResponse\x12\x14\n" +
-	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\"\\\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\\\n" +
 	"\x1bVerifySecurityAnswerRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12'\n" +
 	"\x0fsecurity_answer\x18\x02 \x01(\tR\x0esecurityAnswer\"h\n" +
@@ -2673,9 +2664,9 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\"e\n" +
 	"\x14ResetPasswordRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12\x14\n" +
-	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
-	"\fnew_password\x18\x03 \x01(\tR\vnewPassword\"K\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12!\n" +
+	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\"K\n" +
 	"\x15ResetPasswordResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"t\n" +

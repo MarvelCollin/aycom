@@ -52,9 +52,10 @@ func Migrate(db *gorm.DB) error {
 }
 
 func migrateInitSchema(db *gorm.DB) error {
-	err := db.AutoMigrate(&model.User{}, &model.Session{})
+	// Migrate all required models including Follow
+	err := db.AutoMigrate(&model.User{}, &model.Session{}, &model.Follow{})
 	if err != nil {
-		return fmt.Errorf("failed to migrate User or Session models: %w", err)
+		return fmt.Errorf("failed to migrate models: %w", err)
 	}
 
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)").Error; err != nil {
@@ -68,6 +69,10 @@ func migrateInitSchema(db *gorm.DB) error {
 	}
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token)").Error; err != nil {
 		log.Printf("Warning: Failed to create session refresh_token index: %v", err)
+	}
+	// Add index for follower-followed pairs
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_follower_followed ON follows(follower_id, followed_id)").Error; err != nil {
+		log.Printf("Warning: Failed to create follow index: %v", err)
 	}
 
 	return nil

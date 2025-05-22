@@ -21,7 +21,7 @@ RUN pip install --upgrade pip && \
     pip install wheel && \
     pip wheel --no-cache-dir -r filtered_requirements.txt -w /wheels
 
-FROM tensorflow/tensorflow:2.13.0-slim
+FROM tensorflow/tensorflow:2.13.0
 
 ENV PYTHONUNBUFFERED=1 \
     TF_CPP_MIN_LOG_LEVEL=2 \
@@ -37,7 +37,7 @@ RUN apt-get update && \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-    WORKDIR /app
+WORKDIR /app
 COPY --from=builder /wheels /wheels
 
 RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/* && \

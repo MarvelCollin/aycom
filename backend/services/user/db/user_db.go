@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"aycom/backend/services/user/model"
@@ -235,21 +236,63 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error) {
 	var users []*model.User
 
-	query := r.db.Table("users").
-		Joins("LEFT JOIN follows ON users.id = follows.followed_id").
-		Group("users.id").
-		Select("users.*, COUNT(follows.follower_id) as follower_count").
-		Order("follower_count DESC, users.created_at DESC")
+	// Check if follows table exists
+	var hasFollowsTable bool
+	err := r.db.Raw("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'follows')").Scan(&hasFollowsTable).Error
+	if err != nil {
+		log.Printf("Error checking if follows table exists: %v", err)
+		// Continue with a fallback approach
+		hasFollowsTable = false
+	}
 
+	query := r.db.Model(&model.User{})
+
+	// If follows table exists, use it to rank users by follower count
+	if hasFollowsTable {
+		query = r.db.Table("users").
+			Joins("LEFT JOIN follows ON users.id = follows.followed_id").
+			Group("users.id").
+			Select("users.*, COUNT(follows.follower_id) as follower_count").
+			Order("follower_count DESC, users.created_at DESC")
+	} else {
+		// Fallback to sorting by creation date if follows table doesn't exist
+		query = query.Order("created_at DESC")
+	}
+
+	// Exclude the current user if ID is provided
 	if excludeUserID != "" {
 		if _, err := uuid.Parse(excludeUserID); err == nil {
 			query = query.Where("users.id != ?", excludeUserID)
 		}
 	}
 
-	err := query.Limit(limit).Find(&users).Error
+	// Apply limit
+	err = query.Limit(limit).Find(&users).Error
 	if err != nil {
+		log.Printf("Error retrieving recommended users: %v", err)
 		return nil, err
+	}
+
+	// If we didn't get any users and follows table exists, try the fallback method
+	if len(users) == 0 && hasFollowsTable {
+		log.Printf("No users found with joins method, trying fallback")
+		fallbackQuery := r.db.Model(&model.User{})
+
+		// Apply exclude filter if we have a valid UUID
+		if excludeUserID != "" {
+			if _, err := uuid.Parse(excludeUserID); err == nil {
+				fallbackQuery = fallbackQuery.Where("id != ?", excludeUserID)
+			}
+		}
+
+		err = fallbackQuery.Order("created_at DESC").
+			Limit(limit).
+			Find(&users).Error
+
+		if err != nil {
+			log.Printf("Error retrieving recommended users with fallback: %v", err)
+			return nil, err
+		}
 	}
 
 	return users, nil

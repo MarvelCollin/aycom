@@ -22,7 +22,7 @@ type ReplyService interface {
 	GetRepliesByThreadID(ctx context.Context, threadID string, page, limit int) ([]*model.Reply, error)
 	UpdateReply(ctx context.Context, req *thread.UpdateReplyRequest) (*model.Reply, error)
 	DeleteReply(ctx context.Context, replyID, userID string) error
-	CountRepliesByParentID(ctx context.Context, parentID string) (int, error)
+	CountRepliesByParentID(ctx context.Context, parentID string) (int64, error)
 	FindRepliesByParentID(ctx context.Context, parentReplyID string, page, limit int) ([]*model.Reply, error)
 	GetRepliesByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Reply, error)
 }
@@ -236,7 +236,7 @@ func (s *replyService) DeleteReply(ctx context.Context, replyID, userID string) 
 }
 
 // CountRepliesByParentID counts replies by parent ID
-func (s *replyService) CountRepliesByParentID(ctx context.Context, parentID string) (int, error) {
+func (s *replyService) CountRepliesByParentID(ctx context.Context, parentID string) (int64, error) {
 	if parentID == "" {
 		return 0, status.Error(codes.InvalidArgument, "Parent ID is required")
 	}

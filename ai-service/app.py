@@ -61,14 +61,12 @@ def load_models():
     global thread_model, tokenizer
     
     try:
-        # Check multiple locations for the model file
         model_paths = [
             os.path.join(os.path.dirname(__file__), "thread_category_model.h5"),
             os.path.join(os.path.dirname(__file__), "models", "thread_category_model.h5"),
             "/app/models/thread_category_model.h5"
         ]
         
-        # Try each path until a valid one is found
         model_loaded = False
         for model_path in model_paths:
             if os.path.exists(model_path):
@@ -163,47 +161,6 @@ def predict_category():
     """Predict the category of content using the pre-trained model"""
     global thread_model, tokenizer
     
-    # Check if we're in debug/quick-test mode
-    if os.environ.get("AI_DEBUG_MODE", "").lower() == "true":
-        content = request.json.get('content', '').lower() if request.json else ''
-        logger.info(f"DEBUG MODE: Received category prediction request for: {content[:50]}...")
-        
-        # Simple keyword-based matching for testing purposes
-        result = {
-            "category": "other",
-            "confidence": 0.7,
-            "all_categories": {
-                "technology": 0.1,
-                "sports": 0.1,
-                "entertainment": 0.1,
-                "politics": 0.0,
-                "business": 0.0,
-                "science": 0.0,
-                "health": 0.0,
-                "education": 0.0,
-                "travel": 0.0,
-                "lifestyle": 0.0,
-                "other": 0.7
-            }
-        }
-        
-        # Set category based on simple keyword matching
-        if any(word in content for word in ["tech", "computer", "software", "code", "algorithm", "ai"]):
-            result["category"] = "technology"
-            result["all_categories"]["technology"] = 0.7
-            result["all_categories"]["other"] = 0.1
-        elif any(word in content for word in ["football", "soccer", "basketball", "game", "world cup", "tournament"]):
-            result["category"] = "sports"
-            result["all_categories"]["sports"] = 0.7
-            result["all_categories"]["other"] = 0.1
-        elif any(word in content for word in ["movie", "music", "concert", "actor", "film"]):
-            result["category"] = "entertainment"
-            result["all_categories"]["entertainment"] = 0.7
-            result["all_categories"]["other"] = 0.1
-        
-        logger.info(f"DEBUG MODE: Returning category {result['category']} with confidence {result['confidence']}")
-        return jsonify(result)
-    
     try:
         data = request.json
         if not data or 'content' not in data:
@@ -232,10 +189,10 @@ def predict_category():
         top_category = max(category_scores, key=category_scores.get)
         top_confidence = category_scores[top_category]
         
+        # Return only the category and confidence, not all categories
         result = {
             "category": top_category,
-            "confidence": float(top_confidence),
-            "all_categories": category_scores
+            "confidence": float(top_confidence)
         }
         
         logger.info(f"Prediction result: {top_category} with confidence {top_confidence:.4f}")

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -130,11 +131,23 @@ func (h *UserHandler) GetUserByEmail(ctx context.Context, req *user.GetUserByEma
 }
 
 func (h *UserHandler) GetRecommendedUsers(ctx context.Context, req *user.GetRecommendedUsersRequest) (*user.GetRecommendedUsersResponse, error) {
-	users, err := h.svc.GetRecommendedUsers(ctx, req.UserId, int(req.Limit))
-	if err != nil {
-		return nil, err
+	// Set a default limit if not provided
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 10
 	}
 
+	// Log the request
+	log.Printf("GetRecommendedUsers: Processing request for user ID: %s, limit: %d", req.UserId, limit)
+
+	// Get recommended users from service
+	users, err := h.svc.GetRecommendedUsers(ctx, req.UserId, limit)
+	if err != nil {
+		log.Printf("GetRecommendedUsers: Error getting recommended users: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to get recommended users")
+	}
+
+	// Convert users to proto format
 	userProtos := make([]*user.User, 0, len(users))
 	for _, u := range users {
 		userProto := mapUserModelToProto(u)
@@ -142,6 +155,8 @@ func (h *UserHandler) GetRecommendedUsers(ctx context.Context, req *user.GetReco
 			userProtos = append(userProtos, userProto)
 		}
 	}
+
+	log.Printf("GetRecommendedUsers: Successfully returned %d recommended users", len(userProtos))
 
 	return &user.GetRecommendedUsersResponse{
 		Users: userProtos,

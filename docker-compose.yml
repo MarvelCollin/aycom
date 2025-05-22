@@ -24,32 +24,32 @@ services:
           cpus: '0.5'
           memory: 1G
 
-  # AI Service - Machine Learning Service (DISABLED TEMPORARILY)
-  # ai_service:
-  #   build:
-  #     context: ./ai-service
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "5000:5000"
-  #   env_file:
-  #     - ./.env
-  #   environment:
-  #     - PORT=5000
-  #     - FLASK_ENV=development
-  #     - LOG_LEVEL=INFO
-  #     - CORS_ORIGIN=http://localhost:3000
-  #     - TF_CPP_MIN_LOG_LEVEL=2
-  #     - PYTHONDONTWRITEBYTECODE=1
-  #     - AI_DEBUG_MODE=false  # Ensure we use the real production model
-  #   volumes:
-  #     - ./ai-service:/app
-  #     - ai_model_data:/app/models
-  #   restart: always
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '0.5'
-  #         memory: 2G
+  # AI Service - Machine Learning Service
+  ai_service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./.env
+    environment:
+      - PORT=5000
+      - FLASK_ENV=production
+      - LOG_LEVEL=INFO
+      - CORS_ORIGIN=http://localhost:3000
+      - TF_CPP_MIN_LOG_LEVEL=2
+      - PYTHONDONTWRITEBYTECODE=1
+      - AI_DEBUG_MODE=false
+    volumes:
+      - ./ai-service:/app
+      - ai_model_data:/app/models
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 2G
 
   # API Gateway
   api_gateway:
@@ -67,10 +67,8 @@ services:
       - THREAD_SERVICE_PORT=9092
       - COMMUNITY_SERVICE_HOST=community_service
       - COMMUNITY_SERVICE_PORT=9093
-      # AI service disabled temporarily
-      # - AI_SERVICE_HOST=ai_service
-      # - AI_SERVICE_PORT=5000
-      - AI_SERVICE_HOST=localhost
+      # AI service configuration
+      - AI_SERVICE_HOST=ai_service
       - AI_SERVICE_PORT=5000
       - CORS_ORIGIN=http://localhost:3000
     volumes:
@@ -81,7 +79,7 @@ services:
       - user_service
       - thread_service
       - community_service
-      # - ai_service  # AI service dependency removed
+      - ai_service
     restart: always
     command: >
       sh -c "cd /app/api-gateway && 

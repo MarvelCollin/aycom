@@ -3,6 +3,7 @@ import appConfig from '../config/appConfig';
 import { uploadMultipleThreadMedia } from '../utils/supabase';
 
 const API_BASE_URL = appConfig.api.baseUrl;
+const AI_SERVICE_URL = appConfig.api.aiServiceUrl || 'http://localhost:5000';
 
 export async function createThread(data: Record<string, any>) {
   try {
@@ -1605,5 +1606,49 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
     
     console.error("Error in getReplyReplies:", error);
     throw error;
+  }
+}
+
+export async function suggestThreadCategory(content: string) {
+  try {
+    console.log("Requesting category suggestion for content:", content.substring(0, 50) + (content.length > 50 ? "..." : ""));
+    
+    // If content is empty or too short, don't make the request
+    if (!content || content.trim().length < 10) {
+      return { 
+        category: 'general',
+        confidence: 0
+      };
+    }
+    
+    const response = await fetch(`${AI_SERVICE_URL}/predict/category`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ content })
+    });
+    
+    if (!response.ok) {
+      console.warn("Category suggestion failed:", response.status, response.statusText);
+      return { 
+        category: 'general',
+        confidence: 0
+      };
+    }
+    
+    const data = await response.json();
+    console.log("Received category suggestion:", data);
+    
+    return {
+      category: data.category || 'general',
+      confidence: data.confidence || 0
+    };
+  } catch (error) {
+    console.error("Error suggesting thread category:", error);
+    return { 
+      category: 'general',
+      confidence: 0
+    };
   }
 }

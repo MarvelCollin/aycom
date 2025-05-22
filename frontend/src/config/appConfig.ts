@@ -4,7 +4,8 @@ const appConfig = {
   },
   
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1'
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1',
+    aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:5000'
   },
 
   ui: {

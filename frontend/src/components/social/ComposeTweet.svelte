@@ -17,6 +17,7 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { getAuthToken, getUserRole } from '../../utils/auth';
+  import { debounce } from '../../utils/helpers';
   import appConfig from '../../config/appConfig';
   import type { ITweet } from '../../interfaces/ISocialMedia';
   import { generateFilePreview, handleApiError } from '../../utils/common';
@@ -48,6 +49,28 @@
   let isAdmin = false;
   let isAdvertisement = false;
   const maxWords = 280;
+  
+  // AI category suggestion
+  let suggestedCategory = '';
+  let suggestedCategoryConfidence = 0;
+  let isSuggestingCategory = false;
+  let categoryTouched = false; // User has manually selected a category
+  let allCategories: Record<string, number> = {};
+  
+  // Standard category options that map to our AI model's outputs
+  const categoryOptions = [
+    { value: 'technology', label: 'Technology' },
+    { value: 'entertainment', label: 'Entertainment' },
+    { value: 'health', label: 'Health' },
+    { value: 'sports', label: 'Sports' },
+    { value: 'business', label: 'Business' },
+    { value: 'politics', label: 'Politics' },
+    { value: 'education', label: 'Education' },
+    { value: 'gaming', label: 'Gaming' },
+    { value: 'food', label: 'Food' },
+    { value: 'travel', label: 'Travel' },
+    { value: 'general', label: 'General' }
+  ];
   
   // Poll options
   let pollQuestion = '';
@@ -108,12 +131,14 @@
     if (category.trim()) {
       selectedCategory = category.trim();
       categoryInput = '';
+      categoryTouched = true;
       logger.debug('Set category', { category });
     }
   }
   
   function clearCategory() {
     selectedCategory = '';
+    categoryTouched = false;
     logger.debug('Cleared category');
   }
   
@@ -186,7 +211,7 @@
         const replyData: any = {
           content: newTweet,
           thread_id: replyTo.threadId || replyTo.thread_id || replyTo.id,
-          mentioned_user_ids: selectedCategory ? [selectedCategory] : [],
+          mentioned_user_ids: [],
         };
         
         // Check if we're replying to a reply or to a thread
@@ -200,7 +225,6 @@
         
         // Get the thread ID from the reply or use reply's ID if no thread ID
         const threadId = String(replyTo.threadId || replyTo.thread_id || replyTo.id);
-        
         response = await replyToThread(threadId, replyData);
         
         if (files.length > 0 && response.id) {
@@ -222,40 +246,43 @@
           newReply: response
         });
       } else {
-        const data: any = {
+        // Creating a new thread
+        const threadData: any = {
           content: newTweet,
-          hashtags: selectedCategory ? [selectedCategory] : [],
           who_can_reply: replyPermission,
-          is_advertisement: isAdmin && isAdvertisement,
+          category: selectedCategory || suggestedCategory || 'general',
         };
         
-        // Add scheduled date if set
+        // Add schedule if set
         if (showScheduleOptions && scheduledDate && scheduledTime) {
           const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
           if (!isNaN(scheduledDateTime.getTime())) {
-            data.scheduled_at = scheduledDateTime.toISOString();
+            threadData.scheduled_at = scheduledDateTime.toISOString();
           }
         }
         
-        // Add community ID if selected
+        // Add community if set
         if (showCommunityOptions && selectedCommunityId) {
-          data.community_id = selectedCommunityId;
+          threadData.community_id = selectedCommunityId;
         }
         
-        // Add poll if created
-        if (showPollOptions && pollQuestion.trim() && pollOptions.filter(opt => opt.trim() !== '').length >= 2) {
-          const validOptions = pollOptions.filter(opt => opt.trim() !== '');
-          data.poll = {
+        // Add poll if set
+        if (showPollOptions && pollQuestion && pollOptions.filter(o => o.trim()).length >= 2) {
+          threadData.poll = {
             question: pollQuestion,
-            options: validOptions,
-            closes_at: new Date(Date.now() + pollExpiryHours * 60 * 60 * 1000).toISOString(),
+            options: pollOptions.filter(o => o.trim()),
+            expiry_hours: pollExpiryHours,
             who_can_vote: pollWhoCanVote
           };
         }
         
-        logger.debug('Posting thread with data:', data);
+        // Add admin fields if applicable
+        if (isAdmin) {
+          threadData.is_advertisement = isAdvertisement;
+        }
         
-        response = await createThread(data);
+        logger.debug('Creating thread with data:', threadData);
+        response = await createThread(threadData);
         
         if (files.length > 0 && response.id) {
           try {
@@ -349,6 +376,7 @@
 
     isLoadingSuggestions = true;
     showSuggestions = true;
+    isSuggestingCategory = true;
     
     try {
       // Add a timeout to prevent UI hanging if the AI service is slow
@@ -361,30 +389,27 @@
       // Race between the actual API call and timeout
       const result = await Promise.race([resultPromise, timeoutPromise]);
       
-      if (result.success && result.all_categories && Object.keys(result.all_categories).length > 0) {
-        // Always select the highest confidence category
-        const sortedCategories = Object.entries(result.all_categories)
-          .sort((a, b) => (b[1] as number) - (a[1] as number));
-          
-        // Set the top category
-        const topCategory = sortedCategories[0][0];
-        setCategory(topCategory);
+      if (result && result.category) {
+        // Set the suggestedCategory and confidence score
+        suggestedCategory = result.category;
+        suggestedCategoryConfidence = result.confidence || 0;
+        // Note: all_categories is no longer available
         
-        // Get other suggestions to show
-        const threshold = 0.05;
-        suggestedCategories = sortedCategories
-          .slice(1) // Skip the first one as it's already selected
-          .filter(([_, confidence]) => (confidence as number) >= threshold)
-          .map(([category]) => category);
-        
-        logger.debug('Got AI suggested categories', { 
-          selected: topCategory,
-          confidence: result.all_categories[topCategory],
-          suggestions: suggestedCategories.length
+        // Auto-select category if confidence is high enough
+        if (suggestedCategoryConfidence > 0.7 && !categoryTouched) {
+          selectedCategory = suggestedCategory;
+        }
+
+        logger.debug('Got AI suggested category', { 
+          suggested: suggestedCategory,
+          confidence: suggestedCategoryConfidence,
+          selected: selectedCategory
         });
       } else {
-        logger.warn('AI prediction failed:', result.error || 'No categories returned');
+        logger.warn('AI prediction failed:', result.error || 'No category returned');
         suggestedCategories = [];
+        suggestedCategory = '';
+        suggestedCategoryConfidence = 0;
         
         // Only show toast for specific errors, not for normal API failures
         if (result.error && !result.error.includes('too short')) {
@@ -394,6 +419,8 @@
     } catch (error) {
       logger.error('Failed to get AI suggested categories', { error });
       suggestedCategories = [];
+      suggestedCategory = '';
+      suggestedCategoryConfidence = 0;
       
       // Don't display timeout errors to users
       if (!(error instanceof Error && error.message === 'AI suggestion timeout')) {
@@ -401,6 +428,7 @@
       }
     } finally {
       isLoadingSuggestions = false;
+      isSuggestingCategory = false;
     }
   }
 
@@ -418,6 +446,41 @@
         debounceTimeout = setTimeout(getSuggestedCategories, 1000);
       }
     }
+  }
+
+  // Debounced function to get category suggestions from the AI service
+  const getSuggestedCategory = debounce(async (content: string) => {
+    // Don't suggest if user already manually selected
+    if (categoryTouched) return;
+    
+    // Don't suggest if content is too short
+    if (!content || content.trim().length < 10) {
+      suggestedCategory = '';
+      suggestedCategoryConfidence = 0;
+      return;
+    }
+    
+    try {
+      isSuggestingCategory = true;
+      
+      const result = await predictThreadCategory(content);
+      suggestedCategory = result.category;
+      suggestedCategoryConfidence = result.confidence;
+      
+      // Auto-select the suggested category if confidence is above 0.7
+      if (suggestedCategory && suggestedCategoryConfidence > 0.7 && !categoryTouched) {
+        selectedCategory = suggestedCategory;
+      }
+    } catch (error) {
+      logger.error("Error getting category suggestion:", error);
+    } finally {
+      isSuggestingCategory = false;
+    }
+  }, 500);
+  
+  // Watch newTweet for changes to trigger category suggestion
+  $: if (newTweet) {
+    getSuggestedCategory(newTweet);
   }
 </script>
 
@@ -482,12 +545,65 @@
         </div>
         <div class="compose-tweet-input-area">
           <textarea 
-            bind:value={newTweet}
-            placeholder="What is happening?!"
+            placeholder={isReplyMode ? "Post your reply" : "What's happening?"}
             class="compose-tweet-textarea"
-            rows="3"
-            maxlength={maxWords * 6}
+            bind:value={newTweet}
           ></textarea>
+          
+          <!-- Category suggestion UI -->
+          {#if newTweet && newTweet.length >= 10}
+            <div class="category-suggestion-container">
+              <div class="category-suggestion-header">
+                <span class="category-suggestion-title">
+                  <span class="category-icon">#</span>
+                  {isSuggestingCategory ? 'Analyzing content...' : 'Category'}
+                </span>
+                
+                {#if suggestedCategory && !categoryTouched}
+                  <span class="category-suggestion-info">
+                    AI suggested: <strong>{suggestedCategory}</strong>
+                    {#if suggestedCategoryConfidence > 0}
+                      ({Math.round(suggestedCategoryConfidence * 100)}% confident)
+                    {/if}
+                  </span>
+                {/if}
+              </div>
+              
+              <div class="category-options">
+                {#each categoryOptions as option}
+                  <button 
+                    class="category-option {selectedCategory === option.value ? 'selected' : ''} 
+                           {!selectedCategory && suggestedCategory === option.value ? 'suggested' : ''}"
+                    on:click={() => setCategory(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          
+          {#if selectedCategory}
+            <div class="selected-category">
+              <span class="category-tag">#{selectedCategory}</span>
+              <button class="category-remove-btn" on:click={clearCategory}>
+                <XIcon size="14" />
+              </button>
+            </div>
+          {/if}
+          
+          <!-- Selected community (if any) -->
+          {#if selectedCommunityId}
+            <div class="selected-community">
+              <span class="community-tag">
+                <UsersIcon size="14" />
+                {availableCommunities.find(c => c.id === selectedCommunityId)?.name || 'Community'}
+              </span>
+              <button class="community-remove-btn" on:click={() => selectedCommunityId = ''}>
+                <XIcon size="14" />
+              </button>
+            </div>
+          {/if}
 
           <div class="compose-tweet-word-count">
             <div class="compose-tweet-word-circle">
@@ -625,91 +741,6 @@
 
           {#if errorMessage}
             <div class="compose-tweet-error">{errorMessage}</div>
-          {/if}
-
-          <div class="compose-tweet-category">
-            <div class="compose-tweet-category-header">
-              <span class="compose-tweet-category-label">Category</span>
-            </div>
-            
-            {#if selectedCategory}
-              <div class="compose-tweet-category-tags">
-                <div class="compose-tweet-category-tag {isDarkMode ? 'compose-tweet-category-tag-dark' : ''}">
-                  {selectedCategory}
-                  <button class="compose-tweet-category-remove" on:click={clearCategory}>×</button>
-                </div>
-              </div>
-            {/if}
-            
-            <div class="compose-tweet-category-input-wrapper">
-              <input 
-                type="text" 
-                placeholder="Select a category" 
-                bind:value={categoryInput} 
-                on:keydown={handleCategoryKeydown}
-                class="compose-tweet-category-input {isDarkMode ? 'compose-tweet-category-input-dark' : ''}"
-                aria-label="Select a category"
-              />
-              
-              {#if filteredCategories.length > 0 && categoryInput.trim()}
-                <div class="compose-tweet-category-dropdown {isDarkMode ? 'compose-tweet-category-dropdown-dark' : ''}">
-                  {#each filteredCategories as category}
-                    <button 
-                      class="compose-tweet-category-option {isDarkMode ? 'compose-tweet-category-option-dark' : ''}" 
-                      on:click={() => setCategory(category.name)}
-                    >
-                      {category.name}
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-            
-            {#if showSuggestions && suggestedCategories.length > 0}
-              <div class="compose-tweet-suggestions">
-                <div class="compose-tweet-suggestions-header">
-                  <ZapIcon size="14" color="#FBBF24" />
-                  <span class="compose-tweet-suggestions-label">Other suggested categories:</span>
-                </div>
-                <div class="compose-tweet-suggestions-tags">
-                  {#each suggestedCategories as category}
-                    <button 
-                      class="compose-tweet-suggestion-tag {isDarkMode ? 'compose-tweet-suggestion-tag-dark' : ''}"
-                      on:click={() => selectSuggestedCategory(category)}
-                    >
-                      {category}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-            
-            {#if isLoadingSuggestions}
-              <div class="compose-tweet-loading">
-                <div class="compose-tweet-loading-spinner"></div>
-                <span class="compose-tweet-loading-text">Analyzing content...</span>
-              </div>
-            {/if}
-          </div>
-
-          <div class="compose-tweet-reply-settings">
-            <select 
-              bind:value={replyPermission} 
-              class="compose-tweet-reply-select {isDarkMode ? 'compose-tweet-reply-select-dark' : ''}"
-            >
-              <option value="everyone">Everyone can reply</option>
-              <option value="following">Accounts you follow</option>
-              <option value="verified">Verified accounts</option>
-            </select>
-          </div>
-          
-          {#if isAdmin && !isReplyMode}
-            <div class="compose-tweet-admin-options">
-              <label class="compose-tweet-admin-option">
-                <input type="checkbox" bind:checked={isAdvertisement} />
-                <span>Mark as advertisement</span>
-              </label>
-            </div>
           {/if}
 
           <div class="compose-tweet-actions">
@@ -1478,5 +1509,111 @@
     gap: 8px;
     cursor: pointer;
     color: var(--text-primary, #1f2937);
+  }
+
+  /* Category suggestion styles */
+  .category-suggestion-container {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  
+  .category-suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .category-suggestion-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  
+  .category-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-weight: bold;
+  }
+  
+  .category-suggestion-info {
+    font-size: 12px;
+    color: #555;
+  }
+  
+  .category-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  
+  .category-option {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    background-color: #f1f1f1;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .category-option:hover {
+    background-color: #e0e0e0;
+  }
+  
+  .category-option.selected {
+    background-color: #1d9bf0;
+    color: white;
+  }
+  
+  .category-option.suggested {
+    border: 1px dashed #1d9bf0;
+    animation: pulse 2s infinite;
+  }
+  
+  .selected-category {
+    display: inline-flex;
+    align-items: center;
+    margin: 8px 0;
+    padding: 5px 10px;
+    background-color: #1d9bf0;
+    color: white;
+    border-radius: 15px;
+    font-size: 12px;
+  }
+  
+  .category-tag {
+    font-weight: 500;
+  }
+  
+  .category-remove-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 5px;
+    color: white;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  
+  @keyframes pulse {
+    0% {
+      border-color: rgba(29, 155, 240, 0.5);
+    }
+    50% {
+      border-color: rgba(29, 155, 240, 1);
+    }
+    100% {
+      border-color: rgba(29, 155, 240, 0.5);
+    }
   }
 </style>

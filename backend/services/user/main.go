@@ -163,7 +163,7 @@ func setupDatabase() (*gorm.DB, error) {
 func runMigrations(dbConn *gorm.DB) error {
 	log.Println("Running database migrations")
 
-	if err := dbConn.AutoMigrate(&model.User{}, &model.Session{}); err != nil {
+	if err := dbConn.AutoMigrate(&model.User{}, &model.Session{}, &model.Follow{}); err != nil {
 		return fmt.Errorf("failed to run auto-migrate: %w", err)
 	}
 
@@ -264,4 +264,10 @@ func (a *userServiceAdapter) SearchUsers(ctx context.Context, req *user.SearchUs
 func (a *userServiceAdapter) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequest) (*user.GetAllUsersResponse, error) {
 	// Forward the request to our handler
 	return a.h.GetAllUsers(ctx, req)
+}
+
+// GetRecommendedUsers returns a list of recommended users
+func (a *userServiceAdapter) GetRecommendedUsers(ctx context.Context, req *user.GetRecommendedUsersRequest) (*user.GetRecommendedUsersResponse, error) {
+	// Forward the request to our handler
+	return a.h.GetRecommendedUsers(ctx, req)
 }

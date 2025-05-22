@@ -1,70 +1,78 @@
-import axios from 'axios';
 import appConfig from '../config/appConfig';
-import { getAuthToken } from '../utils/auth';
-import { createLoggerWithPrefix } from '../utils/logger';
 
-const logger = createLoggerWithPrefix('AI API');
-const baseUrl = `${appConfig.api.baseUrl}/ai`;
+const AI_SERVICE_URL = appConfig.api.aiServiceUrl || 'http://localhost:5000';
 
-const predictionCache = new Map<string, any>();
-
-interface ICategoryPredictionResponse {
-  success: boolean;
-  category?: string;
-  confidence?: number;
-  all_categories?: Record<string, number>;
-  error?: string;
-}
-
-export async function predictThreadCategory(content: string): Promise<ICategoryPredictionResponse> {
+/**
+ * Predicts the category of a thread based on its content
+ * @param content - The text content of the thread
+ * @returns A promise that resolves to the predicted category and confidence
+ */
+export async function predictThreadCategory(content: string) {
   try {
-    if (!content || content.trim().length < 5) {
-      return {
-        success: false,
-        error: "Content too short for prediction"
+    // If content is empty or too short, don't make the request
+    if (!content || content.trim().length < 10) {
+      return { 
+        category: 'general',
+        confidence: 0,
+        all_categories: {}
       };
     }
-
-    const trimmed = content.trim();
-    const cacheKey = trimmed.substring(0, 100);
-    if (predictionCache.has(cacheKey)) {
-      logger.debug('Using cached prediction result');
-      return predictionCache.get(cacheKey);
-    }
     
-    logger.debug('Predicting category for thread content');
-    
-    const response = await axios.post(`${baseUrl}/predict-category`, {
-      content: trimmed
-    }, { 
-      timeout: 8000
+    const response = await fetch(`${AI_SERVICE_URL}/predict/category`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ content })
     });
     
-    if (response.data && response.data.error) {
-      logger.warn('AI service returned error:', response.data.error);
-      return {
-        success: false,
-        error: response.data.error
+    if (!response.ok) {
+      console.warn("Category prediction failed:", response.status, response.statusText);
+      return { 
+        category: 'general',
+        confidence: 0,
+        all_categories: {}
       };
     }
     
-    logger.debug('Category prediction result:', response.data);
+    const data = await response.json();
     
-    const result = {
-      success: true,
-      category: response.data.category,
-      confidence: response.data.confidence,
-      all_categories: response.data.all_categories
-    };
-
-    predictionCache.set(cacheKey, result);
-    
-    return result;
-  } catch (error) {
-    logger.error('Failed to predict category:', error);
     return {
-      success: false,
-      error: "Failed to predict category"
+      category: data.category || 'general',
+      confidence: data.confidence || 0,
+      all_categories: data.all_categories || {}
+    };
+  } catch (error) {
+    console.error("Error predicting thread category:", error);
+    return { 
+      category: 'general',
+      confidence: 0,
+      all_categories: {}
+    };
+  }
+}
+
+/**
+ * Checks the health of the AI service
+ * @returns A promise that resolves to the health status
+ */
+export async function checkAIServiceHealth() {
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/health`);
+    
+    if (!response.ok) {
+      return { 
+        status: 'unhealthy',
+        model_loaded: false
+      };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Error checking AI service health:", error);
+    return { 
+      status: 'unhealthy',
+      model_loaded: false
     };
   }
 }

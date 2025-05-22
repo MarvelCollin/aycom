@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
   import { 
     ImageIcon, 
     BarChart2Icon, 
@@ -10,9 +10,10 @@
     AlertCircleIcon,
     UsersIcon
   } from 'svelte-feather-icons';
-  import { createThread, uploadThreadMedia } from '../../api/thread';
+  import { createThread, uploadThreadMedia, suggestThreadCategory } from '../../api/thread';
   import { toastStore } from '../../stores/toastStore';
   import { useTheme } from '../../hooks/useTheme';
+  import { debounce } from '../../utils/helpers';
   
   export let isOpen = false;
   export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
@@ -27,6 +28,29 @@
   let errorMessage = '';
   let previewImages: string[] = [];
   const maxChars = 280;
+  
+  // Category suggestion
+  let suggestedCategory = '';
+  let suggestedCategoryConfidence = 0;
+  let isSuggestingCategory = false;
+  let categoryTouched = false; // User has manually selected a category
+  let selectedCategory = '';
+  let allCategories: Record<string, number> = {};
+  let categorySuggestionDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  
+  const categoryOptions = [
+    { value: 'technology', label: 'Technology', icon: 'laptop' },
+    { value: 'entertainment', label: 'Entertainment', icon: 'film' },
+    { value: 'health', label: 'Health', icon: 'heart' },
+    { value: 'sports', label: 'Sports', icon: 'activity' },
+    { value: 'business', label: 'Business', icon: 'briefcase' },
+    { value: 'politics', label: 'Politics', icon: 'flag' },
+    { value: 'education', label: 'Education', icon: 'book' },
+    { value: 'gaming', label: 'Gaming', icon: 'controller' },
+    { value: 'food', label: 'Food', icon: 'coffee' },
+    { value: 'travel', label: 'Travel', icon: 'map' },
+    { value: 'general', label: 'General', icon: 'hash' }
+  ];
   
   $: charsRemaining = maxChars - newTweet.length;
   $: isOverLimit = charsRemaining < 0;
@@ -45,6 +69,51 @@
     previewImages = [];
     isPosting = false;
     errorMessage = '';
+    suggestedCategory = '';
+    suggestedCategoryConfidence = 0;
+    categoryTouched = false;
+    selectedCategory = '';
+    allCategories = {};
+  }
+  
+  // Debounced function to get category suggestions
+  const getSuggestedCategory = debounce(async (content: string) => {
+    // Don't suggest if user already manually selected
+    if (categoryTouched) return;
+    
+    // Don't suggest if content is too short
+    if (!content || content.trim().length < 10) {
+      suggestedCategory = '';
+      suggestedCategoryConfidence = 0;
+      return;
+    }
+    
+    try {
+      isSuggestingCategory = true;
+      
+      const result = await suggestThreadCategory(content);
+      suggestedCategory = result.category;
+      suggestedCategoryConfidence = result.confidence;
+      
+      // Auto-select the suggested category if confidence is above 0.7
+      if (suggestedCategory && suggestedCategoryConfidence > 0.7 && !categoryTouched) {
+        selectedCategory = suggestedCategory;
+      }
+    } catch (error) {
+      console.error("Error getting category suggestion:", error);
+    } finally {
+      isSuggestingCategory = false;
+    }
+  }, 500);
+  
+  // Watch newTweet for changes to trigger category suggestion
+  $: if (newTweet) {
+    getSuggestedCategory(newTweet);
+  }
+  
+  function handleCategorySelect(category: string) {
+    selectedCategory = category;
+    categoryTouched = true;
   }
   
   function handleFileSelect(e: Event) {
@@ -97,7 +166,8 @@
       const threadData = {
         content: newTweet,
         hashtags: [],
-        who_can_reply: 'everyone'
+        who_can_reply: 'everyone',
+        category: selectedCategory || suggestedCategory || 'general'
       };
       
       const response = await createThread(threadData);
@@ -148,6 +218,39 @@
               bind:value={newTweet}
               autofocus
             ></textarea>
+            
+            <!-- Category suggestion -->
+            {#if newTweet && newTweet.length >= 10}
+              <div class="category-suggestion-container">
+                <div class="category-suggestion-header">
+                  <span class="category-suggestion-title">
+                    <span class="category-icon">#</span>
+                    {isSuggestingCategory ? 'Analyzing content...' : 'Category'}
+                  </span>
+                  
+                  {#if suggestedCategory && !categoryTouched}
+                    <span class="category-suggestion-info">
+                      AI suggested: <strong>{suggestedCategory}</strong>
+                      {#if suggestedCategoryConfidence > 0}
+                        ({Math.round(suggestedCategoryConfidence * 100)}% confidence)
+                      {/if}
+                    </span>
+                  {/if}
+                </div>
+                
+                <div class="category-options">
+                  {#each categoryOptions as option}
+                    <button 
+                      class="category-option {selectedCategory === option.value ? 'selected' : ''} 
+                             {!selectedCategory && suggestedCategory === option.value ? 'suggested' : ''}"
+                      on:click={() => handleCategorySelect(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
             
             <!-- Media preview -->
             {#if previewImages.length > 0}
@@ -206,22 +309,16 @@
           </div>
           
           <div class="compose-tweet-submit-area">
-            {#if newTweet.length > 0}
-              <div class="compose-tweet-char-count {isNearLimit ? 'near-limit' : ''} {isOverLimit ? 'over-limit' : ''}">
-                {charsRemaining}
-              </div>
-            {/if}
+            <div class="compose-tweet-char-counter {isOverLimit ? 'over-limit' : ''} {isNearLimit ? 'near-limit' : ''}">
+              {isOverLimit ? -charsRemaining : charsRemaining}
+            </div>
             
             <button 
               class="compose-tweet-submit"
               on:click={handleSubmit}
-              disabled={isOverLimit || isPosting || (newTweet.trim() === '' && files.length === 0)}
+              disabled={isPosting || isOverLimit || (newTweet.trim() === '' && files.length === 0)}
             >
-              {#if isPosting}
-                <div class="loading-spinner-small"></div>
-              {:else}
-                Post
-              {/if}
+              {isPosting ? 'Publishing...' : 'Post'}
             </button>
           </div>
         </div>
@@ -365,17 +462,17 @@
     align-items: center;
   }
   
-  .compose-tweet-char-count {
+  .compose-tweet-char-counter {
     margin-right: var(--space-3);
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
   }
   
-  .compose-tweet-char-count.near-limit {
+  .compose-tweet-char-counter.near-limit {
     color: var(--color-warning);
   }
   
-  .compose-tweet-char-count.over-limit {
+  .compose-tweet-char-counter.over-limit {
     color: var(--color-danger);
   }
   
@@ -412,18 +509,101 @@
     font-size: var(--font-size-sm);
   }
   
-  .loading-spinner-small {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+  .category-suggestion-container {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.05);
   }
   
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
+  .category-suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .category-suggestion-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  
+  .category-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-weight: bold;
+  }
+  
+  .category-suggestion-info {
+    font-size: 12px;
+    color: #555;
+  }
+  
+  .category-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  
+  .category-option {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    background-color: #f1f1f1;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .category-option:hover {
+    background-color: #e0e0e0;
+  }
+  
+  .category-option.selected {
+    background-color: #1d9bf0;
+    color: white;
+  }
+  
+  .category-option.suggested {
+    border: 1px dashed #1d9bf0;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      border-color: rgba(29, 155, 240, 0.5);
     }
+    50% {
+      border-color: rgba(29, 155, 240, 1);
+    }
+    100% {
+      border-color: rgba(29, 155, 240, 0.5);
+    }
+  }
+
+  /* Dark mode overrides */
+  :global(.dark) .category-suggestion-container {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  :global(.dark) .category-suggestion-info {
+    color: #aaa;
+  }
+  
+  :global(.dark) .category-option {
+    background-color: #2f3336;
+    color: #e0e0e0;
+  }
+  
+  :global(.dark) .category-option:hover {
+    background-color: #3f4246;
   }
 </style> 

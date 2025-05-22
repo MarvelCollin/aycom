@@ -423,11 +423,10 @@ func GetUserSuggestions(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resp, err := UserClient.SearchUsers(ctx, &userProto.SearchUsersRequest{
-		Query:  "",        // Empty query to find all users
-		Filter: "popular", // This filter tells the service to sort by follower count
-		Page:   1,
-		Limit:  int32(limit + 1), // Request one more to account for filtering out current user
+	// Use GetRecommendedUsers instead of SearchUsers with empty query
+	resp, err := UserClient.GetRecommendedUsers(ctx, &userProto.GetRecommendedUsersRequest{
+		UserId: userID,
+		Limit:  int32(limit),
 	})
 
 	if err != nil {
