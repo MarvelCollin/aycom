@@ -5,6 +5,10 @@ const logger = createLoggerWithPrefix('Auth');
 const TOKEN_VALIDATION_INTERVAL = 1000 * 60 * 5;
 let tokenValidationTimer: number | null = null;
 
+// Add a memory cache for roles to avoid repeated API calls
+const roleCache: Record<string, {role: string, timestamp: number}> = {};
+const ROLE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 export function getAuthToken(): string {
   try {
     const authData = localStorage.getItem('auth');
@@ -206,18 +210,34 @@ export async function getUserRole(): Promise<string> {
   try {
     // First check if we have the role cached in auth data
     const authData = getAuthData();
-    if (authData && authData.userRole) {
-      logger.debug(`Using cached user role: ${authData.userRole}`);
-      return authData.userRole;
-    }
-    
-    // If not, fetch from the API
     const userId = getUserId();
+    
+    // Return quickly if no user ID - default to regular user
     if (!userId) {
       logger.warn('Cannot get user role - not logged in');
       return 'user';
     }
     
+    // Check memory cache first (faster than localStorage)
+    const now = Date.now();
+    const cachedEntry = roleCache[userId];
+    if (cachedEntry && (now - cachedEntry.timestamp) < ROLE_CACHE_TTL) {
+      logger.debug(`Using memory-cached user role: ${cachedEntry.role}`);
+      return cachedEntry.role;
+    }
+    
+    // Then check localStorage cache
+    if (authData && authData.userRole) {
+      // Update memory cache
+      roleCache[userId] = {
+        role: authData.userRole,
+        timestamp: now
+      };
+      logger.debug(`Using stored user role: ${authData.userRole}`);
+      return authData.userRole;
+    }
+    
+    // If not cached anywhere, fetch from the API
     const token = getAuthToken();
     if (!token) {
       logger.warn('Cannot get user role - no auth token');
@@ -227,31 +247,58 @@ export async function getUserRole(): Promise<string> {
     const API_BASE_URL = appConfig.api.baseUrl;
     logger.debug('Fetching user role from API');
     
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      logger.warn(`Failed to get user role: ${response.status} ${response.statusText}`);
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      if (response.status === 404) {
+        const defaultRole = 'user';
+        logger.warn('User role endpoint not found (404) - using default role');
+        
+        // Cache the default role to avoid repeated API calls
+        if (authData) {
+          authData.userRole = defaultRole;
+          localStorage.setItem('auth', JSON.stringify(authData));
+        }
+        roleCache[userId] = { role: defaultRole, timestamp: now };
+        
+        return defaultRole;
+      }
+      
+      if (!response.ok) {
+        const defaultRole = 'user';
+        logger.warn(`Failed to get user role: ${response.status} ${response.statusText}`);
+        
+        // Cache the default role briefly to avoid repeated API calls
+        roleCache[userId] = { role: defaultRole, timestamp: now };
+        
+        return defaultRole;
+      }
+      
+      const data = await response.json();
+      const role = data.role || 'user';
+      
+      // Cache the role in auth data
+      if (authData) {
+        authData.userRole = role;
+        localStorage.setItem('auth', JSON.stringify(authData));
+      }
+      
+      // Update memory cache
+      roleCache[userId] = { role, timestamp: now };
+      logger.debug(`Cached user role: ${role}`);
+      
+      return role;
+    } catch (fetchError) {
+      logger.warn('Failed to fetch user role - network error:', fetchError);
       return 'user';
     }
-    
-    const data = await response.json();
-    const role = data.role || 'user';
-    
-    // Cache the role in auth data
-    if (authData) {
-      authData.userRole = role;
-      localStorage.setItem('auth', JSON.stringify(authData));
-      logger.debug(`Cached user role: ${role}`);
-    }
-    
-    return role;
   } catch (error) {
     logger.error('Error getting user role:', error);
     return 'user';

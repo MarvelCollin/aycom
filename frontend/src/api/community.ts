@@ -78,10 +78,34 @@ export async function listCommunities() {
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to list communities');
+      // Check if response body is empty
+      const text = await response.text();
+      if (!text) {
+        throw new Error(`HTTP error ${response.status}: Empty response`);
+      }
+      
+      try {
+        // Try to parse as JSON if there's content
+        const errorData = JSON.parse(text);
+        throw new Error(errorData.message || `Failed to list communities (${response.status})`);
+      } catch (parseError) {
+        // If JSON parsing fails, use text as error message
+        throw new Error(`Failed to list communities (${response.status}): ${text.substring(0, 100)}`);
+      }
     }
-    return response.json();
+    
+    // Handle potentially empty successful responses
+    const text = await response.text();
+    if (!text) {
+      return { communities: [] };
+    }
+    
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      logger.error('Failed to parse JSON response:', parseError);
+      throw new Error('Invalid JSON response from server');
+    }
   } catch (error) {
     logger.error('List communities failed:', error);
     throw error;

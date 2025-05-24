@@ -104,19 +104,28 @@
   async function loadCommunities() {
     try {
       const data = await getCommunities();
-      if (data.success) {
-        availableCommunities = data.communities;
+      if (data && data.success) {
+        availableCommunities = data.communities || [];
       } else {
         availableCommunities = [];
+        logger.warn('Failed to load communities data', data?.error || 'Unknown error');
       }
       
-      logger.debug('Loaded communities', { count: availableCommunities.length });
+      logger.debug('Loaded communities', availableCommunities);
     } catch (error) {
-      logger.error('Failed to load communities', { error });
+      availableCommunities = [];
+      logger.error('Failed to load communities', error);
     }
   }
 
   async function checkUserRole() {
+    // Skip role check if in reply mode - not needed for replies
+    if (isReplyMode) {
+      logger.debug('Skipping user role check for reply mode');
+      isAdmin = false;
+      return;
+    }
+    
     try {
       const role = await getUserRole();
       isAdmin = role === 'admin';
@@ -210,21 +219,29 @@
       if (isReplyMode && replyTo) {
         const replyData: any = {
           content: newTweet,
-          thread_id: replyTo.threadId || replyTo.thread_id || replyTo.id,
+          thread_id: (replyTo as any).threadId || (replyTo as any).thread_id || replyTo.id,
           mentioned_user_ids: [],
         };
         
         // Check if we're replying to a reply or to a thread
-        // @ts-ignore - parentReplyId might be from our custom enriched objects
-        if (replyTo.parentReplyId || replyTo.parent_reply_id) {
-          // This is a reply-to-reply
+        // Use type assertion to access properties that might not be in the ITweet interface
+        const parentReplyId = (replyTo as any).parentReplyId || (replyTo as any).parent_reply_id;
+        
+        if (parentReplyId) {
+          // This is a reply-to-reply (nested reply)
           replyData.parent_reply_id = replyTo.id;
+          logger.debug('Creating nested reply with parent_reply_id:', replyTo.id);
+        } else {
+          // Make sure to explicitly set the parent_reply_id to the ID of the post we're replying to
+          // This ensures the reply is properly nested under its parent in the UI
+          replyData.parent_reply_id = replyTo.id;
+          logger.debug('Creating direct reply with parent_reply_id:', replyTo.id);
         }
         
         logger.debug('Posting reply with data:', replyData);
         
         // Get the thread ID from the reply or use reply's ID if no thread ID
-        const threadId = String(replyTo.threadId || replyTo.thread_id || replyTo.id);
+        const threadId = String((replyTo as any).threadId || (replyTo as any).thread_id || replyTo.id);
         response = await replyToThread(threadId, replyData);
         
         if (files.length > 0 && response.id) {
@@ -354,8 +371,16 @@
   }
   
   onMount(() => {
-    loadCategories();
-    loadCommunities();
+    // Always load categories for new posts
+    if (!isReplyMode) {
+      loadCategories();
+    }
+    
+    // Only load communities for new posts, not needed for replies
+    if (!isReplyMode && canPostForCommunity) {
+      loadCommunities();
+    }
+    
     checkUserRole();
   });
   
