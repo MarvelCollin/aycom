@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
+  import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
   import { getTrends } from '../../api/trends';
   import { getSuggestedUsers } from '../../api/suggestions';
@@ -16,13 +18,29 @@
   export let isDarkMode = false;
   export let trends: ITrend[] = [];
   export let suggestedFollows: ExtendedSuggestedFollow[] = [];
+  export let isTabletView = false;
 
   let isTrendsLoading = true;
   let isFollowSuggestionsLoading = true;
+  let windowWidth = 0;
+  let searchQuery = '';
+  let showSearch = false;
 
-  onMount(async () => {
+  onMount(() => {
     fetchTrends();
     fetchSuggestedUsers();
+    
+    // Check window width for responsive design
+    const checkWidth = () => {
+      windowWidth = window.innerWidth;
+    };
+    
+    checkWidth();
+    window.addEventListener('resize', checkWidth);
+    
+    return () => {
+      window.removeEventListener('resize', checkWidth);
+    };
   });
 
   async function fetchTrends() {
@@ -101,11 +119,50 @@
       suggestedFollows = finalSuggestedFollows;
     }
   }
+
+  function handleSearch(e) {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`;
+    }
+  }
+
+  function toggleSearch() {
+    showSearch = !showSearch;
+    if (showSearch) {
+      setTimeout(() => {
+        document.getElementById('search-input')?.focus();
+      }, 100);
+    }
+  }
 </script>
 
-<div class="widgets-container">
+<div class="widgets-container {isTabletView ? 'widgets-container-tablet' : ''}">
   <div class="right-sidebar {isDarkMode ? 'right-sidebar-dark' : ''}">
-  <!-- Trends Widget -->
+    <!-- Search Widget (only for desktop and tablet) -->
+    {#if !isTabletView}
+      <div class="search-widget {isDarkMode ? 'search-widget-dark' : ''}">
+        <div class="search-input-container">
+          <div class="search-icon">
+            <SearchIcon size="18" />
+          </div>
+          <input 
+            type="text" 
+            id="search-input"
+            placeholder="Search" 
+            class="search-input"
+            bind:value={searchQuery}
+            on:keydown={handleSearch}
+          />
+          {#if searchQuery}
+            <button class="search-clear-btn" on:click={() => searchQuery = ''}>
+              <XIcon size="16" />
+            </button>
+          {/if}
+        </div>
+      </div>
+    {/if}
+    
+    <!-- Trends Widget -->
     <div class="sidebar-section {isDarkMode ? 'sidebar-section-dark' : ''}">
       <h3 class="sidebar-title">Trends for you</h3>
       
@@ -144,9 +201,9 @@
       <a href="/explore" class="trends-show-more {isDarkMode ? 'trends-show-more-dark' : ''}">
         Show more
       </a>
-  </div>
+    </div>
 
-  <!-- Who to Follow Widget -->
+    <!-- Who to Follow Widget -->
     <div class="sidebar-section {isDarkMode ? 'sidebar-section-dark' : ''}">
       <h3 class="sidebar-title">Who to follow</h3>
       
@@ -160,7 +217,7 @@
         </div>
       {:else}
         <div class="suggestions-list">
-          {#each suggestedFollows as user, i}
+          {#each suggestedFollows.slice(0, isTabletView ? 3 : 5) as user, i}
             <div class="suggestion-item {isDarkMode ? 'suggestion-item-dark' : ''}">
               <div class="suggestion-avatar">
                 <a href={`/user/${user.username}`}>
@@ -203,42 +260,148 @@
       </a>
     </div>
     
-    <!-- Footer links -->
-    <div class="footer-links">
-      <div class="footer-links-list">
-        <a href="/about" class="footer-link">About</a>
-        <a href="/help" class="footer-link">Help Center</a>
-        <a href="/terms" class="footer-link">Terms of Service</a>
-        <a href="/privacy" class="footer-link">Privacy Policy</a>
-        <a href="/cookies" class="footer-link">Cookie Policy</a>
-        <a href="/accessibility" class="footer-link">Accessibility</a>
-        <a href="/ads-info" class="footer-link">Ads Info</a>
+    <!-- Footer links - only show on desktop -->
+    {#if !isTabletView}
+      <div class="footer-links">
+        <div class="footer-links-list">
+          <a href="/about" class="footer-link">About</a>
+          <a href="/help" class="footer-link">Help Center</a>
+          <a href="/terms" class="footer-link">Terms of Service</a>
+          <a href="/privacy" class="footer-link">Privacy Policy</a>
+          <a href="/cookies" class="footer-link">Cookie Policy</a>
+          <a href="/accessibility" class="footer-link">Accessibility</a>
+          <a href="/ads-info" class="footer-link">Ads Info</a>
+        </div>
+        <div class="footer-copyright">© {new Date().getFullYear()} AYCOM, Inc.</div>
       </div>
-      <div class="footer-copyright">© {new Date().getFullYear()} AYCOM, Inc.</div>
-    </div>
+    {/if}
   </div>
 </div>
 
 <style>
   .widgets-container {
-    flex: 1 0 350px;
-    max-width: 33%;
     height: 100vh;
     position: sticky;
     top: 0;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-tertiary) transparent;
+    transition: all var(--transition-normal);
+    padding-right: var(--space-4);
+  }
+  
+  .widgets-container-tablet {
+    height: auto;
+    position: relative;
+    padding: 0;
+    margin-top: var(--space-4);
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .widgets-container::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .widgets-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .widgets-container::-webkit-scrollbar-thumb {
+    background-color: var(--text-tertiary);
+    border-radius: var(--radius-full);
   }
   
   .right-sidebar {
-    padding: var(--space-4);
+    padding: var(--space-4) 0;
     height: 100%;
   }
   
+  .widgets-container-tablet .right-sidebar {
+    padding: var(--space-4) var(--space-4);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+  }
+  
+  /* Search widget */
+  .search-widget {
+    margin-bottom: var(--space-4);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    background-color: var(--bg-primary);
+    padding: var(--space-2) 0;
+  }
+  
+  .search-widget-dark {
+    background-color: var(--dark-bg-primary);
+  }
+  
+  .search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-full);
+    padding: 0 var(--space-4);
+    transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+  
+  .search-input-container:focus-within {
+    background-color: var(--bg-primary);
+    box-shadow: 0 0 0 1px var(--color-primary), 0 0 0 4px rgba(var(--color-primary-rgb), 0.2);
+  }
+  
+  .search-icon {
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+  }
+  
+  .search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: var(--space-3);
+    font-size: var(--font-size-base);
+    color: var(--text-primary);
+    outline: none;
+    width: 100%;
+  }
+  
+  .search-input::placeholder {
+    color: var(--text-secondary);
+  }
+  
+  .search-clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  
+  .search-clear-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--color-primary);
+  }
+  
+  /* Sidebar sections */
   .sidebar-section {
     background-color: var(--bg-secondary);
     border-radius: var(--radius-lg);
     padding: var(--space-4);
     margin-bottom: var(--space-4);
+  }
+  
+  .widgets-container-tablet .sidebar-section {
+    flex: 1;
+    min-width: 280px;
+    margin-bottom: 0;
   }
   
   .sidebar-section-dark {
@@ -248,60 +411,61 @@
   .sidebar-title {
     font-size: var(--font-size-lg);
     font-weight: 700;
-    margin-bottom: var(--space-3);
-    color: var(--text-primary);
+    margin-bottom: var(--space-4);
   }
   
-  @media (max-width: 1280px) {
-    .widgets-container {
-      flex: 1 0 290px;
-    }
-  }
-  
-  /* Loading indicators */
-  .trends-loading, .suggestions-loading {
+  /* Trends list styles */
+  .trends-loading,
+  .suggestions-loading {
     display: flex;
     justify-content: center;
-    align-items: center;
-    padding: var(--space-4);
+    padding: var(--space-4) 0;
   }
   
-  .trends-loading-spinner, .suggestions-loading-spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--border-color);
-    border-top: 2px solid var(--color-primary);
+  .trends-loading-spinner,
+  .suggestions-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(var(--color-primary-rgb), 0.2);
+    border-top-color: var(--color-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
   
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
   
-  /* Empty states */
-  .trends-empty, .suggestions-empty {
-    padding: var(--space-4);
-    color: var(--text-secondary);
+  .trends-empty,
+  .suggestions-empty {
     text-align: center;
-    font-size: 14px;
+    padding: var(--space-4) 0;
+    color: var(--text-secondary);
   }
   
-  /* Trend items */
+  .trends-list {
+    margin-bottom: var(--space-2);
+  }
+  
   .trend-item {
-    padding: var(--space-3);
-    cursor: pointer;
-    transition: background-color 0.2s;
+    padding: var(--space-3) 0;
     border-bottom: 1px solid var(--border-color);
+    transition: background-color var(--transition-fast);
+    cursor: pointer;
   }
   
-  .trend-item-dark {
-    border-bottom: 1px solid var(--border-color-dark);
+  .trend-item:last-child {
+    border-bottom: none;
   }
   
   .trend-item:hover {
     background-color: var(--bg-hover);
+  }
+  
+  .trend-item-dark:hover {
+    background-color: var(--dark-hover-bg);
   }
   
   .trend-header {
@@ -312,30 +476,37 @@
   }
   
   .trend-location {
-    font-size: 13px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
   }
   
   .trend-more-options {
-    color: var(--text-secondary);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: var(--space-1);
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
   }
   
   .trend-more-options:hover {
-    background-color: rgba(var(--color-primary-rgb), 0.1);
+    background-color: var(--bg-hover);
     color: var(--color-primary);
   }
   
+  .trend-more-options-dark:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
   .trend-name {
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     margin-bottom: var(--space-1);
+    word-break: break-word;
   }
   
   .trend-name a {
@@ -344,28 +515,59 @@
   }
   
   .trend-count {
-    font-size: 13px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
   }
   
-  /* Suggestion items */
+  .trends-show-more {
+    display: block;
+    padding: var(--space-3) 0;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    transition: color var(--transition-fast);
+  }
+  
+  .trends-show-more:hover {
+    text-decoration: underline;
+  }
+  
+  .trends-show-more-dark {
+    color: var(--color-primary-light);
+  }
+  
+  /* Suggestions list styles */
+  .suggestions-list {
+    margin-bottom: var(--space-2);
+  }
+  
   .suggestion-item {
     display: flex;
     align-items: center;
-    padding: var(--space-3);
+    padding: var(--space-3) 0;
     border-bottom: 1px solid var(--border-color);
+    transition: background-color var(--transition-fast);
   }
   
-  .suggestion-item-dark {
-    border-bottom: 1px solid var(--border-color-dark);
+  .suggestion-item:last-child {
+    border-bottom: none;
+  }
+  
+  .suggestion-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .suggestion-item-dark:hover {
+    background-color: var(--dark-hover-bg);
   }
   
   .suggestion-avatar {
     width: 48px;
     height: 48px;
-    margin-right: var(--space-3);
     border-radius: 50%;
     overflow: hidden;
+    margin-right: var(--space-3);
+    flex-shrink: 0;
   }
   
   .suggestion-avatar img {
@@ -381,7 +583,7 @@
   }
   
   .suggestion-name {
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     color: var(--text-primary);
     text-decoration: none;
     display: block;
@@ -391,7 +593,7 @@
   }
   
   .suggestion-username {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     text-decoration: none;
     display: block;
@@ -408,21 +610,18 @@
     background-color: var(--text-primary);
     color: var(--bg-primary);
     border: none;
-    border-radius: 9999px;
-    padding: 6px 16px;
-    font-weight: 700;
-    font-size: 14px;
+    border-radius: var(--radius-full);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  
-  .follow-button-dark {
-    background-color: var(--text-primary-dark);
-    color: var(--bg-primary-dark);
+    transition: background-color var(--transition-fast);
+    min-width: 80px;
+    text-align: center;
   }
   
   .follow-button:hover {
-    opacity: 0.9;
+    background-color: var(--text-primary-hover);
   }
   
   .follow-button.following {
@@ -431,31 +630,111 @@
     border: 1px solid var(--border-color);
   }
   
+  .follow-button.following:hover {
+    background-color: var(--error-bg);
+    color: var(--error);
+    border-color: var(--error-bg);
+  }
+  
+  .follow-button-dark {
+    background-color: var(--text-primary-dark);
+    color: var(--dark-bg-primary);
+  }
+  
+  .follow-button-dark:hover {
+    background-color: var(--text-primary-dark-hover);
+  }
+  
   .follow-button-dark.following {
+    background-color: transparent;
     color: var(--text-primary-dark);
     border: 1px solid var(--border-color-dark);
   }
   
   .loading-dot {
     display: inline-block;
-    width: 14px;
-    height: 14px;
-    border: 2px solid currentColor;
+    width: 8px;
+    height: 8px;
+    background-color: currentColor;
     border-radius: 50%;
-    border-top-color: transparent;
-    animation: spin 0.8s linear infinite;
+    animation: pulse 1.5s infinite ease-in-out;
   }
   
-  /* Show more links */
-  .trends-show-more, .suggestions-show-more {
-    display: block;
-    padding: var(--space-3);
-    color: var(--color-primary);
+  @keyframes pulse {
+    0% {
+      transform: scale(0.5);
+      opacity: 0.3;
+    }
+    50% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.5);
+      opacity: 0.3;
+    }
+  }
+  
+  /* Footer styles */
+  .footer-links {
+    padding: var(--space-2) 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+  }
+  
+  .footer-links-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  
+  .footer-link {
+    color: var(--text-tertiary);
     text-decoration: none;
-    font-size: 14px;
+    transition: color var(--transition-fast);
   }
   
-  .trends-show-more:hover, .suggestions-show-more:hover {
-    background-color: var(--bg-hover);
+  .footer-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+  }
+  
+  .footer-copyright {
+    margin-top: var(--space-2);
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 1400px) {
+    .sidebar-section {
+      padding: var(--space-3);
+    }
+    
+    .suggestion-avatar {
+      width: 40px;
+      height: 40px;
+    }
+  }
+  
+  @media (max-width: 1200px) {
+    .footer-links-list {
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    
+    .follow-button {
+      min-width: 70px;
+      padding: var(--space-1) var(--space-2);
+    }
+  }
+  
+  @media (max-width: 992px) {
+    .widgets-container-tablet .right-sidebar {
+      padding: var(--space-4) 0;
+    }
+    
+    .widgets-container-tablet .sidebar-section {
+      min-width: 240px;
+    }
   }
 </style>

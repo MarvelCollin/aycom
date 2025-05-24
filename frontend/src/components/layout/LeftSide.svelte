@@ -24,10 +24,13 @@
   import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
   import LogInIcon from 'svelte-feather-icons/src/icons/LogInIcon.svelte';
   import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
 
   export let username = "";
   export let displayName = "";
   export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
+  export let isCollapsed = false;
+  export let isMobileMenu = false;
   
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
@@ -49,6 +52,7 @@
   };
   
   let isAdmin = false;
+  let windowWidth = 0;
   
   async function fetchUserProfile() {
     if (!isAuthenticated()) {
@@ -133,9 +137,17 @@
     dispatch('toggleComposeModal');
   }
   
-  let currentPath = window.location.pathname;
+  function handleCloseMobileMenu() {
+    if (isMobileMenu) {
+      dispatch('closeMobileMenu');
+    }
+  }
+  
+  let currentPath = '';
   
   onMount(() => {
+    currentPath = window.location.pathname;
+    
     if (isAuthenticated()) {
       console.log('User is authenticated, fetching profile on mount');
       fetchUserProfile();
@@ -150,13 +162,34 @@
       }
     }, 5000);
     
+    // Check window width to determine collapsed state
+    const checkWidth = () => {
+      windowWidth = window.innerWidth;
+    };
+    
+    checkWidth();
+    window.addEventListener('resize', checkWidth);
+    
     return () => {
       clearInterval(intervalId);
+      window.removeEventListener('resize', checkWidth);
     };
   });
 </script>
 
-<div class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
+<div class="sidebar {isDarkMode ? 'sidebar-dark' : ''} {isCollapsed ? 'sidebar-collapsed' : ''} {isMobileMenu ? 'sidebar-mobile' : ''}">
+  {#if isMobileMenu}
+    <div class="sidebar-mobile-header">
+      <button 
+        class="sidebar-close-btn"
+        on:click={handleCloseMobileMenu}
+        aria-label="Close menu"
+      >
+        <XIcon size="24" />
+      </button>
+    </div>
+  {/if}
+
   <div class="sidebar-logo">
     <a href="/" aria-label="Home">
       {#if isDarkMode}
@@ -174,6 +207,8 @@
           <a 
             href={item.path} 
             class="sidebar-nav-item {currentPath === item.path ? 'active' : ''} {isDarkMode ? 'sidebar-nav-item-dark' : ''}"
+            aria-label={isCollapsed ? item.label : undefined}
+            on:click={() => isMobileMenu && handleCloseMobileMenu()}
           >
             <div class="sidebar-nav-icon">
               {#if item.icon === 'home'}
@@ -207,6 +242,7 @@
     <button 
       class="sidebar-tweet-btn {isDarkMode ? 'sidebar-tweet-btn-dark' : ''}"
       on:click={handleToggleComposeModal}
+      aria-label={isCollapsed ? "Create new post" : undefined}
     >
       <span class="sidebar-tweet-btn-icon">
         <PlusIcon size="24" />
@@ -321,3 +357,364 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: var(--space-2);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sidebar);
+    transition: width 0.3s ease;
+    width: var(--sidebar-width);
+    background-color: var(--bg-primary);
+  }
+  
+  .sidebar-collapsed {
+    width: var(--sidebar-collapsed-width);
+  }
+  
+  .sidebar-mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    z-index: var(--z-sidebar);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .sidebar-mobile-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--space-2);
+  }
+  
+  .sidebar-close-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  
+  .sidebar-close-btn:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .sidebar-dark {
+    color: var(--text-primary-dark);
+    background-color: var(--dark-bg-primary);
+  }
+  
+  .sidebar-logo {
+    padding: var(--space-3) var(--space-2);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  
+  .logo-img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+  }
+  
+  .sidebar-nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  
+  .sidebar-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .sidebar-nav-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
+    transition: background-color var(--transition-fast);
+    text-decoration: none;
+    margin-bottom: var(--space-1);
+  }
+  
+  .sidebar-nav-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .sidebar-nav-item.active {
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+  }
+  
+  .sidebar-nav-item-dark:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .sidebar-nav-icon {
+    margin-right: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .sidebar-collapsed .sidebar-nav-icon {
+    margin-right: 0;
+  }
+  
+  .sidebar-nav-text {
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .sidebar-collapsed .sidebar-nav-text {
+    display: none;
+  }
+  
+  /* Tweet button in sidebar */
+  .sidebar-tweet-btn {
+    margin-top: var(--space-3);
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: var(--font-weight-bold);
+    border-radius: var(--radius-full);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--transition-fast), transform var(--transition-fast);
+    border: none;
+    cursor: pointer;
+    width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: 0 2px 5px rgba(var(--color-primary-rgb), 0.3);
+  }
+  
+  .sidebar-tweet-btn-dark {
+    background-color: var(--color-primary);
+    color: white;
+    box-shadow: 0 2px 5px rgba(var(--color-primary-rgb), 0.5);
+  }
+  
+  .sidebar-tweet-btn:hover {
+    background-color: var(--color-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(var(--color-primary-rgb), 0.4);
+  }
+  
+  .sidebar-tweet-btn-icon {
+    display: none;
+  }
+  
+  .sidebar-collapsed .sidebar-tweet-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    padding: 0;
+  }
+  
+  .sidebar-collapsed .sidebar-tweet-btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .sidebar-collapsed .sidebar-tweet-btn-text {
+    display: none;
+  }
+  
+  .sidebar-tweet-btn-text {
+    display: block;
+  }
+  
+  /* Theme toggle */
+  .sidebar-theme-toggle {
+    display: flex;
+    justify-content: center;
+    margin: var(--space-4) 0;
+  }
+  
+  /* User profile section */
+  .sidebar-profile {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-2);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    margin-top: auto;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .sidebar-profile:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .sidebar-collapsed .sidebar-profile {
+    justify-content: center;
+  }
+  
+  .sidebar-profile-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: var(--space-3);
+    flex-shrink: 0;
+  }
+  
+  .sidebar-collapsed .sidebar-profile-avatar {
+    margin-right: 0;
+  }
+  
+  .sidebar-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .sidebar-profile-info {
+    flex: 1;
+    min-width: 0;
+    margin-right: var(--space-2);
+  }
+  
+  .sidebar-collapsed .sidebar-profile-info {
+    display: none;
+  }
+  
+  .sidebar-profile-name {
+    font-weight: var(--font-weight-bold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .sidebar-profile-username {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .sidebar-profile-more {
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+  }
+  
+  .sidebar-collapsed .sidebar-profile-more {
+    display: none;
+  }
+  
+  /* User menu dropdown */
+  .sidebar-user-menu {
+    position: absolute;
+    bottom: 80px;
+    left: var(--space-4);
+    width: calc(100% - var(--space-8));
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-dropdown);
+    overflow: hidden;
+  }
+  
+  .sidebar-user-menu-dark {
+    background-color: var(--dark-bg-secondary);
+    box-shadow: var(--shadow-lg-dark);
+  }
+  
+  .sidebar-user-header {
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .sidebar-user-header-dark {
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .sidebar-user-verified,
+  .sidebar-user-join,
+  .sidebar-user-email {
+    display: flex;
+    align-items: center;
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+  
+  .sidebar-user-verified-icon,
+  .sidebar-user-join-icon {
+    margin-right: var(--space-1);
+    display: flex;
+    align-items: center;
+    color: var(--color-primary);
+  }
+  
+  .sidebar-user-menu-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .sidebar-user-menu-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .sidebar-user-menu-item-dark:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .sidebar-user-menu-icon {
+    margin-right: var(--space-3);
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Debug section */
+  .sidebar-debug {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border-color);
+    font-size: var(--font-size-sm);
+  }
+  
+  .sidebar-debug-title {
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    margin-bottom: var(--space-2);
+  }
+  
+  .sidebar-debug-content {
+    background-color: var(--bg-tertiary);
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    font-family: monospace;
+    font-size: var(--font-size-xs);
+  }
+  
+  .sidebar-debug-content pre {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+</style>

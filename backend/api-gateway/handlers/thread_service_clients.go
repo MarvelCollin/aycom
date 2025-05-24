@@ -756,7 +756,7 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 			CreatedAt:      reply.CreatedAt.AsTime(),
 			UpdatedAt:      reply.UpdatedAt.AsTime(),
 			LikeCount:      int(replyResp.LikesCount),
-			ReplyCount:     0, // Replies don't have nested replies in this implementation
+			ReplyCount:     int(0), // Currently no way to get nested reply count
 			IsLiked:        replyResp.LikedByUser,
 			IsBookmarked:   replyResp.BookmarkedByUser,
 			ParentID:       threadID,
@@ -1320,7 +1320,9 @@ func (c *GRPCThreadServiceClient) GetRepliesByUser(userID string, page, limit in
 			CreatedAt:      replyVal.FieldByName("CreatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
 			UpdatedAt:      replyVal.FieldByName("UpdatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
 			LikeCount:      int(rVal.FieldByName("LikesCount").Int()),
+			ReplyCount:     int(0), // Currently no way to get nested reply count
 			IsLiked:        rVal.FieldByName("LikedByUser").Bool(),
+			IsBookmarked:   rVal.FieldByName("BookmarkedByUser").Bool(),
 			ParentID:       replyVal.FieldByName("ThreadId").String(),
 			IsPinned:       isPinned,
 		}
@@ -1362,14 +1364,20 @@ func convertProtoToThread(t any) *Thread {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Try to convert the ThreadResponse
+	// Try to identify the type of the incoming parameter using type assertions
+
+	// Case 1: It's a ThreadResponse (direct response from GetThreadById)
 	if tr, ok := t.(*threadProto.ThreadResponse); ok && tr != nil {
 		if tr.Thread != nil {
 			thread.ID = tr.Thread.Id
 			thread.Content = tr.Thread.Content
 			thread.UserID = tr.Thread.UserId
-			thread.CreatedAt = tr.Thread.CreatedAt.AsTime()
-			thread.UpdatedAt = tr.Thread.UpdatedAt.AsTime()
+			if tr.Thread.CreatedAt != nil {
+				thread.CreatedAt = tr.Thread.CreatedAt.AsTime()
+			}
+			if tr.Thread.UpdatedAt != nil {
+				thread.UpdatedAt = tr.Thread.UpdatedAt.AsTime()
+			}
 			thread.LikeCount = int(tr.LikesCount)
 			thread.ReplyCount = int(tr.RepliesCount)
 			thread.RepostCount = int(tr.RepostsCount)
@@ -1400,6 +1408,165 @@ func convertProtoToThread(t any) *Thread {
 			thread.Username = tr.User.Username
 			thread.DisplayName = tr.User.Name
 			thread.ProfilePicture = tr.User.ProfilePictureUrl
+		}
+
+		return thread
+	}
+
+	// Log the actual type for debugging
+	log.Printf("Thread type conversion: received type %T", t)
+
+	// Use reflection to safely extract values regardless of the exact type
+	v := reflect.ValueOf(t)
+
+	// If it's a pointer, get the underlying value
+	if v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
+	}
+
+	// Extract thread data using reflection
+	if v.Kind() == reflect.Struct {
+		// Try to extract common fields using reflection
+
+		// First check if there's a Thread field (common in responses)
+		threadField := v.FieldByName("Thread")
+		if threadField.IsValid() && !threadField.IsNil() {
+			threadVal := threadField.Elem()
+
+			// Extract basic thread properties
+			idField := threadVal.FieldByName("Id")
+			if idField.IsValid() {
+				thread.ID = idField.String()
+			}
+
+			contentField := threadVal.FieldByName("Content")
+			if contentField.IsValid() {
+				thread.Content = contentField.String()
+			}
+
+			userIDField := threadVal.FieldByName("UserId")
+			if userIDField.IsValid() {
+				thread.UserID = userIDField.String()
+			}
+
+			// Handle timestamp fields
+			createdAtField := threadVal.FieldByName("CreatedAt")
+			if createdAtField.IsValid() && !createdAtField.IsNil() {
+				// Call AsTime method if it exists
+				asTimeMethod := createdAtField.MethodByName("AsTime")
+				if asTimeMethod.IsValid() {
+					result := asTimeMethod.Call(nil)
+					if len(result) > 0 {
+						thread.CreatedAt = result[0].Interface().(time.Time)
+					}
+				}
+			}
+
+			updatedAtField := threadVal.FieldByName("UpdatedAt")
+			if updatedAtField.IsValid() && !updatedAtField.IsNil() {
+				// Call AsTime method if it exists
+				asTimeMethod := updatedAtField.MethodByName("AsTime")
+				if asTimeMethod.IsValid() {
+					result := asTimeMethod.Call(nil)
+					if len(result) > 0 {
+						thread.UpdatedAt = result[0].Interface().(time.Time)
+					}
+				}
+			}
+
+			// Check for IsPinned
+			isPinnedField := threadVal.FieldByName("IsPinned")
+			if isPinnedField.IsValid() && !isPinnedField.IsNil() {
+				thread.IsPinned = isPinnedField.Elem().Bool()
+			}
+
+			// Handle media
+			mediaField := threadVal.FieldByName("Media")
+			if mediaField.IsValid() && mediaField.Kind() == reflect.Slice {
+				mediaCount := mediaField.Len()
+				if mediaCount > 0 {
+					thread.Media = make([]Media, mediaCount)
+					for i := 0; i < mediaCount; i++ {
+						mediaItem := mediaField.Index(i)
+						if !mediaItem.IsNil() {
+							mediaItemVal := mediaItem.Elem()
+
+							var media Media
+
+							idField := mediaItemVal.FieldByName("Id")
+							if idField.IsValid() {
+								media.ID = idField.String()
+							}
+
+							typeField := mediaItemVal.FieldByName("Type")
+							if typeField.IsValid() {
+								media.Type = typeField.String()
+							}
+
+							urlField := mediaItemVal.FieldByName("Url")
+							if urlField.IsValid() {
+								media.URL = urlField.String()
+							}
+
+							thread.Media[i] = media
+						}
+					}
+				}
+			}
+		}
+
+		// Check for direct fields at the top level (used in some responses)
+
+		// Check for LikesCount, RepliesCount, etc.
+		likesCountField := v.FieldByName("LikesCount")
+		if likesCountField.IsValid() {
+			thread.LikeCount = int(likesCountField.Int())
+		}
+
+		repliesCountField := v.FieldByName("RepliesCount")
+		if repliesCountField.IsValid() {
+			thread.ReplyCount = int(repliesCountField.Int())
+		}
+
+		repostsCountField := v.FieldByName("RepostsCount")
+		if repostsCountField.IsValid() {
+			thread.RepostCount = int(repostsCountField.Int())
+		}
+
+		likedByUserField := v.FieldByName("LikedByUser")
+		if likedByUserField.IsValid() {
+			thread.IsLiked = likedByUserField.Bool()
+		}
+
+		repostedByUserField := v.FieldByName("RepostedByUser")
+		if repostedByUserField.IsValid() {
+			thread.IsReposted = repostedByUserField.Bool()
+		}
+
+		bookmarkedByUserField := v.FieldByName("BookmarkedByUser")
+		if bookmarkedByUserField.IsValid() {
+			thread.IsBookmarked = bookmarkedByUserField.Bool()
+		}
+
+		// Check for User field
+		userField := v.FieldByName("User")
+		if userField.IsValid() && !userField.IsNil() {
+			userVal := userField.Elem()
+
+			usernameField := userVal.FieldByName("Username")
+			if usernameField.IsValid() {
+				thread.Username = usernameField.String()
+			}
+
+			nameField := userVal.FieldByName("Name")
+			if nameField.IsValid() {
+				thread.DisplayName = nameField.String()
+			}
+
+			profilePicField := userVal.FieldByName("ProfilePictureUrl")
+			if profilePicField.IsValid() {
+				thread.ProfilePicture = profilePicField.String()
+			}
 		}
 	}
 

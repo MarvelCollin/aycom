@@ -589,7 +589,9 @@
       repliedTweet.replies = (parseInt(String(repliedTweet.replies)) || 0) + 1;
       
       // Update the store
-      tweetInteractionStore.updateReplyCount(String(threadId), repliedTweet.replies);
+      tweetInteractionStore.updateTweetInteraction(String(threadId), {
+        replies: repliedTweet.replies
+      });
       
       // Add the reply to our replies map if it exists
       if (repliesMap.has(threadId)) {
@@ -617,59 +619,77 @@
   }
   
   // Handle tweet like
-  async function handleTweetLike(event: CustomEvent) {
+  async function handleLikeClick(event: CustomEvent) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
       toastStore.showToast('You need to log in to like posts', 'warning');
       return;
     }
-    logger.info('Like tweet action', { tweetId });
     
     try {
       await likeThread(tweetId);
-      tweetInteractionStore.updateLike(tweetId, true);
-      toastStore.showToast('Tweet liked', 'success');
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: true });
+      toastStore.showToast('Post liked', 'success');
     } catch (error) {
-      console.error('Error liking tweet:', error);
-      toastStore.showToast('Failed to like tweet', 'error');
+      toastStore.showToast('Failed to like post', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateLike(tweetId, false);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: false });
     }
   }
   
   // Handle tweet unlike
-  async function handleTweetUnlike(event: CustomEvent) {
+  async function handleUnlikeClick(event: CustomEvent) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
       toastStore.showToast('You need to log in to unlike posts', 'warning');
       return;
     }
-    logger.info('Unlike tweet action', { tweetId });
     
     try {
       await unlikeThread(tweetId);
-      tweetInteractionStore.updateLike(tweetId, false);
-      toastStore.showToast('Tweet unliked', 'success');
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: false });
+      toastStore.showToast('Post unliked', 'success');
     } catch (error) {
-      console.error('Error unliking tweet:', error);
-      toastStore.showToast('Failed to unlike tweet', 'error');
+      toastStore.showToast('Failed to unlike post', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateLike(tweetId, true);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: true });
     }
   }
   
   // Handle tweet reply
-  function handleTweetReply(event: CustomEvent) {
+  function handleReply(event) {
     const tweetId = event.detail;
     if (!authState.isAuthenticated) {
-      toastStore.showToast('You need to log in to reply to posts', 'warning');
+      toastStore.showToast('You need to log in to reply', 'warning');
       return;
     }
-    logger.info('Reply to tweet action', { tweetId });
     
     // Find the tweet in either array
-    const tweetToReply = tweetsForYou.find(t => String(t.id) === String(tweetId)) || 
-                         tweetsFollowing.find(t => String(t.id) === String(tweetId));
+    let tweetToReply = tweetsForYou.find(t => String(t.id) === String(tweetId)) || 
+                       tweetsFollowing.find(t => String(t.id) === String(tweetId));
+    
+    // If not found in main tweets, check in replies
+    if (!tweetToReply) {
+      // Check in all reply collections
+      for (const [threadId, replies] of repliesMap.entries()) {
+        const foundReply = replies.find(r => String(r.id) === String(tweetId));
+        if (foundReply) {
+          tweetToReply = foundReply;
+          break;
+        }
+      }
+    }
+    
+    // If still not found, check in nested replies
+    if (!tweetToReply) {
+      for (const [parentReplyId, nestedReplies] of nestedRepliesMap.entries()) {
+        const foundReply = nestedReplies.find(r => String(r.id) === String(tweetId));
+        if (foundReply) {
+          tweetToReply = foundReply;
+          break;
+        }
+      }
+    }
     
     if (!tweetToReply) {
       console.error(`Cannot find tweet with ID ${tweetId} to reply to`);
@@ -681,7 +701,9 @@
     
     // Update the reply count in the store
     const currentReplies = tweetInteractionStore.getInteractionStatus(String(tweetId))?.replies || 0;
-    tweetInteractionStore.updateReplyCount(String(tweetId), currentReplies + 1);
+    tweetInteractionStore.updateTweetInteraction(String(tweetId), {
+      replies: currentReplies + 1
+    });
     
     // Store the tweet to reply to and open the compose modal
     selectedTweet = tweetToReply;
@@ -706,12 +728,12 @@
     
     try {
       await repostThread(tweetId);
-      tweetInteractionStore.updateRepost(tweetId, true);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: true });
       toastStore.showToast('Tweet reposted', 'success');
     } catch (error) {
       toastStore.showToast('Failed to repost tweet', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateRepost(tweetId, false);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: false });
     }
   }
   
@@ -726,12 +748,12 @@
     
     try {
       await removeRepost(tweetId);
-      tweetInteractionStore.updateRepost(tweetId, false);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: false });
       toastStore.showToast('Repost removed', 'success');
     } catch (error) {
       toastStore.showToast('Failed to remove repost', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateRepost(tweetId, true);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: true });
     }
   }
   
@@ -750,13 +772,13 @@
       console.log(`Bookmark response:`, response);
       
       // Update bookmark state in the store
-      tweetInteractionStore.updateBookmark(tweetId, true);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: true });
       toastStore.showToast('Tweet bookmarked', 'success');
     } catch (error) {
       console.error('Error bookmarking tweet:', error);
       toastStore.showToast('Failed to bookmark tweet', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateBookmark(tweetId, false);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: false });
     }
   }
   
@@ -775,13 +797,13 @@
       console.log(`Unbookmark response:`, response);
       
       // Update bookmark state in the store
-      tweetInteractionStore.updateBookmark(tweetId, false);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: false });
       toastStore.showToast('Bookmark removed', 'success');
     } catch (error) {
       console.error('Error removing bookmark:', error);
       toastStore.showToast('Failed to remove bookmark', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateBookmark(tweetId, true);
+      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: true });
     }
   }
   
@@ -1028,11 +1050,11 @@
               isLiked={tweet.isLiked || false}
               isReposted={tweet.isReposted || false}
               isBookmarked={tweet.isBookmarked || false}
-              on:reply={handleTweetReply}
+              on:reply={handleReply}
               on:repost={handleTweetRepost}
               on:unrepost={handleTweetUnrepost}
-              on:like={handleTweetLike}
-              on:unlike={handleTweetUnlike}
+              on:like={handleLikeClick}
+              on:unlike={handleUnlikeClick}
               on:bookmark={handleTweetBookmark}
               on:removeBookmark={handleTweetUnbookmark}
               on:loadReplies={handleLoadReplies}

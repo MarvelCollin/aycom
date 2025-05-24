@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -604,6 +605,95 @@ func UploadThreadMedia(c *gin.Context) {
 	})
 }
 
+// Helper function to safely extract thread data with nil checks
+func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{} {
+	thread := map[string]interface{}{
+		"id":             "",
+		"thread_id":      "",
+		"content":        "",
+		"user_id":        "",
+		"created_at":     time.Now(),
+		"updated_at":     time.Now(),
+		"like_count":     0,
+		"reply_count":    0,
+		"repost_count":   0,
+		"bookmark_count": 0,
+		"view_count":     0,
+		"is_liked":       false,
+		"is_repost":      false,
+		"is_bookmarked":  false,
+		"is_pinned":      false,
+		// Default user values
+		"username":            "anonymous",
+		"display_name":        "User",
+		"profile_picture_url": "",
+	}
+
+	// Add nil checks for every property
+	if t != nil {
+		if t.Thread != nil {
+			thread["id"] = t.Thread.Id
+			thread["thread_id"] = t.Thread.Id
+			thread["content"] = t.Thread.Content
+			thread["user_id"] = t.Thread.UserId
+
+			if t.Thread.CreatedAt != nil {
+				thread["created_at"] = t.Thread.CreatedAt.AsTime()
+			}
+
+			if t.Thread.UpdatedAt != nil {
+				thread["updated_at"] = t.Thread.UpdatedAt.AsTime()
+			}
+
+			thread["view_count"] = t.Thread.ViewCount
+
+			if t.Thread.IsPinned != nil {
+				thread["is_pinned"] = *t.Thread.IsPinned
+			}
+
+			// Handle media with nil checks
+			if t.Thread.Media != nil && len(t.Thread.Media) > 0 {
+				media := make([]map[string]interface{}, len(t.Thread.Media))
+				for j, m := range t.Thread.Media {
+					if m != nil {
+						media[j] = map[string]interface{}{
+							"id":   m.Id,
+							"type": m.Type,
+							"url":  m.Url,
+						}
+					} else {
+						media[j] = map[string]interface{}{
+							"id":   "",
+							"type": "",
+							"url":  "",
+						}
+					}
+				}
+				thread["media"] = media
+			} else {
+				thread["media"] = []interface{}{}
+			}
+		}
+
+		thread["like_count"] = t.LikesCount
+		thread["reply_count"] = t.RepliesCount
+		thread["repost_count"] = t.RepostsCount
+		thread["bookmark_count"] = t.BookmarkCount
+		thread["is_liked"] = t.LikedByUser
+		thread["is_repost"] = t.RepostedByUser
+		thread["is_bookmarked"] = t.BookmarkedByUser
+
+		if t.User != nil {
+			thread["username"] = t.User.Username
+			thread["display_name"] = t.User.Name
+			thread["profile_picture_url"] = t.User.ProfilePictureUrl
+			thread["is_verified"] = t.User.IsVerified
+		}
+	}
+
+	return thread
+}
+
 func GetAllThreads(c *gin.Context) {
 	page := 1
 	limit := 20
@@ -632,8 +722,31 @@ func GetAllThreads(c *gin.Context) {
 		log.Printf("Anonymous user is viewing threads")
 	}
 
+	log.Printf("GetAllThreads - page: %d, limit: %d, userID: %s", page, limit, userID)
+
+	// Check if we have a direct client instance
+	if threadServiceClient != nil {
+		// First try using the service client directly
+		log.Printf("Attempting to get threads using threadServiceClient")
+		threads, err := threadServiceClient.GetAllThreads(userID, page, limit)
+		if err == nil {
+			// Success, return threads
+			log.Printf("Successfully retrieved %d threads using threadServiceClient", len(threads))
+			c.JSON(http.StatusOK, gin.H{
+				"threads": threads,
+				"total":   len(threads),
+			})
+			return
+		}
+
+		// Log the error but continue to try the connection pool approach
+		log.Printf("Error using threadServiceClient.GetAllThreads: %v", err)
+	}
+
+	// Fall back to using the connection pool
 	conn, err := threadConnPool.Get()
 	if err != nil {
+		log.Printf("Failed to get thread service connection: %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
 			Message: "Failed to connect to thread service: " + err.Error(),
@@ -648,12 +761,19 @@ func GetAllThreads(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
+	// Add user ID to the context metadata for authentication
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
+
+	log.Printf("Calling thread service GetAllThreads RPC")
 	resp, err := client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
 		Page:  int32(page),
 		Limit: int32(limit),
 	})
 
 	if err != nil {
+		log.Printf("Error from GetAllThreads RPC: %v", err)
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			c.JSON(httpStatus, ErrorResponse{
@@ -671,54 +791,18 @@ func GetAllThreads(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Successfully received %d threads from thread service", len(resp.Threads))
+
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
-		thread := map[string]interface{}{
-			"id":             t.Thread.Id,
-			"thread_id":      t.Thread.Id,
-			"content":        t.Thread.Content,
-			"user_id":        t.Thread.UserId,
-			"created_at":     t.Thread.CreatedAt.AsTime(),
-			"updated_at":     t.Thread.UpdatedAt.AsTime(),
-			"like_count":     t.LikesCount,
-			"reply_count":    t.RepliesCount,
-			"repost_count":   t.RepostsCount,
-			"bookmark_count": t.BookmarkCount,
-			"view_count":     t.Thread.ViewCount, // For backward compatibility
-			"is_liked":       t.LikedByUser,
-			"is_repost":      t.RepostedByUser,
-			"is_bookmarked":  t.BookmarkedByUser,
-			"is_pinned":      t.Thread.IsPinned != nil && *t.Thread.IsPinned,
-			// Default user values
-			"username":            "anonymous",
-			"display_name":        "User",
-			"profile_picture_url": "",
-		}
+		// Log the type of t for debugging
+		log.Printf("Thread %d type: %T", i, t)
 
-		if t.User != nil {
-			thread["username"] = t.User.Username
-			thread["display_name"] = t.User.Name
-			thread["profile_picture_url"] = t.User.ProfilePictureUrl
-			thread["is_verified"] = t.User.IsVerified
-		}
-
-		if len(t.Thread.Media) > 0 {
-			media := make([]map[string]interface{}, len(t.Thread.Media))
-			for j, m := range t.Thread.Media {
-				media[j] = map[string]interface{}{
-					"id":   m.Id,
-					"type": m.Type,
-					"url":  m.Url,
-				}
-			}
-			thread["media"] = media
-		} else {
-			thread["media"] = []interface{}{}
-		}
-
-		threads[i] = thread
+		// Use the safe extraction helper to prevent panics
+		threads[i] = safeExtractThreadData(t)
 	}
 
+	log.Printf("Returning %d threads to client", len(threads))
 	c.JSON(http.StatusOK, gin.H{
 		"threads": threads,
 		"total":   resp.Total,
