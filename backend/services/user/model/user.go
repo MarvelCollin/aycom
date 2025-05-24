@@ -23,6 +23,8 @@ type User struct {
 	SecurityAnswer        string     `gorm:"type:text"`
 	SubscribeToNewsletter bool       `gorm:"default:false"`
 	IsVerified            bool       `gorm:"default:false"`
+	IsAdmin               bool       `gorm:"default:false"`
+	IsBanned              bool       `gorm:"default:false"`
 	FollowerCount         int        `gorm:"-"` // Virtual field, not stored in DB
 	FollowingCount        int        `gorm:"-"` // Virtual field, not stored in DB
 	CreatedAt             time.Time

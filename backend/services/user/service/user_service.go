@@ -35,7 +35,7 @@ type UserService interface {
 	GetFollowers(ctx context.Context, req *model.GetFollowersRequest) ([]*model.User, int, error)
 	GetFollowing(ctx context.Context, req *model.GetFollowingRequest) ([]*model.User, int, error)
 	SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error)
-	GetRecommendedUsers(ctx context.Context, userID string, limit int) ([]*model.User, error)
+	GetRecommendedUsers(ctx context.Context, limit int) ([]*model.User, error)
 	GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 }
 
@@ -476,18 +476,8 @@ func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersReq
 	return users, count, nil
 }
 
-func (s *userService) GetRecommendedUsers(ctx context.Context, userID string, limit int) ([]*model.User, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-
-	users, err := s.repo.GetRecommendedUsers(limit, userID)
-	if err != nil {
-		log.Printf("Error getting recommended users: %v", err)
-		return nil, status.Error(codes.Internal, "Failed to get recommended users")
-	}
-
-	return users, nil
+func (s *userService) GetRecommendedUsers(ctx context.Context, limit int) ([]*model.User, error) {
+	return s.repo.GetRecommendedUsers(limit, "")
 }
 
 func (s *userService) GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool) ([]*model.User, int, error) {

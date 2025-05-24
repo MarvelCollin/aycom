@@ -70,7 +70,6 @@
       handleGoogleCredentialResponse
     );
     
-    // Give a reasonable timeout before showing an error if the button doesn't load
     const timeoutId = setTimeout(() => {
       const buttonElement = document.getElementById(containerId);
       if (buttonElement && buttonElement.children.length === 0) {
@@ -89,7 +88,6 @@
 </script>
 
 <div class="w-full mb-4 relative">
-  <!-- Google Sign In Button  -->
   <div id={containerId} class="min-h-[40px] {buttonClass}"></div>
   
   {#if isLoading}

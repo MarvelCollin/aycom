@@ -15,11 +15,15 @@ import (
 
 type UserHandler struct {
 	user.UnimplementedUserServiceServer
-	svc service.UserService
+	svc      service.UserService
+	adminSvc *service.AdminService
 }
 
-func NewUserHandler(svc service.UserService) *UserHandler {
-	return &UserHandler{svc: svc}
+func NewUserHandler(svc service.UserService, adminSvc *service.AdminService) *UserHandler {
+	return &UserHandler{
+		svc:      svc,
+		adminSvc: adminSvc,
+	}
 }
 
 func (h *UserHandler) GetService() service.UserService {
@@ -138,10 +142,10 @@ func (h *UserHandler) GetRecommendedUsers(ctx context.Context, req *user.GetReco
 	}
 
 	// Log the request
-	log.Printf("GetRecommendedUsers: Processing request for user ID: %s, limit: %d", req.UserId, limit)
+	log.Printf("GetRecommendedUsers: Processing request with limit: %d", limit)
 
 	// Get recommended users from service
-	users, err := h.svc.GetRecommendedUsers(ctx, req.UserId, limit)
+	users, err := h.svc.GetRecommendedUsers(ctx, limit)
 	if err != nil {
 		log.Printf("GetRecommendedUsers: Error getting recommended users: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to get recommended users")
@@ -194,5 +198,145 @@ func (h *UserHandler) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequ
 		TotalCount: int32(total),
 		Page:       int32(page),
 		// Remove TotalPages field as it doesn't exist in the proto
+	}, nil
+}
+
+func (h *UserHandler) BanUser(ctx context.Context, req *user.BanUserRequest) (*user.BanUserResponse, error) {
+	return h.adminSvc.BanUser(ctx, req)
+}
+
+func (h *UserHandler) SendNewsletter(ctx context.Context, req *user.SendNewsletterRequest) (*user.SendNewsletterResponse, error) {
+	return h.adminSvc.SendNewsletter(ctx, req)
+}
+
+func (h *UserHandler) GetCommunityRequests(ctx context.Context, req *user.GetCommunityRequestsRequest) (*user.GetCommunityRequestsResponse, error) {
+	return h.adminSvc.GetCommunityRequests(ctx, req)
+}
+
+func (h *UserHandler) ProcessCommunityRequest(ctx context.Context, req *user.ProcessCommunityRequestRequest) (*user.ProcessCommunityRequestResponse, error) {
+	return h.adminSvc.ProcessCommunityRequest(ctx, req)
+}
+
+func (h *UserHandler) GetPremiumRequests(ctx context.Context, req *user.GetPremiumRequestsRequest) (*user.GetPremiumRequestsResponse, error) {
+	return h.adminSvc.GetPremiumRequests(ctx, req)
+}
+
+func (h *UserHandler) ProcessPremiumRequest(ctx context.Context, req *user.ProcessPremiumRequestRequest) (*user.ProcessPremiumRequestResponse, error) {
+	return h.adminSvc.ProcessPremiumRequest(ctx, req)
+}
+
+func (h *UserHandler) GetReportRequests(ctx context.Context, req *user.GetReportRequestsRequest) (*user.GetReportRequestsResponse, error) {
+	return h.adminSvc.GetReportRequests(ctx, req)
+}
+
+func (h *UserHandler) ProcessReportRequest(ctx context.Context, req *user.ProcessReportRequestRequest) (*user.ProcessReportRequestResponse, error) {
+	return h.adminSvc.ProcessReportRequest(ctx, req)
+}
+
+func (h *UserHandler) GetThreadCategories(ctx context.Context, req *user.GetThreadCategoriesRequest) (*user.GetThreadCategoriesResponse, error) {
+	return h.adminSvc.GetThreadCategories(ctx, req)
+}
+
+func (h *UserHandler) CreateThreadCategory(ctx context.Context, req *user.CreateThreadCategoryRequest) (*user.CreateThreadCategoryResponse, error) {
+	return h.adminSvc.CreateThreadCategory(ctx, req)
+}
+
+func (h *UserHandler) UpdateThreadCategory(ctx context.Context, req *user.UpdateThreadCategoryRequest) (*user.UpdateThreadCategoryResponse, error) {
+	return h.adminSvc.UpdateThreadCategory(ctx, req)
+}
+
+func (h *UserHandler) DeleteThreadCategory(ctx context.Context, req *user.DeleteThreadCategoryRequest) (*user.DeleteThreadCategoryResponse, error) {
+	return h.adminSvc.DeleteThreadCategory(ctx, req)
+}
+
+func (h *UserHandler) GetCommunityCategories(ctx context.Context, req *user.GetCommunityCategoriesRequest) (*user.GetCommunityCategoriesResponse, error) {
+	return h.adminSvc.GetCommunityCategories(ctx, req)
+}
+
+func (h *UserHandler) CreateCommunityCategory(ctx context.Context, req *user.CreateCommunityCategoryRequest) (*user.CreateCommunityCategoryResponse, error) {
+	return h.adminSvc.CreateCommunityCategory(ctx, req)
+}
+
+func (h *UserHandler) UpdateCommunityCategory(ctx context.Context, req *user.UpdateCommunityCategoryRequest) (*user.UpdateCommunityCategoryResponse, error) {
+	return h.adminSvc.UpdateCommunityCategory(ctx, req)
+}
+
+func (h *UserHandler) DeleteCommunityCategory(ctx context.Context, req *user.DeleteCommunityCategoryRequest) (*user.DeleteCommunityCategoryResponse, error) {
+	return h.adminSvc.DeleteCommunityCategory(ctx, req)
+}
+
+// GetUserByUsername handles fetching a user by username
+func (h *UserHandler) GetUserByUsername(ctx context.Context, req *user.GetUserByUsernameRequest) (*user.GetUserByUsernameResponse, error) {
+	if req.Username == "" {
+		return nil, status.Error(codes.InvalidArgument, "Username is required")
+	}
+	u, err := h.svc.GetUserByUsername(ctx, req.Username)
+	if err != nil {
+		return nil, err
+	}
+	return &user.GetUserByUsernameResponse{User: mapUserModelToProto(u)}, nil
+}
+
+// IsUserBlocked checks if a user is blocked by another user
+func (h *UserHandler) IsUserBlocked(ctx context.Context, req *user.IsUserBlockedRequest) (*user.IsUserBlockedResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would check if the user is blocked
+	return &user.IsUserBlockedResponse{IsBlocked: false}, nil
+}
+
+// IsFollowing checks if a user is following another user
+func (h *UserHandler) IsFollowing(ctx context.Context, req *user.IsFollowingRequest) (*user.IsFollowingResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would check if the user is following
+	return &user.IsFollowingResponse{IsFollowing: false}, nil
+}
+
+// FollowUser handles following a user
+func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserRequest) (*user.FollowUserResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would create a follow relationship
+	return &user.FollowUserResponse{Success: true}, nil
+}
+
+// UnfollowUser handles unfollowing a user
+func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRequest) (*user.UnfollowUserResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would delete a follow relationship
+	return &user.UnfollowUserResponse{Success: true}, nil
+}
+
+// GetFollowers gets a user's followers
+func (h *UserHandler) GetFollowers(ctx context.Context, req *user.GetFollowersRequest) (*user.GetFollowersResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would get the user's followers
+	return &user.GetFollowersResponse{
+		Followers:  []*user.User{},
+		TotalCount: 0,
+		Page:       req.GetPage(),
+		Limit:      req.GetLimit(),
+	}, nil
+}
+
+// GetFollowing gets users a user is following
+func (h *UserHandler) GetFollowing(ctx context.Context, req *user.GetFollowingRequest) (*user.GetFollowingResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would get the users the user is following
+	return &user.GetFollowingResponse{
+		Following:  []*user.User{},
+		TotalCount: 0,
+		Page:       req.GetPage(),
+		Limit:      req.GetLimit(),
+	}, nil
+}
+
+// SearchUsers searches for users based on a query
+func (h *UserHandler) SearchUsers(ctx context.Context, req *user.SearchUsersRequest) (*user.SearchUsersResponse, error) {
+	// This is a placeholder implementation
+	// In a real implementation, you would search for users
+	return &user.SearchUsersResponse{
+		Users:      []*user.User{},
+		TotalCount: 0,
+		Page:       req.GetPage(),
+		Limit:      req.GetLimit(),
 	}, nil
 }

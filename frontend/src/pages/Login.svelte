@@ -41,8 +41,6 @@
     const token = getAuthToken();
     console.log('Login page - Auth token exists:', !!token, 'Current path:', window.location.pathname);
     
-    // Let the Router handle redirects rather than doing it directly
-    // No need to redirect here as Router will handle it based on authentication state
   });
   
   async function handleSubmit() {
@@ -53,10 +51,7 @@
       if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
       return;
     }
-    // if (!recaptchaToken) {
-    //   error = 'Please complete the reCAPTCHA verification.';
-    //   return;
-    // }
+    
     isLoading = true;
     error = "";
     
@@ -65,7 +60,6 @@
       isLoading = false;
       
       if (result.success) {
-        // Add a small delay to ensure auth state is fully updated before redirect
         setTimeout(() => {
           const currentPath = window.location.pathname;
           if (currentPath !== '/feed') {
@@ -172,19 +166,6 @@
       <label for="remember-me" class="auth-checkbox-label">Remember me</label>
     </div>
     
-    <!-- <div class="mb-6 hidden">
-      <ReCaptchaWrapper
-        bind:this={recaptchaWrapper}
-        siteKey="6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA"
-        theme={isDarkMode ? 'dark' : 'light'}
-        on:success={handleRecaptchaSuccess}
-        on:error={handleRecaptchaError}
-        on:expired={handleRecaptchaExpired}
-      />
-    </div> -->
-    <!-- {#if error === 'Please complete the reCAPTCHA verification.'}
-      <p class="text-red-500 text-xs mt-1 text-center" data-cy="recaptcha-error">{error}</p>
-    {/if} -->
     
     <button 
       type="submit"

@@ -40,6 +40,22 @@ const (
 	UserService_VerifyResetToken_FullMethodName             = "/user.UserService/VerifyResetToken"
 	UserService_ResetPassword_FullMethodName                = "/user.UserService/ResetPassword"
 	UserService_VerifySecurityAnswer_FullMethodName         = "/user.UserService/VerifySecurityAnswer"
+	UserService_BanUser_FullMethodName                      = "/user.UserService/BanUser"
+	UserService_SendNewsletter_FullMethodName               = "/user.UserService/SendNewsletter"
+	UserService_GetCommunityRequests_FullMethodName         = "/user.UserService/GetCommunityRequests"
+	UserService_ProcessCommunityRequest_FullMethodName      = "/user.UserService/ProcessCommunityRequest"
+	UserService_GetPremiumRequests_FullMethodName           = "/user.UserService/GetPremiumRequests"
+	UserService_ProcessPremiumRequest_FullMethodName        = "/user.UserService/ProcessPremiumRequest"
+	UserService_GetReportRequests_FullMethodName            = "/user.UserService/GetReportRequests"
+	UserService_ProcessReportRequest_FullMethodName         = "/user.UserService/ProcessReportRequest"
+	UserService_GetThreadCategories_FullMethodName          = "/user.UserService/GetThreadCategories"
+	UserService_CreateThreadCategory_FullMethodName         = "/user.UserService/CreateThreadCategory"
+	UserService_UpdateThreadCategory_FullMethodName         = "/user.UserService/UpdateThreadCategory"
+	UserService_DeleteThreadCategory_FullMethodName         = "/user.UserService/DeleteThreadCategory"
+	UserService_GetCommunityCategories_FullMethodName       = "/user.UserService/GetCommunityCategories"
+	UserService_CreateCommunityCategory_FullMethodName      = "/user.UserService/CreateCommunityCategory"
+	UserService_UpdateCommunityCategory_FullMethodName      = "/user.UserService/UpdateCommunityCategory"
+	UserService_DeleteCommunityCategory_FullMethodName      = "/user.UserService/DeleteCommunityCategory"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -90,6 +106,38 @@ type UserServiceClient interface {
 	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error)
 	// Verify security answer before password reset
 	VerifySecurityAnswer(ctx context.Context, in *VerifySecurityAnswerRequest, opts ...grpc.CallOption) (*VerifySecurityAnswerResponse, error)
+	// Ban or unban a user
+	BanUser(ctx context.Context, in *BanUserRequest, opts ...grpc.CallOption) (*BanUserResponse, error)
+	// Send newsletter to subscribed users
+	SendNewsletter(ctx context.Context, in *SendNewsletterRequest, opts ...grpc.CallOption) (*SendNewsletterResponse, error)
+	// Get community creation requests
+	GetCommunityRequests(ctx context.Context, in *GetCommunityRequestsRequest, opts ...grpc.CallOption) (*GetCommunityRequestsResponse, error)
+	// Process community creation request
+	ProcessCommunityRequest(ctx context.Context, in *ProcessCommunityRequestRequest, opts ...grpc.CallOption) (*ProcessCommunityRequestResponse, error)
+	// Get premium user requests
+	GetPremiumRequests(ctx context.Context, in *GetPremiumRequestsRequest, opts ...grpc.CallOption) (*GetPremiumRequestsResponse, error)
+	// Process premium user request
+	ProcessPremiumRequest(ctx context.Context, in *ProcessPremiumRequestRequest, opts ...grpc.CallOption) (*ProcessPremiumRequestResponse, error)
+	// Get user report requests
+	GetReportRequests(ctx context.Context, in *GetReportRequestsRequest, opts ...grpc.CallOption) (*GetReportRequestsResponse, error)
+	// Process report request
+	ProcessReportRequest(ctx context.Context, in *ProcessReportRequestRequest, opts ...grpc.CallOption) (*ProcessReportRequestResponse, error)
+	// Get thread categories
+	GetThreadCategories(ctx context.Context, in *GetThreadCategoriesRequest, opts ...grpc.CallOption) (*GetThreadCategoriesResponse, error)
+	// Create thread category
+	CreateThreadCategory(ctx context.Context, in *CreateThreadCategoryRequest, opts ...grpc.CallOption) (*CreateThreadCategoryResponse, error)
+	// Update thread category
+	UpdateThreadCategory(ctx context.Context, in *UpdateThreadCategoryRequest, opts ...grpc.CallOption) (*UpdateThreadCategoryResponse, error)
+	// Delete thread category
+	DeleteThreadCategory(ctx context.Context, in *DeleteThreadCategoryRequest, opts ...grpc.CallOption) (*DeleteThreadCategoryResponse, error)
+	// Get community categories
+	GetCommunityCategories(ctx context.Context, in *GetCommunityCategoriesRequest, opts ...grpc.CallOption) (*GetCommunityCategoriesResponse, error)
+	// Create community category
+	CreateCommunityCategory(ctx context.Context, in *CreateCommunityCategoryRequest, opts ...grpc.CallOption) (*CreateCommunityCategoryResponse, error)
+	// Update community category
+	UpdateCommunityCategory(ctx context.Context, in *UpdateCommunityCategoryRequest, opts ...grpc.CallOption) (*UpdateCommunityCategoryResponse, error)
+	// Delete community category
+	DeleteCommunityCategory(ctx context.Context, in *DeleteCommunityCategoryRequest, opts ...grpc.CallOption) (*DeleteCommunityCategoryResponse, error)
 }
 
 type userServiceClient struct {
@@ -310,6 +358,166 @@ func (c *userServiceClient) VerifySecurityAnswer(ctx context.Context, in *Verify
 	return out, nil
 }
 
+func (c *userServiceClient) BanUser(ctx context.Context, in *BanUserRequest, opts ...grpc.CallOption) (*BanUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BanUserResponse)
+	err := c.cc.Invoke(ctx, UserService_BanUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SendNewsletter(ctx context.Context, in *SendNewsletterRequest, opts ...grpc.CallOption) (*SendNewsletterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendNewsletterResponse)
+	err := c.cc.Invoke(ctx, UserService_SendNewsletter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetCommunityRequests(ctx context.Context, in *GetCommunityRequestsRequest, opts ...grpc.CallOption) (*GetCommunityRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCommunityRequestsResponse)
+	err := c.cc.Invoke(ctx, UserService_GetCommunityRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ProcessCommunityRequest(ctx context.Context, in *ProcessCommunityRequestRequest, opts ...grpc.CallOption) (*ProcessCommunityRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessCommunityRequestResponse)
+	err := c.cc.Invoke(ctx, UserService_ProcessCommunityRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetPremiumRequests(ctx context.Context, in *GetPremiumRequestsRequest, opts ...grpc.CallOption) (*GetPremiumRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPremiumRequestsResponse)
+	err := c.cc.Invoke(ctx, UserService_GetPremiumRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ProcessPremiumRequest(ctx context.Context, in *ProcessPremiumRequestRequest, opts ...grpc.CallOption) (*ProcessPremiumRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessPremiumRequestResponse)
+	err := c.cc.Invoke(ctx, UserService_ProcessPremiumRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetReportRequests(ctx context.Context, in *GetReportRequestsRequest, opts ...grpc.CallOption) (*GetReportRequestsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetReportRequestsResponse)
+	err := c.cc.Invoke(ctx, UserService_GetReportRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ProcessReportRequest(ctx context.Context, in *ProcessReportRequestRequest, opts ...grpc.CallOption) (*ProcessReportRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProcessReportRequestResponse)
+	err := c.cc.Invoke(ctx, UserService_ProcessReportRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetThreadCategories(ctx context.Context, in *GetThreadCategoriesRequest, opts ...grpc.CallOption) (*GetThreadCategoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetThreadCategoriesResponse)
+	err := c.cc.Invoke(ctx, UserService_GetThreadCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CreateThreadCategory(ctx context.Context, in *CreateThreadCategoryRequest, opts ...grpc.CallOption) (*CreateThreadCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateThreadCategoryResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateThreadCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateThreadCategory(ctx context.Context, in *UpdateThreadCategoryRequest, opts ...grpc.CallOption) (*UpdateThreadCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateThreadCategoryResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateThreadCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) DeleteThreadCategory(ctx context.Context, in *DeleteThreadCategoryRequest, opts ...grpc.CallOption) (*DeleteThreadCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteThreadCategoryResponse)
+	err := c.cc.Invoke(ctx, UserService_DeleteThreadCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetCommunityCategories(ctx context.Context, in *GetCommunityCategoriesRequest, opts ...grpc.CallOption) (*GetCommunityCategoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCommunityCategoriesResponse)
+	err := c.cc.Invoke(ctx, UserService_GetCommunityCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CreateCommunityCategory(ctx context.Context, in *CreateCommunityCategoryRequest, opts ...grpc.CallOption) (*CreateCommunityCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCommunityCategoryResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateCommunityCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateCommunityCategory(ctx context.Context, in *UpdateCommunityCategoryRequest, opts ...grpc.CallOption) (*UpdateCommunityCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCommunityCategoryResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateCommunityCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) DeleteCommunityCategory(ctx context.Context, in *DeleteCommunityCategoryRequest, opts ...grpc.CallOption) (*DeleteCommunityCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteCommunityCategoryResponse)
+	err := c.cc.Invoke(ctx, UserService_DeleteCommunityCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -358,6 +566,38 @@ type UserServiceServer interface {
 	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error)
 	// Verify security answer before password reset
 	VerifySecurityAnswer(context.Context, *VerifySecurityAnswerRequest) (*VerifySecurityAnswerResponse, error)
+	// Ban or unban a user
+	BanUser(context.Context, *BanUserRequest) (*BanUserResponse, error)
+	// Send newsletter to subscribed users
+	SendNewsletter(context.Context, *SendNewsletterRequest) (*SendNewsletterResponse, error)
+	// Get community creation requests
+	GetCommunityRequests(context.Context, *GetCommunityRequestsRequest) (*GetCommunityRequestsResponse, error)
+	// Process community creation request
+	ProcessCommunityRequest(context.Context, *ProcessCommunityRequestRequest) (*ProcessCommunityRequestResponse, error)
+	// Get premium user requests
+	GetPremiumRequests(context.Context, *GetPremiumRequestsRequest) (*GetPremiumRequestsResponse, error)
+	// Process premium user request
+	ProcessPremiumRequest(context.Context, *ProcessPremiumRequestRequest) (*ProcessPremiumRequestResponse, error)
+	// Get user report requests
+	GetReportRequests(context.Context, *GetReportRequestsRequest) (*GetReportRequestsResponse, error)
+	// Process report request
+	ProcessReportRequest(context.Context, *ProcessReportRequestRequest) (*ProcessReportRequestResponse, error)
+	// Get thread categories
+	GetThreadCategories(context.Context, *GetThreadCategoriesRequest) (*GetThreadCategoriesResponse, error)
+	// Create thread category
+	CreateThreadCategory(context.Context, *CreateThreadCategoryRequest) (*CreateThreadCategoryResponse, error)
+	// Update thread category
+	UpdateThreadCategory(context.Context, *UpdateThreadCategoryRequest) (*UpdateThreadCategoryResponse, error)
+	// Delete thread category
+	DeleteThreadCategory(context.Context, *DeleteThreadCategoryRequest) (*DeleteThreadCategoryResponse, error)
+	// Get community categories
+	GetCommunityCategories(context.Context, *GetCommunityCategoriesRequest) (*GetCommunityCategoriesResponse, error)
+	// Create community category
+	CreateCommunityCategory(context.Context, *CreateCommunityCategoryRequest) (*CreateCommunityCategoryResponse, error)
+	// Update community category
+	UpdateCommunityCategory(context.Context, *UpdateCommunityCategoryRequest) (*UpdateCommunityCategoryResponse, error)
+	// Delete community category
+	DeleteCommunityCategory(context.Context, *DeleteCommunityCategoryRequest) (*DeleteCommunityCategoryResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -430,6 +670,54 @@ func (UnimplementedUserServiceServer) ResetPassword(context.Context, *ResetPassw
 }
 func (UnimplementedUserServiceServer) VerifySecurityAnswer(context.Context, *VerifySecurityAnswerRequest) (*VerifySecurityAnswerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifySecurityAnswer not implemented")
+}
+func (UnimplementedUserServiceServer) BanUser(context.Context, *BanUserRequest) (*BanUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BanUser not implemented")
+}
+func (UnimplementedUserServiceServer) SendNewsletter(context.Context, *SendNewsletterRequest) (*SendNewsletterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendNewsletter not implemented")
+}
+func (UnimplementedUserServiceServer) GetCommunityRequests(context.Context, *GetCommunityRequestsRequest) (*GetCommunityRequestsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCommunityRequests not implemented")
+}
+func (UnimplementedUserServiceServer) ProcessCommunityRequest(context.Context, *ProcessCommunityRequestRequest) (*ProcessCommunityRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ProcessCommunityRequest not implemented")
+}
+func (UnimplementedUserServiceServer) GetPremiumRequests(context.Context, *GetPremiumRequestsRequest) (*GetPremiumRequestsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPremiumRequests not implemented")
+}
+func (UnimplementedUserServiceServer) ProcessPremiumRequest(context.Context, *ProcessPremiumRequestRequest) (*ProcessPremiumRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ProcessPremiumRequest not implemented")
+}
+func (UnimplementedUserServiceServer) GetReportRequests(context.Context, *GetReportRequestsRequest) (*GetReportRequestsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetReportRequests not implemented")
+}
+func (UnimplementedUserServiceServer) ProcessReportRequest(context.Context, *ProcessReportRequestRequest) (*ProcessReportRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ProcessReportRequest not implemented")
+}
+func (UnimplementedUserServiceServer) GetThreadCategories(context.Context, *GetThreadCategoriesRequest) (*GetThreadCategoriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetThreadCategories not implemented")
+}
+func (UnimplementedUserServiceServer) CreateThreadCategory(context.Context, *CreateThreadCategoryRequest) (*CreateThreadCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateThreadCategory not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateThreadCategory(context.Context, *UpdateThreadCategoryRequest) (*UpdateThreadCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateThreadCategory not implemented")
+}
+func (UnimplementedUserServiceServer) DeleteThreadCategory(context.Context, *DeleteThreadCategoryRequest) (*DeleteThreadCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteThreadCategory not implemented")
+}
+func (UnimplementedUserServiceServer) GetCommunityCategories(context.Context, *GetCommunityCategoriesRequest) (*GetCommunityCategoriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCommunityCategories not implemented")
+}
+func (UnimplementedUserServiceServer) CreateCommunityCategory(context.Context, *CreateCommunityCategoryRequest) (*CreateCommunityCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateCommunityCategory not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateCommunityCategory(context.Context, *UpdateCommunityCategoryRequest) (*UpdateCommunityCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCommunityCategory not implemented")
+}
+func (UnimplementedUserServiceServer) DeleteCommunityCategory(context.Context, *DeleteCommunityCategoryRequest) (*DeleteCommunityCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteCommunityCategory not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -830,6 +1118,294 @@ func _UserService_VerifySecurityAnswer_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_BanUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BanUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BanUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BanUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BanUser(ctx, req.(*BanUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SendNewsletter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendNewsletterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SendNewsletter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SendNewsletter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SendNewsletter(ctx, req.(*SendNewsletterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetCommunityRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommunityRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetCommunityRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetCommunityRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetCommunityRequests(ctx, req.(*GetCommunityRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ProcessCommunityRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProcessCommunityRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ProcessCommunityRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ProcessCommunityRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ProcessCommunityRequest(ctx, req.(*ProcessCommunityRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetPremiumRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPremiumRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetPremiumRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetPremiumRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetPremiumRequests(ctx, req.(*GetPremiumRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ProcessPremiumRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProcessPremiumRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ProcessPremiumRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ProcessPremiumRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ProcessPremiumRequest(ctx, req.(*ProcessPremiumRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetReportRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetReportRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetReportRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetReportRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetReportRequests(ctx, req.(*GetReportRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ProcessReportRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProcessReportRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ProcessReportRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ProcessReportRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ProcessReportRequest(ctx, req.(*ProcessReportRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetThreadCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetThreadCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetThreadCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetThreadCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetThreadCategories(ctx, req.(*GetThreadCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CreateThreadCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateThreadCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateThreadCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateThreadCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateThreadCategory(ctx, req.(*CreateThreadCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateThreadCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateThreadCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateThreadCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateThreadCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateThreadCategory(ctx, req.(*UpdateThreadCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_DeleteThreadCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteThreadCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).DeleteThreadCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_DeleteThreadCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).DeleteThreadCategory(ctx, req.(*DeleteThreadCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetCommunityCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommunityCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetCommunityCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetCommunityCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetCommunityCategories(ctx, req.(*GetCommunityCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CreateCommunityCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCommunityCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateCommunityCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateCommunityCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateCommunityCategory(ctx, req.(*CreateCommunityCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateCommunityCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCommunityCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateCommunityCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateCommunityCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateCommunityCategory(ctx, req.(*UpdateCommunityCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_DeleteCommunityCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCommunityCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).DeleteCommunityCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_DeleteCommunityCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).DeleteCommunityCategory(ctx, req.(*DeleteCommunityCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -920,6 +1496,70 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifySecurityAnswer",
 			Handler:    _UserService_VerifySecurityAnswer_Handler,
+		},
+		{
+			MethodName: "BanUser",
+			Handler:    _UserService_BanUser_Handler,
+		},
+		{
+			MethodName: "SendNewsletter",
+			Handler:    _UserService_SendNewsletter_Handler,
+		},
+		{
+			MethodName: "GetCommunityRequests",
+			Handler:    _UserService_GetCommunityRequests_Handler,
+		},
+		{
+			MethodName: "ProcessCommunityRequest",
+			Handler:    _UserService_ProcessCommunityRequest_Handler,
+		},
+		{
+			MethodName: "GetPremiumRequests",
+			Handler:    _UserService_GetPremiumRequests_Handler,
+		},
+		{
+			MethodName: "ProcessPremiumRequest",
+			Handler:    _UserService_ProcessPremiumRequest_Handler,
+		},
+		{
+			MethodName: "GetReportRequests",
+			Handler:    _UserService_GetReportRequests_Handler,
+		},
+		{
+			MethodName: "ProcessReportRequest",
+			Handler:    _UserService_ProcessReportRequest_Handler,
+		},
+		{
+			MethodName: "GetThreadCategories",
+			Handler:    _UserService_GetThreadCategories_Handler,
+		},
+		{
+			MethodName: "CreateThreadCategory",
+			Handler:    _UserService_CreateThreadCategory_Handler,
+		},
+		{
+			MethodName: "UpdateThreadCategory",
+			Handler:    _UserService_UpdateThreadCategory_Handler,
+		},
+		{
+			MethodName: "DeleteThreadCategory",
+			Handler:    _UserService_DeleteThreadCategory_Handler,
+		},
+		{
+			MethodName: "GetCommunityCategories",
+			Handler:    _UserService_GetCommunityCategories_Handler,
+		},
+		{
+			MethodName: "CreateCommunityCategory",
+			Handler:    _UserService_CreateCommunityCategory_Handler,
+		},
+		{
+			MethodName: "UpdateCommunityCategory",
+			Handler:    _UserService_UpdateCommunityCategory_Handler,
+		},
+		{
+			MethodName: "DeleteCommunityCategory",
+			Handler:    _UserService_DeleteCommunityCategory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1,6 +1,5 @@
 /// <reference types="svelte" />
 
-// Declare svelte-feather-icons module
 declare module 'svelte-feather-icons' {
   import { SvelteComponentTyped } from 'svelte';
 
@@ -24,8 +23,6 @@ declare module 'svelte-feather-icons' {
     variation?: string;
     ariaLabel?: string;
   }> {}
-
-  // ... other icons ...
 
   export class BarChart2Icon extends SvelteComponentTyped<{
     size?: string;
@@ -194,6 +191,4 @@ declare module 'svelte-feather-icons' {
     variation?: string;
     ariaLabel?: string;
   }> {}
-
-  // ... any other icons used in the project ...
 } 

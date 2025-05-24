@@ -68,6 +68,56 @@ service UserService {
 
   // Verify security answer before password reset
   rpc VerifySecurityAnswer(VerifySecurityAnswerRequest) returns (VerifySecurityAnswerResponse) {}
+
+  // Admin endpoints
+  
+  // Ban or unban a user
+  rpc BanUser(BanUserRequest) returns (BanUserResponse) {}
+
+  // Send newsletter to subscribed users
+  rpc SendNewsletter(SendNewsletterRequest) returns (SendNewsletterResponse) {}
+
+  // Get community creation requests
+  rpc GetCommunityRequests(GetCommunityRequestsRequest) returns (GetCommunityRequestsResponse) {}
+
+  // Process community creation request
+  rpc ProcessCommunityRequest(ProcessCommunityRequestRequest) returns (ProcessCommunityRequestResponse) {}
+
+  // Get premium user requests
+  rpc GetPremiumRequests(GetPremiumRequestsRequest) returns (GetPremiumRequestsResponse) {}
+
+  // Process premium user request
+  rpc ProcessPremiumRequest(ProcessPremiumRequestRequest) returns (ProcessPremiumRequestResponse) {}
+
+  // Get user report requests
+  rpc GetReportRequests(GetReportRequestsRequest) returns (GetReportRequestsResponse) {}
+
+  // Process report request
+  rpc ProcessReportRequest(ProcessReportRequestRequest) returns (ProcessReportRequestResponse) {}
+
+  // Get thread categories
+  rpc GetThreadCategories(GetThreadCategoriesRequest) returns (GetThreadCategoriesResponse) {}
+
+  // Create thread category
+  rpc CreateThreadCategory(CreateThreadCategoryRequest) returns (CreateThreadCategoryResponse) {}
+
+  // Update thread category
+  rpc UpdateThreadCategory(UpdateThreadCategoryRequest) returns (UpdateThreadCategoryResponse) {}
+
+  // Delete thread category
+  rpc DeleteThreadCategory(DeleteThreadCategoryRequest) returns (DeleteThreadCategoryResponse) {}
+
+  // Get community categories
+  rpc GetCommunityCategories(GetCommunityCategoriesRequest) returns (GetCommunityCategoriesResponse) {}
+
+  // Create community category
+  rpc CreateCommunityCategory(CreateCommunityCategoryRequest) returns (CreateCommunityCategoryResponse) {}
+
+  // Update community category
+  rpc UpdateCommunityCategory(UpdateCommunityCategoryRequest) returns (UpdateCommunityCategoryResponse) {}
+
+  // Delete community category
+  rpc DeleteCommunityCategory(DeleteCommunityCategoryRequest) returns (DeleteCommunityCategoryResponse) {}
 }
 
 // User contains user information
@@ -95,6 +145,8 @@ message User {
   int32 follower_count = 19;
   int32 following_count = 20;
   bool is_following = 21; // Whether the requesting user is following this user
+  bool is_admin = 22; // Whether the user is an admin
+  bool is_banned = 23; // Whether the user is banned
 }
 
 // GetUserRequest is used to request user information by ID
@@ -249,12 +301,12 @@ message GetFollowersResponse {
 
 // Request to get users being followed
 message GetFollowingRequest {
-  string user_id = 1; // ID of the user whose following list we want
+  string user_id = 1; // ID of the user whose following we want
   int32 page = 2;     // Pagination - page number
   int32 limit = 3;    // Pagination - items per page
 }
 
-// Response containing list of followed users
+// Response containing list of users being followed
 message GetFollowingResponse {
   repeated User following = 1;
   int32 total_count = 2;
@@ -264,22 +316,22 @@ message GetFollowingResponse {
 
 // Request to search users
 message SearchUsersRequest {
-  string query = 1;   // Search query
-  string filter = 2;  // Optional filter (verified, following, etc.)
-  int32 page = 3;     // Pagination - page number
-  int32 limit = 4;    // Pagination - items per page
+  string query = 1;  // Search query
+  int32 page = 2;    // Pagination - page number
+  int32 limit = 3;   // Pagination - items per page
 }
 
 // Response containing search results
 message SearchUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
 }
 
 // Request to get recommended users
 message GetRecommendedUsersRequest {
-  string user_id = 1; // Optional: ID of the requesting user (to exclude already followed users)
-  int32 limit = 2;    // Number of recommendations to fetch
+  int32 limit = 1; // Number of users to fetch
 }
 
 // Response containing recommended users
@@ -296,40 +348,39 @@ message RequestPasswordResetRequest {
 message RequestPasswordResetResponse {
   bool success = 1;
   string message = 2;
-  string token = 3;
-  string expiry = 4;
 }
 
-// Request to verify a password reset token
+// Request to verify reset token
 message VerifyResetTokenRequest {
   string token = 1;
+  string email = 2;
 }
 
-// Response for verifying reset token
+// Response for token verification
 message VerifyResetTokenResponse {
   bool valid = 1;
-  string email = 2;
-  string message = 3;
+  string message = 2;
+  string user_id = 3;
 }
 
-// Request for verifying security answer
+// Request to verify security answer
 message VerifySecurityAnswerRequest {
   string email = 1;
-  string security_answer = 2;
+  string answer = 2;
 }
 
-// Response for verifying security answer
+// Response for security answer verification
 message VerifySecurityAnswerResponse {
-  bool success = 1;
+  bool valid = 1;
   string message = 2;
   string token = 3;
 }
 
-// Request to reset password using a token
+// Request to reset password
 message ResetPasswordRequest {
   string token = 1;
-  string new_password = 2;
-  string email = 3;
+  string email = 2;
+  string new_password = 3;
 }
 
 // Response for password reset
@@ -338,7 +389,7 @@ message ResetPasswordResponse {
   string message = 2;
 }
 
-// Request for getting all users with pagination
+// Request to get all users
 message GetAllUsersRequest {
   int32 page = 1;
   int32 limit = 2;
@@ -346,10 +397,281 @@ message GetAllUsersRequest {
   bool sort_desc = 4;
 }
 
-// Response for getting all users
+// Response containing list of all users
 message GetAllUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
   int32 page = 3;
+}
+
+// Request to ban or unban a user
+message BanUserRequest {
+  string user_id = 1;
+  bool ban = 2; // true for ban, false for unban
+  string reason = 3;
+  string admin_id = 4;
+}
+
+// Response for ban user operation
+message BanUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Request to send newsletter
+message SendNewsletterRequest {
+  string subject = 1;
+  string content = 2;
+  string admin_id = 3;
+}
+
+// Response for send newsletter operation
+message SendNewsletterResponse {
+  bool success = 1;
+  string message = 2;
+  int32 recipients_count = 3;
+}
+
+// Community request message
+message CommunityRequest {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  string category_id = 5;
+  string status = 6; // "pending", "approved", "rejected"
+  string created_at = 7;
+  string updated_at = 8;
+  User requester = 9; // The user who made the request
+}
+
+// Request to get community creation requests
+message GetCommunityRequestsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string status = 3; // filter by status: "pending", "approved", "rejected", or empty for all
+}
+
+// Response containing community creation requests
+message GetCommunityRequestsResponse {
+  repeated CommunityRequest requests = 1;
+  int32 total_count = 2;
+  int32 page = 3;
   int32 limit = 4;
+}
+
+// Request to process a community creation request
+message ProcessCommunityRequestRequest {
+  string request_id = 1;
+  bool approve = 2;
+  string reason = 3;
+  string admin_id = 4;
+}
+
+// Response for processing a community request
+message ProcessCommunityRequestResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Premium user request message
+message PremiumRequest {
+  string id = 1;
+  string user_id = 2;
+  string reason = 3;
+  string status = 4; // "pending", "approved", "rejected"
+  string created_at = 5;
+  string updated_at = 6;
+  User requester = 7; // The user who made the request
+}
+
+// Request to get premium user requests
+message GetPremiumRequestsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string status = 3; // filter by status: "pending", "approved", "rejected", or empty for all
+}
+
+// Response containing premium user requests
+message GetPremiumRequestsResponse {
+  repeated PremiumRequest requests = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to process a premium user request
+message ProcessPremiumRequestRequest {
+  string request_id = 1;
+  bool approve = 2;
+  string reason = 3;
+  string admin_id = 4;
+}
+
+// Response for processing a premium user request
+message ProcessPremiumRequestResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// User report message
+message ReportRequest {
+  string id = 1;
+  string reporter_id = 2;
+  string reported_user_id = 3;
+  string reason = 4;
+  string status = 5; // "pending", "approved", "rejected"
+  string created_at = 6;
+  string updated_at = 7;
+  User reporter = 8; // The user who made the report
+  User reported_user = 9; // The user who was reported
+}
+
+// Request to get user report requests
+message GetReportRequestsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string status = 3; // filter by status: "pending", "approved", "rejected", or empty for all
+}
+
+// Response containing user report requests
+message GetReportRequestsResponse {
+  repeated ReportRequest requests = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to process a user report
+message ProcessReportRequestRequest {
+  string request_id = 1;
+  bool approve = 2;
+  string reason = 3;
+  string admin_id = 4;
+}
+
+// Response for processing a user report
+message ProcessReportRequestResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Thread category message
+message ThreadCategory {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+// Request to get thread categories
+message GetThreadCategoriesRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+// Response containing thread categories
+message GetThreadCategoriesResponse {
+  repeated ThreadCategory categories = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to create a thread category
+message CreateThreadCategoryRequest {
+  string name = 1;
+  string description = 2;
+  string admin_id = 3;
+}
+
+// Response for creating a thread category
+message CreateThreadCategoryResponse {
+  ThreadCategory category = 1;
+}
+
+// Request to update a thread category
+message UpdateThreadCategoryRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string admin_id = 4;
+}
+
+// Response for updating a thread category
+message UpdateThreadCategoryResponse {
+  ThreadCategory category = 1;
+}
+
+// Request to delete a thread category
+message DeleteThreadCategoryRequest {
+  string id = 1;
+  string admin_id = 2;
+}
+
+// Response for deleting a thread category
+message DeleteThreadCategoryResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Community category message
+message CommunityCategory {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+// Request to get community categories
+message GetCommunityCategoriesRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+// Response containing community categories
+message GetCommunityCategoriesResponse {
+  repeated CommunityCategory categories = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+// Request to create a community category
+message CreateCommunityCategoryRequest {
+  string name = 1;
+  string description = 2;
+  string admin_id = 3;
+}
+
+// Response for creating a community category
+message CreateCommunityCategoryResponse {
+  CommunityCategory category = 1;
+}
+
+// Request to update a community category
+message UpdateCommunityCategoryRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string admin_id = 4;
+}
+
+// Response for updating a community category
+message UpdateCommunityCategoryResponse {
+  CommunityCategory category = 1;
+}
+
+// Request to delete a community category
+message DeleteCommunityCategoryRequest {
+  string id = 1;
+  string admin_id = 2;
+}
+
+// Response for deleting a community category
+message DeleteCommunityCategoryResponse {
+  bool success = 1;
+  string message = 2;
 } 

@@ -11,7 +11,6 @@
   import appConfig from '../config/appConfig';
   import DebugPanel from '../components/common/DebugPanel.svelte';
   
-  // Get registration form functionality
   const { 
     formData,
     errors,
@@ -27,16 +26,12 @@
     cleanupTimers
   } = useRegistrationForm();
   
-  // Get auth functions
   const { register, verifyEmail, resendVerificationCode, registerWithMedia } = useAuth();
   
-  // Get theme
   const { theme } = useTheme();
   
-  // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
   
-  // Validation wrapper functions
   function validateNameAndUpdate() {
     $formData.name && validateFormField('name', $formData.name);
   }
@@ -73,9 +68,7 @@
     validateFormField('securityAnswer', $formData.securityAnswer);
   }
   
-  // Make the function async to use await
   async function submitRegistration(recaptchaToken: string | null) {
-    // Validate recaptcha token if required in production
     if (!recaptchaToken && !import.meta.env.DEV) {
       const errorMessage = "reCAPTCHA verification failed. Please try again.";
       formState.update(state => ({ ...state, error: errorMessage }));
@@ -100,7 +93,6 @@
         recaptcha_token: recaptchaToken || (import.meta.env.DEV ? "dev-mode-token" : "")
       };
       try {
-        // Use registerWithMedia if profile picture or banner is provided
         let result;
         if ($formData.profilePicture instanceof File || $formData.banner instanceof File) {
           result = await registerWithMedia(
@@ -142,21 +134,18 @@
     }
   }
   
-  // Handle Google authentication success
   function handleGoogleAuthSuccess(result: any) {
     console.log('Google auth success in Register page');
     toastStore.showToast('Google registration successful', 'success'); 
     window.location.href = '/feed';
   }
   
-  // Handle Google authentication error
-  function handleGoogleAuthError(errorMsg: string) { // Renamed param
+  function handleGoogleAuthError(errorMsg: string) {
     console.error('Google auth error in Register page:', errorMsg);
     formState.update(state => ({ ...state, error: errorMsg }));
     if (appConfig.ui.showErrorToasts) toastStore.showToast(`Google Auth Error: ${errorMsg}`, 'error');
   }
   
-  // Make the function async to use await
   async function submitVerification() {
     let errorMessage = "";
     if (!$formData.verificationCode) {
@@ -173,7 +162,7 @@
       formState.update(state => ({ ...state, loading: false }));
       
       if (result.success) {
-        window.location.href = '/login'; // Redirect on success
+        window.location.href = '/login';
       } else {
         errorMessage = result.message || "Verification failed. Please check your code and try again.";
         formState.update(state => ({ ...state, error: errorMessage }));
@@ -186,7 +175,6 @@
     }
   }
   
-  // Make the function async to use await
   async function resendCode() {
     let errorMessage = "";
     formState.update(state => ({ ...state, loading: true }));
@@ -196,9 +184,8 @@
       formState.update(state => ({ ...state, loading: false }));
       
       if (result.success) {
-        formState.update(state => ({ ...state, showResendOption: false, error: "" })); // Clear error
+        formState.update(state => ({ ...state, showResendOption: false, error: "" }));
         startTimer();
-        // Show success toast instead of alert
         toastStore.showToast("Verification code has been resent.", "success"); 
       } else {
         errorMessage = result.message || "Failed to resend verification code.";

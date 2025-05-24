@@ -380,10 +380,9 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 	// Create the request
 	req := &userProto.SearchUsersRequest{
-		Query:  query,
-		Filter: filter,
-		Page:   int32(page),
-		Limit:  int32(limit),
+		Query: query,
+		Page:  int32(page),
+		Limit: int32(limit),
 	}
 
 	// Call the gRPC service
@@ -414,8 +413,7 @@ func (c *GRPCUserServiceClient) GetUserRecommendations(userID string, limit int)
 	defer cancel()
 
 	req := &userProto.GetRecommendedUsersRequest{
-		UserId: userID,
-		Limit:  int32(limit),
+		Limit: int32(limit),
 	}
 
 	resp, err := c.client.GetRecommendedUsers(ctx, req)
@@ -642,8 +640,8 @@ func (c *GRPCUserServiceClient) VerifySecurityAnswer(email, securityAnswer strin
 
 	// Call the actual gRPC method
 	resp, err := c.client.VerifySecurityAnswer(ctx, &userProto.VerifySecurityAnswerRequest{
-		Email:          email,
-		SecurityAnswer: securityAnswer,
+		Email:  email,
+		Answer: securityAnswer,
 	})
 
 	if err != nil {
@@ -651,7 +649,7 @@ func (c *GRPCUserServiceClient) VerifySecurityAnswer(email, securityAnswer strin
 	}
 
 	// Return using the getters, not direct field access
-	return resp.GetSuccess(), resp.GetMessage(), "token", nil // Returning a placeholder since token isn't accessible
+	return resp.Valid, resp.Message, resp.Token, nil
 }
 
 func (c *GRPCUserServiceClient) VerifyResetToken(token string) (bool, string, string, error) {
@@ -667,7 +665,7 @@ func (c *GRPCUserServiceClient) VerifyResetToken(token string) (bool, string, st
 		return false, "", "", err
 	}
 
-	return resp.Valid, resp.Email, resp.Message, nil
+	return resp.Valid, resp.UserId, resp.Message, nil
 }
 
 func (c *GRPCUserServiceClient) ResetPassword(token, newPassword, email string) (bool, string, error) {

@@ -22,13 +22,13 @@ func DeleteCommunity(c *gin.Context)  {}
 func GetCommunityByID(c *gin.Context) {
 	communityID := c.Param("id")
 	log.Printf("GetCommunityByID called with ID: %s", communityID)
-	
+
 	if communityID == "" {
 		log.Printf("Error: Empty community ID provided")
 		c.JSON(400, gin.H{
 			"success": false,
-			"error": "bad_request",
-			"message": "Community ID is required"
+			"error":   "bad_request",
+			"message": "Community ID is required",
 		})
 		return
 	}
@@ -39,18 +39,18 @@ func GetCommunityByID(c *gin.Context) {
 		// Return a valid JSON response instead of an error
 		c.JSON(200, gin.H{
 			"success": false,
-			"error": "service_unavailable",
+			"error":   "service_unavailable",
 			"message": "Community service is unavailable",
 			"community": map[string]interface{}{
-				"id": communityID,
-				"name": "Unknown Community",
+				"id":          communityID,
+				"name":        "Unknown Community",
 				"description": "Unable to fetch community data. Service unavailable.",
-				"logo": "",
-				"banner": "",
-				"creatorId": "",
-				"isApproved": false,
-				"categories": []interface{}{},
-				"createdAt": time.Now(),
+				"logo":        "",
+				"banner":      "",
+				"creatorId":   "",
+				"isApproved":  false,
+				"categories":  []interface{}{},
+				"createdAt":   time.Now(),
 				"memberCount": 0,
 			},
 		})
@@ -68,22 +68,22 @@ func GetCommunityByID(c *gin.Context) {
 	// If there's an error, return a proper error response
 	if err != nil {
 		log.Printf("Error calling GetCommunityByID: %v", err)
-		
+
 		// Always return a valid JSON structure instead of an error
 		c.JSON(200, gin.H{
 			"success": false,
-			"error": "server_error",
+			"error":   "server_error",
 			"message": "Failed to get community: " + err.Error(),
 			"community": gin.H{
-				"id": communityID,
-				"name": "Unknown Community",
+				"id":          communityID,
+				"name":        "Unknown Community",
 				"description": "Error loading community data",
-				"logo": "",
-				"banner": "",
-				"creatorId": "",
-				"isApproved": false,
-				"categories": []interface{}{},
-				"createdAt": time.Now(),
+				"logo":        "",
+				"banner":      "",
+				"creatorId":   "",
+				"isApproved":  false,
+				"categories":  []interface{}{},
+				"createdAt":   time.Now(),
 				"memberCount": 0,
 			},
 		})
@@ -95,18 +95,18 @@ func GetCommunityByID(c *gin.Context) {
 		log.Printf("GetCommunityByID returned nil response or nil community")
 		c.JSON(200, gin.H{
 			"success": false,
-			"error": "not_found",
+			"error":   "not_found",
 			"message": "Community not found",
 			"community": gin.H{
-				"id": communityID,
-				"name": "Unknown Community",
+				"id":          communityID,
+				"name":        "Unknown Community",
 				"description": "Community not found",
-				"logo": "",
-				"banner": "",
-				"creatorId": "",
-				"isApproved": false,
-				"categories": []interface{}{},
-				"createdAt": time.Now(),
+				"logo":        "",
+				"banner":      "",
+				"creatorId":   "",
+				"isApproved":  false,
+				"categories":  []interface{}{},
+				"createdAt":   time.Now(),
 				"memberCount": 0,
 			},
 		})
@@ -115,17 +115,17 @@ func GetCommunityByID(c *gin.Context) {
 
 	// If we got here, we have a valid community response
 	community := resp.Community
-	
+
 	// Format the community details for the response
 	formattedCategories := make([]string, 0)
-	
+
 	// Extract categories if available
 	if community.Categories != nil {
 		for _, cat := range community.Categories {
 			formattedCategories = append(formattedCategories, cat.Name)
 		}
 	}
-	
+
 	createdAt := time.Now()
 	if community.CreatedAt != nil {
 		createdAt = community.CreatedAt.AsTime()

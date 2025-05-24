@@ -46,6 +46,8 @@ type User struct {
 	FollowerCount         int32  `protobuf:"varint,19,opt,name=follower_count,json=followerCount,proto3" json:"follower_count,omitempty"`
 	FollowingCount        int32  `protobuf:"varint,20,opt,name=following_count,json=followingCount,proto3" json:"following_count,omitempty"`
 	IsFollowing           bool   `protobuf:"varint,21,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"` // Whether the requesting user is following this user
+	IsAdmin               bool   `protobuf:"varint,22,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`             // Whether the user is an admin
+	IsBanned              bool   `protobuf:"varint,23,opt,name=is_banned,json=isBanned,proto3" json:"is_banned,omitempty"`          // Whether the user is banned
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -223,6 +225,20 @@ func (x *User) GetFollowingCount() int32 {
 func (x *User) GetIsFollowing() bool {
 	if x != nil {
 		return x.IsFollowing
+	}
+	return false
+}
+
+func (x *User) GetIsAdmin() bool {
+	if x != nil {
+		return x.IsAdmin
+	}
+	return false
+}
+
+func (x *User) GetIsBanned() bool {
+	if x != nil {
+		return x.IsBanned
 	}
 	return false
 }
@@ -1560,7 +1576,7 @@ func (x *GetFollowersResponse) GetLimit() int32 {
 // Request to get users being followed
 type GetFollowingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // ID of the user whose following list we want
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // ID of the user whose following we want
 	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`                  // Pagination - page number
 	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                // Pagination - items per page
 	unknownFields protoimpl.UnknownFields
@@ -1618,7 +1634,7 @@ func (x *GetFollowingRequest) GetLimit() int32 {
 	return 0
 }
 
-// Response containing list of followed users
+// Response containing list of users being followed
 type GetFollowingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Following     []*User                `protobuf:"bytes,1,rep,name=following,proto3" json:"following,omitempty"`
@@ -1690,10 +1706,9 @@ func (x *GetFollowingResponse) GetLimit() int32 {
 // Request to search users
 type SearchUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`   // Search query
-	Filter        string                 `protobuf:"bytes,2,opt,name=filter,proto3" json:"filter,omitempty"` // Optional filter (verified, following, etc.)
-	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`    // Pagination - page number
-	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`  // Pagination - items per page
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`  // Search query
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`   // Pagination - page number
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"` // Pagination - items per page
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1735,13 +1750,6 @@ func (x *SearchUsersRequest) GetQuery() string {
 	return ""
 }
 
-func (x *SearchUsersRequest) GetFilter() string {
-	if x != nil {
-		return x.Filter
-	}
-	return ""
-}
-
 func (x *SearchUsersRequest) GetPage() int32 {
 	if x != nil {
 		return x.Page
@@ -1761,6 +1769,8 @@ type SearchUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1809,11 +1819,24 @@ func (x *SearchUsersResponse) GetTotalCount() int32 {
 	return 0
 }
 
+func (x *SearchUsersResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *SearchUsersResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
 // Request to get recommended users
 type GetRecommendedUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Optional: ID of the requesting user (to exclude already followed users)
-	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                // Number of recommendations to fetch
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"` // Number of users to fetch
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1846,13 +1869,6 @@ func (x *GetRecommendedUsersRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetRecommendedUsersRequest.ProtoReflect.Descriptor instead.
 func (*GetRecommendedUsersRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_user_proto_rawDescGZIP(), []int{31}
-}
-
-func (x *GetRecommendedUsersRequest) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
 }
 
 func (x *GetRecommendedUsersRequest) GetLimit() int32 {
@@ -1957,8 +1973,6 @@ type RequestPasswordResetResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	Token         string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
-	Expiry        string                 `protobuf:"bytes,4,opt,name=expiry,proto3" json:"expiry,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2007,24 +2021,11 @@ func (x *RequestPasswordResetResponse) GetMessage() string {
 	return ""
 }
 
-func (x *RequestPasswordResetResponse) GetToken() string {
-	if x != nil {
-		return x.Token
-	}
-	return ""
-}
-
-func (x *RequestPasswordResetResponse) GetExpiry() string {
-	if x != nil {
-		return x.Expiry
-	}
-	return ""
-}
-
-// Request to verify a password reset token
+// Request to verify reset token
 type VerifyResetTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2066,12 +2067,19 @@ func (x *VerifyResetTokenRequest) GetToken() string {
 	return ""
 }
 
-// Response for verifying reset token
+func (x *VerifyResetTokenRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+// Response for token verification
 type VerifyResetTokenResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
-	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2113,13 +2121,6 @@ func (x *VerifyResetTokenResponse) GetValid() bool {
 	return false
 }
 
-func (x *VerifyResetTokenResponse) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
-}
-
 func (x *VerifyResetTokenResponse) GetMessage() string {
 	if x != nil {
 		return x.Message
@@ -2127,13 +2128,20 @@ func (x *VerifyResetTokenResponse) GetMessage() string {
 	return ""
 }
 
-// Request for verifying security answer
+func (x *VerifyResetTokenResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// Request to verify security answer
 type VerifySecurityAnswerRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Email          string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
-	SecurityAnswer string                 `protobuf:"bytes,2,opt,name=security_answer,json=securityAnswer,proto3" json:"security_answer,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Answer        string                 `protobuf:"bytes,2,opt,name=answer,proto3" json:"answer,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *VerifySecurityAnswerRequest) Reset() {
@@ -2173,17 +2181,17 @@ func (x *VerifySecurityAnswerRequest) GetEmail() string {
 	return ""
 }
 
-func (x *VerifySecurityAnswerRequest) GetSecurityAnswer() string {
+func (x *VerifySecurityAnswerRequest) GetAnswer() string {
 	if x != nil {
-		return x.SecurityAnswer
+		return x.Answer
 	}
 	return ""
 }
 
-// Response for verifying security answer
+// Response for security answer verification
 type VerifySecurityAnswerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Token         string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2220,9 +2228,9 @@ func (*VerifySecurityAnswerResponse) Descriptor() ([]byte, []int) {
 	return file_proto_user_user_proto_rawDescGZIP(), []int{38}
 }
 
-func (x *VerifySecurityAnswerResponse) GetSuccess() bool {
+func (x *VerifySecurityAnswerResponse) GetValid() bool {
 	if x != nil {
-		return x.Success
+		return x.Valid
 	}
 	return false
 }
@@ -2241,12 +2249,12 @@ func (x *VerifySecurityAnswerResponse) GetToken() string {
 	return ""
 }
 
-// Request to reset password using a token
+// Request to reset password
 type ResetPasswordRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	NewPassword   string                 `protobuf:"bytes,2,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
-	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	NewPassword   string                 `protobuf:"bytes,3,opt,name=new_password,json=newPassword,proto3" json:"new_password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2288,16 +2296,16 @@ func (x *ResetPasswordRequest) GetToken() string {
 	return ""
 }
 
-func (x *ResetPasswordRequest) GetNewPassword() string {
+func (x *ResetPasswordRequest) GetEmail() string {
 	if x != nil {
-		return x.NewPassword
+		return x.Email
 	}
 	return ""
 }
 
-func (x *ResetPasswordRequest) GetEmail() string {
+func (x *ResetPasswordRequest) GetNewPassword() string {
 	if x != nil {
-		return x.Email
+		return x.NewPassword
 	}
 	return ""
 }
@@ -2355,7 +2363,7 @@ func (x *ResetPasswordResponse) GetMessage() string {
 	return ""
 }
 
-// Request for getting all users with pagination
+// Request to get all users
 type GetAllUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
@@ -2424,13 +2432,12 @@ func (x *GetAllUsersRequest) GetSortDesc() bool {
 	return false
 }
 
-// Response for getting all users
+// Response containing list of all users
 type GetAllUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
-	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2486,18 +2493,2372 @@ func (x *GetAllUsersResponse) GetPage() int32 {
 	return 0
 }
 
-func (x *GetAllUsersResponse) GetLimit() int32 {
+// Request to ban or unban a user
+type BanUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Ban           bool                   `protobuf:"varint,2,opt,name=ban,proto3" json:"ban,omitempty"` // true for ban, false for unban
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BanUserRequest) Reset() {
+	*x = BanUserRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BanUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BanUserRequest) ProtoMessage() {}
+
+func (x *BanUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BanUserRequest.ProtoReflect.Descriptor instead.
+func (*BanUserRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *BanUserRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *BanUserRequest) GetBan() bool {
+	if x != nil {
+		return x.Ban
+	}
+	return false
+}
+
+func (x *BanUserRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *BanUserRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for ban user operation
+type BanUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BanUserResponse) Reset() {
+	*x = BanUserResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BanUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BanUserResponse) ProtoMessage() {}
+
+func (x *BanUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BanUserResponse.ProtoReflect.Descriptor instead.
+func (*BanUserResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *BanUserResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *BanUserResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Request to send newsletter
+type SendNewsletterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Subject       string                 `protobuf:"bytes,1,opt,name=subject,proto3" json:"subject,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	AdminId       string                 `protobuf:"bytes,3,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SendNewsletterRequest) Reset() {
+	*x = SendNewsletterRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendNewsletterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendNewsletterRequest) ProtoMessage() {}
+
+func (x *SendNewsletterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendNewsletterRequest.ProtoReflect.Descriptor instead.
+func (*SendNewsletterRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *SendNewsletterRequest) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *SendNewsletterRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *SendNewsletterRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for send newsletter operation
+type SendNewsletterResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message         string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	RecipientsCount int32                  `protobuf:"varint,3,opt,name=recipients_count,json=recipientsCount,proto3" json:"recipients_count,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SendNewsletterResponse) Reset() {
+	*x = SendNewsletterResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendNewsletterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendNewsletterResponse) ProtoMessage() {}
+
+func (x *SendNewsletterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendNewsletterResponse.ProtoReflect.Descriptor instead.
+func (*SendNewsletterResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *SendNewsletterResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SendNewsletterResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *SendNewsletterResponse) GetRecipientsCount() int32 {
+	if x != nil {
+		return x.RecipientsCount
+	}
+	return 0
+}
+
+// Community request message
+type CommunityRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	CategoryId    string                 `protobuf:"bytes,5,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"` // "pending", "approved", "rejected"
+	CreatedAt     string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Requester     *User                  `protobuf:"bytes,9,opt,name=requester,proto3" json:"requester,omitempty"` // The user who made the request
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommunityRequest) Reset() {
+	*x = CommunityRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommunityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommunityRequest) ProtoMessage() {}
+
+func (x *CommunityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommunityRequest.ProtoReflect.Descriptor instead.
+func (*CommunityRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *CommunityRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetCategoryId() string {
+	if x != nil {
+		return x.CategoryId
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *CommunityRequest) GetRequester() *User {
+	if x != nil {
+		return x.Requester
+	}
+	return nil
+}
+
+// Request to get community creation requests
+type GetCommunityRequestsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // filter by status: "pending", "approved", "rejected", or empty for all
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityRequestsRequest) Reset() {
+	*x = GetCommunityRequestsRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityRequestsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityRequestsRequest) ProtoMessage() {}
+
+func (x *GetCommunityRequestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityRequestsRequest.ProtoReflect.Descriptor instead.
+func (*GetCommunityRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *GetCommunityRequestsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetCommunityRequestsRequest) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
 	}
 	return 0
 }
 
+func (x *GetCommunityRequestsRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+// Response containing community creation requests
+type GetCommunityRequestsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Requests      []*CommunityRequest    `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityRequestsResponse) Reset() {
+	*x = GetCommunityRequestsResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityRequestsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityRequestsResponse) ProtoMessage() {}
+
+func (x *GetCommunityRequestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityRequestsResponse.ProtoReflect.Descriptor instead.
+func (*GetCommunityRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *GetCommunityRequestsResponse) GetRequests() []*CommunityRequest {
+	if x != nil {
+		return x.Requests
+	}
+	return nil
+}
+
+func (x *GetCommunityRequestsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetCommunityRequestsResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetCommunityRequestsResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Request to process a community creation request
+type ProcessCommunityRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Approve       bool                   `protobuf:"varint,2,opt,name=approve,proto3" json:"approve,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessCommunityRequestRequest) Reset() {
+	*x = ProcessCommunityRequestRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessCommunityRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessCommunityRequestRequest) ProtoMessage() {}
+
+func (x *ProcessCommunityRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessCommunityRequestRequest.ProtoReflect.Descriptor instead.
+func (*ProcessCommunityRequestRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *ProcessCommunityRequestRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ProcessCommunityRequestRequest) GetApprove() bool {
+	if x != nil {
+		return x.Approve
+	}
+	return false
+}
+
+func (x *ProcessCommunityRequestRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ProcessCommunityRequestRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for processing a community request
+type ProcessCommunityRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessCommunityRequestResponse) Reset() {
+	*x = ProcessCommunityRequestResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessCommunityRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessCommunityRequestResponse) ProtoMessage() {}
+
+func (x *ProcessCommunityRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessCommunityRequestResponse.ProtoReflect.Descriptor instead.
+func (*ProcessCommunityRequestResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *ProcessCommunityRequestResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ProcessCommunityRequestResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Premium user request message
+type PremiumRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"` // "pending", "approved", "rejected"
+	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Requester     *User                  `protobuf:"bytes,7,opt,name=requester,proto3" json:"requester,omitempty"` // The user who made the request
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PremiumRequest) Reset() {
+	*x = PremiumRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PremiumRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PremiumRequest) ProtoMessage() {}
+
+func (x *PremiumRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PremiumRequest.ProtoReflect.Descriptor instead.
+func (*PremiumRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *PremiumRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PremiumRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *PremiumRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *PremiumRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *PremiumRequest) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *PremiumRequest) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *PremiumRequest) GetRequester() *User {
+	if x != nil {
+		return x.Requester
+	}
+	return nil
+}
+
+// Request to get premium user requests
+type GetPremiumRequestsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // filter by status: "pending", "approved", "rejected", or empty for all
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPremiumRequestsRequest) Reset() {
+	*x = GetPremiumRequestsRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPremiumRequestsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPremiumRequestsRequest) ProtoMessage() {}
+
+func (x *GetPremiumRequestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPremiumRequestsRequest.ProtoReflect.Descriptor instead.
+func (*GetPremiumRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *GetPremiumRequestsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetPremiumRequestsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetPremiumRequestsRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+// Response containing premium user requests
+type GetPremiumRequestsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Requests      []*PremiumRequest      `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPremiumRequestsResponse) Reset() {
+	*x = GetPremiumRequestsResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPremiumRequestsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPremiumRequestsResponse) ProtoMessage() {}
+
+func (x *GetPremiumRequestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPremiumRequestsResponse.ProtoReflect.Descriptor instead.
+func (*GetPremiumRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *GetPremiumRequestsResponse) GetRequests() []*PremiumRequest {
+	if x != nil {
+		return x.Requests
+	}
+	return nil
+}
+
+func (x *GetPremiumRequestsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetPremiumRequestsResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetPremiumRequestsResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Request to process a premium user request
+type ProcessPremiumRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Approve       bool                   `protobuf:"varint,2,opt,name=approve,proto3" json:"approve,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessPremiumRequestRequest) Reset() {
+	*x = ProcessPremiumRequestRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessPremiumRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessPremiumRequestRequest) ProtoMessage() {}
+
+func (x *ProcessPremiumRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessPremiumRequestRequest.ProtoReflect.Descriptor instead.
+func (*ProcessPremiumRequestRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *ProcessPremiumRequestRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ProcessPremiumRequestRequest) GetApprove() bool {
+	if x != nil {
+		return x.Approve
+	}
+	return false
+}
+
+func (x *ProcessPremiumRequestRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ProcessPremiumRequestRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for processing a premium user request
+type ProcessPremiumRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessPremiumRequestResponse) Reset() {
+	*x = ProcessPremiumRequestResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessPremiumRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessPremiumRequestResponse) ProtoMessage() {}
+
+func (x *ProcessPremiumRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessPremiumRequestResponse.ProtoReflect.Descriptor instead.
+func (*ProcessPremiumRequestResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *ProcessPremiumRequestResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ProcessPremiumRequestResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// User report message
+type ReportRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReporterId     string                 `protobuf:"bytes,2,opt,name=reporter_id,json=reporterId,proto3" json:"reporter_id,omitempty"`
+	ReportedUserId string                 `protobuf:"bytes,3,opt,name=reported_user_id,json=reportedUserId,proto3" json:"reported_user_id,omitempty"`
+	Reason         string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	Status         string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"` // "pending", "approved", "rejected"
+	CreatedAt      string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      string                 `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Reporter       *User                  `protobuf:"bytes,8,opt,name=reporter,proto3" json:"reporter,omitempty"`                             // The user who made the report
+	ReportedUser   *User                  `protobuf:"bytes,9,opt,name=reported_user,json=reportedUser,proto3" json:"reported_user,omitempty"` // The user who was reported
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ReportRequest) Reset() {
+	*x = ReportRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportRequest) ProtoMessage() {}
+
+func (x *ReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportRequest.ProtoReflect.Descriptor instead.
+func (*ReportRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *ReportRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetReporterId() string {
+	if x != nil {
+		return x.ReporterId
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetReportedUserId() string {
+	if x != nil {
+		return x.ReportedUserId
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *ReportRequest) GetReporter() *User {
+	if x != nil {
+		return x.Reporter
+	}
+	return nil
+}
+
+func (x *ReportRequest) GetReportedUser() *User {
+	if x != nil {
+		return x.ReportedUser
+	}
+	return nil
+}
+
+// Request to get user report requests
+type GetReportRequestsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // filter by status: "pending", "approved", "rejected", or empty for all
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReportRequestsRequest) Reset() {
+	*x = GetReportRequestsRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReportRequestsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReportRequestsRequest) ProtoMessage() {}
+
+func (x *GetReportRequestsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReportRequestsRequest.ProtoReflect.Descriptor instead.
+func (*GetReportRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *GetReportRequestsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetReportRequestsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetReportRequestsRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+// Response containing user report requests
+type GetReportRequestsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Requests      []*ReportRequest       `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReportRequestsResponse) Reset() {
+	*x = GetReportRequestsResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReportRequestsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReportRequestsResponse) ProtoMessage() {}
+
+func (x *GetReportRequestsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReportRequestsResponse.ProtoReflect.Descriptor instead.
+func (*GetReportRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *GetReportRequestsResponse) GetRequests() []*ReportRequest {
+	if x != nil {
+		return x.Requests
+	}
+	return nil
+}
+
+func (x *GetReportRequestsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetReportRequestsResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetReportRequestsResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Request to process a user report
+type ProcessReportRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Approve       bool                   `protobuf:"varint,2,opt,name=approve,proto3" json:"approve,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessReportRequestRequest) Reset() {
+	*x = ProcessReportRequestRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessReportRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessReportRequestRequest) ProtoMessage() {}
+
+func (x *ProcessReportRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessReportRequestRequest.ProtoReflect.Descriptor instead.
+func (*ProcessReportRequestRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *ProcessReportRequestRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ProcessReportRequestRequest) GetApprove() bool {
+	if x != nil {
+		return x.Approve
+	}
+	return false
+}
+
+func (x *ProcessReportRequestRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ProcessReportRequestRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for processing a user report
+type ProcessReportRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessReportRequestResponse) Reset() {
+	*x = ProcessReportRequestResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessReportRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessReportRequestResponse) ProtoMessage() {}
+
+func (x *ProcessReportRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessReportRequestResponse.ProtoReflect.Descriptor instead.
+func (*ProcessReportRequestResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *ProcessReportRequestResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ProcessReportRequestResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Thread category message
+type ThreadCategory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ThreadCategory) Reset() {
+	*x = ThreadCategory{}
+	mi := &file_proto_user_user_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ThreadCategory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ThreadCategory) ProtoMessage() {}
+
+func (x *ThreadCategory) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ThreadCategory.ProtoReflect.Descriptor instead.
+func (*ThreadCategory) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *ThreadCategory) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ThreadCategory) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ThreadCategory) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ThreadCategory) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *ThreadCategory) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+// Request to get thread categories
+type GetThreadCategoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetThreadCategoriesRequest) Reset() {
+	*x = GetThreadCategoriesRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetThreadCategoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetThreadCategoriesRequest) ProtoMessage() {}
+
+func (x *GetThreadCategoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetThreadCategoriesRequest.ProtoReflect.Descriptor instead.
+func (*GetThreadCategoriesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *GetThreadCategoriesRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetThreadCategoriesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Response containing thread categories
+type GetThreadCategoriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Categories    []*ThreadCategory      `protobuf:"bytes,1,rep,name=categories,proto3" json:"categories,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetThreadCategoriesResponse) Reset() {
+	*x = GetThreadCategoriesResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetThreadCategoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetThreadCategoriesResponse) ProtoMessage() {}
+
+func (x *GetThreadCategoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetThreadCategoriesResponse.ProtoReflect.Descriptor instead.
+func (*GetThreadCategoriesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *GetThreadCategoriesResponse) GetCategories() []*ThreadCategory {
+	if x != nil {
+		return x.Categories
+	}
+	return nil
+}
+
+func (x *GetThreadCategoriesResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetThreadCategoriesResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetThreadCategoriesResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Request to create a thread category
+type CreateThreadCategoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	AdminId       string                 `protobuf:"bytes,3,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateThreadCategoryRequest) Reset() {
+	*x = CreateThreadCategoryRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateThreadCategoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateThreadCategoryRequest) ProtoMessage() {}
+
+func (x *CreateThreadCategoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateThreadCategoryRequest.ProtoReflect.Descriptor instead.
+func (*CreateThreadCategoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *CreateThreadCategoryRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateThreadCategoryRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *CreateThreadCategoryRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for creating a thread category
+type CreateThreadCategoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Category      *ThreadCategory        `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateThreadCategoryResponse) Reset() {
+	*x = CreateThreadCategoryResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateThreadCategoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateThreadCategoryResponse) ProtoMessage() {}
+
+func (x *CreateThreadCategoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateThreadCategoryResponse.ProtoReflect.Descriptor instead.
+func (*CreateThreadCategoryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *CreateThreadCategoryResponse) GetCategory() *ThreadCategory {
+	if x != nil {
+		return x.Category
+	}
+	return nil
+}
+
+// Request to update a thread category
+type UpdateThreadCategoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateThreadCategoryRequest) Reset() {
+	*x = UpdateThreadCategoryRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateThreadCategoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateThreadCategoryRequest) ProtoMessage() {}
+
+func (x *UpdateThreadCategoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateThreadCategoryRequest.ProtoReflect.Descriptor instead.
+func (*UpdateThreadCategoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *UpdateThreadCategoryRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UpdateThreadCategoryRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpdateThreadCategoryRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *UpdateThreadCategoryRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for updating a thread category
+type UpdateThreadCategoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Category      *ThreadCategory        `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateThreadCategoryResponse) Reset() {
+	*x = UpdateThreadCategoryResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateThreadCategoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateThreadCategoryResponse) ProtoMessage() {}
+
+func (x *UpdateThreadCategoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateThreadCategoryResponse.ProtoReflect.Descriptor instead.
+func (*UpdateThreadCategoryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *UpdateThreadCategoryResponse) GetCategory() *ThreadCategory {
+	if x != nil {
+		return x.Category
+	}
+	return nil
+}
+
+// Request to delete a thread category
+type DeleteThreadCategoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AdminId       string                 `protobuf:"bytes,2,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteThreadCategoryRequest) Reset() {
+	*x = DeleteThreadCategoryRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteThreadCategoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteThreadCategoryRequest) ProtoMessage() {}
+
+func (x *DeleteThreadCategoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteThreadCategoryRequest.ProtoReflect.Descriptor instead.
+func (*DeleteThreadCategoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *DeleteThreadCategoryRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DeleteThreadCategoryRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for deleting a thread category
+type DeleteThreadCategoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteThreadCategoryResponse) Reset() {
+	*x = DeleteThreadCategoryResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteThreadCategoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteThreadCategoryResponse) ProtoMessage() {}
+
+func (x *DeleteThreadCategoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteThreadCategoryResponse.ProtoReflect.Descriptor instead.
+func (*DeleteThreadCategoryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *DeleteThreadCategoryResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteThreadCategoryResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Community category message
+type CommunityCategory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommunityCategory) Reset() {
+	*x = CommunityCategory{}
+	mi := &file_proto_user_user_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommunityCategory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommunityCategory) ProtoMessage() {}
+
+func (x *CommunityCategory) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommunityCategory.ProtoReflect.Descriptor instead.
+func (*CommunityCategory) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *CommunityCategory) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CommunityCategory) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CommunityCategory) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *CommunityCategory) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *CommunityCategory) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+// Request to get community categories
+type GetCommunityCategoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityCategoriesRequest) Reset() {
+	*x = GetCommunityCategoriesRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityCategoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityCategoriesRequest) ProtoMessage() {}
+
+func (x *GetCommunityCategoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityCategoriesRequest.ProtoReflect.Descriptor instead.
+func (*GetCommunityCategoriesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *GetCommunityCategoriesRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetCommunityCategoriesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Response containing community categories
+type GetCommunityCategoriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Categories    []*CommunityCategory   `protobuf:"bytes,1,rep,name=categories,proto3" json:"categories,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityCategoriesResponse) Reset() {
+	*x = GetCommunityCategoriesResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityCategoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityCategoriesResponse) ProtoMessage() {}
+
+func (x *GetCommunityCategoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityCategoriesResponse.ProtoReflect.Descriptor instead.
+func (*GetCommunityCategoriesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *GetCommunityCategoriesResponse) GetCategories() []*CommunityCategory {
+	if x != nil {
+		return x.Categories
+	}
+	return nil
+}
+
+func (x *GetCommunityCategoriesResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetCommunityCategoriesResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetCommunityCategoriesResponse) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// Request to create a community category
+type CreateCommunityCategoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	AdminId       string                 `protobuf:"bytes,3,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCommunityCategoryRequest) Reset() {
+	*x = CreateCommunityCategoryRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommunityCategoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommunityCategoryRequest) ProtoMessage() {}
+
+func (x *CreateCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommunityCategoryRequest.ProtoReflect.Descriptor instead.
+func (*CreateCommunityCategoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *CreateCommunityCategoryRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateCommunityCategoryRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *CreateCommunityCategoryRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for creating a community category
+type CreateCommunityCategoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Category      *CommunityCategory     `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCommunityCategoryResponse) Reset() {
+	*x = CreateCommunityCategoryResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommunityCategoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommunityCategoryResponse) ProtoMessage() {}
+
+func (x *CreateCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommunityCategoryResponse.ProtoReflect.Descriptor instead.
+func (*CreateCommunityCategoryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *CreateCommunityCategoryResponse) GetCategory() *CommunityCategory {
+	if x != nil {
+		return x.Category
+	}
+	return nil
+}
+
+// Request to update a community category
+type UpdateCommunityCategoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	AdminId       string                 `protobuf:"bytes,4,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateCommunityCategoryRequest) Reset() {
+	*x = UpdateCommunityCategoryRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCommunityCategoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCommunityCategoryRequest) ProtoMessage() {}
+
+func (x *UpdateCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCommunityCategoryRequest.ProtoReflect.Descriptor instead.
+func (*UpdateCommunityCategoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *UpdateCommunityCategoryRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UpdateCommunityCategoryRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpdateCommunityCategoryRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *UpdateCommunityCategoryRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for updating a community category
+type UpdateCommunityCategoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Category      *CommunityCategory     `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateCommunityCategoryResponse) Reset() {
+	*x = UpdateCommunityCategoryResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCommunityCategoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCommunityCategoryResponse) ProtoMessage() {}
+
+func (x *UpdateCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCommunityCategoryResponse.ProtoReflect.Descriptor instead.
+func (*UpdateCommunityCategoryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *UpdateCommunityCategoryResponse) GetCategory() *CommunityCategory {
+	if x != nil {
+		return x.Category
+	}
+	return nil
+}
+
+// Request to delete a community category
+type DeleteCommunityCategoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AdminId       string                 `protobuf:"bytes,2,opt,name=admin_id,json=adminId,proto3" json:"admin_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteCommunityCategoryRequest) Reset() {
+	*x = DeleteCommunityCategoryRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteCommunityCategoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteCommunityCategoryRequest) ProtoMessage() {}
+
+func (x *DeleteCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteCommunityCategoryRequest.ProtoReflect.Descriptor instead.
+func (*DeleteCommunityCategoryRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *DeleteCommunityCategoryRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DeleteCommunityCategoryRequest) GetAdminId() string {
+	if x != nil {
+		return x.AdminId
+	}
+	return ""
+}
+
+// Response for deleting a community category
+type DeleteCommunityCategoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteCommunityCategoryResponse) Reset() {
+	*x = DeleteCommunityCategoryResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteCommunityCategoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteCommunityCategoryResponse) ProtoMessage() {}
+
+func (x *DeleteCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteCommunityCategoryResponse.ProtoReflect.Descriptor instead.
+func (*DeleteCommunityCategoryResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *DeleteCommunityCategoryResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteCommunityCategoryResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/user/user.proto\x12\x04user\"\xab\x05\n" +
+	"\x15proto/user/user.proto\x12\x04user\"\xe3\x05\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -2524,7 +4885,9 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"isVerified\x12%\n" +
 	"\x0efollower_count\x18\x13 \x01(\x05R\rfollowerCount\x12'\n" +
 	"\x0ffollowing_count\x18\x14 \x01(\x05R\x0efollowingCount\x12!\n" +
-	"\fis_following\x18\x15 \x01(\bR\visFollowing\")\n" +
+	"\fis_following\x18\x15 \x01(\bR\visFollowing\x12\x19\n" +
+	"\bis_admin\x18\x16 \x01(\bR\aisAdmin\x12\x1b\n" +
+	"\tis_banned\x18\x17 \x01(\bR\bisBanned\")\n" +
 	"\x0eGetUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"1\n" +
 	"\x0fGetUserResponse\x12\x1e\n" +
@@ -2626,47 +4989,46 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"l\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"T\n" +
 	"\x12SearchUsersRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12\x16\n" +
-	"\x06filter\x18\x02 \x01(\tR\x06filter\x12\x12\n" +
-	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"X\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x82\x01\n" +
 	"\x13SearchUsersResponse\x12 \n" +
 	"\x05users\x18\x01 \x03(\v2\n" +
 	".user.UserR\x05users\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
-	"totalCount\"K\n" +
-	"\x1aGetRecommendedUsersRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"?\n" +
+	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"2\n" +
+	"\x1aGetRecommendedUsersRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\"?\n" +
 	"\x1bGetRecommendedUsersResponse\x12 \n" +
 	"\x05users\x18\x01 \x03(\v2\n" +
 	".user.UserR\x05users\"3\n" +
 	"\x1bRequestPasswordResetRequest\x12\x14\n" +
-	"\x05email\x18\x01 \x01(\tR\x05email\"\x80\x01\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\"R\n" +
 	"\x1cRequestPasswordResetResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
-	"\x05token\x18\x03 \x01(\tR\x05token\x12\x16\n" +
-	"\x06expiry\x18\x04 \x01(\tR\x06expiry\"/\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"E\n" +
 	"\x17VerifyResetTokenRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"`\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\"c\n" +
 	"\x18VerifyResetTokenResponse\x12\x14\n" +
-	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x14\n" +
-	"\x05email\x18\x02 \x01(\tR\x05email\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\\\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"K\n" +
 	"\x1bVerifySecurityAnswerRequest\x12\x14\n" +
-	"\x05email\x18\x01 \x01(\tR\x05email\x12'\n" +
-	"\x0fsecurity_answer\x18\x02 \x01(\tR\x0esecurityAnswer\"h\n" +
-	"\x1cVerifySecurityAnswerResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x16\n" +
+	"\x06answer\x18\x02 \x01(\tR\x06answer\"d\n" +
+	"\x1cVerifySecurityAnswerResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\"e\n" +
 	"\x14ResetPasswordRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\x12!\n" +
-	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\"K\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12!\n" +
+	"\fnew_password\x18\x03 \x01(\tR\vnewPassword\"K\n" +
 	"\x15ResetPasswordResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"t\n" +
@@ -2674,14 +5036,202 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x17\n" +
 	"\asort_by\x18\x03 \x01(\tR\x06sortBy\x12\x1b\n" +
-	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\"\x82\x01\n" +
+	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\"l\n" +
 	"\x13GetAllUsersResponse\x12 \n" +
 	"\x05users\x18\x01 \x03(\v2\n" +
 	".user.UserR\x05users\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
 	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\"n\n" +
+	"\x0eBanUserRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x10\n" +
+	"\x03ban\x18\x02 \x01(\bR\x03ban\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\"E\n" +
+	"\x0fBanUserResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"f\n" +
+	"\x15SendNewsletterRequest\x12\x18\n" +
+	"\asubject\x18\x01 \x01(\tR\asubject\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\x12\x19\n" +
+	"\badmin_id\x18\x03 \x01(\tR\aadminId\"w\n" +
+	"\x16SendNewsletterResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12)\n" +
+	"\x10recipients_count\x18\x03 \x01(\x05R\x0frecipientsCount\"\x92\x02\n" +
+	"\x10CommunityRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1f\n" +
+	"\vcategory_id\x18\x05 \x01(\tR\n" +
+	"categoryId\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\a \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\tR\tupdatedAt\x12(\n" +
+	"\trequester\x18\t \x01(\v2\n" +
+	".user.UserR\trequester\"_\n" +
+	"\x1bGetCommunityRequestsRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\"\x9d\x01\n" +
+	"\x1cGetCommunityRequestsResponse\x122\n" +
+	"\brequests\x18\x01 \x03(\v2\x16.user.CommunityRequestR\brequests\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit2\xed\f\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x8c\x01\n" +
+	"\x1eProcessCommunityRequestRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
+	"\aapprove\x18\x02 \x01(\bR\aapprove\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\"U\n" +
+	"\x1fProcessCommunityRequestResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xd1\x01\n" +
+	"\x0ePremiumRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\tR\tupdatedAt\x12(\n" +
+	"\trequester\x18\a \x01(\v2\n" +
+	".user.UserR\trequester\"]\n" +
+	"\x19GetPremiumRequestsRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\"\x99\x01\n" +
+	"\x1aGetPremiumRequestsResponse\x120\n" +
+	"\brequests\x18\x01 \x03(\v2\x14.user.PremiumRequestR\brequests\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x8a\x01\n" +
+	"\x1cProcessPremiumRequestRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
+	"\aapprove\x18\x02 \x01(\bR\aapprove\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\"S\n" +
+	"\x1dProcessPremiumRequestResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xb1\x02\n" +
+	"\rReportRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
+	"\vreporter_id\x18\x02 \x01(\tR\n" +
+	"reporterId\x12(\n" +
+	"\x10reported_user_id\x18\x03 \x01(\tR\x0ereportedUserId\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\tR\tupdatedAt\x12&\n" +
+	"\breporter\x18\b \x01(\v2\n" +
+	".user.UserR\breporter\x12/\n" +
+	"\rreported_user\x18\t \x01(\v2\n" +
+	".user.UserR\freportedUser\"\\\n" +
+	"\x18GetReportRequestsRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\"\x97\x01\n" +
+	"\x19GetReportRequestsResponse\x12/\n" +
+	"\brequests\x18\x01 \x03(\v2\x13.user.ReportRequestR\brequests\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\x89\x01\n" +
+	"\x1bProcessReportRequestRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
+	"\aapprove\x18\x02 \x01(\bR\aapprove\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\"R\n" +
+	"\x1cProcessReportRequestResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x94\x01\n" +
+	"\x0eThreadCategory\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x05 \x01(\tR\tupdatedAt\"F\n" +
+	"\x1aGetThreadCategoriesRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\x9e\x01\n" +
+	"\x1bGetThreadCategoriesResponse\x124\n" +
+	"\n" +
+	"categories\x18\x01 \x03(\v2\x14.user.ThreadCategoryR\n" +
+	"categories\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"n\n" +
+	"\x1bCreateThreadCategoryRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x19\n" +
+	"\badmin_id\x18\x03 \x01(\tR\aadminId\"P\n" +
+	"\x1cCreateThreadCategoryResponse\x120\n" +
+	"\bcategory\x18\x01 \x01(\v2\x14.user.ThreadCategoryR\bcategory\"~\n" +
+	"\x1bUpdateThreadCategoryRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\"P\n" +
+	"\x1cUpdateThreadCategoryResponse\x120\n" +
+	"\bcategory\x18\x01 \x01(\v2\x14.user.ThreadCategoryR\bcategory\"H\n" +
+	"\x1bDeleteThreadCategoryRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\badmin_id\x18\x02 \x01(\tR\aadminId\"R\n" +
+	"\x1cDeleteThreadCategoryResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x97\x01\n" +
+	"\x11CommunityCategory\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x05 \x01(\tR\tupdatedAt\"I\n" +
+	"\x1dGetCommunityCategoriesRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\xa4\x01\n" +
+	"\x1eGetCommunityCategoriesResponse\x127\n" +
+	"\n" +
+	"categories\x18\x01 \x03(\v2\x17.user.CommunityCategoryR\n" +
+	"categories\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\"q\n" +
+	"\x1eCreateCommunityCategoryRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x19\n" +
+	"\badmin_id\x18\x03 \x01(\tR\aadminId\"V\n" +
+	"\x1fCreateCommunityCategoryResponse\x123\n" +
+	"\bcategory\x18\x01 \x01(\v2\x17.user.CommunityCategoryR\bcategory\"\x81\x01\n" +
+	"\x1eUpdateCommunityCategoryRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x19\n" +
+	"\badmin_id\x18\x04 \x01(\tR\aadminId\"V\n" +
+	"\x1fUpdateCommunityCategoryResponse\x123\n" +
+	"\bcategory\x18\x01 \x01(\v2\x17.user.CommunityCategoryR\bcategory\"K\n" +
+	"\x1eDeleteCommunityCategoryRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\badmin_id\x18\x02 \x01(\tR\aadminId\"U\n" +
+	"\x1fDeleteCommunityCategoryResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xdf\x18\n" +
 	"\vUserService\x128\n" +
 	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
 	"\n" +
@@ -2707,7 +5257,23 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x14RequestPasswordReset\x12!.user.RequestPasswordResetRequest\x1a\".user.RequestPasswordResetResponse\"\x00\x12S\n" +
 	"\x10VerifyResetToken\x12\x1d.user.VerifyResetTokenRequest\x1a\x1e.user.VerifyResetTokenResponse\"\x00\x12J\n" +
 	"\rResetPassword\x12\x1a.user.ResetPasswordRequest\x1a\x1b.user.ResetPasswordResponse\"\x00\x12_\n" +
-	"\x14VerifySecurityAnswer\x12!.user.VerifySecurityAnswerRequest\x1a\".user.VerifySecurityAnswerResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
+	"\x14VerifySecurityAnswer\x12!.user.VerifySecurityAnswerRequest\x1a\".user.VerifySecurityAnswerResponse\"\x00\x128\n" +
+	"\aBanUser\x12\x14.user.BanUserRequest\x1a\x15.user.BanUserResponse\"\x00\x12M\n" +
+	"\x0eSendNewsletter\x12\x1b.user.SendNewsletterRequest\x1a\x1c.user.SendNewsletterResponse\"\x00\x12_\n" +
+	"\x14GetCommunityRequests\x12!.user.GetCommunityRequestsRequest\x1a\".user.GetCommunityRequestsResponse\"\x00\x12h\n" +
+	"\x17ProcessCommunityRequest\x12$.user.ProcessCommunityRequestRequest\x1a%.user.ProcessCommunityRequestResponse\"\x00\x12Y\n" +
+	"\x12GetPremiumRequests\x12\x1f.user.GetPremiumRequestsRequest\x1a .user.GetPremiumRequestsResponse\"\x00\x12b\n" +
+	"\x15ProcessPremiumRequest\x12\".user.ProcessPremiumRequestRequest\x1a#.user.ProcessPremiumRequestResponse\"\x00\x12V\n" +
+	"\x11GetReportRequests\x12\x1e.user.GetReportRequestsRequest\x1a\x1f.user.GetReportRequestsResponse\"\x00\x12_\n" +
+	"\x14ProcessReportRequest\x12!.user.ProcessReportRequestRequest\x1a\".user.ProcessReportRequestResponse\"\x00\x12\\\n" +
+	"\x13GetThreadCategories\x12 .user.GetThreadCategoriesRequest\x1a!.user.GetThreadCategoriesResponse\"\x00\x12_\n" +
+	"\x14CreateThreadCategory\x12!.user.CreateThreadCategoryRequest\x1a\".user.CreateThreadCategoryResponse\"\x00\x12_\n" +
+	"\x14UpdateThreadCategory\x12!.user.UpdateThreadCategoryRequest\x1a\".user.UpdateThreadCategoryResponse\"\x00\x12_\n" +
+	"\x14DeleteThreadCategory\x12!.user.DeleteThreadCategoryRequest\x1a\".user.DeleteThreadCategoryResponse\"\x00\x12e\n" +
+	"\x16GetCommunityCategories\x12#.user.GetCommunityCategoriesRequest\x1a$.user.GetCommunityCategoriesResponse\"\x00\x12h\n" +
+	"\x17CreateCommunityCategory\x12$.user.CreateCommunityCategoryRequest\x1a%.user.CreateCommunityCategoryResponse\"\x00\x12h\n" +
+	"\x17UpdateCommunityCategory\x12$.user.UpdateCommunityCategoryRequest\x1a%.user.UpdateCommunityCategoryResponse\"\x00\x12h\n" +
+	"\x17DeleteCommunityCategory\x12$.user.DeleteCommunityCategoryRequest\x1a%.user.DeleteCommunityCategoryResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -2721,7 +5287,7 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
 var file_proto_user_user_proto_goTypes = []any{
 	(*User)(nil),                                 // 0: user.User
 	(*GetUserRequest)(nil),                       // 1: user.GetUserRequest
@@ -2766,6 +5332,43 @@ var file_proto_user_user_proto_goTypes = []any{
 	(*ResetPasswordResponse)(nil),                // 40: user.ResetPasswordResponse
 	(*GetAllUsersRequest)(nil),                   // 41: user.GetAllUsersRequest
 	(*GetAllUsersResponse)(nil),                  // 42: user.GetAllUsersResponse
+	(*BanUserRequest)(nil),                       // 43: user.BanUserRequest
+	(*BanUserResponse)(nil),                      // 44: user.BanUserResponse
+	(*SendNewsletterRequest)(nil),                // 45: user.SendNewsletterRequest
+	(*SendNewsletterResponse)(nil),               // 46: user.SendNewsletterResponse
+	(*CommunityRequest)(nil),                     // 47: user.CommunityRequest
+	(*GetCommunityRequestsRequest)(nil),          // 48: user.GetCommunityRequestsRequest
+	(*GetCommunityRequestsResponse)(nil),         // 49: user.GetCommunityRequestsResponse
+	(*ProcessCommunityRequestRequest)(nil),       // 50: user.ProcessCommunityRequestRequest
+	(*ProcessCommunityRequestResponse)(nil),      // 51: user.ProcessCommunityRequestResponse
+	(*PremiumRequest)(nil),                       // 52: user.PremiumRequest
+	(*GetPremiumRequestsRequest)(nil),            // 53: user.GetPremiumRequestsRequest
+	(*GetPremiumRequestsResponse)(nil),           // 54: user.GetPremiumRequestsResponse
+	(*ProcessPremiumRequestRequest)(nil),         // 55: user.ProcessPremiumRequestRequest
+	(*ProcessPremiumRequestResponse)(nil),        // 56: user.ProcessPremiumRequestResponse
+	(*ReportRequest)(nil),                        // 57: user.ReportRequest
+	(*GetReportRequestsRequest)(nil),             // 58: user.GetReportRequestsRequest
+	(*GetReportRequestsResponse)(nil),            // 59: user.GetReportRequestsResponse
+	(*ProcessReportRequestRequest)(nil),          // 60: user.ProcessReportRequestRequest
+	(*ProcessReportRequestResponse)(nil),         // 61: user.ProcessReportRequestResponse
+	(*ThreadCategory)(nil),                       // 62: user.ThreadCategory
+	(*GetThreadCategoriesRequest)(nil),           // 63: user.GetThreadCategoriesRequest
+	(*GetThreadCategoriesResponse)(nil),          // 64: user.GetThreadCategoriesResponse
+	(*CreateThreadCategoryRequest)(nil),          // 65: user.CreateThreadCategoryRequest
+	(*CreateThreadCategoryResponse)(nil),         // 66: user.CreateThreadCategoryResponse
+	(*UpdateThreadCategoryRequest)(nil),          // 67: user.UpdateThreadCategoryRequest
+	(*UpdateThreadCategoryResponse)(nil),         // 68: user.UpdateThreadCategoryResponse
+	(*DeleteThreadCategoryRequest)(nil),          // 69: user.DeleteThreadCategoryRequest
+	(*DeleteThreadCategoryResponse)(nil),         // 70: user.DeleteThreadCategoryResponse
+	(*CommunityCategory)(nil),                    // 71: user.CommunityCategory
+	(*GetCommunityCategoriesRequest)(nil),        // 72: user.GetCommunityCategoriesRequest
+	(*GetCommunityCategoriesResponse)(nil),       // 73: user.GetCommunityCategoriesResponse
+	(*CreateCommunityCategoryRequest)(nil),       // 74: user.CreateCommunityCategoryRequest
+	(*CreateCommunityCategoryResponse)(nil),      // 75: user.CreateCommunityCategoryResponse
+	(*UpdateCommunityCategoryRequest)(nil),       // 76: user.UpdateCommunityCategoryRequest
+	(*UpdateCommunityCategoryResponse)(nil),      // 77: user.UpdateCommunityCategoryResponse
+	(*DeleteCommunityCategoryRequest)(nil),       // 78: user.DeleteCommunityCategoryRequest
+	(*DeleteCommunityCategoryResponse)(nil),      // 79: user.DeleteCommunityCategoryResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 0: user.GetUserResponse.user:type_name -> user.User
@@ -2781,53 +5384,98 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 10: user.SearchUsersResponse.users:type_name -> user.User
 	0,  // 11: user.GetRecommendedUsersResponse.users:type_name -> user.User
 	0,  // 12: user.GetAllUsersResponse.users:type_name -> user.User
-	1,  // 13: user.UserService.GetUser:input_type -> user.GetUserRequest
-	3,  // 14: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	5,  // 15: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	7,  // 16: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	9,  // 17: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
-	11, // 18: user.UserService.LoginUser:input_type -> user.LoginUserRequest
-	13, // 19: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
-	15, // 20: user.UserService.GetUserByUsername:input_type -> user.GetUserByUsernameRequest
-	17, // 21: user.UserService.IsUserBlocked:input_type -> user.IsUserBlockedRequest
-	19, // 22: user.UserService.IsFollowing:input_type -> user.IsFollowingRequest
-	21, // 23: user.UserService.FollowUser:input_type -> user.FollowUserRequest
-	23, // 24: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
-	25, // 25: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
-	27, // 26: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
-	29, // 27: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
-	31, // 28: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
-	41, // 29: user.UserService.GetAllUsers:input_type -> user.GetAllUsersRequest
-	33, // 30: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
-	35, // 31: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
-	39, // 32: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
-	37, // 33: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
-	2,  // 34: user.UserService.GetUser:output_type -> user.GetUserResponse
-	4,  // 35: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 36: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	8,  // 37: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	10, // 38: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
-	12, // 39: user.UserService.LoginUser:output_type -> user.LoginUserResponse
-	14, // 40: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
-	16, // 41: user.UserService.GetUserByUsername:output_type -> user.GetUserByUsernameResponse
-	18, // 42: user.UserService.IsUserBlocked:output_type -> user.IsUserBlockedResponse
-	20, // 43: user.UserService.IsFollowing:output_type -> user.IsFollowingResponse
-	22, // 44: user.UserService.FollowUser:output_type -> user.FollowUserResponse
-	24, // 45: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
-	26, // 46: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
-	28, // 47: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
-	30, // 48: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
-	32, // 49: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
-	42, // 50: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
-	34, // 51: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
-	36, // 52: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
-	40, // 53: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
-	38, // 54: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
-	34, // [34:55] is the sub-list for method output_type
-	13, // [13:34] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	0,  // 13: user.CommunityRequest.requester:type_name -> user.User
+	47, // 14: user.GetCommunityRequestsResponse.requests:type_name -> user.CommunityRequest
+	0,  // 15: user.PremiumRequest.requester:type_name -> user.User
+	52, // 16: user.GetPremiumRequestsResponse.requests:type_name -> user.PremiumRequest
+	0,  // 17: user.ReportRequest.reporter:type_name -> user.User
+	0,  // 18: user.ReportRequest.reported_user:type_name -> user.User
+	57, // 19: user.GetReportRequestsResponse.requests:type_name -> user.ReportRequest
+	62, // 20: user.GetThreadCategoriesResponse.categories:type_name -> user.ThreadCategory
+	62, // 21: user.CreateThreadCategoryResponse.category:type_name -> user.ThreadCategory
+	62, // 22: user.UpdateThreadCategoryResponse.category:type_name -> user.ThreadCategory
+	71, // 23: user.GetCommunityCategoriesResponse.categories:type_name -> user.CommunityCategory
+	71, // 24: user.CreateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
+	71, // 25: user.UpdateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
+	1,  // 26: user.UserService.GetUser:input_type -> user.GetUserRequest
+	3,  // 27: user.UserService.CreateUser:input_type -> user.CreateUserRequest
+	5,  // 28: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
+	7,  // 29: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
+	9,  // 30: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
+	11, // 31: user.UserService.LoginUser:input_type -> user.LoginUserRequest
+	13, // 32: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
+	15, // 33: user.UserService.GetUserByUsername:input_type -> user.GetUserByUsernameRequest
+	17, // 34: user.UserService.IsUserBlocked:input_type -> user.IsUserBlockedRequest
+	19, // 35: user.UserService.IsFollowing:input_type -> user.IsFollowingRequest
+	21, // 36: user.UserService.FollowUser:input_type -> user.FollowUserRequest
+	23, // 37: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
+	25, // 38: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
+	27, // 39: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
+	29, // 40: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
+	31, // 41: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
+	41, // 42: user.UserService.GetAllUsers:input_type -> user.GetAllUsersRequest
+	33, // 43: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
+	35, // 44: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
+	39, // 45: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
+	37, // 46: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
+	43, // 47: user.UserService.BanUser:input_type -> user.BanUserRequest
+	45, // 48: user.UserService.SendNewsletter:input_type -> user.SendNewsletterRequest
+	48, // 49: user.UserService.GetCommunityRequests:input_type -> user.GetCommunityRequestsRequest
+	50, // 50: user.UserService.ProcessCommunityRequest:input_type -> user.ProcessCommunityRequestRequest
+	53, // 51: user.UserService.GetPremiumRequests:input_type -> user.GetPremiumRequestsRequest
+	55, // 52: user.UserService.ProcessPremiumRequest:input_type -> user.ProcessPremiumRequestRequest
+	58, // 53: user.UserService.GetReportRequests:input_type -> user.GetReportRequestsRequest
+	60, // 54: user.UserService.ProcessReportRequest:input_type -> user.ProcessReportRequestRequest
+	63, // 55: user.UserService.GetThreadCategories:input_type -> user.GetThreadCategoriesRequest
+	65, // 56: user.UserService.CreateThreadCategory:input_type -> user.CreateThreadCategoryRequest
+	67, // 57: user.UserService.UpdateThreadCategory:input_type -> user.UpdateThreadCategoryRequest
+	69, // 58: user.UserService.DeleteThreadCategory:input_type -> user.DeleteThreadCategoryRequest
+	72, // 59: user.UserService.GetCommunityCategories:input_type -> user.GetCommunityCategoriesRequest
+	74, // 60: user.UserService.CreateCommunityCategory:input_type -> user.CreateCommunityCategoryRequest
+	76, // 61: user.UserService.UpdateCommunityCategory:input_type -> user.UpdateCommunityCategoryRequest
+	78, // 62: user.UserService.DeleteCommunityCategory:input_type -> user.DeleteCommunityCategoryRequest
+	2,  // 63: user.UserService.GetUser:output_type -> user.GetUserResponse
+	4,  // 64: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	6,  // 65: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
+	8,  // 66: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	10, // 67: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
+	12, // 68: user.UserService.LoginUser:output_type -> user.LoginUserResponse
+	14, // 69: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
+	16, // 70: user.UserService.GetUserByUsername:output_type -> user.GetUserByUsernameResponse
+	18, // 71: user.UserService.IsUserBlocked:output_type -> user.IsUserBlockedResponse
+	20, // 72: user.UserService.IsFollowing:output_type -> user.IsFollowingResponse
+	22, // 73: user.UserService.FollowUser:output_type -> user.FollowUserResponse
+	24, // 74: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
+	26, // 75: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
+	28, // 76: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
+	30, // 77: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
+	32, // 78: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
+	42, // 79: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
+	34, // 80: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
+	36, // 81: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
+	40, // 82: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
+	38, // 83: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
+	44, // 84: user.UserService.BanUser:output_type -> user.BanUserResponse
+	46, // 85: user.UserService.SendNewsletter:output_type -> user.SendNewsletterResponse
+	49, // 86: user.UserService.GetCommunityRequests:output_type -> user.GetCommunityRequestsResponse
+	51, // 87: user.UserService.ProcessCommunityRequest:output_type -> user.ProcessCommunityRequestResponse
+	54, // 88: user.UserService.GetPremiumRequests:output_type -> user.GetPremiumRequestsResponse
+	56, // 89: user.UserService.ProcessPremiumRequest:output_type -> user.ProcessPremiumRequestResponse
+	59, // 90: user.UserService.GetReportRequests:output_type -> user.GetReportRequestsResponse
+	61, // 91: user.UserService.ProcessReportRequest:output_type -> user.ProcessReportRequestResponse
+	64, // 92: user.UserService.GetThreadCategories:output_type -> user.GetThreadCategoriesResponse
+	66, // 93: user.UserService.CreateThreadCategory:output_type -> user.CreateThreadCategoryResponse
+	68, // 94: user.UserService.UpdateThreadCategory:output_type -> user.UpdateThreadCategoryResponse
+	70, // 95: user.UserService.DeleteThreadCategory:output_type -> user.DeleteThreadCategoryResponse
+	73, // 96: user.UserService.GetCommunityCategories:output_type -> user.GetCommunityCategoriesResponse
+	75, // 97: user.UserService.CreateCommunityCategory:output_type -> user.CreateCommunityCategoryResponse
+	77, // 98: user.UserService.UpdateCommunityCategory:output_type -> user.UpdateCommunityCategoryResponse
+	79, // 99: user.UserService.DeleteCommunityCategory:output_type -> user.DeleteCommunityCategoryResponse
+	63, // [63:100] is the sub-list for method output_type
+	26, // [26:63] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_proto_user_user_proto_init() }
@@ -2841,7 +5489,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   43,
+			NumMessages:   80,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

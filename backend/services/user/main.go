@@ -11,11 +11,9 @@ import (
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/status"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -23,7 +21,7 @@ import (
 	"aycom/backend/proto/user"
 	handlers "aycom/backend/services/user/api"
 	"aycom/backend/services/user/db"
-	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/repository"
 	"aycom/backend/services/user/service"
 )
 
@@ -66,9 +64,16 @@ func main() {
 			log.Fatalf("Failed to run migrations: %v", err)
 		}
 
-		repo := db.NewPostgresUserRepository(dbConn)
-		svc := service.NewUserService(repo)
-		handler := handlers.NewUserHandler(svc)
+		// Initialize repositories
+		userRepo := repository.NewPostgresUserRepository(dbConn)
+		adminRepo := repository.NewAdminRepository(dbConn)
+
+		// Initialize services
+		userSvc := service.NewUserService(userRepo)
+		adminSvc := service.NewAdminService(adminRepo, userRepo)
+
+		// Initialize handler
+		handler := handlers.NewUserHandler(userSvc, adminSvc)
 
 		adapter := &userServiceAdapter{h: handler}
 
@@ -163,8 +168,9 @@ func setupDatabase() (*gorm.DB, error) {
 func runMigrations(dbConn *gorm.DB) error {
 	log.Println("Running database migrations")
 
-	if err := dbConn.AutoMigrate(&model.User{}, &model.Session{}, &model.Follow{}); err != nil {
-		return fmt.Errorf("failed to run auto-migrate: %w", err)
+	// Use the migration system to run all migrations
+	if err := db.Migrate(dbConn); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	log.Println("Database migrations completed successfully")
@@ -211,63 +217,108 @@ func (a *userServiceAdapter) GetUserByEmail(ctx context.Context, req *user.GetUs
 	return a.h.GetUserByEmail(ctx, req)
 }
 
+func (a *userServiceAdapter) GetUserByUsername(ctx context.Context, req *user.GetUserByUsernameRequest) (*user.GetUserByUsernameResponse, error) {
+	return a.h.GetUserByUsername(ctx, req)
+}
+
+func (a *userServiceAdapter) IsUserBlocked(ctx context.Context, req *user.IsUserBlockedRequest) (*user.IsUserBlockedResponse, error) {
+	return a.h.IsUserBlocked(ctx, req)
+}
+
+func (a *userServiceAdapter) IsFollowing(ctx context.Context, req *user.IsFollowingRequest) (*user.IsFollowingResponse, error) {
+	return a.h.IsFollowing(ctx, req)
+}
+
+func (a *userServiceAdapter) FollowUser(ctx context.Context, req *user.FollowUserRequest) (*user.FollowUserResponse, error) {
+	return a.h.FollowUser(ctx, req)
+}
+
+func (a *userServiceAdapter) UnfollowUser(ctx context.Context, req *user.UnfollowUserRequest) (*user.UnfollowUserResponse, error) {
+	return a.h.UnfollowUser(ctx, req)
+}
+
+func (a *userServiceAdapter) GetFollowers(ctx context.Context, req *user.GetFollowersRequest) (*user.GetFollowersResponse, error) {
+	return a.h.GetFollowers(ctx, req)
+}
+
+func (a *userServiceAdapter) GetFollowing(ctx context.Context, req *user.GetFollowingRequest) (*user.GetFollowingResponse, error) {
+	return a.h.GetFollowing(ctx, req)
+}
+
 func (a *userServiceAdapter) SearchUsers(ctx context.Context, req *user.SearchUsersRequest) (*user.SearchUsersResponse, error) {
-	if req.Query == "" {
-		return nil, status.Error(codes.InvalidArgument, "Search query is required")
-	}
-
-	page := int(req.Page)
-	if page <= 0 {
-		page = 1
-	}
-
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 10
-	}
-
-	searchReq := &model.SearchUsersRequest{
-		Query:  req.Query,
-		Filter: req.Filter,
-		Page:   page,
-		Limit:  limit,
-	}
-
-	svc := a.h.GetService()
-
-	users, totalCount, err := svc.SearchUsers(ctx, searchReq)
-	if err != nil {
-		return nil, err
-	}
-
-	protoUsers := make([]*user.User, 0, len(users))
-	for _, u := range users {
-		protoUser := &user.User{
-			Id:                u.ID.String(),
-			Name:              u.Name,
-			Username:          u.Username,
-			Email:             u.Email,
-			Gender:            u.Gender,
-			ProfilePictureUrl: u.ProfilePictureURL,
-			CreatedAt:         u.CreatedAt.Format(time.RFC3339),
-			IsVerified:        u.IsVerified,
-		}
-		protoUsers = append(protoUsers, protoUser)
-	}
-
-	return &user.SearchUsersResponse{
-		Users:      protoUsers,
-		TotalCount: int32(totalCount),
-	}, nil
+	return a.h.SearchUsers(ctx, req)
 }
 
 func (a *userServiceAdapter) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequest) (*user.GetAllUsersResponse, error) {
-	// Forward the request to our handler
 	return a.h.GetAllUsers(ctx, req)
 }
 
-// GetRecommendedUsers returns a list of recommended users
 func (a *userServiceAdapter) GetRecommendedUsers(ctx context.Context, req *user.GetRecommendedUsersRequest) (*user.GetRecommendedUsersResponse, error) {
-	// Forward the request to our handler
 	return a.h.GetRecommendedUsers(ctx, req)
+}
+
+// Admin endpoints
+
+func (a *userServiceAdapter) BanUser(ctx context.Context, req *user.BanUserRequest) (*user.BanUserResponse, error) {
+	return a.h.BanUser(ctx, req)
+}
+
+func (a *userServiceAdapter) SendNewsletter(ctx context.Context, req *user.SendNewsletterRequest) (*user.SendNewsletterResponse, error) {
+	return a.h.SendNewsletter(ctx, req)
+}
+
+func (a *userServiceAdapter) GetCommunityRequests(ctx context.Context, req *user.GetCommunityRequestsRequest) (*user.GetCommunityRequestsResponse, error) {
+	return a.h.GetCommunityRequests(ctx, req)
+}
+
+func (a *userServiceAdapter) ProcessCommunityRequest(ctx context.Context, req *user.ProcessCommunityRequestRequest) (*user.ProcessCommunityRequestResponse, error) {
+	return a.h.ProcessCommunityRequest(ctx, req)
+}
+
+func (a *userServiceAdapter) GetPremiumRequests(ctx context.Context, req *user.GetPremiumRequestsRequest) (*user.GetPremiumRequestsResponse, error) {
+	return a.h.GetPremiumRequests(ctx, req)
+}
+
+func (a *userServiceAdapter) ProcessPremiumRequest(ctx context.Context, req *user.ProcessPremiumRequestRequest) (*user.ProcessPremiumRequestResponse, error) {
+	return a.h.ProcessPremiumRequest(ctx, req)
+}
+
+func (a *userServiceAdapter) GetReportRequests(ctx context.Context, req *user.GetReportRequestsRequest) (*user.GetReportRequestsResponse, error) {
+	return a.h.GetReportRequests(ctx, req)
+}
+
+func (a *userServiceAdapter) ProcessReportRequest(ctx context.Context, req *user.ProcessReportRequestRequest) (*user.ProcessReportRequestResponse, error) {
+	return a.h.ProcessReportRequest(ctx, req)
+}
+
+func (a *userServiceAdapter) GetThreadCategories(ctx context.Context, req *user.GetThreadCategoriesRequest) (*user.GetThreadCategoriesResponse, error) {
+	return a.h.GetThreadCategories(ctx, req)
+}
+
+func (a *userServiceAdapter) CreateThreadCategory(ctx context.Context, req *user.CreateThreadCategoryRequest) (*user.CreateThreadCategoryResponse, error) {
+	return a.h.CreateThreadCategory(ctx, req)
+}
+
+func (a *userServiceAdapter) UpdateThreadCategory(ctx context.Context, req *user.UpdateThreadCategoryRequest) (*user.UpdateThreadCategoryResponse, error) {
+	return a.h.UpdateThreadCategory(ctx, req)
+}
+
+func (a *userServiceAdapter) DeleteThreadCategory(ctx context.Context, req *user.DeleteThreadCategoryRequest) (*user.DeleteThreadCategoryResponse, error) {
+	return a.h.DeleteThreadCategory(ctx, req)
+}
+
+func (a *userServiceAdapter) GetCommunityCategories(ctx context.Context, req *user.GetCommunityCategoriesRequest) (*user.GetCommunityCategoriesResponse, error) {
+	return a.h.GetCommunityCategories(ctx, req)
+}
+
+func (a *userServiceAdapter) CreateCommunityCategory(ctx context.Context, req *user.CreateCommunityCategoryRequest) (*user.CreateCommunityCategoryResponse, error) {
+	return a.h.CreateCommunityCategory(ctx, req)
+}
+
+func (a *userServiceAdapter) UpdateCommunityCategory(ctx context.Context, req *user.UpdateCommunityCategoryRequest) (*user.UpdateCommunityCategoryResponse, error) {
+	return a.h.UpdateCommunityCategory(ctx, req)
+}
+
+func (a *userServiceAdapter) DeleteCommunityCategory(ctx context.Context, req *user.DeleteCommunityCategoryRequest) (*user.DeleteCommunityCategoryResponse, error) {
+	return a.h.DeleteCommunityCategory(ctx, req)
 }
