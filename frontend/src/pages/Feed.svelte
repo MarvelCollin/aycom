@@ -79,27 +79,27 @@
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   });
-
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
     // Check if we have debugging enabled
-    const debug = false;
+    const debug = true;
     if (debug) {
       console.log('Converting thread to tweet:', thread);
     }
-    
-    // Default values
+      // Default values
     let username = 'anonymous';
     let displayName = 'User';
     let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
-    let content = thread.content || '';
+    let content = thread.Content || thread.content || '';
     
     // Get author data from all possible locations
-    // First try direct author fields
+    // First try direct author fields and the capitalized API response fields
     if (thread.author_username) {
       username = thread.author_username;
     } else if (thread.authorUsername) {
       username = thread.authorUsername;
+    } else if (thread.Username) {
+      username = thread.Username;
     } else if (thread.username) {
       username = thread.username;
     }
@@ -108,6 +108,8 @@
       displayName = thread.author_name;
     } else if (thread.authorName) {
       displayName = thread.authorName;
+    } else if (thread.DisplayName) {
+      displayName = thread.DisplayName;
     } else if (thread.display_name) {
       displayName = thread.display_name;
     } else if (thread.displayName) {
@@ -119,6 +121,8 @@
       profilePicture = formatSupabaseImageUrl(thread.author_avatar);
     } else if (thread.authorAvatar) {
       profilePicture = formatSupabaseImageUrl(thread.authorAvatar);
+    } else if (thread.ProfilePicture) {
+      profilePicture = formatSupabaseImageUrl(thread.ProfilePicture);
     } else if (thread.profile_picture_url) {
       profilePicture = formatSupabaseImageUrl(thread.profile_picture_url);
     } else if (thread.avatar) {
@@ -148,12 +152,16 @@
           content = basicMatch[3] || '';
         }
       }
-    }
-
-    // Safe date conversion with fallback
+    }    // Safe date conversion with fallback
     let timestamp = new Date().toISOString();
     try {
-      if (thread.created_at) {
+      if (thread.CreatedAt) {
+        const date = new Date(thread.CreatedAt);
+        // Check if date is valid before converting to ISO string
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      } else if (thread.created_at) {
         const date = new Date(thread.created_at);
         // Check if date is valid before converting to ISO string
         if (!isNaN(date.getTime())) {
@@ -166,34 +174,34 @@
         }
       }
     } catch (error) {
-      console.warn("Invalid date format in thread:", thread.created_at || thread.timestamp);
+      console.warn("Invalid date format in thread:", thread.CreatedAt || thread.created_at || thread.timestamp);
     }
     
     return {
-      id: thread.id,
-      threadId: thread.thread_id || thread.id,
+      id: thread.ID || thread.id,
+      threadId: thread.thread_id || thread.ID || thread.id,
       username: username,
       displayName: displayName,
       content: content,
       timestamp: timestamp,
       avatar: profilePicture,
-      likes: thread.like_count || thread.metrics?.likes || 0,
-      replies: thread.reply_count || thread.metrics?.replies || 0,
-      reposts: thread.repost_count || thread.metrics?.reposts || 0,
+      likes: thread.LikeCount || thread.like_count || thread.metrics?.likes || 0,
+      replies: thread.ReplyCount || thread.reply_count || thread.metrics?.replies || 0,
+      reposts: thread.RepostCount || thread.repost_count || thread.metrics?.reposts || 0,
       bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
       views: '0', 
-      media: thread.media || [],
-      isLiked: thread.is_liked || false,
-      isReposted: thread.is_repost || false,
-      isBookmarked: thread.is_bookmarked || false,
+      media: thread.Media || thread.media || [],
+      isLiked: thread.IsLiked || thread.is_liked || false,
+      isReposted: thread.IsReposted || thread.is_repost || false,
+      isBookmarked: thread.IsBookmarked || thread.is_bookmarked || false,
       replyTo: null,
       isAdvertisement: thread.is_advertisement || false,
       communityId: thread.community_id || null,
       communityName: thread.community_name || null,
-      authorId: thread.author_id || thread.authorId,
-      authorName: thread.author_name || thread.authorName || displayName,
-      authorUsername: thread.author_username || thread.authorUsername || username,
-      authorAvatar: thread.author_avatar || thread.authorAvatar || profilePicture
+      authorId: thread.UserID || thread.author_id || thread.authorId,
+      authorName: thread.DisplayName || thread.author_name || thread.authorName || displayName,
+      authorUsername: thread.Username || thread.author_username || thread.authorUsername || username,
+      authorAvatar: thread.ProfilePicture || thread.author_avatar || thread.authorAvatar || profilePicture
     };
   }
 
@@ -286,10 +294,11 @@
         
         // Process threads to identify replies and link them to parent threads
         const threadsMap = new Map();
-        
-        // First, convert all threads to tweets and create a map
+          // First, convert all threads to tweets and create a map
         let convertedThreads = response.threads.map(thread => {
+          console.log('Raw thread data from API:', thread);
           const tweet = threadToTweet(thread);
+          console.log('Converted tweet:', tweet);
           threadsMap.set(tweet.threadId, tweet);
           // Initialize the tweet in our global interaction store
           tweetInteractionStore.initTweet(tweet);

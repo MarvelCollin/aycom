@@ -1,0 +1,24 @@
+﻿{
+    "threads":  [
+                    {
+                        "ID":  "b1eaa2f5-4bd1-4044-bfb3-ef548a47922d",
+                        "Content":  "asdgegeeatjjjjjjjjjjjjjj",
+                        "UserID":  "47472c27-e598-47f0-8182-3ba9198e7c22",
+                        "Username":  "testing",
+                        "DisplayName":  "testing",
+                        "ProfilePicture":  "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/profile-pictures/users/1747357482338_5ynhf87a.png",
+                        "CreatedAt":  "2025-05-16T01:19:24.634366Z",
+                        "UpdatedAt":  "2025-05-16T01:19:24.634367Z",
+                        "LikeCount":  0,
+                        "ReplyCount":  0,
+                        "RepostCount":  0,
+                        "IsLiked":  false,
+                        "IsReposted":  false,
+                        "IsBookmarked":  false,
+                        "IsPinned":  false,
+                        "Media":  null,
+                        "ParentID":  ""
+                    }
+                ],
+    "total":  1
+}
