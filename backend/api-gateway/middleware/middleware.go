@@ -201,6 +201,77 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 	}
 }
 
+// AdminOnly middleware to ensure only admin users can access certain routes
+func AdminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		log.Printf("Checking admin privileges for: %s %s", c.Request.Method, c.Request.URL.Path)
+
+		// Get user ID from context (set by JWTAuth middleware)
+		userID, exists := c.Get("userID")
+		if !exists {
+			log.Printf("No userID found in context - admin check failed")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "Authentication required",
+				"code":    "UNAUTHORIZED",
+			})
+			c.Abort()
+			return
+		}
+
+		// Get admin status from JWT claims
+		authHeader := c.GetHeader("Authorization")
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			log.Printf("Invalid Authorization header format: %s", authHeader[:min(len(authHeader), 30)])
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "Authentication required",
+				"code":    "UNAUTHORIZED",
+			})
+			c.Abort()
+			return
+		}
+
+		token := parts[1]
+		claims := jwt.MapClaims{}
+
+		// Parse token to get claims
+		_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+			// Secret should match the one used in JWTAuth
+			// In a real implementation, this should be obtained from a shared source
+			return []byte(c.MustGet("jwtSecret").(string)), nil
+		})
+
+		if err != nil {
+			log.Printf("JWT parse error: %v", err)
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "Authentication required",
+				"code":    "UNAUTHORIZED",
+			})
+			c.Abort()
+			return
+		}
+
+		// Check if user is admin
+		isAdmin, exists := claims["is_admin"]
+		if !exists || isAdmin != true {
+			log.Printf("User %v is not an admin", userID)
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "Admin privileges required",
+				"code":    "FORBIDDEN",
+			})
+			c.Abort()
+			return
+		}
+
+		log.Printf("Admin check passed for user %v", userID)
+		c.Next()
+	}
+}
+
 // Helper function to get the minimum of two ints
 func min(a, b int) int {
 	if a < b {

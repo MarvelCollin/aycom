@@ -137,4 +137,32 @@ export async function googleLogin(tokenId: string) {
     }
     throw error;
   }
+}
+
+export async function createAdminUser(data: Record<string, any>) {
+  const token = getAuthToken();
+  
+  const response = await fetch(`${API_BASE_URL}/users/admin/create`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
+    body: JSON.stringify({
+      ...data,
+      is_admin: true
+    }),
+    credentials: "include",
+  });
+  
+  if (!response.ok) {
+    try {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Admin user creation failed");
+    } catch (parseError) {
+      throw new Error("Admin user creation failed");
+    }
+  }
+  
+  return response.json();
 } 

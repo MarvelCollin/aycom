@@ -17,6 +17,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1 := router.Group("/api/v1")
 
+	// Direct routes without authentication
+	v1.GET("/suggestions", handlers.GetUserSuggestions)
+
 	auth := v1.Group("/auth")
 	auth.Use(handlers.RateLimitMiddleware)
 	{
@@ -45,8 +48,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.GET("/username/:username", handlers.GetUserByUsername)
 		publicUsers.GET("/:userId", handlers.GetUserById)
 		publicUsers.GET("/search", handlers.SearchUsers)
-		publicUsers.GET("/suggestions", handlers.GetUserSuggestions)
 		publicUsers.GET("/all", handlers.GetAllUsers)
+
+		// Admin user creation - accessible without authentication for debug panel
+		publicUsers.POST("/admin/create", handlers.CreateAdminUser)
 	}
 
 	publicThreads := v1.Group("/threads")

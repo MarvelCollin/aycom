@@ -7,6 +7,7 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { getProfile } from '../../api/user';
+  import { createAdminUser } from '../../api/auth';
   import appConfig from '../../config/appConfig';
   import { websocketStore } from '../../stores/websocketStore';
   
@@ -599,6 +600,100 @@
     logger.warn = originalWarn;
     logger.error = originalError;
   });
+  
+  // Admin user creation state
+  let adminFormData = {
+    name: '',
+    username: '',
+    email: '',
+    password: '',
+    gender: 'male',
+    dateOfBirth: {
+      month: '1',
+      day: '1',
+      year: '1990'
+    },
+    securityQuestion: 'What was your first pet\'s name?',
+    securityAnswer: ''
+  };
+  
+  let adminCreationStatus = '';
+  let isCreatingAdmin = false;
+  
+  // Function to create admin user
+  async function createAdmin() {
+    if (!adminFormData.name || !adminFormData.username || !adminFormData.email || !adminFormData.password || !adminFormData.securityAnswer) {
+      adminCreationStatus = 'Please fill all required fields';
+      logger.warn('Admin creation failed - missing fields');
+      return;
+    }
+    
+    try {
+      isCreatingAdmin = true;
+      
+      // Format date of birth
+      const formattedDob = `${adminFormData.dateOfBirth.month}-${adminFormData.dateOfBirth.day}-${adminFormData.dateOfBirth.year}`;
+      
+      const adminData = {
+        name: adminFormData.name,
+        username: adminFormData.username,
+        email: adminFormData.email,
+        password: adminFormData.password,
+        confirm_password: adminFormData.password, // Using same password for confirmation
+        gender: adminFormData.gender,
+        date_of_birth: formattedDob,
+        security_question: adminFormData.securityQuestion,
+        security_answer: adminFormData.securityAnswer,
+        is_admin: true,
+        is_verified: true // Auto-verify admin accounts
+      };
+      
+      logger.info('Creating admin user', { email: adminData.email, username: adminData.username });
+      
+      const response = await createAdminUser(adminData);
+      
+      adminCreationStatus = 'Admin user created successfully!';
+      logger.info('Admin user created successfully', { response });
+      toastStore.showToast('Admin user created successfully', 'success');
+      
+      // Clear form
+      adminFormData = {
+        name: '',
+        username: '',
+        email: '',
+        password: '',
+        gender: 'male',
+        dateOfBirth: {
+          month: '1',
+          day: '1',
+          year: '1990'
+        },
+        securityQuestion: 'What was your first pet\'s name?',
+        securityAnswer: ''
+      };
+      
+    } catch (error) {
+      adminCreationStatus = `Failed to create admin user: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logger.error('Admin user creation failed', { error });
+      toastStore.showToast(`Failed to create admin user: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+    } finally {
+      isCreatingAdmin = false;
+    }
+  }
+  
+  // Security questions for admin creation
+  const adminSecurityQuestions = [
+    'What was your first pet\'s name?',
+    'What is your mother\'s maiden name?',
+    'What was the name of your first school?',
+    'What is the name of the city where you were born?',
+    'What is your favorite book?'
+  ];
+  
+  // Date options
+  const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
+  const years = Array.from({ length: 80 }, (_, i) => String(2023 - i));
 </script>
 
 {#if panelVisible}
@@ -617,6 +712,148 @@
       
       <!-- Simple content -->
       <div class="debug-panel-content">
+        <!-- Admin User Creation Section -->
+        <div class="section">
+          <h3>Create Admin User</h3>
+          <div class="card">
+            <div class="flex-col">
+              {#if adminCreationStatus}
+                <div class={adminCreationStatus.includes('successfully') ? 'success-message' : 'error-message'}>
+                  {adminCreationStatus}
+                </div>
+              {/if}
+              
+              <form on:submit|preventDefault={createAdmin} class="admin-form">
+                <div class="form-group">
+                  <label for="adminName">Name</label>
+                  <input 
+                    type="text" 
+                    id="adminName" 
+                    bind:value={adminFormData.name}
+                    class="text-input"
+                    placeholder="Full Name"
+                    required
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label for="adminUsername">Username</label>
+                  <input 
+                    type="text" 
+                    id="adminUsername" 
+                    bind:value={adminFormData.username}
+                    class="text-input"
+                    placeholder="Username"
+                    required
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label for="adminEmail">Email</label>
+                  <input 
+                    type="email" 
+                    id="adminEmail" 
+                    bind:value={adminFormData.email}
+                    class="text-input"
+                    placeholder="Email"
+                    required
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label for="adminPassword">Password</label>
+                  <input 
+                    type="password" 
+                    id="adminPassword" 
+                    bind:value={adminFormData.password}
+                    class="text-input"
+                    placeholder="Password"
+                    required
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label for="adminGender">Gender</label>
+                  <select 
+                    id="adminGender"
+                    bind:value={adminFormData.gender}
+                    class="select-input"
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label>Date of Birth</label>
+                  <div class="flex-row">
+                    <select 
+                      bind:value={adminFormData.dateOfBirth.month}
+                      class="select-input date-input"
+                    >
+                      {#each months as month}
+                        <option value={month}>{month}</option>
+                      {/each}
+                    </select>
+                    
+                    <select 
+                      bind:value={adminFormData.dateOfBirth.day}
+                      class="select-input date-input"
+                    >
+                      {#each days as day}
+                        <option value={day}>{day}</option>
+                      {/each}
+                    </select>
+                    
+                    <select 
+                      bind:value={adminFormData.dateOfBirth.year}
+                      class="select-input date-input"
+                    >
+                      {#each years as year}
+                        <option value={year}>{year}</option>
+                      {/each}
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="adminSecurityQuestion">Security Question</label>
+                  <select 
+                    id="adminSecurityQuestion"
+                    bind:value={adminFormData.securityQuestion}
+                    class="select-input"
+                  >
+                    {#each adminSecurityQuestions as question}
+                      <option value={question}>{question}</option>
+                    {/each}
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="adminSecurityAnswer">Security Answer</label>
+                  <input 
+                    type="text" 
+                    id="adminSecurityAnswer" 
+                    bind:value={adminFormData.securityAnswer}
+                    class="text-input"
+                    placeholder="Answer"
+                    required
+                  />
+                </div>
+                
+                <button 
+                  type="submit" 
+                  class="debug-btn green" 
+                  disabled={isCreatingAdmin}
+                >
+                  {isCreatingAdmin ? 'Creating...' : 'Create Admin User'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        
         <!-- WebSocket Debug Section -->
         <div class="section">
           <h3>WebSocket Debug</h3>
@@ -1209,5 +1446,50 @@
   
   .mb-2 {
     margin-bottom: 8px;
+  }
+  
+  /* Admin form styles */
+  .admin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .form-group label {
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: #e2e8f0;
+  }
+  
+  .date-input {
+    flex: 1;
+    margin-right: 4px;
+  }
+  
+  .date-input:last-child {
+    margin-right: 0;
+  }
+  
+  .success-message {
+    padding: 8px 12px;
+    background-color: rgba(16, 185, 129, 0.2);
+    border: 1px solid #10b981;
+    color: #10b981;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+  
+  .error-message {
+    padding: 8px 12px;
+    background-color: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    border-radius: 4px;
+    margin-bottom: 16px;
   }
 </style>

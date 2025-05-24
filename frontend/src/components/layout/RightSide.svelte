@@ -63,8 +63,8 @@
       const users = await getSuggestedUsers();
       suggestedFollows = users || [];
     } catch (error) {
-      console.error('Error loading suggested users:', error);
-      toastStore.showToast('Failed to load suggested users', 'error');
+      // Don't show toast error for auth issues, just log quietly
+      console.debug('Note: Could not load suggested users - you may need to be logged in');
       suggestedFollows = [];
     } finally {
       isFollowSuggestionsLoading = false;
@@ -607,8 +607,8 @@
   }
   
   .follow-button {
-    background-color: var(--text-primary);
-    color: var(--bg-primary);
+    background-color: var(--color-primary);
+    color: white !important;
     border: none;
     border-radius: var(--radius-full);
     padding: var(--space-1) var(--space-3);
@@ -621,7 +621,8 @@
   }
   
   .follow-button:hover {
-    background-color: var(--text-primary-hover);
+    background-color: var(--color-primary-dark);
+    color: white !important;
   }
   
   .follow-button.following {
@@ -637,12 +638,13 @@
   }
   
   .follow-button-dark {
-    background-color: var(--text-primary-dark);
-    color: var(--dark-bg-primary);
+    background-color: var(--color-primary);
+    color: white !important;
   }
   
   .follow-button-dark:hover {
-    background-color: var(--text-primary-dark-hover);
+    background-color: var(--color-primary-dark);
+    color: white !important;
   }
   
   .follow-button-dark.following {
