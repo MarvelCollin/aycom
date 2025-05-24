@@ -134,6 +134,11 @@
     
     const processedTweet = { ...originalTweet };
     
+    // Clean up any "no reply" text that might be in the username field
+    if (processedTweet.username === 'no reply') {
+      processedTweet.username = '';
+    }
+    
     // Store the original ID as tweetId if not already set
     if (processedTweet.id && !processedTweet.tweetId) {
       processedTweet.tweetId = String(processedTweet.id);
@@ -1506,7 +1511,7 @@
                 {#if typeof reply.avatar === 'string' && reply.avatar.startsWith('http')}
                   <img src={reply.avatar} alt={reply.username} class="tweet-reply-avatar-img" />
                 {:else}
-                  <div class="tweet-reply-avatar-placeholder">{reply.avatar}</div>
+                  <div class="tweet-reply-avatar-placeholder">{reply.username ? reply.username.charAt(0).toUpperCase() : 'U'}</div>
                 {/if}
               </a>
               <div class="tweet-reply-body">
@@ -1982,5 +1987,18 @@
     border-top-color: var(--color-primary);
     animation: spin 0.8s linear infinite;
     margin-right: 0.25rem;
+  }
+
+  .tweet-reply-avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
   }
 </style>

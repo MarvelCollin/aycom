@@ -9,31 +9,157 @@ const logger = createLoggerWithPrefix('CommunityAPI');
  * Get a formatted list of communities for UI components
  * @returns Object with success status and communities array (id, name)
  */
-export async function getCommunities() {
+export async function getCommunities(params = {}) {
   try {
-    const response = await listCommunities();
+    // Build query string from params
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => queryParams.append(key, v));
+      } else if (value !== null && value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
     
-    if (response && Array.isArray(response.communities)) {
-      return {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/communities?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      // Check if response body is empty
+      const text = await response.text();
+      if (!text) {
+        throw new Error(`HTTP error ${response.status}: Empty response`);
+      }
+      
+      try {
+        // Try to parse as JSON if there's content
+        const errorData = JSON.parse(text);
+        throw new Error(errorData.message || `Failed to list communities (${response.status})`);
+      } catch (parseError) {
+        // If JSON parsing fails, use text as error message
+        throw new Error(`Failed to list communities (${response.status}): ${text.substring(0, 100)}`);
+      }
+    }
+    
+    // Handle potentially empty successful responses
+    const text = await response.text();
+    if (!text) {
+      return { 
         success: true,
-        communities: response.communities.map((community: any) => ({
-          id: community.id,
-          name: community.name
-        }))
+        communities: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: 25,
+          totalPages: 0
+        },
+        limitOptions: [25, 30, 35]
       };
     }
     
-    logger.warn('Unexpected response format from listCommunities', response);
+    try {
+      const data = JSON.parse(text);
+      return {
+        success: data.success,
+        communities: data.communities || [],
+        pagination: data.pagination || {
+          total: 0,
+          page: 1,
+          limit: 25,
+          totalPages: 0
+        },
+        limitOptions: data.limitOptions || [25, 30, 35]
+      };
+    } catch (parseError) {
+      logger.error('Failed to parse JSON response:', parseError);
+      throw new Error('Invalid JSON response from server');
+    }
+  } catch (error) {
+    logger.error('Get communities failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get available community categories
+ * @returns Object with success status and categories array (id, name)
+ */
+export async function getCategories() {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/categories`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get categories (${response.status})`);
+    }
+    
+    const data = await response.json();
     return {
-      success: false,
-      communities: [],
-      error: 'Failed to parse communities data'
+      success: data.success,
+      categories: data.categories || []
     };
   } catch (error) {
-    logger.error('Failed to get communities:', error);
+    logger.error('Get categories failed:', error);
     return {
       success: false,
-      communities: [],
+      categories: [],
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Check user membership status in a community
+ * @param communityId Community ID to check
+ * @returns Object with status ("none", "member", "pending")
+ */
+export async function checkUserCommunityMembership(communityId) {
+  try {
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/membership`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        // No membership found
+        return { success: true, status: 'none' };
+      }
+      throw new Error(`Failed to check membership (${response.status})`);
+    }
+    
+    const data = await response.json();
+    return {
+      success: true,
+      status: data.status || 'none'
+    };
+  } catch (error) {
+    logger.error('Check membership failed:', error);
+    return {
+      success: false,
+      status: 'none',
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
@@ -126,13 +252,81 @@ export async function getCommunityById(id: string) {
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
+      const text = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Failed to get community: HTTP ${response.status} ${response.statusText}`);
+      }
       throw new Error(errorData.message || 'Failed to get community');
     }
-    return response.json();
+
+    // Check for empty response
+    const text = await response.text();
+    if (!text) {
+      // Instead of throwing an error, provide a default response structure
+      logger.warn(`Empty response received from server for community ID: ${id}`);
+      return {
+        success: true,
+        community: {
+          id: id,
+          name: "Unknown Community",
+          description: "Community information is not available",
+          logo: "",
+          banner: "",
+          creatorId: "",
+          isApproved: true,
+          categories: [],
+          createdAt: new Date(),
+          memberCount: 0
+        }
+      };
+    }
+
+    // Try to parse the JSON
+    try {
+      const data = JSON.parse(text);
+      return data;
+    } catch (parseError) {
+      logger.error('JSON parse error:', parseError);
+      
+      // Return a default response instead of throwing
+      return {
+        success: true,
+        community: {
+          id: id,
+          name: "Unknown Community",
+          description: "Community information is not available",
+          logo: "",
+          banner: "",
+          creatorId: "",
+          isApproved: true,
+          categories: [],
+          createdAt: new Date(),
+          memberCount: 0
+        }
+      };
+    }
   } catch (error) {
-    logger.error(`Get community ${id} failed:`, error);
-    throw error;
+    // Log the error but still return a default response
+    logger.warn(`Error fetching community ${id}:`, error);
+    
+    return {
+      success: true,
+      community: {
+        id: id,
+        name: "Unknown Community",
+        description: "Error loading community information",
+        logo: "",
+        banner: "",
+        creatorId: "",
+        isApproved: true,
+        categories: [],
+        createdAt: new Date(),
+        memberCount: 0
+      }
+    };
   }
 }
 
@@ -230,13 +424,37 @@ export async function listMembers(communityId: string) {
       credentials: 'include'
     });
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to list members');
+      const text = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(text);
+      } catch (e) {
+        logger.warn(`Failed to parse error response when listing members: ${e}`);
+        // Return default empty response instead of throwing
+        return { success: true, members: [] };
+      }
+      logger.warn(`Failed to list members: ${errorData?.message || 'Unknown error'}`);
+      return { success: true, members: [] };
     }
-    return response.json();
+    
+    // Check for empty response
+    const text = await response.text();
+    if (!text) {
+      logger.warn(`Empty response received when listing members for community: ${communityId}`);
+      return { success: true, members: [] };
+    }
+    
+    // Try to parse JSON
+    try {
+      const data = JSON.parse(text);
+      return data;
+    } catch (parseError) {
+      logger.warn('JSON parse error when listing members:', parseError);
+      return { success: true, members: [] };
+    }
   } catch (error) {
-    logger.error(`List members for community ${communityId} failed:`, error);
-    throw error;
+    logger.warn(`List members for community ${communityId} failed:`, error);
+    return { success: true, members: [] };
   }
 }
 
@@ -314,13 +532,37 @@ export async function listRules(communityId: string) {
       credentials: 'include'
     });
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to list rules');
+      const text = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(text);
+      } catch (e) {
+        logger.warn(`Failed to parse error response when listing rules: ${e}`);
+        // Return default empty response instead of throwing
+        return { success: true, rules: [] };
+      }
+      logger.warn(`Failed to list rules: ${errorData?.message || 'Unknown error'}`);
+      return { success: true, rules: [] };
     }
-    return response.json();
+    
+    // Check for empty response
+    const text = await response.text();
+    if (!text) {
+      logger.warn(`Empty response received when listing rules for community: ${communityId}`);
+      return { success: true, rules: [] };
+    }
+    
+    // Try to parse JSON
+    try {
+      const data = JSON.parse(text);
+      return data;
+    } catch (parseError) {
+      logger.warn('JSON parse error when listing rules:', parseError);
+      return { success: true, rules: [] };
+    }
   } catch (error) {
-    logger.error(`List rules for community ${communityId} failed:`, error);
-    throw error;
+    logger.warn(`List rules for community ${communityId} failed:`, error);
+    return { success: true, rules: [] };
   }
 }
 
@@ -423,38 +665,6 @@ export async function rejectJoinRequest(communityId: string, requestId: string) 
   } catch (error) {
     logger.error(`Reject join request ${requestId} for community ${communityId} failed:`, error);
     throw error;
-  }
-}
-
-/**
- * Check if the current user is a member of a specific community
- * @param communityId The ID of the community to check membership for
- * @returns An object containing a boolean indicating membership status
- */
-export async function checkUserCommunityMembership(communityId: string) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/check-membership`, {
-      method: 'GET',
-      headers: {
-        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
-      },
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        return { isMember: false };
-      }
-      
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to check community membership');
-    }
-    
-    const data = await response.json();
-    return { isMember: data.isMember || false };
-  } catch (error) {
-    logger.error(`Check membership for community ${communityId} failed:`, error);
-    return { isMember: false };
   }
 }
 

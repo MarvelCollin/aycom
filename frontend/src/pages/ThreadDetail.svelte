@@ -59,6 +59,22 @@
       const response = await getThreadReplies(threadId);
       if (response && response.replies) {
         replies = response.replies;
+        
+        // If the API provides a nestedRepliesMap, use it
+        if (response.nestedRepliesMap) {
+          console.log('API provided nested replies map:', response.nestedRepliesMap);
+          
+          // Convert the object back to a Map for our component
+          const newNestedMap = new Map();
+          Object.entries(response.nestedRepliesMap).forEach(([parentId, childReplies]) => {
+            newNestedMap.set(parentId, childReplies);
+          });
+          
+          nestedRepliesMap = newNestedMap;
+        } else {
+          // Fall back to the old way - load nested replies individually
+          console.log('No nested replies map from API, loading individually');
+        }
       }
     } catch (error) {
       console.error('Error loading replies:', error);
@@ -148,15 +164,68 @@
     else {
       // Get the current nested replies for this parent reply
       let currentNestedReplies = nestedRepliesMap.get(parentReplyId) || [];
+      
+      console.log('Adding nested reply to parent:', parentReplyId);
+      console.log('Current nested replies:', currentNestedReplies);
+      
+      // Make sure the new reply has the parent_reply_id set
+      const enhancedReply = {
+        ...newReply,
+        parent_reply_id: parentReplyId
+      };
+      
       // Add the new reply to the beginning of the nested replies
-      nestedRepliesMap.set(parentReplyId, [newReply, ...currentNestedReplies]);
-      // Update the map to trigger reactivity
+      nestedRepliesMap.set(parentReplyId, [enhancedReply, ...currentNestedReplies]);
+      
+      // Force reactivity update
       nestedRepliesMap = new Map(nestedRepliesMap);
       
-      // Increment the reply count on the parent reply
+      // Find the parent reply in the main replies array
       const parentReply = replies.find(r => r.id === parentReplyId);
       if (parentReply) {
-        parentReply.replies = (parseInt(parentReply.replies || '0') + 1).toString();
+        // Make a copy of the parent with the incremented reply count
+        const updatedParentReply = {
+          ...parentReply,
+          replies: (parseInt(parentReply.replies || '0') + 1).toString()
+        };
+        
+        // Update the parent reply in the replies array
+        replies = replies.map(reply => 
+          reply.id === parentReplyId ? updatedParentReply : reply
+        );
+        
+        console.log('Updated parent reply with new reply count:', updatedParentReply.replies);
+      } else {
+        console.warn(`Parent reply ${parentReplyId} not found in main replies array`);
+        
+        // Check if it's a reply to a nested reply (multi-level nesting)
+        for (const [topReplyId, nestedReplies] of nestedRepliesMap.entries()) {
+          const nestedParent = nestedReplies.find(r => r.id === parentReplyId);
+          if (nestedParent) {
+            console.log(`Found parent reply ${parentReplyId} as a nested reply under ${topReplyId}`);
+            
+            // Increment the nested parent's reply count
+            const updatedNestedParent = {
+              ...nestedParent,
+              replies: (parseInt(nestedParent.replies || '0') + 1).toString()
+            };
+            
+            // Update the nested parent in the nested replies array
+            const updatedNestedReplies = nestedReplies.map(reply => 
+              reply.id === parentReplyId ? updatedNestedParent : reply
+            );
+            
+            // Update the map
+            nestedRepliesMap.set(topReplyId, updatedNestedReplies);
+            
+            // Also create a new entry in the map for this nested reply
+            nestedRepliesMap.set(parentReplyId, [enhancedReply]);
+            
+            // Force reactivity update
+            nestedRepliesMap = new Map(nestedRepliesMap);
+            break;
+          }
+        }
       }
     }
     

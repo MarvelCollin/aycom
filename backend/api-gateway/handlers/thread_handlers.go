@@ -313,10 +313,18 @@ func GetThreadsByUser(c *gin.Context) {
 		if len(t.Thread.Media) > 0 {
 			media := make([]map[string]interface{}, len(t.Thread.Media))
 			for j, m := range t.Thread.Media {
-				media[j] = map[string]interface{}{
-					"id":   m.Id,
-					"type": m.Type,
-					"url":  m.Url,
+				if m != nil {
+					media[j] = map[string]interface{}{
+						"id":   m.Id,
+						"type": m.Type,
+						"url":  m.Url,
+					}
+				} else {
+					media[j] = map[string]interface{}{
+						"id":   "",
+						"type": "",
+						"url":  "",
+					}
 				}
 			}
 			thread["media"] = media
@@ -652,7 +660,7 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 			}
 
 			// Handle media with nil checks
-			if t.Thread.Media != nil && len(t.Thread.Media) > 0 {
+			if len(t.Thread.Media) > 0 {
 				media := make([]map[string]interface{}, len(t.Thread.Media))
 				for j, m := range t.Thread.Media {
 					if m != nil {

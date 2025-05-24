@@ -15,6 +15,18 @@ service CommunityService {
   rpc DeleteCommunity(DeleteCommunityRequest) returns (EmptyResponse);
   rpc GetCommunityByID(GetCommunityByIDRequest) returns (CommunityResponse);
   rpc ListCommunities(ListCommunitiesRequest) returns (ListCommunitiesResponse);
+  rpc SearchCommunities(SearchCommunitiesRequest) returns (ListCommunitiesResponse);
+  rpc ListUserCommunities(ListUserCommunitiesRequest) returns (ListCommunitiesResponse);
+
+  // Category management
+  rpc CreateCategory(CreateCategoryRequest) returns (CategoryResponse);
+  rpc UpdateCategory(UpdateCategoryRequest) returns (CategoryResponse);
+  rpc DeleteCategory(DeleteCategoryRequest) returns (EmptyResponse);
+  rpc GetCategoryByID(GetCategoryByIDRequest) returns (CategoryResponse);
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+  rpc AddCommunityToCategory(AddCommunityToCategoryRequest) returns (EmptyResponse);
+  rpc RemoveCommunityFromCategory(RemoveCommunityFromCategoryRequest) returns (EmptyResponse);
+  rpc GetCommunityCategoriesById(GetCommunityCategoriesByIdRequest) returns (ListCategoriesResponse);
 
   // Member management
   rpc AddMember(AddMemberRequest) returns (MemberResponse);
@@ -32,6 +44,8 @@ service CommunityService {
   rpc ApproveJoinRequest(ApproveJoinRequestRequest) returns (JoinRequestResponse);
   rpc RejectJoinRequest(RejectJoinRequestRequest) returns (JoinRequestResponse);
   rpc ListJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
+  rpc IsMember(IsMemberRequest) returns (IsMemberResponse);
+  rpc HasPendingJoinRequest(HasPendingJoinRequestRequest) returns (HasPendingJoinRequestResponse);
 
   // Chat
   rpc CreateChat(CreateChatRequest) returns (ChatResponse);
@@ -60,8 +74,15 @@ message Community {
   string banner_url = 5;
   string creator_id = 6;
   bool is_approved = 7;
-  google.protobuf.Timestamp created_at = 8;
-  google.protobuf.Timestamp updated_at = 9;
+  repeated Category categories = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message Category {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
 }
 
 message Member {
@@ -126,7 +147,44 @@ message ApproveCommunityRequest { string community_id = 1; }
 message DeleteCommunityRequest { string community_id = 1; }
 message GetCommunityByIDRequest { string community_id = 1; }
 message ListCommunitiesRequest { int32 offset = 1; int32 limit = 2; }
-message ListCommunitiesResponse { repeated Community communities = 1; }
+message ListCommunitiesResponse { 
+  repeated Community communities = 1; 
+  int32 total_count = 2;
+}
+
+message SearchCommunitiesRequest { 
+  string query = 1;
+  repeated string categories = 2;
+  int32 offset = 3; 
+  int32 limit = 4; 
+}
+
+message ListUserCommunitiesRequest { 
+  string user_id = 1; 
+  string status = 2; // "member" or "pending"
+  string query = 3;
+  repeated string categories = 4;
+  int32 offset = 5; 
+  int32 limit = 6;
+}
+
+// Category messages
+message CreateCategoryRequest { Category category = 1; }
+message CategoryResponse { Category category = 1; }
+message UpdateCategoryRequest { Category category = 1; }
+message DeleteCategoryRequest { string category_id = 1; }
+message GetCategoryByIDRequest { string category_id = 1; }
+message ListCategoriesRequest { }
+message ListCategoriesResponse { repeated Category categories = 1; }
+message AddCommunityToCategoryRequest { 
+  string community_id = 1;
+  string category_id = 2;
+}
+message RemoveCommunityFromCategoryRequest {
+  string community_id = 1;
+  string category_id = 2;
+}
+message GetCommunityCategoriesByIdRequest { string community_id = 1; }
 
 message AddMemberRequest { string community_id = 1; string user_id = 2; string role = 3; }
 message RemoveMemberRequest { string community_id = 1; string user_id = 2; }
@@ -147,6 +205,10 @@ message RejectJoinRequestRequest { string join_request_id = 1; }
 message ListJoinRequestsRequest { string community_id = 1; }
 message ListJoinRequestsResponse { repeated JoinRequest join_requests = 1; }
 message JoinRequestResponse { JoinRequest join_request = 1; }
+message IsMemberRequest { string community_id = 1; string user_id = 2; }
+message IsMemberResponse { bool is_member = 1; }
+message HasPendingJoinRequestRequest { string community_id = 1; string user_id = 2; }
+message HasPendingJoinRequestResponse { bool has_request = 1; }
 
 message CreateChatRequest { bool is_group = 1; string name = 2; repeated string participant_ids = 3; string created_by = 4; }
 message ChatResponse { Chat chat = 1; }

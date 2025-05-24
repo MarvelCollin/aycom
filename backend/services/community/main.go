@@ -44,6 +44,7 @@ func main() {
 		}
 
 		communityRepo := repository.NewCommunityRepository(dbConn)
+		categoryRepo := repository.NewCategoryRepository(dbConn)
 		memberRepo := repository.NewCommunityMemberRepository(dbConn)
 		joinRequestRepo := repository.NewCommunityJoinRequestRepository(dbConn)
 		ruleRepo := repository.NewCommunityRuleRepository(dbConn)
@@ -52,7 +53,13 @@ func main() {
 		participantRepo := repository.NewParticipantRepository(dbConn)
 		deletedChatRepo := repository.NewDeletedChatRepository(dbConn)
 
-		communityService := service.NewCommunityService(communityRepo, memberRepo, joinRequestRepo, ruleRepo)
+		communityService := service.NewCommunityService(
+			communityRepo,
+			categoryRepo,
+			memberRepo,
+			joinRequestRepo,
+			ruleRepo,
+		)
 		chatService := service.NewChatService(
 			chatRepo,
 			participantRepo,
@@ -60,7 +67,7 @@ func main() {
 			deletedChatRepo,
 		)
 
-		handler := api.NewCommunityHandler(communityService, chatService)
+		handler := api.NewCommunityHandler(communityService, chatService, memberRepo, joinRequestRepo)
 
 		grpcServer := grpc.NewServer()
 		community.RegisterCommunityServiceServer(grpcServer, handler)

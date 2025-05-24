@@ -13,6 +13,7 @@ type CommunityJoinRequestRepository interface {
 	FindByCommunity(communityID uuid.UUID) ([]*model.CommunityJoinRequest, error)
 	FindByUser(userID uuid.UUID) ([]*model.CommunityJoinRequest, error)
 	Update(request *model.CommunityJoinRequest) error
+	HasPendingJoinRequest(communityID, userID uuid.UUID) (bool, error)
 }
 
 type GormCommunityJoinRequestRepository struct {
@@ -45,4 +46,13 @@ func (r *GormCommunityJoinRequestRepository) FindByUser(userID uuid.UUID) ([]*mo
 
 func (r *GormCommunityJoinRequestRepository) Update(request *model.CommunityJoinRequest) error {
 	return r.db.Save(request).Error
+}
+
+func (r *GormCommunityJoinRequestRepository) HasPendingJoinRequest(communityID, userID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.CommunityJoinRequest{}).
+		Where("community_id = ? AND user_id = ? AND status = ?", communityID, userID, "pending").
+		Count(&count).Error
+
+	return count > 0, err
 }

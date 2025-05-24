@@ -219,128 +219,72 @@
       if (isReplyMode && replyTo) {
         const replyData: any = {
           content: newTweet,
-          thread_id: (replyTo as any).threadId || (replyTo as any).thread_id || replyTo.id,
+          thread_id: replyTo.threadId || replyTo.thread_id || replyTo.id,
           mentioned_user_ids: [],
         };
         
-        // Check if we're replying to a reply or to a thread
-        // Use type assertion to access properties that might not be in the ITweet interface
-        const parentReplyId = (replyTo as any).parentReplyId || (replyTo as any).parent_reply_id;
-        
-        if (parentReplyId) {
-          // This is a reply-to-reply (nested reply)
+        // Add parent_reply_id only when we're replying to a reply, not the main thread
+        // For nested replies, we need to check if the target is itself a reply
+        if (replyTo.parent_reply_id || replyTo.parentReplyId) {
+          // This is a reply to a reply (nested reply)
           replyData.parent_reply_id = replyTo.id;
-          logger.debug('Creating nested reply with parent_reply_id:', replyTo.id);
-        } else {
-          // Make sure to explicitly set the parent_reply_id to the ID of the post we're replying to
-          // This ensures the reply is properly nested under its parent in the UI
+        } else if (replyTo.id !== replyTo.threadId && replyTo.id !== replyTo.thread_id) {
+          // This is a reply to a reply (first level nesting)
           replyData.parent_reply_id = replyTo.id;
-          logger.debug('Creating direct reply with parent_reply_id:', replyTo.id);
         }
         
-        logger.debug('Posting reply with data:', replyData);
+        console.log('Creating reply with data:', replyData);
         
-        // Get the thread ID from the reply or use reply's ID if no thread ID
-        const threadId = String((replyTo as any).threadId || (replyTo as any).thread_id || replyTo.id);
-        response = await replyToThread(threadId, replyData);
+        response = await replyToThread(
+          replyData.thread_id, 
+          replyData
+        );
         
-        if (files.length > 0 && response.id) {
-          try {
-            logger.debug(`Uploading ${files.length} media files for reply ${response.id}`);
-            await uploadThreadMedia(response.id, files);
-          } catch (uploadError) {
-            logger.error('Error uploading media for reply:', uploadError);
-            toastStore.showToast('Your reply was created but media upload failed', 'warning');
-          }
-        }
-        
-        toastStore.showToast('Your reply was posted successfully', 'success');
-        
-        // Auto-refresh to show the new reply - emit refresh event
-        dispatch('refreshReplies', {
-          threadId: threadId,
+        // Create event to refresh parent thread
+        const refreshEvent = {
+          threadId: replyData.thread_id,
           parentReplyId: replyData.parent_reply_id,
-          newReply: response
-        });
-      } else {
-        // Creating a new thread
-        const threadData: any = {
-          content: newTweet,
-          who_can_reply: replyPermission,
-          category: selectedCategory || suggestedCategory || 'general',
+          newReply: response.reply
         };
         
-        // Add schedule if set
-        if (showScheduleOptions && scheduledDate && scheduledTime) {
-          const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-          if (!isNaN(scheduledDateTime.getTime())) {
-            threadData.scheduled_at = scheduledDateTime.toISOString();
-          }
+        dispatch('refreshReplies', refreshEvent);
+        
+      } else {
+        // Create a new thread
+        const requestData: any = {
+          content: newTweet,
+          mentioned_user_ids: []
+        };
+        
+        if (selectedCommunityId) {
+          requestData.community_id = selectedCommunityId;
         }
         
-        // Add community if set
-        if (showCommunityOptions && selectedCommunityId) {
-          threadData.community_id = selectedCommunityId;
+        if (selectedCategory) {
+          requestData.category = selectedCategory;
         }
         
-        // Add poll if set
-        if (showPollOptions && pollQuestion && pollOptions.filter(o => o.trim()).length >= 2) {
-          threadData.poll = {
+        if (showPollOptions) {
+          requestData.poll = {
             question: pollQuestion,
-            options: pollOptions.filter(o => o.trim()),
-            expiry_hours: pollExpiryHours,
-            who_can_vote: pollWhoCanVote
+            options: pollOptions.filter(opt => opt.trim() !== '')
           };
         }
         
-        // Add admin fields if applicable
-        if (isAdmin) {
-          threadData.is_advertisement = isAdvertisement;
+        response = await createThread(requestData);
+        
+        // If thread created successfully and we have files
+        if (response && response.thread && files.length > 0) {
+          const threadId = response.thread.id;
+          await uploadThreadMedia(threadId, files);
         }
-        
-        logger.debug('Creating thread with data:', threadData);
-        response = await createThread(threadData);
-        
-        if (files.length > 0 && response.id) {
-          try {
-            logger.debug(`Uploading ${files.length} media files for thread ${response.id}`);
-            await uploadThreadMedia(response.id, files);
-          } catch (uploadError) {
-            logger.error('Error uploading media:', uploadError);
-            toastStore.showToast('Your post was created but media upload failed', 'warning');
-          }
-        }
-        
-        toastStore.showToast('Your post was created successfully', 'success');
-        
-        // Auto-refresh feed
-        dispatch('refreshFeed');
       }
       
-      newTweet = '';
-      files = [];
-      selectedCategory = '';
-      showScheduleOptions = false;
-      showCommunityOptions = false;
-      showPollOptions = false;
-      scheduledDate = '';
-      scheduledTime = '';
-      selectedCommunityId = '';
-      pollQuestion = '';
-      pollOptions = ['', ''];
-      pollExpiryHours = 24;
-      pollWhoCanVote = 'everyone';
-      isAdvertisement = false;
-      
       dispatch('tweet', response);
-      
-      // Close the modal after posting
-      closeModal();
+      resetForm();
     } catch (error) {
-      logger.error('Error creating tweet/reply:', error);
-      const errorResponse = handleApiError(error);
-      errorMessage = errorResponse.message;
-      toastStore.showToast(errorMessage, 'error');
+      console.error(isReplyMode ? 'Failed to submit reply:' : 'Failed to submit tweet:', error);
+      errorMessage = `Failed to post. ${error.message || 'Please try again.'}`;
     } finally {
       isPosting = false;
     }
@@ -506,6 +450,23 @@
   // Watch newTweet for changes to trigger category suggestion
   $: if (newTweet) {
     getSuggestedCategory(newTweet);
+  }
+
+  function resetForm() {
+    newTweet = '';
+    files = [];
+    selectedCategory = '';
+    showScheduleOptions = false;
+    showCommunityOptions = false;
+    showPollOptions = false;
+    scheduledDate = '';
+    scheduledTime = '';
+    selectedCommunityId = '';
+    pollQuestion = '';
+    pollOptions = ['', ''];
+    pollExpiryHours = 24;
+    pollWhoCanVote = 'everyone';
+    isAdvertisement = false;
   }
 </script>
 

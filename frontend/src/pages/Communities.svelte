@@ -6,6 +6,12 @@
   import type { IAuthStore } from '../interfaces/IAuth';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
+  import { getCommunities, getCategories, requestToJoin } from '../api/community';
+  
+  // Import components
+  import Pagination from '../components/common/Pagination.svelte';
+  import CategoryFilter from '../components/common/CategoryFilter.svelte';
+  import Spinner from '../components/common/Spinner.svelte';
   
   // Import icons
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
@@ -23,670 +29,724 @@
   
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
   $: isDarkMode = $theme === 'dark';
-  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
-  $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp';
   
-  interface Community {
-    id: number;
-    name: string;
-    description: string;
-    logo: string | null;
-    memberCount: number;
-    categories: string[];
-    status: 'joined' | 'pending' | 'available';
-    isPrivate: boolean;
-  }
+  // Pagination settings
+  let limitOptions = [25, 30, 35];
+  let currentPage = 1;
+  let limit = limitOptions[0];
+  let totalItems = 0;
+  let totalPages = 0;
   
-  let isLoading = true;
-  let joinedCommunities: Community[] = [];
-  let pendingCommunities: Community[] = [];
-  let availableCommunities: Community[] = [];
-  
-  let filteredJoinedCommunities: Community[] = [];
-  let filteredPendingCommunities: Community[] = [];
-  let filteredAvailableCommunities: Community[] = [];
-  
+  // Filter settings
+  let activeTab = 'joined'; // 'joined', 'pending', 'discover'
   let searchQuery = '';
   let selectedCategories: string[] = [];
+  let availableCategories: string[] = [];
   
-  // Current active tab
-  let activeTab = 'discover'; // 'joined', 'pending', 'discover'
+  // Community data
+  let isLoading = true;
+  let joinedCommunities: any[] = [];
+  let pendingCommunities: any[] = [];
+  let availableCommunities: any[] = [];
   
-  const categories = [
-    'Gaming', 'Sports', 'Food', 'Technology', 'Art', 'Music', 
-    'Movies', 'Books', 'Fitness', 'Travel', 'Fashion', 'Education'
-  ];
-  
-  function checkAuth() {
-    if (!authState.isAuthenticated) {
-      toastStore.showToast('You need to log in to access communities', 'warning');
-      window.location.href = '/login';
-      return false;
-    }
-    return true;
-  }
-  
+  // Fetch communities based on active tab and filters
   async function fetchCommunities() {
-    isLoading = true;
-    
     try {
-      setTimeout(() => {
-        joinedCommunities = [
-          {
-            id: 1,
-            name: 'Gaming Enthusiasts',
-            description: 'A community for passionate gamers to discuss the latest games and gaming news.',
-            logo: null,
-            memberCount: 15420,
-            categories: ['Gaming', 'Technology'],
-            status: 'joined',
-            isPrivate: false
-          },
-          {
-            id: 2,
-            name: 'Frontend Developers',
-            description: 'Connect with other frontend developers to share knowledge and resources.',
-            logo: null,
-            memberCount: 8754,
-            categories: ['Technology', 'Education'],
-            status: 'joined',
-            isPrivate: false
-          },
-          {
-            id: 3,
-            name: 'Book Club',
-            description: 'Discuss your favorite books and discover new reads with fellow book lovers.',
-            logo: null,
-            memberCount: 5230,
-            categories: ['Books', 'Education'],
-            status: 'joined',
-            isPrivate: true
-          }
-        ];
-        
-        pendingCommunities = [
-          {
-            id: 4,
-            name: 'Fitness Freaks',
-            description: 'Share workout routines, nutrition tips, and fitness progress with like-minded individuals.',
-            logo: null,
-            memberCount: 12380,
-            categories: ['Fitness', 'Health'],
-            status: 'pending',
-            isPrivate: true
-          },
-          {
-            id: 5,
-            name: 'Movie Buffs',
-            description: 'A community for cinema enthusiasts to discuss films, directors, and cinematic techniques.',
-            logo: null,
-            memberCount: 9840,
-            categories: ['Movies', 'Art'],
-            status: 'pending',
-            isPrivate: false
-          }
-        ];
-        
-        availableCommunities = [
-          {
-            id: 6,
-            name: 'Travel Adventures',
-            description: 'Share your travel experiences, tips, and stories from around the world.',
-            logo: null,
-            memberCount: 18650,
-            categories: ['Travel', 'Photography'],
-            status: 'available',
-            isPrivate: false
-          },
-          {
-            id: 7,
-            name: 'Music Lovers',
-            description: 'Discover new music, share playlists, and discuss your favorite artists and bands.',
-            logo: null,
-            memberCount: 21470,
-            categories: ['Music', 'Entertainment'],
-            status: 'available',
-            isPrivate: false
-          },
-          {
-            id: 8,
-            name: 'Foodies Unite',
-            description: 'Share recipes, restaurant recommendations, and culinary experiences.',
-            logo: null,
-            memberCount: 14250,
-            categories: ['Food', 'Lifestyle'],
-            status: 'available',
-            isPrivate: false
-          },
-          {
-            id: 9,
-            name: 'AI & Machine Learning',
-            description: 'Discuss the latest advancements in AI, machine learning, and data science.',
-            logo: null,
-            memberCount: 7630,
-            categories: ['Technology', 'Science', 'Education'],
-            status: 'available',
-            isPrivate: false
-          },
-          {
-            id: 10,
-            name: 'Digital Nomads',
-            description: 'Connect with others who work remotely while traveling the world.',
-            logo: null,
-            memberCount: 9320,
-            categories: ['Travel', 'Work', 'Lifestyle'],
-            status: 'available',
-            isPrivate: false
-          }
-        ];
-        
-        filteredJoinedCommunities = [...joinedCommunities];
-        filteredPendingCommunities = [...pendingCommunities];
-        filteredAvailableCommunities = [...availableCommunities];
-        
-        isLoading = false;
-        logger.debug('Communities loaded', { 
-          joined: joinedCommunities.length,
-          pending: pendingCommunities.length,
-          available: availableCommunities.length
-        });
-      }, 1000);
+      isLoading = true;
       
+      const filter = activeTab === 'joined' ? 'joined' : 
+                    activeTab === 'pending' ? 'pending' : 'all';
+      
+      const response = await getCommunities({
+        page: currentPage,
+        limit: limit,
+        filter: filter,
+        q: searchQuery,
+        category: selectedCategories
+      });
+      
+      if (response.success) {
+        if (activeTab === 'joined') {
+          joinedCommunities = response.communities;
+        } else if (activeTab === 'pending') {
+          pendingCommunities = response.communities;
+        } else {
+          availableCommunities = response.communities;
+        }
+        
+        totalItems = response.pagination.total;
+        totalPages = response.pagination.totalPages;
+        
+        // Update limit options if the API returns them
+        if (response.limitOptions && response.limitOptions.length > 0) {
+          limitOptions = response.limitOptions;
+        }
+      } else {
+        toastStore.showToast('Failed to fetch communities', 'error');
+      }
     } catch (error) {
-      console.error('Error fetching communities:', error);
-      toastStore.showToast('Failed to load communities. Please try again.', 'error');
+      logger.error('Error fetching communities:', error);
+      toastStore.showToast('Failed to fetch communities', 'error');
+    } finally {
       isLoading = false;
     }
   }
   
-  function filterCommunities() {
-    const query = searchQuery.toLowerCase();
-    const hasCategories = selectedCategories.length > 0;
-    
-    filteredJoinedCommunities = joinedCommunities.filter(community => {
-      const matchesQuery = query === '' || 
-        community.name.toLowerCase().includes(query) || 
-        community.description.toLowerCase().includes(query);
-      
-      const matchesCategories = !hasCategories || 
-        community.categories.some(category => selectedCategories.includes(category));
-      
-      return matchesQuery && matchesCategories;
-    });
-    
-    filteredPendingCommunities = pendingCommunities.filter(community => {
-      const matchesQuery = query === '' || 
-        community.name.toLowerCase().includes(query) || 
-        community.description.toLowerCase().includes(query);
-      
-      const matchesCategories = !hasCategories || 
-        community.categories.some(category => selectedCategories.includes(category));
-      
-      return matchesQuery && matchesCategories;
-    });
-    
-    filteredAvailableCommunities = availableCommunities.filter(community => {
-      const matchesQuery = query === '' || 
-        community.name.toLowerCase().includes(query) || 
-        community.description.toLowerCase().includes(query);
-      
-      const matchesCategories = !hasCategories || 
-        community.categories.some(category => selectedCategories.includes(category));
-      
-      return matchesQuery && matchesCategories;
-    });
-  }
-  
-  function toggleCategory(category: string) {
-    if (selectedCategories.includes(category)) {
-      selectedCategories = selectedCategories.filter(c => c !== category);
-    } else {
-      selectedCategories = [...selectedCategories, category];
-    }
-    
-    filterCommunities();
-  }
-  
-  function joinCommunity(communityId: number) {
-    if (!authState.isAuthenticated) {
-      toastStore.showToast('You need to log in to join communities', 'warning');
-      return;
-    }
-    
-    logger.debug('Join community', { communityId });
-    
-    // Find the community in the available list
-    const communityIndex = availableCommunities.findIndex(c => c.id === communityId);
-    
-    if (communityIndex !== -1) {
-      const community = availableCommunities[communityIndex];
-      
-      // If it's a private community, move to pending
-      if (community.isPrivate) {
-        // Update status
-        community.status = 'pending';
-        
-        // Remove from available list
-        availableCommunities = availableCommunities.filter(c => c.id !== communityId);
-        
-        // Add to pending list
-        pendingCommunities = [community, ...pendingCommunities];
-        
-        // Update filtered lists
-        filterCommunities();
-        
-        toastStore.showToast('Your request to join has been sent to the community moderators.', 'success');
-      } else {
-        // If it's public, move to joined
-        community.status = 'joined';
-        
-        // Remove from available list
-        availableCommunities = availableCommunities.filter(c => c.id !== communityId);
-        
-        // Add to joined list
-        joinedCommunities = [community, ...joinedCommunities];
-        
-        // Update filtered lists
-        filterCommunities();
-        
-        toastStore.showToast('You have joined the community!', 'success');
+  // Fetch available categories
+  async function fetchCategories() {
+    try {
+      const response = await getCategories();
+      if (response.success) {
+        availableCategories = response.categories.map(cat => cat.name);
       }
+    } catch (error) {
+      logger.error('Error fetching categories:', error);
     }
   }
   
-  function leaveCommunity(communityId: number) {
-    logger.debug('Leave community', { communityId });
-    
-    // Find the community in the joined list
-    const communityIndex = joinedCommunities.findIndex(c => c.id === communityId);
-    
-    if (communityIndex !== -1) {
-      const community = joinedCommunities[communityIndex];
-      
-      // Update status
-      community.status = 'available';
-      
-      // Remove from joined list
-      joinedCommunities = joinedCommunities.filter(c => c.id !== communityId);
-      
-      // Add to available list
-      availableCommunities = [community, ...availableCommunities];
-      
-      // Update filtered lists
-      filterCommunities();
-      
-      toastStore.showToast('You have left the community.', 'info');
-    }
+  // Handle page change
+  function handlePageChange(event) {
+    currentPage = event.detail.page;
+    fetchCommunities();
   }
   
-  function cancelRequest(communityId: number) {
-    logger.debug('Cancel request', { communityId });
-    
-    // Find the community in the pending list
-    const communityIndex = pendingCommunities.findIndex(c => c.id === communityId);
-    
-    if (communityIndex !== -1) {
-      const community = pendingCommunities[communityIndex];
-      
-      // Update status
-      community.status = 'available';
-      
-      // Remove from pending list
-      pendingCommunities = pendingCommunities.filter(c => c.id !== communityId);
-      
-      // Add to available list
-      availableCommunities = [community, ...availableCommunities];
-      
-      // Update filtered lists
-      filterCommunities();
-      
-      toastStore.showToast('Your request has been cancelled.', 'info');
-    }
+  // Handle limit change
+  function handleLimitChange(event) {
+    limit = parseInt(event.target.value);
+    currentPage = 1; // Reset to first page when changing limit
+    fetchCommunities();
   }
   
+  // Handle tab change
+  function setActiveTab(tabName) {
+    activeTab = tabName;
+    currentPage = 1; // Reset to first page when changing tabs
+    fetchCommunities();
+  }
+  
+  // Handle search
+  function handleSearch() {
+    currentPage = 1; // Reset to first page when searching
+    fetchCommunities();
+  }
+  
+  // Handle category filter change
+  function handleCategoryChange(event) {
+    selectedCategories = event.detail.categories;
+    currentPage = 1; // Reset to first page when changing filters
+    fetchCommunities();
+  }
+  
+  // Clear filters
   function clearFilters() {
     searchQuery = '';
     selectedCategories = [];
-    filterCommunities();
+    fetchCommunities();
   }
   
-  function setActiveTab(tabName) {
-    activeTab = tabName;
+  // Handle join request
+  async function joinCommunity(communityId, event) {
+    // Prevent propagation to avoid navigation
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    try {
+      const response = await requestToJoin(communityId, {});
+      if (response.success) {
+        toastStore.showToast('Join request sent successfully', 'success');
+        // Refresh communities to reflect the change
+        fetchCommunities();
+      } else {
+        toastStore.showToast(response.message || 'Failed to request to join community', 'error');
+      }
+    } catch (error) {
+      logger.error('Error requesting to join community:', error);
+      toastStore.showToast('Failed to request to join community', 'error');
+    }
   }
   
+  // Handle community click
   function handleCommunityClick(communityId) {
     window.location.href = `/communities/${communityId}`;
   }
   
+  // Initial data loading
   onMount(() => {
-    if (checkAuth()) {
+    if (authState.isAuthenticated) {
+      fetchCategories();
       fetchCommunities();
+    } else {
+      window.location.href = '/login';
     }
   });
-  
-  $: {
-    if (searchQuery !== undefined) {
-      filterCommunities();
-    }
-  }
 </script>
 
-<MainLayout username={sidebarUsername} displayName={sidebarDisplayName} avatar={sidebarAvatar}>
-  <div class="communities-container">
+<MainLayout>
+  <div class="communities-container {isDarkMode ? 'dark' : ''}">
     <div class="communities-header">
-      <h1 class="communities-title">Communities</h1>
+      <h1>Communities</h1>
+      <a href="/communities/create" class="create-button">
+        <PlusIcon size="18" />
+        <span>Create Community</span>
+      </a>
+    </div>
       
       <div class="search-filter-container">
-        <div class="search-input-wrapper">
-          <div class="search-icon">
-            <SearchIcon size="16" />
-          </div>
+      <div class="search-box">
           <input 
             type="text" 
+          placeholder="Search communities..."
             bind:value={searchQuery} 
-            placeholder="Search communities" 
-            class="search-input"
-          />
-        </div>
-        
-        <button class="filter-button" on:click={clearFilters}>
-          <FilterIcon size="16" />
-          <span>Clear Filters</span>
+          on:keydown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+        <button on:click={handleSearch}>
+          <SearchIcon size="16" />
         </button>
       </div>
       
-      <div class="categories-wrapper">
-        {#each categories as category}
-          <button 
-            class="category-chip {selectedCategories.includes(category) ? 'selected' : ''}"
-            on:click={() => toggleCategory(category)}
-          >
-            {category}
-            {#if selectedCategories.includes(category)}
-              <span><CheckIcon size="12" /></span>
-            {/if}
-          </button>
-        {/each}
-      </div>
+      <CategoryFilter 
+        categories={availableCategories}
+        selected={selectedCategories}
+        on:change={handleCategoryChange}
+      />
     </div>
     
-    <!-- Tabs Navigation -->
-    <div class="communities-tabs">
+    <div class="tab-container">
       <button 
-        class="communities-tab {activeTab === 'discover' ? 'active' : ''}" 
-        on:click={() => setActiveTab('discover')}
-      >
-        Discover
-      </button>
-      <button 
-        class="communities-tab {activeTab === 'joined' ? 'active' : ''}"
+        class="tab-button {activeTab === 'joined' ? 'active' : ''}"
         on:click={() => setActiveTab('joined')}
       >
-        Joined
-        {#if filteredJoinedCommunities.length > 0}
-          <span class="tab-count">{filteredJoinedCommunities.length}</span>
-        {/if}
+        <CheckIcon size="16" />
+        <span>Joined</span>
       </button>
       <button 
-        class="communities-tab {activeTab === 'pending' ? 'active' : ''}"
+        class="tab-button {activeTab === 'pending' ? 'active' : ''}"
         on:click={() => setActiveTab('pending')}
       >
-        Pending
-        {#if filteredPendingCommunities.length > 0}
-          <span class="tab-count">{filteredPendingCommunities.length}</span>
-        {/if}
+        <AlertCircleIcon size="16" />
+        <span>Pending</span>
+      </button>
+      <button 
+        class="tab-button {activeTab === 'discover' ? 'active' : ''}"
+        on:click={() => setActiveTab('discover')}
+      >
+        <FilterIcon size="16" />
+        <span>Discover</span>
       </button>
     </div>
     
     {#if isLoading}
-      <div class="empty-state">
-        <div class="empty-icon">⌛</div>
-        <p class="empty-title">Loading communities...</p>
+      <div class="loading-skeleton">
+        <Spinner size="large" />
       </div>
     {:else}
-      <!-- Discover Tab Content -->
-      {#if activeTab === 'discover'}
-        {#if filteredAvailableCommunities.length > 0}
-          <div class="communities-grid">
-            {#each filteredAvailableCommunities as community (community.id)}
-              <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
-                <div class="community-banner">
-                  <div class="community-avatar">
-                    {community.name[0].toUpperCase()}
-                  </div>
-                </div>
-                <div class="community-content">
-                  <div class="community-header">
-                    <h3 class="community-name">{community.name}</h3>
-                    <p class="community-handle">#{community.categories[0]}</p>
-                  </div>
-                  
-                  <p class="community-description">{community.description}</p>
-                  
-                  <div class="community-meta">
-                    <div class="community-stats">
-                      <div class="community-stat">
-                        <UsersIcon size="14" />
-                        <span>{community.memberCount.toLocaleString()}</span>
-                      </div>
-                    </div>
-                    
-                    <div class="community-type">
-                      {#if community.isPrivate}
-                        <LockIcon size="14" />
-                        <span>Private</span>
-                      {/if}
-                    </div>
-                  </div>
-                  
-                  <div class="community-action">
-                    <button 
-                      class="join-button"
-                      on:click={() => joinCommunity(community.id)}
-                    >
-                      {community.isPrivate ? 'Request to Join' : 'Join'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <div class="empty-state">
-            <div class="empty-icon">🔍</div>
-            <h3 class="empty-title">No communities found</h3>
-            <p class="empty-text">We couldn't find any communities matching your search criteria.</p>
-            <button class="create-community-button" on:click={clearFilters}>
-              <FilterIcon size="16" />
-              Clear Filters
-            </button>
-          </div>
-        {/if}
-      {/if}
-      
-      <!-- Joined Tab Content -->
+      <!-- Display appropriate community list based on active tab -->
       {#if activeTab === 'joined'}
-        {#if filteredJoinedCommunities.length > 0}
-          <div class="communities-grid">
-            {#each filteredJoinedCommunities as community (community.id)}
+        <div class="communities-list">
+          {#if joinedCommunities.length > 0}
+            {#each joinedCommunities as community (community.id)}
               <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
-                <div class="community-banner">
-                  <div class="community-avatar">
-                    {community.name[0].toUpperCase()}
-                  </div>
-                </div>
-                <div class="community-content">
-                  <div class="community-header">
-                    <h3 class="community-name">{community.name}</h3>
-                    <p class="community-handle">#{community.categories[0]}</p>
-                  </div>
-                  
-                  <p class="community-description">{community.description}</p>
-                  
-                  <div class="community-meta">
-                    <div class="community-stats">
-                      <div class="community-stat">
-                        <UsersIcon size="14" />
-                        <span>{community.memberCount.toLocaleString()}</span>
-                      </div>
+                <div class="community-logo">
+                  {#if community.logo}
+                    <img src={community.logo} alt={community.name || 'Community'} />
+                  {:else}
+                    <div class="logo-placeholder">
+                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
                     </div>
-                    
-                    <div class="community-type">
-                      {#if community.isPrivate}
-                        <LockIcon size="14" />
-                        <span>Private</span>
                       {/if}
                     </div>
-                  </div>
-                  
-                  <div class="community-action">
-                    <button 
-                      class="joined-button"
-                      on:click={() => leaveCommunity(community.id)}
-                    >
-                      Leave
-                    </button>
+                <div class="community-info">
+                  <h3>{community.name || 'Unnamed Community'}</h3>
+                  <p>{community.description || 'No description available'}</p>
+                  <div class="community-categories">
+                    {#each community.categories || [] as category}
+                      <span class="category-tag">{category}</span>
+                    {/each}
                   </div>
                 </div>
               </div>
             {/each}
-          </div>
         {:else}
           <div class="empty-state">
-            <div class="empty-icon">👋</div>
-            <h3 class="empty-title">You haven't joined any communities yet</h3>
-            <p class="empty-text">Join some communities to see them here!</p>
-            <button class="create-community-button" on:click={() => setActiveTab('discover')}>
-              <PlusIcon size="16" />
-              Discover Communities
-            </button>
+              <p>You haven't joined any communities yet.</p>
+              <button on:click={() => setActiveTab('discover')}>Discover Communities</button>
           </div>
         {/if}
+        </div>
+      {:else if activeTab === 'pending'}
+        <div class="communities-list">
+          {#if pendingCommunities.length > 0}
+            {#each pendingCommunities as community (community.id)}
+              <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
+                <div class="community-logo">
+                  {#if community.logo}
+                    <img src={community.logo} alt={community.name || 'Community'} />
+                  {:else}
+                    <div class="logo-placeholder">
+                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
+                    </div>
+                      {/if}
+                    </div>
+                <div class="community-info">
+                  <h3>{community.name || 'Unnamed Community'}</h3>
+                  <p>{community.description || 'No description available'}</p>
+                  <div class="community-categories">
+                    {#each community.categories || [] as category}
+                      <span class="category-tag">{category}</span>
+                    {/each}
+                  </div>
+                  <div class="community-status">
+                    <AlertCircleIcon size="16" />
+                    <span>Join Request Pending</span>
+                  </div>
+                </div>
+              </div>
+            {/each}
+        {:else}
+          <div class="empty-state">
+              <p>You don't have any pending join requests.</p>
+          </div>
+        {/if}
+                  </div>
+      {:else if activeTab === 'discover'}
+        <div class="communities-list">
+          {#if availableCommunities.length > 0}
+            {#each availableCommunities as community (community.id)}
+              <div class="community-card">
+                <div 
+                  class="community-card-content" 
+                  on:click={() => handleCommunityClick(community.id)}
+                >
+                  <div class="community-logo">
+                    {#if community.logo}
+                      <img src={community.logo} alt={community.name || 'Community'} />
+                    {:else}
+                      <div class="logo-placeholder">
+                        {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
+                </div>
+                    {/if}
+                  </div>
+                  <div class="community-info">
+                    <h3>{community.name || 'Unnamed Community'}</h3>
+                    <p>{community.description || 'No description available'}</p>
+                  <div class="community-meta">
+                      <div class="community-categories">
+                        {#each community.categories || [] as category}
+                          <span class="category-tag">{category}</span>
+                        {/each}
+                      </div>
+                    <div class="community-stats">
+                        <UsersIcon size="14" />
+                        <span>{community.memberCount || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                  <div class="community-action">
+                    <button 
+                    class="join-button"
+                    on:click={(e) => joinCommunity(community.id, e)}
+                    >
+                    {community.isPrivate ? 'Request to Join' : 'Join'}
+                    </button>
+                </div>
+              </div>
+            {/each}
+        {:else}
+          <div class="empty-state">
+              <p>No communities found matching your search.</p>
+              <button on:click={clearFilters}>Clear Filters</button>
+            </div>
+          {/if}
+        </div>
       {/if}
       
-      <!-- Pending Tab Content -->
-      {#if activeTab === 'pending'}
-        {#if filteredPendingCommunities.length > 0}
-          <div class="communities-grid">
-            {#each filteredPendingCommunities as community (community.id)}
-              <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
-                <div class="community-banner">
-                  <div class="community-avatar">
-                    {community.name[0].toUpperCase()}
-                  </div>
-                </div>
-                <div class="community-content">
-                  <div class="community-header">
-                    <h3 class="community-name">{community.name}</h3>
-                    <p class="community-handle">#{community.categories[0]}</p>
-                  </div>
-                  
-                  <p class="community-description">{community.description}</p>
-                  
-                  <div class="community-meta">
-                    <div class="community-stats">
-                      <div class="community-stat">
-                        <UsersIcon size="14" />
-                        <span>{community.memberCount.toLocaleString()}</span>
-                      </div>
-                    </div>
-                    
-                    <div class="community-type">
-                      {#if community.isPrivate}
-                        <LockIcon size="14" />
-                        <span>Private</span>
-                      {/if}
-                    </div>
-                  </div>
-                  
-                  <div class="community-action">
-                    <button 
-                      class="joined-button"
-                      on:click={() => cancelRequest(community.id)}
-                    >
-                      Cancel Request
-                    </button>
-                  </div>
-                </div>
-              </div>
-            {/each}
+      <!-- Pagination controls -->
+      {#if totalPages > 1}
+        <div class="pagination-container">
+          <div class="limit-selector">
+            <label for="limit-select">Show:</label>
+            <select id="limit-select" bind:value={limit} on:change={handleLimitChange}>
+              {#each limitOptions as option}
+                <option value={option}>{option}</option>
+              {/each}
+            </select>
           </div>
-        {:else}
-          <div class="empty-state">
-            <div class="empty-icon">✉️</div>
-            <h3 class="empty-title">No pending requests</h3>
-            <p class="empty-text">You don't have any pending join requests.</p>
-            <button class="create-community-button" on:click={() => setActiveTab('discover')}>
-              <PlusIcon size="16" />
-              Discover Communities
-            </button>
-          </div>
-        {/if}
+          
+          <Pagination 
+            totalPages={totalPages}
+            currentPage={currentPage}
+            maxDisplayPages={5}
+            on:pageChange={handlePageChange}
+          />
+        </div>
       {/if}
     {/if}
   </div>
 </MainLayout>
 
 <style>
-  .categories-wrapper {
+  .communities-container {
+    padding: 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .communities-container.dark {
+    color: #e2e8f0;
+  }
+  
+  .communities-header {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
   }
   
-  .category-chip {
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-full);
-    padding: var(--space-1) var(--space-3);
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .create-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    border-radius: 9999px;
+    text-decoration: none;
+    transition: background-color 0.2s;
+  }
+  
+  .create-button:hover {
+    background-color: var(--primary-dark, #2c5282);
+  }
+  
+  .search-filter-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .search-box {
+    flex: 1;
+    position: relative;
+  }
+  
+  .search-box input {
+    width: 100%;
+    padding: 0.5rem 2.5rem 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  
+  .dark .search-box input {
+    background-color: #2d3748;
+    color: #e2e8f0;
+    border-color: #4a5568;
+  }
+  
+  .search-box input:focus {
+    border-color: var(--primary-color, #3182ce);
+  }
+  
+  .search-box button {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #718096;
     cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
+    padding: 0.25rem;
+  }
+  
+  .dark .search-box button {
+    color: #a0aec0;
+  }
+  
+  .search-box button:hover {
+    color: var(--primary-color, #3182ce);
+  }
+  
+  .tab-container {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  
+  .dark .tab-container {
+    border-color: #4a5568;
+  }
+  
+  .tab-button {
+    display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #718096;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
   }
   
-  .category-chip:hover {
-    background-color: var(--bg-hover);
-    color: var(--text-primary);
+  .dark .tab-button {
+    color: #a0aec0;
   }
   
-  .category-chip.selected {
-    background-color: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
+  .tab-button:hover {
+    color: var(--primary-color, #3182ce);
   }
   
-  .tab-count {
-    background-color: var(--bg-secondary);
-    color: var(--text-secondary);
-    border-radius: var(--radius-full);
-    padding: 0 var(--space-1);
-    font-size: var(--font-size-xs);
-    margin-left: var(--space-1);
-    min-width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
+  .tab-button.active {
+    color: var(--primary-color, #3182ce);
+    border-bottom-color: var(--primary-color, #3182ce);
+  }
+  
+  .loading-skeleton {
+    display: flex;
     justify-content: center;
+    align-items: center;
+    height: 200px;
   }
   
-  .communities-tab.active .tab-count {
-    background-color: var(--color-primary);
-    color: white;
+  .communities-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
   }
   
   .community-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background-color: white;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .dark .community-card {
+    background-color: #2d3748;
+    border-color: #4a5568;
   }
   
   .community-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  
+  .dark .community-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  }
+  
+  .community-card-content {
+    display: flex;
+    padding: 1rem;
+    flex: 1;
+  }
+  
+  .community-logo {
+    width: 60px;
+    height: 60px;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+    background-color: #f7fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .dark .community-logo {
+    background-color: #4a5568;
+  }
+  
+  .logo-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+  
+  .community-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .community-info h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .community-info p {
+    font-size: 0.875rem;
+    color: #718096;
+    margin: 0 0 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  
+  .dark .community-info p {
+    color: #a0aec0;
+  }
+  
+  .community-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+  }
+  
+  .community-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+  }
+  
+  .category-tag {
+    padding: 0.125rem 0.5rem;
+    background-color: #edf2f7;
+    color: #4a5568;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  
+  .dark .category-tag {
+    background-color: #4a5568;
+    color: #e2e8f0;
+  }
+  
+  .community-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #718096;
+  }
+  
+  .dark .community-stats {
+    color: #a0aec0;
+  }
+  
+  .community-status {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #dd6b20;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+  }
+  
+  .community-action {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  .dark .community-action {
+    border-color: #4a5568;
+  }
+  
+  .join-button {
+    padding: 0.375rem 0.75rem;
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .join-button:hover {
+    background-color: var(--primary-dark, #2c5282);
+  }
+  
+  .empty-state {
+    grid-column: 1 / -1;
+    padding: 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #718096;
+  }
+  
+  .dark .empty-state {
+    color: #a0aec0;
+  }
+  
+  .empty-state button {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+  }
+  
+  .pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+  }
+  
+  .dark .pagination-container {
+    border-color: #4a5568;
+  }
+  
+  .limit-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .limit-selector select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.25rem;
+    background-color: white;
+  }
+  
+  .dark .limit-selector select {
+    background-color: #2d3748;
+    color: #e2e8f0;
+    border-color: #4a5568;
   }
 </style>

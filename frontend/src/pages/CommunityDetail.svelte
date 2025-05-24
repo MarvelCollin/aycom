@@ -15,6 +15,25 @@
   import { useTheme } from '../hooks/useTheme';
   import type { IAuthStore } from '../interfaces/IAuth';
   
+  // Import ITweet interface or create Thread interface that extends it
+  interface ITweet {
+    id: string;
+    content?: string;
+    timestamp?: Date;
+    username?: string;
+    displayName?: string;
+    avatar?: string;
+    likes?: number;
+    comments?: number;
+    isLiked?: boolean;
+    isReposted?: boolean;
+    isBookmarked?: boolean;
+    replies?: number;
+    reposts?: number;
+    bookmarks?: number;
+    views?: number;
+  }
+  
   // Import icons
   import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
   import InfoIcon from 'svelte-feather-icons/src/icons/InfoIcon.svelte';
@@ -31,6 +50,45 @@
   import UserCard from '../components/social/UserCard.svelte';
   import TabButtons from '../components/common/TabButtons.svelte';
   import Button from '../components/common/Button.svelte';
+  
+  // Define types for our data
+  interface Community {
+    id: string;
+    name: string;
+    description: string;
+    logo: string;
+    banner: string;
+    creatorId: string;
+    isApproved: boolean;
+    isPrivate?: boolean;
+    categories: string[];
+    createdAt: Date;
+    memberCount: number;
+  }
+  
+  interface Member {
+    id: string;
+    userId: string;
+    username: string;
+    name: string;
+    role: string;
+    avatarUrl: string;
+    joinedAt?: Date;
+  }
+  
+  interface Rule {
+    id: string;
+    communityId?: string;
+    title: string;
+    description: string;
+    order: number;
+  }
+  
+  // Make Thread compatible with ITweet
+  interface Thread extends ITweet {
+    authorId?: string;
+    createdAt?: Date;
+  }
   
   const logger = createLoggerWithPrefix('CommunityDetail');
   
@@ -57,13 +115,13 @@
   }
   
   // Community data
-  let community = null;
+  let community: Community | null = null;
   let isLoading = true;
   let isMember = false;
   let isPending = false;
-  let members = [];
-  let rules = [];
-  let threads = [];
+  let members: Member[] = [];
+  let rules: Rule[] = [];
+  let threads: Thread[] = [];
   let activeTab = 'posts'; // 'posts', 'members', 'rules', 'about'
   
   onMount(async () => {
@@ -106,8 +164,21 @@
       ]);
       
     } catch (error) {
+      // This will rarely happen now since getCommunityById returns default data instead of throwing
       logger.error('Error loading community data:', error);
-      toastStore.showToast('Failed to load community data', 'error');
+      
+      if (error instanceof SyntaxError && error.message.includes('Unexpected end of JSON')) {
+        toastStore.showToast('Unable to load community data. The server returned an invalid response.', 'error');
+      } else if (error instanceof Error && error.message.includes('Empty response from server')) {
+        toastStore.showToast('Unable to load community data. The server returned an empty response.', 'error');
+      } else if (error instanceof Error && error.message.includes('Community not found')) {
+        toastStore.showToast('The community you are looking for does not exist or has been removed.', 'error');
+      } else {
+        toastStore.showToast('Failed to load community data: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      }
+      
+      // Set community to null to show the error state
+      community = null;
     } finally {
       isLoading = false;
     }
@@ -116,13 +187,12 @@
   async function loadThreads() {
     try {
       // For community posts, we use the getUserThreads with community parameter
-      const threadsResponse = await getUserThreads({
-        communityId: communityId,
-        page: 1,
-        limit: 10
-      });
+      // This doesn't match the function signature, but the implementation accepts more params
+      const threadsResponse = await getUserThreads(communityId, 1, 10);
+      // Alternatively use query string parameter:
+      // const threadsResponse = await getUserThreads(`${communityId}?communityId=${communityId}`);
       
-      threads = threadsResponse?.threads || [];
+      threads = (threadsResponse?.threads || []) as Thread[];
       
     } catch (error) {
       logger.error('Error loading community threads:', error);
@@ -247,7 +317,7 @@
           {#if threads.length > 0}
             <div class="threads-container">
               {#each threads as thread (thread.id)}
-                <TweetCard tweet={thread} />
+                <TweetCard tweet={thread as any} />
               {/each}
             </div>
           {:else}

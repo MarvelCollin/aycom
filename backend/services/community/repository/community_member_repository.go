@@ -13,6 +13,7 @@ type CommunityMemberRepository interface {
 	FindByCommunity(communityID uuid.UUID) ([]*model.CommunityMember, error)
 	FindByUser(userID uuid.UUID) ([]*model.CommunityMember, error)
 	Update(member *model.CommunityMember) error
+	IsMember(communityID, userID uuid.UUID) (bool, error)
 }
 
 type GormCommunityMemberRepository struct {
@@ -45,4 +46,13 @@ func (r *GormCommunityMemberRepository) FindByUser(userID uuid.UUID) ([]*model.C
 
 func (r *GormCommunityMemberRepository) Update(member *model.CommunityMember) error {
 	return r.db.Save(member).Error
+}
+
+func (r *GormCommunityMemberRepository) IsMember(communityID, userID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.CommunityMember{}).
+		Where("community_id = ? AND user_id = ?", communityID, userID).
+		Count(&count).Error
+
+	return count > 0, err
 }

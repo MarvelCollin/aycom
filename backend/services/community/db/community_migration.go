@@ -23,6 +23,8 @@ func RunMigrations(db *gorm.DB) error {
 		&model.CommunityMember{},
 		&model.CommunityRule{},
 		&model.CommunityJoinRequest{},
+		&model.Category{},
+		&model.CommunityCategory{},
 		&model.Chat{},
 		&model.ChatParticipant{},
 		&model.Message{},

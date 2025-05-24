@@ -1,11 +1,12 @@
 package api
 
 import (
-	"aycom/backend/proto/community"
+	communityProto "aycom/backend/proto/community"
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -14,92 +15,181 @@ import (
 type CommunityService interface{}
 
 type ChatService interface {
-	ListChats(userID string, limit, offset int) ([]*community.Chat, error)
-	CreateChat(name string, description string, creatorID string, isGroupChat bool, participantIDs []string) (*community.Chat, error)
+	ListChats(userID string, limit, offset int) ([]*communityProto.Chat, error)
+	CreateChat(name string, description string, creatorID string, isGroupChat bool, participantIDs []string) (*communityProto.Chat, error)
 	AddParticipant(chatID, userID, addedBy string) error
 	RemoveParticipant(chatID, userID, removedBy string) error
-	ListParticipants(chatID string, limit, offset int) ([]*community.ChatParticipant, error)
+	ListParticipants(chatID string, limit, offset int) ([]*communityProto.ChatParticipant, error)
 	SendMessage(chatID, userID, content string) (string, error)
-	GetMessages(chatID string, limit, offset int) ([]*community.Message, error)
+	GetMessages(chatID string, limit, offset int) ([]*communityProto.Message, error)
 	DeleteMessage(chatID, messageID, userID string) error
 	UnsendMessage(chatID, messageID, userID string) error
-	SearchMessages(chatID, query string, limit, offset int) ([]*community.Message, error)
+	SearchMessages(chatID, query string, limit, offset int) ([]*communityProto.Message, error)
+}
+
+// Repository interfaces for membership checks
+type CommunityMemberRepository interface {
+	IsMember(communityID, userID uuid.UUID) (bool, error)
+}
+
+type CommunityJoinRequestRepository interface {
+	HasPendingJoinRequest(communityID, userID uuid.UUID) (bool, error)
 }
 
 type CommunityHandler struct {
-	community.UnimplementedCommunityServiceServer
-	communityService CommunityService
-	chatService      ChatService
+	communityProto.UnimplementedCommunityServiceServer
+	communityService         CommunityService
+	chatService              ChatService
+	communityMemberRepo      CommunityMemberRepository
+	communityJoinRequestRepo CommunityJoinRequestRepository
 }
 
-func NewCommunityHandler(communityService CommunityService, chatService ChatService) *CommunityHandler {
+func NewCommunityHandler(
+	communityService CommunityService,
+	chatService ChatService,
+	memberRepo CommunityMemberRepository,
+	joinRequestRepo CommunityJoinRequestRepository,
+) *CommunityHandler {
 	return &CommunityHandler{
-		communityService: communityService,
-		chatService:      chatService,
+		communityService:         communityService,
+		chatService:              chatService,
+		communityMemberRepo:      memberRepo,
+		communityJoinRequestRepo: joinRequestRepo,
 	}
 }
 
 // Community management
-func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *community.CreateCommunityRequest) (*community.CommunityResponse, error) {
+func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *communityProto.CreateCommunityRequest) (*communityProto.CommunityResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *community.UpdateCommunityRequest) (*community.CommunityResponse, error) {
+func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *communityProto.UpdateCommunityRequest) (*communityProto.CommunityResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ApproveCommunity(ctx context.Context, req *community.ApproveCommunityRequest) (*community.CommunityResponse, error) {
+func (h *CommunityHandler) ApproveCommunity(ctx context.Context, req *communityProto.ApproveCommunityRequest) (*communityProto.CommunityResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) DeleteCommunity(ctx context.Context, req *community.DeleteCommunityRequest) (*community.EmptyResponse, error) {
+func (h *CommunityHandler) DeleteCommunity(ctx context.Context, req *communityProto.DeleteCommunityRequest) (*communityProto.EmptyResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) GetCommunityByID(ctx context.Context, req *community.GetCommunityByIDRequest) (*community.CommunityResponse, error) {
+func (h *CommunityHandler) GetCommunityByID(ctx context.Context, req *communityProto.GetCommunityByIDRequest) (*communityProto.CommunityResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ListCommunities(ctx context.Context, req *community.ListCommunitiesRequest) (*community.ListCommunitiesResponse, error) {
+func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityProto.ListCommunitiesRequest) (*communityProto.ListCommunitiesResponse, error) {
 	return nil, nil
 }
 
 // Member management
-func (h *CommunityHandler) AddMember(ctx context.Context, req *community.AddMemberRequest) (*community.MemberResponse, error) {
+func (h *CommunityHandler) AddMember(ctx context.Context, req *communityProto.AddMemberRequest) (*communityProto.MemberResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) RemoveMember(ctx context.Context, req *community.RemoveMemberRequest) (*community.EmptyResponse, error) {
+func (h *CommunityHandler) RemoveMember(ctx context.Context, req *communityProto.RemoveMemberRequest) (*communityProto.EmptyResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ListMembers(ctx context.Context, req *community.ListMembersRequest) (*community.ListMembersResponse, error) {
+func (h *CommunityHandler) ListMembers(ctx context.Context, req *communityProto.ListMembersRequest) (*communityProto.ListMembersResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) UpdateMemberRole(ctx context.Context, req *community.UpdateMemberRoleRequest) (*community.MemberResponse, error) {
+func (h *CommunityHandler) UpdateMemberRole(ctx context.Context, req *communityProto.UpdateMemberRoleRequest) (*communityProto.MemberResponse, error) {
 	return nil, nil
 }
 
 // Community rules
-func (h *CommunityHandler) AddRule(ctx context.Context, req *community.AddRuleRequest) (*community.RuleResponse, error) {
+func (h *CommunityHandler) AddRule(ctx context.Context, req *communityProto.AddRuleRequest) (*communityProto.RuleResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) RemoveRule(ctx context.Context, req *community.RemoveRuleRequest) (*community.EmptyResponse, error) {
+func (h *CommunityHandler) RemoveRule(ctx context.Context, req *communityProto.RemoveRuleRequest) (*communityProto.EmptyResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ListRules(ctx context.Context, req *community.ListRulesRequest) (*community.ListRulesResponse, error) {
+func (h *CommunityHandler) ListRules(ctx context.Context, req *communityProto.ListRulesRequest) (*communityProto.ListRulesResponse, error) {
 	return nil, nil
 }
 
 // Join requests
-func (h *CommunityHandler) RequestToJoin(ctx context.Context, req *community.RequestToJoinRequest) (*community.JoinRequestResponse, error) {
+func (h *CommunityHandler) RequestToJoin(ctx context.Context, req *communityProto.RequestToJoinRequest) (*communityProto.JoinRequestResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *community.ApproveJoinRequestRequest) (*community.JoinRequestResponse, error) {
+func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communityProto.ApproveJoinRequestRequest) (*communityProto.JoinRequestResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *community.RejectJoinRequestRequest) (*community.JoinRequestResponse, error) {
+func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *communityProto.RejectJoinRequestRequest) (*communityProto.JoinRequestResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ListJoinRequests(ctx context.Context, req *community.ListJoinRequestsRequest) (*community.ListJoinRequestsResponse, error) {
+func (h *CommunityHandler) ListJoinRequests(ctx context.Context, req *communityProto.ListJoinRequestsRequest) (*communityProto.ListJoinRequestsResponse, error) {
 	return nil, nil
 }
 
+// Membership checks
+func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsMemberRequest) (*communityProto.IsMemberResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	if req.CommunityId == "" {
+		return nil, status.Error(codes.InvalidArgument, "community_id is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// Convert string IDs to UUID
+	communityID, err := uuid.Parse(req.CommunityId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid community ID format")
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+
+	// Check if user is a member
+	isMember, err := h.communityMemberRepo.IsMember(communityID, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to check membership: %v", err))
+	}
+
+	return &communityProto.IsMemberResponse{
+		IsMember: isMember,
+	}, nil
+}
+
+func (h *CommunityHandler) HasPendingJoinRequest(ctx context.Context, req *communityProto.HasPendingJoinRequestRequest) (*communityProto.HasPendingJoinRequestResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	if req.CommunityId == "" {
+		return nil, status.Error(codes.InvalidArgument, "community_id is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// Convert string IDs to UUID
+	communityID, err := uuid.Parse(req.CommunityId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid community ID format")
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
+	}
+
+	// Check if user has a pending join request
+	hasRequest, err := h.communityJoinRequestRepo.HasPendingJoinRequest(communityID, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to check join request: %v", err))
+	}
+
+	return &communityProto.HasPendingJoinRequestResponse{
+		HasRequest: hasRequest,
+	}, nil
+}
+
 // Chat
-func (h *CommunityHandler) CreateChat(ctx context.Context, req *community.CreateChatRequest) (*community.ChatResponse, error) {
+func (h *CommunityHandler) CreateChat(ctx context.Context, req *communityProto.CreateChatRequest) (*communityProto.ChatResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -129,17 +219,17 @@ func (h *CommunityHandler) CreateChat(ctx context.Context, req *community.Create
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to create chat: %v", err))
 	}
 
-	return &community.ChatResponse{
+	return &communityProto.ChatResponse{
 		Chat: chat,
 	}, nil
 }
-func (h *CommunityHandler) AddChatParticipant(ctx context.Context, req *community.AddChatParticipantRequest) (*community.ChatParticipantResponse, error) {
+func (h *CommunityHandler) AddChatParticipant(ctx context.Context, req *communityProto.AddChatParticipantRequest) (*communityProto.ChatParticipantResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) RemoveChatParticipant(ctx context.Context, req *community.RemoveChatParticipantRequest) (*community.EmptyResponse, error) {
+func (h *CommunityHandler) RemoveChatParticipant(ctx context.Context, req *communityProto.RemoveChatParticipantRequest) (*communityProto.EmptyResponse, error) {
 	return nil, nil
 }
-func (h *CommunityHandler) ListChats(ctx context.Context, req *community.ListChatsRequest) (*community.ListChatsResponse, error) {
+func (h *CommunityHandler) ListChats(ctx context.Context, req *communityProto.ListChatsRequest) (*communityProto.ListChatsResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -153,11 +243,11 @@ func (h *CommunityHandler) ListChats(ctx context.Context, req *community.ListCha
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list chats: %v", err))
 	}
 
-	return &community.ListChatsResponse{
+	return &communityProto.ListChatsResponse{
 		Chats: chats,
 	}, nil
 }
-func (h *CommunityHandler) ListChatParticipants(ctx context.Context, req *community.ListChatParticipantsRequest) (*community.ListChatParticipantsResponse, error) {
+func (h *CommunityHandler) ListChatParticipants(ctx context.Context, req *communityProto.ListChatParticipantsRequest) (*communityProto.ListChatParticipantsResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -176,13 +266,13 @@ func (h *CommunityHandler) ListChatParticipants(ctx context.Context, req *commun
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list participants: %v", err))
 	}
 
-	return &community.ListChatParticipantsResponse{
+	return &communityProto.ListChatParticipantsResponse{
 		Participants: participants,
 	}, nil
 }
 
 // Messages
-func (h *CommunityHandler) SendMessage(ctx context.Context, req *community.SendMessageRequest) (*community.MessageResponse, error) {
+func (h *CommunityHandler) SendMessage(ctx context.Context, req *communityProto.SendMessageRequest) (*communityProto.MessageResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -209,7 +299,7 @@ func (h *CommunityHandler) SendMessage(ctx context.Context, req *community.SendM
 
 	// Create message response
 	now := time.Now()
-	message := &community.Message{
+	message := &communityProto.Message{
 		Id:        messageID,
 		ChatId:    req.ChatId,
 		SenderId:  req.SenderId,
@@ -219,11 +309,11 @@ func (h *CommunityHandler) SendMessage(ctx context.Context, req *community.SendM
 		SentAt:    timestamppb.New(now),
 	}
 
-	return &community.MessageResponse{
+	return &communityProto.MessageResponse{
 		Message: message,
 	}, nil
 }
-func (h *CommunityHandler) DeleteMessage(ctx context.Context, req *community.DeleteMessageRequest) (*community.EmptyResponse, error) {
+func (h *CommunityHandler) DeleteMessage(ctx context.Context, req *communityProto.DeleteMessageRequest) (*communityProto.EmptyResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -255,9 +345,9 @@ func (h *CommunityHandler) DeleteMessage(ctx context.Context, req *community.Del
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete message: %v", err))
 	}
 
-	return &community.EmptyResponse{}, nil
+	return &communityProto.EmptyResponse{}, nil
 }
-func (h *CommunityHandler) UnsendMessage(ctx context.Context, req *community.UnsendMessageRequest) (*community.EmptyResponse, error) {
+func (h *CommunityHandler) UnsendMessage(ctx context.Context, req *communityProto.UnsendMessageRequest) (*communityProto.EmptyResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -281,9 +371,9 @@ func (h *CommunityHandler) UnsendMessage(ctx context.Context, req *community.Uns
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to unsend message: %v", err))
 	}
 
-	return &community.EmptyResponse{}, nil
+	return &communityProto.EmptyResponse{}, nil
 }
-func (h *CommunityHandler) ListMessages(ctx context.Context, req *community.ListMessagesRequest) (*community.ListMessagesResponse, error) {
+func (h *CommunityHandler) ListMessages(ctx context.Context, req *communityProto.ListMessagesRequest) (*communityProto.ListMessagesResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -308,11 +398,11 @@ func (h *CommunityHandler) ListMessages(ctx context.Context, req *community.List
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get messages: %v", err))
 	}
 
-	return &community.ListMessagesResponse{
+	return &communityProto.ListMessagesResponse{
 		Messages: messages,
 	}, nil
 }
-func (h *CommunityHandler) SearchMessages(ctx context.Context, req *community.SearchMessagesRequest) (*community.ListMessagesResponse, error) {
+func (h *CommunityHandler) SearchMessages(ctx context.Context, req *communityProto.SearchMessagesRequest) (*communityProto.ListMessagesResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -341,7 +431,7 @@ func (h *CommunityHandler) SearchMessages(ctx context.Context, req *community.Se
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to search messages: %v", err))
 	}
 
-	return &community.ListMessagesResponse{
+	return &communityProto.ListMessagesResponse{
 		Messages: messages,
 	}, nil
 }

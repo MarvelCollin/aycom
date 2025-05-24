@@ -561,6 +561,34 @@ export async function getThreadReplies(threadId: string) {
         const firstReply = data.replies[0];
         console.log(`First reply structure from API:`, firstReply);
         
+        // Reorganize replies to create proper nesting hierarchy
+        // First, identify top-level replies (those without parent_reply_id)
+        const topLevelReplies = data.replies.filter(reply => !reply.parent_reply_id);
+        
+        // Then create a map of parent_reply_id -> child replies
+        const nestedRepliesMap = new Map();
+        data.replies.forEach(reply => {
+          if (reply.parent_reply_id) {
+            const parentId = reply.parent_reply_id;
+            if (!nestedRepliesMap.has(parentId)) {
+              nestedRepliesMap.set(parentId, []);
+            }
+            nestedRepliesMap.get(parentId).push(reply);
+          }
+        });
+        
+        // Log the hierarchy structure for debugging
+        console.log(`Organized top-level replies:`, topLevelReplies.length);
+        console.log(`Organized nested replies map:`, Array.from(nestedRepliesMap.entries()).map(
+          ([parentId, children]) => ({ parentId, childrenCount: children.length })
+        ));
+        
+        // Replace the original flat reply list with top-level replies only
+        data.replies = topLevelReplies;
+        
+        // Pass the nested replies map in the data structure
+        data.nestedRepliesMap = Object.fromEntries(nestedRepliesMap);
+        
         // Add user data fields if they're missing but can be derived from nested structures
         data.replies = data.replies.map(reply => {
           // Check if reply has a valid user field

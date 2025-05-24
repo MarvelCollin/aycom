@@ -11,3 +11,9 @@ replace (
 )
 
 replace aycom/backend/proto/user => ./proto/user
+
+require (
+	aycom/backend/api-gateway v0.0.0-00010101000000-000000000000 // indirect
+	github.com/gin-gonic/gin v1.10.1 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
+)

@@ -145,6 +145,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.GET("/:id/join-requests", handlers.ListJoinRequests)
 		communities.POST("/:id/join-requests/:requestId/approve", handlers.ApproveJoinRequest)
 		communities.POST("/:id/join-requests/:requestId/reject", handlers.RejectJoinRequest)
+
+		// User membership check
+		communities.GET("/:id/membership", handlers.CheckMembershipStatus)
 	}
 
 	chats := protected.Group("/chats")
