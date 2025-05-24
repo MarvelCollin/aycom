@@ -1,16 +1,14 @@
 package repository
 
 import (
+	"aycom/backend/services/thread/model"
 	"errors"
 	"fmt"
 	"log"
 	"time"
 
-	"aycom/backend/services/thread/model"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // InteractionRepository defines the methods for user-thread interactions (likes, reposts, bookmarks)
@@ -78,75 +76,54 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// First check if like already exists outside transaction
-	exists, err := r.IsThreadLikedByUser(userID, threadID)
-	if err != nil {
-		log.Printf("Error checking if thread is already liked: %v", err)
-		return err
-	}
-	if exists {
-		log.Printf("Thread %s is already liked by user %s", threadID, userID)
-		return nil
-	}
-
-	// Start transaction with serializable isolation level
+	// Start a transaction for atomicity
 	tx := r.db.Begin()
 	if tx.Error != nil {
-		log.Printf("Failed to begin transaction: %v", tx.Error)
-		return tx.Error
+		log.Printf("Failed to start transaction: %v", tx.Error)
+		return fmt.Errorf("database error: %w", tx.Error)
 	}
 
-	// Set transaction isolation level to serializable
-	if err := tx.Exec("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").Error; err != nil {
-		tx.Rollback()
-		log.Printf("Failed to set transaction isolation level: %v", err)
-		return err
-	}
-
+	// Defer rollback in case of errors - will be ignored if we commit
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in LikeThread: %v", r)
 			tx.Rollback()
 		}
 	}()
 
-	// Use FOR UPDATE SKIP LOCKED to prevent deadlocks
+	// Check if like already exists
 	var count int64
 	if err := tx.Model(&model.Like{}).
-		Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
 		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
 		Count(&count).Error; err != nil {
-		log.Printf("Error checking for existing like in transaction: %v", err)
 		tx.Rollback()
-		return err
+		log.Printf("Error checking for existing like: %v", err)
+		return fmt.Errorf("failed to check for existing like: %w", err)
 	}
 
-	// Only insert if it doesn't exist
+	// If record doesn't exist, create it
 	if count == 0 {
-		log.Printf("No existing like found, creating new like")
-
-		// Use INSERT ... ON CONFLICT DO NOTHING for additional safety
-		if err := tx.Exec(`
-			INSERT INTO likes (id, user_id, thread_id, created_at)
-			VALUES (?, ?, ?, NOW())
-			ON CONFLICT (user_id, thread_id) WHERE deleted_at IS NULL DO NOTHING`,
-			uuid.New(), userUUID, threadUUID).Error; err != nil {
-			log.Printf("Error creating like: %v", err)
-			tx.Rollback()
-			return err
+		like := model.Like{
+			UserID:    userUUID,
+			ThreadID:  &threadUUID,
+			CreatedAt: time.Now(),
 		}
-		log.Printf("Like created successfully")
+
+		if err := tx.Create(&like).Error; err != nil {
+			tx.Rollback()
+			log.Printf("Error creating like: %v", err)
+			return fmt.Errorf("failed to create like: %w", err)
+		}
 	} else {
-		log.Printf("Like already exists, skipping creation")
+		log.Printf("Like already exists for user %s and thread %s", userID, threadID)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("Error committing transaction: %v", err)
-		return err
+		return fmt.Errorf("failed to commit like: %w", err)
 	}
 
-	log.Printf("Transaction committed successfully, thread %s liked by user %s", threadID, userID)
+	log.Printf("Thread %s liked by user %s", threadID, userID)
 	return nil
 }
 
@@ -166,61 +143,54 @@ func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error 
 		return errors.New("invalid UUID format for reply ID")
 	}
 
-	// Let's first check if the like already exists outside the transaction
-	hasLiked, err := r.IsReplyLikedByUser(userID, replyID)
-	if err != nil {
-		log.Printf("Error checking if reply is already liked: %v", err)
-		return err
-	}
-
-	if hasLiked {
-		log.Printf("Reply %s is already liked by user %s, returning success", replyID, userID)
-		return nil
-	}
-
-	// Start a transaction to make this operation atomic
-	log.Printf("Starting transaction for new reply like")
+	// Start a transaction for atomicity
 	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to start transaction: %v", tx.Error)
+		return fmt.Errorf("database error: %w", tx.Error)
+	}
+
+	// Defer rollback in case of errors - will be ignored if we commit
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in LikeReply: %v", r)
 			tx.Rollback()
 		}
 	}()
 
-	// Check if the like already exists in a transaction
+	// Check if like already exists
 	var count int64
-	if err := tx.Model(&model.Like{}).Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", userUUID, replyUUID).Count(&count).Error; err != nil {
-		log.Printf("Error counting reply likes in transaction: %v", err)
+	if err := tx.Model(&model.Like{}).
+		Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", userUUID, replyUUID).
+		Count(&count).Error; err != nil {
 		tx.Rollback()
-		return err
+		log.Printf("Error checking for existing reply like: %v", err)
+		return fmt.Errorf("failed to check for existing reply like: %w", err)
 	}
 
-	// Only insert if it doesn't exist
+	// If record doesn't exist, create it
 	if count == 0 {
-		log.Printf("No existing reply like found, creating new like")
 		like := model.Like{
-			UserID:  userUUID,
-			ReplyID: &replyUUID,
+			UserID:    userUUID,
+			ReplyID:   &replyUUID,
+			CreatedAt: time.Now(),
 		}
 
 		if err := tx.Create(&like).Error; err != nil {
-			log.Printf("Error creating reply like: %v", err)
 			tx.Rollback()
-			return err
+			log.Printf("Error creating reply like: %v", err)
+			return fmt.Errorf("failed to create reply like: %w", err)
 		}
-		log.Printf("Reply like created successfully")
 	} else {
-		log.Printf("Reply like already exists in transaction check, skipping creation")
+		log.Printf("Like already exists for user %s and reply %s", userID, replyID)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("Error committing transaction: %v", err)
-		return err
+		return fmt.Errorf("failed to commit reply like: %w", err)
 	}
 
-	log.Printf("Transaction committed successfully, reply %s liked by user %s", replyID, userID)
+	log.Printf("Reply %s liked by user %s", replyID, userID)
 	return nil
 }
 
@@ -347,7 +317,7 @@ func (r *PostgresInteractionRepository) CountThreadLikes(threadID string) (int64
 	}
 
 	var count int64
-	r.db.Model(&model.Like{}).Where("thread_id = ?", threadUUID).Count(&count)
+	r.db.Model(&model.Like{}).Where("thread_id = ? AND deleted_at IS NULL", threadUUID).Count(&count)
 	return count, nil
 }
 
@@ -359,13 +329,35 @@ func (r *PostgresInteractionRepository) CountReplyLikes(replyID string) (int64, 
 	}
 
 	var count int64
-	r.db.Model(&model.Like{}).Where("reply_id = ?", replyUUID).Count(&count)
+	r.db.Model(&model.Like{}).Where("reply_id = ? AND deleted_at IS NULL", replyUUID).Count(&count)
 	return count, nil
 }
 
 // RepostThread reposts a thread
 func (r *PostgresInteractionRepository) RepostThread(repost *model.Repost) error {
-	return r.db.Create(repost).Error
+	// First check if the repost already exists
+	userUUID := repost.UserID
+	threadUUID := repost.ThreadID
+
+	var count int64
+	if err := r.db.Model(&model.Repost{}).
+		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check existing repost: %w", err)
+	}
+
+	if count > 0 {
+		log.Printf("Repost already exists for user %s and thread %s", userUUID, threadUUID)
+		return nil // Return success for idempotent behavior
+	}
+
+	// Create the repost
+	if err := r.db.Create(repost).Error; err != nil {
+		return fmt.Errorf("failed to create repost: %w", err)
+	}
+
+	log.Printf("Successfully created repost for user %s and thread %s", userUUID, threadUUID)
+	return nil
 }
 
 // RemoveRepost removes a thread repost
@@ -396,7 +388,7 @@ func (r *PostgresInteractionRepository) IsThreadRepostedByUser(userID, threadID 
 	}
 
 	var count int64
-	r.db.Model(&model.Repost{}).Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Count(&count)
+	r.db.Model(&model.Repost{}).Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).Count(&count)
 	return count > 0, nil
 }
 
@@ -408,7 +400,7 @@ func (r *PostgresInteractionRepository) CountThreadReposts(threadID string) (int
 	}
 
 	var count int64
-	r.db.Model(&model.Repost{}).Where("thread_id = ?", threadUUID).Count(&count)
+	r.db.Model(&model.Repost{}).Where("thread_id = ? AND deleted_at IS NULL", threadUUID).Count(&count)
 	return count, nil
 }
 
@@ -428,58 +420,54 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// Start a transaction to make this operation atomic
+	// Start a transaction for atomicity
 	tx := r.db.Begin()
 	if tx.Error != nil {
-		log.Printf("Failed to begin transaction: %v", tx.Error)
-		return tx.Error
+		log.Printf("Failed to start transaction: %v", tx.Error)
+		return fmt.Errorf("database error: %w", tx.Error)
 	}
 
-	// Set a deferred rollback that will be ignored if we commit successfully
+	// Defer rollback in case of errors - will be ignored if we commit
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in BookmarkThread: %v", r)
 			tx.Rollback()
 		}
 	}()
 
-	// Use FOR UPDATE locking to prevent race conditions
+	// Check if bookmark already exists
 	var count int64
 	if err := tx.Model(&model.Bookmark{}).
-		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
 		Count(&count).Error; err != nil {
-		log.Printf("Error checking for existing bookmark in transaction: %v", err)
 		tx.Rollback()
-		return err
+		log.Printf("Error checking for existing bookmark: %v", err)
+		return fmt.Errorf("failed to check for existing bookmark: %w", err)
 	}
 
-	// Only insert if it doesn't exist
+	// If record doesn't exist, create it
 	if count == 0 {
-		log.Printf("No existing bookmark found, creating new bookmark")
-
-		// Use native SQL for an upsert-like operation that's more race-condition resistant
-		if err := tx.Exec(`
-			INSERT INTO bookmarks (user_id, thread_id, created_at)
-			VALUES (?, ?, NOW())
-			ON CONFLICT DO NOTHING`,
-			userUUID, threadUUID).Error; err != nil {
-			log.Printf("Error creating bookmark: %v", err)
-			tx.Rollback()
-			return err
+		bookmark := model.Bookmark{
+			UserID:    userUUID,
+			ThreadID:  &threadUUID,
+			CreatedAt: time.Now(),
 		}
-		log.Printf("Bookmark created successfully")
+
+		if err := tx.Create(&bookmark).Error; err != nil {
+			tx.Rollback()
+			log.Printf("Error creating bookmark: %v", err)
+			return fmt.Errorf("failed to create bookmark: %w", err)
+		}
 	} else {
-		log.Printf("Bookmark already exists, skipping creation")
+		log.Printf("Bookmark already exists for user %s and thread %s", userID, threadID)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("Error committing transaction: %v", err)
-		return err
+		return fmt.Errorf("failed to commit bookmark: %w", err)
 	}
 
-	log.Printf("Transaction committed successfully, thread %s bookmarked by user %s", threadID, userID)
+	log.Printf("Thread %s bookmarked by user %s", threadID, userID)
 	return nil
 }
 
@@ -575,7 +563,7 @@ func (r *PostgresInteractionRepository) GetUserBookmarks(userID string, page, li
 
 	result := r.db.Table("threads").
 		Joins("JOIN bookmarks ON threads.thread_id = bookmarks.thread_id").
-		Where("bookmarks.user_id = ?", userUUID).
+		Where("bookmarks.user_id = ? AND bookmarks.deleted_at IS NULL", userUUID).
 		Order("bookmarks.created_at DESC").
 		Offset(offset).
 		Limit(limit).
@@ -596,7 +584,7 @@ func (r *PostgresInteractionRepository) CountThreadBookmarks(threadID string) (i
 	}
 
 	var count int64
-	r.db.Model(&model.Bookmark{}).Where("thread_id = ?", threadUUID).Count(&count)
+	r.db.Model(&model.Bookmark{}).Where("thread_id = ? AND deleted_at IS NULL", threadUUID).Count(&count)
 	return count, nil
 }
 
@@ -612,28 +600,55 @@ func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) er
 		return errors.New("invalid UUID format for reply ID")
 	}
 
-	// First, check if the bookmark already exists
+	// Start a transaction for atomicity
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to start transaction: %v", tx.Error)
+		return fmt.Errorf("database error: %w", tx.Error)
+	}
+
+	// Defer rollback in case of errors - will be ignored if we commit
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Check if bookmark already exists
 	var count int64
-	if err := r.db.Model(&model.Bookmark{}).
-		Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).
+	if err := tx.Model(&model.Bookmark{}).
+		Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", userUUID, replyUUID).
 		Count(&count).Error; err != nil {
-		return err
+		tx.Rollback()
+		log.Printf("Error checking for existing reply bookmark: %v", err)
+		return fmt.Errorf("failed to check for existing reply bookmark: %w", err)
 	}
 
-	if count > 0 {
-		// Bookmark already exists, nothing to do
-		return nil
+	// If record doesn't exist, create it
+	if count == 0 {
+		bookmark := model.Bookmark{
+			UserID:    userUUID,
+			ReplyID:   &replyUUID,
+			CreatedAt: time.Now(),
+		}
+
+		if err := tx.Create(&bookmark).Error; err != nil {
+			tx.Rollback()
+			log.Printf("Error creating reply bookmark: %v", err)
+			return fmt.Errorf("failed to create reply bookmark: %w", err)
+		}
+	} else {
+		log.Printf("Bookmark already exists for user %s and reply %s", userID, replyID)
 	}
 
-	// Use raw SQL to ensure NULL is used for thread_id
-	result := r.db.Exec(
-		"INSERT INTO bookmarks (user_id, thread_id, reply_id, created_at) VALUES (?, NULL, ?, ?)",
-		userUUID,
-		replyUUID,
-		time.Now(),
-	)
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return fmt.Errorf("failed to commit reply bookmark: %w", err)
+	}
 
-	return result.Error
+	log.Printf("Reply %s bookmarked by user %s", replyID, userID)
+	return nil
 }
 
 // RemoveReplyBookmark removes a bookmark from a reply
@@ -666,7 +681,7 @@ func (r *PostgresInteractionRepository) IsReplyBookmarkedByUser(userID, replyID 
 
 	var count int64
 	err = r.db.Model(&model.Bookmark{}).
-		Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).
+		Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", userUUID, replyUUID).
 		Count(&count).Error
 
 	if err != nil {
@@ -684,7 +699,7 @@ func (r *PostgresInteractionRepository) CountReplyBookmarks(replyID string) (int
 	}
 
 	var count int64
-	r.db.Model(&model.Bookmark{}).Where("reply_id = ?", replyUUID).Count(&count)
+	r.db.Model(&model.Bookmark{}).Where("reply_id = ? AND deleted_at IS NULL", replyUUID).Count(&count)
 	return count, nil
 }
 
@@ -699,7 +714,7 @@ func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, 
 	var likes []model.Like
 
 	err = r.db.Model(&model.Like{}).
-		Where("user_id = ? AND thread_id IS NOT NULL", userUUID).
+		Where("user_id = ? AND thread_id IS NOT NULL AND deleted_at IS NULL", userUUID).
 		Offset(offset).
 		Limit(limit).
 		Find(&likes).Error
@@ -752,7 +767,7 @@ func (r *PostgresInteractionRepository) BookmarkExists(userID, threadID string) 
 
 	var count int64
 	result := r.db.Model(&model.Bookmark{}).
-		Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).
+		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
 		Count(&count)
 
 	if result.Error != nil {
@@ -764,19 +779,59 @@ func (r *PostgresInteractionRepository) BookmarkExists(userID, threadID string) 
 
 // CreateBookmark creates a new bookmark record
 func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark) error {
-	// Check if the bookmark already exists
+	// Start a transaction for atomicity
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Failed to start transaction: %v", tx.Error)
+		return fmt.Errorf("database error: %w", tx.Error)
+	}
+
+	// Defer rollback in case of errors - will be ignored if we commit
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Determine the type of bookmark and check if it already exists
 	var count int64
-	if err := r.db.Model(&model.Bookmark{}).
-		Where("user_id = ? AND thread_id = ?", bookmark.UserID, bookmark.ThreadID).
-		Count(&count).Error; err != nil {
-		return err
+	if bookmark.ThreadID != nil {
+		if err := tx.Model(&model.Bookmark{}).
+			Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", bookmark.UserID, bookmark.ThreadID).
+			Count(&count).Error; err != nil {
+			tx.Rollback()
+			log.Printf("Error checking for existing bookmark: %v", err)
+			return fmt.Errorf("failed to check for existing bookmark: %w", err)
+		}
+	} else if bookmark.ReplyID != nil {
+		if err := tx.Model(&model.Bookmark{}).
+			Where("user_id = ? AND reply_id = ? AND deleted_at IS NULL", bookmark.UserID, bookmark.ReplyID).
+			Count(&count).Error; err != nil {
+			tx.Rollback()
+			log.Printf("Error checking for existing bookmark: %v", err)
+			return fmt.Errorf("failed to check for existing bookmark: %w", err)
+		}
+	} else {
+		tx.Rollback()
+		return errors.New("bookmark must be associated with either a thread or a reply")
 	}
 
-	if count > 0 {
-		// Bookmark already exists, nothing to do
-		return nil
+	// If record doesn't exist, create it
+	if count == 0 {
+		if err := tx.Create(bookmark).Error; err != nil {
+			tx.Rollback()
+			log.Printf("Error creating bookmark: %v", err)
+			return fmt.Errorf("failed to create bookmark: %w", err)
+		}
+	} else {
+		log.Printf("Bookmark already exists")
 	}
 
-	// Create the bookmark
-	return r.db.Create(bookmark).Error
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return fmt.Errorf("failed to commit bookmark: %w", err)
+	}
+
+	return nil
 }

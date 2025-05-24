@@ -17,8 +17,6 @@ RUN mkdir -p /app/models
 
 # Copy application code
 COPY app.py /app/
-COPY lib/ /app/lib/
-COPY config/ /app/config/
 COPY thread_category_model.h5 /app/models/
 COPY tokenizer.pickle /app/models/
 
