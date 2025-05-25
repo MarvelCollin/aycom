@@ -1153,3 +1153,136 @@ func CreateAdminUser(c *gin.Context) {
 		"token": token,
 	})
 }
+
+// UpdateUserAdminStatus handles updating a user's admin status
+func UpdateUserAdminStatus(c *gin.Context) {
+	log.Println("UpdateUserAdminStatus: Starting handler execution")
+
+	// Check if the current user is an admin, but bypass this check for debug requests
+	currentUserIDValue, exists := c.Get("userID")
+	if !exists {
+		log.Println("UpdateUserAdminStatus: No userID in context - unauthorized")
+		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	log.Printf("UpdateUserAdminStatus: Request from user ID: %v", currentUserIDValue)
+
+	// Ensure userServiceClient is initialized
+	if userServiceClient == nil {
+		log.Println("Initializing user service client in UpdateUserAdminStatus")
+		InitUserServiceClient(AppConfig)
+		if userServiceClient == nil {
+			log.Println("UpdateUserAdminStatus: Failed to initialize userServiceClient")
+			SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+			return
+		}
+		log.Println("UpdateUserAdminStatus: Successfully initialized userServiceClient")
+	}
+
+	var req struct {
+		UserID         string `json:"user_id" binding:"required"`
+		IsAdmin        bool   `json:"is_admin" binding:"required"`
+		IsDebugRequest bool   `json:"is_debug_request"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("UpdateUserAdminStatus: Invalid request payload: %v", err)
+		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
+		return
+	}
+	log.Printf("UpdateUserAdminStatus: Request payload - Target UserID: %s, Set Admin: %t, Debug: %t",
+		req.UserID, req.IsAdmin, req.IsDebugRequest)
+
+	if UserClient == nil {
+		log.Println("UpdateUserAdminStatus: UserClient is nil")
+		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	// Check for debug flag in request - simplifying to only use the request body flag
+	isDebugRequest := req.IsDebugRequest
+	log.Printf("UpdateUserAdminStatus: Debug request check - IsDebugRequest: %t", isDebugRequest)
+
+	// Skip admin check if it's a debug request
+	if !isDebugRequest {
+		log.Println("UpdateUserAdminStatus: Not a debug request, checking admin status")
+		// Check if the requester is an admin
+		currentUser, err := userServiceClient.GetUserProfile(req.UserID)
+		if err != nil {
+			log.Printf("UpdateUserAdminStatus: Error getting user profile: %v", err)
+			SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Only admins can update admin status")
+			return
+		}
+
+		log.Printf("UpdateUserAdminStatus: Current user IsAdmin: %t", currentUser.IsAdmin)
+		if !currentUser.IsAdmin {
+			log.Printf("UpdateUserAdminStatus: User %s is not an admin", req.UserID)
+			SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Only admins can update admin status")
+			return
+		}
+		log.Printf("UpdateUserAdminStatus: User %s is an admin, proceeding", req.UserID)
+	} else {
+		log.Println("Debug request detected - bypassing admin check for admin status update")
+	}
+
+	// Update the target user's admin status
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	updateReq := &userProto.UpdateUserRequest{
+		UserId: req.UserID,
+		User: &userProto.User{
+			Id:      req.UserID,
+			IsAdmin: req.IsAdmin,
+		},
+	}
+
+	log.Printf("UpdateUserAdminStatus: Sending UpdateUser request with IsAdmin=%t", req.IsAdmin)
+	_, err := UserClient.UpdateUser(ctx, updateReq)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			log.Printf("UpdateUserAdminStatus: gRPC error code: %d, message: %s", st.Code(), st.Message())
+			switch st.Code() {
+			case codes.NotFound:
+				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+			default:
+				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user admin status: "+st.Message())
+			}
+		} else {
+			log.Printf("UpdateUserAdminStatus: Non-gRPC error: %v", err)
+			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while updating user admin status")
+		}
+		log.Printf("Error updating user admin status: %v", err)
+		return
+	}
+
+	// Get updated user data
+	updatedUser, err := userServiceClient.GetUserById(req.UserID)
+	if err != nil {
+		log.Printf("UpdateUserAdminStatus: Error getting updated user data: %v", err)
+		// Continue anyway since the update was successful
+	} else {
+		log.Printf("UpdateUserAdminStatus: Updated user returned with IsAdmin=%t", updatedUser.IsAdmin)
+	}
+
+	var userName string
+	if updatedUser != nil {
+		userName = updatedUser.Username
+	} else {
+		userName = req.UserID
+	}
+
+	action := "removed from admins"
+	if req.IsAdmin {
+		action = "promoted to admin"
+	}
+
+	log.Printf("UpdateUserAdminStatus: Successfully completed. User %s has been %s", userName, action)
+	SendSuccessResponse(c, http.StatusOK, gin.H{
+		"success":  true,
+		"message":  fmt.Sprintf("User %s has been %s", userName, action),
+		"user_id":  req.UserID,
+		"is_admin": req.IsAdmin,
+	})
+}

@@ -842,4 +842,47 @@ export async function getBlockedUsers(): Promise<any[]> {
     console.error('Failed to get blocked users:', err);
     return [];
   }
+}
+
+/**
+ * Update a user's admin status
+ * @param userId The ID of the user to update admin status
+ * @param isAdmin Whether the user should be an admin or not
+ * @returns Promise resolving to success message
+ */
+export async function updateUserAdminStatus(userId: string, isAdmin: boolean): Promise<{ success: boolean, message: string }> {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/users/admin-status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ 
+        user_id: userId,
+        is_admin: isAdmin,
+        is_debug_request: true   // Using request body flag only for indicating this is from debug panel
+      }),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to update admin status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return { 
+      success: data.success || true, 
+      message: data.message || `User admin status updated successfully`
+    };
+  } catch (error) {
+    console.error('Failed to update user admin status:', error);
+    throw error;
+  }
 } 

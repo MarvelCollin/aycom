@@ -86,6 +86,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/:userId/followers", handlers.GetFollowers)
 		users.GET("/:userId/following", handlers.GetFollowing)
 		users.GET("/recommendations", handlers.GetUserRecommendations)
+		users.POST("/admin-status", handlers.UpdateUserAdminStatus)
 	}
 
 	threads := protected.Group("/threads")

@@ -55,6 +55,7 @@ type User struct {
 	BannerURL         string
 	Bio               string
 	IsVerified        bool
+	IsAdmin           bool
 	IsPrivate         bool
 	FollowerCount     int
 	FollowingCount    int
@@ -561,6 +562,7 @@ func convertProtoToUser(u *userProto.User) *User {
 		BannerURL:         u.BannerUrl,
 		Bio:               u.Bio,
 		IsVerified:        u.IsVerified,
+		IsAdmin:           u.IsAdmin,
 		IsPrivate:         false, // Default to false since it's not in proto yet
 		FollowerCount:     int(u.FollowerCount),
 		FollowingCount:    int(u.FollowingCount),

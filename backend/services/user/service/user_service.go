@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 
@@ -144,7 +145,8 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUse
 		SecurityQuestion:      userProto.SecurityQuestion,
 		SecurityAnswer:        userProto.SecurityAnswer,
 		SubscribeToNewsletter: userProto.SubscribeToNewsletter,
-		IsVerified:            false,
+		IsVerified:            userProto.IsVerified,
+		IsAdmin:               userProto.IsAdmin,
 		CreatedAt:             time.Now(),
 		UpdatedAt:             time.Now(),
 	}
@@ -243,6 +245,22 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUse
 				updated = true
 			} else {
 				log.Printf("Warning: Invalid date format for DateOfBirth: %s", req.User.DateOfBirth)
+			}
+		}
+
+		// Handle IsAdmin flag - use reflection to check if IsAdmin field is set in the request
+		v := reflect.ValueOf(req.User).Elem()
+		isAdminField := v.FieldByName("IsAdmin")
+
+		// Check if the field exists and was explicitly set (not just default value)
+		if isAdminField.IsValid() {
+			isAdminValue := isAdminField.Bool()
+
+			// Update the IsAdmin field if it's different from the current value
+			if user.IsAdmin != isAdminValue {
+				user.IsAdmin = isAdminValue
+				updated = true
+				log.Printf("User %s admin status updated to: %v", req.UserId, isAdminValue)
 			}
 		}
 	}

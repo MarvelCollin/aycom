@@ -2,7 +2,7 @@
   import { LogLevel, setGlobalLogLevel, logger } from '../../utils/logger';
   import { writable, get } from 'svelte/store';
   import { useAuth } from '../../hooks/useAuth';
-  import { getAuthData } from '../../utils/auth';
+  import { getAuthData, getAuthToken } from '../../utils/auth';
   import { useTheme } from '../../hooks/useTheme';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
@@ -10,6 +10,7 @@
   import { createAdminUser } from '../../api/auth';
   import appConfig from '../../config/appConfig';
   import { websocketStore } from '../../stores/websocketStore';
+  import { getAllUsers, searchUsers, updateUserAdminStatus } from '../../api/user';
   
   // API URL from app config
   const apiUrl = appConfig.api.baseUrl;
@@ -694,6 +695,131 @@
   const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const years = Array.from({ length: 80 }, (_, i) => String(2023 - i));
+
+  // Define a type for user objects
+  type UserListItem = {
+    id: string;
+    username?: string;
+    name?: string;
+    display_name?: string;
+    avatar_url?: string;
+    profile_picture_url?: string;
+    is_admin?: boolean;
+    email?: string;
+    bio?: string;
+    follower_count?: number;
+    following_count?: number;
+    created_at?: string;
+    is_verified?: boolean;
+  };
+  
+  let userSearchQuery = '';
+  let userList: UserListItem[] = [];
+  let isLoading = false;
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let statusMessage = '';
+  let isUpdatingAdmin = false;
+  let currentPage = 1;
+  let totalPages = 1;
+  let pageSize = 10;
+  
+  onMount(async () => {
+    await loadUsers();
+  });
+  
+  // Load all users or search results
+  async function loadUsers() {
+    try {
+      isLoading = true;
+      statusMessage = '';
+      
+      let result;
+      if (userSearchQuery.trim()) {
+        // Search users
+        result = await searchUsers(userSearchQuery, currentPage, pageSize);
+        userList = result.users || [];
+        totalPages = result.totalPages || 1;
+      } else {
+        // Get all users
+        result = await getAllUsers(pageSize, currentPage);
+        userList = result.users || [];
+        totalPages = result.totalPages || 1;
+      }
+      
+      logger.info(`Loaded ${userList.length} users`);
+      
+    } catch (error) {
+      statusMessage = `Failed to load users: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logger.error('Failed to load users', { error });
+      userList = [];
+    } finally {
+      isLoading = false;
+    }
+  }
+  
+  // Handle search input with debounce
+  function handleSearchInput() {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    
+    searchTimeout = setTimeout(() => {
+      currentPage = 1; // Reset to first page on search
+      loadUsers();
+    }, 500);
+  }
+  
+  // Handle page navigation
+  function goToPage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    loadUsers();
+  }
+  
+  // Toggle admin status for a user
+  async function toggleAdminStatus(user) {
+    if (isUpdatingAdmin) return;
+    
+    try {
+      isUpdatingAdmin = true;
+      statusMessage = '';
+      const newAdminStatus = !user.is_admin;
+      
+      // Check if user is authenticated
+      const token = getAuthToken();
+      if (!token) {
+        logger.warn('User not authenticated, redirecting to login page');
+        toastStore.showToast('You need to log in to update admin status', 'warning');
+        window.location.href = '/login';
+        isUpdatingAdmin = false;
+        return;
+      }
+      
+      logger.info(`Updating admin status for user ${user.username || user.id}`, { 
+        userId: user.id, 
+        newStatus: newAdminStatus 
+      });
+      
+      const result = await updateUserAdminStatus(user.id, newAdminStatus);
+      
+      // Update the user in the list
+      userList = userList.map(u => {
+        if (u.id === user.id) {
+          return { ...u, is_admin: newAdminStatus };
+        }
+        return u;
+      });
+      
+      statusMessage = result.message || `User ${newAdminStatus ? 'promoted to admin' : 'demoted from admin'}`;
+      logger.info('Admin status updated successfully', { userId: user.id, isAdmin: newAdminStatus });
+      toastStore.showToast(statusMessage, 'success');
+      
+    } catch (error) {
+      statusMessage = `Failed to update admin status: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logger.error('Failed to update admin status', { error });
+      toastStore.showToast(statusMessage, 'error');
+    } finally {
+      isUpdatingAdmin = false;
+    }
+  }
 </script>
 
 {#if panelVisible}
@@ -712,144 +838,94 @@
       
       <!-- Simple content -->
       <div class="debug-panel-content">
-        <!-- Admin User Creation Section -->
+        <!-- Admin User Management Section -->
         <div class="section">
-          <h3>Create Admin User</h3>
+          <h3>Manage Admin Users</h3>
           <div class="card">
             <div class="flex-col">
-              {#if adminCreationStatus}
-                <div class={adminCreationStatus.includes('successfully') ? 'success-message' : 'error-message'}>
-                  {adminCreationStatus}
+              {#if statusMessage}
+                <div class={statusMessage.includes('Failed') ? 'error-message' : 'success-message'}>
+                  {statusMessage}
                 </div>
               {/if}
               
-              <form on:submit|preventDefault={createAdmin} class="admin-form">
-                <div class="form-group">
-                  <label for="adminName">Name</label>
-                  <input 
-                    type="text" 
-                    id="adminName" 
-                    bind:value={adminFormData.name}
-                    class="text-input"
-                    placeholder="Full Name"
-                    required
-                  />
+              <!-- Search Input -->
+              <div class="form-group">
+                <label for="userSearch">Search Users</label>
+                <input 
+                  type="text" 
+                  id="userSearch" 
+                  bind:value={userSearchQuery}
+                  on:input={handleSearchInput}
+                  class="text-input"
+                  placeholder="Search by name or username"
+                />
+              </div>
+              
+              <!-- User List -->
+              {#if isLoading}
+                <div class="loading-state">Loading users...</div>
+              {:else if userList.length === 0}
+                <div class="empty-state">No users found</div>
+              {:else}
+                <div class="user-list">
+                  {#each userList as user}
+                    <div class="user-item">
+                      <div class="user-avatar">
+                        {#if user.avatar_url || user.profile_picture_url}
+                          <img src={user.avatar_url || user.profile_picture_url} alt={user.username || user.id} />
+                        {:else}
+                          <div class="avatar-placeholder">
+                            {((user.display_name || user.name || user.username || 'U')[0]).toUpperCase()}
+                          </div>
+                        {/if}
+                      </div>
+                      
+                      <div class="user-info">
+                        <div class="user-name">{user.display_name || user.name || user.username || user.id}</div>
+                        <div class="user-username">@{user.username || user.id}</div>
+                      </div>
+                      
+                      <div class="user-admin-status">
+                        {#if user.is_admin}
+                          <span class="admin-badge">Admin</span>
+                        {/if}
+                      </div>
+                      
+                      <button 
+                        class={`toggle-admin-btn ${user.is_admin ? 'remove' : 'add'}`} 
+                        on:click={() => toggleAdminStatus(user)}
+                        disabled={isUpdatingAdmin}
+                      >
+                        {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                      </button>
+                    </div>
+                  {/each}
                 </div>
                 
-                <div class="form-group">
-                  <label for="adminUsername">Username</label>
-                  <input 
-                    type="text" 
-                    id="adminUsername" 
-                    bind:value={adminFormData.username}
-                    class="text-input"
-                    placeholder="Username"
-                    required
-                  />
-                </div>
-                
-                <div class="form-group">
-                  <label for="adminEmail">Email</label>
-                  <input 
-                    type="email" 
-                    id="adminEmail" 
-                    bind:value={adminFormData.email}
-                    class="text-input"
-                    placeholder="Email"
-                    required
-                  />
-                </div>
-                
-                <div class="form-group">
-                  <label for="adminPassword">Password</label>
-                  <input 
-                    type="password" 
-                    id="adminPassword" 
-                    bind:value={adminFormData.password}
-                    class="text-input"
-                    placeholder="Password"
-                    required
-                  />
-                </div>
-                
-                <div class="form-group">
-                  <label for="adminGender">Gender</label>
-                  <select 
-                    id="adminGender"
-                    bind:value={adminFormData.gender}
-                    class="select-input"
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                
-                <div class="form-group">
-                  <label>Date of Birth</label>
-                  <div class="flex-row">
-                    <select 
-                      bind:value={adminFormData.dateOfBirth.month}
-                      class="select-input date-input"
+                <!-- Pagination -->
+                {#if totalPages > 1}
+                  <div class="pagination">
+                    <button 
+                      class="page-btn" 
+                      disabled={currentPage === 1}
+                      on:click={() => goToPage(currentPage - 1)}
                     >
-                      {#each months as month}
-                        <option value={month}>{month}</option>
-                      {/each}
-                    </select>
+                      &lt; Prev
+                    </button>
                     
-                    <select 
-                      bind:value={adminFormData.dateOfBirth.day}
-                      class="select-input date-input"
-                    >
-                      {#each days as day}
-                        <option value={day}>{day}</option>
-                      {/each}
-                    </select>
+                    <span class="page-info">Page {currentPage} of {totalPages}</span>
                     
-                    <select 
-                      bind:value={adminFormData.dateOfBirth.year}
-                      class="select-input date-input"
+                    <button 
+                      class="page-btn" 
+                      disabled={currentPage === totalPages}
+                      on:click={() => goToPage(currentPage + 1)}
                     >
-                      {#each years as year}
-                        <option value={year}>{year}</option>
-                      {/each}
-                    </select>
+                      Next &gt;
+                    </button>
                   </div>
-                </div>
-                
-                <div class="form-group">
-                  <label for="adminSecurityQuestion">Security Question</label>
-                  <select 
-                    id="adminSecurityQuestion"
-                    bind:value={adminFormData.securityQuestion}
-                    class="select-input"
-                  >
-                    {#each adminSecurityQuestions as question}
-                      <option value={question}>{question}</option>
-                    {/each}
-                  </select>
-                </div>
-                
-                <div class="form-group">
-                  <label for="adminSecurityAnswer">Security Answer</label>
-                  <input 
-                    type="text" 
-                    id="adminSecurityAnswer" 
-                    bind:value={adminFormData.securityAnswer}
-                    class="text-input"
-                    placeholder="Answer"
-                    required
-                  />
-                </div>
-                
-                <button 
-                  type="submit" 
-                  class="debug-btn green" 
-                  disabled={isCreatingAdmin}
-                >
-                  {isCreatingAdmin ? 'Creating...' : 'Create Admin User'}
-                </button>
-              </form>
+                {/if}
+              {/if}
             </div>
           </div>
         </div>
@@ -1491,5 +1567,138 @@
     color: #ef4444;
     border-radius: 4px;
     margin-bottom: 16px;
+  }
+  
+  /* Admin User Management Styles */
+  .user-list {
+    margin-top: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+  }
+  
+  .user-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .user-item:last-child {
+    border-bottom: none;
+  }
+  
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: 600;
+  }
+  
+  .user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .avatar-placeholder {
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .user-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .user-username {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  
+  .admin-badge {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    margin-right: 12px;
+  }
+  
+  .toggle-admin-btn {
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+  }
+  
+  .toggle-admin-btn.remove {
+    background-color: #e74c3c;
+  }
+  
+  .toggle-admin-btn:hover {
+    opacity: 0.9;
+  }
+  
+  .toggle-admin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .loading-state, .empty-state {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+  
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  
+  .page-btn {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin: 0 4px;
+    cursor: pointer;
+  }
+  
+  .page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .page-info {
+    margin: 0 12px;
+    font-size: 14px;
+  }
+  
+  .user-admin-status {
+    margin-right: 8px;
+    min-width: 60px;
+    text-align: center;
   }
 </style>

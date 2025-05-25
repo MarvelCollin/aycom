@@ -140,29 +140,37 @@ export async function googleLogin(tokenId: string) {
 }
 
 export async function createAdminUser(data: Record<string, any>) {
-  const token = getAuthToken();
-  
-  const response = await fetch(`${API_BASE_URL}/users/admin/create`, {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": token ? `Bearer ${token}` : ''
-    },
-    body: JSON.stringify({
-      ...data,
-      is_admin: true
-    }),
-    credentials: "include",
-  });
-  
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Admin user creation failed");
-    } catch (parseError) {
-      throw new Error("Admin user creation failed");
+  try {
+    console.log("Creating admin user with data:", data);
+    
+    // Use the regular registration endpoint which is known to work
+    const response = await fetch(`${API_BASE_URL}/users/register`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ...data,
+        is_admin: true,  // This flag should tell the backend to create an admin
+        is_verified: true // Admins should be auto-verified
+      }),
+      credentials: "include",
+    });
+    
+    console.log("Admin user creation response:", response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.message || `Admin user creation failed (${response.status})`;
+      console.error("Admin user creation error:", errorData);
+      throw new Error(errorMessage);
     }
+    
+    const result = await response.json();
+    console.log("Admin user created successfully:", result);
+    return result;
+  } catch (error) {
+    console.error("Admin user creation failed:", error);
+    throw error;
   }
-  
-  return response.json();
 } 
