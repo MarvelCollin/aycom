@@ -82,6 +82,7 @@ export interface IAuthStore {
   refreshToken: string | null;
   username?: string | null;
   displayName?: string | null;
+  is_admin?: boolean;
 }
 
 export interface ILoginCredentials {

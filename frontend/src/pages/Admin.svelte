@@ -110,9 +110,8 @@
   });
   
   function checkAdmin() {
-    // In a real app, check if user has admin role
-    // For demo, we'll assume the logged-in user is admin
-    isAdmin = authState.isAuthenticated;
+    // Check if user is logged in and has admin role
+    isAdmin = authState.isAuthenticated && authState.is_admin === true;
     
     if (!isAdmin) {
       toastStore.showToast('You do not have permission to access this page', 'error');

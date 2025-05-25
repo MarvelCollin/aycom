@@ -4,12 +4,16 @@ import { setAuthData, clearAuthData, getAuthToken } from '../utils/auth';
 import * as authApi from '../api/auth';
 import appConfig from '../config/appConfig';
 import { uploadFile } from '../utils/supabase';
+import { getProfile } from '../api/user';
 
 const API_URL = appConfig.api.baseUrl;
 const TOKEN_EXPIRY_BUFFER = 300000;
 
 interface AuthState extends IAuthStore {
   expiresAt: number | null;
+  username?: string;
+  displayName?: string;
+  is_admin: boolean;
 }
 
 const createAuthStore = () => {
@@ -18,7 +22,8 @@ const createAuthStore = () => {
     userId: null,
     accessToken: null,
     refreshToken: null,
-    expiresAt: null
+    expiresAt: null,
+    is_admin: false
   };
 
   const auth = writable<AuthState>(initialState);
@@ -76,7 +81,8 @@ const createAuthStore = () => {
           userId: data.user_id,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
-          expiresAt
+          expiresAt,
+          is_admin: data.user_data?.is_admin || false
         };
         auth.set(newState);
         persistAuth(newState);
@@ -203,7 +209,8 @@ export function useAuth() {
           userId: data.user_id,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
-          expiresAt
+          expiresAt,
+          is_admin: data.user_data?.is_admin || false
         });
       }
       
@@ -239,23 +246,29 @@ export function useAuth() {
       const data = await authApi.login(email, password);
       
       if (data.success && data.access_token) {
-        const expiresAt = data.expires_in 
-          ? Date.now() + (data.expires_in * 1000) 
-          : Date.now() + (3600 * 1000);
+        const expiresAt = Date.now() + (data.expires_in * 1000);
         
+        // Get the user's profile to check if they are an admin
+        const userProfile = await getProfile();
+        const userData = userProfile?.user;
+        
+        // Update auth state with user info including admin status
         const authState: AuthState = {
           isAuthenticated: true,
           userId: data.user_id,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
-          expiresAt: expiresAt
+          expiresAt,
+          username: userData?.username,
+          displayName: userData?.name || userData?.display_name,
+          is_admin: userData?.is_admin || false
         };
         
         authStore.set(authState);
         
         return {
           success: true,
-          message: data.message || 'Login successful!'
+          message: 'Login successful!'
         };
       } else {
         return {
@@ -287,7 +300,8 @@ export function useAuth() {
           userId: data.user_id,
           accessToken: data.access_token,
           refreshToken: data.refresh_token,
-          expiresAt: expiresAt
+          expiresAt,
+          is_admin: data.user_data?.is_admin || false
         };
         
         authStore.set(authState);
