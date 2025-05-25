@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"reflect"
 	"strings"
 	"time"
 
@@ -248,20 +247,13 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUse
 			}
 		}
 
-		// Handle IsAdmin flag - use reflection to check if IsAdmin field is set in the request
-		v := reflect.ValueOf(req.User).Elem()
-		isAdminField := v.FieldByName("IsAdmin")
-
-		// Check if the field exists and was explicitly set (not just default value)
-		if isAdminField.IsValid() {
-			isAdminValue := isAdminField.Bool()
-
-			// Update the IsAdmin field if it's different from the current value
-			if user.IsAdmin != isAdminValue {
-				user.IsAdmin = isAdminValue
-				updated = true
-				log.Printf("User %s admin status updated to: %v", req.UserId, isAdminValue)
-			}
+		// Handle admin status update explicitly instead of using reflection
+		// Check if the admin status field is provided in the request
+		if req.User.IsAdmin != user.IsAdmin {
+			prevStatus := user.IsAdmin
+			user.IsAdmin = req.User.IsAdmin
+			updated = true
+			log.Printf("User %s admin status updated from %v to %v", req.UserId, prevStatus, user.IsAdmin)
 		}
 	}
 

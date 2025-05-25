@@ -66,6 +66,7 @@ func SearchUsers(c *gin.Context) {
 			"profile_picture_url": user.ProfilePictureURL,
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
 			"is_following":        user.IsFollowing,
 		})
@@ -203,6 +204,7 @@ func GetUserRecommendations(c *gin.Context) {
 			"profile_picture_url": user.ProfilePictureURL,
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
 		})
 	}

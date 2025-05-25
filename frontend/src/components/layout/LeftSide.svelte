@@ -64,10 +64,12 @@
     try {
       const response = await getProfile();
       apiResponse = response;
+      console.log('API Response:', apiResponse);
       
       const userData = response.user || (response.data && response.data.user);
       
       if (userData) {
+        console.log('User data:', userData);
         userDetails = {
           username: userData.username || username,
           displayName: userData.name || userData.display_name || displayName,
@@ -78,7 +80,12 @@
           joinDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : ''
         };
         
-        isAdmin = isAuthenticated();
+        isAdmin = userData.is_admin || false;
+        console.log('Is admin?', userData.is_admin, isAdmin);
+        
+        if (isAdmin) {
+          console.log('User is an admin, showing admin panel link');
+        }
         
         username = userDetails.username;
         displayName = userDetails.displayName;
@@ -110,7 +117,7 @@
   
   const dispatch = createEventDispatcher();
   
-  const navigationItems = [
+  $: navigationItems = [
     { label: "Feed", path: "/feed", icon: "home" },
     { label: "Explore", path: "/explore", icon: "hash" },
     { label: "Notifications", path: "/notifications", icon: "bell" },

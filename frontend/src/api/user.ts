@@ -848,14 +848,21 @@ export async function getBlockedUsers(): Promise<any[]> {
  * Update a user's admin status
  * @param userId The ID of the user to update admin status
  * @param isAdmin Whether the user should be an admin or not
+ * @param isDebugRequest Optional flag to indicate if this is coming from the debug panel
  * @returns Promise resolving to success message
  */
-export async function updateUserAdminStatus(userId: string, isAdmin: boolean): Promise<{ success: boolean, message: string }> {
+export async function updateUserAdminStatus(
+  userId: string, 
+  isAdmin: boolean,
+  isDebugRequest: boolean = false
+): Promise<{ success: boolean, message: string }> {
   try {
     const token = getAuthToken();
     if (!token) {
       throw new Error('Authentication required');
     }
+    
+    console.log(`Sending updateUserAdminStatus request with isAdmin=${isAdmin} (${typeof isAdmin})`);
     
     const response = await fetch(`${API_BASE_URL}/users/admin-status`, {
       method: 'POST',
@@ -866,7 +873,7 @@ export async function updateUserAdminStatus(userId: string, isAdmin: boolean): P
       body: JSON.stringify({ 
         user_id: userId,
         is_admin: isAdmin,
-        is_debug_request: true   // Using request body flag only for indicating this is from debug panel
+        is_debug_request: isDebugRequest
       }),
       credentials: 'include'
     });
@@ -877,6 +884,8 @@ export async function updateUserAdminStatus(userId: string, isAdmin: boolean): P
     }
     
     const data = await response.json();
+    console.log('Update admin status response:', data);
+    
     return { 
       success: data.success || true, 
       message: data.message || `User admin status updated successfully`

@@ -83,6 +83,8 @@ func (s *UserSeeder) SeedUsers() error {
 		VerificationCode       *string
 		IsActivated            bool
 		IsVerified             bool
+		IsAdmin                bool `gorm:"default:false"`
+		IsBanned               bool `gorm:"default:false"`
 		FollowerCount          int
 		Gender                 string
 		DateOfBirth            time.Time
@@ -107,6 +109,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             true,
+			IsAdmin:                true,
 			FollowerCount:          9500,
 			Gender:                 "Other",
 			DateOfBirth:            dob1,
@@ -129,6 +132,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             true,
+			IsAdmin:                false,
 			FollowerCount:          4200,
 			Gender:                 "Male",
 			DateOfBirth:            dob2,
@@ -151,6 +155,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             true,
+			IsAdmin:                false,
 			FollowerCount:          6300,
 			Gender:                 "Female",
 			DateOfBirth:            dob3,
@@ -173,6 +178,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             false,
+			IsAdmin:                false,
 			FollowerCount:          2100,
 			Gender:                 "Male",
 			DateOfBirth:            dob4,
@@ -195,6 +201,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             true,
+			IsAdmin:                false,
 			FollowerCount:          45000,
 			Gender:                 "Other",
 			DateOfBirth:            dob5,
@@ -217,6 +224,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             true,
+			IsAdmin:                false,
 			FollowerCount:          32800,
 			Gender:                 "Female",
 			DateOfBirth:            dob6,
@@ -239,6 +247,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             false,
+			IsAdmin:                false,
 			FollowerCount:          3250,
 			Gender:                 "Male",
 			DateOfBirth:            dob7,
@@ -261,6 +270,7 @@ func (s *UserSeeder) SeedUsers() error {
 			VerificationCode:       nil,
 			IsActivated:            true,
 			IsVerified:             false,
+			IsAdmin:                false,
 			FollowerCount:          1820,
 			Gender:                 "Female",
 			DateOfBirth:            dob8,

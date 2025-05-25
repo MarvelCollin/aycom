@@ -49,6 +49,8 @@ func mapUserModelToProto(u *model.User) *user.User {
 		FollowerCount:     int32(u.FollowerCount),
 		FollowingCount:    int32(u.FollowingCount),
 		IsVerified:        u.IsVerified,
+		IsAdmin:           u.IsAdmin,
+		IsBanned:          u.IsBanned,
 	}
 
 	if u.DateOfBirth != nil {

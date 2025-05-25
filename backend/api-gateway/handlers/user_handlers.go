@@ -72,6 +72,7 @@ func GetUserProfile(c *gin.Context) {
 			"background_banner_url": user.BannerURL, // For backward compatibility
 			"bio":                   user.Bio,
 			"is_verified":           user.IsVerified,
+			"is_admin":              user.IsAdmin,
 			"follower_count":        user.FollowerCount,
 			"following_count":       user.FollowingCount,
 			"created_at":            user.CreatedAt,
@@ -183,6 +184,7 @@ func UpdateUserProfile(c *gin.Context) {
 			"background_banner_url": updatedUser.BannerURL, // For backward compatibility
 			"bio":                   updatedUser.Bio,
 			"is_verified":           updatedUser.IsVerified,
+			"is_admin":              updatedUser.IsAdmin,
 			"follower_count":        updatedUser.FollowerCount,
 			"following_count":       updatedUser.FollowingCount,
 			"created_at":            updatedUser.CreatedAt,
@@ -659,6 +661,7 @@ func GetAllUsers(c *gin.Context) {
 			"display_name":    u.GetName(),
 			"avatar_url":      u.GetProfilePictureUrl(),
 			"is_verified":     u.GetIsVerified(),
+			"is_admin":        u.GetIsAdmin(),
 			"bio":             u.GetBio(),
 			"follower_count":  u.GetFollowerCount(),
 			"following_count": u.GetFollowingCount(),
@@ -690,6 +693,7 @@ func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
 			"display_name":    "Test User One",
 			"avatar_url":      "https://secure.gravatar.com/avatar/1?d=mp",
 			"is_verified":     true,
+			"is_admin":        false,
 			"bio":             "This is a test user bio",
 			"follower_count":  42,
 			"following_count": 24,
@@ -700,6 +704,7 @@ func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
 			"display_name":    "Test User Two",
 			"avatar_url":      "https://secure.gravatar.com/avatar/2?d=mp",
 			"is_verified":     false,
+			"is_admin":        false,
 			"bio":             "Another test user bio",
 			"follower_count":  17,
 			"following_count": 35,
@@ -710,6 +715,7 @@ func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
 			"display_name":    "Kolin",
 			"avatar_url":      "https://secure.gravatar.com/avatar/3?d=mp",
 			"is_verified":     true,
+			"is_admin":        true,
 			"bio":             "A developer bio",
 			"follower_count":  128,
 			"following_count": 55,
@@ -1180,9 +1186,9 @@ func UpdateUserAdminStatus(c *gin.Context) {
 	}
 
 	var req struct {
-		UserID         string `json:"user_id" binding:"required"`
-		IsAdmin        bool   `json:"is_admin" binding:"required"`
-		IsDebugRequest bool   `json:"is_debug_request"`
+		UserID         string      `json:"user_id" binding:"required"`
+		IsAdmin        interface{} `json:"is_admin" binding:"required"`
+		IsDebugRequest bool        `json:"is_debug_request"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1190,8 +1196,22 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
 		return
 	}
-	log.Printf("UpdateUserAdminStatus: Request payload - Target UserID: %s, Set Admin: %t, Debug: %t",
-		req.UserID, req.IsAdmin, req.IsDebugRequest)
+
+	// Convert IsAdmin to boolean regardless of the input type
+	isAdmin := false
+	switch v := req.IsAdmin.(type) {
+	case bool:
+		isAdmin = v
+	case string:
+		isAdmin = v == "true" || v == "t" || v == "1"
+	case float64:
+		isAdmin = v == 1
+	case int:
+		isAdmin = v == 1
+	}
+
+	log.Printf("UpdateUserAdminStatus: Request payload - Target UserID: %s, Is Admin (raw): %v, Is Admin (parsed): %t, Debug: %t",
+		req.UserID, req.IsAdmin, isAdmin, req.IsDebugRequest)
 
 	if UserClient == nil {
 		log.Println("UpdateUserAdminStatus: UserClient is nil")
@@ -1233,11 +1253,11 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		UserId: req.UserID,
 		User: &userProto.User{
 			Id:      req.UserID,
-			IsAdmin: req.IsAdmin,
+			IsAdmin: isAdmin,
 		},
 	}
 
-	log.Printf("UpdateUserAdminStatus: Sending UpdateUser request with IsAdmin=%t", req.IsAdmin)
+	log.Printf("UpdateUserAdminStatus: Sending UpdateUser request with IsAdmin=%t", isAdmin)
 	_, err := UserClient.UpdateUser(ctx, updateReq)
 	if err != nil {
 		st, ok := status.FromError(err)
@@ -1274,7 +1294,7 @@ func UpdateUserAdminStatus(c *gin.Context) {
 	}
 
 	action := "removed from admins"
-	if req.IsAdmin {
+	if isAdmin {
 		action = "promoted to admin"
 	}
 
@@ -1283,6 +1303,6 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		"success":  true,
 		"message":  fmt.Sprintf("User %s has been %s", userName, action),
 		"user_id":  req.UserID,
-		"is_admin": req.IsAdmin,
+		"is_admin": isAdmin,
 	})
 }

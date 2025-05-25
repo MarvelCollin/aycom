@@ -746,6 +746,16 @@
         totalPages = result.totalPages || 1;
       }
       
+      // Log users to check if admin status is included
+      console.log('Loaded users:', userList);
+      if (userList.length > 0) {
+        console.log('First user admin status:', userList[0].is_admin);
+        console.log('First user admin status type:', typeof userList[0].is_admin);
+        
+        // Add diagnostic info directly in the panel for real-time debugging
+        statusMessage = `Debug info - First user: ${userList[0].username || userList[0].id}, is_admin: ${String(userList[0].is_admin)}, type: ${typeof userList[0].is_admin}`;
+      }
+      
       logger.info(`Loaded ${userList.length} users`);
       
     } catch (error) {
@@ -774,6 +784,18 @@
     loadUsers();
   }
   
+  // Helper function to check if a user is an admin regardless of data type (boolean or string)
+  function isUserAdmin(user): boolean {
+    if (!user) return false;
+    
+    // Handle different data types for is_admin
+    return user.is_admin === true || 
+           user.is_admin === "true" || 
+           user.is_admin === "t" || 
+           user.is_admin === 1 || 
+           user.is_admin === "1";
+  }
+  
   // Toggle admin status for a user
   async function toggleAdminStatus(user) {
     if (isUpdatingAdmin) return;
@@ -781,7 +803,14 @@
     try {
       isUpdatingAdmin = true;
       statusMessage = '';
-      const newAdminStatus = !user.is_admin;
+      
+      // Log the current admin status for debugging
+      console.log('Current admin status:', user.is_admin);
+      console.log('Type of admin status:', typeof user.is_admin);
+      console.log('Full user object:', user);
+      
+      const newAdminStatus = !isUserAdmin(user);
+      console.log('Setting admin status to:', newAdminStatus, '(boolean)');
       
       // Check if user is authenticated
       const token = getAuthToken();
@@ -795,10 +824,12 @@
       
       logger.info(`Updating admin status for user ${user.username || user.id}`, { 
         userId: user.id, 
-        newStatus: newAdminStatus 
+        newStatus: newAdminStatus,
+        currentStatus: user.is_admin,
+        currentStatusType: typeof user.is_admin
       });
       
-      const result = await updateUserAdminStatus(user.id, newAdminStatus);
+      const result = await updateUserAdminStatus(user.id, newAdminStatus, true);
       
       // Update the user in the list
       userList = userList.map(u => {
@@ -887,17 +918,19 @@
                       </div>
                       
                       <div class="user-admin-status">
-                        {#if user.is_admin}
+                        {#if isUserAdmin(user)}
                           <span class="admin-badge">Admin</span>
+                        {:else}
+                          <span class="not-admin-badge">Not Admin</span>
                         {/if}
                       </div>
                       
                       <button 
-                        class={`toggle-admin-btn ${user.is_admin ? 'remove' : 'add'}`} 
+                        class={`toggle-admin-btn ${isUserAdmin(user) ? 'remove' : 'add'}`} 
                         on:click={() => toggleAdminStatus(user)}
                         disabled={isUpdatingAdmin}
                       >
-                        {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                        {isUserAdmin(user) ? 'Remove Admin Status' : 'Make Admin'}
                       </button>
                     </div>
                   {/each}
@@ -1633,6 +1666,15 @@
   
   .admin-badge {
     background-color: var(--color-primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    margin-right: 12px;
+  }
+  
+  .not-admin-badge {
+    background-color: #64748B;
     color: white;
     padding: 2px 8px;
     border-radius: 10px;
