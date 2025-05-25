@@ -30,9 +30,10 @@
   export let showRightSidebar = true;
   export let pageTitle = "";
 
-  // Setup mobile detection
+  // Setup viewport detection
   let isMobile = false;
   let isTablet = false;
+  let isSmallDesktop = false;
   let windowWidth = 0;
   let showComposeModal = false;
   let showMobileMenu = false;
@@ -40,11 +41,12 @@
   let searchQuery = '';
 
   onMount(() => {
-    // Check viewport size on mount
+    // Check viewport size on mount and on resize
     const checkViewport = () => {
       windowWidth = window.innerWidth;
       isMobile = windowWidth < 768;
       isTablet = windowWidth >= 768 && windowWidth < 992;
+      isSmallDesktop = windowWidth >= 992 && windowWidth < 1080;
     };
     
     checkViewport();
@@ -59,7 +61,6 @@
   $: isDarkMode = $theme === 'dark';
 
   function handleToggleComposeModal() {
-    console.log('MainLayout: Toggle compose modal triggered');
     showComposeModal = !showComposeModal;
     dispatch('toggleComposeModal');
   }
@@ -90,6 +91,11 @@
     if (e.key === 'Enter' && searchQuery.trim()) {
       window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`;
     }
+  }
+  
+  function clearSearch() {
+    searchQuery = '';
+    document.getElementById('mobile-search-input')?.focus();
   }
 
   // Get the current path for active link styling
@@ -147,10 +153,9 @@
               class="mobile-search-input"
               bind:value={searchQuery}
               on:keydown={handleSearch}
-              autofocus
             />
             {#if searchQuery}
-              <button class="mobile-search-clear" on:click={() => searchQuery = ''}>
+              <button class="mobile-search-clear" on:click={clearSearch}>
                 <XIcon size="16" />
               </button>
             {/if}
@@ -161,16 +166,20 @@
   {/if}
   
   <div class="app-layout">
-    {#if showLeftSidebar && (!isMobile || (isMobile && showMobileMenu))}
-      <LeftSide 
-        {username}
-        {displayName}
-        {avatar}
-        on:toggleComposeModal={handleToggleComposeModal}
-        isCollapsed={isTablet}
-        isMobileMenu={isMobile && showMobileMenu}
-        on:closeMobileMenu={closeMobileMenu}
-      />
+    {#if showLeftSidebar}
+      <aside class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
+        {#if !isMobile || (isMobile && showMobileMenu)}
+          <LeftSide 
+            {username}
+            {displayName}
+            {avatar}
+            on:toggleComposeModal={handleToggleComposeModal}
+            isCollapsed={isTablet || isSmallDesktop}
+            isMobileMenu={isMobile && showMobileMenu}
+            on:closeMobileMenu={closeMobileMenu}
+          />
+        {/if}
+      </aside>
     {/if}
     
     <div class="content-wrapper">
@@ -190,12 +199,14 @@
       {/if}
     </div>
     
-    {#if showRightSidebar && windowWidth >= 992}
-      <RightSide 
-        {isDarkMode}
-        {trends}
-        {suggestedFollows}
-      />
+    {#if showRightSidebar && !isMobile && !isTablet}
+      <aside class="widgets-container {isDarkMode ? 'widgets-container-dark' : ''}">
+        <RightSide 
+          {isDarkMode}
+          {trends}
+          {suggestedFollows}
+        />
+      </aside>
     {/if}
   </div>
   
@@ -206,11 +217,13 @@
         <div class="mobile-nav-icon">
           <HomeIcon size="20" />
         </div>
+        <span class="mobile-nav-label">Home</span>
       </a>
       <a href="/explore" class="mobile-nav-item {currentPath === '/explore' ? 'active' : ''}">
         <div class="mobile-nav-icon">
           <HashIcon size="20" />
         </div>
+        <span class="mobile-nav-label">Explore</span>
       </a>
       <button 
         class="mobile-compose-btn"
@@ -223,11 +236,13 @@
         <div class="mobile-nav-icon">
           <BellIcon size="20" />
         </div>
+        <span class="mobile-nav-label">Alerts</span>
       </a>
       <a href="/profile" class="mobile-nav-item {currentPath === '/profile' ? 'active' : ''}">
         <div class="mobile-nav-icon">
           <UserIcon size="20" />
         </div>
+        <span class="mobile-nav-label">Profile</span>
       </a>
     </nav>
   {/if}

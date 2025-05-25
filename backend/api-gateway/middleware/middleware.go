@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"net/http"
-	"strings"
-
 	"fmt"
 	"log"
+	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -236,11 +236,13 @@ func AdminOnly() gin.HandlerFunc {
 		token := parts[1]
 		claims := jwt.MapClaims{}
 
-		// Parse token to get claims
+		// Parse token to get claims - need to get secret from environment or config
+		secret := getJWTSecret() // We'll need to implement this
 		_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-			// Secret should match the one used in JWTAuth
-			// In a real implementation, this should be obtained from a shared source
-			return []byte(c.MustGet("jwtSecret").(string)), nil
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(secret), nil
 		})
 
 		if err != nil {
@@ -270,6 +272,16 @@ func AdminOnly() gin.HandlerFunc {
 		log.Printf("Admin check passed for user %v", userID)
 		c.Next()
 	}
+}
+
+// getJWTSecret returns the JWT secret from environment or config
+func getJWTSecret() string {
+	// Try to get from environment first
+	if secret := os.Getenv("JWT_SECRET"); secret != "" {
+		return secret
+	}
+	// Fallback to default (in production, this should come from secure config)
+	return "your-secret-key"
 }
 
 // Helper function to get the minimum of two ints

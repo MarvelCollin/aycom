@@ -4,7 +4,7 @@ import { setAuthData, clearAuthData, getAuthToken } from '../utils/auth';
 import * as authApi from '../api/auth';
 import appConfig from '../config/appConfig';
 import { uploadFile } from '../utils/supabase';
-import { getProfile } from '../api/user';
+import { getProfile, checkAdminStatus } from '../api/user';
 
 const API_URL = appConfig.api.baseUrl;
 const TOKEN_EXPIRY_BUFFER = 300000;
@@ -243,34 +243,94 @@ export function useAuth() {
   
   const login = async (email: string, password: string) => {
     try {
+      console.log(`Login attempt for email: ${email}`);
       const data = await authApi.login(email, password);
+      console.log('Login API response:', JSON.stringify(data, null, 2));
       
-      if (data.success && data.access_token) {
-        const expiresAt = Date.now() + (data.expires_in * 1000);
+      // Check if response contains token information - various formats possible
+      if ((data.success && data.access_token) || data.access_token) {
+        // Use the token data from whatever format we receive
+        const accessToken = data.access_token;
+        const userId = data.user_id;
+        const expiresIn = data.expires_in || 3600;
+        const refreshToken = data.refresh_token || null;
         
-        // Get the user's profile to check if they are an admin
-        const userProfile = await getProfile();
-        const userData = userProfile?.user;
+        // Properly extract admin status from response
+        let isAdmin = false;
         
-        // Update auth state with user info including admin status
-        const authState: AuthState = {
+        // Check all possible locations for admin flag in the response
+        if (data.is_admin === true) {
+          isAdmin = true;
+          console.log('Admin status found directly in login response');
+        } else if (data.user_data && data.user_data.is_admin === true) {
+          isAdmin = true;
+          console.log('Admin status found in user_data of login response');
+        } else if (data.user && data.user.is_admin === true) {
+          isAdmin = true;
+          console.log('Admin status found in user object of login response');
+        } else {
+          console.log('No admin status found in login response');
+        }
+        
+        const expiresAt = Date.now() + (expiresIn * 1000);
+        
+        console.log(`Login successful. Token exists: ${!!accessToken}, User ID: ${userId}, Admin: ${isAdmin}`);
+        
+        // Store auth data immediately to avoid issues with subsequent requests
+        const initialAuthState: AuthState = {
           isAuthenticated: true,
-          userId: data.user_id,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
+          userId,
+          accessToken,
+          refreshToken,
           expiresAt,
-          username: userData?.username,
-          displayName: userData?.name || userData?.display_name,
-          is_admin: userData?.is_admin || false
+          is_admin: isAdmin
         };
         
-        authStore.set(authState);
+        // Update the store immediately
+        authStore.set(initialAuthState);
+        
+        // Try multiple methods to determine admin status
+        try {
+          // Direct admin check via API
+          const adminCheck = await checkAdminStatus();
+          if (adminCheck) {
+            isAdmin = true;
+            console.log('Admin status confirmed via admin check API');
+            authStore.update(state => ({ ...state, is_admin: true }));
+          }
+          
+          // Also get the user's complete profile to update any missing information
+          const userProfile = await getProfile();
+          const userData = userProfile?.user;
+          
+          if (userData) {
+            // Check admin status from profile response and preserve any existing admin status
+            isAdmin = userData.is_admin === true || isAdmin;
+            
+            // Update auth state with user info including admin status
+            const authState: AuthState = {
+              ...initialAuthState,
+              username: userData?.username,
+              displayName: userData?.name || userData?.display_name,
+              is_admin: isAdmin
+            };
+            
+            authStore.set(authState);
+            console.log('Auth state updated with user profile, admin status:', isAdmin);
+          } else {
+            console.log('User profile data not found in response, keeping initial auth state');
+          }
+        } catch (profileError) {
+          console.error('Failed to get user profile after login:', profileError);
+          // Continue with login even if profile fetch fails
+        }
         
         return {
           success: true,
           message: 'Login successful!'
         };
       } else {
+        console.error('Login failed: Invalid or missing token in response');
         return {
           success: false,
           message: data.message || 'Login failed. Please check your credentials.'

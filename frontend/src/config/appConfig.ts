@@ -1,4 +1,6 @@
 const appConfig = {
+  environment: import.meta.env.MODE || process.env.NODE_ENV || 'development',
+  
   auth: {
     enabled: true
   },

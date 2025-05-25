@@ -56,10 +56,16 @@
     error = "";
     
     try {
-      const result = await login(email, password);
+      console.log(`Submitting login form for email: ${email}`);
+      
+      // Trim whitespace from email to avoid common issues
+      const trimmedEmail = email.trim();
+      
+      const result = await login(trimmedEmail, password);
       isLoading = false;
       
       if (result.success) {
+        toastStore.showToast('Login successful!', 'success');
         setTimeout(() => {
           const currentPath = window.location.pathname;
           if (currentPath !== '/feed') {
@@ -69,13 +75,16 @@
         }, 100);
       } else {
         errorMessage = result.message || "Login failed. Please check your credentials.";
+        console.error('Login failed with message:', errorMessage);
         error = errorMessage; 
         toastStore.showToast(errorMessage, 'error');
       }
     } catch (err) {
       isLoading = false;
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       console.error("Login Exception:", err);
-      toastStore.showToast('Login failed. Please try again.', 'error');
+      error = message;
+      toastStore.showToast(message, 'error');
     }
   }
   

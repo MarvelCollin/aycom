@@ -4,21 +4,36 @@ import { getAuthToken } from '../utils/auth';
 const API_BASE_URL = appConfig.api.baseUrl;
 
 export async function login(email: string, password: string) {
-  const response = await fetch(`${API_BASE_URL}/users/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-    credentials: "include",
-  });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Login failed");
-    } catch (parseError) {
-      throw new Error("Login failed");
+  console.log(`Attempting to login with email: ${email.substring(0, 3)}...${email.split('@')[1]}`);
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      credentials: "include",
+    });
+    
+    console.log(`Login response status: ${response.status}`);
+    
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        console.error('Login error data:', errorData);
+        throw new Error(errorData.message || `Login failed with status: ${response.status}`);
+      } catch (parseError) {
+        console.error('Failed to parse error response:', parseError);
+        throw new Error(`Login failed with status: ${response.status}`);
+      }
     }
+    
+    const data = await response.json();
+    console.log('Login successful, received data with keys:', Object.keys(data));
+    return data;
+  } catch (error) {
+    console.error('Login exception:', error);
+    throw error;
   }
-  return response.json();
 }
 
 export async function register(data: Record<string, any>) {

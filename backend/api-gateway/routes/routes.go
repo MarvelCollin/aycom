@@ -188,10 +188,44 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		bookmarks.GET("/search", handlers.SearchBookmarks)
 		bookmarks.DELETE("/:id", handlers.DeleteBookmarkById)
 	}
-
 	media := protected.Group("/media")
 	{
 		media.POST("", handlers.UploadMedia)
 		media.GET("/search", handlers.SearchMedia)
+	}
+
+	// Admin routes - require admin authentication
+	admin := protected.Group("/admin")
+	admin.Use(middleware.AdminOnly())
+	{
+		// User management
+		admin.POST("/users/:userId/ban", handlers.BanUser)
+
+		// Newsletter management
+		admin.POST("/newsletter/send", handlers.SendNewsletter)
+
+		// Community request management
+		admin.GET("/community-requests", handlers.GetCommunityRequests)
+		admin.POST("/community-requests/:requestId/process", handlers.ProcessCommunityRequest)
+
+		// Premium request management
+		admin.GET("/premium-requests", handlers.GetPremiumRequests)
+		admin.POST("/premium-requests/:requestId/process", handlers.ProcessPremiumRequest)
+
+		// Report request management
+		admin.GET("/report-requests", handlers.GetReportRequests)
+		admin.POST("/report-requests/:requestId/process", handlers.ProcessReportRequest)
+
+		// Thread category management
+		admin.GET("/thread-categories", handlers.GetThreadCategories)
+		admin.POST("/thread-categories", handlers.CreateThreadCategory)
+		admin.PUT("/thread-categories/:categoryId", handlers.UpdateThreadCategory)
+		admin.DELETE("/thread-categories/:categoryId", handlers.DeleteThreadCategory)
+
+		// Community category management
+		admin.GET("/community-categories", handlers.GetCommunityCategories)
+		admin.POST("/community-categories", handlers.CreateCommunityCategory)
+		admin.PUT("/community-categories/:categoryId", handlers.UpdateCommunityCategory)
+		admin.DELETE("/community-categories/:categoryId", handlers.DeleteCommunityCategory)
 	}
 }

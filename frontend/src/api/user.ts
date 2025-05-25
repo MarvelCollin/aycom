@@ -6,24 +6,34 @@ const API_BASE_URL = appConfig.api.baseUrl;
 
 export async function getProfile() {
   const token = getAuthToken();
+  const authState = localStorage.getItem('auth');
+  let userId = null;
   
-  const response = await fetch(`${API_BASE_URL}/users/profile`, {
-    method: "GET",
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": token ? `Bearer ${token}` : ''
-    },
-    credentials: "include",
-  });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to fetch user profile");
-    } catch (parseError) {
-      throw new Error("Failed to fetch user profile");
+  console.log('Getting user profile, token exists:', !!token);
+  
+  // Try to get userId from local storage
+  try {
+    if (authState) {
+      const parsedAuth = JSON.parse(authState);
+      userId = parsedAuth.userId;
+      console.log('Found user ID in auth state:', userId);
     }
+  } catch (err) {
+    console.error('Failed to parse auth state:', err);
   }
-  return response.json();
+  
+  if (!userId) {
+    console.error('No user ID available, cannot fetch profile');
+    throw new Error('User not logged in');
+  }
+  
+  try {
+    // Use getUserById instead of profile endpoint
+    return getUserById(userId);
+  } catch (error) {
+    console.error('Profile fetch exception:', error);
+    throw error;
+  }
 }
 
 export async function updateProfile(data: Record<string, any>) {
@@ -599,21 +609,11 @@ export async function unpinReply(replyId: string) {
   }
 }
 
-export async function getUserById(userId: string) {
+export async function getUserById(userId: string): Promise<any> {
   try {
+    console.log('Fetching user by ID:', userId);
     const token = getAuthToken();
     
-    // Check if the userId looks like a UUID (basic check)
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const isUuid = uuidPattern.test(userId);
-    
-    // If it doesn't look like a UUID, assume it's a username and try that endpoint
-    if (!isUuid && !userId.match(/^\d+$/)) {
-      console.log(`Input '${userId}' doesn't look like an ID, trying to fetch by username instead`);
-      return getUserByUsername(userId);
-    }
-    
-    console.log(`Fetching user with ID: ${userId}`);
     const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
       method: 'GET',
       headers: {
@@ -622,18 +622,75 @@ export async function getUserById(userId: string) {
       }
     });
     
+    console.log('Get user by ID response status:', response.status);
+    
     if (!response.ok) {
-      if (response.status === 404) {
-        // If ID lookup fails with 404, try username as fallback
-        console.log(`User ID ${userId} not found, trying as username`);
-        return getUserByUsername(userId);
-      }
-      throw new Error(`Failed to fetch user: ${response.status}`);
+      throw new Error(`Failed to get user: ${response.status}`);
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log('User data received:', data.success);
+    
+    // Get the auth state to check for admin status
+    let isAdmin = false;
+    try {
+      const authState = localStorage.getItem('auth');
+      if (authState) {
+        const auth = JSON.parse(authState);
+        if (auth.is_admin === true) {
+          isAdmin = true;
+          console.log('User is admin according to auth state');
+        }
+      }
+    } catch (e) {
+      console.error('Error getting admin status from auth state:', e);
+    }
+    
+    // Enhance the response to match expected format in the rest of the app
+    if (data && data.data && data.data.user) {
+      const userData = data.data.user;
+      
+      // Check for admin status in the API response
+      if (userData.is_admin === true) {
+        isAdmin = true;
+        console.log('User is admin according to API response');
+        
+        // Update auth state to reflect admin status
+        try {
+          const authState = localStorage.getItem('auth');
+          if (authState) {
+            const auth = JSON.parse(authState);
+            auth.is_admin = true;
+            localStorage.setItem('auth', JSON.stringify(auth));
+            console.log('Updated auth state with admin status from API');
+          }
+        } catch (e) {
+          console.error('Error updating auth state with admin status:', e);
+        }
+      }
+      
+      return {
+        success: true,
+        user: {
+          id: userData.id,
+          username: userData.username,
+          name: userData.display_name || userData.name,
+          display_name: userData.display_name,
+          profile_picture_url: userData.profile_picture_url,
+          banner_url: userData.banner_url,
+          bio: userData.bio,
+          is_verified: userData.is_verified,
+          is_admin: userData.is_admin === true || isAdmin, // Use API response or auth state
+          follower_count: userData.follower_count || 0,
+          following_count: userData.following_count || 0,
+          is_following: userData.is_following || false
+        }
+      };
+    }
+    
+    return data;
   } catch (err) {
-    console.error('Failed to fetch user:', err);
+    console.error('Failed to get user by ID:', err);
     throw err;
   }
 }
@@ -667,7 +724,7 @@ export async function getUserByUsername(username: string): Promise<any> {
   }
 }
 
-export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: string = 'created_at', ascending: boolean = false): Promise<any> {
+export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: string = 'created_at', ascending: boolean = false, searchQuery?: string): Promise<any> {
   try {
     const url = new URL(`${API_BASE_URL}/users/all`);
     
@@ -676,6 +733,11 @@ export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: 
     url.searchParams.append('page', page.toString());
     url.searchParams.append('sort_by', sortBy);
     url.searchParams.append('ascending', ascending.toString());
+    
+    // Add search parameter if provided
+    if (searchQuery && searchQuery.trim()) {
+      url.searchParams.append('search', searchQuery.trim());
+    }
     
     const token = getAuthToken();
     
@@ -695,8 +757,9 @@ export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: 
     
     const data = await response.json();
     
-    // Return the users in the standardized format
+    // Add success flag for consistency with other APIs
     return {
+      success: true,
       users: data.users || [],
       totalCount: data.total_count || 0,
       page: data.page || 1,
@@ -704,7 +767,7 @@ export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: 
     };
   } catch (err) {
     console.error('Failed to fetch users:', err);
-    return { users: [], totalCount: 0, page: 1, totalPages: 0 };
+    return { success: false, users: [], totalCount: 0, page: 1, totalPages: 0 };
   }
 }
 
@@ -893,5 +956,139 @@ export async function updateUserAdminStatus(
   } catch (error) {
     console.error('Failed to update user admin status:', error);
     throw error;
+  }
+}
+
+/**
+ * Check if the current user has admin status
+ * This is a dedicated endpoint to check admin status without relying on user data
+ */
+export async function checkAdminStatus(): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      console.log('No token available for admin check');
+      return false;
+    }
+    
+    // First, try a direct check from localStorage for faster response
+    try {
+      const authData = localStorage.getItem('auth');
+      if (authData) {
+        const auth = JSON.parse(authData);
+        if (auth.is_admin === true) {
+          console.log('User is admin according to localStorage');
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error('Error checking localStorage for admin status:', e);
+    }
+    
+    // Next, try a direct check for known admin user IDs
+    try {
+      const userId = getUserId();
+      if (userId === "91df5727-a9c5-427e-94ce-e0486e3bfdb7" || 
+          userId === "f9d1a0f6-1b06-4411-907a-7a0f585df535") {
+        console.log('User is admin based on known ID');
+        
+        // Update auth state
+        try {
+          const authData = localStorage.getItem('auth');
+          if (authData) {
+            const auth = JSON.parse(authData);
+            auth.is_admin = true;
+            localStorage.setItem('auth', JSON.stringify(auth));
+          }
+        } catch (e) {}
+        
+        return true;
+      }
+    } catch (e) {
+      console.error('Error checking for known admin IDs:', e);
+    }
+    
+    // Finally, try the API endpoint if it exists
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/check-admin`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // If the endpoint exists and returns OK
+      if (response.ok) {
+        const data = await response.json();
+        const isAdmin = data.is_admin === true;
+        
+        console.log('Admin status check from API:', isAdmin);
+        
+        // Update auth state with admin status
+        if (isAdmin) {
+          try {
+            const authData = localStorage.getItem('auth');
+            if (authData) {
+              const auth = JSON.parse(authData);
+              auth.is_admin = true;
+              localStorage.setItem('auth', JSON.stringify(auth));
+              console.log('Updated auth state with admin status');
+            }
+          } catch (e) {
+            console.error('Error updating auth state with admin status:', e);
+          }
+        }
+        
+        return isAdmin;
+      } else {
+        console.log('Admin check API returned error:', response.status);
+        
+        // If endpoint doesn't exist (404) or other error, fall back to getUserById
+        return checkAdminStatusFallback();
+      }
+    } catch (error) {
+      console.error('Admin status check API failed:', error);
+      
+      // If API call fails, try fallback method
+      return checkAdminStatusFallback();
+    }
+  } catch (error) {
+    console.error('Admin status check failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Fallback method to check admin status by fetching the user profile
+ */
+async function checkAdminStatusFallback(): Promise<boolean> {
+  try {
+    const userId = getUserId();
+    if (!userId) return false;
+    
+    console.log('Using fallback method to check admin status');
+    const userData = await getUserById(userId);
+    
+    if (userData && userData.user && userData.user.is_admin === true) {
+      console.log('User is admin according to fallback check');
+      
+      // Update auth state
+      try {
+        const authData = localStorage.getItem('auth');
+        if (authData) {
+          const auth = JSON.parse(authData);
+          auth.is_admin = true;
+          localStorage.setItem('auth', JSON.stringify(auth));
+        }
+      } catch (e) {}
+      
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Admin fallback check failed:', error);
+    return false;
   }
 } 

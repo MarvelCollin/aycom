@@ -9,6 +9,7 @@
   import { getSuggestedUsers } from '../../api/suggestions';
   import { followUser, unfollowUser } from '../../api/user';
   import { toastStore } from '../../stores/toastStore';
+  import { isAuthenticated } from '../../utils/auth';
 
   // Extend the ISuggestedFollow interface with our UI-specific properties
   interface ExtendedSuggestedFollow extends ISuggestedFollow {
@@ -25,6 +26,8 @@
   let windowWidth = 0;
   let searchQuery = '';
   let showSearch = false;
+  let followingStatus: Record<string, boolean> = {};
+  let followLoading: Record<string, boolean> = {};
 
   onMount(() => {
     fetchTrends();
@@ -71,52 +74,33 @@
     }
   }
 
-  async function handleFollowToggle(user: ExtendedSuggestedFollow) {
-    if (!user) return;
+  async function handleToggleFollow(userId: string) {
+    if (!isAuthenticated()) {
+      window.location.href = '/login';
+      return;
+    }
     
-    // Optimistic UI update
-    const index = suggestedFollows.findIndex(u => u.username === user.username);
-    if (index === -1) return;
-    
-    const isCurrentlyFollowing = suggestedFollows[index].isFollowing;
-    
-    // Create a copy of the array with the updated user
-    const updatedSuggestedFollows = [...suggestedFollows];
-    updatedSuggestedFollows[index] = {
-      ...updatedSuggestedFollows[index],
-      isFollowing: !isCurrentlyFollowing,
-      isFollowingLoading: true
-    };
-    suggestedFollows = updatedSuggestedFollows;
+    if (followLoading[userId]) return;
     
     try {
-      if (isCurrentlyFollowing) {
-        await unfollowUser(user.username);
-        toastStore.showToast(`Unfollowed @${user.username}`, 'success');
+      followLoading[userId] = true;
+      followingStatus = {...followingStatus};
+      
+      if (followingStatus[userId]) {
+        await unfollowUser(userId);
+        followingStatus[userId] = false;
+        toastStore.showToast('User unfollowed', 'success');
       } else {
-        await followUser(user.username);
-        toastStore.showToast(`Followed @${user.username}`, 'success');
+        await followUser(userId);
+        followingStatus[userId] = true;
+        toastStore.showToast('User followed', 'success');
       }
     } catch (error) {
-      console.error('Error toggling follow:', error);
-      toastStore.showToast(`Failed to ${isCurrentlyFollowing ? 'unfollow' : 'follow'} user`, 'error');
-      
-      // Revert the optimistic update
-      const revertedSuggestedFollows = [...suggestedFollows];
-      revertedSuggestedFollows[index] = {
-        ...revertedSuggestedFollows[index],
-        isFollowing: isCurrentlyFollowing,
-        isFollowingLoading: false
-      };
-      suggestedFollows = revertedSuggestedFollows;
+      console.error('Error toggling follow status:', error);
+      toastStore.showToast('Failed to update follow status', 'error');
     } finally {
-      // Update isFollowingLoading state
-      const finalSuggestedFollows = [...suggestedFollows];
-      finalSuggestedFollows[index] = {
-        ...finalSuggestedFollows[index],
-        isFollowingLoading: false
-      };
-      suggestedFollows = finalSuggestedFollows;
+      followLoading[userId] = false;
+      followingStatus = {...followingStatus};
     }
   }
 
@@ -133,6 +117,15 @@
         document.getElementById('search-input')?.focus();
       }, 100);
     }
+  }
+
+  // Initialize following status for each suggested user
+  $: {
+    suggestedFollows.forEach(user => {
+      if (followingStatus[user.username] === undefined) {
+        followingStatus[user.username] = user.isFollowing || false;
+      }
+    });
   }
 </script>
 
@@ -237,16 +230,14 @@
               </div>
               <div class="suggestion-action">
                 <button 
-                  class="follow-button {user.isFollowing ? 'following' : ''} {isDarkMode ? 'follow-button-dark' : ''}"
-                  on:click={() => handleFollowToggle(user)}
-                  disabled={user.isFollowingLoading}
+                  class="follow-button {followingStatus[user.username] ? 'following' : ''} {isDarkMode ? 'follow-button-dark' : ''}"
+                  on:click={() => handleToggleFollow(user.username)}
+                  disabled={followLoading[user.username]}
                 >
-                  {#if user.isFollowingLoading}
+                  {#if followLoading[user.username]}
                     <span class="loading-dot"></span>
-                  {:else if user.isFollowing}
-                    Following
                   {:else}
-                    Follow
+                    {followingStatus[user.username] ? 'Following' : 'Follow'}
                   {/if}
                 </button>
               </div>

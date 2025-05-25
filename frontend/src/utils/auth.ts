@@ -114,6 +114,7 @@ export function setAuthData(userData: {
   refreshToken?: string;
   userId: string;
   expiresAt?: number;
+  is_admin?: boolean;
 } | null): void {
   try {
     if (userData === null) {
@@ -124,19 +125,33 @@ export function setAuthData(userData: {
     
     const expiresAt = userData.expiresAt || (Date.now() + 3600 * 1000);
     
+    // Get existing auth data to preserve fields like is_admin if not provided
+    let existingData = {};
+    try {
+      const existingAuth = localStorage.getItem('auth');
+      if (existingAuth) {
+        existingData = JSON.parse(existingAuth);
+      }
+    } catch (e) {
+      logger.error('Error reading existing auth data:', e);
+    }
+    
     const authData = {
+      ...existingData, // Preserve existing fields
       isAuthenticated: true,
       userId: userData.userId,
       accessToken: userData.accessToken,
       refreshToken: userData.refreshToken || null,
-      expiresAt: expiresAt
+      expiresAt: expiresAt,
+      // Use provided is_admin or preserve existing value
+      is_admin: userData.is_admin !== undefined ? userData.is_admin : (existingData as any).is_admin || false
     };
     
     localStorage.setItem('auth', JSON.stringify(authData));
     localStorage.setItem('aycom_authenticated', 'true');
     
     logger.info('Auth data updated successfully');
-    logger.debug(`User ID: ${userData.userId}, Token: ${userData.accessToken.substring(0, 10)}..., Expires: ${new Date(expiresAt).toLocaleString()}`);
+    logger.debug(`User ID: ${userData.userId}, Token: ${userData.accessToken.substring(0, 10)}..., Expires: ${new Date(expiresAt).toLocaleString()}, Admin: ${authData.is_admin}`);
     
     setupTokenValidation();
   } catch (err) {
