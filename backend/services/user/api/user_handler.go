@@ -5,12 +5,12 @@ import (
 	"log"
 	"time"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"aycom/backend/proto/user"
 	"aycom/backend/services/user/model"
 	"aycom/backend/services/user/service"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserHandler struct {
@@ -279,66 +279,199 @@ func (h *UserHandler) GetUserByUsername(ctx context.Context, req *user.GetUserBy
 	return &user.GetUserByUsernameResponse{User: mapUserModelToProto(u)}, nil
 }
 
-// IsUserBlocked checks if a user is blocked by another user
-func (h *UserHandler) IsUserBlocked(ctx context.Context, req *user.IsUserBlockedRequest) (*user.IsUserBlockedResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would check if the user is blocked
-	return &user.IsUserBlockedResponse{IsBlocked: false}, nil
-}
+// IsUserBlocked method is implemented in block_handlers.go
 
 // IsFollowing checks if a user is following another user
 func (h *UserHandler) IsFollowing(ctx context.Context, req *user.IsFollowingRequest) (*user.IsFollowingResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would check if the user is following
-	return &user.IsFollowingResponse{IsFollowing: false}, nil
+	if req.GetFollowerId() == "" || req.GetFollowedId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
+	}
+
+	// Use service layer to check if follow relationship exists
+	exists, err := h.svc.IsFollowing(ctx, req.GetFollowerId(), req.GetFollowedId())
+	if err != nil {
+		log.Printf("Error checking follow relationship: %v", err)
+		return nil, err
+	}
+
+	return &user.IsFollowingResponse{IsFollowing: exists}, nil
 }
 
 // FollowUser handles following a user
 func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserRequest) (*user.FollowUserResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would create a follow relationship
-	return &user.FollowUserResponse{Success: true}, nil
+	if req.GetFollowerId() == "" || req.GetFollowedId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
+	}
+
+	// Convert proto request to model request
+	followReq := &model.FollowUserRequest{
+		FollowerID: req.GetFollowerId(),
+		FollowedID: req.GetFollowedId(),
+	}
+
+	// Use service layer to follow user
+	err := h.svc.FollowUser(ctx, followReq)
+	if err != nil {
+		log.Printf("Error following user: %v", err)
+		return nil, err
+	}
+
+	return &user.FollowUserResponse{
+		Success: true,
+		Message: "User followed successfully",
+	}, nil
 }
 
 // UnfollowUser handles unfollowing a user
 func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRequest) (*user.UnfollowUserResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would delete a follow relationship
-	return &user.UnfollowUserResponse{Success: true}, nil
+	if req.GetFollowerId() == "" || req.GetFollowedId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
+	}
+
+	// Convert proto request to model request
+	unfollowReq := &model.UnfollowUserRequest{
+		FollowerID: req.GetFollowerId(),
+		FollowedID: req.GetFollowedId(),
+	}
+
+	// Use service layer to unfollow user
+	err := h.svc.UnfollowUser(ctx, unfollowReq)
+	if err != nil {
+		log.Printf("Error unfollowing user: %v", err)
+		return nil, err
+	}
+
+	return &user.UnfollowUserResponse{
+		Success: true,
+		Message: "User unfollowed successfully",
+	}, nil
 }
 
 // GetFollowers gets a user's followers
 func (h *UserHandler) GetFollowers(ctx context.Context, req *user.GetFollowersRequest) (*user.GetFollowersResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would get the user's followers
+	if req.GetUserId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Set default pagination values
+	page := int(req.GetPage())
+	if page <= 0 {
+		page = 1
+	}
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = 20
+	}
+
+	// Convert proto request to model request
+	followersReq := &model.GetFollowersRequest{
+		UserID: req.GetUserId(),
+		Page:   page,
+		Limit:  limit,
+	}
+
+	// Use service layer to get followers
+	followers, total, err := h.svc.GetFollowers(ctx, followersReq)
+	if err != nil {
+		log.Printf("Error getting followers: %v", err)
+		return nil, err
+	}
+
+	// Convert model users to proto users
+	protoFollowers := make([]*user.User, len(followers))
+	for i, follower := range followers {
+		protoFollowers[i] = mapUserModelToProto(follower)
+	}
+
 	return &user.GetFollowersResponse{
-		Followers:  []*user.User{},
-		TotalCount: 0,
-		Page:       req.GetPage(),
-		Limit:      req.GetLimit(),
+		Followers:  protoFollowers,
+		TotalCount: int32(total),
+		Page:       int32(page),
+		Limit:      int32(limit),
 	}, nil
 }
 
 // GetFollowing gets users a user is following
 func (h *UserHandler) GetFollowing(ctx context.Context, req *user.GetFollowingRequest) (*user.GetFollowingResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would get the users the user is following
+	if req.GetUserId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	// Set default pagination values
+	page := int(req.GetPage())
+	if page <= 0 {
+		page = 1
+	}
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = 20
+	}
+
+	// Convert proto request to model request
+	followingReq := &model.GetFollowingRequest{
+		UserID: req.GetUserId(),
+		Page:   page,
+		Limit:  limit,
+	}
+
+	// Use service layer to get following
+	following, total, err := h.svc.GetFollowing(ctx, followingReq)
+	if err != nil {
+		log.Printf("Error getting following: %v", err)
+		return nil, err
+	}
+
+	// Convert model users to proto users
+	protoFollowing := make([]*user.User, len(following))
+	for i, followedUser := range following {
+		protoFollowing[i] = mapUserModelToProto(followedUser)
+	}
+
 	return &user.GetFollowingResponse{
-		Following:  []*user.User{},
-		TotalCount: 0,
-		Page:       req.GetPage(),
-		Limit:      req.GetLimit(),
+		Following:  protoFollowing,
+		TotalCount: int32(total),
+		Page:       int32(page),
+		Limit:      int32(limit),
 	}, nil
 }
 
 // SearchUsers searches for users based on a query
 func (h *UserHandler) SearchUsers(ctx context.Context, req *user.SearchUsersRequest) (*user.SearchUsersResponse, error) {
-	// This is a placeholder implementation
-	// In a real implementation, you would search for users
+	// Set default pagination values
+	page := int(req.GetPage())
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Convert gRPC request to service model request
+	searchReq := &model.SearchUsersRequest{
+		Query:  req.GetQuery(),
+		Filter: "", // No filter field in proto, use empty string
+		Page:   page,
+		Limit:  limit,
+	}
+
+	// Call service layer
+	users, totalCount, err := h.svc.SearchUsers(ctx, searchReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert users to proto format
+	protoUsers := make([]*user.User, len(users))
+	for i, u := range users {
+		protoUsers[i] = mapUserModelToProto(u)
+	}
+
 	return &user.SearchUsersResponse{
-		Users:      []*user.User{},
-		TotalCount: 0,
-		Page:       req.GetPage(),
-		Limit:      req.GetLimit(),
+		Users:      protoUsers,
+		TotalCount: int32(totalCount),
+		Page:       int32(page),
+		Limit:      int32(limit),
 	}, nil
 }

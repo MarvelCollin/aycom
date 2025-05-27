@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// NotificationClient represents a WebSocket client specifically for notifications
 type NotificationClient struct {
 	ID         string
 	UserID     string
@@ -20,7 +19,6 @@ type NotificationClient struct {
 	Send       chan []byte
 }
 
-// HandleNotificationsWebSocket handles WebSocket connections for notifications
 func HandleNotificationsWebSocket(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -34,7 +32,6 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 		return
 	}
 
-	// Create a notification-specific client
 	client := &NotificationClient{
 		ID:         uuid.New().String(),
 		UserID:     userID.(string),
@@ -42,37 +39,31 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 		Send:       make(chan []byte, AppConfig.WebSocket.SendBufferSize),
 	}
 
-	// Register with WebSocket manager
 	manager := GetWebSocketManager()
 	wsClient := &Client{
 		ID:         client.ID,
 		UserID:     client.UserID,
 		Connection: client.Connection,
-		ChatID:     "", // No specific chat for notifications
+		ChatID:     "", 
 		Send:       client.Send,
 		Manager:    manager,
 	}
 	manager.register <- wsClient
 
-	// Notify the notification manager that this user is connected
 	notificationManager.UserConnected(client.UserID)
 
-	// Start goroutines for reading and writing
 	go client.notificationWritePump()
 	go client.notificationReadPump(wsClient)
 
-	// Send any unread notifications to the client
 	go sendUnreadNotifications(client)
 }
 
-// notificationReadPump reads messages from the notification WebSocket connection
 func (c *NotificationClient) notificationReadPump(wsClient *Client) {
 	defer func() {
-		// Unregister with WebSocket manager
+
 		manager := GetWebSocketManager()
 		manager.unregister <- wsClient
 
-		// Notify the notification manager that this user is disconnected
 		notificationManager.UserDisconnected(c.UserID)
 
 		c.Connection.Close()
@@ -94,12 +85,10 @@ func (c *NotificationClient) notificationReadPump(wsClient *Client) {
 			break
 		}
 
-		// Process client actions for notifications (e.g., mark as read)
 		processNotificationAction(message, c.UserID)
 	}
 }
 
-// notificationWritePump writes messages to the notification WebSocket connection
 func (c *NotificationClient) notificationWritePump() {
 	ticker := time.NewTicker(AppConfig.WebSocket.PingInterval)
 	defer func() {
@@ -122,7 +111,6 @@ func (c *NotificationClient) notificationWritePump() {
 			}
 			w.Write(message)
 
-			// Add queued notification messages to the current websocket message
 			n := len(c.Send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte{'\n'})
@@ -142,9 +130,8 @@ func (c *NotificationClient) notificationWritePump() {
 	}
 }
 
-// processNotificationAction processes actions from clients (e.g., marking notifications as read)
 func processNotificationAction(message []byte, userID string) {
-	// Parse the action
+
 	var action struct {
 		Type           string `json:"type"`
 		NotificationID string `json:"notification_id"`
@@ -157,19 +144,17 @@ func processNotificationAction(message []byte, userID string) {
 
 	switch action.Type {
 	case "mark_read":
-		// Mark notification as read
+
 		if err := notificationManager.MarkNotificationAsRead(userID, action.NotificationID); err != nil {
 			log.Printf("Error marking notification as read: %v", err)
 		}
 	}
 }
 
-// sendUnreadNotifications sends all unread notifications to a newly connected client
 func sendUnreadNotifications(client *NotificationClient) {
-	// Get unread notifications for the user
+
 	notifications := notificationManager.GetUserNotifications(client.UserID, 50, 0)
 
-	// Only send unread notifications
 	var unreadNotifications []Notification
 	for _, notification := range notifications {
 		if !notification.Read {
@@ -181,7 +166,6 @@ func sendUnreadNotifications(client *NotificationClient) {
 		return
 	}
 
-	// Create a notification bundle
 	notificationBundle := struct {
 		Type          string         `json:"type"`
 		Notifications []Notification `json:"notifications"`
@@ -190,23 +174,20 @@ func sendUnreadNotifications(client *NotificationClient) {
 		Notifications: unreadNotifications,
 	}
 
-	// Serialize the bundle
 	bundle, err := json.Marshal(notificationBundle)
 	if err != nil {
 		log.Printf("Error serializing notification bundle: %v", err)
 		return
 	}
 
-	// Send the bundle to the client
 	select {
 	case client.Send <- bundle:
-		// Bundle sent successfully
+
 	default:
 		log.Printf("Error: notification channel is full for user %s", client.UserID)
 	}
 }
 
-// GetUserNotifications handles the API request to get a user's notifications
 func GetUserNotifications(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -227,18 +208,16 @@ func GetUserNotifications(c *gin.Context) {
 		offset = 0
 	}
 
-	// Get the notifications for the user
 	notifications := notificationManager.GetUserNotifications(userID.(string), limit, offset)
 
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"notifications": notifications,
 		"limit":         limit,
 		"offset":        offset,
-		"total":         len(notifications), // This is the returned count, not total in DB
+		"total":         len(notifications), 
 	})
 }
 
-// MarkNotificationAsRead marks a notification as read
 func MarkNotificationAsRead(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -252,7 +231,6 @@ func MarkNotificationAsRead(c *gin.Context) {
 		return
 	}
 
-	// Mark the notification as read
 	err := notificationManager.MarkNotificationAsRead(userID.(string), notificationID)
 	if err != nil {
 		SendErrorResponse(c, http.StatusInternalServerError, "server_error", "Failed to mark notification as read")

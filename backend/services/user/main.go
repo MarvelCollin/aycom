@@ -63,14 +63,19 @@ func main() {
 		if err := runMigrations(dbConn); err != nil {
 			log.Fatalf("Failed to run migrations: %v", err)
 		}
-
 		// Initialize repositories
 		userRepo := repository.NewPostgresUserRepository(dbConn)
 		adminRepo := repository.NewAdminRepository(dbConn)
+		blockRepo := repository.NewBlockRepository(dbConn)
+		reportRepo := repository.NewReportRepository(dbConn)
 
 		// Initialize services
-		userSvc := service.NewUserService(userRepo)
+		baseUserSvc := service.NewUserService(userRepo)
 		adminSvc := service.NewAdminService(adminRepo, userRepo)
+		blockSvc := service.NewUserBlockService(blockRepo, reportRepo, userRepo)
+
+		// Combine services
+		userSvc := service.NewCombinedService(baseUserSvc, blockSvc)
 
 		// Initialize handler
 		handler := handlers.NewUserHandler(userSvc, adminSvc)

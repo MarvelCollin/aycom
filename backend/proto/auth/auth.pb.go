@@ -21,7 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// LoginRequest contains credentials for user login
 type LoginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
@@ -74,7 +73,6 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
-// RegisterRequest contains information needed to register a new user
 type RegisterRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -135,7 +133,6 @@ func (x *RegisterRequest) GetPassword() string {
 	return ""
 }
 
-// ValidateRequest contains the token to validate
 type ValidateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -180,7 +177,6 @@ func (x *ValidateRequest) GetToken() string {
 	return ""
 }
 
-// ValidateResponse contains validation result
 type ValidateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
@@ -241,7 +237,6 @@ func (x *ValidateResponse) GetClaims() map[string]string {
 	return nil
 }
 
-// RefreshRequest contains the refresh token
 type RefreshRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
@@ -286,14 +281,13 @@ func (x *RefreshRequest) GetRefreshToken() string {
 	return ""
 }
 
-// TokenResponse contains authentication tokens
 type TokenResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	TokenType     string                 `protobuf:"bytes,4,opt,name=token_type,json=tokenType,proto3" json:"token_type,omitempty"`  // Usually "Bearer"
-	ExpiresIn     int64                  `protobuf:"varint,5,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"` // Expiration time in seconds
+	TokenType     string                 `protobuf:"bytes,4,opt,name=token_type,json=tokenType,proto3" json:"token_type,omitempty"`
+	ExpiresIn     int64                  `protobuf:"varint,5,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -363,7 +357,6 @@ func (x *TokenResponse) GetExpiresIn() int64 {
 	return 0
 }
 
-// LogoutRequest contains tokens to invalidate
 type LogoutRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
@@ -416,7 +409,6 @@ func (x *LogoutRequest) GetRefreshToken() string {
 	return ""
 }
 
-// LogoutResponse indicates the result of logout operation
 type LogoutResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`

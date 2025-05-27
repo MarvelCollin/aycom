@@ -7,9 +7,8 @@ option go_package = "aycom/backend/proto/thread";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 
-// Thread Service definition
 service ThreadService {
-  // Thread operations
+
   rpc CreateThread(CreateThreadRequest) returns (ThreadResponse);
   rpc GetThreadById(GetThreadRequest) returns (ThreadResponse);
   rpc GetThreadsByUser(GetThreadsByUserRequest) returns (ThreadsResponse);
@@ -17,18 +16,15 @@ service ThreadService {
   rpc UpdateThread(UpdateThreadRequest) returns (ThreadResponse);
   rpc DeleteThread(DeleteThreadRequest) returns (google.protobuf.Empty);
 
-  // Reply operations
   rpc CreateReply(CreateReplyRequest) returns (ReplyResponse);
   rpc GetRepliesByThread(GetRepliesByThreadRequest) returns (RepliesResponse);
   rpc UpdateReply(UpdateReplyRequest) returns (ReplyResponse);
   rpc DeleteReply(DeleteReplyRequest) returns (google.protobuf.Empty);
 
-  // User content operations
   rpc GetRepliesByUser(GetRepliesByUserRequest) returns (RepliesResponse);
   rpc GetLikedThreadsByUser(GetLikedThreadsByUserRequest) returns (ThreadsResponse);
   rpc GetMediaByUser(GetMediaByUserRequest) returns (GetMediaByUserResponse);
 
-  // Interaction operations
   rpc LikeThread(LikeThreadRequest) returns (google.protobuf.Empty);
   rpc UnlikeThread(UnlikeThreadRequest) returns (google.protobuf.Empty);
   rpc LikeReply(LikeReplyRequest) returns (google.protobuf.Empty);
@@ -44,19 +40,15 @@ service ThreadService {
   rpc PinReply(PinReplyRequest) returns (google.protobuf.Empty);
   rpc UnpinReply(UnpinReplyRequest) returns (google.protobuf.Empty);
 
-  // Poll operations
   rpc CreatePoll(CreatePollRequest) returns (PollResponse);
   rpc VotePoll(VotePollRequest) returns (google.protobuf.Empty);
   rpc GetPollResults(GetPollResultsRequest) returns (PollResultsResponse);
 
-  // Trending hashtags
   rpc GetTrendingHashtags(GetTrendingHashtagsRequest) returns (GetTrendingHashtagsResponse);
 
-  // Get replies to a specific reply (for nested replies/comments)
   rpc GetRepliesByParentReply(GetRepliesByParentReplyRequest) returns (RepliesResponse) {}
 }
 
-// Thread message
 message Thread {
   string id = 1;
   string user_id = 2;
@@ -73,14 +65,12 @@ message Thread {
   optional bool is_advertisement = 13;
 }
 
-// Media message
 message Media {
   string id = 1;
   string url = 2;
-  string type = 3; // "image", "video", etc.
+  string type = 3; 
 }
 
-// Poll message
 message Poll {
   string id = 1;
   string question = 2;
@@ -89,26 +79,23 @@ message Poll {
   bool is_anonymous = 5;
 }
 
-// Poll option message
 message PollOption {
   string id = 1;
   string text = 2;
 }
 
-// Reply message
 message Reply {
   string id = 1;
   string thread_id = 2;
   string user_id = 3;
   string content = 4;
   repeated Media media = 5;
-  string parent_id = 6; // Optional, for replies to replies
+  string parent_id = 6; 
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
   optional bool is_pinned = 9;
 }
 
-// CreateThreadRequest message
 message CreateThreadRequest {
   string user_id = 1;
   string content = 2;
@@ -122,7 +109,6 @@ message CreateThreadRequest {
   repeated string mentioned_user_ids = 10;
 }
 
-// PollRequest message for creating polls
 message PollRequest {
   string question = 1;
   repeated string options = 2;
@@ -130,25 +116,21 @@ message PollRequest {
   bool is_anonymous = 4;
 }
 
-// GetThreadRequest message
 message GetThreadRequest {
   string thread_id = 1;
 }
 
-// GetThreadsByUserRequest message
 message GetThreadsByUserRequest {
   string user_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// GetAllThreadsRequest message
 message GetAllThreadsRequest {
   int32 page = 1;
   int32 limit = 2;
 }
 
-// UpdateThreadRequest message
 message UpdateThreadRequest {
   string thread_id = 1;
   string user_id = 2;
@@ -161,31 +143,27 @@ message UpdateThreadRequest {
   repeated string remove_hashtags = 9;
 }
 
-// DeleteThreadRequest message
 message DeleteThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// CreateReplyRequest message
 message CreateReplyRequest {
   string thread_id = 1;
   string user_id = 2;
   string content = 3;
   repeated Media media = 4;
-  string parent_id = 5; // Optional, for replies to replies
+  string parent_id = 5; 
   optional string parent_reply_id = 6;
   repeated string mentioned_user_ids = 7;
 }
 
-// GetRepliesByThreadRequest message
 message GetRepliesByThreadRequest {
   string thread_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// UpdateReplyRequest message
 message UpdateReplyRequest {
   string reply_id = 1;
   string user_id = 2;
@@ -194,80 +172,67 @@ message UpdateReplyRequest {
   optional bool is_pinned = 5;
 }
 
-// DeleteReplyRequest message
 message DeleteReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// LikeThreadRequest message
 message LikeThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// UnlikeThreadRequest message
 message UnlikeThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// LikeReplyRequest message
 message LikeReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// UnlikeReplyRequest message
 message UnlikeReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// RepostThreadRequest message
 message RepostThreadRequest {
   string thread_id = 1;
   string user_id = 2;
   optional string added_content = 3;
 }
 
-// RemoveRepostRequest message
 message RemoveRepostRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// BookmarkThreadRequest message
 message BookmarkThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// RemoveBookmarkRequest message
 message RemoveBookmarkRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// CreatePollRequest message
 message CreatePollRequest {
   string thread_id = 1;
   PollRequest poll = 2;
 }
 
-// VotePollRequest message
 message VotePollRequest {
   string poll_id = 1;
   string option_id = 2;
   string user_id = 3;
 }
 
-// GetPollResultsRequest message
 message GetPollResultsRequest {
   string poll_id = 1;
 }
 
-// ThreadResponse message
 message ThreadResponse {
   Thread thread = 1;
   User user = 2;
@@ -284,20 +249,17 @@ message ThreadResponse {
   int64 bookmark_count = 13;
 }
 
-// ThreadsResponse message
 message ThreadsResponse {
   repeated ThreadResponse threads = 1;
   int32 total = 2;
 }
 
-// GetRepliesByParentReplyRequest message
 message GetRepliesByParentReplyRequest {
   string parent_reply_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// ReplyResponse message
 message ReplyResponse {
   Reply reply = 1;
   User user = 2;
@@ -310,13 +272,11 @@ message ReplyResponse {
   bool bookmarked_by_user = 9;
 }
 
-// RepliesResponse message
 message RepliesResponse {
   repeated ReplyResponse replies = 1;
   int32 total = 2;
 }
 
-// PollResponse message
 message PollResponse {
   Poll poll = 1;
   repeated PollOptionResult results = 2;
@@ -325,7 +285,6 @@ message PollResponse {
   bool has_ended = 5;
 }
 
-// PollResultsResponse message
 message PollResultsResponse {
   repeated PollOptionResult results = 1;
   int64 total_votes = 2;
@@ -333,7 +292,6 @@ message PollResultsResponse {
   bool has_ended = 4;
 }
 
-// PollOptionResult message
 message PollOptionResult {
   string option_id = 1;
   string text = 2;
@@ -341,7 +299,6 @@ message PollOptionResult {
   float percentage = 4;
 }
 
-// User message - minimal info needed for thread/reply display
 message User {
   string id = 1;
   string name = 2;
@@ -350,90 +307,76 @@ message User {
   bool is_verified = 5;
 }
 
-// HashtagResponse message
 message HashtagResponse {
   string name = 1;
   int64 count = 2;
 }
 
-// GetTrendingHashtagsRequest message
 message GetTrendingHashtagsRequest {
   int32 limit = 1;
 }
 
-// GetTrendingHashtagsResponse message
 message GetTrendingHashtagsResponse {
   repeated HashtagResponse hashtags = 1;
 }
 
-// BookmarkReplyRequest message
 message BookmarkReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// RemoveReplyBookmarkRequest message
 message RemoveReplyBookmarkRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// PinThreadRequest message
 message PinThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// UnpinThreadRequest message
 message UnpinThreadRequest {
   string thread_id = 1;
   string user_id = 2;
 }
 
-// PinReplyRequest message
 message PinReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// UnpinReplyRequest message
 message UnpinReplyRequest {
   string reply_id = 1;
   string user_id = 2;
 }
 
-// GetRepliesByUserRequest message
 message GetRepliesByUserRequest {
   string user_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// GetLikedThreadsByUserRequest message
 message GetLikedThreadsByUserRequest {
   string user_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// GetMediaByUserRequest message
 message GetMediaByUserRequest {
   string user_id = 1;
   int32 page = 2;
   int32 limit = 3;
 }
 
-// GetMediaByUserResponse message
 message GetMediaByUserResponse {
   repeated MediaItem media = 1;
   int32 total = 2;
 }
 
-// MediaItem message for user media
 message MediaItem {
   string id = 1;
   string thread_id = 2;
   string url = 3;
   string type = 4;
   google.protobuf.Timestamp created_at = 5;
-} 
+}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	userProto "aycom/backend/proto/user"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,13 +11,12 @@ import (
 	"os"
 	"time"
 
-	"aycom/backend/api-gateway/utils"
-	userProto "aycom/backend/proto/user"
-
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func AuthHandler() gin.HandlerFunc {
@@ -37,7 +37,6 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Parse the refresh token to validate and extract claims
 	refreshSecret := GetJWTSecret()
 	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -57,21 +56,19 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Extract user ID from claims
 	userID, ok := claims["sub"].(string)
 	if !ok {
 		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
 		return
 	}
 
-	// Generate new tokens
 	accessToken, err := utils.GenerateJWT(userID, time.Hour)
 	if err != nil {
 		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
 		return
 	}
 
-	refreshTokenDuration := 7 * 24 * time.Hour // 7 days
+	refreshTokenDuration := 7 * 24 * time.Hour
 	newRefreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
 	if err != nil {
 		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
@@ -89,10 +86,10 @@ func RefreshToken(c *gin.Context) {
 }
 
 func GetOAuthConfig(c *gin.Context) {
-	// Get actual Google client ID from environment
+
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 	if googleClientID == "" {
-		googleClientID = "161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com" // Fallback to default in env
+		googleClientID = "161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com"
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -132,7 +129,6 @@ func VerifyEmail(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// First, we need to find the user by email
 	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
 		Email: req.Email,
 	})
@@ -148,15 +144,11 @@ func VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// Verify the code (in a real system, this would be compared with a stored code)
-	// For now, we'll just mark the user as verified directly
-	// In a production system, you would verify the code against what's stored in the database
 	updateReq := &userProto.UpdateUserVerificationStatusRequest{
 		UserId:     userResp.User.Id,
 		IsVerified: true,
 	}
 
-	// Call the user service to verify the email
 	updateResp, err := UserClient.UpdateUserVerificationStatus(ctx, updateReq)
 	if err != nil {
 		st, ok := status.FromError(err)
@@ -175,7 +167,6 @@ func VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// If verification was successful, generate JWT tokens for verified user
 	if updateResp.Success {
 		accessToken, err := utils.GenerateJWT(userResp.User.Id, time.Hour)
 		if err != nil {
@@ -183,7 +174,7 @@ func VerifyEmail(c *gin.Context) {
 			return
 		}
 
-		refreshTokenDuration := 7 * 24 * time.Hour // 7 days
+		refreshTokenDuration := 7 * 24 * time.Hour
 		refreshToken, err := utils.GenerateJWT(userResp.User.Id, refreshTokenDuration)
 		if err != nil {
 			SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
@@ -222,7 +213,6 @@ func ResendVerification(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// First check if the user exists
 	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
 		Email: req.Email,
 	})
@@ -230,7 +220,7 @@ func ResendVerification(c *gin.Context) {
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.NotFound {
-			// Don't disclose that the email doesn't exist
+
 			c.JSON(http.StatusOK, gin.H{
 				"success": true,
 				"message": "If the email exists, a new verification code has been sent",
@@ -250,7 +240,6 @@ func ResendVerification(c *gin.Context) {
 		return
 	}
 
-	// If the user is already verified, don't send a new code
 	if userResp.User.IsVerified {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -259,18 +248,10 @@ func ResendVerification(c *gin.Context) {
 		return
 	}
 
-	// Generate a new verification code
 	code := utils.GenerateVerificationCode()
 
-	// In a production system, we would:
-	// 1. Store the verification code in the database
-	// 2. Send the verification code via email
-
-	// For development, we'll log it for testing purposes
 	log.Printf("New verification code for %s: %s", req.Email, code)
 
-	// In a real implementation, we would update the user's verification code in the database
-	// Since the proto doesn't support this directly, this would be a custom DB operation
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Verification code has been sent to your email",
@@ -298,7 +279,6 @@ func GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	// Verify the token with Google
 	googleAPIURL := "https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=" + req.TokenID
 	resp, err := http.Get(googleAPIURL)
 	if err != nil {
@@ -336,7 +316,6 @@ func GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	// Check if user already exists by email
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -346,25 +325,22 @@ func GoogleLogin(c *gin.Context) {
 
 	var userID string
 	if err != nil || userResp.User == nil {
-		// User doesn't exist, create a new user
+
 		newUsername := utils.GenerateUsername(tokenInfo.Name)
 
-		// Generate secure random password for Google users
 		randomPassword := utils.GenerateSecureRandomPassword(16)
 
-		// Set current date as birthdate placeholder
 		currentDate := time.Now().Format("2006-01-02")
 
-		// Create user with only the fields that are in the proto definition
 		user := &userProto.User{
 			Name:              tokenInfo.Name,
 			Username:          newUsername,
 			Email:             tokenInfo.Email,
-			Password:          randomPassword, // Random secure password
+			Password:          randomPassword,
 			ProfilePictureUrl: tokenInfo.Picture,
-			DateOfBirth:       currentDate, // Placeholder
-			Gender:            "unknown",   // Placeholder
-			IsVerified:        true,        // Auto-verify Google users
+			DateOfBirth:       currentDate,
+			Gender:            "unknown",
+			IsVerified:        true,
 		}
 
 		createReq := &userProto.CreateUserRequest{
@@ -379,18 +355,17 @@ func GoogleLogin(c *gin.Context) {
 
 		userID = createResp.User.Id
 	} else {
-		// User exists
+
 		userID = userResp.User.Id
 	}
 
-	// Generate JWT tokens
 	accessToken, err := utils.GenerateJWT(userID, time.Hour)
 	if err != nil {
 		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
 		return
 	}
 
-	refreshTokenDuration := 7 * 24 * time.Hour // 7 days
+	refreshTokenDuration := 7 * 24 * time.Hour
 	refreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
 	if err != nil {
 		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
@@ -532,7 +507,6 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// Update the user's password using the full user object
 	updateReq := &userProto.UpdateUserRequest{
 		User: &userProto.User{
 			Id:       userResp.User.Id,

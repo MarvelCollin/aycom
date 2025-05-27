@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Chat represents a chat room in the domain model
+
 type ChatDTO struct {
 	ID          string
 	Name        string
@@ -14,7 +14,7 @@ type ChatDTO struct {
 	UpdatedAt   time.Time
 }
 
-// Message represents a chat message in the domain model
+
 type MessageDTO struct {
 	ID        string
 	ChatID    string
@@ -26,7 +26,7 @@ type MessageDTO struct {
 	IsDeleted bool
 }
 
-// Participant represents a chat participant in the domain model
+
 type ParticipantDTO struct {
 	ChatID   string
 	UserID   string
@@ -34,14 +34,14 @@ type ParticipantDTO struct {
 	IsAdmin  bool
 }
 
-// DeletedChat represents a chat deleted for a specific user
+
 type DeletedChatDTO struct {
 	ChatID    string
 	UserID    string
 	DeletedAt time.Time
 }
 
-// ChatRepository defines the interface for chat operations
+
 type ChatRepository interface {
 	CreateChat(chat *ChatDTO) error
 	FindChatByID(chatID string) (*ChatDTO, error)
@@ -50,7 +50,7 @@ type ChatRepository interface {
 	DeleteChat(chatID string) error
 }
 
-// MessageRepository defines the interface for message operations
+
 type MessageRepository interface {
 	SaveMessage(message *MessageDTO) error
 	FindMessageByID(messageID string) (*MessageDTO, error)
@@ -62,7 +62,7 @@ type MessageRepository interface {
 	UpdateMessage(message *MessageDTO) error
 }
 
-// ParticipantRepository defines the interface for participant operations
+
 type ParticipantRepository interface {
 	AddParticipant(participant *ParticipantDTO) error
 	RemoveParticipant(chatID, userID string) error
@@ -70,7 +70,7 @@ type ParticipantRepository interface {
 	IsUserInChat(chatID, userID string) (bool, error)
 }
 
-// DeletedChatRepository defines the interface for deleted chat operations
+
 type DeletedChatRepository interface {
 	MarkChatAsDeleted(chatID, userID string) error
 	IsDeletedForUser(chatID, userID string) (bool, error)

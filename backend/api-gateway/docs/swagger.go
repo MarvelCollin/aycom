@@ -1,4 +1,3 @@
-// Package docs contains Swagger documentation for the API Gateway
 package docs
 
 import (
@@ -9,17 +8,15 @@ import (
 	"github.com/swaggo/swag"
 )
 
-// SwaggerInfo holds exported Swagger Info
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
-	Host:             "localhost:8083",
-	BasePath:         "/api/v1",
-	Schemes:          []string{"http", "https"},
-	Title:            "AYCOM API",
-	Description:      "This is the API Gateway for the AYCOM platform.",
+	Version:     "1.0",
+	Host:        "localhost:8083",
+	BasePath:    "/api/v1",
+	Schemes:     []string{"http", "https"},
+	Title:       "AYCOM API",
+	Description: "This is the API Gateway for the AYCOM platform.",
 }
 
-// doc holds the swagger specification as a string
 var doc = `{
     "swagger": "2.0",
     "info": {
@@ -136,15 +133,14 @@ var doc = `{
 type s struct{}
 
 func (s *s) ReadDoc() string {
-	// Try to read from swagger.json file first
+
 	jsonPath := filepath.Join("docs", "swagger.json")
 	if _, err := os.Stat(jsonPath); err == nil {
 		if data, err := ioutil.ReadFile(jsonPath); err == nil {
 			return string(data)
 		}
 	}
-	
-	// Fall back to embedded doc string if file doesn't exist
+
 	return doc
 }
 

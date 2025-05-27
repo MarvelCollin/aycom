@@ -2,7 +2,7 @@ package service
 
 import "errors"
 
-// Error definitions for the chat service
+
 var (
 	ErrChatNotFound       = errors.New("chat not found")
 	ErrNotChatParticipant = errors.New("user is not a participant in this chat")

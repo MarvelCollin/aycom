@@ -13,7 +13,6 @@ import (
 	"aycom/backend/api-gateway/config"
 )
 
-// CommunityServiceClient defines the methods used from the Community service
 type CommunityServiceClient interface {
 	ValidateUser(userID string) (bool, error)
 	SendMessage(chatID, userID, content string) (string, error)
@@ -27,7 +26,6 @@ type CommunityServiceClient interface {
 	GetChatParticipants(chatID string) ([]string, error)
 }
 
-// Message represents a chat message
 type Message struct {
 	ID        string    `json:"id"`
 	ChatID    string    `json:"chat_id"`
@@ -39,7 +37,6 @@ type Message struct {
 	IsDeleted bool      `json:"is_deleted,omitempty"`
 }
 
-// Chat represents a chat room
 type Chat struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
@@ -51,15 +48,12 @@ type Chat struct {
 	LastMessage  *Message  `json:"last_message,omitempty"`
 }
 
-// Default implementation using gRPC client
 type communityCommunicationClient struct {
 	grpcClient communityProto.CommunityServiceClient
 }
 
-// Global instance of the community service client
 var communityServiceClient CommunityServiceClient
 
-// GetCommunityServiceClient returns the current community service client
 func GetCommunityServiceClient() CommunityServiceClient {
 	if communityServiceClient == nil {
 		log.Println("Warning: Community service client not initialized, using fallback")
@@ -68,11 +62,9 @@ func GetCommunityServiceClient() CommunityServiceClient {
 	return communityServiceClient
 }
 
-// InitCommunityServiceClient initializes the Community service client
 func InitCommunityServiceClient(cfg *config.Config) {
 	log.Println("Initializing Community service client...")
 
-	// Use the existing CommunityClient gRPC client that was initialized in InitGRPCServices
 	if CommunityClient != nil {
 		client := &communityCommunicationClient{
 			grpcClient: CommunityClient,
@@ -81,7 +73,7 @@ func InitCommunityServiceClient(cfg *config.Config) {
 		log.Println("Community service client initialized successfully")
 	} else {
 		log.Println("Warning: Community gRPC client not available, using fallback implementation")
-		// Create a fallback implementation or retry connection
+
 		communityServiceAddr := cfg.Services.CommunityService
 
 		conn, err := grpc.NewClient(communityServiceAddr,
@@ -98,14 +90,11 @@ func InitCommunityServiceClient(cfg *config.Config) {
 	}
 }
 
-// ValidateUser checks if a user ID is valid with the Community service
 func (c *communityCommunicationClient) ValidateUser(userID string) (bool, error) {
 	if c.grpcClient == nil {
 		return false, fmt.Errorf("community service client not initialized")
 	}
 
-	// Based on the proto definition, there is no direct ValidateUser RPC
-	// Instead, we can check if the user exists by trying to list their chats
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -118,11 +107,9 @@ func (c *communityCommunicationClient) ValidateUser(userID string) (bool, error)
 		return false, err
 	}
 
-	// If we could list the user's chats, they exist
 	return true, nil
 }
 
-// SendMessage sends a message to a chat through the Community service
 func (c *communityCommunicationClient) SendMessage(chatID, userID, content string) (string, error) {
 	if c.grpcClient == nil {
 		return "", fmt.Errorf("community service client not initialized")
@@ -147,26 +134,16 @@ func (c *communityCommunicationClient) SendMessage(chatID, userID, content strin
 	return resp.Message.Id, nil
 }
 
-// MarkMessageAsRead marks a message as read through the Community service
-// Note: The proto doesn't have a direct MarkMessageAsRead RPC, so we simulate it
 func (c *communityCommunicationClient) MarkMessageAsRead(chatID, userID, messageID string) error {
 	if c.grpcClient == nil {
 		return fmt.Errorf("community service client not initialized")
 	}
 
-	// Since there's no direct MarkMessageAsRead RPC in the proto, we implement a workaround
-	// For now, we'll simply log that the message was marked as read
-	// In a production system, you might want to:
-	// 1. Add a MarkMessageAsRead RPC to the proto
-	// 2. Implement read receipts in a separate table
 	log.Printf("Marking message as read: chat %s, user %s, message %s", chatID, userID, messageID)
 
-	// For now, this is just a stub that simulates success
-	// In a real implementation, you would need to add this functionality to the proto
 	return nil
 }
 
-// GetMessages implements CommunityServiceClient
 func (c *communityCommunicationClient) GetMessages(chatID string, limit, offset int) ([]Message, error) {
 	if c.grpcClient == nil {
 		return nil, fmt.Errorf("community service client not initialized")
@@ -202,8 +179,8 @@ func (c *communityCommunicationClient) GetMessages(chatID string, limit, offset 
 			SenderID:  msg.SenderId,
 			Content:   msg.Content,
 			Timestamp: sentTime,
-			IsRead:    !msg.Unsent, // Use unsent as a proxy for read status
-			IsEdited:  false,       // No edit tracking in proto
+			IsRead:    !msg.Unsent,
+			IsEdited:  false,
 			IsDeleted: msg.DeletedForAll || msg.DeletedForSender,
 		}
 	}
@@ -211,7 +188,6 @@ func (c *communityCommunicationClient) GetMessages(chatID string, limit, offset 
 	return messages, nil
 }
 
-// EditMessage edits a message through the Community service
 func (c *communityCommunicationClient) EditMessage(chatID, userID, messageID, newContent string) error {
 	if c.grpcClient == nil {
 		return fmt.Errorf("community service client not initialized")
@@ -220,8 +196,6 @@ func (c *communityCommunicationClient) EditMessage(chatID, userID, messageID, ne
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Since there's no EditMessage RPC, we need to implement editing as
-	// 1. Unsend the original message
 	_, err := c.grpcClient.UnsendMessage(ctx, &communityProto.UnsendMessageRequest{
 		MessageId: messageID,
 	})
@@ -229,7 +203,6 @@ func (c *communityCommunicationClient) EditMessage(chatID, userID, messageID, ne
 		return fmt.Errorf("failed to unsend message: %w", err)
 	}
 
-	// 2. Send a new message with the updated content
 	_, err = c.grpcClient.SendMessage(ctx, &communityProto.SendMessageRequest{
 		ChatId:   chatID,
 		SenderId: userID,
@@ -242,7 +215,6 @@ func (c *communityCommunicationClient) EditMessage(chatID, userID, messageID, ne
 	return nil
 }
 
-// DeleteMessage deletes a message through the Community service
 func (c *communityCommunicationClient) DeleteMessage(chatID, userID, messageID string) error {
 	if c.grpcClient == nil {
 		return fmt.Errorf("community service client not initialized")
@@ -251,7 +223,6 @@ func (c *communityCommunicationClient) DeleteMessage(chatID, userID, messageID s
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// The actual DeleteMessageRequest only takes messageId according to the proto
 	_, err := c.grpcClient.DeleteMessage(ctx, &communityProto.DeleteMessageRequest{
 		MessageId: messageID,
 	})
@@ -262,13 +233,11 @@ func (c *communityCommunicationClient) DeleteMessage(chatID, userID, messageID s
 	return nil
 }
 
-// GetChats retrieves chats for a user
 func (c *communityCommunicationClient) GetChats(userID string, limit, offset int) ([]Chat, error) {
 	if c.grpcClient == nil {
 		return nil, fmt.Errorf("community service client not initialized")
 	}
 
-	// Increase timeout from 5 to 20 seconds to prevent timeout errors
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -290,14 +259,12 @@ func (c *communityCommunicationClient) GetChats(userID string, limit, offset int
 			CreatedBy:   protoChat.CreatedBy,
 			CreatedAt:   protoChat.CreatedAt.AsTime(),
 			UpdatedAt:   protoChat.UpdatedAt.AsTime(),
-			// We could add more fields here if needed
 		}
 	}
 
 	return chats, nil
 }
 
-// CreateChat creates a new chat
 func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, participantIDs []string, createdBy string) (*Chat, error) {
 	if c.grpcClient == nil {
 		return nil, fmt.Errorf("community service client not initialized")
@@ -316,7 +283,6 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		return nil, err
 	}
 
-	// Convert the proto chat to our Chat type
 	chat := &Chat{
 		ID:          resp.Chat.Id,
 		Name:        resp.Chat.Name,
@@ -324,13 +290,11 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		CreatedBy:   resp.Chat.CreatedBy,
 		CreatedAt:   resp.Chat.CreatedAt.AsTime(),
 		UpdatedAt:   resp.Chat.UpdatedAt.AsTime(),
-		// Add participants if needed from a separate RPC call to get participants
 	}
 
 	return chat, nil
 }
 
-// IsUserChatParticipant checks if a user is a participant in a chat
 func (c *communityCommunicationClient) IsUserChatParticipant(chatID, userID string) (bool, error) {
 	if c.grpcClient == nil {
 		return false, fmt.Errorf("community service client not initialized")
@@ -339,7 +303,6 @@ func (c *communityCommunicationClient) IsUserChatParticipant(chatID, userID stri
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Get participants of the chat
 	resp, err := c.grpcClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
 		ChatId: chatID,
 	})
@@ -347,7 +310,6 @@ func (c *communityCommunicationClient) IsUserChatParticipant(chatID, userID stri
 		return false, err
 	}
 
-	// Check if the user is in the list of participants
 	for _, participant := range resp.Participants {
 		if participant.UserId == userID {
 			return true, nil
@@ -357,7 +319,6 @@ func (c *communityCommunicationClient) IsUserChatParticipant(chatID, userID stri
 	return false, nil
 }
 
-// GetChatParticipants returns the list of participant IDs for a chat
 func (c *communityCommunicationClient) GetChatParticipants(chatID string) ([]string, error) {
 	if c.grpcClient == nil {
 		return nil, fmt.Errorf("community service client not initialized")
@@ -366,7 +327,6 @@ func (c *communityCommunicationClient) GetChatParticipants(chatID string) ([]str
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Get participants from the gRPC service
 	resp, err := c.grpcClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
 		ChatId: chatID,
 	})
@@ -374,7 +334,6 @@ func (c *communityCommunicationClient) GetChatParticipants(chatID string) ([]str
 		return nil, err
 	}
 
-	// Extract user IDs from participants
 	participantIDs := make([]string, len(resp.Participants))
 	for i, p := range resp.Participants {
 		participantIDs[i] = p.UserId

@@ -6,9 +6,8 @@ option go_package = "aycom/backend/proto/community";
 
 import "google/protobuf/timestamp.proto";
 
-// Community service definition
 service CommunityService {
-  // Community management
+
   rpc CreateCommunity(CreateCommunityRequest) returns (CommunityResponse);
   rpc UpdateCommunity(UpdateCommunityRequest) returns (CommunityResponse);
   rpc ApproveCommunity(ApproveCommunityRequest) returns (CommunityResponse);
@@ -18,7 +17,6 @@ service CommunityService {
   rpc SearchCommunities(SearchCommunitiesRequest) returns (ListCommunitiesResponse);
   rpc ListUserCommunities(ListUserCommunitiesRequest) returns (ListCommunitiesResponse);
 
-  // Category management
   rpc CreateCategory(CreateCategoryRequest) returns (CategoryResponse);
   rpc UpdateCategory(UpdateCategoryRequest) returns (CategoryResponse);
   rpc DeleteCategory(DeleteCategoryRequest) returns (EmptyResponse);
@@ -28,18 +26,15 @@ service CommunityService {
   rpc RemoveCommunityFromCategory(RemoveCommunityFromCategoryRequest) returns (EmptyResponse);
   rpc GetCommunityCategoriesById(GetCommunityCategoriesByIdRequest) returns (ListCategoriesResponse);
 
-  // Member management
   rpc AddMember(AddMemberRequest) returns (MemberResponse);
   rpc RemoveMember(RemoveMemberRequest) returns (EmptyResponse);
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
   rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (MemberResponse);
 
-  // Community rules
   rpc AddRule(AddRuleRequest) returns (RuleResponse);
   rpc RemoveRule(RemoveRuleRequest) returns (EmptyResponse);
   rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
 
-  // Join requests
   rpc RequestToJoin(RequestToJoinRequest) returns (JoinRequestResponse);
   rpc ApproveJoinRequest(ApproveJoinRequestRequest) returns (JoinRequestResponse);
   rpc RejectJoinRequest(RejectJoinRequestRequest) returns (JoinRequestResponse);
@@ -47,22 +42,18 @@ service CommunityService {
   rpc IsMember(IsMemberRequest) returns (IsMemberResponse);
   rpc HasPendingJoinRequest(HasPendingJoinRequestRequest) returns (HasPendingJoinRequestResponse);
 
-  // Chat
   rpc CreateChat(CreateChatRequest) returns (ChatResponse);
   rpc AddChatParticipant(AddChatParticipantRequest) returns (ChatParticipantResponse);
   rpc RemoveChatParticipant(RemoveChatParticipantRequest) returns (EmptyResponse);
   rpc ListChats(ListChatsRequest) returns (ListChatsResponse);
   rpc ListChatParticipants(ListChatParticipantsRequest) returns (ListChatParticipantsResponse);
 
-  // Messages
   rpc SendMessage(SendMessageRequest) returns (MessageResponse);
   rpc DeleteMessage(DeleteMessageRequest) returns (EmptyResponse);
   rpc UnsendMessage(UnsendMessageRequest) returns (EmptyResponse);
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
   rpc SearchMessages(SearchMessagesRequest) returns (ListMessagesResponse);
 }
-
-// --- Messages ---
 
 message EmptyResponse {}
 
@@ -138,8 +129,6 @@ message Message {
   string reply_to_message_id = 12;
 }
 
-// --- Request/Response messages for each RPC ---
-
 message CreateCommunityRequest { Community community = 1; }
 message CommunityResponse { Community community = 1; }
 message UpdateCommunityRequest { Community community = 1; }
@@ -161,14 +150,13 @@ message SearchCommunitiesRequest {
 
 message ListUserCommunitiesRequest { 
   string user_id = 1; 
-  string status = 2; // "member" or "pending"
+  string status = 2; 
   string query = 3;
   repeated string categories = 4;
   int32 offset = 5; 
   int32 limit = 6;
 }
 
-// Category messages
 message CreateCategoryRequest { Category category = 1; }
 message CategoryResponse { Category category = 1; }
 message UpdateCategoryRequest { Category category = 1; }
@@ -233,4 +221,4 @@ message DeleteMessageRequest { string message_id = 1; }
 message UnsendMessageRequest { string message_id = 1; }
 message ListMessagesRequest { string chat_id = 1; int32 offset = 2; int32 limit = 3; }
 message ListMessagesResponse { repeated Message messages = 1; }
-message SearchMessagesRequest { string chat_id = 1; string query = 2; int32 offset = 3; int32 limit = 4; } 
+message SearchMessagesRequest { string chat_id = 1; string query = 2; int32 offset = 3; int32 limit = 4; }

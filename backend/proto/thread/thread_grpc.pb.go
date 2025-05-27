@@ -57,26 +57,20 @@ const (
 // ThreadServiceClient is the client API for ThreadService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Thread Service definition
 type ThreadServiceClient interface {
-	// Thread operations
 	CreateThread(ctx context.Context, in *CreateThreadRequest, opts ...grpc.CallOption) (*ThreadResponse, error)
 	GetThreadById(ctx context.Context, in *GetThreadRequest, opts ...grpc.CallOption) (*ThreadResponse, error)
 	GetThreadsByUser(ctx context.Context, in *GetThreadsByUserRequest, opts ...grpc.CallOption) (*ThreadsResponse, error)
 	GetAllThreads(ctx context.Context, in *GetAllThreadsRequest, opts ...grpc.CallOption) (*ThreadsResponse, error)
 	UpdateThread(ctx context.Context, in *UpdateThreadRequest, opts ...grpc.CallOption) (*ThreadResponse, error)
 	DeleteThread(ctx context.Context, in *DeleteThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Reply operations
 	CreateReply(ctx context.Context, in *CreateReplyRequest, opts ...grpc.CallOption) (*ReplyResponse, error)
 	GetRepliesByThread(ctx context.Context, in *GetRepliesByThreadRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
 	UpdateReply(ctx context.Context, in *UpdateReplyRequest, opts ...grpc.CallOption) (*ReplyResponse, error)
 	DeleteReply(ctx context.Context, in *DeleteReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// User content operations
 	GetRepliesByUser(ctx context.Context, in *GetRepliesByUserRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
 	GetLikedThreadsByUser(ctx context.Context, in *GetLikedThreadsByUserRequest, opts ...grpc.CallOption) (*ThreadsResponse, error)
 	GetMediaByUser(ctx context.Context, in *GetMediaByUserRequest, opts ...grpc.CallOption) (*GetMediaByUserResponse, error)
-	// Interaction operations
 	LikeThread(ctx context.Context, in *LikeThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UnlikeThread(ctx context.Context, in *UnlikeThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	LikeReply(ctx context.Context, in *LikeReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -91,13 +85,10 @@ type ThreadServiceClient interface {
 	UnpinThread(ctx context.Context, in *UnpinThreadRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	PinReply(ctx context.Context, in *PinReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UnpinReply(ctx context.Context, in *UnpinReplyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Poll operations
 	CreatePoll(ctx context.Context, in *CreatePollRequest, opts ...grpc.CallOption) (*PollResponse, error)
 	VotePoll(ctx context.Context, in *VotePollRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetPollResults(ctx context.Context, in *GetPollResultsRequest, opts ...grpc.CallOption) (*PollResultsResponse, error)
-	// Trending hashtags
 	GetTrendingHashtags(ctx context.Context, in *GetTrendingHashtagsRequest, opts ...grpc.CallOption) (*GetTrendingHashtagsResponse, error)
-	// Get replies to a specific reply (for nested replies/comments)
 	GetRepliesByParentReply(ctx context.Context, in *GetRepliesByParentReplyRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
 }
 
@@ -432,26 +423,20 @@ func (c *threadServiceClient) GetRepliesByParentReply(ctx context.Context, in *G
 // ThreadServiceServer is the server API for ThreadService service.
 // All implementations must embed UnimplementedThreadServiceServer
 // for forward compatibility.
-//
-// Thread Service definition
 type ThreadServiceServer interface {
-	// Thread operations
 	CreateThread(context.Context, *CreateThreadRequest) (*ThreadResponse, error)
 	GetThreadById(context.Context, *GetThreadRequest) (*ThreadResponse, error)
 	GetThreadsByUser(context.Context, *GetThreadsByUserRequest) (*ThreadsResponse, error)
 	GetAllThreads(context.Context, *GetAllThreadsRequest) (*ThreadsResponse, error)
 	UpdateThread(context.Context, *UpdateThreadRequest) (*ThreadResponse, error)
 	DeleteThread(context.Context, *DeleteThreadRequest) (*emptypb.Empty, error)
-	// Reply operations
 	CreateReply(context.Context, *CreateReplyRequest) (*ReplyResponse, error)
 	GetRepliesByThread(context.Context, *GetRepliesByThreadRequest) (*RepliesResponse, error)
 	UpdateReply(context.Context, *UpdateReplyRequest) (*ReplyResponse, error)
 	DeleteReply(context.Context, *DeleteReplyRequest) (*emptypb.Empty, error)
-	// User content operations
 	GetRepliesByUser(context.Context, *GetRepliesByUserRequest) (*RepliesResponse, error)
 	GetLikedThreadsByUser(context.Context, *GetLikedThreadsByUserRequest) (*ThreadsResponse, error)
 	GetMediaByUser(context.Context, *GetMediaByUserRequest) (*GetMediaByUserResponse, error)
-	// Interaction operations
 	LikeThread(context.Context, *LikeThreadRequest) (*emptypb.Empty, error)
 	UnlikeThread(context.Context, *UnlikeThreadRequest) (*emptypb.Empty, error)
 	LikeReply(context.Context, *LikeReplyRequest) (*emptypb.Empty, error)
@@ -466,13 +451,10 @@ type ThreadServiceServer interface {
 	UnpinThread(context.Context, *UnpinThreadRequest) (*emptypb.Empty, error)
 	PinReply(context.Context, *PinReplyRequest) (*emptypb.Empty, error)
 	UnpinReply(context.Context, *UnpinReplyRequest) (*emptypb.Empty, error)
-	// Poll operations
 	CreatePoll(context.Context, *CreatePollRequest) (*PollResponse, error)
 	VotePoll(context.Context, *VotePollRequest) (*emptypb.Empty, error)
 	GetPollResults(context.Context, *GetPollResultsRequest) (*PollResultsResponse, error)
-	// Trending hashtags
 	GetTrendingHashtags(context.Context, *GetTrendingHashtagsRequest) (*GetTrendingHashtagsResponse, error)
-	// Get replies to a specific reply (for nested replies/comments)
 	GetRepliesByParentReply(context.Context, *GetRepliesByParentReplyRequest) (*RepliesResponse, error)
 	mustEmbedUnimplementedThreadServiceServer()
 }

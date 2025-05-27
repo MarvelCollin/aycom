@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// ChatModel represents a chat for repository layer
+
 type ChatModel struct {
 	ID          string
 	Name        string
@@ -16,7 +16,7 @@ type ChatModel struct {
 	UpdatedAt   time.Time
 }
 
-// MessageModel represents a chat message for repository layer
+
 type MessageModel struct {
 	ID        string
 	ChatID    string
@@ -28,7 +28,7 @@ type MessageModel struct {
 	IsDeleted bool
 }
 
-// DeletedChatModel represents a deleted chat for repository layer
+
 type DeletedChatModel struct {
 	ChatID    string
 	UserID    string

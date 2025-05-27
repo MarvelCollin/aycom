@@ -27,7 +27,6 @@ type ChatService interface {
 	SearchMessages(chatID, query string, limit, offset int) ([]*communityProto.Message, error)
 }
 
-// Repository interfaces for membership checks
 type CommunityMemberRepository interface {
 	IsMember(communityID, userID uuid.UUID) (bool, error)
 }
@@ -58,7 +57,6 @@ func NewCommunityHandler(
 	}
 }
 
-// Community management
 func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *communityProto.CreateCommunityRequest) (*communityProto.CommunityResponse, error) {
 	return nil, nil
 }
@@ -78,7 +76,6 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityPr
 	return nil, nil
 }
 
-// Member management
 func (h *CommunityHandler) AddMember(ctx context.Context, req *communityProto.AddMemberRequest) (*communityProto.MemberResponse, error) {
 	return nil, nil
 }
@@ -92,7 +89,6 @@ func (h *CommunityHandler) UpdateMemberRole(ctx context.Context, req *communityP
 	return nil, nil
 }
 
-// Community rules
 func (h *CommunityHandler) AddRule(ctx context.Context, req *communityProto.AddRuleRequest) (*communityProto.RuleResponse, error) {
 	return nil, nil
 }
@@ -103,7 +99,6 @@ func (h *CommunityHandler) ListRules(ctx context.Context, req *communityProto.Li
 	return nil, nil
 }
 
-// Join requests
 func (h *CommunityHandler) RequestToJoin(ctx context.Context, req *communityProto.RequestToJoinRequest) (*communityProto.JoinRequestResponse, error) {
 	return nil, nil
 }
@@ -117,7 +112,6 @@ func (h *CommunityHandler) ListJoinRequests(ctx context.Context, req *communityP
 	return nil, nil
 }
 
-// Membership checks
 func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsMemberRequest) (*communityProto.IsMemberResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -131,7 +125,6 @@ func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsM
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	// Convert string IDs to UUID
 	communityID, err := uuid.Parse(req.CommunityId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid community ID format")
@@ -142,7 +135,6 @@ func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsM
 		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
 	}
 
-	// Check if user is a member
 	isMember, err := h.communityMemberRepo.IsMember(communityID, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to check membership: %v", err))
@@ -166,7 +158,6 @@ func (h *CommunityHandler) HasPendingJoinRequest(ctx context.Context, req *commu
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	// Convert string IDs to UUID
 	communityID, err := uuid.Parse(req.CommunityId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid community ID format")
@@ -177,7 +168,6 @@ func (h *CommunityHandler) HasPendingJoinRequest(ctx context.Context, req *commu
 		return nil, status.Error(codes.InvalidArgument, "invalid user ID format")
 	}
 
-	// Check if user has a pending join request
 	hasRequest, err := h.communityJoinRequestRepo.HasPendingJoinRequest(communityID, userID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to check join request: %v", err))
@@ -188,13 +178,11 @@ func (h *CommunityHandler) HasPendingJoinRequest(ctx context.Context, req *commu
 	}, nil
 }
 
-// Chat
 func (h *CommunityHandler) CreateChat(ctx context.Context, req *communityProto.CreateChatRequest) (*communityProto.ChatResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	// Validation
 	if req.Name == "" && req.IsGroup {
 		return nil, status.Error(codes.InvalidArgument, "group chat requires a name")
 	}
@@ -207,13 +195,12 @@ func (h *CommunityHandler) CreateChat(ctx context.Context, req *communityProto.C
 		return nil, status.Error(codes.InvalidArgument, "at least one participant is required")
 	}
 
-	// Create chat using service
 	chat, err := h.chatService.CreateChat(
-		req.Name,           // name
-		"",                 // description (not in proto)
-		req.CreatedBy,      // creatorID
-		req.IsGroup,        // isGroupChat
-		req.ParticipantIds, // participantIDs
+		req.Name,
+		"",
+		req.CreatedBy,
+		req.IsGroup,
+		req.ParticipantIds,
 	)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to create chat: %v", err))
@@ -234,7 +221,6 @@ func (h *CommunityHandler) ListChats(ctx context.Context, req *communityProto.Li
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	// Default limit and offset if not provided
 	limit := 50
 	offset := 0
 
@@ -256,11 +242,9 @@ func (h *CommunityHandler) ListChatParticipants(ctx context.Context, req *commun
 		return nil, status.Error(codes.InvalidArgument, "chat_id is required")
 	}
 
-	// Default limit and offset
 	limit := 50
 	offset := 0
 
-	// Get participants using service
 	participants, err := h.chatService.ListParticipants(req.ChatId, limit, offset)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list participants: %v", err))
@@ -271,13 +255,11 @@ func (h *CommunityHandler) ListChatParticipants(ctx context.Context, req *commun
 	}, nil
 }
 
-// Messages
 func (h *CommunityHandler) SendMessage(ctx context.Context, req *communityProto.SendMessageRequest) (*communityProto.MessageResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	// Validation
 	if req.ChatId == "" {
 		return nil, status.Error(codes.InvalidArgument, "chat_id is required")
 	}
@@ -286,18 +268,15 @@ func (h *CommunityHandler) SendMessage(ctx context.Context, req *communityProto.
 		return nil, status.Error(codes.InvalidArgument, "sender_id is required")
 	}
 
-	// No content and no media is invalid
 	if req.Content == "" && req.MediaUrl == "" {
 		return nil, status.Error(codes.InvalidArgument, "either content or media_url is required")
 	}
 
-	// Send message using service
 	messageID, err := h.chatService.SendMessage(req.ChatId, req.SenderId, req.Content)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to send message: %v", err))
 	}
 
-	// Create message response
 	now := time.Now()
 	message := &communityProto.Message{
 		Id:        messageID,
@@ -322,22 +301,11 @@ func (h *CommunityHandler) DeleteMessage(ctx context.Context, req *communityProt
 		return nil, status.Error(codes.InvalidArgument, "message_id is required")
 	}
 
-	// NOTE: Since the proto DeleteMessageRequest only contains messageId, we need to:
-	// 1. Extract userID from the context (usually from authentication)
-	// 2. Look up the chatID that this message belongs to
-
-	// For now, we'll use a simplified approach since proper auth context extraction
-	// would depend on how authentication is implemented in the system
-
-	// Extract userID from context (this is a placeholder - implement based on your auth system)
 	userID, err := extractUserIDFromContext(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "failed to authenticate user")
 	}
 
-	// In a real implementation, we would look up the chatID for this message
-	// For now, we'll use a temporary workaround by passing empty string
-	// and rely on the service implementation to look up the chat from the message
 	chatID := ""
 
 	err = h.chatService.DeleteMessage(chatID, req.MessageId, userID)
@@ -356,14 +324,11 @@ func (h *CommunityHandler) UnsendMessage(ctx context.Context, req *communityProt
 		return nil, status.Error(codes.InvalidArgument, "message_id is required")
 	}
 
-	// Extract userID from context (this is a placeholder - implement based on your auth system)
 	userID, err := extractUserIDFromContext(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "failed to authenticate user")
 	}
 
-	// In a real implementation, we would look up the chatID for this message
-	// For now, we'll use a temporary workaround by passing empty string
 	chatID := ""
 
 	err = h.chatService.UnsendMessage(chatID, req.MessageId, userID)
@@ -382,17 +347,15 @@ func (h *CommunityHandler) ListMessages(ctx context.Context, req *communityProto
 		return nil, status.Error(codes.InvalidArgument, "chat_id is required")
 	}
 
-	// Default limit and offset if not provided
 	limit := int(req.Limit)
 	if limit <= 0 {
-		limit = 50 // Default limit
+		limit = 50
 	}
 	offset := int(req.Offset)
 	if offset < 0 {
-		offset = 0 // Default offset
+		offset = 0
 	}
 
-	// Get messages using service
 	messages, err := h.chatService.GetMessages(req.ChatId, limit, offset)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get messages: %v", err))
@@ -415,17 +378,15 @@ func (h *CommunityHandler) SearchMessages(ctx context.Context, req *communityPro
 		return nil, status.Error(codes.InvalidArgument, "query is required")
 	}
 
-	// Default limit and offset if not provided
 	limit := int(req.Limit)
 	if limit <= 0 {
-		limit = 50 // Default limit
+		limit = 50
 	}
 	offset := int(req.Offset)
 	if offset < 0 {
-		offset = 0 // Default offset
+		offset = 0
 	}
 
-	// Search messages using service
 	messages, err := h.chatService.SearchMessages(req.ChatId, req.Query, limit, offset)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to search messages: %v", err))
@@ -436,13 +397,7 @@ func (h *CommunityHandler) SearchMessages(ctx context.Context, req *communityPro
 	}, nil
 }
 
-// Helper function to extract user ID from context
-// This is a placeholder - replace with your actual auth implementation
 func extractUserIDFromContext(ctx context.Context) (string, error) {
-	// In a real implementation, this would extract the authenticated user ID
-	// from the context, which is typically set by an authentication middleware
 
-	// For development/temporary use, return a fixed userID
-	// TODO: Replace with proper authentication mechanism
 	return "system-user", nil
 }

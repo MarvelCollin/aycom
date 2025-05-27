@@ -3,9 +3,9 @@ package db
 import (
 	"log"
 
-	"aycom/backend/services/community/model"
-
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
 )
 
 func RunMigrations(db *gorm.DB) error {
@@ -17,7 +17,7 @@ func RunMigrations(db *gorm.DB) error {
 	if err := sqlDB.Ping(); err != nil {
 		return err
 	}
-	// Migrate all models
+
 	err = db.AutoMigrate(
 		&model.Community{},
 		&model.CommunityMember{},

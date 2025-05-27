@@ -4,123 +4,89 @@ package user;
 
 option go_package = "aycom/backend/proto/user";
 
-// User service definition
 service UserService {
-  // Get user by ID
+
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
-  
-  // Register a new user
+
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {}
-  
-  // Update user information
+
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {}
-  
-  // Delete a user
+
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
-  
-  // Update user verification status
+
   rpc UpdateUserVerificationStatus(UpdateUserVerificationStatusRequest) returns (UpdateUserVerificationStatusResponse) {}
 
-  // Authenticate a user
   rpc LoginUser(LoginUserRequest) returns (LoginUserResponse) {}
 
-  // Get user by email
   rpc GetUserByEmail(GetUserByEmailRequest) returns (GetUserByEmailResponse) {}
 
-  // Get user by username
   rpc GetUserByUsername(GetUserByUsernameRequest) returns (GetUserByUsernameResponse) {}
 
-  // Check if user is blocked
   rpc IsUserBlocked(IsUserBlockedRequest) returns (IsUserBlockedResponse) {}
 
-  // Check if user is following another user
+  rpc BlockUser(BlockUserRequest) returns (BlockUserResponse) {}
+
+  rpc UnblockUser(UnblockUserRequest) returns (UnblockUserResponse) {}
+
+  rpc ReportUser(ReportUserRequest) returns (ReportUserResponse) {}
+
   rpc IsFollowing(IsFollowingRequest) returns (IsFollowingResponse) {}
 
-  // Follow a user
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse) {}
 
-  // Unfollow a user
   rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse) {}
 
-  // Get user followers
   rpc GetFollowers(GetFollowersRequest) returns (GetFollowersResponse) {}
 
-  // Get users being followed
   rpc GetFollowing(GetFollowingRequest) returns (GetFollowingResponse) {}
 
-  // Search users
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse) {}
-  
-  // Get recommended users (sorted by highest follower count)
+
   rpc GetRecommendedUsers(GetRecommendedUsersRequest) returns (GetRecommendedUsersResponse) {}
 
-  // Get all users with pagination
   rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse) {}
 
-  // Request a password reset
   rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse) {}
 
-  // Verify a reset token
   rpc VerifyResetToken(VerifyResetTokenRequest) returns (VerifyResetTokenResponse) {}
 
-  // Reset password with a valid token
   rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {}
 
-  // Verify security answer before password reset
   rpc VerifySecurityAnswer(VerifySecurityAnswerRequest) returns (VerifySecurityAnswerResponse) {}
 
-  // Admin endpoints
-  
-  // Ban or unban a user
   rpc BanUser(BanUserRequest) returns (BanUserResponse) {}
 
-  // Send newsletter to subscribed users
   rpc SendNewsletter(SendNewsletterRequest) returns (SendNewsletterResponse) {}
 
-  // Get community creation requests
   rpc GetCommunityRequests(GetCommunityRequestsRequest) returns (GetCommunityRequestsResponse) {}
 
-  // Process community creation request
   rpc ProcessCommunityRequest(ProcessCommunityRequestRequest) returns (ProcessCommunityRequestResponse) {}
 
-  // Get premium user requests
   rpc GetPremiumRequests(GetPremiumRequestsRequest) returns (GetPremiumRequestsResponse) {}
 
-  // Process premium user request
   rpc ProcessPremiumRequest(ProcessPremiumRequestRequest) returns (ProcessPremiumRequestResponse) {}
 
-  // Get user report requests
   rpc GetReportRequests(GetReportRequestsRequest) returns (GetReportRequestsResponse) {}
 
-  // Process report request
   rpc ProcessReportRequest(ProcessReportRequestRequest) returns (ProcessReportRequestResponse) {}
 
-  // Get thread categories
   rpc GetThreadCategories(GetThreadCategoriesRequest) returns (GetThreadCategoriesResponse) {}
 
-  // Create thread category
   rpc CreateThreadCategory(CreateThreadCategoryRequest) returns (CreateThreadCategoryResponse) {}
 
-  // Update thread category
   rpc UpdateThreadCategory(UpdateThreadCategoryRequest) returns (UpdateThreadCategoryResponse) {}
 
-  // Delete thread category
   rpc DeleteThreadCategory(DeleteThreadCategoryRequest) returns (DeleteThreadCategoryResponse) {}
 
-  // Get community categories
   rpc GetCommunityCategories(GetCommunityCategoriesRequest) returns (GetCommunityCategoriesResponse) {}
 
-  // Create community category
   rpc CreateCommunityCategory(CreateCommunityCategoryRequest) returns (CreateCommunityCategoryResponse) {}
 
-  // Update community category
   rpc UpdateCommunityCategory(UpdateCommunityCategoryRequest) returns (UpdateCommunityCategoryResponse) {}
 
-  // Delete community category
   rpc DeleteCommunityCategory(DeleteCommunityCategoryRequest) returns (DeleteCommunityCategoryResponse) {}
 }
 
-// User contains user information
 message User {
   string id = 1;
   string name = 2;
@@ -136,40 +102,34 @@ message User {
   string created_at = 12;
   string updated_at = 13;
 
-  // Added fields for registration
-  string password = 14; // Raw password sent from gateway, hashed by user service
+  string password = 14; 
   string security_question = 15;
   string security_answer = 16;
   bool subscribe_to_newsletter = 17;
   bool is_verified = 18;
   int32 follower_count = 19;
   int32 following_count = 20;
-  bool is_following = 21; // Whether the requesting user is following this user
-  bool is_admin = 22; // Whether the user is an admin
-  bool is_banned = 23; // Whether the user is banned
+  bool is_following = 21; 
+  bool is_admin = 22; 
+  bool is_banned = 23; 
 }
 
-// GetUserRequest is used to request user information by ID
 message GetUserRequest {
   string user_id = 1;
 }
 
-// GetUserResponse contains user information
 message GetUserResponse {
   User user = 1;
 }
 
-// CreateUserRequest contains information needed to register a new user
 message CreateUserRequest {
   User user = 1;
 }
 
-// CreateUserResponse contains the result of a create operation
 message CreateUserResponse {
   User user = 1;
 }
 
-// UpdateUserRequest contains updated user information
 message UpdateUserRequest {
   User user = 1;
   string user_id = 2;
@@ -179,119 +139,129 @@ message UpdateUserRequest {
   string banner_url = 6;
 }
 
-// UpdateUserResponse contains the result of an update operation
 message UpdateUserResponse {
   User user = 1;
 }
 
-// DeleteUserRequest contains user ID to delete
 message DeleteUserRequest {
   string user_id = 1;
 }
 
-// DeleteUserResponse indicates the result of a delete operation
 message DeleteUserResponse {
   bool success = 1;
   string message = 2;
 }
 
-// UpdateUserVerificationStatusRequest contains request to update user verification status
 message UpdateUserVerificationStatusRequest {
   string user_id = 1;
   bool is_verified = 2;
 }
 
-// UpdateUserVerificationStatusResponse contains response to update user verification status
 message UpdateUserVerificationStatusResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Request for user login
 message LoginUserRequest {
   string email = 1;
   string password = 2;
 }
 
-// Response for user login, containing user details if successful
 message LoginUserResponse {
-  User user = 1; // Return the full user object on successful login
+  User user = 1; 
 }
 
-// Request for getting user by email
 message GetUserByEmailRequest {
   string email = 1;
 }
 
-// Response for getting user by email
 message GetUserByEmailResponse {
   User user = 1;
 }
 
-// Request for getting user by username
 message GetUserByUsernameRequest {
   string username = 1;
 }
 
-// Response for getting user by username
 message GetUserByUsernameResponse {
   User user = 1;
 }
 
-// Request to check if user is blocked
 message IsUserBlockedRequest {
-  string user_id = 1;    // The user we're checking
-  string blocked_by_id = 2; // The user who might have blocked
+  string user_id = 1;    
+  string blocked_by_id = 2; 
 }
 
-// Response for checking if user is blocked
 message IsUserBlockedResponse {
   bool is_blocked = 1;
 }
 
-// Request to check if user is following another user
+message BlockUserRequest {
+  string user_id = 1;    
+  string blocked_by_id = 2; 
+}
+
+message BlockUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UnblockUserRequest {
+  string user_id = 1;    
+  string unblocked_by_id = 2; 
+}
+
+message UnblockUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ReportUserRequest {
+  string user_id = 1;    
+  string reported_by_id = 2; 
+  string reason = 3;     
+}
+
+message ReportUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message IsFollowingRequest {
   string follower_id = 1;
   string followed_id = 2;
 }
 
-// Response for checking if user is following another user
 message IsFollowingResponse {
   bool is_following = 1;
 }
 
-// Request to follow a user
 message FollowUserRequest {
-  string follower_id = 1; // ID of the user who is following
-  string followed_id = 2; // ID of the user being followed
+  string follower_id = 1; 
+  string followed_id = 2; 
 }
 
-// Response for follow user operation
 message FollowUserResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Request to unfollow a user
 message UnfollowUserRequest {
-  string follower_id = 1; // ID of the user who is unfollowing
-  string followed_id = 2; // ID of the user being unfollowed
+  string follower_id = 1; 
+  string followed_id = 2; 
 }
 
-// Response for unfollow user operation
 message UnfollowUserResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Request to get followers of a user
 message GetFollowersRequest {
-  string user_id = 1; // ID of the user whose followers we want
-  int32 page = 2;     // Pagination - page number
-  int32 limit = 3;    // Pagination - items per page
+  string user_id = 1; 
+  int32 page = 2;     
+  int32 limit = 3;    
 }
 
-// Response containing list of followers
 message GetFollowersResponse {
   repeated User followers = 1;
   int32 total_count = 2;
@@ -299,14 +269,12 @@ message GetFollowersResponse {
   int32 limit = 4;
 }
 
-// Request to get users being followed
 message GetFollowingRequest {
-  string user_id = 1; // ID of the user whose following we want
-  int32 page = 2;     // Pagination - page number
-  int32 limit = 3;    // Pagination - items per page
+  string user_id = 1; 
+  int32 page = 2;     
+  int32 limit = 3;    
 }
 
-// Response containing list of users being followed
 message GetFollowingResponse {
   repeated User following = 1;
   int32 total_count = 2;
@@ -314,14 +282,12 @@ message GetFollowingResponse {
   int32 limit = 4;
 }
 
-// Request to search users
 message SearchUsersRequest {
-  string query = 1;  // Search query
-  int32 page = 2;    // Pagination - page number
-  int32 limit = 3;   // Pagination - items per page
+  string query = 1;  
+  int32 page = 2;    
+  int32 limit = 3;   
 }
 
-// Response containing search results
 message SearchUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
@@ -329,67 +295,56 @@ message SearchUsersResponse {
   int32 limit = 4;
 }
 
-// Request to get recommended users
 message GetRecommendedUsersRequest {
-  int32 limit = 1; // Number of users to fetch
+  int32 limit = 1; 
 }
 
-// Response containing recommended users
 message GetRecommendedUsersResponse {
   repeated User users = 1;
 }
 
-// Request for password reset
 message RequestPasswordResetRequest {
   string email = 1;
 }
 
-// Response for password reset request
 message RequestPasswordResetResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Request to verify reset token
 message VerifyResetTokenRequest {
   string token = 1;
   string email = 2;
 }
 
-// Response for token verification
 message VerifyResetTokenResponse {
   bool valid = 1;
   string message = 2;
   string user_id = 3;
 }
 
-// Request to verify security answer
 message VerifySecurityAnswerRequest {
   string email = 1;
   string answer = 2;
 }
 
-// Response for security answer verification
 message VerifySecurityAnswerResponse {
   bool valid = 1;
   string message = 2;
   string token = 3;
 }
 
-// Request to reset password
 message ResetPasswordRequest {
   string token = 1;
   string email = 2;
   string new_password = 3;
 }
 
-// Response for password reset
 message ResetPasswordResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Request to get all users
 message GetAllUsersRequest {
   int32 page = 1;
   int32 limit = 2;
@@ -397,62 +352,54 @@ message GetAllUsersRequest {
   bool sort_desc = 4;
 }
 
-// Response containing list of all users
 message GetAllUsersResponse {
   repeated User users = 1;
   int32 total_count = 2;
   int32 page = 3;
 }
 
-// Request to ban or unban a user
 message BanUserRequest {
   string user_id = 1;
-  bool ban = 2; // true for ban, false for unban
+  bool ban = 2; 
   string reason = 3;
   string admin_id = 4;
 }
 
-// Response for ban user operation
 message BanUserResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Request to send newsletter
 message SendNewsletterRequest {
   string subject = 1;
   string content = 2;
   string admin_id = 3;
 }
 
-// Response for send newsletter operation
 message SendNewsletterResponse {
   bool success = 1;
   string message = 2;
   int32 recipients_count = 3;
 }
 
-// Community request message
 message CommunityRequest {
   string id = 1;
   string user_id = 2;
   string name = 3;
   string description = 4;
   string category_id = 5;
-  string status = 6; // "pending", "approved", "rejected"
+  string status = 6; 
   string created_at = 7;
   string updated_at = 8;
-  User requester = 9; // The user who made the request
+  User requester = 9; 
 }
 
-// Request to get community creation requests
 message GetCommunityRequestsRequest {
   int32 page = 1;
   int32 limit = 2;
-  string status = 3; // filter by status: "pending", "approved", "rejected", or empty for all
+  string status = 3; 
 }
 
-// Response containing community creation requests
 message GetCommunityRequestsResponse {
   repeated CommunityRequest requests = 1;
   int32 total_count = 2;
@@ -460,7 +407,6 @@ message GetCommunityRequestsResponse {
   int32 limit = 4;
 }
 
-// Request to process a community creation request
 message ProcessCommunityRequestRequest {
   string request_id = 1;
   bool approve = 2;
@@ -468,31 +414,27 @@ message ProcessCommunityRequestRequest {
   string admin_id = 4;
 }
 
-// Response for processing a community request
 message ProcessCommunityRequestResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Premium user request message
 message PremiumRequest {
   string id = 1;
   string user_id = 2;
   string reason = 3;
-  string status = 4; // "pending", "approved", "rejected"
+  string status = 4; 
   string created_at = 5;
   string updated_at = 6;
-  User requester = 7; // The user who made the request
+  User requester = 7; 
 }
 
-// Request to get premium user requests
 message GetPremiumRequestsRequest {
   int32 page = 1;
   int32 limit = 2;
-  string status = 3; // filter by status: "pending", "approved", "rejected", or empty for all
+  string status = 3; 
 }
 
-// Response containing premium user requests
 message GetPremiumRequestsResponse {
   repeated PremiumRequest requests = 1;
   int32 total_count = 2;
@@ -500,7 +442,6 @@ message GetPremiumRequestsResponse {
   int32 limit = 4;
 }
 
-// Request to process a premium user request
 message ProcessPremiumRequestRequest {
   string request_id = 1;
   bool approve = 2;
@@ -508,33 +449,29 @@ message ProcessPremiumRequestRequest {
   string admin_id = 4;
 }
 
-// Response for processing a premium user request
 message ProcessPremiumRequestResponse {
   bool success = 1;
   string message = 2;
 }
 
-// User report message
 message ReportRequest {
   string id = 1;
   string reporter_id = 2;
   string reported_user_id = 3;
   string reason = 4;
-  string status = 5; // "pending", "approved", "rejected"
+  string status = 5; 
   string created_at = 6;
   string updated_at = 7;
-  User reporter = 8; // The user who made the report
-  User reported_user = 9; // The user who was reported
+  User reporter = 8; 
+  User reported_user = 9; 
 }
 
-// Request to get user report requests
 message GetReportRequestsRequest {
   int32 page = 1;
   int32 limit = 2;
-  string status = 3; // filter by status: "pending", "approved", "rejected", or empty for all
+  string status = 3; 
 }
 
-// Response containing user report requests
 message GetReportRequestsResponse {
   repeated ReportRequest requests = 1;
   int32 total_count = 2;
@@ -542,7 +479,6 @@ message GetReportRequestsResponse {
   int32 limit = 4;
 }
 
-// Request to process a user report
 message ProcessReportRequestRequest {
   string request_id = 1;
   bool approve = 2;
@@ -550,13 +486,11 @@ message ProcessReportRequestRequest {
   string admin_id = 4;
 }
 
-// Response for processing a user report
 message ProcessReportRequestResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Thread category message
 message ThreadCategory {
   string id = 1;
   string name = 2;
@@ -565,13 +499,11 @@ message ThreadCategory {
   string updated_at = 5;
 }
 
-// Request to get thread categories
 message GetThreadCategoriesRequest {
   int32 page = 1;
   int32 limit = 2;
 }
 
-// Response containing thread categories
 message GetThreadCategoriesResponse {
   repeated ThreadCategory categories = 1;
   int32 total_count = 2;
@@ -579,19 +511,16 @@ message GetThreadCategoriesResponse {
   int32 limit = 4;
 }
 
-// Request to create a thread category
 message CreateThreadCategoryRequest {
   string name = 1;
   string description = 2;
   string admin_id = 3;
 }
 
-// Response for creating a thread category
 message CreateThreadCategoryResponse {
   ThreadCategory category = 1;
 }
 
-// Request to update a thread category
 message UpdateThreadCategoryRequest {
   string id = 1;
   string name = 2;
@@ -599,24 +528,20 @@ message UpdateThreadCategoryRequest {
   string admin_id = 4;
 }
 
-// Response for updating a thread category
 message UpdateThreadCategoryResponse {
   ThreadCategory category = 1;
 }
 
-// Request to delete a thread category
 message DeleteThreadCategoryRequest {
   string id = 1;
   string admin_id = 2;
 }
 
-// Response for deleting a thread category
 message DeleteThreadCategoryResponse {
   bool success = 1;
   string message = 2;
 }
 
-// Community category message
 message CommunityCategory {
   string id = 1;
   string name = 2;
@@ -625,13 +550,11 @@ message CommunityCategory {
   string updated_at = 5;
 }
 
-// Request to get community categories
 message GetCommunityCategoriesRequest {
   int32 page = 1;
   int32 limit = 2;
 }
 
-// Response containing community categories
 message GetCommunityCategoriesResponse {
   repeated CommunityCategory categories = 1;
   int32 total_count = 2;
@@ -639,19 +562,16 @@ message GetCommunityCategoriesResponse {
   int32 limit = 4;
 }
 
-// Request to create a community category
 message CreateCommunityCategoryRequest {
   string name = 1;
   string description = 2;
   string admin_id = 3;
 }
 
-// Response for creating a community category
 message CreateCommunityCategoryResponse {
   CommunityCategory category = 1;
 }
 
-// Request to update a community category
 message UpdateCommunityCategoryRequest {
   string id = 1;
   string name = 2;
@@ -659,19 +579,16 @@ message UpdateCommunityCategoryRequest {
   string admin_id = 4;
 }
 
-// Response for updating a community category
 message UpdateCommunityCategoryResponse {
   CommunityCategory category = 1;
 }
 
-// Request to delete a community category
 message DeleteCommunityCategoryRequest {
   string id = 1;
   string admin_id = 2;
 }
 
-// Response for deleting a community category
 message DeleteCommunityCategoryResponse {
   bool success = 1;
   string message = 2;
-} 
+}

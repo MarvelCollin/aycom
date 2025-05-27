@@ -269,44 +269,52 @@ export async function searchUsers(query: string, page: number = 1, limit: number
       console.error('User API error:', errorText);
       throw new Error(`Failed to fetch users: ${response.status}`);
     }
+      const responseData = await response.json();
+    console.log('Raw API response:', responseData);
     
-    const data = await response.json();
+    // Handle the nested response structure: responseData.data.users
+    const data = responseData.data || responseData;
+    const users = data.users || [];
+    const pagination = data.pagination || {};
+    
+    console.log('Extracted users:', users);
+    console.log('Pagination info:', pagination);
     
     // Apply client-side fuzzy search if requested and API doesn't support it
+    let processedUsers = [...users];
     if (options?.clientFuzzy && query.trim()) {
       // Import the fuzzy search function
       const { fuzzySearch } = await import('../utils/helpers');
       
       // If the API doesn't indicate it did fuzzy searching, do it client-side
-      if (!data.fuzzy_search_applied) {
+      if (!responseData.fuzzy_search_applied) {
         // Apply fuzzy search on both username and display_name
-        const allUsers = [...(data.users || [])];
         const fuzzyMatches = fuzzySearch(
           query,
-          allUsers,
+          users,
           'username',
           0.5 // Lower threshold for username matches
         );
         
         const nameMatches = fuzzySearch(
           query,
-          allUsers.filter(user => !fuzzyMatches.includes(user)), // Remove already matched users
+          users.filter(user => !fuzzyMatches.includes(user)), // Remove already matched users
           'display_name',
           0.6
         );
         
         // Combine and keep original order if possible
-        data.users = [...new Set([...fuzzyMatches, ...nameMatches])];
-        console.log(`Applied client-side fuzzy search, found ${data.users.length} matches`);
+        processedUsers = [...new Set([...fuzzyMatches, ...nameMatches])];
+        console.log(`Applied client-side fuzzy search, found ${processedUsers.length} matches`);
       }
     }
     
     // Standardize the response format
     return {
-      users: data.users || [],
-      totalCount: data.total_count || 0,
-      page: data.page || page,
-      totalPages: data.total_pages || 1
+      users: processedUsers,
+      totalCount: pagination.total || users.length,
+      page: pagination.page || page,
+      totalPages: Math.ceil((pagination.total || users.length) / (pagination.limit || limit))
     };
   } catch (err) {
     console.error('Failed to fetch users:', err);

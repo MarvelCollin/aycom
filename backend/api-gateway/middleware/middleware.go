@@ -11,24 +11,20 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// CORS middleware for handling Cross-Origin Resource Sharing
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:3000" // Default to frontend origin if not specified
+			origin = "http://localhost:3000" 
 		}
 
-		// When credentials are included, Access-Control-Allow-Origin cannot be '*'
-		// It must be set to a specific origin
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Allow-Headers, X-Debug-Panel")
-		// Allow credentials (cookies, authorization headers)
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 
-		// Handle preflight requests
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400") 
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
@@ -38,7 +34,6 @@ func CORS() gin.HandlerFunc {
 	}
 }
 
-// JWTAuth middleware for JWT authentication
 func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log.Printf("Processing JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
@@ -86,7 +81,7 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		claims := jwt.MapClaims{}
 
 		parsedToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-			// Check signing method
+
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -115,11 +110,9 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// Log the extracted user ID for debugging
 		userIdClaim := claims["user_id"]
 		log.Printf("JWT Middleware: Extracted user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
 
-		// Ensure the claim is a string before setting
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
 			log.Printf("JWT Middleware: user_id claim is not a string: %v", userIdClaim)
@@ -132,7 +125,6 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// Set both userID and userId for compatibility
 		c.Set("userId", userIdStr)
 		c.Set("userID", userIdStr)
 		log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
@@ -140,9 +132,6 @@ func JWTAuth(secret string) gin.HandlerFunc {
 	}
 }
 
-// OptionalJWTAuth middleware for optional JWT authentication
-// If the user is authenticated, set the userId in the context
-// If not, allow the request to continue anyway
 func OptionalJWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log.Printf("Processing optional JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
@@ -171,7 +160,7 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 		claims := jwt.MapClaims{}
 
 		parsedToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-			// Check signing method
+
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -184,7 +173,6 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// Extract user ID from token
 		userIdClaim := claims["user_id"]
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
@@ -193,7 +181,6 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// Set both userID and userId for compatibility
 		c.Set("userId", userIdStr)
 		c.Set("userID", userIdStr)
 		log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
@@ -201,12 +188,10 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 	}
 }
 
-// AdminOnly middleware to ensure only admin users can access certain routes
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log.Printf("Checking admin privileges for: %s %s", c.Request.Method, c.Request.URL.Path)
 
-		// Get user ID from context (set by JWTAuth middleware)
 		userID, exists := c.Get("userID")
 		if !exists {
 			log.Printf("No userID found in context - admin check failed")
@@ -219,7 +204,6 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		// Get admin status from JWT claims
 		authHeader := c.GetHeader("Authorization")
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
@@ -236,8 +220,7 @@ func AdminOnly() gin.HandlerFunc {
 		token := parts[1]
 		claims := jwt.MapClaims{}
 
-		// Parse token to get claims - need to get secret from environment or config
-		secret := getJWTSecret() // We'll need to implement this
+		secret := getJWTSecret() 
 		_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -256,7 +239,6 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		// Check if user is admin
 		isAdmin, exists := claims["is_admin"]
 		if !exists || isAdmin != true {
 			log.Printf("User %v is not an admin", userID)
@@ -274,17 +256,15 @@ func AdminOnly() gin.HandlerFunc {
 	}
 }
 
-// getJWTSecret returns the JWT secret from environment or config
 func getJWTSecret() string {
-	// Try to get from environment first
+
 	if secret := os.Getenv("JWT_SECRET"); secret != "" {
 		return secret
 	}
-	// Fallback to default (in production, this should come from secure config)
+
 	return "your-secret-key"
 }
 
-// Helper function to get the minimum of two ints
 func min(a, b int) int {
 	if a < b {
 		return a

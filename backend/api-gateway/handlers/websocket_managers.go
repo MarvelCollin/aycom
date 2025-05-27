@@ -8,34 +8,29 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// WebSocket constants for default values when config is not available
 const (
-	// Buffer sizes
+
 	ReadBufferSize  = 1024
 	WriteBufferSize = 1024
 	SendBufferSize  = 256
 
-	// Timeouts (in seconds)
 	ReadDeadlineTimeout  = 60
 	WriteDeadlineTimeout = 10
 	PingInterval         = 54
 
-	// Message size limits
 	MaxMessageSize = 4096
 )
 
-// WebSocketManager manages WebSocket connections and message broadcasting
 type WebSocketManager struct {
 	clients      map[string]*Client
-	chatRooms    map[string]map[string]bool 
-	userToClient map[string]string         
+	chatRooms    map[string]map[string]bool
+	userToClient map[string]string
 	register     chan *Client
 	unregister   chan *Client
 	broadcast    chan BroadcastMessage
 	mutex        sync.RWMutex
 }
 
-// Client represents a connected WebSocket client
 type Client struct {
 	ID         string
 	UserID     string
@@ -45,7 +40,6 @@ type Client struct {
 	Manager    *WebSocketManager
 }
 
-// BroadcastMessage represents a message to be broadcasted
 type BroadcastMessage struct {
 	ChatID  string
 	Message []byte
@@ -57,23 +51,20 @@ var (
 	wsManagerOnce sync.Once
 )
 
-// Global WebSocket upgrader instance
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  ReadBufferSize,
 	WriteBufferSize: WriteBufferSize,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins in development; restrict in production
+		return true 
 	},
 }
 
-// InitWebsocketServices initializes all service WebSocket clients
 func InitWebsocketServices() {
 	log.Println("Initializing WebSocket service clients...")
-	GetWebSocketManager() // Initialize singleton
+	GetWebSocketManager() 
 	log.Println("WebSocket service clients initialized successfully")
 }
 
-// NewWebSocketManager creates a new WebSocket manager
 func NewWebSocketManager() *WebSocketManager {
 	manager := &WebSocketManager{
 		clients:      make(map[string]*Client),
@@ -89,7 +80,6 @@ func NewWebSocketManager() *WebSocketManager {
 	return manager
 }
 
-// Run starts the WebSocket manager
 func (manager *WebSocketManager) Run() {
 	for {
 		select {
@@ -98,7 +88,6 @@ func (manager *WebSocketManager) Run() {
 			manager.clients[client.ID] = client
 			manager.userToClient[client.UserID] = client.ID
 
-			// Add to chat room if chatID is provided
 			if client.ChatID != "" {
 				if _, ok := manager.chatRooms[client.ChatID]; !ok {
 					manager.chatRooms[client.ChatID] = make(map[string]bool)
@@ -114,7 +103,6 @@ func (manager *WebSocketManager) Run() {
 				delete(manager.clients, client.ID)
 				delete(manager.userToClient, client.UserID)
 
-				// Remove from chat room if chatID is provided
 				if client.ChatID != "" {
 					if _, ok := manager.chatRooms[client.ChatID]; ok {
 						delete(manager.chatRooms[client.ChatID], client.ID)
@@ -136,7 +124,7 @@ func (manager *WebSocketManager) Run() {
 					if client, found := manager.clients[clientID]; found {
 						select {
 						case client.Send <- message.Message:
-							// Message sent successfully
+
 						default:
 							manager.mutex.RUnlock()
 							manager.mutex.Lock()
@@ -160,7 +148,6 @@ func (manager *WebSocketManager) Run() {
 	}
 }
 
-// GetWebSocketManager returns the singleton instance of WebSocketManager
 func GetWebSocketManager() *WebSocketManager {
 	wsManagerOnce.Do(func() {
 		wsManager = NewWebSocketManager()

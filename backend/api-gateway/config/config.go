@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// Config holds all configuration for the API Gateway
 type Config struct {
 	Server    ServerConfig
 	Auth      AuthConfig
@@ -17,7 +16,6 @@ type Config struct {
 	WebSocket WebSocketConfig
 }
 
-// ServerConfig holds server-related configuration
 type ServerConfig struct {
 	Port         string
 	ReadTimeout  time.Duration
@@ -25,7 +23,6 @@ type ServerConfig struct {
 	CORSOrigin   string
 }
 
-// AuthConfig holds authentication-related configuration
 type AuthConfig struct {
 	JWTSecret            string
 	AccessTokenDuration  time.Duration
@@ -34,12 +31,10 @@ type AuthConfig struct {
 	CookieSecure         bool
 }
 
-// OAuthConfig holds OAuth provider configuration
 type OAuthConfig struct {
 	GoogleClientID string
 }
 
-// ServicesConfig holds the addresses of all microservices
 type ServicesConfig struct {
 	UserService      string
 	ThreadService    string
@@ -47,14 +42,12 @@ type ServicesConfig struct {
 	AIService        string
 }
 
-// RateLimitConfig holds rate limiting configuration
 type RateLimitConfig struct {
 	Limit    int64
 	Burst    int
 	Duration time.Duration
 }
 
-// WebSocketConfig holds WebSocket-related configuration
 type WebSocketConfig struct {
 	ReadBufferSize       int
 	WriteBufferSize      int
@@ -65,9 +58,8 @@ type WebSocketConfig struct {
 	MaxMessageSize       int
 }
 
-// LoadConfig loads configuration from environment variables
 func LoadConfig() (*Config, error) {
-	// Get service host and port variables
+
 	userServiceHost := getEnv("USER_SERVICE_HOST", "localhost")
 	userServicePort := getEnv("USER_SERVICE_PORT", "50052")
 	threadServiceHost := getEnv("THREAD_SERVICE_HOST", "localhost")
@@ -77,7 +69,6 @@ func LoadConfig() (*Config, error) {
 	aiServiceHost := getEnv("AI_SERVICE_HOST", "localhost")
 	aiServicePort := getEnv("AI_SERVICE_PORT", "5000")
 
-	// Log the service addresses for debugging
 	fmt.Printf("Loading configuration with the following service addresses:\n")
 	fmt.Printf("- User Service: %s:%s\n", userServiceHost, userServicePort)
 	fmt.Printf("- Thread Service: %s:%s\n", threadServiceHost, threadServicePort)
@@ -126,7 +117,6 @@ func LoadConfig() (*Config, error) {
 	return cfg, nil
 }
 
-// Helper functions for loading environment variables with defaults
 func getEnv(key, defaultVal string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -190,12 +180,10 @@ func getDurationEnv(key string, defaultVal time.Duration) time.Duration {
 	return value
 }
 
-// GetAuthServiceAddr returns the address of the auth service
 func (c *Config) GetAuthServiceAddr() string {
 	return c.Services.UserService
 }
 
-// GetDefaultConfig returns a default configuration
 func GetDefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{

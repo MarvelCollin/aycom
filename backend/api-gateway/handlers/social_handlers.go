@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	threadProto "aycom/backend/proto/thread"
+	userProto "aycom/backend/proto/user"
 	"context"
 	"fmt"
 	"log"
@@ -8,20 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	threadProto "aycom/backend/proto/thread"
-	userProto "aycom/backend/proto/user"
-
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// FollowUser handles a user following another user
-// @Summary Follow user
-// @Description Follows a user
-// @Tags Users
-// @Produce json
-// @Router /api/v1/users/{userId}/follow [post]
 func FollowUser(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
@@ -32,7 +25,6 @@ func FollowUser(c *gin.Context) {
 		return
 	}
 
-	// Get current user ID from context (set by JWT middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -43,11 +35,9 @@ func FollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// First, check if both users exist
 	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
 		UserId: targetUserID,
 	})
@@ -61,7 +51,6 @@ func FollowUser(c *gin.Context) {
 		return
 	}
 
-	// Create the follow relationship using the FollowUser endpoint
 	followRequest := &userProto.FollowUserRequest{
 		FollowerId: currentUserID,
 		FollowedId: targetUserID,
@@ -94,12 +83,6 @@ func FollowUser(c *gin.Context) {
 	})
 }
 
-// UnfollowUser handles a user unfollowing another user
-// @Summary Unfollow user
-// @Description Unfollows a user
-// @Tags Users
-// @Produce json
-// @Router /api/v1/users/{userId}/unfollow [post]
 func UnfollowUser(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
@@ -110,7 +93,6 @@ func UnfollowUser(c *gin.Context) {
 		return
 	}
 
-	// Get current user ID from context (set by JWT middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -121,11 +103,9 @@ func UnfollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// First, check if both users exist
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Verify target user exists
 	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
 		UserId: targetUserID,
 	})
@@ -139,7 +119,6 @@ func UnfollowUser(c *gin.Context) {
 		return
 	}
 
-	// Remove the follow relationship using the UnfollowUser endpoint
 	unfollowRequest := &userProto.UnfollowUserRequest{
 		FollowerId: currentUserID,
 		FollowedId: targetUserID,
@@ -172,12 +151,6 @@ func UnfollowUser(c *gin.Context) {
 	})
 }
 
-// GetFollowers returns a user's followers
-// @Summary Get followers
-// @Description Gets a list of users that follow a specific user
-// @Tags Users
-// @Produce json
-// @Router /api/v1/users/{userId}/followers [get]
 func GetFollowers(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
@@ -188,7 +161,6 @@ func GetFollowers(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -206,11 +178,9 @@ func GetFollowers(c *gin.Context) {
 		}
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Call the user service to get followers
 	followersReq := &userProto.GetFollowersRequest{
 		UserId: targetUserID,
 		Page:   int32(page),
@@ -241,7 +211,6 @@ func GetFollowers(c *gin.Context) {
 		return
 	}
 
-	// Convert the response to the expected format
 	followers := make([]gin.H, 0, len(followersResp.GetFollowers()))
 	for _, user := range followersResp.GetFollowers() {
 		followers = append(followers, gin.H{
@@ -264,12 +233,6 @@ func GetFollowers(c *gin.Context) {
 	})
 }
 
-// GetFollowing returns the users a user is following
-// @Summary Get following
-// @Description Gets a list of users that a user is following
-// @Tags Users
-// @Produce json
-// @Router /api/v1/users/{userId}/following [get]
 func GetFollowing(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
@@ -280,7 +243,6 @@ func GetFollowing(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -298,11 +260,9 @@ func GetFollowing(c *gin.Context) {
 		}
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Call the user service to get following users
 	followingReq := &userProto.GetFollowingRequest{
 		UserId: targetUserID,
 		Page:   int32(page),
@@ -333,7 +293,6 @@ func GetFollowing(c *gin.Context) {
 		return
 	}
 
-	// Convert the response to the expected format
 	following := make([]gin.H, 0, len(followingResp.GetFollowing()))
 	for _, user := range followingResp.GetFollowing() {
 		following = append(following, gin.H{
@@ -341,7 +300,7 @@ func GetFollowing(c *gin.Context) {
 			"username":            user.GetUsername(),
 			"name":                user.GetName(),
 			"profile_picture_url": user.GetProfilePictureUrl(),
-			"is_following":        true, // By definition, we're following these users
+			"is_following":        true,
 		})
 	}
 
@@ -356,19 +315,8 @@ func GetFollowing(c *gin.Context) {
 	})
 }
 
-// LikeThread handles the API request to like a thread
-// @Summary Like a thread
-// @Description Add a like for a thread
-// @Tags Social
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/like [post]
 func LikeThread(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		log.Printf("LikeThread: No userId in context")
@@ -391,7 +339,6 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		log.Printf("LikeThread: Missing threadId parameter")
@@ -405,7 +352,6 @@ func LikeThread(c *gin.Context) {
 
 	log.Printf("LikeThread: Processing like for thread %s by user %s", threadID, userID)
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		log.Printf("LikeThread: Failed to get connection to thread service: %v", err)
@@ -418,21 +364,18 @@ func LikeThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.LikeThread(ctx, &threadProto.LikeThreadRequest{
 		ThreadId: threadID,
 		UserId:   userID,
 	})
 
 	if err != nil {
-		// Check for specific error codes
+
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.NotFound:
@@ -444,7 +387,7 @@ func LikeThread(c *gin.Context) {
 				})
 				return
 			case codes.AlreadyExists:
-				// This is not truly an error for likes - return success
+
 				log.Printf("LikeThread: Thread %s already liked by user %s", threadID, userID)
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
@@ -491,19 +434,8 @@ func LikeThread(c *gin.Context) {
 	})
 }
 
-// UnlikeThread handles the API request to unlike a thread
-// @Summary Unlike a thread
-// @Description Removes a like from a thread
-// @Tags Social
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/like [delete]
 func UnlikeThread(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		log.Printf("UnlikeThread: No userId in context")
@@ -526,7 +458,6 @@ func UnlikeThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		log.Printf("UnlikeThread: Missing threadId parameter")
@@ -540,7 +471,6 @@ func UnlikeThread(c *gin.Context) {
 
 	log.Printf("UnlikeThread: Processing unlike for thread %s by user %s", threadID, userID)
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		log.Printf("UnlikeThread: Failed to get connection to thread service: %v", err)
@@ -553,14 +483,11 @@ func UnlikeThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.UnlikeThread(ctx, &threadProto.UnlikeThreadRequest{
 		ThreadId: threadID,
 		UserId:   userID,
@@ -570,7 +497,7 @@ func UnlikeThread(c *gin.Context) {
 			switch st.Code() {
 			case codes.NotFound:
 				log.Printf("UnlikeThread: Thread %s or like not found", threadID)
-				// Unlike is idempotent, so return success even if the thread or like doesn't exist
+
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
 					"message": "Thread already not liked",
@@ -611,19 +538,8 @@ func UnlikeThread(c *gin.Context) {
 	})
 }
 
-// ReplyToThread handles the API request to create a reply to a thread
-// @Summary Reply to thread
-// @Description Creates a new reply to a thread
-// @Tags Social
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 201 {object} threadProto.ReplyResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/replies [post]
 func ReplyToThread(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -644,7 +560,6 @@ func ReplyToThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -655,7 +570,6 @@ func ReplyToThread(c *gin.Context) {
 		return
 	}
 
-	// Parse request
 	var request struct {
 		Content          string               `json:"content" binding:"required"`
 		Media            []*threadProto.Media `json:"media,omitempty"`
@@ -671,7 +585,6 @@ func ReplyToThread(c *gin.Context) {
 		return
 	}
 
-	// Prepare the CreateReplyRequest
 	createReplyRequest := &threadProto.CreateReplyRequest{
 		ThreadId:         threadID,
 		UserId:           userID,
@@ -680,12 +593,10 @@ func ReplyToThread(c *gin.Context) {
 		MentionedUserIds: request.MentionedUserIDs,
 	}
 
-	// Add parent reply ID if provided
 	if request.ParentReplyID != "" {
 		createReplyRequest.ParentId = request.ParentReplyID
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -697,14 +608,11 @@ func ReplyToThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	resp, err := client.CreateReply(ctx, createReplyRequest)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -732,19 +640,8 @@ func ReplyToThread(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-// GetThreadReplies handles the API request to get replies to a thread
-// @Summary Get thread replies
-// @Description Returns all replies for a thread
-// @Tags Social
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Param page query int false "Page number"
-// @Param limit query int false "Items per page"
-// @Success 200 {object} threadProto.RepliesResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/replies [get]
 func GetThreadReplies(c *gin.Context) {
-	// Get thread ID from URL
+
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -755,7 +652,6 @@ func GetThreadReplies(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -773,7 +669,6 @@ func GetThreadReplies(c *gin.Context) {
 		}
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -785,14 +680,11 @@ func GetThreadReplies(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	resp, err := client.GetRepliesByThread(ctx, &threadProto.GetRepliesByThreadRequest{
 		ThreadId: threadID,
 		Page:     int32(page),
@@ -822,19 +714,8 @@ func GetThreadReplies(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// RepostThread handles the API request to repost a thread
-// @Summary Repost a thread
-// @Description Creates a repost of a thread
-// @Tags Social
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/repost [post]
 func RepostThread(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -855,7 +736,6 @@ func RepostThread(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -866,16 +746,14 @@ func RepostThread(c *gin.Context) {
 		return
 	}
 
-	// Parse request
 	var request struct {
 		Content string `json:"content"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
-		// Content is optional, so just log the error and continue
+
 		log.Printf("Warning: Failed to parse request body: %v", err)
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -887,14 +765,11 @@ func RepostThread(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.RepostThread(ctx, &threadProto.RepostThreadRequest{
 		ThreadId:     threadID,
 		UserId:       userID,
@@ -927,18 +802,8 @@ func RepostThread(c *gin.Context) {
 	})
 }
 
-// RemoveRepost handles the API request to remove a repost
-// @Summary Remove a repost
-// @Description Removes a repost of a thread
-// @Tags Social
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/repost [delete]
 func RemoveRepost(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -959,7 +824,6 @@ func RemoveRepost(c *gin.Context) {
 		return
 	}
 
-	// Get thread ID from URL
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -970,7 +834,6 @@ func RemoveRepost(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -982,14 +845,11 @@ func RemoveRepost(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.RemoveRepost(ctx, &threadProto.RemoveRepostRequest{
 		ThreadId: threadID,
 		UserId:   userID,
@@ -1021,41 +881,26 @@ func RemoveRepost(c *gin.Context) {
 	})
 }
 
-// BookmarkThread adds a bookmark for a thread
-// @Summary Bookmark a thread
-// @Description Add a bookmark for a thread
-// @Tags Social
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/bookmark [post]
 func BookmarkThread(c *gin.Context) {
-	// Get thread ID from path parameter
+
 	threadID := c.Param("id")
 	if threadID == "" {
 		SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
 	}
 
-	// Get user ID from token
 	userID, exists := c.Get("userId")
 	if !exists {
 		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
 
-	// Log the bookmark request
 	log.Printf("BookmarkThread: Attempting to bookmark thread %s for user %s", threadID, userID)
 
-	// Call thread service client
 	err := threadServiceClient.BookmarkThread(threadID, userID.(string))
 
-	// Handle errors
 	if err != nil {
-		// Check for specific error types from the gRPC service
+
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
@@ -1063,7 +908,7 @@ func BookmarkThread(c *gin.Context) {
 				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
 				return
 			case codes.AlreadyExists:
-				// This is not truly an error - return success with a note
+
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
 					"message": "Thread was already bookmarked",
@@ -1087,53 +932,37 @@ func BookmarkThread(c *gin.Context) {
 		return
 	}
 
-	// Log successful bookmark
 	log.Printf("Successfully bookmarked thread %s for user %s", threadID, userID)
 
-	// Return success
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thread bookmarked successfully",
 	})
 }
 
-// RemoveBookmark removes a bookmark from a thread
-// @Summary Remove a thread bookmark
-// @Description Remove a bookmark from a thread
-// @Tags Social
-// @Accept json
-// @Produce json
-// @Param id path string true "Thread ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/threads/{id}/bookmark [delete]
 func RemoveBookmark(c *gin.Context) {
-	// Get thread ID from path parameter
+
 	threadID := c.Param("id")
 	if threadID == "" {
 		SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
 	}
 
-	// Get user ID from token
 	userID, exists := c.Get("userId")
 	if !exists {
 		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
 
-	// Call thread service client
 	err := threadServiceClient.RemoveBookmark(threadID, userID.(string))
 
-	// Handle errors
 	if err != nil {
-		// Check for specific error types from the gRPC service
+
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				// This is not truly an error for removing a bookmark - return success with a note
+
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
 					"message": "Thread was not bookmarked",
@@ -1149,30 +978,18 @@ func RemoveBookmark(c *gin.Context) {
 		return
 	}
 
-	// Return success
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Bookmark removed successfully",
 	})
 }
 
-// GetThreadsFromFollowing retrieves threads from users that the authenticated user follows
-// @Summary Get following threads
-// @Description Gets threads from users that the authenticated user follows
-// @Tags Threads
-// @Produce json
-// @Param page query int false "Page number"
-// @Param limit query int false "Number of items per page"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/threads/following [get]
 func GetThreadsFromFollowing(c *gin.Context) {
-	// Get authenticated user ID from context
+
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
 		log.Printf("GetThreadsFromFollowing: No userId in context, returning empty results")
-		// Return empty results instead of error to be more resilient
+
 		c.JSON(http.StatusOK, gin.H{
 			"threads": []gin.H{},
 			"total":   0,
@@ -1183,7 +1000,7 @@ func GetThreadsFromFollowing(c *gin.Context) {
 	authenticatedUserIDStr, ok := authenticatedUserID.(string)
 	if !ok {
 		log.Printf("GetThreadsFromFollowing: Invalid userId type, returning empty results")
-		// Return empty results instead of error to be more resilient
+
 		c.JSON(http.StatusOK, gin.H{
 			"threads": []gin.H{},
 			"total":   0,
@@ -1191,7 +1008,6 @@ func GetThreadsFromFollowing(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 10
 
@@ -1213,7 +1029,6 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	log.Printf("Getting following threads for user: %s, page: %d, limit: %d", authenticatedUserIDStr, page, limit)
 
-	// Return empty array since this endpoint is not yet fully implemented
 	c.JSON(http.StatusOK, gin.H{
 		"threads": []gin.H{},
 		"total":   0,
@@ -1222,18 +1037,8 @@ func GetThreadsFromFollowing(c *gin.Context) {
 	})
 }
 
-// LikeReply handles the API request to like a reply
-// @Summary Like a reply
-// @Description Adds a like to a reply
-// @Tags Social
-// @Produce json
-// @Param id path string true "Reply ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/like [post]
 func LikeReply(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1254,7 +1059,6 @@ func LikeReply(c *gin.Context) {
 		return
 	}
 
-	// Get reply ID from URL
 	replyID := c.Param("id")
 	if replyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1265,7 +1069,6 @@ func LikeReply(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -1277,14 +1080,11 @@ func LikeReply(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.LikeReply(ctx, &threadProto.LikeReplyRequest{
 		ReplyId: replyID,
 		UserId:  userID,
@@ -1316,18 +1116,8 @@ func LikeReply(c *gin.Context) {
 	})
 }
 
-// UnlikeReply handles the API request to unlike a reply
-// @Summary Unlike a reply
-// @Description Removes a like from a reply
-// @Tags Social
-// @Produce json
-// @Param id path string true "Reply ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/like [delete]
 func UnlikeReply(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1348,7 +1138,6 @@ func UnlikeReply(c *gin.Context) {
 		return
 	}
 
-	// Get reply ID from URL
 	replyID := c.Param("id")
 	if replyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1359,7 +1148,6 @@ func UnlikeReply(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -1371,14 +1159,11 @@ func UnlikeReply(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.UnlikeReply(ctx, &threadProto.UnlikeReplyRequest{
 		ReplyId: replyID,
 		UserId:  userID,
@@ -1410,18 +1195,8 @@ func UnlikeReply(c *gin.Context) {
 	})
 }
 
-// BookmarkReply handles the API request to bookmark a reply
-// @Summary Bookmark a reply
-// @Description Adds a bookmark for a reply
-// @Tags Social
-// @Produce json
-// @Param id path string true "Reply ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/bookmark [post]
 func BookmarkReply(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1442,7 +1217,6 @@ func BookmarkReply(c *gin.Context) {
 		return
 	}
 
-	// Get reply ID from URL
 	replyID := c.Param("id")
 	if replyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1453,10 +1227,8 @@ func BookmarkReply(c *gin.Context) {
 		return
 	}
 
-	// Log the bookmark request
 	log.Printf("BookmarkReply: Attempting to bookmark reply %s for user %s", replyID, userID)
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -1468,21 +1240,18 @@ func BookmarkReply(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.BookmarkReply(ctx, &threadProto.BookmarkReplyRequest{
 		ReplyId: replyID,
 		UserId:  userID,
 	})
 
 	if err != nil {
-		// Check for specific error codes
+
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.NotFound:
@@ -1493,7 +1262,7 @@ func BookmarkReply(c *gin.Context) {
 				})
 				return
 			case codes.AlreadyExists:
-				// This is not truly an error - return success
+
 				c.JSON(http.StatusOK, gin.H{
 					"success": true,
 					"message": "Reply already bookmarked",
@@ -1518,7 +1287,6 @@ func BookmarkReply(c *gin.Context) {
 		return
 	}
 
-	// Log successful bookmark
 	log.Printf("Successfully bookmarked reply %s for user %s", replyID, userID)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1527,18 +1295,8 @@ func BookmarkReply(c *gin.Context) {
 	})
 }
 
-// RemoveReplyBookmark handles the API request to remove a bookmark from a reply
-// @Summary Remove a reply bookmark
-// @Description Removes a bookmark for a reply
-// @Tags Social
-// @Produce json
-// @Param id path string true "Reply ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/bookmark [delete]
 func RemoveReplyBookmark(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1559,7 +1317,6 @@ func RemoveReplyBookmark(c *gin.Context) {
 		return
 	}
 
-	// Get reply ID from URL
 	replyID := c.Param("id")
 	if replyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1570,7 +1327,6 @@ func RemoveReplyBookmark(c *gin.Context) {
 		return
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -1582,14 +1338,11 @@ func RemoveReplyBookmark(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Call thread service
 	_, err = client.RemoveReplyBookmark(ctx, &threadProto.RemoveReplyBookmarkRequest{
 		ReplyId: replyID,
 		UserId:  userID,
@@ -1621,15 +1374,8 @@ func RemoveReplyBookmark(c *gin.Context) {
 	})
 }
 
-// SearchSocialUsers searches for users based on query and filters for social contexts
-// @Summary Search users for social features
-// @Description Search for users by name, username, or email in a social context
-// @Tags Users,Social
-// @Accept json
-// @Produce json
-// @Router /api/v1/social/users/search [get]
 func SearchSocialUsers(c *gin.Context) {
-	// Get search parameters from query
+
 	query := c.Query("q")
 	if query == "" {
 		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
@@ -1647,7 +1393,6 @@ func SearchSocialUsers(c *gin.Context) {
 		limit = 10
 	}
 
-	// Use the user service client to search users
 	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
 		log.Printf("Error searching users: %v", err)
@@ -1666,17 +1411,8 @@ func SearchSocialUsers(c *gin.Context) {
 	})
 }
 
-// @Summary Pin reply to profile
-// @Description Pins a reply to the user's profile
-// @Tags Social
-// @Produce json
-// @Param id path string true "Reply ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/pin [post]
 func PinReply(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1697,7 +1433,6 @@ func PinReply(c *gin.Context) {
 		return
 	}
 
-	// Get reply ID from URL
 	replyID := c.Param("id")
 	if replyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1708,7 +1443,6 @@ func PinReply(c *gin.Context) {
 		return
 	}
 
-	// Check if the thread service client is available
 	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
@@ -1718,7 +1452,6 @@ func PinReply(c *gin.Context) {
 		return
 	}
 
-	// Use the interface implementation
 	err := threadServiceClient.PinReply(replyID, userID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -1747,17 +1480,8 @@ func PinReply(c *gin.Context) {
 	})
 }
 
-// @Summary Unpin reply from profile
-// @Description Unpins a reply from the user's profile
-// @Tags Social
-// @Produce json
-// @Param id path string true "Reply ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/pin [delete]
 func UnpinReply(c *gin.Context) {
-	// Get user ID from token
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -1778,7 +1502,6 @@ func UnpinReply(c *gin.Context) {
 		return
 	}
 
-	// Get reply ID from URL
 	replyID := c.Param("id")
 	if replyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1789,7 +1512,6 @@ func UnpinReply(c *gin.Context) {
 		return
 	}
 
-	// Check if the thread service client is available
 	if threadServiceClient == nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Success: false,
@@ -1799,7 +1521,6 @@ func UnpinReply(c *gin.Context) {
 		return
 	}
 
-	// Use the interface implementation
 	err := threadServiceClient.UnpinReply(replyID, userID)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -1828,21 +1549,8 @@ func UnpinReply(c *gin.Context) {
 	})
 }
 
-// GetRepliesByParentReply handles the API request to get replies to a specific reply
-// @Summary Get replies to a reply
-// @Description Returns all replies for a specific parent reply
-// @Tags Social
-// @Produce json
-// @Param id path string true "Parent Reply ID"
-// @Param page query int false "Page number"
-// @Param limit query int false "Items per page"
-// @Success 200 {object} threadProto.RepliesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/v1/replies/{id}/replies [get]
 func GetRepliesByParentReply(c *gin.Context) {
-	// Get reply ID from URL
+
 	parentReplyID := c.Param("id")
 	if parentReplyID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -1855,7 +1563,6 @@ func GetRepliesByParentReply(c *gin.Context) {
 
 	log.Printf("GetRepliesByParentReply: Fetching replies for parent reply ID %s", parentReplyID)
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -1873,7 +1580,6 @@ func GetRepliesByParentReply(c *gin.Context) {
 		}
 	}
 
-	// Get connection to thread service
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		log.Printf("GetRepliesByParentReply: Failed to connect to thread service: %v", err)
@@ -1886,21 +1592,17 @@ func GetRepliesByParentReply(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create thread service client
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Create the request
 	req := &threadProto.GetRepliesByParentReplyRequest{
 		ParentReplyId: parentReplyID,
 		Page:          int32(page),
 		Limit:         int32(limit),
 	}
 
-	// Call thread service
 	resp, err := client.GetRepliesByParentReply(ctx, req)
 	if err != nil {
 		st, ok := status.FromError(err)
@@ -1936,8 +1638,7 @@ func GetRepliesByParentReply(c *gin.Context) {
 		return
 	}
 
-	// Add cache headers for better performance
-	c.Header("Cache-Control", "public, max-age=10") // Cache for 10 seconds
+	c.Header("Cache-Control", "public, max-age=10")
 
 	c.JSON(http.StatusOK, resp)
 }

@@ -20,7 +20,6 @@ type Community struct {
 	DeletedAt   *time.Time `gorm:"index"`
 }
 
-// Category represents a community category
 type Category struct {
 	CategoryID  uuid.UUID   `gorm:"type:uuid;primaryKey;column:category_id;default:gen_random_uuid()"`
 	Name        string      `gorm:"type:varchar(50);unique;not null"`
@@ -30,7 +29,6 @@ type Category struct {
 	DeletedAt   *time.Time  `gorm:"index"`
 }
 
-// CommunityCategory maps the many-to-many relationship
 type CommunityCategory struct {
 	CommunityID uuid.UUID `gorm:"primaryKey;column:community_id"`
 	CategoryID  uuid.UUID `gorm:"primaryKey;column:category_id"`

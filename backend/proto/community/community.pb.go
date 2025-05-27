@@ -1169,7 +1169,7 @@ func (x *SearchCommunitiesRequest) GetLimit() int32 {
 type ListUserCommunitiesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` // "member" or "pending"
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
 	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
 	Categories    []string               `protobuf:"bytes,4,rep,name=categories,proto3" json:"categories,omitempty"`
 	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
@@ -1250,7 +1250,6 @@ func (x *ListUserCommunitiesRequest) GetLimit() int32 {
 	return 0
 }
 
-// Category messages
 type CreateCategoryRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Category      *Category              `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`

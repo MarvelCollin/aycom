@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -28,6 +29,13 @@ type UserRepository interface {
 	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
 	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
+
+	// Block and Report operations
+	BlockUser(blockerID, blockedID string) error
+	UnblockUser(unblockerID, unblockedID string) error
+	IsUserBlocked(userID, blockedByID string) (bool, error)
+	ReportUser(reporterID, reportedID, reason string) error
+	GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error)
 }
 
 type PostgresUserRepository struct {
@@ -467,4 +475,128 @@ func (r *PostgresUserAuthRepository) UpdateUser(user *model.User) error {
 
 func (r *PostgresUserAuthRepository) UpdateUserVerification(userID string, isVerified bool) error {
 	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("is_verified", isVerified).Error
+}
+
+// Block and Report operations
+func (r *PostgresUserRepository) BlockUser(blockerID, blockedID string) error {
+	blockerUUID, err := uuid.Parse(blockerID)
+	if err != nil {
+		return fmt.Errorf("invalid blocker ID: %w", err)
+	}
+
+	blockedUUID, err := uuid.Parse(blockedID)
+	if err != nil {
+		return fmt.Errorf("invalid blocked ID: %w", err)
+	}
+
+	// Check if already blocked
+	var existingBlock model.UserBlock
+	if err := r.db.Where("blocker_id = ? AND blocked_id = ?", blockerUUID, blockedUUID).First(&existingBlock).Error; err == nil {
+		// Already blocked
+		return nil
+	}
+
+	// Create new block
+	block := model.UserBlock{
+		BlockerID: blockerUUID,
+		BlockedID: blockedUUID,
+	}
+
+	return r.db.Create(&block).Error
+}
+
+func (r *PostgresUserRepository) UnblockUser(unblockerID, unblockedID string) error {
+	unblockerUUID, err := uuid.Parse(unblockerID)
+	if err != nil {
+		return fmt.Errorf("invalid unblocker ID: %w", err)
+	}
+
+	unblockedUUID, err := uuid.Parse(unblockedID)
+	if err != nil {
+		return fmt.Errorf("invalid unblocked ID: %w", err)
+	}
+
+	return r.db.Where("blocker_id = ? AND blocked_id = ?", unblockerUUID, unblockedUUID).Delete(&model.UserBlock{}).Error
+}
+
+func (r *PostgresUserRepository) IsUserBlocked(userID, blockedByID string) (bool, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	blockedByUUID, err := uuid.Parse(blockedByID)
+	if err != nil {
+		return false, fmt.Errorf("invalid blocked by ID: %w", err)
+	}
+
+	var count int64
+	err = r.db.Model(&model.UserBlock{}).
+		Where("blocker_id = ? AND blocked_id = ?", blockedByUUID, userUUID).
+		Count(&count).
+		Error
+
+	return count > 0, err
+}
+
+func (r *PostgresUserRepository) ReportUser(reporterID, reportedID, reason string) error {
+	reporterUUID, err := uuid.Parse(reporterID)
+	if err != nil {
+		return fmt.Errorf("invalid reporter ID: %w", err)
+	}
+
+	reportedUUID, err := uuid.Parse(reportedID)
+	if err != nil {
+		return fmt.Errorf("invalid reported ID: %w", err)
+	}
+
+	// Check if already reported
+	var existingReport model.UserReport
+	if err := r.db.Where("reporter_id = ? AND reported_id = ? AND status = ?", reporterUUID, reportedUUID, "pending").First(&existingReport).Error; err == nil {
+		// Already reported and pending
+		return nil
+	}
+
+	// Create new report
+	report := model.UserReport{
+		ReporterID: reporterUUID,
+		ReportedID: reportedUUID,
+		Reason:     reason,
+		Status:     "pending",
+	}
+
+	return r.db.Create(&report).Error
+}
+
+func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error) {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	offset := (page - 1) * limit
+
+	var blockedUsers []map[string]interface{}
+	var total int64
+
+	// Count total blocked users
+	err = r.db.Model(&model.UserBlock{}).
+		Where("blocker_id = ?", userUUID).
+		Count(&total).
+		Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get blocked users with pagination
+	err = r.db.Table("user_blocks").
+		Select("users.id, users.username, users.display_name, users.profile_picture_url, user_blocks.created_at as blocked_at").
+		Joins("JOIN users ON users.id = user_blocks.blocked_id").
+		Where("user_blocks.blocker_id = ?", userUUID).
+		Offset(offset).
+		Limit(limit).
+		Scan(&blockedUsers).
+		Error
+
+	return blockedUsers, total, err
 }

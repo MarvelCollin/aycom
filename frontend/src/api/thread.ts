@@ -1209,137 +1209,209 @@ export async function removeReplyBookmark(replyId: string) {
   }
 }
 
-// User thread functions
-
-export async function getUserThreads(userId: string, page: number = 1, limit: number = 10) {
-  try {
-    const token = getAuthToken();
-    let actualUserId = userId;
-    
-    // If 'me' is specified, get the actual user ID
-    if (userId === 'me') {
-      const currentUserId = getUserId();
-      console.log('Current user ID from auth:', currentUserId);
-      
-      if (!currentUserId) {
-        throw new Error('User ID is required');
-      }
-      actualUserId = currentUserId;
-    }
-    
-    // Set up headers - allow unauthenticated access but add auth if available
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-      
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    
-    console.log(`Fetching threads for user ${actualUserId}, page: ${page}, limit: ${limit}`);
-    
-    const response = await fetch(`${API_BASE_URL}/threads/user/${actualUserId}?page=${page}&limit=${limit}`, {
-      method: "GET",
-      headers: headers,
-      credentials: "include",
-    });
-    
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to get user threads: ${response.status} - ${error}`);
-    }
-    
-    // Get liked threads from localStorage for client-side verification
-    let likedThreads: string[] = [];
-    try {
-      likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '[]');
-    } catch (err) {
-      console.error('Error parsing liked threads from localStorage:', err);
-    }
-    
-    const data = await response.json();
-    
-    // Log thread data to debug like status
-    console.log(`Received ${data.threads?.length || 0} threads for user ${actualUserId}`);
-    
-    // Check for any thread with is_liked = true
-    if (data.threads && data.threads.length > 0) {
-      const likedCount = data.threads.filter(t => t.is_liked || t.isLiked).length;
-      console.log(`Threads with is_liked=true from API: ${likedCount}`);
-      
-      // Ensure threads have consistent like status from localStorage
-      data.threads = data.threads.map(thread => {
-        // If the thread is in our liked threads localStorage, make sure it shows as liked
-        // This is a failsafe in case the API doesn't return the correct like status
-        if (likedThreads.includes(thread.id)) {
-          return {
-            ...thread,
-            is_liked: true,
-            isLiked: true
-          };
-    }
-        return thread;
-      });
-    }
-    
-    return data;
-    
-  } catch (error) {
-    console.error("Error in getUserThreads:", error);
-    throw error;
-  }
+// Helper function to check if a string is a valid UUID
+function isUuid(str: string): boolean {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(str);
 }
 
-export async function getUserReplies(userId: string, page: number = 1, limit: number = 10) {
+// Helper function to get user ID from username if necessary
+async function resolveUserIdIfNeeded(userId: string): Promise<string> {
   try {
-    const token = getAuthToken();
-    let actualUserId = userId;
-    
+    // Handle special cases
+    if (!userId) {
+      console.warn('Empty userId passed to resolveUserIdIfNeeded');
+      return userId;
+    }
+
+    // Return immediately for me or empty strings
     if (userId === 'me') {
       const currentUserId = getUserId();
-      console.log('Current user ID from auth:', currentUserId);
-      
-      if (!currentUserId) {
-        throw new Error('User ID is required');
-      }
-      actualUserId = currentUserId;
+      console.log(`Using current user ID (${currentUserId || 'unknown'}) for 'me'`);
+      return currentUserId || userId;
     }
     
-    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/replies?page=${page}&limit=${limit}`;
-    console.log(`Making request to: ${endpoint}`);
+    // Return if already a valid UUID
+    if (isUuid(userId)) {
+      return userId;
+    }
     
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: "include"
-    });
+    console.log(`Resolving username to ID: ${userId}`);
     
-    if (!response.ok) {
-      if (response.status === 400) {
-        let errorMessage = `Bad request when getting user replies`;
+    // Check cache first to avoid unnecessary API calls
+    const cacheKey = `username_to_id_${userId}`;
+    const cachedId = localStorage.getItem(cacheKey);
+    
+    if (cachedId) {
+      try {
+        const { id, timestamp } = JSON.parse(cachedId);
+        // Cache username lookup for 1 hour
+        if (Date.now() - timestamp < 3600000) {
+          console.log(`Using cached user ID for username ${userId}: ${id}`);
+          return id;
+        } else {
+          console.log(`Cached user ID for ${userId} expired, fetching fresh data`);
+        }
+      } catch (error) {
+        console.warn(`Error parsing cached user ID for ${userId}:`, error);
+        // Continue with API call if cache is invalid
+      }
+    }
+    
+    // No valid cache, make API call
+    const token = getAuthToken();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+    
+    // Using encodeURIComponent to safely handle usernames with special characters
+    const encodedUsername = encodeURIComponent(userId);
+    console.log(`Making API request to resolve username ${userId} to ID`);
+    
+    // Improved error handling with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/username/${encodedUsername}`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Handle specific status codes
+      if (response.status === 404) {
+        console.error(`Username ${userId} not found`);
+        throw new Error(`User "${userId}" not found`);
+      }
+      
+      if (!response.ok) {
+        console.error(`Failed to get user by username: ${response.status}`);
+        
+        // Try to get details from error response
+        let errorMessage = `Failed to resolve username: ${response.status}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-          console.error("API error response:", errorData);
+          if (errorData.message) {
+            errorMessage += ` - ${errorData.message}`;
+          }
         } catch (parseError) {
-          console.error("Could not parse error response:", parseError);
+          // Couldn't parse error response, use default message
         }
+        
         throw new Error(errorMessage);
       }
-      throw new Error(`Failed to get user replies: ${response.status}`);
+      
+      const data = await response.json();
+      
+      if (data && data.user && data.user.id) {
+        // Cache the resolved ID
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            id: data.user.id,
+            timestamp: Date.now()
+          }));
+          console.log(`Successfully resolved and cached username ${userId} to ID ${data.user.id}`);
+        } catch (error) {
+          // Continue even if caching fails
+          console.warn(`Error caching user ID for ${userId}:`, error);
+        }
+        
+        return data.user.id;
+      }
+      
+      console.warn(`User ID not found in response for username ${userId}`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.error(`Username resolution timed out for ${userId}`);
+        throw new Error(`Request timed out while resolving username. Please try again.`);
+      }
+      
+      console.error(`Error resolving user ID from username ${userId}:`, error);
+      // If we failed to resolve, just return the original userId as fallback
     }
     
-    return await response.json();
-  } catch (err) {
-    console.error('Error getting user replies:', err);
-    throw err;
+    return userId; // Return original value as fallback
+  } catch (error) {
+    console.error(`Error in resolveUserIdIfNeeded: ${error}`);
+    return userId; // Always return something to avoid breaking the UI
   }
 }
 
-export async function getUserLikedThreads(userId: string, page: number = 1, limit: number = 10) {
+// User thread functions
+
+export const getUserThreads = async (userId: string, page = 1, limit = 10): Promise<any> => {
+  try {
+    const resolvedUserId = await resolveUserIdIfNeeded(userId);
+    console.log(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+    
+    const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to get user threads: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        console.error('Error getting user threads:', errorData);
+        if (errorData.message) {
+          errorMessage += ` - ${errorData.message}`;
+        }
+      } catch (parseError) {
+        console.error('Could not parse error response:', parseError);
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error in getUserThreads:', error);
+    throw error;
+  }
+};
+
+export const getUserReplies = async (userId: string, page = 1, limit = 10): Promise<any> => {
+  try {
+    const resolvedUserId = await resolveUserIdIfNeeded(userId);
+    console.log(`Fetching replies for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+    
+    const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/replies?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to get user replies: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        console.error('Error getting user replies:', errorData);
+        if (errorData.message) {
+          errorMessage += ` - ${errorData.message}`;
+        }
+      } catch (parseError) {
+        console.error('Could not parse error response:', parseError);
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting user replies:', error);
+    throw error;
+  }
+};
+
+export const getUserLikedThreads = async (userId: string, page: number = 1, limit: number = 10) => {
   try {
     const token = getAuthToken();
     let actualUserId = userId;
@@ -1386,58 +1458,41 @@ export async function getUserLikedThreads(userId: string, page: number = 1, limi
     console.error('Error getting user liked threads:', err);
     throw err;
   }
-}
+};
 
-export async function getUserMedia(userId: string, page: number = 1, limit: number = 10) {
+export const getUserMedia = async (userId: string, page = 1, limit = 10): Promise<any> => {
   try {
-    const token = getAuthToken();
-    let actualUserId = userId;
+    const resolvedUserId = await resolveUserIdIfNeeded(userId);
+    console.log(`Fetching media for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
     
-    // If 'me' is specified, get the actual user ID
-    if (userId === 'me') {
-      const currentUserId = getUserId();
-      console.log('Current user ID from auth:', currentUserId);
-      
-      if (!currentUserId) {
-        throw new Error('User ID is required');
-      }
-      actualUserId = currentUserId;
-    }
-    
-    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/media?page=${page}&limit=${limit}`;
-    console.log(`Making request to: ${endpoint}`);
-    
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/media?page=${page}&limit=${limit}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: "include"
-    });
-    
-    if (!response.ok) {
-      // Handle different error types
-      if (response.status === 400) {
-        let errorMessage = `Bad request when getting user media`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-          console.error("API error response:", errorData);
-        } catch (parseError) {
-          console.error("Could not parse error response:", parseError);
-        }
-        throw new Error(errorMessage);
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
       }
-      throw new Error(`Failed to get user media: ${response.status}`);
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to get user media: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        console.error('Error getting user media:', errorData);
+        if (errorData.message) {
+          errorMessage += ` - ${errorData.message}`;
+        }
+      } catch (parseError) {
+        console.error('Could not parse error response:', parseError);
+      }
+      throw new Error(errorMessage);
     }
-    
+
     return await response.json();
-  } catch (err) {
-    console.error('Error getting user media:', err);
-    throw err;
+  } catch (error) {
+    console.error('Error getting user media:', error);
+    throw error;
   }
-}
+};
 
 // Bookmarks API functions
 export async function getUserBookmarks(page = 1, limit = 20) {

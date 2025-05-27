@@ -14,6 +14,7 @@ import (
 	threadProto "aycom/backend/proto/thread"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -104,7 +105,6 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
-	// Extract user ID from context if available
 	userIDAny, exists := c.Get("userId")
 	var userID string
 	if exists {
@@ -145,7 +145,6 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
-	// Create response with additional fields
 	response := gin.H{
 		"id":              thread.ID,
 		"content":         thread.Content,
@@ -164,7 +163,6 @@ func GetThread(c *gin.Context) {
 		"profile_picture": thread.ProfilePicture,
 	}
 
-	// Add media if available
 	if len(thread.Media) > 0 {
 		mediaResponse := make([]map[string]interface{}, len(thread.Media))
 		for i, m := range thread.Media {
@@ -177,7 +175,6 @@ func GetThread(c *gin.Context) {
 		response["media"] = mediaResponse
 	}
 
-	// Log bookmark status for debugging
 	log.Printf("Thread %s bookmark status for user %s: %v", threadID, userID, thread.IsBookmarked)
 
 	c.JSON(http.StatusOK, response)
@@ -237,6 +234,38 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
+	// Check if userID is a valid UUID
+	_, uuidErr := uuid.Parse(userID)
+	if uuidErr != nil {
+		// Not a UUID, try to resolve as username
+		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
+
+		if userServiceClient == nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "User service client not initialized",
+				Code:    "SERVICE_UNAVAILABLE",
+			})
+			return
+		}
+
+		user, err := userServiceClient.GetUserByUsername(userID)
+		if err != nil {
+			// Failed to find user by username
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Success: false,
+				Message: fmt.Sprintf("User with username '%s' not found", userID),
+				Code:    "NOT_FOUND",
+			})
+			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
+			return
+		}
+
+		// Use the resolved UUID
+		userID = user.ID
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+	}
+
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -292,12 +321,12 @@ func GetThreadsByUser(c *gin.Context) {
 			"reply_count":    t.RepliesCount,
 			"repost_count":   t.RepostsCount,
 			"bookmark_count": t.BookmarkCount,
-			"view_count":     t.Thread.ViewCount, // For backward compatibility
+			"view_count":     t.Thread.ViewCount,
 			"is_liked":       t.LikedByUser,
 			"is_repost":      t.RepostedByUser,
 			"is_bookmarked":  t.BookmarkedByUser,
 			"is_pinned":      t.Thread.IsPinned != nil && *t.Thread.IsPinned,
-			// Default user values
+
 			"username":            "anonymous",
 			"display_name":        "User",
 			"profile_picture_url": "",
@@ -613,7 +642,6 @@ func UploadThreadMedia(c *gin.Context) {
 	})
 }
 
-// Helper function to safely extract thread data with nil checks
 func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{} {
 	thread := map[string]interface{}{
 		"id":             "",
@@ -631,13 +659,12 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 		"is_repost":      false,
 		"is_bookmarked":  false,
 		"is_pinned":      false,
-		// Default user values
+
 		"username":            "anonymous",
 		"display_name":        "User",
 		"profile_picture_url": "",
 	}
 
-	// Add nil checks for every property
 	if t != nil {
 		if t.Thread != nil {
 			thread["id"] = t.Thread.Id
@@ -659,7 +686,6 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 				thread["is_pinned"] = *t.Thread.IsPinned
 			}
 
-			// Handle media with nil checks
 			if len(t.Thread.Media) > 0 {
 				media := make([]map[string]interface{}, len(t.Thread.Media))
 				for j, m := range t.Thread.Media {
@@ -732,13 +758,12 @@ func GetAllThreads(c *gin.Context) {
 
 	log.Printf("GetAllThreads - page: %d, limit: %d, userID: %s", page, limit, userID)
 
-	// Check if we have a direct client instance
 	if threadServiceClient != nil {
-		// First try using the service client directly
+
 		log.Printf("Attempting to get threads using threadServiceClient")
 		threads, err := threadServiceClient.GetAllThreads(userID, page, limit)
 		if err == nil {
-			// Success, return threads
+
 			log.Printf("Successfully retrieved %d threads using threadServiceClient", len(threads))
 			c.JSON(http.StatusOK, gin.H{
 				"threads": threads,
@@ -747,11 +772,9 @@ func GetAllThreads(c *gin.Context) {
 			return
 		}
 
-		// Log the error but continue to try the connection pool approach
 		log.Printf("Error using threadServiceClient.GetAllThreads: %v", err)
 	}
 
-	// Fall back to using the connection pool
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		log.Printf("Failed to get thread service connection: %v", err)
@@ -769,7 +792,6 @@ func GetAllThreads(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Add user ID to the context metadata for authentication
 	if userID != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
 	}
@@ -803,10 +825,9 @@ func GetAllThreads(c *gin.Context) {
 
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
-		// Log the type of t for debugging
+
 		log.Printf("Thread %d type: %T", i, t)
 
-		// Use the safe extraction helper to prevent panics
 		threads[i] = safeExtractThreadData(t)
 	}
 
@@ -880,6 +901,38 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
+	// Check if userID is a valid UUID
+	_, uuidErr := uuid.Parse(userID)
+	if uuidErr != nil {
+		// Not a UUID, try to resolve as username
+		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
+
+		if userServiceClient == nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "User service client not initialized",
+				Code:    "SERVICE_UNAVAILABLE",
+			})
+			return
+		}
+
+		user, err := userServiceClient.GetUserByUsername(userID)
+		if err != nil {
+			// Failed to find user by username
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Success: false,
+				Message: fmt.Sprintf("User with username '%s' not found", userID),
+				Code:    "NOT_FOUND",
+			})
+			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
+			return
+		}
+
+		// Use the resolved UUID
+		userID = user.ID
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+	}
+
 	replies, err := threadServiceClient.GetRepliesByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -915,11 +968,11 @@ func GetUserReplies(c *gin.Context) {
 			"like_count":    reply.LikeCount,
 			"is_liked":      reply.IsLiked,
 			"is_bookmarked": reply.IsBookmarked,
-			// Default user values
+
 			"username":            reply.Username,
 			"display_name":        reply.DisplayName,
 			"profile_picture_url": reply.ProfilePicture,
-			"thread_author":       "unknown", // Original thread author
+			"thread_author":       "unknown",
 		}
 
 		if len(reply.Media) > 0 {
@@ -1008,6 +1061,38 @@ func GetUserLikedThreads(c *gin.Context) {
 		return
 	}
 
+	// Check if userID is a valid UUID
+	_, uuidErr := uuid.Parse(userID)
+	if uuidErr != nil {
+		// Not a UUID, try to resolve as username
+		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
+
+		if userServiceClient == nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "User service client not initialized",
+				Code:    "SERVICE_UNAVAILABLE",
+			})
+			return
+		}
+
+		user, err := userServiceClient.GetUserByUsername(userID)
+		if err != nil {
+			// Failed to find user by username
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Success: false,
+				Message: fmt.Sprintf("User with username '%s' not found", userID),
+				Code:    "NOT_FOUND",
+			})
+			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
+			return
+		}
+
+		// Use the resolved UUID
+		userID = user.ID
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+	}
+
 	threads, err := threadServiceClient.GetLikedThreadsByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -1023,7 +1108,7 @@ func GetUserLikedThreads(c *gin.Context) {
 		} else {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Success: false,
-				Message: "Failed to get liked threads: " + err.Error(),
+				Message: "Failed to get user liked threads: " + err.Error(),
 				Code:    "INTERNAL_ERROR",
 			})
 		}
@@ -1032,21 +1117,19 @@ func GetUserLikedThreads(c *gin.Context) {
 
 	threadItems := make([]map[string]interface{}, len(threads))
 	for i, thread := range threads {
-		threadItem := map[string]interface{}{
-			"id":            thread.ID,
-			"thread_id":     thread.ID,
-			"content":       thread.Content,
-			"user_id":       thread.UserID,
-			"created_at":    thread.CreatedAt,
-			"updated_at":    thread.UpdatedAt,
-			"like_count":    thread.LikeCount,
-			"reply_count":   thread.ReplyCount,
-			"repost_count":  thread.RepostCount,
-			"is_liked":      true, // Since these are liked threads
-			"is_repost":     thread.IsReposted,
-			"is_bookmarked": thread.IsBookmarked,
-			"is_pinned":     thread.IsPinned,
-			// User data
+		threadItems[i] = map[string]interface{}{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"user_id":             thread.UserID,
+			"thread_id":           thread.ID,
+			"created_at":          thread.CreatedAt,
+			"updated_at":          thread.UpdatedAt,
+			"like_count":          thread.LikeCount,
+			"reply_count":         thread.ReplyCount,
+			"repost_count":        thread.RepostCount,
+			"is_liked":            thread.IsLiked,
+			"is_repost":           thread.IsReposted,
+			"is_bookmarked":       thread.IsBookmarked,
 			"username":            thread.Username,
 			"display_name":        thread.DisplayName,
 			"profile_picture_url": thread.ProfilePicture,
@@ -1061,12 +1144,10 @@ func GetUserLikedThreads(c *gin.Context) {
 					"url":  m.URL,
 				}
 			}
-			threadItem["media"] = media
+			threadItems[i]["media"] = media
 		} else {
-			threadItem["media"] = []interface{}{}
+			threadItems[i]["media"] = []interface{}{}
 		}
-
-		threadItems[i] = threadItem
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1138,6 +1219,38 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
+	// Check if userID is a valid UUID
+	_, uuidErr := uuid.Parse(userID)
+	if uuidErr != nil {
+		// Not a UUID, try to resolve as username
+		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
+
+		if userServiceClient == nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Success: false,
+				Message: "User service client not initialized",
+				Code:    "SERVICE_UNAVAILABLE",
+			})
+			return
+		}
+
+		user, err := userServiceClient.GetUserByUsername(userID)
+		if err != nil {
+			// Failed to find user by username
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Success: false,
+				Message: fmt.Sprintf("User with username '%s' not found", userID),
+				Code:    "NOT_FOUND",
+			})
+			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
+			return
+		}
+
+		// Use the resolved UUID
+		userID = user.ID
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+	}
+
 	mediaItems, err := threadServiceClient.GetMediaByUser(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
@@ -1164,7 +1277,7 @@ func GetUserMedia(c *gin.Context) {
 	for i, m := range mediaItems {
 		mediaResponse[i] = map[string]interface{}{
 			"id":        m.ID,
-			"thread_id": m.Thumbnail, // Use the thumbnail field to store thread_id
+			"thread_id": m.Thumbnail,
 			"url":       m.URL,
 			"type":      m.Type,
 		}
@@ -1320,7 +1433,6 @@ func BookmarkThreadHandler(c *gin.Context) {
 
 	log.Printf("BookmarkThreadHandler: Request received - threadID=%s, userID=%s", threadID, userIDStr)
 
-	// Check if thread service client is initialized
 	if threadServiceClient == nil {
 		log.Printf("BookmarkThreadHandler: Thread service client is nil")
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1330,13 +1442,11 @@ func BookmarkThreadHandler(c *gin.Context) {
 		return
 	}
 
-	// Attempt to bookmark the thread
 	log.Printf("BookmarkThreadHandler: Calling threadServiceClient.BookmarkThread")
 	err := threadServiceClient.BookmarkThread(threadID, userIDStr)
 	if err != nil {
 		log.Printf("BookmarkThreadHandler: Error from thread service: %v", err)
 
-		// Check for specific error types and return appropriate status codes
 		if strings.Contains(err.Error(), "not found") {
 			c.JSON(http.StatusNotFound, gin.H{
 				"success": false,
@@ -1362,7 +1472,6 @@ func BookmarkThreadHandler(c *gin.Context) {
 
 	log.Printf("BookmarkThreadHandler: Successfully bookmarked thread %s for user %s", threadID, userIDStr)
 
-	// After bookmarking, let's verify the thread really got bookmarked
 	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
 	if err == nil && thread != nil {
 		log.Printf("BookmarkThreadHandler: Verification - Thread %s for user %s: bookmark status is now %v",
@@ -1379,16 +1488,14 @@ func BookmarkThreadHandler(c *gin.Context) {
 	})
 }
 
-// UpdateThreadMediaURLsHandler updates a thread with media URLs from Supabase
 func UpdateThreadMediaURLsHandler(c *gin.Context) {
-	// Get thread ID from URL
+
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
 		return
 	}
 
-	// Get authenticated user ID
 	userIdValue, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -1401,7 +1508,6 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		return
 	}
 
-	// Parse request body
 	var req struct {
 		MediaUrls []string `json:"mediaUrls"`
 	}
@@ -1411,7 +1517,6 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate all URLs are from Supabase
 	for _, url := range req.MediaUrls {
 		if !strings.Contains(url, ".supabase.co") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
@@ -1419,15 +1524,12 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		}
 	}
 
-	// Get thread service client
 	threadClient := GetThreadServiceClient()
 	if threadClient == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Thread service unavailable"})
 		return
 	}
 
-	// Update thread with new media URLs
-	// Since UpdateThreadMedia might not exist yet, we'll use UpdateThread as a fallback
 	updatedThread, err := threadClient.UpdateThread(threadID, userID, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update thread media: %v", err)})

@@ -1,11 +1,12 @@
 package service
 
 import (
-	"aycom/backend/services/community/model"
-	"aycom/backend/services/community/repository"
 	"context"
 
 	"github.com/google/uuid"
+
+	"aycom/backend/services/community/model"
+	"aycom/backend/services/community/repository"
 )
 
 type CommunityService interface {
@@ -20,7 +21,6 @@ type CommunityService interface {
 	ListUserCommunities(ctx context.Context, userID uuid.UUID, status string, offset, limit int) ([]*model.Community, int64, error)
 	CountCommunities(ctx context.Context) (int64, error)
 
-	// Category methods
 	CreateCategory(ctx context.Context, category *model.Category) error
 	GetCategoryByID(ctx context.Context, categoryID uuid.UUID) (*model.Category, error)
 	GetCategoryByName(ctx context.Context, name string) (*model.Category, error)
@@ -101,7 +101,6 @@ func (s *communityService) CountCommunities(ctx context.Context) (int64, error) 
 	return s.communityRepo.CountAll()
 }
 
-// Category methods
 func (s *communityService) CreateCategory(ctx context.Context, category *model.Category) error {
 	return s.categoryRepo.Create(category)
 }

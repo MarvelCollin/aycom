@@ -1,14 +1,14 @@
 package repository
 
 import (
-	"aycom/backend/services/community/model"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"aycom/backend/services/community/model"
 )
 
-// ParticipantModel represents a chat participant in the database
 type ParticipantModel struct {
 	ChatID   uuid.UUID `gorm:"type:uuid;primaryKey;column:chat_id"`
 	UserID   uuid.UUID `gorm:"type:uuid;primaryKey;column:user_id"`
@@ -16,22 +16,18 @@ type ParticipantModel struct {
 	JoinedAt time.Time `gorm:"default:now();not null;column:joined_at"`
 }
 
-// TableName sets the table name for the chat participant model
 func (ParticipantModel) TableName() string {
 	return "chat_participants"
 }
 
-// GormParticipantRepository implements model.ParticipantRepository
 type GormParticipantRepository struct {
 	db *gorm.DB
 }
 
-// NewParticipantRepository creates a new participant repository
 func NewParticipantRepository(db *gorm.DB) model.ParticipantRepository {
 	return &GormParticipantRepository{db: db}
 }
 
-// AddParticipant adds a participant to a chat
 func (r *GormParticipantRepository) AddParticipant(participant *model.ParticipantDTO) error {
 	chatUUID, err := uuid.Parse(participant.ChatID)
 	if err != nil {
@@ -52,7 +48,6 @@ func (r *GormParticipantRepository) AddParticipant(participant *model.Participan
 	return r.db.Create(dbParticipant).Error
 }
 
-// RemoveParticipant removes a participant from a chat
 func (r *GormParticipantRepository) RemoveParticipant(chatID, userID string) error {
 	chatUUID, err := uuid.Parse(chatID)
 	if err != nil {
@@ -67,7 +62,6 @@ func (r *GormParticipantRepository) RemoveParticipant(chatID, userID string) err
 	return r.db.Delete(&ParticipantModel{}, "chat_id = ? AND user_id = ?", chatUUID, userUUID).Error
 }
 
-// ListParticipantsByChatID lists all participants in a chat
 func (r *GormParticipantRepository) ListParticipantsByChatID(chatID string, limit, offset int) ([]*model.ParticipantDTO, error) {
 	chatUUID, err := uuid.Parse(chatID)
 	if err != nil {
@@ -96,7 +90,6 @@ func (r *GormParticipantRepository) ListParticipantsByChatID(chatID string, limi
 	return participants, nil
 }
 
-// IsUserInChat checks if a user is in a chat
 func (r *GormParticipantRepository) IsUserInChat(chatID, userID string) (bool, error) {
 	chatUUID, err := uuid.Parse(chatID)
 	if err != nil {

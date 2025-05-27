@@ -29,18 +29,11 @@ const (
 // AuthServiceClient is the client API for AuthService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Auth service definition
 type AuthServiceClient interface {
-	// Login with email and password
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*TokenResponse, error)
-	// Register a new user
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*TokenResponse, error)
-	// Validate token
 	ValidateToken(ctx context.Context, in *ValidateRequest, opts ...grpc.CallOption) (*ValidateResponse, error)
-	// Refresh access token using refresh token
 	RefreshToken(ctx context.Context, in *RefreshRequest, opts ...grpc.CallOption) (*TokenResponse, error)
-	// Logout and invalidate tokens
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 }
 
@@ -105,18 +98,11 @@ func (c *authServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts 
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
-//
-// Auth service definition
 type AuthServiceServer interface {
-	// Login with email and password
 	Login(context.Context, *LoginRequest) (*TokenResponse, error)
-	// Register a new user
 	Register(context.Context, *RegisterRequest) (*TokenResponse, error)
-	// Validate token
 	ValidateToken(context.Context, *ValidateRequest) (*ValidateResponse, error)
-	// Refresh access token using refresh token
 	RefreshToken(context.Context, *RefreshRequest) (*TokenResponse, error)
-	// Logout and invalidate tokens
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }

@@ -63,10 +63,7 @@ const (
 // CommunityServiceClient is the client API for CommunityService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Community service definition
 type CommunityServiceClient interface {
-	// Community management
 	CreateCommunity(ctx context.Context, in *CreateCommunityRequest, opts ...grpc.CallOption) (*CommunityResponse, error)
 	UpdateCommunity(ctx context.Context, in *UpdateCommunityRequest, opts ...grpc.CallOption) (*CommunityResponse, error)
 	ApproveCommunity(ctx context.Context, in *ApproveCommunityRequest, opts ...grpc.CallOption) (*CommunityResponse, error)
@@ -75,7 +72,6 @@ type CommunityServiceClient interface {
 	ListCommunities(ctx context.Context, in *ListCommunitiesRequest, opts ...grpc.CallOption) (*ListCommunitiesResponse, error)
 	SearchCommunities(ctx context.Context, in *SearchCommunitiesRequest, opts ...grpc.CallOption) (*ListCommunitiesResponse, error)
 	ListUserCommunities(ctx context.Context, in *ListUserCommunitiesRequest, opts ...grpc.CallOption) (*ListCommunitiesResponse, error)
-	// Category management
 	CreateCategory(ctx context.Context, in *CreateCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	UpdateCategory(ctx context.Context, in *UpdateCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	DeleteCategory(ctx context.Context, in *DeleteCategoryRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
@@ -84,29 +80,24 @@ type CommunityServiceClient interface {
 	AddCommunityToCategory(ctx context.Context, in *AddCommunityToCategoryRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	RemoveCommunityFromCategory(ctx context.Context, in *RemoveCommunityFromCategoryRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	GetCommunityCategoriesById(ctx context.Context, in *GetCommunityCategoriesByIdRequest, opts ...grpc.CallOption) (*ListCategoriesResponse, error)
-	// Member management
 	AddMember(ctx context.Context, in *AddMemberRequest, opts ...grpc.CallOption) (*MemberResponse, error)
 	RemoveMember(ctx context.Context, in *RemoveMemberRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	ListMembers(ctx context.Context, in *ListMembersRequest, opts ...grpc.CallOption) (*ListMembersResponse, error)
 	UpdateMemberRole(ctx context.Context, in *UpdateMemberRoleRequest, opts ...grpc.CallOption) (*MemberResponse, error)
-	// Community rules
 	AddRule(ctx context.Context, in *AddRuleRequest, opts ...grpc.CallOption) (*RuleResponse, error)
 	RemoveRule(ctx context.Context, in *RemoveRuleRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	ListRules(ctx context.Context, in *ListRulesRequest, opts ...grpc.CallOption) (*ListRulesResponse, error)
-	// Join requests
 	RequestToJoin(ctx context.Context, in *RequestToJoinRequest, opts ...grpc.CallOption) (*JoinRequestResponse, error)
 	ApproveJoinRequest(ctx context.Context, in *ApproveJoinRequestRequest, opts ...grpc.CallOption) (*JoinRequestResponse, error)
 	RejectJoinRequest(ctx context.Context, in *RejectJoinRequestRequest, opts ...grpc.CallOption) (*JoinRequestResponse, error)
 	ListJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (*ListJoinRequestsResponse, error)
 	IsMember(ctx context.Context, in *IsMemberRequest, opts ...grpc.CallOption) (*IsMemberResponse, error)
 	HasPendingJoinRequest(ctx context.Context, in *HasPendingJoinRequestRequest, opts ...grpc.CallOption) (*HasPendingJoinRequestResponse, error)
-	// Chat
 	CreateChat(ctx context.Context, in *CreateChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
 	AddChatParticipant(ctx context.Context, in *AddChatParticipantRequest, opts ...grpc.CallOption) (*ChatParticipantResponse, error)
 	RemoveChatParticipant(ctx context.Context, in *RemoveChatParticipantRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	ListChats(ctx context.Context, in *ListChatsRequest, opts ...grpc.CallOption) (*ListChatsResponse, error)
 	ListChatParticipants(ctx context.Context, in *ListChatParticipantsRequest, opts ...grpc.CallOption) (*ListChatParticipantsResponse, error)
-	// Messages
 	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*MessageResponse, error)
 	DeleteMessage(ctx context.Context, in *DeleteMessageRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	UnsendMessage(ctx context.Context, in *UnsendMessageRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
@@ -515,10 +506,7 @@ func (c *communityServiceClient) SearchMessages(ctx context.Context, in *SearchM
 // CommunityServiceServer is the server API for CommunityService service.
 // All implementations must embed UnimplementedCommunityServiceServer
 // for forward compatibility.
-//
-// Community service definition
 type CommunityServiceServer interface {
-	// Community management
 	CreateCommunity(context.Context, *CreateCommunityRequest) (*CommunityResponse, error)
 	UpdateCommunity(context.Context, *UpdateCommunityRequest) (*CommunityResponse, error)
 	ApproveCommunity(context.Context, *ApproveCommunityRequest) (*CommunityResponse, error)
@@ -527,7 +515,6 @@ type CommunityServiceServer interface {
 	ListCommunities(context.Context, *ListCommunitiesRequest) (*ListCommunitiesResponse, error)
 	SearchCommunities(context.Context, *SearchCommunitiesRequest) (*ListCommunitiesResponse, error)
 	ListUserCommunities(context.Context, *ListUserCommunitiesRequest) (*ListCommunitiesResponse, error)
-	// Category management
 	CreateCategory(context.Context, *CreateCategoryRequest) (*CategoryResponse, error)
 	UpdateCategory(context.Context, *UpdateCategoryRequest) (*CategoryResponse, error)
 	DeleteCategory(context.Context, *DeleteCategoryRequest) (*EmptyResponse, error)
@@ -536,29 +523,24 @@ type CommunityServiceServer interface {
 	AddCommunityToCategory(context.Context, *AddCommunityToCategoryRequest) (*EmptyResponse, error)
 	RemoveCommunityFromCategory(context.Context, *RemoveCommunityFromCategoryRequest) (*EmptyResponse, error)
 	GetCommunityCategoriesById(context.Context, *GetCommunityCategoriesByIdRequest) (*ListCategoriesResponse, error)
-	// Member management
 	AddMember(context.Context, *AddMemberRequest) (*MemberResponse, error)
 	RemoveMember(context.Context, *RemoveMemberRequest) (*EmptyResponse, error)
 	ListMembers(context.Context, *ListMembersRequest) (*ListMembersResponse, error)
 	UpdateMemberRole(context.Context, *UpdateMemberRoleRequest) (*MemberResponse, error)
-	// Community rules
 	AddRule(context.Context, *AddRuleRequest) (*RuleResponse, error)
 	RemoveRule(context.Context, *RemoveRuleRequest) (*EmptyResponse, error)
 	ListRules(context.Context, *ListRulesRequest) (*ListRulesResponse, error)
-	// Join requests
 	RequestToJoin(context.Context, *RequestToJoinRequest) (*JoinRequestResponse, error)
 	ApproveJoinRequest(context.Context, *ApproveJoinRequestRequest) (*JoinRequestResponse, error)
 	RejectJoinRequest(context.Context, *RejectJoinRequestRequest) (*JoinRequestResponse, error)
 	ListJoinRequests(context.Context, *ListJoinRequestsRequest) (*ListJoinRequestsResponse, error)
 	IsMember(context.Context, *IsMemberRequest) (*IsMemberResponse, error)
 	HasPendingJoinRequest(context.Context, *HasPendingJoinRequestRequest) (*HasPendingJoinRequestResponse, error)
-	// Chat
 	CreateChat(context.Context, *CreateChatRequest) (*ChatResponse, error)
 	AddChatParticipant(context.Context, *AddChatParticipantRequest) (*ChatParticipantResponse, error)
 	RemoveChatParticipant(context.Context, *RemoveChatParticipantRequest) (*EmptyResponse, error)
 	ListChats(context.Context, *ListChatsRequest) (*ListChatsResponse, error)
 	ListChatParticipants(context.Context, *ListChatParticipantsRequest) (*ListChatParticipantsResponse, error)
-	// Messages
 	SendMessage(context.Context, *SendMessageRequest) (*MessageResponse, error)
 	DeleteMessage(context.Context, *DeleteMessageRequest) (*EmptyResponse, error)
 	UnsendMessage(context.Context, *UnsendMessageRequest) (*EmptyResponse, error)

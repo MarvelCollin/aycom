@@ -16,7 +16,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Config for WebSocket parameters
 var WebSocketConfig = struct {
 	MaxMessageSize       int
 	SendBufferSize       int
@@ -31,12 +30,10 @@ var WebSocketConfig = struct {
 	PingInterval:         30 * time.Second,
 }
 
-// SetCommunityServiceClient sets the client for use across handler functions
 func SetCommunityServiceClient(client CommunityServiceClient) {
 	communityServiceClient = client
 }
 
-// ChatMessage represents a message sent over WebSocket
 type ChatMessage struct {
 	Type      string    `json:"type"`
 	Content   string    `json:"content"`
@@ -49,26 +46,23 @@ type ChatMessage struct {
 	IsRead    bool      `json:"is_read,omitempty"`
 }
 
-// HandleCommunityChat handles WebSocket connections for community chat
 func HandleCommunityChat(c *gin.Context) {
-	// Default to anonymous user ID
+
 	userID := "anonymous"
 
-	// First check if user_id is directly provided as a query parameter
-	// This allows for easy connection without authentication (useful for testing)
 	directUserID := c.Query("user_id")
 	if directUserID != "" {
 		userID = directUserID
 		log.Printf("Using directly provided user_id: %s", userID)
 	} else {
-		// If no direct user_id, try to extract from JWT in Authorization header
+
 		token := c.GetHeader("Authorization")
 		if token == "" {
-			// If no Authorization header, try to get token from query parameter
+
 			token = c.Query("token")
 			if token != "" {
 				log.Printf("DEBUG: Got token from query parameter: %s... (length: %d)", token[:min(len(token), 20)]+"...", len(token))
-				// Prepend "Bearer " to match the format expected by the token parser
+
 				token = "Bearer " + token
 				log.Printf("DEBUG: Added Bearer prefix: %s... (length: %d)", token[:min(len(token), 27)]+"...", len(token))
 			} else {
@@ -77,16 +71,14 @@ func HandleCommunityChat(c *gin.Context) {
 		}
 
 		if token != "" && strings.HasPrefix(token, "Bearer ") {
-			// Extract token without "Bearer " prefix
+
 			tokenString := token[7:]
 			log.Printf("DEBUG: Parsing token string: %s... (length: %d)", tokenString[:min(len(tokenString), 20)]+"...", len(tokenString))
 
-			// Get JWT secret from common.go
 			jwtSecret := string(GetJWTSecret())
 
-			// Parse token using the v5 JWT library
 			parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-				// Check signing method
+
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 					log.Printf("DEBUG: Unexpected signing method: %v", token.Header["alg"])
 					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -101,14 +93,12 @@ func HandleCommunityChat(c *gin.Context) {
 			}
 
 			if err == nil && parsedToken.Valid {
-				// Extract user ID from claims
+
 				if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
 					log.Printf("DEBUG: Token claims: %+v", claims)
 
-					// In v5, the "user_id" claim is now available as "sub" by default
 					var uid string
 
-					// Try both "user_id" and "sub" claims
 					if userIDFromToken, ok := claims["user_id"].(string); ok {
 						uid = userIDFromToken
 					} else if sub, ok := claims["sub"].(string); ok {
@@ -140,16 +130,14 @@ func HandleCommunityChat(c *gin.Context) {
 
 	log.Printf("WebSocket connection request for chat %s from user %s", chatID, userID)
 
-	// Set up websocket connection
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins in development
+			return true
 		},
 	}
 
-	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("Failed to set websocket upgrade: %v", err)
@@ -158,7 +146,6 @@ func HandleCommunityChat(c *gin.Context) {
 
 	log.Printf("WebSocket connection established for chat %s, user %s", chatID, userID)
 
-	// Create client and register with WebSocket manager
 	wsClient := &Client{
 		ID:         uuid.New().String(),
 		UserID:     userID,
@@ -168,17 +155,13 @@ func HandleCommunityChat(c *gin.Context) {
 		Manager:    GetWebSocketManager(),
 	}
 
-	// Register client with the WebSocket manager
 	manager := GetWebSocketManager()
 	manager.register <- wsClient
 
-	// Start goroutines for reading and writing
 	go communityChatReadPump(wsClient)
 	go communityChatWritePump(wsClient)
 }
 
-// communityChatReadPump reads messages from the WebSocket connection
-// for community chat messages
 func communityChatReadPump(c *Client) {
 	defer func() {
 		c.Manager.unregister <- c
@@ -201,13 +184,12 @@ func communityChatReadPump(c *Client) {
 			break
 		}
 
-		// Process the message with our community chat handler
 		processedMsg, err := ProcessIncomingMessage(message, c.UserID, c.ChatID)
 		if err != nil {
-			// If error, we'll just send the error response back to this client only
+
 			c.Send <- processedMsg
 		} else {
-			// If no error, broadcast the processed message to all clients in the chat room
+
 			c.Manager.broadcast <- BroadcastMessage{
 				ChatID:  c.ChatID,
 				Message: processedMsg,
@@ -217,7 +199,6 @@ func communityChatReadPump(c *Client) {
 	}
 }
 
-// communityChatWritePump writes messages to the WebSocket connection
 func communityChatWritePump(c *Client) {
 	ticker := time.NewTicker(WebSocketConfig.PingInterval)
 	defer func() {
@@ -240,7 +221,6 @@ func communityChatWritePump(c *Client) {
 			}
 			w.Write(message)
 
-			// Add queued chat messages to the current websocket message
 			n := len(c.Send)
 			for i := 0; i < n; i++ {
 				w.Write([]byte{'\n'})
@@ -260,8 +240,6 @@ func communityChatWritePump(c *Client) {
 	}
 }
 
-// ProcessIncomingMessage processes messages received from WebSocket clients
-// and stores them in the database via the Community service gRPC client
 func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, error) {
 	var chatMessage ChatMessage
 	if err := json.Unmarshal(message, &chatMessage); err != nil {
@@ -269,7 +247,6 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 		return createErrorResponse("invalid_format", "Invalid message format"), err
 	}
 
-	// Default to the provided user ID and chat ID if not specified in the message
 	if chatMessage.UserID == "" {
 		chatMessage.UserID = userID
 	}
@@ -277,18 +254,15 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 		chatMessage.ChatID = chatID
 	}
 
-	// Validate that the user ID in the message matches the authenticated user
 	if chatMessage.UserID != userID {
 		log.Printf("User ID mismatch: %s != %s", chatMessage.UserID, userID)
 		return createErrorResponse("unauthorized", "User ID mismatch"), fmt.Errorf("user ID mismatch")
 	}
 
-	// Set timestamp if not provided
 	if chatMessage.Timestamp.IsZero() {
 		chatMessage.Timestamp = time.Now()
 	}
 
-	// Process message based on type
 	var originalID string
 	if chatMessage.MessageID != "" {
 		originalID = chatMessage.MessageID
@@ -311,11 +285,9 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 	}
 }
 
-// processTextMessage handles text messages
 func processTextMessage(message ChatMessage, originalID string) ([]byte, error) {
 	log.Printf("Processing text message from user %s to chat %s: %s", message.UserID, message.ChatID, message.Content)
 
-	// Save the message to the database
 	client := GetCommunityServiceClient()
 	msgID, err := client.SendMessage(
 		message.ChatID,
@@ -340,23 +312,20 @@ func processTextMessage(message ChatMessage, originalID string) ([]byte, error) 
 
 	log.Printf("Message saved with ID: %s (original ID: %s)", msgID, originalID)
 
-	// Update message ID from database
 	message.MessageID = msgID
 
-	// Create response map with all required fields
 	responseMap := map[string]interface{}{
 		"type":       message.Type,
 		"content":    message.Content,
 		"user_id":    message.UserID,
 		"chat_id":    message.ChatID,
-		"timestamp":  message.Timestamp.Unix(), // Convert to Unix timestamp
+		"timestamp":  message.Timestamp.Unix(),
 		"message_id": message.MessageID,
 		"is_edited":  message.IsEdited,
 		"is_deleted": message.IsDeleted,
 		"is_read":    message.IsRead,
 	}
 
-	// Include the original client ID if it was a temporary ID (starts with temp-)
 	if originalID != "" && strings.HasPrefix(originalID, "temp-") {
 		responseMap["original_id"] = originalID
 	}
@@ -370,10 +339,9 @@ func processTextMessage(message ChatMessage, originalID string) ([]byte, error) 
 	return responseMsg, nil
 }
 
-// processTypingIndicator handles typing indicators
 func processTypingIndicator(message ChatMessage) ([]byte, error) {
-	// Just relay the typing indicator, no need to save
-	message.Content = "" // Ensure no content in typing indicators
+
+	message.Content = ""
 	responseMsg, err := json.Marshal(message)
 	if err != nil {
 		return createErrorResponse("server_error", "Failed to process typing indicator"), err
@@ -381,9 +349,8 @@ func processTypingIndicator(message ChatMessage) ([]byte, error) {
 	return responseMsg, nil
 }
 
-// processReadReceipt handles read receipts
 func processReadReceipt(message ChatMessage) ([]byte, error) {
-	// Update the read status in the database
+
 	client := GetCommunityServiceClient()
 	err := client.MarkMessageAsRead(
 		message.ChatID,
@@ -395,7 +362,6 @@ func processReadReceipt(message ChatMessage) ([]byte, error) {
 		return createErrorResponse("server_error", "Failed to mark message as read"), err
 	}
 
-	// Return the read receipt to be broadcast
 	responseMsg, err := json.Marshal(message)
 	if err != nil {
 		return createErrorResponse("server_error", "Failed to process read receipt"), err
@@ -403,9 +369,8 @@ func processReadReceipt(message ChatMessage) ([]byte, error) {
 	return responseMsg, nil
 }
 
-// processEditMessage handles message edits
 func processEditMessage(message ChatMessage) ([]byte, error) {
-	// Call the community service to update the message
+
 	client := GetCommunityServiceClient()
 	err := client.EditMessage(
 		message.ChatID,
@@ -436,9 +401,8 @@ func processEditMessage(message ChatMessage) ([]byte, error) {
 	return responseMsg, nil
 }
 
-// processDeleteMessage handles message deletion
 func processDeleteMessage(message ChatMessage) ([]byte, error) {
-	// Call the community service to delete the message
+
 	client := GetCommunityServiceClient()
 	err := client.DeleteMessage(
 		message.ChatID,
@@ -461,7 +425,7 @@ func processDeleteMessage(message ChatMessage) ([]byte, error) {
 	}
 
 	message.IsDeleted = true
-	message.Content = "" // Remove the content from deleted messages
+	message.Content = ""
 	responseMsg, err := json.Marshal(message)
 	if err != nil {
 		return createErrorResponse("server_error", "Failed to process deletion"), err
@@ -469,7 +433,6 @@ func processDeleteMessage(message ChatMessage) ([]byte, error) {
 	return responseMsg, nil
 }
 
-// createErrorResponse creates a standardized error response
 func createErrorResponse(code, message string) []byte {
 	errorResponse := struct {
 		Type    string `json:"type"`
@@ -485,9 +448,6 @@ func createErrorResponse(code, message string) []byte {
 	return response
 }
 
-// GetJWTSecret is declared in common.go, so we don't need to redeclare it here
-
-// Helper function to get minimum of two values
 func min(a, b int) int {
 	if a < b {
 		return a

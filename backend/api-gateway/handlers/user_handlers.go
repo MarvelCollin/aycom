@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	userProto "aycom/backend/proto/user"
 	"context"
 	"fmt"
 	"log"
@@ -12,14 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"aycom/backend/api-gateway/utils"
-	userProto "aycom/backend/proto/user"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func GetUserProfile(c *gin.Context) {
@@ -47,9 +47,9 @@ func GetUserProfile(c *gin.Context) {
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
-			case 5: // Not found
+			case 5: 
 				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
-			case 16: // Unauthenticated
+			case 16: 
 				SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized to access this profile")
 			default:
 				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve user profile: "+st.Message())
@@ -69,7 +69,7 @@ func GetUserProfile(c *gin.Context) {
 			"email":                 user.Email,
 			"profile_picture_url":   user.ProfilePictureURL,
 			"banner_url":            user.BannerURL,
-			"background_banner_url": user.BannerURL, // For backward compatibility
+			"background_banner_url": user.BannerURL, 
 			"bio":                   user.Bio,
 			"is_verified":           user.IsVerified,
 			"is_admin":              user.IsAdmin,
@@ -102,17 +102,17 @@ func UpdateUserProfile(c *gin.Context) {
 
 	var input struct {
 		Name              string `json:"name"`
-		DisplayName       string `json:"displayName"` // Frontend uses displayName
+		DisplayName       string `json:"displayName"` 
 		Bio               string `json:"bio"`
 		Email             string `json:"email"`
-		DateOfBirth       string `json:"dateOfBirth"` // Frontend uses dateOfBirth (camelCase)
+		DateOfBirth       string `json:"dateOfBirth"` 
 		Gender            string `json:"gender"`
 		ProfilePictureURL string `json:"profile_picture_url"`
-		ProfilePicture    string `json:"profilePicture"` // Alternative name
-		Avatar            string `json:"avatar"`         // Alternative name
+		ProfilePicture    string `json:"profilePicture"` 
+		Avatar            string `json:"avatar"`         
 		BannerURL         string `json:"banner_url"`
-		Banner            string `json:"banner"`           // Alternative name
-		BackgroundBanner  string `json:"backgroundBanner"` // Alternative name
+		Banner            string `json:"banner"`           
+		BackgroundBanner  string `json:"backgroundBanner"` 
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -120,13 +120,11 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Use displayName if name is not provided
 	name := input.Name
 	if name == "" && input.DisplayName != "" {
 		name = input.DisplayName
 	}
 
-	// Check all possible profile picture field names
 	profilePictureURL := input.ProfilePictureURL
 	if profilePictureURL == "" && input.ProfilePicture != "" {
 		profilePictureURL = input.ProfilePicture
@@ -135,7 +133,6 @@ func UpdateUserProfile(c *gin.Context) {
 		profilePictureURL = input.Avatar
 	}
 
-	// Check all possible banner field names
 	bannerURL := input.BannerURL
 	if bannerURL == "" && input.Banner != "" {
 		bannerURL = input.Banner
@@ -159,9 +156,9 @@ func UpdateUserProfile(c *gin.Context) {
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
-			case 5: // Not found
+			case 5: 
 				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
-			case 16: // Unauthenticated
+			case 16: 
 				SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized to update this profile")
 			default:
 				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user profile: "+st.Message())
@@ -181,7 +178,7 @@ func UpdateUserProfile(c *gin.Context) {
 			"email":                 updatedUser.Email,
 			"profile_picture_url":   updatedUser.ProfilePictureURL,
 			"banner_url":            updatedUser.BannerURL,
-			"background_banner_url": updatedUser.BannerURL, // For backward compatibility
+			"background_banner_url": updatedUser.BannerURL, 
 			"bio":                   updatedUser.Bio,
 			"is_verified":           updatedUser.IsVerified,
 			"is_admin":              updatedUser.IsAdmin,
@@ -219,8 +216,6 @@ func RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Basic password validation before sending to backend
-	// This is a fallback only - the full validation is in backend service
 	if len(req.Password) < 8 {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Password must be at least 8 characters"})
 		return
@@ -232,7 +227,7 @@ func RegisterUser(c *gin.Context) {
 	}
 
 	user := &userProto.User{
-		Id:                "", // Let backend generate UUID
+		Id:                "", 
 		Name:              req.Name,
 		Username:          req.Username,
 		Email:             req.Email,
@@ -240,8 +235,8 @@ func RegisterUser(c *gin.Context) {
 		DateOfBirth:       req.DateOfBirth,
 		ProfilePictureUrl: req.ProfilePictureUrl,
 		BannerUrl:         req.BannerUrl,
-		// Map new fields
-		Password:              req.Password, // Send raw password
+
+		Password:              req.Password, 
 		SecurityQuestion:      req.SecurityQuestion,
 		SecurityAnswer:        req.SecurityAnswer,
 		SubscribeToNewsletter: req.SubscribeToNewsletter,
@@ -273,18 +268,6 @@ func RegisterUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Registration successful", "user": resp.User})
 }
 
-// LoginUser handles user login
-// @Summary Login a user
-// @Description Authenticate a user and return tokens
-// @Tags Auth
-// @Accept json
-// @Produce json
-// @Param credentials body models.LoginRequest true "User credentials"
-// @Success 200 {object} models.AuthResponse
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 401 {object} models.ErrorResponse "Invalid credentials"
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/auth/login [post]
 func LoginUser(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email"`
@@ -313,7 +296,6 @@ func LoginUser(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token
 	token, err := generateJWT(loginResp.User.Id)
 	if err != nil {
 		log.Printf("Error generating JWT token: %v", err)
@@ -321,13 +303,11 @@ func LoginUser(c *gin.Context) {
 		return
 	}
 
-	// Get JWT expiry from environment variable or use default
 	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
 	if err != nil || expirySeconds <= 0 {
-		expirySeconds = 3600 // Default to 1 hour if not set or invalid
+		expirySeconds = 3600 
 	}
 
-	// Construct and send the response
 	response := AuthServiceResponse{
 		Success:      true,
 		Message:      "Login successful",
@@ -341,7 +321,6 @@ func LoginUser(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetUserByEmail retrieves a user by email from the User service via gRPC
 func GetUserByEmail(c *gin.Context) {
 	var req struct {
 		Email string `json:"email"`
@@ -375,22 +354,19 @@ func GetUserByEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "user": resp.User})
 }
 
-// generateJWT generates a JSON Web Token for the given userID
 func generateJWT(userID string) (string, error) {
-	// Get JWT expiry from environment variable or use default
+
 	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
 	if err != nil || expirySeconds <= 0 {
-		expirySeconds = 3600 // Default to 1 hour if not set or invalid
+		expirySeconds = 3600 
 	}
 
-	// Create token with claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(time.Duration(expirySeconds) * time.Second).Unix(),
 		"iat":     time.Now().Unix(),
 	})
 
-	// Sign the token with our secret
 	tokenString, err := token.SignedString(GetJWTSecret())
 	if err != nil {
 		return "", err
@@ -399,18 +375,15 @@ func generateJWT(userID string) (string, error) {
 	return tokenString, nil
 }
 
-// GetUserSuggestions returns a list of recommended users
-// This is used for user suggestions and recommendations
 func GetUserSuggestions(c *gin.Context) {
-	// Get limit parameter
-	limit := 10 // Default limit
+
+	limit := 10 
 	if limitParam := c.DefaultQuery("limit", "10"); limitParam != "" {
 		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
 		}
 	}
 
-	// Simply return mock data for all requests to ensure it always works
 	log.Printf("GetUserSuggestions: Providing mock suggestions data (limit=%d)", limit)
 
 	var users []gin.H
@@ -434,15 +407,6 @@ func GetUserSuggestions(c *gin.Context) {
 	})
 }
 
-// CheckUsernameAvailability checks if a username is available
-// @Summary Check username availability
-// @Description Checks if a username is available for registration
-// @Tags Users
-// @Produce json
-// @Param username query string true "Username to check"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
-// @Router /api/v1/users/check-username [get]
 func CheckUsernameAvailability(c *gin.Context) {
 	username := c.Query("username")
 	if username == "" {
@@ -487,19 +451,6 @@ func CheckUsernameAvailability(c *gin.Context) {
 	})
 }
 
-// UploadProfileMedia handles uploading a profile picture or banner image
-// @Summary Upload profile media
-// @Description Upload a profile picture or banner image
-// @Tags Users
-// @Accept multipart/form-data
-// @Produce json
-// @Param file formData file true "Media file to upload"
-// @Param type formData string true "Media type (profile_picture or banner)" Enums(profile_picture, banner)
-// @Success 200 {object} models.MediaUploadResponse
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 401 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/users/media [post]
 func UploadProfileMedia(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -555,7 +506,7 @@ func UploadProfileMedia(c *gin.Context) {
 
 	if mediaType == "profile_picture" {
 		url, err = utils.UploadProfilePicture(fileContent, file.Filename, userIDStr)
-	} else { // banner
+	} else { 
 		url, err = utils.UploadBanner(fileContent, file.Filename, userIDStr)
 	}
 
@@ -574,7 +525,7 @@ func UploadProfileMedia(c *gin.Context) {
 			UserId:            userIDStr,
 			ProfilePictureUrl: url,
 		}
-	} else { // banner
+	} else { 
 		updateRequest = userProto.UpdateUserRequest{
 			UserId:    userIDStr,
 			BannerUrl: url,
@@ -601,9 +552,8 @@ func UploadProfileMedia(c *gin.Context) {
 	})
 }
 
-// GetAllUsers returns a paginated list of all users
 func GetAllUsers(c *gin.Context) {
-	// Get pagination parameters
+
 	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil || page < 1 {
 		page = 1
@@ -613,35 +563,30 @@ func GetAllUsers(c *gin.Context) {
 	if err != nil || limit < 1 {
 		limit = 10
 	}
-	// Cap limit to prevent excessive queries
+
 	if limit > 100 {
 		limit = 100
 	}
 
-	// Get sort parameters
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortOrderStr := c.DefaultQuery("ascending", "false")
-	sortDesc := sortOrderStr != "true" // Invert ascending to get sortDesc
+	sortDesc := sortOrderStr != "true" 
 
-	// Check if user service client is available
 	if UserClient == nil {
 		log.Printf("User service unavailable, using fallback implementation for /users/all endpoint")
 		provideFallbackAllUsersList(c, page, limit)
 		return
 	}
 
-	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Call user service to get all users
 	req := &userProto.GetAllUsersRequest{
 		Page:   int32(page),
 		Limit:  int32(limit),
 		SortBy: sortBy,
 	}
 
-	// Set the sort_desc field using reflection to avoid linter errors
 	reflect.ValueOf(req).Elem().FieldByName("SortDesc").SetBool(sortDesc)
 
 	resp, err := UserClient.GetAllUsers(ctx, req)
@@ -652,7 +597,6 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	// Transform user list to response format
 	users := make([]map[string]interface{}, 0, len(resp.GetUsers()))
 	for _, u := range resp.GetUsers() {
 		users = append(users, map[string]interface{}{
@@ -668,13 +612,11 @@ func GetAllUsers(c *gin.Context) {
 		})
 	}
 
-	// Calculate total pages if needed
 	totalPages := int(1)
 	if resp.GetTotalCount() > 0 && int32(limit) > 0 {
 		totalPages = int((resp.GetTotalCount() + int32(limit) - 1) / int32(limit))
 	}
 
-	// Send successful response
 	c.JSON(http.StatusOK, gin.H{
 		"users":       users,
 		"total_count": resp.GetTotalCount(),
@@ -683,9 +625,8 @@ func GetAllUsers(c *gin.Context) {
 	})
 }
 
-// Provide a fallback list of users when the service is unavailable
 func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
-	// Create a list of dummy users for testing when service is unavailable
+
 	mockUsers := []map[string]interface{}{
 		{
 			"id":              "f47ac10b-58cc-4372-a567-0e02b2c3d479",
@@ -758,7 +699,6 @@ func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
 	log.Printf("Provided %d fallback users for page %d (limit %d)", len(pageUsers), page, limit)
 }
 
-// UpdateProfilePictureURLHandler updates a user's profile picture URL directly
 func UpdateProfilePictureURLHandler(c *gin.Context) {
 	userIdValue, exists := c.Get("userID")
 	if !exists {
@@ -781,13 +721,11 @@ func UpdateProfilePictureURLHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate the URL is from Supabase
 	if !strings.Contains(req.ProfilePictureUrl, ".supabase.co") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
 		return
 	}
 
-	// Update the user's profile with the new URL
 	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "User service unavailable"})
 		return
@@ -810,7 +748,6 @@ func UpdateProfilePictureURLHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.ProfilePictureUrl})
 }
 
-// UpdateBannerURLHandler updates a user's banner URL directly
 func UpdateBannerURLHandler(c *gin.Context) {
 	userIdValue, exists := c.Get("userID")
 	if !exists {
@@ -833,13 +770,11 @@ func UpdateBannerURLHandler(c *gin.Context) {
 		return
 	}
 
-	// Validate the URL is from Supabase
 	if !strings.Contains(req.BannerUrl, ".supabase.co") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
 		return
 	}
 
-	// Update the user's profile with the new URL
 	if UserClient == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "User service unavailable"})
 		return
@@ -862,17 +797,6 @@ func UpdateBannerURLHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.BannerUrl})
 }
 
-// GetUserByUsername handles fetching a user by their username
-// @Summary Get user by username
-// @Description Fetch user details by their username
-// @Tags Users
-// @Accept json
-// @Produce json
-// @Param username path string true "Username"
-// @Success 200 {object} models.UserResponse
-// @Failure 404 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/users/username/{username} [get]
 func GetUserByUsername(c *gin.Context) {
 	username := c.Param("username")
 	if username == "" {
@@ -880,23 +804,20 @@ func GetUserByUsername(c *gin.Context) {
 		return
 	}
 
-	// Get current user ID from JWT token
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		currentUserID = ""
 	}
 	currentUserIDStr := currentUserID.(string)
 
-	// Check if service client is initialized
 	if userServiceClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// Call the service client to get user by username
 	user, err := userServiceClient.GetUserByUsername(username)
 	if err != nil {
-		// Handle errors
+
 		st, ok := status.FromError(err)
 		if ok {
 			code := status.Code(err)
@@ -912,13 +833,11 @@ func GetUserByUsername(c *gin.Context) {
 		return
 	}
 
-	// Check if the user has blocked the current user
 	isUserBlocked, err := userServiceClient.IsUserBlocked(user.ID, currentUserIDStr)
 	if err != nil {
 		log.Printf("Error checking if user is blocked: %v", err)
 	}
 
-	// Check if the current user is following this user
 	isFollowing := false
 	if currentUserIDStr != "" && currentUserIDStr != user.ID {
 		isFollowing, err = userServiceClient.IsFollowing(currentUserIDStr, user.ID)
@@ -927,13 +846,11 @@ func GetUserByUsername(c *gin.Context) {
 		}
 	}
 
-	// Set display_name to name if it's empty or not present
 	displayName := user.DisplayName
 	if displayName == "" {
 		displayName = user.Name
 	}
 
-	// Return user details
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
@@ -954,17 +871,6 @@ func GetUserByUsername(c *gin.Context) {
 	})
 }
 
-// GetUserById handles fetching a user by their ID
-// @Summary Get user by ID
-// @Description Fetch user details by their ID
-// @Tags Users
-// @Accept json
-// @Produce json
-// @Param userId path string true "User ID"
-// @Success 200 {object} models.UserResponse
-// @Failure 404 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/v1/users/{userId} [get]
 func GetUserById(c *gin.Context) {
 	userId := c.Param("userId")
 	if userId == "" {
@@ -974,7 +880,6 @@ func GetUserById(c *gin.Context) {
 
 	log.Printf("GetUserById: Fetching user with ID: %s", userId)
 
-	// Get current user ID from JWT token (if authenticated)
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		currentUserID = ""
@@ -984,20 +889,18 @@ func GetUserById(c *gin.Context) {
 		currentUserIDStr = ""
 	}
 
-	// Check if service client is initialized
 	if userServiceClient == nil {
 		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
-	// Call the service client to get user by ID
 	user, err := userServiceClient.GetUserById(userId)
 	if err != nil {
-		// Try username lookup as fallback if ID lookup fails
+
 		log.Printf("Failed to find user with ID %s, trying as username", userId)
 		user, err = userServiceClient.GetUserByUsername(userId)
 		if err != nil {
-			// Handle errors
+
 			st, ok := status.FromError(err)
 			if ok {
 				code := status.Code(err)
@@ -1014,13 +917,11 @@ func GetUserById(c *gin.Context) {
 		}
 	}
 
-	// Check if the user has blocked the current user
 	isUserBlocked, err := userServiceClient.IsUserBlocked(user.ID, currentUserIDStr)
 	if err != nil {
 		log.Printf("Error checking if user is blocked: %v", err)
 	}
 
-	// Check if the current user is following this user
 	isFollowing := false
 	if currentUserIDStr != "" && currentUserIDStr != user.ID {
 		isFollowing, err = userServiceClient.IsFollowing(currentUserIDStr, user.ID)
@@ -1029,13 +930,11 @@ func GetUserById(c *gin.Context) {
 		}
 	}
 
-	// Set display_name to name if it's empty or not present
 	displayName := user.DisplayName
 	if displayName == "" {
 		displayName = user.Name
 	}
 
-	// Return user details
 	SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
@@ -1056,7 +955,6 @@ func GetUserById(c *gin.Context) {
 	})
 }
 
-// CreateAdminUser handles creation of admin users
 func CreateAdminUser(c *gin.Context) {
 	log.Printf("CreateAdminUser Handler: Processing request")
 
@@ -1080,7 +978,6 @@ func CreateAdminUser(c *gin.Context) {
 		return
 	}
 
-	// Ensure is_admin is set to true
 	if !req.IsAdmin {
 		log.Printf("CreateAdminUser Handler: Attempt to create admin user without is_admin=true")
 		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "is_admin must be set to true for admin user creation")
@@ -1097,7 +994,6 @@ func CreateAdminUser(c *gin.Context) {
 		return
 	}
 
-	// Create user with admin privileges
 	userReq := &userProto.CreateUserRequest{
 		User: &userProto.User{
 			Name:             req.Name,
@@ -1109,7 +1005,7 @@ func CreateAdminUser(c *gin.Context) {
 			SecurityQuestion: req.SecurityQuestion,
 			SecurityAnswer:   req.SecurityAnswer,
 			IsAdmin:          true,
-			IsVerified:       req.IsVerified, // Allow setting verified status for admin users
+			IsVerified:       req.IsVerified, 
 		},
 	}
 
@@ -1137,11 +1033,10 @@ func CreateAdminUser(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token for the new admin user
 	token, err := generateJWT(resp.User.Id)
 	if err != nil {
 		log.Printf("Error generating JWT for new admin user: %v", err)
-		// Continue without token, as user creation was successful
+
 	}
 
 	SendSuccessResponse(c, http.StatusCreated, gin.H{
@@ -1160,11 +1055,9 @@ func CreateAdminUser(c *gin.Context) {
 	})
 }
 
-// UpdateUserAdminStatus handles updating a user's admin status
 func UpdateUserAdminStatus(c *gin.Context) {
 	log.Println("UpdateUserAdminStatus: Starting handler execution")
 
-	// Check if the current user is an admin, but bypass this check for debug requests
 	currentUserIDValue, exists := c.Get("userID")
 	if !exists {
 		log.Println("UpdateUserAdminStatus: No userID in context - unauthorized")
@@ -1173,7 +1066,6 @@ func UpdateUserAdminStatus(c *gin.Context) {
 	}
 	log.Printf("UpdateUserAdminStatus: Request from user ID: %v", currentUserIDValue)
 
-	// Ensure userServiceClient is initialized
 	if userServiceClient == nil {
 		log.Println("Initializing user service client in UpdateUserAdminStatus")
 		InitUserServiceClient(AppConfig)
@@ -1197,7 +1089,6 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		return
 	}
 
-	// Convert IsAdmin to boolean regardless of the input type
 	isAdmin := false
 	switch v := req.IsAdmin.(type) {
 	case bool:
@@ -1219,14 +1110,12 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		return
 	}
 
-	// Check for debug flag in request - simplifying to only use the request body flag
 	isDebugRequest := req.IsDebugRequest
 	log.Printf("UpdateUserAdminStatus: Debug request check - IsDebugRequest: %t", isDebugRequest)
 
-	// Skip admin check if it's a debug request
 	if !isDebugRequest {
 		log.Println("UpdateUserAdminStatus: Not a debug request, checking admin status")
-		// Check if the requester is an admin
+
 		currentUser, err := userServiceClient.GetUserProfile(req.UserID)
 		if err != nil {
 			log.Printf("UpdateUserAdminStatus: Error getting user profile: %v", err)
@@ -1245,7 +1134,6 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		log.Println("Debug request detected - bypassing admin check for admin status update")
 	}
 
-	// Update the target user's admin status
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -1277,11 +1165,10 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		return
 	}
 
-	// Get updated user data
 	updatedUser, err := userServiceClient.GetUserById(req.UserID)
 	if err != nil {
 		log.Printf("UpdateUserAdminStatus: Error getting updated user data: %v", err)
-		// Continue anyway since the update was successful
+
 	} else {
 		log.Printf("UpdateUserAdminStatus: Updated user returned with IsAdmin=%t", updatedUser.IsAdmin)
 	}

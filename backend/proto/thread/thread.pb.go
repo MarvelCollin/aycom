@@ -23,7 +23,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Thread message
 type Thread struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -164,12 +163,11 @@ func (x *Thread) GetIsAdvertisement() bool {
 	return false
 }
 
-// Media message
 type Media struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"` // "image", "video", etc.
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -225,7 +223,6 @@ func (x *Media) GetType() string {
 	return ""
 }
 
-// Poll message
 type Poll struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -302,7 +299,6 @@ func (x *Poll) GetIsAnonymous() bool {
 	return false
 }
 
-// Poll option message
 type PollOption struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -355,7 +351,6 @@ func (x *PollOption) GetText() string {
 	return ""
 }
 
-// Reply message
 type Reply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -363,7 +358,7 @@ type Reply struct {
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
 	Media         []*Media               `protobuf:"bytes,5,rep,name=media,proto3" json:"media,omitempty"`
-	ParentId      string                 `protobuf:"bytes,6,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // Optional, for replies to replies
+	ParentId      string                 `protobuf:"bytes,6,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	IsPinned      *bool                  `protobuf:"varint,9,opt,name=is_pinned,json=isPinned,proto3,oneof" json:"is_pinned,omitempty"`
@@ -464,7 +459,6 @@ func (x *Reply) GetIsPinned() bool {
 	return false
 }
 
-// CreateThreadRequest message
 type CreateThreadRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -581,7 +575,6 @@ func (x *CreateThreadRequest) GetMentionedUserIds() []string {
 	return nil
 }
 
-// PollRequest message for creating polls
 type PollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      string                 `protobuf:"bytes,1,opt,name=question,proto3" json:"question,omitempty"`
@@ -650,7 +643,6 @@ func (x *PollRequest) GetIsAnonymous() bool {
 	return false
 }
 
-// GetThreadRequest message
 type GetThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -695,7 +687,6 @@ func (x *GetThreadRequest) GetThreadId() string {
 	return ""
 }
 
-// GetThreadsByUserRequest message
 type GetThreadsByUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -756,7 +747,6 @@ func (x *GetThreadsByUserRequest) GetLimit() int32 {
 	return 0
 }
 
-// GetAllThreadsRequest message
 type GetAllThreadsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
@@ -809,7 +799,6 @@ func (x *GetAllThreadsRequest) GetLimit() int32 {
 	return 0
 }
 
-// UpdateThreadRequest message
 type UpdateThreadRequest struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId            string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -918,7 +907,6 @@ func (x *UpdateThreadRequest) GetRemoveHashtags() []string {
 	return nil
 }
 
-// DeleteThreadRequest message
 type DeleteThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -971,14 +959,13 @@ func (x *DeleteThreadRequest) GetUserId() string {
 	return ""
 }
 
-// CreateReplyRequest message
 type CreateReplyRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId         string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
 	UserId           string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Content          string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
 	Media            []*Media               `protobuf:"bytes,4,rep,name=media,proto3" json:"media,omitempty"`
-	ParentId         string                 `protobuf:"bytes,5,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"` // Optional, for replies to replies
+	ParentId         string                 `protobuf:"bytes,5,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	ParentReplyId    *string                `protobuf:"bytes,6,opt,name=parent_reply_id,json=parentReplyId,proto3,oneof" json:"parent_reply_id,omitempty"`
 	MentionedUserIds []string               `protobuf:"bytes,7,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -1064,7 +1051,6 @@ func (x *CreateReplyRequest) GetMentionedUserIds() []string {
 	return nil
 }
 
-// GetRepliesByThreadRequest message
 type GetRepliesByThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1125,7 +1111,6 @@ func (x *GetRepliesByThreadRequest) GetLimit() int32 {
 	return 0
 }
 
-// UpdateReplyRequest message
 type UpdateReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -1202,7 +1187,6 @@ func (x *UpdateReplyRequest) GetIsPinned() bool {
 	return false
 }
 
-// DeleteReplyRequest message
 type DeleteReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -1255,7 +1239,6 @@ func (x *DeleteReplyRequest) GetUserId() string {
 	return ""
 }
 
-// LikeThreadRequest message
 type LikeThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1308,7 +1291,6 @@ func (x *LikeThreadRequest) GetUserId() string {
 	return ""
 }
 
-// UnlikeThreadRequest message
 type UnlikeThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1361,7 +1343,6 @@ func (x *UnlikeThreadRequest) GetUserId() string {
 	return ""
 }
 
-// LikeReplyRequest message
 type LikeReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -1414,7 +1395,6 @@ func (x *LikeReplyRequest) GetUserId() string {
 	return ""
 }
 
-// UnlikeReplyRequest message
 type UnlikeReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -1467,7 +1447,6 @@ func (x *UnlikeReplyRequest) GetUserId() string {
 	return ""
 }
 
-// RepostThreadRequest message
 type RepostThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1528,7 +1507,6 @@ func (x *RepostThreadRequest) GetAddedContent() string {
 	return ""
 }
 
-// RemoveRepostRequest message
 type RemoveRepostRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1581,7 +1559,6 @@ func (x *RemoveRepostRequest) GetUserId() string {
 	return ""
 }
 
-// BookmarkThreadRequest message
 type BookmarkThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1634,7 +1611,6 @@ func (x *BookmarkThreadRequest) GetUserId() string {
 	return ""
 }
 
-// RemoveBookmarkRequest message
 type RemoveBookmarkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1687,7 +1663,6 @@ func (x *RemoveBookmarkRequest) GetUserId() string {
 	return ""
 }
 
-// CreatePollRequest message
 type CreatePollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -1740,7 +1715,6 @@ func (x *CreatePollRequest) GetPoll() *PollRequest {
 	return nil
 }
 
-// VotePollRequest message
 type VotePollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PollId        string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
@@ -1801,7 +1775,6 @@ func (x *VotePollRequest) GetUserId() string {
 	return ""
 }
 
-// GetPollResultsRequest message
 type GetPollResultsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PollId        string                 `protobuf:"bytes,1,opt,name=poll_id,json=pollId,proto3" json:"poll_id,omitempty"`
@@ -1846,7 +1819,6 @@ func (x *GetPollResultsRequest) GetPollId() string {
 	return ""
 }
 
-// ThreadResponse message
 type ThreadResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Thread           *Thread                `protobuf:"bytes,1,opt,name=thread,proto3" json:"thread,omitempty"`
@@ -1987,7 +1959,6 @@ func (x *ThreadResponse) GetBookmarkCount() int64 {
 	return 0
 }
 
-// ThreadsResponse message
 type ThreadsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Threads       []*ThreadResponse      `protobuf:"bytes,1,rep,name=threads,proto3" json:"threads,omitempty"`
@@ -2040,7 +2011,6 @@ func (x *ThreadsResponse) GetTotal() int32 {
 	return 0
 }
 
-// GetRepliesByParentReplyRequest message
 type GetRepliesByParentReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ParentReplyId string                 `protobuf:"bytes,1,opt,name=parent_reply_id,json=parentReplyId,proto3" json:"parent_reply_id,omitempty"`
@@ -2101,7 +2071,6 @@ func (x *GetRepliesByParentReplyRequest) GetLimit() int32 {
 	return 0
 }
 
-// ReplyResponse message
 type ReplyResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Reply            *Reply                 `protobuf:"bytes,1,opt,name=reply,proto3" json:"reply,omitempty"`
@@ -2210,7 +2179,6 @@ func (x *ReplyResponse) GetBookmarkedByUser() bool {
 	return false
 }
 
-// RepliesResponse message
 type RepliesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Replies       []*ReplyResponse       `protobuf:"bytes,1,rep,name=replies,proto3" json:"replies,omitempty"`
@@ -2263,7 +2231,6 @@ func (x *RepliesResponse) GetTotal() int32 {
 	return 0
 }
 
-// PollResponse message
 type PollResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Poll             *Poll                  `protobuf:"bytes,1,opt,name=poll,proto3" json:"poll,omitempty"`
@@ -2340,7 +2307,6 @@ func (x *PollResponse) GetHasEnded() bool {
 	return false
 }
 
-// PollResultsResponse message
 type PollResultsResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Results          []*PollOptionResult    `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
@@ -2409,7 +2375,6 @@ func (x *PollResultsResponse) GetHasEnded() bool {
 	return false
 }
 
-// PollOptionResult message
 type PollOptionResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OptionId      string                 `protobuf:"bytes,1,opt,name=option_id,json=optionId,proto3" json:"option_id,omitempty"`
@@ -2478,7 +2443,6 @@ func (x *PollOptionResult) GetPercentage() float32 {
 	return 0
 }
 
-// User message - minimal info needed for thread/reply display
 type User struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -2555,7 +2519,6 @@ func (x *User) GetIsVerified() bool {
 	return false
 }
 
-// HashtagResponse message
 type HashtagResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -2608,7 +2571,6 @@ func (x *HashtagResponse) GetCount() int64 {
 	return 0
 }
 
-// GetTrendingHashtagsRequest message
 type GetTrendingHashtagsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
@@ -2653,7 +2615,6 @@ func (x *GetTrendingHashtagsRequest) GetLimit() int32 {
 	return 0
 }
 
-// GetTrendingHashtagsResponse message
 type GetTrendingHashtagsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Hashtags      []*HashtagResponse     `protobuf:"bytes,1,rep,name=hashtags,proto3" json:"hashtags,omitempty"`
@@ -2698,7 +2659,6 @@ func (x *GetTrendingHashtagsResponse) GetHashtags() []*HashtagResponse {
 	return nil
 }
 
-// BookmarkReplyRequest message
 type BookmarkReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -2751,7 +2711,6 @@ func (x *BookmarkReplyRequest) GetUserId() string {
 	return ""
 }
 
-// RemoveReplyBookmarkRequest message
 type RemoveReplyBookmarkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -2804,7 +2763,6 @@ func (x *RemoveReplyBookmarkRequest) GetUserId() string {
 	return ""
 }
 
-// PinThreadRequest message
 type PinThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -2857,7 +2815,6 @@ func (x *PinThreadRequest) GetUserId() string {
 	return ""
 }
 
-// UnpinThreadRequest message
 type UnpinThreadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -2910,7 +2867,6 @@ func (x *UnpinThreadRequest) GetUserId() string {
 	return ""
 }
 
-// PinReplyRequest message
 type PinReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -2963,7 +2919,6 @@ func (x *PinReplyRequest) GetUserId() string {
 	return ""
 }
 
-// UnpinReplyRequest message
 type UnpinReplyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplyId       string                 `protobuf:"bytes,1,opt,name=reply_id,json=replyId,proto3" json:"reply_id,omitempty"`
@@ -3016,7 +2971,6 @@ func (x *UnpinReplyRequest) GetUserId() string {
 	return ""
 }
 
-// GetRepliesByUserRequest message
 type GetRepliesByUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -3077,7 +3031,6 @@ func (x *GetRepliesByUserRequest) GetLimit() int32 {
 	return 0
 }
 
-// GetLikedThreadsByUserRequest message
 type GetLikedThreadsByUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -3138,7 +3091,6 @@ func (x *GetLikedThreadsByUserRequest) GetLimit() int32 {
 	return 0
 }
 
-// GetMediaByUserRequest message
 type GetMediaByUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -3199,7 +3151,6 @@ func (x *GetMediaByUserRequest) GetLimit() int32 {
 	return 0
 }
 
-// GetMediaByUserResponse message
 type GetMediaByUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Media         []*MediaItem           `protobuf:"bytes,1,rep,name=media,proto3" json:"media,omitempty"`
@@ -3252,7 +3203,6 @@ func (x *GetMediaByUserResponse) GetTotal() int32 {
 	return 0
 }
 
-// MediaItem message for user media
 type MediaItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`

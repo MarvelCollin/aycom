@@ -9,19 +9,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// CommunitySeeder handles seeding community data
 type CommunitySeeder struct {
 	db *gorm.DB
 }
 
-// NewCommunitySeeder creates a new community seeder
 func NewCommunitySeeder(db *gorm.DB) *CommunitySeeder {
 	return &CommunitySeeder{
 		db: db,
 	}
 }
 
-// SeedAll seeds all community data
 func (s *CommunitySeeder) SeedAll() error {
 	if err := s.SeedCommunities(); err != nil {
 		return err
@@ -35,7 +32,6 @@ func (s *CommunitySeeder) SeedAll() error {
 	return nil
 }
 
-// SeedCommunities seeds community data
 func (s *CommunitySeeder) SeedCommunities() error {
 	var count int64
 	s.db.Table("communities").Count(&count)
@@ -44,26 +40,22 @@ func (s *CommunitySeeder) SeedCommunities() error {
 		return nil
 	}
 
-	// Get user IDs for community creators
 	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
 	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
 	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
 
-	// Get additional users for community creators
 	var additionalUsers []struct {
 		ID       uuid.UUID
 		Username string
 	}
 	s.db.Table("users").Select("id, username").Where("username IN ?", []string{"techguru", "fitnesscoach"}).Find(&additionalUsers)
 
-	// Create a map for easier lookup
 	userMap := make(map[string]uuid.UUID)
 	for _, user := range additionalUsers {
 		userMap[user.Username] = user.ID
 	}
 
-	// Define communities with various creators
 	type Community struct {
 		CommunityID uuid.UUID  `gorm:"type:uuid;primaryKey;column:community_id"`
 		Name        string     `gorm:"type:varchar(100);unique;not null"`
@@ -84,7 +76,7 @@ func (s *CommunitySeeder) SeedCommunities() error {
 			Description: "A community for technology lovers and early adopters. We discuss the latest gadgets, software releases, and tech trends.",
 			LogoURL:     "https://example.com/logos/tech.png",
 			BannerURL:   "https://example.com/banners/tech.png",
-			CreatorID:   userMap["techguru"], // Created by techguru if exists, otherwise by admin
+			CreatorID:   userMap["techguru"], 
 			IsApproved:  true,
 			CreatedAt:   time.Now().Add(-60 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-60 * 24 * time.Hour),
@@ -95,7 +87,7 @@ func (s *CommunitySeeder) SeedCommunities() error {
 			Description: "Join us to discuss fitness routines, health tips, nutrition advice, and wellness strategies.",
 			LogoURL:     "https://example.com/logos/fitness.png",
 			BannerURL:   "https://example.com/banners/fitness.png",
-			CreatorID:   userMap["fitnesscoach"], // Created by fitnesscoach if exists, otherwise by jane
+			CreatorID:   userMap["fitnesscoach"], 
 			IsApproved:  true,
 			CreatedAt:   time.Now().Add(-55 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-55 * 24 * time.Hour),
@@ -168,17 +160,14 @@ func (s *CommunitySeeder) SeedCommunities() error {
 		},
 	}
 
-	// Make sure Tech Enthusiasts has a creator
 	if _, found := userMap["techguru"]; !found {
 		communities[0].CreatorID = adminID
 	}
 
-	// Make sure Fitness & Health has a creator
 	if _, found := userMap["fitnesscoach"]; !found {
 		communities[1].CreatorID = janeID
 	}
 
-	// Insert communities
 	if err := s.db.Table("communities").Create(&communities).Error; err != nil {
 		return fmt.Errorf("failed to create communities: %w", err)
 	}
@@ -187,7 +176,6 @@ func (s *CommunitySeeder) SeedCommunities() error {
 	return nil
 }
 
-// SeedCommunityMembers seeds community members
 func (s *CommunitySeeder) SeedCommunityMembers() error {
 	var count int64
 	s.db.Table("community_members").Count(&count)
@@ -196,13 +184,11 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		return nil
 	}
 
-	// Get all user IDs
 	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
 	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
 	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
 
-	// Get community IDs
 	var communities []struct {
 		CommunityID uuid.UUID
 		Name        string
@@ -210,15 +196,13 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 	}
 	s.db.Table("communities").Select("community_id, name, creator_id").Find(&communities)
 
-	// Create a map for easier lookup
 	communityMap := make(map[string]uuid.UUID)
-	creatorMap := make(map[uuid.UUID]uuid.UUID) // Map from communityID to creatorID
+	creatorMap := make(map[uuid.UUID]uuid.UUID) 
 	for _, community := range communities {
 		communityMap[community.Name] = community.CommunityID
 		creatorMap[community.CommunityID] = community.CreatorID
 	}
 
-	// Define community member struct
 	type CommunityMember struct {
 		ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
 		CommunityID uuid.UUID `gorm:"type:uuid;not null"`
@@ -229,10 +213,8 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		UpdatedAt   time.Time
 	}
 
-	// Create community members
 	members := []CommunityMember{}
 
-	// For each community, add the creator as admin
 	for communityID, creatorID := range creatorMap {
 		members = append(members, CommunityMember{
 			ID:          uuid.New(),
@@ -245,7 +227,6 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		})
 	}
 
-	// Add members to Tech Enthusiasts
 	if techID, ok := communityMap["Tech Enthusiasts"]; ok {
 		members = append(members,
 			CommunityMember{
@@ -269,7 +250,6 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		)
 	}
 
-	// Add members to Fitness & Health
 	if fitnessID, ok := communityMap["Fitness & Health"]; ok {
 		members = append(members,
 			CommunityMember{
@@ -293,7 +273,6 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		)
 	}
 
-	// Add members to Developers Hub
 	if devID, ok := communityMap["Developers Hub"]; ok {
 		members = append(members,
 			CommunityMember{
@@ -317,14 +296,12 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		)
 	}
 
-	// Add members to other communities
 	for _, community := range communities {
-		// Skip the ones we've already added members to
+
 		if community.Name == "Tech Enthusiasts" || community.Name == "Fitness & Health" || community.Name == "Developers Hub" {
 			continue
 		}
 
-		// Add admin and john as members to all other communities
 		members = append(members,
 			CommunityMember{
 				ID:          uuid.New(),
@@ -337,7 +314,6 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 			},
 		)
 
-		// Don't add john as a member if he's already the creator
 		if community.CreatorID != johnID {
 			members = append(members,
 				CommunityMember{
@@ -353,7 +329,6 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 		}
 	}
 
-	// Insert community members
 	if err := s.db.Table("community_members").Create(&members).Error; err != nil {
 		return fmt.Errorf("failed to create community members: %w", err)
 	}
@@ -362,7 +337,6 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 	return nil
 }
 
-// SeedJoinRequests seeds join requests
 func (s *CommunitySeeder) SeedJoinRequests() error {
 	var count int64
 	s.db.Table("community_join_requests").Count(&count)
@@ -371,26 +345,22 @@ func (s *CommunitySeeder) SeedJoinRequests() error {
 		return nil
 	}
 
-	// Get all user IDs
 	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
 	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
 	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
 
-	// Get community IDs
 	var communities []struct {
 		CommunityID uuid.UUID
 		Name        string
 	}
 	s.db.Table("communities").Select("community_id, name").Find(&communities)
 
-	// Create a map for easier lookup
 	communityMap := make(map[string]uuid.UUID)
 	for _, community := range communities {
 		communityMap[community.Name] = community.CommunityID
 	}
 
-	// Define join request struct
 	type CommunityJoinRequest struct {
 		ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
 		CommunityID uuid.UUID `gorm:"type:uuid;not null"`
@@ -401,10 +371,8 @@ func (s *CommunitySeeder) SeedJoinRequests() error {
 		UpdatedAt   time.Time
 	}
 
-	// Create pending join requests
 	requests := []CommunityJoinRequest{}
 
-	// Sam wants to join Tech Enthusiasts
 	if techID, ok := communityMap["Tech Enthusiasts"]; ok {
 		requests = append(requests, CommunityJoinRequest{
 			ID:          uuid.New(),
@@ -417,7 +385,6 @@ func (s *CommunitySeeder) SeedJoinRequests() error {
 		})
 	}
 
-	// Jane wants to join Book Club
 	if bookID, ok := communityMap["Book Club"]; ok {
 		requests = append(requests, CommunityJoinRequest{
 			ID:          uuid.New(),
@@ -430,7 +397,6 @@ func (s *CommunitySeeder) SeedJoinRequests() error {
 		})
 	}
 
-	// Admin wants to join Photography Club
 	if photoID, ok := communityMap["Photography Club"]; ok {
 		requests = append(requests, CommunityJoinRequest{
 			ID:          uuid.New(),
@@ -443,7 +409,6 @@ func (s *CommunitySeeder) SeedJoinRequests() error {
 		})
 	}
 
-	// John wants to join Design Showcase
 	if designID, ok := communityMap["Design Showcase"]; ok {
 		requests = append(requests, CommunityJoinRequest{
 			ID:          uuid.New(),
@@ -456,7 +421,6 @@ func (s *CommunitySeeder) SeedJoinRequests() error {
 		})
 	}
 
-	// Insert join requests
 	if err := s.db.Table("community_join_requests").Create(&requests).Error; err != nil {
 		return fmt.Errorf("failed to create community join requests: %w", err)
 	}

@@ -15,7 +15,7 @@ var DB *gorm.DB
 
 func InitDB() *gorm.DB {
 	var err error
-	// Set up database connection parameters
+
 	host := getEnv("DATABASE_HOST", "community_db")
 	port := getEnv("DATABASE_PORT", "5432")
 	user := getEnv("DATABASE_USER", "kolin")

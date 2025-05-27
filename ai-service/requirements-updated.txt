@@ -1,0 +1,8 @@
+flask==3.0.0
+gunicorn==21.2.0
+numpy==1.24.3
+Flask-Cors==4.0.0
+tensorflow==2.15.0
+werkzeug==3.0.1
+protobuf==4.25.1
+python-dotenv==1.0.0

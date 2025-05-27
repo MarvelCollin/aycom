@@ -28,6 +28,9 @@ const (
 	UserService_GetUserByEmail_FullMethodName               = "/user.UserService/GetUserByEmail"
 	UserService_GetUserByUsername_FullMethodName            = "/user.UserService/GetUserByUsername"
 	UserService_IsUserBlocked_FullMethodName                = "/user.UserService/IsUserBlocked"
+	UserService_BlockUser_FullMethodName                    = "/user.UserService/BlockUser"
+	UserService_UnblockUser_FullMethodName                  = "/user.UserService/UnblockUser"
+	UserService_ReportUser_FullMethodName                   = "/user.UserService/ReportUser"
 	UserService_IsFollowing_FullMethodName                  = "/user.UserService/IsFollowing"
 	UserService_FollowUser_FullMethodName                   = "/user.UserService/FollowUser"
 	UserService_UnfollowUser_FullMethodName                 = "/user.UserService/UnfollowUser"
@@ -61,82 +64,46 @@ const (
 // UserServiceClient is the client API for UserService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// User service definition
 type UserServiceClient interface {
-	// Get user by ID
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
-	// Register a new user
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*CreateUserResponse, error)
-	// Update user information
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
-	// Delete a user
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*DeleteUserResponse, error)
-	// Update user verification status
 	UpdateUserVerificationStatus(ctx context.Context, in *UpdateUserVerificationStatusRequest, opts ...grpc.CallOption) (*UpdateUserVerificationStatusResponse, error)
-	// Authenticate a user
 	LoginUser(ctx context.Context, in *LoginUserRequest, opts ...grpc.CallOption) (*LoginUserResponse, error)
-	// Get user by email
 	GetUserByEmail(ctx context.Context, in *GetUserByEmailRequest, opts ...grpc.CallOption) (*GetUserByEmailResponse, error)
-	// Get user by username
 	GetUserByUsername(ctx context.Context, in *GetUserByUsernameRequest, opts ...grpc.CallOption) (*GetUserByUsernameResponse, error)
-	// Check if user is blocked
 	IsUserBlocked(ctx context.Context, in *IsUserBlockedRequest, opts ...grpc.CallOption) (*IsUserBlockedResponse, error)
-	// Check if user is following another user
+	BlockUser(ctx context.Context, in *BlockUserRequest, opts ...grpc.CallOption) (*BlockUserResponse, error)
+	UnblockUser(ctx context.Context, in *UnblockUserRequest, opts ...grpc.CallOption) (*UnblockUserResponse, error)
+	ReportUser(ctx context.Context, in *ReportUserRequest, opts ...grpc.CallOption) (*ReportUserResponse, error)
 	IsFollowing(ctx context.Context, in *IsFollowingRequest, opts ...grpc.CallOption) (*IsFollowingResponse, error)
-	// Follow a user
 	FollowUser(ctx context.Context, in *FollowUserRequest, opts ...grpc.CallOption) (*FollowUserResponse, error)
-	// Unfollow a user
 	UnfollowUser(ctx context.Context, in *UnfollowUserRequest, opts ...grpc.CallOption) (*UnfollowUserResponse, error)
-	// Get user followers
 	GetFollowers(ctx context.Context, in *GetFollowersRequest, opts ...grpc.CallOption) (*GetFollowersResponse, error)
-	// Get users being followed
 	GetFollowing(ctx context.Context, in *GetFollowingRequest, opts ...grpc.CallOption) (*GetFollowingResponse, error)
-	// Search users
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
-	// Get recommended users (sorted by highest follower count)
 	GetRecommendedUsers(ctx context.Context, in *GetRecommendedUsersRequest, opts ...grpc.CallOption) (*GetRecommendedUsersResponse, error)
-	// Get all users with pagination
 	GetAllUsers(ctx context.Context, in *GetAllUsersRequest, opts ...grpc.CallOption) (*GetAllUsersResponse, error)
-	// Request a password reset
 	RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error)
-	// Verify a reset token
 	VerifyResetToken(ctx context.Context, in *VerifyResetTokenRequest, opts ...grpc.CallOption) (*VerifyResetTokenResponse, error)
-	// Reset password with a valid token
 	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error)
-	// Verify security answer before password reset
 	VerifySecurityAnswer(ctx context.Context, in *VerifySecurityAnswerRequest, opts ...grpc.CallOption) (*VerifySecurityAnswerResponse, error)
-	// Ban or unban a user
 	BanUser(ctx context.Context, in *BanUserRequest, opts ...grpc.CallOption) (*BanUserResponse, error)
-	// Send newsletter to subscribed users
 	SendNewsletter(ctx context.Context, in *SendNewsletterRequest, opts ...grpc.CallOption) (*SendNewsletterResponse, error)
-	// Get community creation requests
 	GetCommunityRequests(ctx context.Context, in *GetCommunityRequestsRequest, opts ...grpc.CallOption) (*GetCommunityRequestsResponse, error)
-	// Process community creation request
 	ProcessCommunityRequest(ctx context.Context, in *ProcessCommunityRequestRequest, opts ...grpc.CallOption) (*ProcessCommunityRequestResponse, error)
-	// Get premium user requests
 	GetPremiumRequests(ctx context.Context, in *GetPremiumRequestsRequest, opts ...grpc.CallOption) (*GetPremiumRequestsResponse, error)
-	// Process premium user request
 	ProcessPremiumRequest(ctx context.Context, in *ProcessPremiumRequestRequest, opts ...grpc.CallOption) (*ProcessPremiumRequestResponse, error)
-	// Get user report requests
 	GetReportRequests(ctx context.Context, in *GetReportRequestsRequest, opts ...grpc.CallOption) (*GetReportRequestsResponse, error)
-	// Process report request
 	ProcessReportRequest(ctx context.Context, in *ProcessReportRequestRequest, opts ...grpc.CallOption) (*ProcessReportRequestResponse, error)
-	// Get thread categories
 	GetThreadCategories(ctx context.Context, in *GetThreadCategoriesRequest, opts ...grpc.CallOption) (*GetThreadCategoriesResponse, error)
-	// Create thread category
 	CreateThreadCategory(ctx context.Context, in *CreateThreadCategoryRequest, opts ...grpc.CallOption) (*CreateThreadCategoryResponse, error)
-	// Update thread category
 	UpdateThreadCategory(ctx context.Context, in *UpdateThreadCategoryRequest, opts ...grpc.CallOption) (*UpdateThreadCategoryResponse, error)
-	// Delete thread category
 	DeleteThreadCategory(ctx context.Context, in *DeleteThreadCategoryRequest, opts ...grpc.CallOption) (*DeleteThreadCategoryResponse, error)
-	// Get community categories
 	GetCommunityCategories(ctx context.Context, in *GetCommunityCategoriesRequest, opts ...grpc.CallOption) (*GetCommunityCategoriesResponse, error)
-	// Create community category
 	CreateCommunityCategory(ctx context.Context, in *CreateCommunityCategoryRequest, opts ...grpc.CallOption) (*CreateCommunityCategoryResponse, error)
-	// Update community category
 	UpdateCommunityCategory(ctx context.Context, in *UpdateCommunityCategoryRequest, opts ...grpc.CallOption) (*UpdateCommunityCategoryResponse, error)
-	// Delete community category
 	DeleteCommunityCategory(ctx context.Context, in *DeleteCommunityCategoryRequest, opts ...grpc.CallOption) (*DeleteCommunityCategoryResponse, error)
 }
 
@@ -232,6 +199,36 @@ func (c *userServiceClient) IsUserBlocked(ctx context.Context, in *IsUserBlocked
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IsUserBlockedResponse)
 	err := c.cc.Invoke(ctx, UserService_IsUserBlocked_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) BlockUser(ctx context.Context, in *BlockUserRequest, opts ...grpc.CallOption) (*BlockUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BlockUserResponse)
+	err := c.cc.Invoke(ctx, UserService_BlockUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UnblockUser(ctx context.Context, in *UnblockUserRequest, opts ...grpc.CallOption) (*UnblockUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnblockUserResponse)
+	err := c.cc.Invoke(ctx, UserService_UnblockUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ReportUser(ctx context.Context, in *ReportUserRequest, opts ...grpc.CallOption) (*ReportUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportUserResponse)
+	err := c.cc.Invoke(ctx, UserService_ReportUser_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -521,82 +518,46 @@ func (c *userServiceClient) DeleteCommunityCategory(ctx context.Context, in *Del
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
-//
-// User service definition
 type UserServiceServer interface {
-	// Get user by ID
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
-	// Register a new user
 	CreateUser(context.Context, *CreateUserRequest) (*CreateUserResponse, error)
-	// Update user information
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
-	// Delete a user
 	DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserResponse, error)
-	// Update user verification status
 	UpdateUserVerificationStatus(context.Context, *UpdateUserVerificationStatusRequest) (*UpdateUserVerificationStatusResponse, error)
-	// Authenticate a user
 	LoginUser(context.Context, *LoginUserRequest) (*LoginUserResponse, error)
-	// Get user by email
 	GetUserByEmail(context.Context, *GetUserByEmailRequest) (*GetUserByEmailResponse, error)
-	// Get user by username
 	GetUserByUsername(context.Context, *GetUserByUsernameRequest) (*GetUserByUsernameResponse, error)
-	// Check if user is blocked
 	IsUserBlocked(context.Context, *IsUserBlockedRequest) (*IsUserBlockedResponse, error)
-	// Check if user is following another user
+	BlockUser(context.Context, *BlockUserRequest) (*BlockUserResponse, error)
+	UnblockUser(context.Context, *UnblockUserRequest) (*UnblockUserResponse, error)
+	ReportUser(context.Context, *ReportUserRequest) (*ReportUserResponse, error)
 	IsFollowing(context.Context, *IsFollowingRequest) (*IsFollowingResponse, error)
-	// Follow a user
 	FollowUser(context.Context, *FollowUserRequest) (*FollowUserResponse, error)
-	// Unfollow a user
 	UnfollowUser(context.Context, *UnfollowUserRequest) (*UnfollowUserResponse, error)
-	// Get user followers
 	GetFollowers(context.Context, *GetFollowersRequest) (*GetFollowersResponse, error)
-	// Get users being followed
 	GetFollowing(context.Context, *GetFollowingRequest) (*GetFollowingResponse, error)
-	// Search users
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
-	// Get recommended users (sorted by highest follower count)
 	GetRecommendedUsers(context.Context, *GetRecommendedUsersRequest) (*GetRecommendedUsersResponse, error)
-	// Get all users with pagination
 	GetAllUsers(context.Context, *GetAllUsersRequest) (*GetAllUsersResponse, error)
-	// Request a password reset
 	RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error)
-	// Verify a reset token
 	VerifyResetToken(context.Context, *VerifyResetTokenRequest) (*VerifyResetTokenResponse, error)
-	// Reset password with a valid token
 	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error)
-	// Verify security answer before password reset
 	VerifySecurityAnswer(context.Context, *VerifySecurityAnswerRequest) (*VerifySecurityAnswerResponse, error)
-	// Ban or unban a user
 	BanUser(context.Context, *BanUserRequest) (*BanUserResponse, error)
-	// Send newsletter to subscribed users
 	SendNewsletter(context.Context, *SendNewsletterRequest) (*SendNewsletterResponse, error)
-	// Get community creation requests
 	GetCommunityRequests(context.Context, *GetCommunityRequestsRequest) (*GetCommunityRequestsResponse, error)
-	// Process community creation request
 	ProcessCommunityRequest(context.Context, *ProcessCommunityRequestRequest) (*ProcessCommunityRequestResponse, error)
-	// Get premium user requests
 	GetPremiumRequests(context.Context, *GetPremiumRequestsRequest) (*GetPremiumRequestsResponse, error)
-	// Process premium user request
 	ProcessPremiumRequest(context.Context, *ProcessPremiumRequestRequest) (*ProcessPremiumRequestResponse, error)
-	// Get user report requests
 	GetReportRequests(context.Context, *GetReportRequestsRequest) (*GetReportRequestsResponse, error)
-	// Process report request
 	ProcessReportRequest(context.Context, *ProcessReportRequestRequest) (*ProcessReportRequestResponse, error)
-	// Get thread categories
 	GetThreadCategories(context.Context, *GetThreadCategoriesRequest) (*GetThreadCategoriesResponse, error)
-	// Create thread category
 	CreateThreadCategory(context.Context, *CreateThreadCategoryRequest) (*CreateThreadCategoryResponse, error)
-	// Update thread category
 	UpdateThreadCategory(context.Context, *UpdateThreadCategoryRequest) (*UpdateThreadCategoryResponse, error)
-	// Delete thread category
 	DeleteThreadCategory(context.Context, *DeleteThreadCategoryRequest) (*DeleteThreadCategoryResponse, error)
-	// Get community categories
 	GetCommunityCategories(context.Context, *GetCommunityCategoriesRequest) (*GetCommunityCategoriesResponse, error)
-	// Create community category
 	CreateCommunityCategory(context.Context, *CreateCommunityCategoryRequest) (*CreateCommunityCategoryResponse, error)
-	// Update community category
 	UpdateCommunityCategory(context.Context, *UpdateCommunityCategoryRequest) (*UpdateCommunityCategoryResponse, error)
-	// Delete community category
 	DeleteCommunityCategory(context.Context, *DeleteCommunityCategoryRequest) (*DeleteCommunityCategoryResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
@@ -634,6 +595,15 @@ func (UnimplementedUserServiceServer) GetUserByUsername(context.Context, *GetUse
 }
 func (UnimplementedUserServiceServer) IsUserBlocked(context.Context, *IsUserBlockedRequest) (*IsUserBlockedResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsUserBlocked not implemented")
+}
+func (UnimplementedUserServiceServer) BlockUser(context.Context, *BlockUserRequest) (*BlockUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockUser not implemented")
+}
+func (UnimplementedUserServiceServer) UnblockUser(context.Context, *UnblockUserRequest) (*UnblockUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnblockUser not implemented")
+}
+func (UnimplementedUserServiceServer) ReportUser(context.Context, *ReportUserRequest) (*ReportUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportUser not implemented")
 }
 func (UnimplementedUserServiceServer) IsFollowing(context.Context, *IsFollowingRequest) (*IsFollowingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsFollowing not implemented")
@@ -898,6 +868,60 @@ func _UserService_IsUserBlocked_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).IsUserBlocked(ctx, req.(*IsUserBlockedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_BlockUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).BlockUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_BlockUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).BlockUser(ctx, req.(*BlockUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UnblockUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnblockUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UnblockUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UnblockUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UnblockUser(ctx, req.(*UnblockUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ReportUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ReportUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ReportUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ReportUser(ctx, req.(*ReportUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1448,6 +1472,18 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsUserBlocked",
 			Handler:    _UserService_IsUserBlocked_Handler,
+		},
+		{
+			MethodName: "BlockUser",
+			Handler:    _UserService_BlockUser_Handler,
+		},
+		{
+			MethodName: "UnblockUser",
+			Handler:    _UserService_UnblockUser_Handler,
+		},
+		{
+			MethodName: "ReportUser",
+			Handler:    _UserService_ReportUser_Handler,
 		},
 		{
 			MethodName: "IsFollowing",

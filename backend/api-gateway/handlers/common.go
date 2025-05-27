@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"aycom/backend/proto/community"
+	"aycom/backend/proto/user"
 	"fmt"
 	"io"
 	"log"
@@ -9,19 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"aycom/backend/api-gateway/config"
-	"aycom/backend/proto/community"
-	"aycom/backend/proto/user"
-
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"aycom/backend/api-gateway/config"
 )
 
-// AppConfig stores the application configuration
 var AppConfig *config.Config
 
-// Connection pools and global variables
 var (
 	threadConnPool     *ConnectionPool
 	UserClient         user.UserServiceClient
@@ -29,7 +27,6 @@ var (
 	CommunityClient    community.CommunityServiceClient
 )
 
-// ConnectionPool manages a pool of gRPC connections
 type ConnectionPool struct {
 	connections chan *grpc.ClientConn
 	serviceAddr string
@@ -39,7 +36,6 @@ type ConnectionPool struct {
 	mu          sync.Mutex
 }
 
-// RateLimiter implements a token bucket rate limiter
 type RateLimiter struct {
 	tokens         float64
 	maxTokens      float64
@@ -48,14 +44,12 @@ type RateLimiter struct {
 	mu             sync.Mutex
 }
 
-// ErrorResponse is a standard error response
 type ErrorResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Code    string `json:"code,omitempty"`
 }
 
-// AuthServiceResponse is the standard response from auth service
 type AuthServiceResponse struct {
 	Success      bool        `json:"success"`
 	Message      string      `json:"message"`
@@ -67,7 +61,6 @@ type AuthServiceResponse struct {
 	User         interface{} `json:"user,omitempty"`
 }
 
-// NewConnectionPool creates a new connection pool
 func NewConnectionPool(serviceAddr string, maxIdle, maxOpen int, timeout time.Duration) *ConnectionPool {
 	return &ConnectionPool{
 		connections: make(chan *grpc.ClientConn, maxIdle),
@@ -78,7 +71,6 @@ func NewConnectionPool(serviceAddr string, maxIdle, maxOpen int, timeout time.Du
 	}
 }
 
-// Get retrieves a connection from the pool or creates a new one
 func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 	select {
 	case conn := <-p.connections:
@@ -96,18 +88,16 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 	}
 }
 
-// Put returns a connection to the pool
 func (p *ConnectionPool) Put(conn *grpc.ClientConn) {
 	select {
 	case p.connections <- conn:
-		// Connection successfully returned to pool
+
 	default:
-		// Pool is full, close the connection
+
 		conn.Close()
 	}
 }
 
-// Close closes all connections in the pool
 func (p *ConnectionPool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -118,7 +108,6 @@ func (p *ConnectionPool) Close() {
 	}
 }
 
-// NewRateLimiter creates a new rate limiter
 func NewRateLimiter(maxTokens, tokensPerSec float64) *RateLimiter {
 	return &RateLimiter{
 		tokens:         maxTokens,
@@ -128,7 +117,6 @@ func NewRateLimiter(maxTokens, tokensPerSec float64) *RateLimiter {
 	}
 }
 
-// Allow checks if a request is allowed by the rate limiter
 func (r *RateLimiter) Allow() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -150,13 +138,11 @@ func (r *RateLimiter) Allow() bool {
 	return true
 }
 
-// InitGRPCServices initializes connection pools and gRPC clients
 func InitGRPCServices() {
-	// Use grpcClientInitOnce to initialize all clients together
+
 	grpcClientInitOnce.Do(func() {
 		log.Println("Initializing gRPC clients...")
 
-		// Initialize User Service Client
 		userServiceAddr := AppConfig.Services.UserService
 		log.Printf("Connecting to User service at %s", userServiceAddr)
 
@@ -171,14 +157,12 @@ func InitGRPCServices() {
 			log.Printf("Connected to User service at %s", userServiceAddr)
 		}
 
-		// Initialize Thread Service Client (using pool for example)
 		if AppConfig.Services.ThreadService != "" {
-			// Create connection pool with shorter timeouts
+
 			threadConnPool = NewConnectionPool(AppConfig.Services.ThreadService, 5, 20, 3*time.Second)
 			log.Printf("Thread service connection pool initialized for %s", AppConfig.Services.ThreadService)
 		}
 
-		// Initialize Community Service Client
 		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
 
@@ -197,30 +181,26 @@ func InitGRPCServices() {
 	})
 }
 
-// InitHandlers initializes the handlers package with configuration
 func InitHandlers(cfg *config.Config) {
-	// Set the global configuration first
+
 	AppConfig = cfg
 
-	// Initialize services in the correct order
 	InitGRPCServices()
 	InitUserServiceClient(cfg)
 	InitThreadServiceClient(cfg)
 	InitCommunityServiceClient(cfg)
-	InitWebsocketServices() // This must be after setting Config
+	InitWebsocketServices()
 }
 
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// RateLimitMiddleware is a stub middleware for rate limiting
 func RateLimitMiddleware(c *gin.Context) {
-	// Allow all requests for now
+
 	c.Next()
 }
 
-// SendErrorResponse sends a standardized error response
 func SendErrorResponse(c *gin.Context, status int, code, message string) {
 	c.JSON(status, ErrorResponse{
 		Success: false,
@@ -229,7 +209,6 @@ func SendErrorResponse(c *gin.Context, status int, code, message string) {
 	})
 }
 
-// SendSuccessResponse sends a standardized success response
 func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
 	c.JSON(status, gin.H{
 		"success": true,
@@ -237,32 +216,26 @@ func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
 	})
 }
 
-// GetJWTSecret returns the JWT secret from environment or a default value
 func GetJWTSecret() []byte {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	if len(jwtSecret) == 0 {
 		log.Println("Warning: JWT_SECRET environment variable not set or empty, using fallback value. This is not secure for production use.")
-		// Use an empty string as fallback, which will cause token validation to fail in production
-		// This forces proper configuration in production environments
+
 		jwtSecret = []byte("insecure_fallback_jwt_key")
 	}
 	return jwtSecret
 }
 
-// ProxyServiceHealthCheck creates a handler that proxies health check requests to a service
 func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		serviceHost := serviceName
 
-		// For local development, services are on localhost
 		if AppConfig.Server.CORSOrigin == "*" || os.Getenv("ENVIRONMENT") == "development" {
 			serviceHost = "localhost"
 		}
 
-		// Log the request details
 		log.Printf("Proxying health check to %s at %s:%s", serviceName, serviceHost, port)
 
-		// Attempt to contact the service health endpoint
 		client := &http.Client{
 			Timeout: 5 * time.Second,
 		}
@@ -282,7 +255,6 @@ func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {
 		}
 		defer resp.Body.Close()
 
-		// Read response body
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.Printf("Failed to read response from %s: %v", serviceName, err)
@@ -294,10 +266,8 @@ func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {
 			return
 		}
 
-		// Log successful response
 		log.Printf("Health check response from %s: %s (status: %d)", serviceName, string(body), resp.StatusCode)
 
-		// Set content type from original response
 		contentType := resp.Header.Get("Content-Type")
 		if contentType != "" {
 			c.Header("Content-Type", contentType)
@@ -305,7 +275,6 @@ func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {
 			c.Header("Content-Type", "application/json")
 		}
 
-		// Return the same status code and body
 		c.Status(resp.StatusCode)
 		c.Writer.Write(body)
 	}

@@ -4,12 +4,13 @@
   import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
-  import { getTrends } from '../../api/trends';
-  import { getSuggestedUsers } from '../../api/suggestions';
-  import { followUser, unfollowUser } from '../../api/user';
+  import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';  import { getTrends } from '../../api/trends';
+  import { getSuggestedUsers } from '../../api/suggestions';  import { followUser, unfollowUser, searchUsers } from '../../api/user';
   import { toastStore } from '../../stores/toastStore';
   import { isAuthenticated } from '../../utils/auth';
+  import { debounce } from '../../utils/helpers';
+  import { transformApiUsers } from '../../utils/userTransform';
+  import type { StandardUser } from '../../utils/userTransform';
 
   // Extend the ISuggestedFollow interface with our UI-specific properties
   interface ExtendedSuggestedFollow extends ISuggestedFollow {
@@ -20,7 +21,6 @@
   export let trends: ITrend[] = [];
   export let suggestedFollows: ExtendedSuggestedFollow[] = [];
   export let isTabletView = false;
-
   let isTrendsLoading = true;
   let isFollowSuggestionsLoading = true;
   let windowWidth = 0;
@@ -28,7 +28,11 @@
   let showSearch = false;
   let followingStatus: Record<string, boolean> = {};
   let followLoading: Record<string, boolean> = {};
-
+    // Search functionality state
+  let searchResults: StandardUser[] = [];
+  let isSearching = false;
+  let showSearchResults = false;
+  let searchContainer: HTMLElement;
   onMount(() => {
     fetchTrends();
     fetchSuggestedUsers();
@@ -41,8 +45,18 @@
     checkWidth();
     window.addEventListener('resize', checkWidth);
     
+    // Click outside to close search results
+    const handleClickOutside = (event) => {
+      if (searchContainer && !searchContainer.contains(event.target)) {
+        showSearchResults = false;
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    
     return () => {
       window.removeEventListener('resize', checkWidth);
+      document.removeEventListener('click', handleClickOutside);
     };
   });
 
@@ -102,12 +116,98 @@
       followLoading[userId] = false;
       followingStatus = {...followingStatus};
     }
+  }  // Debounced search function with proper data transformation
+  /**
+   * DEBOUNCED SEARCH IMPLEMENTATION
+   * 
+   * This function implements smart user searching with the following improvements:
+   * - 300ms debounce to prevent excessive API calls
+   * - Proper error handling with user-friendly toast notifications
+   * - Data transformation using transformApiUsers for consistent user object structure
+   * - Comprehensive logging for debugging and monitoring
+   * - Loading state management for better UX
+   * 
+   * The search results are transformed from the API response format to StandardUser
+   * format to ensure consistent property names (e.g., display_name -> displayName)
+   */
+  const debouncedSearch = debounce(async (query: string) => {
+    if (!query.trim()) {
+      searchResults = [];
+      showSearchResults = false;
+      isSearching = false;
+      return;
+    }
+
+    try {
+      isSearching = true;
+      console.log('Searching for users with query:', query.trim());
+      
+      const response = await searchUsers(query.trim(), 1, 5);
+      console.log('Search API response:', response);
+      
+      // Transform the API response to StandardUser format
+      const users = response.users || [];
+      searchResults = transformApiUsers(users);
+      
+      console.log('Transformed search results:', searchResults);
+      showSearchResults = true;
+      
+      // Show success message if results found
+      if (searchResults.length > 0) {
+        console.log(`Found ${searchResults.length} users matching "${query.trim()}"`);
+      }
+      
+    } catch (error) {
+      console.error('Error searching users:', error);
+      toastStore.showToast('Failed to search users. Please try again.', 'error');
+      searchResults = [];
+      showSearchResults = false;
+    } finally {
+      isSearching = false;
+    }
+  }, 300);
+
+  function handleSearchInput() {
+    debouncedSearch(searchQuery);
   }
 
   function handleSearch(e) {
     if (e.key === 'Enter' && searchQuery.trim()) {
-      window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`;
+      // If there are search results, go to the first user's profile
+      if (searchResults.length > 0) {
+        navigateToProfile(searchResults[0].username);
+      } else {
+        // Fallback to explore page
+        window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`;
+      }
+    } else if (e.key === 'Escape') {
+      clearSearch();
     }
+  }
+
+  function navigateToProfile(username: string) {
+    window.location.href = `/user/${username}`;
+    clearSearch();
+  }
+
+  function clearSearch() {
+    searchQuery = '';
+    searchResults = [];
+    showSearchResults = false;
+    isSearching = false;
+  }
+
+  function handleSearchFocus() {
+    if (searchQuery.trim() && searchResults.length > 0) {
+      showSearchResults = true;
+    }
+  }
+
+  function handleSearchBlur() {
+    // Delay hiding results to allow for clicks
+    setTimeout(() => {
+      showSearchResults = false;
+    }, 200);
   }
 
   function toggleSearch() {
@@ -130,10 +230,9 @@
 </script>
 
 <div class="widgets-container {isTabletView ? 'widgets-container-tablet' : ''}">
-  <div class="right-sidebar {isDarkMode ? 'right-sidebar-dark' : ''}">
-    <!-- Search Widget (only for desktop and tablet) -->
+  <div class="right-sidebar {isDarkMode ? 'right-sidebar-dark' : ''}">    <!-- Search Widget (only for desktop and tablet) -->
     {#if !isTabletView}
-      <div class="search-widget {isDarkMode ? 'search-widget-dark' : ''}">
+      <div class="search-widget {isDarkMode ? 'search-widget-dark' : ''}" bind:this={searchContainer}>
         <div class="search-input-container">
           <div class="search-icon">
             <SearchIcon size="18" />
@@ -141,17 +240,80 @@
           <input 
             type="text" 
             id="search-input"
-            placeholder="Search" 
+            placeholder="Search users" 
             class="search-input"
             bind:value={searchQuery}
+            on:input={handleSearchInput}
             on:keydown={handleSearch}
+            on:focus={handleSearchFocus}
+            on:blur={handleSearchBlur}
           />
           {#if searchQuery}
-            <button class="search-clear-btn" on:click={() => searchQuery = ''}>
+            <button class="search-clear-btn" on:click={clearSearch}>
               <XIcon size="16" />
             </button>
           {/if}
         </div>
+        
+        <!-- Search Results Dropdown -->
+        {#if showSearchResults}
+          <div class="search-results {isDarkMode ? 'search-results-dark' : ''}">
+            {#if isSearching}
+              <div class="search-loading">
+                <div class="search-loading-spinner"></div>
+                <span>Searching...</span>
+              </div>
+            {:else if searchResults.length > 0}
+              <div class="search-results-list">
+                {#each searchResults as user}
+                  <button 
+                    class="search-result-item {isDarkMode ? 'search-result-item-dark' : ''}"
+                    on:click={() => navigateToProfile(user.username)}
+                  >
+                    <div class="search-result-avatar">
+                      <img 
+                        src={user.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'} 
+                        alt={user.displayName || user.username} 
+                      />
+                    </div>
+                    <div class="search-result-details">
+                      <div class="search-result-name">
+                        {user.displayName || user.username}
+                        {#if user.isVerified}
+                          <span class="verified-badge">✓</span>
+                        {/if}
+                      </div>
+                      <div class="search-result-username">@{user.username}</div>
+                      {#if user.bio}
+                        <div class="search-result-bio">{user.bio.slice(0, 60)}{user.bio.length > 60 ? '...' : ''}</div>
+                      {/if}
+                    </div>
+                  </button>
+                {/each}
+              </div>
+              {#if searchResults.length === 5}
+                <div class="search-show-more">
+                  <button 
+                    class="search-show-more-btn {isDarkMode ? 'search-show-more-btn-dark' : ''}"
+                    on:click={() => window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`}
+                  >
+                    View all results for "{searchQuery}"
+                  </button>
+                </div>
+              {/if}
+            {:else}
+              <div class="search-no-results">
+                <p>No users found for "{searchQuery}"</p>
+                <button 
+                  class="search-show-more-btn {isDarkMode ? 'search-show-more-btn-dark' : ''}"
+                  on:click={() => window.location.href = `/explore?q=${encodeURIComponent(searchQuery.trim())}`}
+                >
+                  Search in all content
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
     
@@ -313,8 +475,7 @@
     flex-wrap: wrap;
     gap: var(--space-4);
   }
-  
-  /* Search widget */
+    /* Search widget */
   .search-widget {
     margin-bottom: var(--space-4);
     position: sticky;
@@ -322,6 +483,7 @@
     z-index: var(--z-sticky);
     background-color: var(--bg-primary);
     padding: var(--space-2) 0;
+    position: relative;
   }
   
   .search-widget-dark {
@@ -379,6 +541,148 @@
   .search-clear-btn:hover {
     background-color: var(--bg-hover);
     color: var(--color-primary);
+  }
+  
+  /* Search Results Dropdown */
+  .search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--border-color);
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 1000;
+    margin-top: var(--space-2);
+  }
+  
+  .search-results-dark {
+    background-color: var(--dark-bg-primary);
+    border-color: var(--border-color-dark);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  }
+  
+  .search-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    gap: var(--space-2);
+    color: var(--text-secondary);
+  }
+  
+  .search-loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(var(--color-primary-rgb), 0.2);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  .search-results-list {
+    padding: var(--space-2) 0;
+  }
+  
+  .search-result-item {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    padding: var(--space-3) var(--space-4);
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+  }
+  
+  .search-result-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .search-result-item-dark:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .search-result-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: var(--space-3);
+    flex-shrink: 0;
+  }
+  
+  .search-result-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .search-result-details {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .search-result-name {
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-bottom: var(--space-1);
+  }
+  
+  .verified-badge {
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+  }
+  
+  .search-result-username {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-1);
+  }
+  
+  .search-result-bio {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+  
+  .search-no-results {
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--text-secondary);
+  }
+  
+  .search-show-more {
+    padding: var(--space-2) var(--space-4);
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .search-show-more-btn {
+    width: 100%;
+    padding: var(--space-2);
+    background: transparent;
+    border: none;
+    color: var(--color-primary);
+    text-align: center;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+    font-size: var(--font-size-sm);
+  }
+  
+  .search-show-more-btn:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .search-show-more-btn-dark:hover {
+    background-color: var(--dark-hover-bg);
   }
   
   /* Sidebar sections */

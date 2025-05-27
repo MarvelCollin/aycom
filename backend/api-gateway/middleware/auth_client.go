@@ -10,13 +10,11 @@ import (
 	"aycom/backend/api-gateway/config"
 )
 
-// LoginRequest defines the login request structure
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// LoginResponse defines the login response structure
 type LoginResponse struct {
 	Success      bool   `json:"success"`
 	Message      string `json:"message"`
@@ -27,20 +25,17 @@ type LoginResponse struct {
 	ExpiresIn    int64  `json:"expires_in,omitempty"`
 }
 
-// ErrorResponse defines a standard error response
 type ErrorResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Code    string `json:"code,omitempty"`
 }
 
-// AuthClient is a client for the auth service
 type AuthClient struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-// NewAuthClient creates a new auth client
 func NewAuthClient(cfg *config.Config) *AuthClient {
 	return &AuthClient{
 		baseURL: fmt.Sprintf("http://%s", cfg.Services.UserService),
@@ -50,7 +45,6 @@ func NewAuthClient(cfg *config.Config) *AuthClient {
 	}
 }
 
-// Login calls the auth service login endpoint
 func (c *AuthClient) Login(email, password string) (*LoginResponse, error) {
 	reqBody, err := json.Marshal(LoginRequest{
 		Email:    email,

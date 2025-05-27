@@ -1,12 +1,12 @@
 package routes
 
 import (
+	"github.com/gin-gonic/gin"
+
 	"aycom/backend/api-gateway/config"
 	_ "aycom/backend/api-gateway/docs"
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/middleware"
-
-	"github.com/gin-gonic/gin"
 )
 
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
@@ -17,7 +17,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1 := router.Group("/api/v1")
 
-	// Direct routes without authentication
 	v1.GET("/suggestions", handlers.GetUserSuggestions)
 
 	auth := v1.Group("/auth")
@@ -50,7 +49,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.GET("/search", handlers.SearchUsers)
 		publicUsers.GET("/all", handlers.GetAllUsers)
 
-		// Admin user creation - accessible without authentication for debug panel
 		publicUsers.POST("/admin/create", handlers.CreateAdminUser)
 	}
 
@@ -87,6 +85,11 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/:userId/following", handlers.GetFollowing)
 		users.GET("/recommendations", handlers.GetUserRecommendations)
 		users.POST("/admin-status", handlers.UpdateUserAdminStatus)
+		// Block and report routes
+		users.POST("/:userId/block", handlers.BlockUser)
+		users.POST("/:userId/unblock", handlers.UnblockUser)
+		users.GET("/blocked", handlers.GetBlockedUsers)
+		users.POST("/:userId/report", handlers.ReportUser)
 	}
 
 	threads := protected.Group("/threads")
@@ -152,7 +155,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.POST("/:id/join-requests/:requestId/approve", handlers.ApproveJoinRequest)
 		communities.POST("/:id/join-requests/:requestId/reject", handlers.RejectJoinRequest)
 
-		// User membership check
 		communities.GET("/:id/membership", handlers.CheckMembershipStatus)
 	}
 
@@ -194,35 +196,28 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		media.GET("/search", handlers.SearchMedia)
 	}
 
-	// Admin routes - require admin authentication
 	admin := protected.Group("/admin")
 	admin.Use(middleware.AdminOnly())
 	{
-		// User management
+
 		admin.POST("/users/:userId/ban", handlers.BanUser)
 
-		// Newsletter management
 		admin.POST("/newsletter/send", handlers.SendNewsletter)
 
-		// Community request management
 		admin.GET("/community-requests", handlers.GetCommunityRequests)
 		admin.POST("/community-requests/:requestId/process", handlers.ProcessCommunityRequest)
 
-		// Premium request management
 		admin.GET("/premium-requests", handlers.GetPremiumRequests)
 		admin.POST("/premium-requests/:requestId/process", handlers.ProcessPremiumRequest)
 
-		// Report request management
 		admin.GET("/report-requests", handlers.GetReportRequests)
 		admin.POST("/report-requests/:requestId/process", handlers.ProcessReportRequest)
 
-		// Thread category management
 		admin.GET("/thread-categories", handlers.GetThreadCategories)
 		admin.POST("/thread-categories", handlers.CreateThreadCategory)
 		admin.PUT("/thread-categories/:categoryId", handlers.UpdateThreadCategory)
 		admin.DELETE("/thread-categories/:categoryId", handlers.DeleteThreadCategory)
 
-		// Community category management
 		admin.GET("/community-categories", handlers.GetCommunityCategories)
 		admin.POST("/community-categories", handlers.CreateCommunityCategory)
 		admin.PUT("/community-categories/:categoryId", handlers.UpdateCommunityCategory)
