@@ -1,10 +1,9 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
+<script lang="ts">  import { onMount } from 'svelte';
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import { isAuthenticated, getUserId } from '../utils/auth';
-  import { getUserById, followUser, unfollowUser, reportUser, blockUser } from '../api/user';
+  import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser } from '../api/user';
   import { getUserThreads, getUserReplies, getUserMedia } from '../api/thread';
   import { toastStore } from '../stores/toastStore';
   import ThreadCard from '../components/explore/ThreadCard.svelte';
@@ -22,6 +21,8 @@
   import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
   import FlagIcon from 'svelte-feather-icons/src/icons/FlagIcon.svelte';
   import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
+  import SlashIcon from 'svelte-feather-icons/src/icons/SlashIcon.svelte';
+  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
   
   // Define interfaces for our data structures
   interface Thread {
@@ -112,15 +113,17 @@
   let posts: Thread[] = [];
   let replies: Reply[] = [];
   let media: ThreadMedia[] = [];
-  
-  // UI state
+    // UI state
   let activeTab = 'posts';
   let isLoading = true;
   let isFollowLoading = false;
+  let isBlockLoading = false;
   let showReportModal = false;
   let reportReason = '';
-  let showBlockConfirmation = false;
+  let showBlockConfirmModal = false;
+  let showActionsDropdown = false;
   let errorMessage = '';
+  
   
   // Additional functions for thread interactions
   let repliesMap = new Map(); // Store replies for threads
@@ -152,16 +155,17 @@
     const replies = thread.replies_count || thread.reply_count || thread.metrics?.replies || 0;
     const reposts = thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0;
     const bookmarks = thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0;
-    const views = thread.views || thread.views_count || '0';
+    const views = Number(thread.views || thread.views_count || 0);
     
     // Normalize interaction states
     const isLiked = thread.is_liked || thread.isLiked || false;
     const isReposted = thread.is_repost || thread.isReposted || false;
     const isBookmarked = thread.is_bookmarked || thread.isBookmarked || false;
       
-    return {
+  return {
       id: thread.id,
       threadId: thread.thread_id || thread.id,
+      userId: thread.user_id || thread.userId || thread.author_id || thread.authorId || thread.id,
       username: username,
       displayName: displayName,
       content: thread.content || '',
@@ -171,12 +175,12 @@
       replies: replies,
       reposts: reposts,
       bookmarks: bookmarks,
-      views: String(views),
+      views: views,
       media: thread.media || [],
       isLiked: isLiked,
-      is_liked: isLiked, // Add the backend format as well for consistency
       isReposted: isReposted,
       isBookmarked: isBookmarked,
+      isPinned: thread.is_pinned === true || thread.is_pinned === 'true' || thread.is_pinned === 1 || thread.is_pinned === '1' || thread.is_pinned === 't' || thread.IsPinned === true || false,
       replyTo: thread.parent_id ? { id: thread.parent_id } as any : null
     };
   }
@@ -338,16 +342,15 @@
       toastStore.showToast('Please provide a reason for the report', 'error');
       return;
     }
-    
-    try {
+      try {
       const result = await reportUser(profileData.id, reportReason);
       
-      if (result.success) {
-        toastStore.showToast(result.message || 'User reported successfully. Our team will review this report.', 'success');
+      if (result) {
+        toastStore.showToast('User reported successfully. Our team will review this report.', 'success');
         showReportModal = false;
         reportReason = '';
       } else {
-        throw new Error(result.message || 'Failed to report user');
+        throw new Error('Failed to report user');
       }
     } catch (error) {
       console.error('Error reporting user:', error);
@@ -356,28 +359,46 @@
   }
   
   async function handleBlockUser() {
+    isBlockLoading = true;
     try {
-      const result = await blockUser(profileData.id);
+      let success;
+      if (profileData.isBlocked) {
+        success = await unblockUser(profileData.id);
+      } else {
+        success = await blockUser(profileData.id);
+      }
       
-      if (result.success) {
+      if (success) {
         profileData = {
           ...profileData,
-          isBlocked: true
+          isBlocked: !profileData.isBlocked
         };
         
-        toastStore.showToast(result.message || 'User blocked successfully. You will no longer see their content.', 'success');
-        showBlockConfirmation = false;
+        toastStore.showToast(
+          profileData.isBlocked ? 'User blocked successfully' : 'User unblocked successfully',
+          'success'
+        );
         
-        // Redirect to home after successful block
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
+        // Close the modal
+        showBlockConfirmModal = false;
+        showActionsDropdown = false;
+        
+        // If we just blocked the user and they were being followed, simulate unfollow
+        if (profileData.isBlocked && profileData.isFollowing) {
+          profileData = {
+            ...profileData,
+            isFollowing: false,
+            followerCount: Math.max(0, profileData.followerCount - 1)
+          };
+        }
       } else {
-        throw new Error(result.message || 'Failed to block user');
+        throw new Error('Failed to update block status');
       }
     } catch (error) {
-      console.error('Error blocking user:', error);
-      toastStore.showToast('Failed to block user. Please try again.', 'error');
+      console.error('Error updating block status:', error);
+      toastStore.showToast('Failed to update block status. Please try again.', 'error');
+    } finally {
+      isBlockLoading = false;
     }
   }
   
@@ -464,21 +485,40 @@
             {/if}
           </button>
           
-          <button 
-            class="p-2 rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            on:click={() => showReportModal = true}
-            title="Report this user"
-          >
-            <FlagIcon size="18" />
-          </button>
-          
-          <button 
-            class="p-2 rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            on:click={() => showBlockConfirmation = true}
-            title="Block this user"
-          >
-            <ShieldIcon size="18" />
-          </button>
+          <div class="relative">
+            <button 
+              class="p-2 rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              on:click={() => showActionsDropdown = !showActionsDropdown}
+              title="More actions"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
+            
+            {#if showActionsDropdown}
+              <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-10">
+                <button 
+                  class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  on:click={() => {
+                    showBlockConfirmModal = true;
+                    showActionsDropdown = false;
+                  }}
+                >
+                  <ShieldIcon class="w-5 h-5 mr-2" />
+                  {profileData.isBlocked ? 'Unblock User' : 'Block User'}
+                </button>
+                
+                <button 
+                  class="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  on:click={() => showReportModal = true}
+                >
+                  <FlagIcon class="w-5 h-5 mr-2" />
+                  Report User
+                </button>
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
       
@@ -694,11 +734,11 @@
   {/if}
   
   <!-- Block Confirmation Modal -->
-  {#if showBlockConfirmation}
+  {#if showBlockConfirmModal}
     <div 
       class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" 
-      on:click={() => showBlockConfirmation = false}
-      on:keydown={(e) => e.key === 'Escape' && (showBlockConfirmation = false)}
+      on:click={() => showBlockConfirmModal = false}
+      on:keydown={(e) => e.key === 'Escape' && (showBlockConfirmModal = false)}
       role="dialog"
       aria-modal="true"
       aria-labelledby="block-modal-title"
@@ -718,7 +758,7 @@
         <div class="flex justify-end space-x-3">
           <button 
             class="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-full text-gray-700 dark:text-gray-300"
-            on:click={() => showBlockConfirmation = false}
+            on:click={() => showBlockConfirmModal = false}
           >
             Cancel
           </button>
@@ -726,7 +766,16 @@
             class="px-4 py-2 bg-red-500 text-white rounded-full hover:bg-red-600"
             on:click={handleBlockUser}
           >
-            Block
+            {#if isBlockLoading}
+              <span class="flex items-center justify-center">
+                <svg class="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </span>
+            {:else}
+              Block
+            {/if}
           </button>
         </div>
       </div>

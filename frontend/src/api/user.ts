@@ -777,7 +777,7 @@ export async function getAllUsers(limit: number = 20, page: number = 1, sortBy: 
  * @param reason The reason for reporting the user
  * @returns Promise resolving to an object containing success status
  */
-export async function reportUser(userId: string, reason: string): Promise<{ success: boolean, message?: string }> {
+export async function reportUser(userId: string, reason: string): Promise<boolean> {
   try {
     const token = getAuthToken();
     
@@ -787,33 +787,21 @@ export async function reportUser(userId: string, reason: string): Promise<{ succ
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
-      body: JSON.stringify({ reason }),
-      credentials: 'include'
+      body: JSON.stringify({ reason })
     });
     
     if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to report user: ${response.status}`);
-      } catch (parseError) {
-        throw new Error(`Failed to report user: ${response.status}`);
-      }
+      throw new Error(`Failed to report user: ${response.status}`);
     }
     
-    const data = await response.json();
-    return { success: true, message: data.message || 'User reported successfully' };
+    return true;
   } catch (err) {
     console.error('Failed to report user:', err);
-    throw err;
+    return false;
   }
 }
 
-/**
- * Block a user to prevent them from seeing your content and vice versa
- * @param userId The ID of the user to block
- * @returns Promise resolving to an object containing success status
- */
-export async function blockUser(userId: string): Promise<{ success: boolean, message?: string }> {
+export async function blockUser(userId: string): Promise<boolean> {
   try {
     const token = getAuthToken();
     
@@ -822,77 +810,53 @@ export async function blockUser(userId: string): Promise<{ success: boolean, mes
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include'
+      }
     });
     
     if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to block user: ${response.status}`);
-      } catch (parseError) {
-        throw new Error(`Failed to block user: ${response.status}`);
-      }
+      throw new Error(`Failed to block user: ${response.status}`);
     }
     
-    const data = await response.json();
-    return { success: true, message: data.message || 'User blocked successfully' };
+    return true;
   } catch (err) {
     console.error('Failed to block user:', err);
-    throw err;
+    return false;
   }
 }
 
-/**
- * Unblock a previously blocked user
- * @param userId The ID of the user to unblock
- * @returns Promise resolving to an object containing success status
- */
-export async function unblockUser(userId: string): Promise<{ success: boolean, message?: string }> {
+export async function unblockUser(userId: string): Promise<boolean> {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/block`, {
-      method: 'DELETE',
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/unblock`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include'
+      }
     });
     
     if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to unblock user: ${response.status}`);
-      } catch (parseError) {
-        throw new Error(`Failed to unblock user: ${response.status}`);
-      }
+      throw new Error(`Failed to unblock user: ${response.status}`);
     }
     
-    const data = await response.json();
-    return { success: true, message: data.message || 'User unblocked successfully' };
+    return true;
   } catch (err) {
     console.error('Failed to unblock user:', err);
-    throw err;
+    return false;
   }
 }
 
-/**
- * Get a list of users that the current user has blocked
- * @returns Promise resolving to an array of blocked users
- */
-export async function getBlockedUsers(): Promise<any[]> {
+export async function getBlockedUsers(page = 1, limit = 20): Promise<any[]> {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/users/blocked`, {
+    const response = await fetch(`${API_BASE_URL}/users/blocked?page=${page}&limit=${limit}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include'
+      }
     });
     
     if (!response.ok) {
@@ -900,7 +864,18 @@ export async function getBlockedUsers(): Promise<any[]> {
     }
     
     const data = await response.json();
-    return data.blocked_users || [];
+    
+    if (data && data.data && data.data.blocked_users) {
+      return data.data.blocked_users.map((user: any) => ({
+        id: user.id,
+        name: user.name || user.display_name,
+        username: user.username,
+        profile_picture: user.profile_picture_url || '👤',
+        verified: user.is_verified || false
+      }));
+    }
+    
+    return [];
   } catch (err) {
     console.error('Failed to get blocked users:', err);
     return [];
@@ -1091,4 +1066,4 @@ async function checkAdminStatusFallback(): Promise<boolean> {
     console.error('Admin fallback check failed:', error);
     return false;
   }
-} 
+}
