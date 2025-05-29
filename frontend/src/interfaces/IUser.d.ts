@@ -2,30 +2,26 @@ export interface IUser {
   id: string;
   name: string;
   username: string;
-  profile_picture?: string;
-  verified?: boolean;
-  isFollowing?: boolean;
+  profile_picture_url?: string;
+  is_verified?: boolean;
+  is_following?: boolean;
 }
 
 export interface IUserProfile {
   id: string;
   username: string;
-  displayName: string;
+  name: string;
   bio?: string;
-  avatar?: string;
-  banner?: string;
-  profile_picture?: string;
   profile_picture_url?: string;
-  background_banner_url?: string;
   banner_url?: string;
-  verified: boolean;
-  followerCount: number;
-  followingCount: number;
-  joinDate: string;
+  is_verified: boolean;
+  follower_count: number;
+  following_count: number;
+  created_at: string;
   location?: string;
   website?: string;
   email?: string;
-  dateOfBirth?: string;
+  date_of_birth?: string;
   gender?: string;
 }
 
@@ -36,9 +32,9 @@ export interface IUserUpdateRequest {
   bio?: string;
   location?: string;
   website?: string;
-  profile_picture?: string;
-  banner?: string;
-  birthday?: string;
+  profile_picture_url?: string;
+  banner_url?: string;
+  date_of_birth?: string;
 }
 
 export interface IUserRegistrationRequest {
@@ -46,16 +42,16 @@ export interface IUserRegistrationRequest {
   username: string;
   email: string;
   password: string;
-  confirmPassword: string;
-  dob: string;
+  confirm_password: string;
+  date_of_birth: string;
   gender: string;
-  securityQuestion: string;
-  securityAnswer: string;
+  security_question: string;
+  security_answer: string;
 }
 
 export interface IUserVerificationRequest {
   email: string;
-  verificationCode: string;
+  verification_code: string;
 }
 
 export interface IUserLoginRequest {
@@ -70,7 +66,7 @@ export interface IUserLoginResponse {
 
 export interface IPasswordResetRequest {
   email: string;
-  securityAnswer: string;
-  newPassword: string;
-  confirmPassword: string;
+  security_answer: string;
+  new_password: string;
+  confirm_password: string;
 } 

@@ -1,0 +1,202 @@
+# AYCOM Backend Consistency Checklist
+
+## Root Files
+- [ ] go.mod
+- [ ] go.sum
+- [ ] README.md
+- [ ] _tools.go
+- [ ] vendor-services.bat
+- [ ] backend-docs.md
+
+## API Gateway
+- [ ] api-gateway/main.go
+- [ ] api-gateway/Dockerfile
+- [ ] api-gateway/go.mod
+- [ ] api-gateway/go.sum
+
+### API Gateway - Config
+- [ ] api-gateway/config/config.go
+
+### API Gateway - Router
+- [ ] api-gateway/router/router.go
+
+### API Gateway - Routes
+- [ ] api-gateway/routes/routes.go
+- [ ] api-gateway/routes/auth_routes.go
+
+### API Gateway - Middleware
+- [ ] api-gateway/middleware/middleware.go
+- [ ] api-gateway/middleware/logger.go
+- [ ] api-gateway/middleware/auth_client.go
+
+### API Gateway - Handlers
+- [ ] api-gateway/handlers/social_handlers.go
+- [ ] api-gateway/handlers/user_service_clients.go
+- [ ] api-gateway/handlers/thread_handlers.go
+- [ ] api-gateway/handlers/block_handlers.go
+- [ ] api-gateway/handlers/websocket_managers.go
+- [ ] api-gateway/handlers/user_handlers.go
+- [ ] api-gateway/handlers/trends_handlers.go
+- [ ] api-gateway/handlers/thread_service_clients.go
+- [ ] api-gateway/handlers/search_handlers.go
+- [ ] api-gateway/handlers/notification_websocket_handlers.go
+- [ ] api-gateway/handlers/notification_handlers.go
+- [ ] api-gateway/handlers/media_handlers.go
+- [ ] api-gateway/handlers/community_service_clients.go
+- [ ] api-gateway/handlers/community_handlers.go
+- [ ] api-gateway/handlers/common.go
+- [ ] api-gateway/handlers/chat_websocket_handlers.go
+- [ ] api-gateway/handlers/category_handlers.go
+- [ ] api-gateway/handlers/bookmark_handlers.go
+- [ ] api-gateway/handlers/auth_handlers.go
+- [ ] api-gateway/handlers/ai_handlers.go
+- [ ] api-gateway/handlers/admin_handlers.go
+
+### API Gateway - Utils
+- [ ] api-gateway/utils/utils.go
+
+## Proto
+- [ ] proto/generate.sh
+- [ ] proto/generate.bat
+- [ ] proto/README.md
+- [ ] proto/go.mod
+- [ ] proto/go.sum
+
+### Proto - User
+- [ ] proto/user/user.proto
+- [ ] proto/user/user_grpc.pb.go
+- [ ] proto/user/user.pb.go
+
+### Proto - Thread
+- [ ] proto/thread/thread.proto
+- [ ] proto/thread/thread_grpc.pb.go
+- [ ] proto/thread/thread.pb.go
+
+### Proto - Community
+- [ ] proto/community/community.proto
+- [ ] proto/community/community_grpc.pb.go
+- [ ] proto/community/community.pb.go
+
+### Proto - Auth
+- [ ] proto/auth/auth.proto
+
+## User Service
+- [ ] services/user/main.go
+- [ ] services/user/Dockerfile
+- [ ] services/user/go.mod
+- [ ] services/user/go.sum
+
+### User Service - Model
+- [ ] services/user/model/block.go
+- [ ] services/user/model/user.go
+- [ ] services/user/model/follow.go
+- [ ] services/user/model/admin_models.go
+- [ ] services/user/model/user_profile.go
+- [ ] services/user/model/social_requests.go
+- [ ] services/user/model/session.go
+- [ ] services/user/model/contact.go
+
+### User Service - API
+- [ ] services/user/api/user_handler.go
+- [ ] services/user/api/block_handlers.go
+
+### User Service - Service
+- [ ] services/user/service/user_service.go
+- [ ] services/user/service/combined_service.go
+- [ ] services/user/service/user_block_service.go
+- [ ] services/user/service/block_service.go
+- [ ] services/user/service/admin_service.go
+
+### User Service - DB
+- [ ] services/user/db/user_db.go
+- [ ] services/user/db/block_migration.go
+- [ ] services/user/db/user_migration.go
+- [ ] services/user/db/user_seeder.go
+
+### User Service - Utils
+- [ ] services/user/utils/validators.go
+
+## Thread Service
+- [ ] services/thread/main.go
+- [ ] services/thread/Dockerfile
+- [ ] services/thread/go.mod
+- [ ] services/thread/go.sum
+
+### Thread Service - Model
+- [ ] services/thread/model/interaction.go
+- [ ] services/thread/model/thread.go
+- [ ] services/thread/model/reply.go
+- [ ] services/thread/model/poll.go
+- [ ] services/thread/model/mention.go
+- [ ] services/thread/model/junction_tables.go
+- [ ] services/thread/model/media.go
+- [ ] services/thread/model/category.go
+- [ ] services/thread/model/hashtag.go
+
+### Thread Service - API
+- [ ] services/thread/api/thread_handler.go
+
+### Thread Service - Service
+- [ ] services/thread/service/interaction_service.go
+- [ ] services/thread/service/user_client.go
+- [ ] services/thread/service/thread_service.go
+- [ ] services/thread/service/reply_service.go
+- [ ] services/thread/service/poll_service.go
+- [ ] services/thread/service/category_service.go
+
+### Thread Service - DB
+- [ ] services/thread/db/thread_db.go
+- [ ] services/thread/db/thread_migration.go
+- [ ] services/thread/db/thread_seeder.go
+
+### Thread Service - DTO
+- [ ] services/thread/dto/thread_dto.go
+
+## Community Service
+- [ ] services/community/main.go
+- [ ] services/community/Dockerfile
+- [ ] services/community/go.mod
+- [ ] services/community/go.sum
+
+### Community Service - Model
+- [ ] services/community/model/repository_interfaces.go
+- [ ] services/community/model/deleted_chat.go
+- [ ] services/community/model/community.go
+- [ ] services/community/model/chat.go
+- [ ] services/community/model/chat_participant.go
+- [ ] services/community/model/message.go
+- [ ] services/community/model/community_member.go
+- [ ] services/community/model/community_rule.go
+- [ ] services/community/model/community_join_request.go
+
+### Community Service - API
+- [ ] services/community/api/community_handler.go
+- [ ] services/community/api/chat_handler.go
+
+### Community Service - Service
+- [ ] services/community/service/errors.go
+- [ ] services/community/service/community_service.go
+- [ ] services/community/service/chat_service.go
+
+### Community Service - DB
+- [ ] services/community/db/community_seeder.go
+- [ ] services/community/db/community_migration.go
+- [ ] services/community/db/community_db.go
+
+## Event Bus
+- [ ] event-bus/main.go
+- [ ] event-bus/Dockerfile
+- [ ] event-bus/go.mod
+- [ ] event-bus/go.sum
+
+### Event Bus - Config
+- [ ] event-bus/config/config.go
+
+### Event Bus - Publisher
+- [ ] event-bus/publisher/publisher.go
+
+### Event Bus - Handlers
+- [ ] event-bus/handlers/user_handler.go
+- [ ] event-bus/handlers/product_handler.go
+- [ ] event-bus/handlers/common.go
+- [ ] event-bus/handlers/order_handler.go

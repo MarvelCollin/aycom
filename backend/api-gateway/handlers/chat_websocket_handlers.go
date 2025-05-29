@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -124,7 +125,7 @@ func HandleCommunityChat(c *gin.Context) {
 
 	chatID := c.Param("id")
 	if chatID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "invalid_request", "Chat ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Chat ID is required")
 		return
 	}
 
@@ -434,18 +435,21 @@ func processDeleteMessage(message ChatMessage) ([]byte, error) {
 }
 
 func createErrorResponse(code, message string) []byte {
-	errorResponse := struct {
-		Type    string `json:"type"`
-		Error   string `json:"error"`
-		Message string `json:"message"`
-	}{
-		Type:    "error",
-		Error:   code,
-		Message: message,
+	response := gin.H{
+		"success": false,
+		"error": gin.H{
+			"code":    code,
+			"message": message,
+		},
 	}
 
-	response, _ := json.Marshal(errorResponse)
-	return response
+	data, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Error marshaling error response: %v", err)
+		return []byte(`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"Failed to generate error response"}}`)
+	}
+
+	return data
 }
 
 func min(a, b int) int {

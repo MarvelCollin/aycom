@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -22,7 +23,7 @@ type NotificationClient struct {
 func HandleNotificationsWebSocket(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
@@ -44,7 +45,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 		ID:         client.ID,
 		UserID:     client.UserID,
 		Connection: client.Connection,
-		ChatID:     "", 
+		ChatID:     "",
 		Send:       client.Send,
 		Manager:    manager,
 	}
@@ -191,7 +192,7 @@ func sendUnreadNotifications(client *NotificationClient) {
 func GetUserNotifications(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
@@ -210,32 +211,34 @@ func GetUserNotifications(c *gin.Context) {
 
 	notifications := notificationManager.GetUserNotifications(userID.(string), limit, offset)
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"notifications": notifications,
-		"limit":         limit,
-		"offset":        offset,
-		"total":         len(notifications), 
+		"pagination": gin.H{
+			"per_page":    limit,
+			"offset":      offset,
+			"total_count": len(notifications),
+		},
 	})
 }
 
 func MarkNotificationAsRead(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "unauthorized", "Authentication required")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	notificationID := c.Param("id")
 	if notificationID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "invalid_request", "Notification ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Notification ID is required")
 		return
 	}
 
 	err := notificationManager.MarkNotificationAsRead(userID.(string), notificationID)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "server_error", "Failed to mark notification as read")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to mark notification as read")
 		return
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{"success": true})
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{"message": "Notification marked as read"})
 }

@@ -3,12 +3,12 @@ import { logger } from './logger';
 export interface StandardUser {
   id: string;
   username: string;
-  displayName: string;
-  avatar: string | null;
+  name: string;
+  profile_picture_url: string | null;
   bio?: string;
-  isVerified: boolean;
-  isFollowing?: boolean;
-  followerCount?: number;
+  is_verified: boolean;
+  is_following?: boolean;
+  follower_count?: number;
 }
 
 export function transformApiUser(user: any): StandardUser {
@@ -20,12 +20,12 @@ export function transformApiUser(user: any): StandardUser {
   return {
     id: user.id,
     username: user.username || '',
-    displayName: user.display_name || user.name || user.username || 'User',
-    avatar: user.avatar_url || user.profile_picture_url || user.avatar || null,
+    name: user.name || user.display_name || user.username || 'User',
+    profile_picture_url: user.profile_picture_url || user.avatar || null,
     bio: user.bio || '',
-    isVerified: !!user.is_verified,
-    isFollowing: !!user.is_following,
-    followerCount: user.follower_count || 0
+    is_verified: !!user.is_verified,
+    is_following: !!user.is_following,
+    follower_count: user.follower_count || 0
   };
 }
 

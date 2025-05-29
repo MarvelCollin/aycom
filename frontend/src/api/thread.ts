@@ -511,7 +511,6 @@ export async function replyToThread(threadId: string, data: {
     });
     
     if (!response.ok) {
-      // Handle error response
       try {
         const errorData = await response.json();
         throw new Error(
@@ -1453,7 +1452,36 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
       throw new Error(`Failed to get user liked threads: ${response.status}`);
     }
     
-    return await response.json();
+    // Parse response and ensure field names are consistent
+    const responseData = await response.json();
+    return {
+      threads: (responseData.threads || []).map(thread => ({
+        id: thread.id,
+        content: thread.content,
+        created_at: thread.created_at || thread.createdAt,
+        user_id: thread.user_id || thread.userId || thread.author_id,
+        username: thread.username || thread.author_username,
+        name: thread.name || thread.author_name || thread.displayName,
+        profile_picture_url: thread.profile_picture_url || thread.profilePictureUrl || thread.avatar,
+        likes_count: thread.likes_count || thread.likesCount || thread.likes || 0,
+        replies_count: thread.replies_count || thread.repliesCount || thread.replies || 0,
+        reposts_count: thread.reposts_count || thread.repostsCount || thread.reposts || 0,
+        bookmarks_count: thread.bookmarks_count || thread.bookmarksCount || thread.bookmarks || 0,
+        views_count: thread.views_count || thread.viewsCount || thread.views || 0,
+        is_liked: thread.is_liked || thread.isLiked || false,
+        is_reposted: thread.is_reposted || thread.isReposted || false,
+        is_bookmarked: thread.is_bookmarked || thread.isBookmarked || false,
+        is_pinned: thread.is_pinned || thread.isPinned || false,
+        media: thread.media || []
+      })),
+      pagination: responseData.pagination || {
+        total_count: responseData.total_count || responseData.totalCount || responseData.total || 0,
+        current_page: responseData.current_page || responseData.currentPage || responseData.page || page,
+        per_page: responseData.per_page || responseData.perPage || responseData.limit || limit,
+        has_more: responseData.has_more || responseData.hasMore || false,
+        total_pages: responseData.total_pages || responseData.totalPages || 1
+      }
+    };
   } catch (err) {
     console.error('Error getting user liked threads:', err);
     throw err;

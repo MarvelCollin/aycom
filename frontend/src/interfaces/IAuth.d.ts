@@ -76,17 +76,17 @@ export interface ITokenResponse {
 }
 
 export interface IAuthStore {
-  userId: string | null;
-  isAuthenticated: boolean;
-  accessToken: string | null;
-  refreshToken: string | null;
+  user_id: string | null;
+  is_authenticated: boolean;
+  access_token: string | null;
+  refresh_token: string | null;
   username?: string | null;
-  displayName?: string | null;
+  name?: string | null;
   is_admin?: boolean;
 }
 
 export interface ILoginCredentials {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -94,5 +94,5 @@ export interface IRegisterCredentials {
   username: string;
   email: string;
   password: string;
-  confirmPassword: string;
+  confirm_password: string;
 }

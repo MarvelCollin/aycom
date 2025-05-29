@@ -1,3 +1,8 @@
+import { getAuthToken } from '../utils/auth';
+import appConfig from '../config/appConfig';
+
+const API_BASE_URL = appConfig.api.baseUrl;
+
 // Block/unblock/report API functions
 export async function blockUser(userId: string): Promise<boolean> {
   try {
@@ -68,8 +73,8 @@ export async function getBlockedUsers(page = 1, limit = 20): Promise<any[]> {
         id: user.id,
         name: user.name || user.display_name,
         username: user.username,
-        profile_picture: user.profile_picture_url || '👤',
-        verified: user.is_verified || false
+        profile_picture_url: user.profile_picture_url || '👤',
+        is_verified: user.is_verified || false
       }));
     }
     

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"aycom/backend/api-gateway/models"
+	"aycom/backend/api-gateway/utils"
 )
 
 type NotificationType string
@@ -36,13 +37,12 @@ type Notification struct {
 }
 
 type NotificationManager struct {
-	userNotifications map[string][]Notification 
-	userConnections   map[string]bool           
+	userNotifications map[string][]Notification
+	userConnections   map[string]bool
 	mutex             sync.RWMutex
 }
 
 var (
-
 	notificationManager *NotificationManager
 )
 
@@ -96,7 +96,7 @@ func (nm *NotificationManager) MarkNotificationAsRead(userID, notificationID str
 
 	notifications, ok := nm.userNotifications[userID]
 	if !ok {
-		return nil 
+		return nil
 	}
 
 	for i := range notifications {
@@ -107,7 +107,7 @@ func (nm *NotificationManager) MarkNotificationAsRead(userID, notificationID str
 		}
 	}
 
-	return nil 
+	return nil
 }
 
 func (nm *NotificationManager) GetUserNotifications(userID string, limit, offset int) []Notification {
@@ -178,97 +178,87 @@ func broadcastNotificationToUser(userID string, notification Notification) {
 
 				log.Printf("Failed to send notification to user %s", userID)
 			}
-			break 
+			break
 		}
 	}
 }
 
 func GetMentionNotifications(c *gin.Context) {
-
 	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"notifications": []gin.H{},
 		"pagination": gin.H{
-			"total":   0,
-			"page":    1,
-			"limit":   10,
-			"hasMore": false,
+			"total_count":  0,
+			"current_page": 1,
+			"per_page":     10,
+			"has_more":     false,
 		},
 	})
 }
 
 func MarkAllNotificationsAsRead(c *gin.Context) {
-
 	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "All notifications marked as read",
 	})
 }
 
 func DeleteNotification(c *gin.Context) {
-
 	notificationID := c.Param("id")
 	if notificationID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Notification ID is required"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Notification ID is required")
 		return
 	}
 
 	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Notification deleted",
 	})
 }
 
 func UpdateNotificationSettings(c *gin.Context) {
-
 	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Notification settings updated successfully",
 	})
 }
 
 func UpdateNotificationStatus(c *gin.Context) {
-
 	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Notification status updated successfully",
 	})
 }
 
 func GetNotificationPreferences(c *gin.Context) {
-
 	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
@@ -280,7 +270,7 @@ func GetNotificationPreferences(c *gin.Context) {
 		DirectMessages: true,
 	}
 
-	c.JSON(http.StatusOK, models.NotificationPreferencesResponse{
-		Preferences: prefs,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"preferences": prefs,
 	})
 }

@@ -5,9 +5,9 @@ import { getAuthToken } from '../utils/auth';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('ChatAPI');
 
-let messageHandler: (message: any) => void;
+let messageHandler: ((message: any) => void) | null = null;
 
-export function registerChatMessageHandler(handler: (message: any) => void) {
+export function setMessageHandler(handler: (message: any) => void) {
   messageHandler = handler;
 }
 
@@ -19,24 +19,60 @@ export function processWebSocketMessage(message: any) {
     return;
   }
   
+  // Simple direct mapping of fields to ensure consistent naming
+  const normalizedMessage: any = {
+    type: message.type,
+    message_id: message.message_id || message.messageId || message.id,
+    chat_id: message.chat_id || message.chatId,
+    user_id: message.user_id || message.userId || message.sender_id || message.senderId,
+    timestamp: message.timestamp || message.created_at || message.createdAt || new Date().toISOString()
+  };
+  
+  // Add additional fields based on message type
   switch (message.type) {
     case 'text':
-      const originalTempId = extractTempIdFromMessage(message);
+      normalizedMessage.content = message.content || message.text || '';
+      normalizedMessage.is_edited = message.is_edited || message.isEdited || false;
+      normalizedMessage.is_deleted = message.is_deleted || message.isDeleted || false;
+      normalizedMessage.attachments = message.attachments || message.media || [];
+      break;
       
-      if (originalTempId && message.message_id && message.message_id !== originalTempId) {
+    case 'typing':
+      normalizedMessage.is_typing = message.is_typing || message.isTyping || true;
+      break;
+      
+    case 'read':
+      normalizedMessage.last_read_id = message.last_read_id || message.lastReadId;
+      break;
+      
+    case 'edit':
+      normalizedMessage.content = message.content || message.text || '';
+      normalizedMessage.original_message_id = message.original_message_id || message.originalMessageId;
+      break;
+      
+    case 'delete':
+      normalizedMessage.target_message_id = message.target_message_id || message.targetMessageId;
+      break;
+  }
+  
+  switch (normalizedMessage.type) {
+    case 'text':
+      const originalTempId = extractTempIdFromMessage(normalizedMessage);
+      
+      if (originalTempId && normalizedMessage.message_id && normalizedMessage.message_id !== originalTempId) {
         logger.debug('Updating temp message with server data', { 
           tempId: originalTempId, 
-          serverId: message.message_id 
+          serverId: normalizedMessage.message_id 
         });
         
-        const timestamp = message.timestamp ? 
-          (typeof message.timestamp === 'number' ? 
-            new Date(message.timestamp * 1000) : new Date(message.timestamp)) 
+        const timestamp = normalizedMessage.timestamp ? 
+          (typeof normalizedMessage.timestamp === 'number' ? 
+            new Date(normalizedMessage.timestamp * 1000) : new Date(normalizedMessage.timestamp)) 
           : new Date();
         
         if (messageHandler) {
           const updateMessage = {
-            ...message,
+            ...normalizedMessage,
             type: 'update',
             originalTempId,
             timestamp
@@ -44,7 +80,7 @@ export function processWebSocketMessage(message: any) {
           messageHandler(updateMessage);
         }
       } else {
-        internalHandleIncomingMessage(message);
+        internalHandleIncomingMessage(normalizedMessage);
       }
       break;
     
@@ -52,11 +88,11 @@ export function processWebSocketMessage(message: any) {
     case 'read':
     case 'edit':
     case 'delete':
-      internalHandleIncomingMessage(message);
+      internalHandleIncomingMessage(normalizedMessage);
       break;
       
     default:
-      logger.warn('Unknown WebSocket message type', { type: message.type });
+      logger.warn('Unknown WebSocket message type', { type: normalizedMessage.type });
   }
 }
 

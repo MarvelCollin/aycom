@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"context"
 	"log"
 	"net/http"
@@ -76,7 +77,7 @@ func fetchTrends() []Trend {
 	defer cancel()
 
 	resp, err := client.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{
-		Limit: 20, 
+		Limit: 20,
 	})
 	if err != nil {
 		log.Printf("Failed to get trending hashtags: %v", err)
@@ -208,5 +209,5 @@ func GetTrends(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, response)
+	utils.SendSuccessResponse(c, http.StatusOK, response)
 }

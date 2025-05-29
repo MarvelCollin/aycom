@@ -97,15 +97,11 @@ func CreateThread(c *gin.Context) {
 func GetThread(c *gin.Context) {
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Thread ID is required")
 		return
 	}
 
-	userIDAny, exists := c.Get("userId")
+	userIDAny, exists := c.Get("userID")
 	var userID string
 	if exists {
 		userIDStr, ok := userIDAny.(string)
@@ -118,66 +114,54 @@ func GetThread(c *gin.Context) {
 	}
 
 	if threadServiceClient == nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Thread service client not initialized",
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
 	thread, err := threadServiceClient.GetThreadByID(threadID, userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Success: false,
-				Message: "Thread not found",
-				Code:    "THREAD_NOT_FOUND",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "THREAD_NOT_FOUND", "Thread not found")
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Error retrieving thread: " + err.Error(),
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error retrieving thread: "+err.Error())
 		return
 	}
 
-	response := gin.H{
-		"id":              thread.ID,
-		"content":         thread.Content,
-		"created_at":      thread.CreatedAt,
-		"updated_at":      thread.UpdatedAt,
-		"likes":           thread.LikeCount,
-		"replies":         thread.ReplyCount,
-		"reposts":         thread.RepostCount,
-		"is_liked":        thread.IsLiked,
-		"is_reposted":     thread.IsReposted,
-		"is_bookmarked":   thread.IsBookmarked,
-		"is_pinned":       thread.IsPinned,
-		"user_id":         thread.UserID,
-		"username":        thread.Username,
-		"display_name":    thread.DisplayName,
-		"profile_picture": thread.ProfilePicture,
+	threadData := gin.H{
+		"id":                  thread.ID,
+		"content":             thread.Content,
+		"created_at":          thread.CreatedAt,
+		"updated_at":          thread.UpdatedAt,
+		"likes_count":         thread.LikeCount,
+		"replies_count":       thread.ReplyCount,
+		"reposts_count":       thread.RepostCount,
+		"is_liked":            thread.IsLiked,
+		"is_reposted":         thread.IsReposted,
+		"is_bookmarked":       thread.IsBookmarked,
+		"is_pinned":           thread.IsPinned,
+		"user_id":             thread.UserID,
+		"username":            thread.Username,
+		"name":                thread.DisplayName,
+		"profile_picture_url": thread.ProfilePicture,
 	}
 
 	if len(thread.Media) > 0 {
-		mediaResponse := make([]map[string]interface{}, len(thread.Media))
+		mediaList := make([]map[string]interface{}, len(thread.Media))
 		for i, m := range thread.Media {
-			mediaResponse[i] = map[string]interface{}{
+			mediaList[i] = map[string]interface{}{
 				"id":   m.ID,
 				"url":  m.URL,
 				"type": m.Type,
 			}
 		}
-		response["media"] = mediaResponse
+		threadData["media"] = mediaList
 	}
 
 	log.Printf("Thread %s bookmark status for user %s: %v", threadID, userID, thread.IsBookmarked)
 
-	c.JSON(http.StatusOK, response)
+	utils.SendSuccessResponse(c, http.StatusOK, threadData)
 }
 
 func GetThreadsByUser(c *gin.Context) {
@@ -317,24 +301,24 @@ func GetThreadsByUser(c *gin.Context) {
 			"user_id":        t.Thread.UserId,
 			"created_at":     t.Thread.CreatedAt.AsTime(),
 			"updated_at":     t.Thread.UpdatedAt.AsTime(),
-			"like_count":     t.LikesCount,
-			"reply_count":    t.RepliesCount,
-			"repost_count":   t.RepostsCount,
+			"likes_count":    t.LikesCount,
+			"replies_count":  t.RepliesCount,
+			"reposts_count":  t.RepostsCount,
 			"bookmark_count": t.BookmarkCount,
-			"view_count":     t.Thread.ViewCount,
+			"views_count":    t.Thread.ViewCount,
 			"is_liked":       t.LikedByUser,
-			"is_repost":      t.RepostedByUser,
+			"is_reposted":    t.RepostedByUser,
 			"is_bookmarked":  t.BookmarkedByUser,
 			"is_pinned":      t.Thread.IsPinned != nil && *t.Thread.IsPinned,
 
 			"username":            "anonymous",
-			"display_name":        "User",
+			"name":                "User",
 			"profile_picture_url": "",
 		}
 
 		if t.User != nil {
 			thread["username"] = t.User.Username
-			thread["display_name"] = t.User.Name
+			thread["name"] = t.User.Name
 			thread["profile_picture_url"] = t.User.ProfilePictureUrl
 			thread["is_verified"] = t.User.IsVerified
 		}
@@ -650,18 +634,18 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 		"user_id":        "",
 		"created_at":     time.Now(),
 		"updated_at":     time.Now(),
-		"like_count":     0,
-		"reply_count":    0,
-		"repost_count":   0,
+		"likes_count":    0,
+		"replies_count":  0,
+		"reposts_count":  0,
 		"bookmark_count": 0,
-		"view_count":     0,
+		"views_count":    0,
 		"is_liked":       false,
-		"is_repost":      false,
+		"is_reposted":    false,
 		"is_bookmarked":  false,
 		"is_pinned":      false,
 
 		"username":            "anonymous",
-		"display_name":        "User",
+		"name":                "User",
 		"profile_picture_url": "",
 	}
 
@@ -680,7 +664,7 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 				thread["updated_at"] = t.Thread.UpdatedAt.AsTime()
 			}
 
-			thread["view_count"] = t.Thread.ViewCount
+			thread["views_count"] = t.Thread.ViewCount
 
 			if t.Thread.IsPinned != nil {
 				thread["is_pinned"] = *t.Thread.IsPinned
@@ -709,17 +693,17 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 			}
 		}
 
-		thread["like_count"] = t.LikesCount
-		thread["reply_count"] = t.RepliesCount
-		thread["repost_count"] = t.RepostsCount
+		thread["likes_count"] = t.LikesCount
+		thread["replies_count"] = t.RepliesCount
+		thread["reposts_count"] = t.RepostsCount
 		thread["bookmark_count"] = t.BookmarkCount
 		thread["is_liked"] = t.LikedByUser
-		thread["is_repost"] = t.RepostedByUser
+		thread["is_reposted"] = t.RepostedByUser
 		thread["is_bookmarked"] = t.BookmarkedByUser
 
 		if t.User != nil {
 			thread["username"] = t.User.Username
-			thread["display_name"] = t.User.Name
+			thread["name"] = t.User.Name
 			thread["profile_picture_url"] = t.User.ProfilePictureUrl
 			thread["is_verified"] = t.User.IsVerified
 		}
@@ -958,19 +942,18 @@ func GetUserReplies(c *gin.Context) {
 	replyItems := make([]map[string]interface{}, len(replies))
 	for i, reply := range replies {
 		replyItem := map[string]interface{}{
-			"id":            reply.ID,
-			"reply_id":      reply.ID,
-			"thread_id":     reply.ParentID,
-			"content":       reply.Content,
-			"user_id":       reply.UserID,
-			"created_at":    reply.CreatedAt,
-			"updated_at":    reply.UpdatedAt,
-			"like_count":    reply.LikeCount,
-			"is_liked":      reply.IsLiked,
-			"is_bookmarked": reply.IsBookmarked,
-
+			"id":                  reply.ID,
+			"reply_id":            reply.ID,
+			"thread_id":           reply.ParentID,
+			"content":             reply.Content,
+			"user_id":             reply.UserID,
+			"created_at":          reply.CreatedAt,
+			"updated_at":          reply.UpdatedAt,
+			"likes_count":         reply.LikeCount,
+			"is_liked":            reply.IsLiked,
+			"is_bookmarked":       reply.IsBookmarked,
 			"username":            reply.Username,
-			"display_name":        reply.DisplayName,
+			"name":                reply.DisplayName,
 			"profile_picture_url": reply.ProfilePicture,
 			"thread_author":       "unknown",
 		}
@@ -1124,14 +1107,14 @@ func GetUserLikedThreads(c *gin.Context) {
 			"thread_id":           thread.ID,
 			"created_at":          thread.CreatedAt,
 			"updated_at":          thread.UpdatedAt,
-			"like_count":          thread.LikeCount,
-			"reply_count":         thread.ReplyCount,
-			"repost_count":        thread.RepostCount,
+			"likes_count":         thread.LikeCount,
+			"replies_count":       thread.ReplyCount,
+			"reposts_count":       thread.RepostCount,
 			"is_liked":            thread.IsLiked,
-			"is_repost":           thread.IsReposted,
+			"is_reposted":         thread.IsReposted,
 			"is_bookmarked":       thread.IsBookmarked,
 			"username":            thread.Username,
-			"display_name":        thread.DisplayName,
+			"name":                thread.DisplayName,
 			"profile_picture_url": thread.ProfilePicture,
 		}
 

@@ -29,7 +29,26 @@ export async function login(email: string, password: string) {
     
     const data = await response.json();
     console.log('Login successful, received data with keys:', Object.keys(data));
-    return data;
+    
+    // Ensure we have consistent field names
+    const standardizedResponse = {
+      user: data.user ? {
+        id: data.user.id,
+        username: data.user.username,
+        name: data.user.name || data.user.display_name,
+        email: data.user.email,
+        profile_picture_url: data.user.profile_picture_url || data.user.profilePictureUrl,
+        is_verified: data.user.is_verified || data.user.verified || false,
+        is_admin: data.user.is_admin || data.user.admin || false
+      } : data.user,
+      access_token: data.access_token || data.accessToken || data.token,
+      refresh_token: data.refresh_token || data.refreshToken,
+      expires_in: data.expires_in || data.expiresIn,
+      token_type: data.token_type || data.tokenType || 'bearer',
+      user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
+    };
+    
+    return standardizedResponse;
   } catch (error) {
     console.error('Login exception:', error);
     throw error;
@@ -144,7 +163,26 @@ export async function googleLogin(tokenId: string) {
     
     const data = await response.json();
     console.log('Google login successful');
-    return data;
+    
+    // Ensure we have consistent field names
+    const standardizedResponse = {
+      user: data.user ? {
+        id: data.user.id,
+        username: data.user.username,
+        name: data.user.name || data.user.display_name,
+        email: data.user.email,
+        profile_picture_url: data.user.profile_picture_url || data.user.profilePictureUrl,
+        is_verified: data.user.is_verified || data.user.verified || false,
+        is_admin: data.user.is_admin || data.user.admin || false
+      } : data.user,
+      access_token: data.access_token || data.accessToken || data.token,
+      refresh_token: data.refresh_token || data.refreshToken,
+      expires_in: data.expires_in || data.expiresIn,
+      token_type: data.token_type || data.tokenType || 'bearer',
+      user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
+    };
+    
+    return standardizedResponse;
   } catch (error) {
     console.error('Google login request error:', error);
     if (error instanceof Error && error.name === 'AbortError') {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"net/http"
 	"strconv"
 
@@ -10,13 +11,13 @@ import (
 func GetUserBookmarks(c *gin.Context) {
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID format")
 		return
 	}
 
@@ -35,37 +36,34 @@ func GetUserBookmarks(c *gin.Context) {
 
 	threadClient := GetThreadServiceClient()
 	if threadClient == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Thread service unavailable"})
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service unavailable")
 		return
 	}
 
 	bookmarkedThreads, err := threadClient.GetUserBookmarks(userID, page, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to fetch bookmarks: " + err.Error(),
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch bookmarks: "+err.Error())
 		return
 	}
 
 	bookmarks := make([]gin.H, len(bookmarkedThreads))
 	for i, thread := range bookmarkedThreads {
-		bookmarks[i] = gin.H{
-			"id":              thread.ID,
-			"thread_id":       thread.ID,
-			"content":         thread.Content,
-			"user_id":         thread.UserID,
-			"username":        thread.Username,
-			"display_name":    thread.DisplayName,
-			"profile_picture": thread.ProfilePicture,
-			"created_at":      thread.CreatedAt,
-			"updated_at":      thread.UpdatedAt,
-			"like_count":      thread.LikeCount,
-			"reply_count":     thread.ReplyCount,
-			"repost_count":    thread.RepostCount,
-			"is_liked":        thread.IsLiked,
-			"is_repost":       thread.IsReposted,
-			"is_bookmarked":   true,
-			"is_pinned":       thread.IsPinned,
+		threadData := gin.H{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"created_at":          thread.CreatedAt,
+			"updated_at":          thread.UpdatedAt,
+			"likes_count":         thread.LikeCount,
+			"replies_count":       thread.ReplyCount,
+			"reposts_count":       thread.RepostCount,
+			"is_liked":            thread.IsLiked,
+			"is_reposted":         thread.IsReposted,
+			"is_bookmarked":       thread.IsBookmarked,
+			"is_pinned":           thread.IsPinned,
+			"user_id":             thread.UserID,
+			"username":            thread.Username,
+			"name":                thread.DisplayName,
+			"profile_picture_url": thread.ProfilePicture,
 		}
 
 		if len(thread.Media) > 0 {
@@ -77,19 +75,21 @@ func GetUserBookmarks(c *gin.Context) {
 					"url":  m.URL,
 				}
 			}
-			bookmarks[i]["media"] = media
+			threadData["media"] = media
 		} else {
-			bookmarks[i]["media"] = []interface{}{}
+			threadData["media"] = []interface{}{}
 		}
+
+		bookmarks[i] = threadData
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"bookmarks": bookmarks,
 		"pagination": gin.H{
-			"total":   len(bookmarkedThreads),
-			"page":    page,
-			"limit":   limit,
-			"hasMore": len(bookmarkedThreads) >= limit,
+			"total_count":  len(bookmarkedThreads),
+			"current_page": page,
+			"per_page":     limit,
+			"has_more":     len(bookmarkedThreads) >= limit,
 		},
 	})
 }
@@ -97,23 +97,23 @@ func GetUserBookmarks(c *gin.Context) {
 func SearchBookmarks(c *gin.Context) {
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Search query is required"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
 		return
 	}
 
 	_, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"bookmarks": []gin.H{},
 		"pagination": gin.H{
-			"total":   0,
-			"page":    1,
-			"limit":   10,
-			"hasMore": false,
+			"total_count":  0,
+			"current_page": 1,
+			"per_page":     10,
+			"has_more":     false,
 		},
 	})
 }
@@ -121,18 +121,17 @@ func SearchBookmarks(c *gin.Context) {
 func DeleteBookmarkById(c *gin.Context) {
 	_, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
 	bookmarkID := c.Param("id")
 	if bookmarkID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Bookmark ID is required"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Bookmark ID is required")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Bookmark removed successfully",
 	})
 }

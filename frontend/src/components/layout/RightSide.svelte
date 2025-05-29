@@ -223,7 +223,7 @@
   $: {
     suggestedFollows.forEach(user => {
       if (followingStatus[user.username] === undefined) {
-        followingStatus[user.username] = user.isFollowing || false;
+        followingStatus[user.username] = user.is_following || false;
       }
     });
   }
@@ -272,14 +272,14 @@
                   >
                     <div class="search-result-avatar">
                       <img 
-                        src={user.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'} 
-                        alt={user.displayName || user.username} 
+                        src={user.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp'} 
+                        alt={user.name || user.username} 
                       />
                     </div>
                     <div class="search-result-details">
                       <div class="search-result-name">
-                        {user.displayName || user.username}
-                        {#if user.isVerified}
+                        {user.name || user.username}
+                        {#if user.is_verified}
                           <span class="verified-badge">✓</span>
                         {/if}
                       </div>
@@ -347,7 +347,7 @@
                   {trend.title}
                 </a>
               </div>
-              <div class="trend-count">{trend.postCount || '0'} posts</div>
+              <div class="trend-count">{trend.post_count || '0'} posts</div>
             </div>
           {/each}
         </div>
@@ -377,14 +377,14 @@
               <div class="suggestion-avatar">
                 <a href={`/user/${user.username}`}>
                   <img 
-                    src={user.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'} 
-                    alt={user.displayName || user.username || 'User'} 
+                    src={user.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp'} 
+                    alt={user.name || user.username || 'User'} 
                   />
                 </a>
               </div>
               <div class="suggestion-details">
                 <a href={`/user/${user.username}`} class="suggestion-name">
-                  {user.displayName || user.username || 'User'}
+                  {user.name || user.username || 'User'}
                 </a>
                 <a href={`/user/${user.username}`} class="suggestion-username">
                   @{user.username || 'user'}

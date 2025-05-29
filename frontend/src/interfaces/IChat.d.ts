@@ -1,9 +1,9 @@
 export interface User {
   id: string;
   username: string;
-  displayName: string;
-  avatar: string | null;
-  isVerified?: boolean;
+  name: string;
+  profile_picture_url: string | null;
+  is_verified?: boolean;
 }
 
 export interface ApiUserResponse {
@@ -11,7 +11,6 @@ export interface ApiUserResponse {
     id: string;
     username?: string;
     name?: string;
-    display_name?: string;
     profile_picture_url?: string;
     is_verified?: boolean;
   }>;
@@ -20,7 +19,6 @@ export interface ApiUserResponse {
       id: string;
       username?: string;
       name?: string;
-      display_name?: string;
       profile_picture_url?: string;
       is_verified?: boolean;
     }>;
@@ -30,28 +28,28 @@ export interface ApiUserResponse {
 export interface Participant {
   id: string;
   username: string;
-  displayName: string;
-  avatar: string | null;
-  isVerified: boolean;
+  name: string;
+  profile_picture_url: string | null;
+  is_verified: boolean;
 }
 
 export interface LastMessage {
   content: string;
   timestamp: string | number;
-  senderId: string;
-  senderName: string;
+  sender_id: string;
+  sender_name: string;
 }
 
 export interface Message {
   id: string;
   content: string;
   timestamp: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar?: string;
-  isOwn: boolean;
-  isRead: boolean;
-  isDeleted: boolean;
+  sender_id: string;
+  sender_name: string;
+  sender_profile_picture?: string;
+  is_own: boolean;
+  is_read: boolean;
+  is_deleted: boolean;
   attachments: Attachment[];
 }
 
@@ -66,11 +64,11 @@ export interface Chat {
   id: string;
   type: 'individual' | 'group';
   name: string;
-  avatar: string | null;
+  profile_picture_url: string | null;
   participants: Participant[];
-  lastMessage?: LastMessage;
+  last_message?: LastMessage;
   messages: Message[];
-  unreadCount: number;
+  unread_count: number;
 }
 
 export interface CreateChatResponse {
@@ -81,8 +79,8 @@ export interface CreateChatResponse {
     participants?: Array<{
       id: string;
       username?: string;
-      display_name?: string;
-      avatar?: string | null;
+      name?: string;
+      profile_picture_url?: string | null;
       is_verified?: boolean;
     }>;
   };

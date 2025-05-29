@@ -22,8 +22,8 @@ export async function getSecurityQuestion(email: string, recaptchaToken: string 
   }
   
   return {
-    securityQuestion: data.security_question,
-    oldPasswordHash: data.old_password_hash || '',
+    security_question: data.security_question,
+    old_password_hash: data.old_password_hash || '',
     email: data.email
   };
 }
@@ -49,9 +49,9 @@ export async function verifySecurityAnswer(email: string, answer: string) {
   
   return { 
     success: data.success, 
-    token: data.reset_token,
+    token: data.token || data.reset_token,
     email: data.email,
-    expirationTime: data.token_expiration_time
+    expires_at: data.expires_at || data.token_expiration_time
   };
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	threadProto "aycom/backend/proto/thread"
 	userProto "aycom/backend/proto/user"
 	"context"
@@ -97,9 +98,9 @@ func FollowUser(c *gin.Context) {
 
 	// Determine the action based on the response
 	var action string
-	var isFollowing bool = followResp.IsNowFollowing
+	var isFollowing bool = followResp.Success
 
-	if followResp.WasAlreadyFollowing {
+	if followResp.Message == "Already following" {
 		action = "already_following"
 		log.Printf("User %s was already following user %s", currentUserID, targetUserID)
 	} else {
@@ -107,31 +108,23 @@ func FollowUser(c *gin.Context) {
 		log.Printf("User %s successfully followed user %s", currentUserID, targetUserID)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":               followResp.Success,
-		"message":               followResp.Message,
-		"action":                action,
-		"is_following":          isFollowing,
-		"was_already_following": followResp.WasAlreadyFollowing,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"action":       action,
+		"is_following": isFollowing,
+		"message":      followResp.Message,
 	})
 }
 
 func UnfollowUser(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "User ID parameter is required",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID parameter is required")
 		return
 	}
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "User not authenticated",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	currentUserID := userID.(string)
@@ -143,20 +136,14 @@ func UnfollowUser(c *gin.Context) {
 		log.Printf("UnfollowUser: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
 
 		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "User service client not initialized",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
 		user, err := userServiceClient.GetUserByUsername(targetUserID)
 		if err != nil {
 			// Failed to find user by username
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("User with username '%s' not found", targetUserID),
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", targetUserID))
 			log.Printf("UnfollowUser: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
 			return
 		}
@@ -170,6 +157,17 @@ func UnfollowUser(c *gin.Context) {
 	defer cancel()
 
 	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: targetUserID,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Target user not found",
+		})
+		log.Printf("Error unfollowing user: target user %s not found: %v", targetUserID, err)
+		return
+	}
 	unfollowRequest := &userProto.UnfollowUserRequest{
 		FollowerId: currentUserID,
 		FollowedId: targetUserID,
@@ -186,9 +184,9 @@ func UnfollowUser(c *gin.Context) {
 
 	// Determine the action based on the response
 	var action string
-	var isFollowing bool = unfollowResp.IsNowFollowing
+	var isFollowing bool = false
 
-	if !unfollowResp.WasFollowing {
+	if !unfollowResp.Success {
 		action = "not_following"
 		log.Printf("User %s was not following user %s", currentUserID, targetUserID)
 	} else {
@@ -196,33 +194,18 @@ func UnfollowUser(c *gin.Context) {
 		log.Printf("User %s successfully unfollowed user %s", currentUserID, targetUserID)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":       unfollowResp.Success,
-		"message":       unfollowResp.Message,
-		"action":        action,
-		"is_following":  isFollowing,
-		"was_following": unfollowResp.WasFollowing,
-	}))
-		log.Printf("Error unfollowing user: %v", err)
-		return
-	}
-
-	log.Printf("User %s successfully unfollowed user %s", currentUserID, targetUserID)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": unfollowResp.Success,
-		"message": unfollowResp.Message,
-		"action": "unfollowed", // Indicate the action performed
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"success":      unfollowResp.Success,
+		"message":      unfollowResp.Message,
+		"action":       action,
+		"is_following": isFollowing,
 	})
 }
 
 func GetFollowers(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "User ID parameter is required",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID parameter is required")
 		return
 	}
 
@@ -286,21 +269,18 @@ func GetFollowers(c *gin.Context) {
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.NotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": "User not found",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 			return
 		}
 
 		log.Printf("Error getting followers: %v", err)
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data": gin.H{
-				"followers": []gin.H{},
-				"page":      page,
-				"limit":     limit,
-				"total":     0,
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"followers": []gin.H{},
+			"pagination": gin.H{
+				"total_count":  0,
+				"current_page": page,
+				"per_page":     limit,
+				"has_more":     false,
 			},
 		})
 		return
@@ -319,13 +299,13 @@ func GetFollowers(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"followers": followers,
-			"page":      page,
-			"limit":     limit,
-			"total":     followersResp.TotalCount,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"followers": followers,
+		"pagination": gin.H{
+			"total_count":  followersResp.TotalCount,
+			"current_page": page,
+			"per_page":     limit,
+			"has_more":     len(followers) == limit,
 		},
 	})
 }
@@ -333,10 +313,7 @@ func GetFollowers(c *gin.Context) {
 func GetFollowing(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "User ID parameter is required",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID parameter is required")
 		return
 	}
 
@@ -400,21 +377,18 @@ func GetFollowing(c *gin.Context) {
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.NotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": "User not found",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 			return
 		}
 
 		log.Printf("Error getting following: %v", err)
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data": gin.H{
-				"following": []gin.H{},
-				"page":      page,
-				"limit":     limit,
-				"total":     0,
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"following": []gin.H{},
+			"pagination": gin.H{
+				"total_count":  0,
+				"current_page": page,
+				"per_page":     limit,
+				"has_more":     false,
 			},
 		})
 		return
@@ -433,13 +407,13 @@ func GetFollowing(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"following": following,
-			"page":      page,
-			"limit":     limit,
-			"total":     followingResp.TotalCount,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"following": following,
+		"pagination": gin.H{
+			"total_count":  followingResp.TotalCount,
+			"current_page": page,
+			"per_page":     limit,
+			"has_more":     len(following) == limit,
 		},
 	})
 }
@@ -1014,13 +988,13 @@ func BookmarkThread(c *gin.Context) {
 
 	threadID := c.Param("id")
 	if threadID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
 	}
 
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
 
@@ -1034,37 +1008,35 @@ func BookmarkThread(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread not found")
 				return
 			case codes.AlreadyExists:
 
-				c.JSON(http.StatusOK, gin.H{
-					"success": true,
+				utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 					"message": "Thread was already bookmarked",
 					"code":    "ALREADY_BOOKMARKED",
 				})
 				return
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 				return
 			case codes.PermissionDenied:
-				SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "You do not have permission to bookmark this thread")
+				utils.SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "You do not have permission to bookmark this thread")
 				return
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error bookmarking thread: %v", st.Message()))
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error bookmarking thread: %v", st.Message()))
 				return
 			}
 		}
 
 		log.Printf("Error in BookmarkThread: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error bookmarking thread")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error bookmarking thread")
 		return
 	}
 
 	log.Printf("Successfully bookmarked thread %s for user %s", threadID, userID)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Thread bookmarked successfully",
 	})
 }
@@ -1073,13 +1045,13 @@ func RemoveBookmark(c *gin.Context) {
 
 	threadID := c.Param("id")
 	if threadID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
 	}
 
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User must be authenticated")
 		return
 	}
 
@@ -1092,23 +1064,21 @@ func RemoveBookmark(c *gin.Context) {
 			switch st.Code() {
 			case codes.NotFound:
 
-				c.JSON(http.StatusOK, gin.H{
-					"success": true,
+				utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 					"message": "Thread was not bookmarked",
 				})
 				return
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error removing bookmark: %v", st.Message()))
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Error removing bookmark: %v", st.Message()))
 				return
 			}
 		}
 
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error removing bookmark")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error removing bookmark")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Bookmark removed successfully",
 	})
 }
@@ -1119,9 +1089,11 @@ func GetThreadsFromFollowing(c *gin.Context) {
 	if !exists {
 		log.Printf("GetThreadsFromFollowing: No userId in context, returning empty results")
 
-		c.JSON(http.StatusOK, gin.H{
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"threads": []gin.H{},
-			"total":   0,
+			"pagination": gin.H{
+				"total_count": 0,
+			},
 		})
 		return
 	}
@@ -1130,9 +1102,11 @@ func GetThreadsFromFollowing(c *gin.Context) {
 	if !ok {
 		log.Printf("GetThreadsFromFollowing: Invalid userId type, returning empty results")
 
-		c.JSON(http.StatusOK, gin.H{
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"threads": []gin.H{},
-			"total":   0,
+			"pagination": gin.H{
+				"total_count": 0,
+			},
 		})
 		return
 	}
@@ -1158,11 +1132,13 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	log.Printf("Getting following threads for user: %s, page: %d, limit: %d", authenticatedUserIDStr, page, limit)
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"threads": []gin.H{},
-		"total":   0,
-		"page":    page,
-		"limit":   limit,
+		"pagination": gin.H{
+			"total_count":  0,
+			"current_page": page,
+			"per_page":     limit,
+		},
 	})
 }
 
@@ -1507,7 +1483,7 @@ func SearchSocialUsers(c *gin.Context) {
 
 	query := c.Query("q")
 	if query == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
 		return
 	}
 
@@ -1525,17 +1501,17 @@ func SearchSocialUsers(c *gin.Context) {
 	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
 		log.Printf("Error searching users: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to search users")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to search users")
 		return
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"users": users,
 		"pagination": gin.H{
-			"total":   totalCount,
-			"page":    page,
-			"limit":   limit,
-			"hasMore": len(users) == limit && (page*limit) < totalCount,
+			"total_count":  totalCount,
+			"current_page": page,
+			"per_page":     limit,
+			"has_more":     len(users) == limit && (page*limit) < totalCount,
 		},
 	})
 }
@@ -1776,19 +1752,13 @@ func GetRepliesByParentReply(c *gin.Context) {
 func CheckFollowStatus(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "User ID parameter is required",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID parameter is required")
 		return
 	}
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "User not authenticated",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	currentUserID := userID.(string)
@@ -1800,23 +1770,18 @@ func CheckFollowStatus(c *gin.Context) {
 		log.Printf("CheckFollowStatus: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
 
 		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "User service client not initialized",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
 		user, err := userServiceClient.GetUserByUsername(targetUserID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("User with username '%s' not found", targetUserID),
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", targetUserID))
 			log.Printf("CheckFollowStatus: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
 			return
 		}
 
+		// Use the resolved UUID
 		targetUserID = user.ID
 		log.Printf("CheckFollowStatus: Resolved username '%s' to UUID '%s'", c.Param("userId"), targetUserID)
 	}
@@ -1830,10 +1795,7 @@ func CheckFollowStatus(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "Target user not found",
-		})
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Target user not found")
 		log.Printf("CheckFollowStatus: target user %s not found: %v", targetUserID, err)
 		return
 	}
@@ -1846,20 +1808,16 @@ func CheckFollowStatus(c *gin.Context) {
 
 	isFollowingResp, err := UserClient.IsFollowing(ctx, isFollowingReq)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to check follow status: " + err.Error(),
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to check follow status: "+err.Error())
 		log.Printf("Error checking follow status: %v", err)
 		return
 	}
 
 	log.Printf("Follow status check: User %s following user %s: %v", currentUserID, targetUserID, isFollowingResp.IsFollowing)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":      true,
-		"isFollowing":  isFollowingResp.IsFollowing,
-		"followerId":   currentUserID,
-		"followedId":   targetUserID,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"is_following": isFollowingResp.IsFollowing,
+		"follower_id":  currentUserID,
+		"followed_id":  targetUserID,
 	})
 }

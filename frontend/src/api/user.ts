@@ -30,7 +30,8 @@ export async function getProfile() {
   try {
     if (authState) {
       const parsedAuth = JSON.parse(authState);
-      userId = parsedAuth.userId;
+      // Check for both snake_case and camelCase versions of the ID field
+      userId = parsedAuth.user_id || parsedAuth.userId;
       console.log('Found user ID in auth state:', userId);
     }
   } catch (err) {
@@ -58,15 +59,18 @@ export async function updateProfile(data: Record<string, any>) {
   
   // Ensure we have consistent field names with what the backend expects
   const formattedData = {
-    ...data,
-    // Convert displayName to name if present
-    name: data.displayName || data.name,
-    // Convert dateOfBirth to date_of_birth if present
-    date_of_birth: data.dateOfBirth || data.date_of_birth,
-    // Handle profile picture fields
-    profile_picture_url: data.profilePicture || data.profile_picture_url || data.profile_picture || data.avatar,
-    // Handle banner fields
-    banner_url: data.backgroundBanner || data.banner_url || data.banner,
+    name: data.name,
+    bio: data.bio,
+    date_of_birth: data.date_of_birth,
+    profile_picture_url: data.profile_picture_url,
+    banner_url: data.banner_url,
+    // Add any other fields that might be present
+    ...Object.keys(data)
+      .filter(key => !['name', 'bio', 'date_of_birth', 'profile_picture_url', 'banner_url'].includes(key))
+      .reduce((obj, key) => {
+        obj[key] = data[key];
+        return obj;
+      }, {} as Record<string, any>)
   };
   
   console.log('Formatted profile update data:', formattedData);
@@ -183,6 +187,8 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
       return { success: false, message: err instanceof Error ? err.message : 'Unknown error', was_already_following: false, is_now_following: false };
     }
   }
+}
+
 export async function unfollowUser(userId: string): Promise<UnfollowUserResponse> {
   try {
     console.log(`Attempting to unfollow user: ${userId}`);
@@ -254,10 +260,6 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
       return { success: false, message: err instanceof Error ? err.message : 'Unknown error', was_following: false, is_now_following: false };
     }
   }
-}     console.error('Failed to unfollow user:', err);
-    }
-    return false;
-  }
 }
 
 export async function getFollowers(userId: string, page = 1, limit = 20): Promise<any[]> {
@@ -281,11 +283,11 @@ export async function getFollowers(userId: string, page = 1, limit = 20): Promis
     if (data && data.followers) {
       return data.followers.map((follower: any) => ({
         id: follower.id,
-        name: follower.name || follower.display_name,
+        name: follower.name,
         username: follower.username,
-        profile_picture: follower.profile_picture_url || '👤',
-        verified: follower.verified || false,
-        isFollowing: follower.is_following || false
+        profile_picture_url: follower.profile_picture_url || '👤',
+        is_verified: follower.is_verified || false,
+        is_following: follower.is_following || false
       }));
     }
     
@@ -317,17 +319,17 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
     if (data && data.following) {
       return data.following.map((following: any) => ({
         id: following.id,
-        name: following.name || following.display_name,
+        name: following.name,
         username: following.username,
-        profile_picture: following.profile_picture_url || '👤',
-        verified: following.verified || false,
-        isFollowing: true
+        profile_picture_url: following.profile_picture_url || '👤',
+        is_verified: following.is_verified || false,
+        is_following: true
       }));
     }
     
     return [];
   } catch (err) {
-    console.error('Failed to get following list:', err);
+    console.error('Failed to get following:', err);
     return [];
   }
 }

@@ -19,8 +19,8 @@
   let isLoading = true;
   let error: string | null = null;
   let username = '';
-  let displayName = '';
-  let avatar = '';
+  let name = '';
+  let profile_picture_url = '';
   let isOwnProfile = false;
 
   // Subscribe to the page store to get URL parameters
@@ -97,9 +97,9 @@
       
       if (userData && userData.user) {
         username = userData.user.username || '';
-        displayName = userData.user.display_name || '';
-        avatar = userData.user.profile_picture_url || '';
-        logger.debug(`User info: ${displayName} (@${username})`);
+        name = userData.user.name || '';
+        profile_picture_url = userData.user.profile_picture_url || '';
+        logger.debug(`User info: ${name} (@${username})`);
       } else {
         logger.error('User not found');
         error = 'User not found';

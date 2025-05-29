@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	userProto "aycom/backend/proto/user"
 	"context"
 	"log"
@@ -17,7 +18,7 @@ import (
 func BanUser(c *gin.Context) {
 	userID := c.Param("userId")
 	if userID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
 
@@ -28,11 +29,11 @@ func BanUser(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("BanUser Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -49,22 +50,21 @@ func BanUser(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("BanUser Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user ban status")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user ban status")
 			}
 		} else {
 			log.Printf("BanUser Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user ban status")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user ban status")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": response.Success,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})
 }
@@ -78,18 +78,18 @@ func SendNewsletter(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("SendNewsletter Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	// Get admin ID from context
 	adminID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Admin not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Admin not authenticated")
 		return
 	}
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -107,20 +107,19 @@ func SendNewsletter(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("SendNewsletter Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to send newsletter")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to send newsletter")
 			}
 		} else {
 			log.Printf("SendNewsletter Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to send newsletter")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to send newsletter")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":          response.Success,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":          response.Message,
 		"recipients_count": response.RecipientsCount,
 	})

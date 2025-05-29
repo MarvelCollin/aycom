@@ -75,9 +75,11 @@ export function getUserId(): string | null {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
-      if (auth.userId) {
-        logger.debug(`Found user ID: ${auth.userId}`);
-        return auth.userId;
+      // Check both camelCase and snake_case versions for backward compatibility
+      if (auth.userId || auth.user_id) {
+        const id = auth.user_id || auth.userId;
+        logger.debug(`Found user ID: ${id}`);
+        return id;
       } else {
         logger.warn('Auth data exists but no user ID found');
       }
@@ -139,7 +141,8 @@ export function setAuthData(userData: {
     const authData = {
       ...existingData, // Preserve existing fields
       isAuthenticated: true,
-      userId: userData.userId,
+      userId: userData.userId, // Keep camelCase for backward compatibility
+      user_id: userData.userId, // Add snake_case version for new code
       accessToken: userData.accessToken,
       refreshToken: userData.refreshToken || null,
       expiresAt: expiresAt,

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,21 +14,21 @@ func BlockUser(c *gin.Context) {
 	// Get target user ID from route parameter
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
 		return
 	}
 
 	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	blockerID := currentUserID.(string)
 
 	// Don't allow users to block themselves
 	if blockerID == targetUserID {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot block themselves")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot block themselves")
 		return
 	}
 
@@ -35,12 +36,11 @@ func BlockUser(c *gin.Context) {
 	err := userServiceClient.BlockUser(blockerID, targetUserID)
 	if err != nil {
 		log.Printf("Error blocking user %s: %v", targetUserID, err)
-		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to block user")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to block user")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "User blocked successfully",
 	})
 }
@@ -50,14 +50,14 @@ func UnblockUser(c *gin.Context) {
 	// Get target user ID from route parameter
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
 		return
 	}
 
 	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	blockerID := currentUserID.(string)
@@ -66,12 +66,11 @@ func UnblockUser(c *gin.Context) {
 	err := userServiceClient.UnblockUser(blockerID, targetUserID)
 	if err != nil {
 		log.Printf("Error unblocking user %s: %v", targetUserID, err)
-		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to unblock user")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to unblock user")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "User unblocked successfully",
 	})
 }
@@ -81,7 +80,7 @@ func GetBlockedUsers(c *gin.Context) {
 	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	userID := currentUserID.(string)
@@ -108,7 +107,7 @@ func GetBlockedUsers(c *gin.Context) {
 	blockedUsers, err := userServiceClient.GetBlockedUsers(userID, page, limit)
 	if err != nil {
 		log.Printf("Error getting blocked users for %s: %v", userID, err)
-		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to retrieve blocked users")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to retrieve blocked users")
 		return
 	}
 
@@ -125,12 +124,12 @@ func GetBlockedUsers(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"blocked_users": formattedUsers,
-			"page":          page,
-			"limit":         limit,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"blocked_users": formattedUsers,
+		"pagination": gin.H{
+			"current_page": page,
+			"per_page":     limit,
+			"total_count":  len(blockedUsers),
 		},
 	})
 }
@@ -140,21 +139,21 @@ func ReportUser(c *gin.Context) {
 	// Get target user ID from route parameter
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
 		return
 	}
 
 	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	reporterID := currentUserID.(string)
 
 	// Don't allow users to report themselves
 	if reporterID == targetUserID {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot report themselves")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot report themselves")
 		return
 	}
 
@@ -164,12 +163,12 @@ func ReportUser(c *gin.Context) {
 	}
 
 	if err := c.BindJSON(&requestBody); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request format")
 		return
 	}
 
 	if requestBody.Reason == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Reason is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Reason is required")
 		return
 	}
 
@@ -177,14 +176,11 @@ func ReportUser(c *gin.Context) {
 	err := userServiceClient.ReportUser(reporterID, targetUserID, requestBody.Reason)
 	if err != nil {
 		log.Printf("Error reporting user %s: %v", targetUserID, err)
-		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to report user")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to report user")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "User reported successfully",
 	})
 }
-
-// Using SendErrorResponse from common.go

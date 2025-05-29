@@ -3,9 +3,9 @@ import type { IUserProfile } from './IUser';
 
 // Media interface
 export interface IMedia {
+  id?: string;
   url: string;
   type: string;
-  id?: string;
   alt?: string;
 }
 
@@ -13,45 +13,44 @@ export interface IMedia {
 export interface ITweet {
   // Core fields
   id: string;
-  threadId: string;
+  thread_id: string;
   content: string;
-  timestamp: string;            // ISO timestamp
-  createdAt?: string;           // Alternative timestamp field
+  created_at: string;        // ISO timestamp
   
   // User-related fields
-  userId: string;
+  user_id: string;
   username: string;
-  displayName: string;
-  avatar: string;
+  name: string;              // Was displayName
+  profile_picture_url: string;  // Was avatar
   
   // Interaction metrics
-  likes: number;
-  replies: number;
-  reposts: number;
-  bookmarks: number;
-  views: number;
+  likes_count: number;       // Was likes
+  replies_count: number;     // Was replies
+  reposts_count: number;     // Was reposts
+  bookmarks_count: number;   // Was bookmarks
+  views_count: number;       // Was views
   
   // Media
   media?: IMedia[];
   
   // Interaction states
-  isLiked: boolean;
-  isReposted: boolean;
-  isBookmarked: boolean;
-  isPinned: boolean;
+  is_liked: boolean;         // Was isLiked
+  is_reposted: boolean;      // Was isReposted
+  is_bookmarked: boolean;    // Was isBookmarked
+  is_pinned: boolean;        // Was isPinned
   
   // Relations
-  replyTo?: ITweet | null;
+  reply_to?: ITweet | null;  // Was replyTo
   
   // Community-related fields
-  communityId?: string | null;
-  communityName?: string | null;
+  community_id?: string | null; // Was communityId
+  community_name?: string | null; // Was communityName
   
   // Additional metadata
-  isAdvertisement?: boolean;
+  is_advertisement?: boolean; // Was isAdvertisement
   
   // Legacy fields for backward compatibility (optional)
-  _originalData?: any;
+  _original_data?: any;      // Was _originalData
 }
 
 // Trend interface
@@ -59,24 +58,24 @@ export interface ITrend {
   id?: string;
   category: string;
   title: string;
-  postCount: number;
+  post_count: number;       // Was postCount
 }
 
 // Suggested follow interface
 export interface ISuggestedFollow {
-  userId: string; 
+  user_id: string;          // Was userId
   username: string;
-  displayName: string;
-  avatar: string | null;
-  verified: boolean;
-  followerCount: number;
-  isFollowing?: boolean;
+  name: string;             // Was displayName
+  profile_picture_url: string | null; // Was avatar
+  is_verified: boolean;     // Was verified
+  follower_count: number;   // Was followerCount
+  is_following?: boolean;   // Was isFollowing
 }
 
 // Community interface
 export interface ICommunity {
   id: string;
   name: string;
-  memberCount: number;
-  avatar: string;
+  member_count: number;     // Was memberCount
+  logo_url: string;         // Was avatar
 }

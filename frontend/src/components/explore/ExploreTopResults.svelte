@@ -12,28 +12,28 @@
   export let topProfiles: Array<{
     id: string;
     username: string;
-    displayName: string;
-    avatar: string | null;
+    name: string;
+    profile_picture_url: string | null;
     bio?: string;
-    isVerified: boolean;
-    followerCount: number;
-    isFollowing: boolean;
+    is_verified: boolean;
+    follower_count: number;
+    is_following: boolean;
   }> = [];
   
   export let topThreads: Array<{
     id: string;
     content: string;
     username: string;
-    displayName: string;
-    timestamp: string;
-    likes: number;
-    replies: number;
-    reposts: number;
+    name: string;
+    created_at: string;
+    likes_count: number;
+    replies_count: number;
+    reposts_count: number;
     media?: Array<{
       type: string;
       url: string;
     }>;
-    avatar?: string;
+    profile_picture_url?: string;
   }> = [];
   
   export let isLoading = false;

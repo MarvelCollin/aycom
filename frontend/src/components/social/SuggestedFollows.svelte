@@ -4,25 +4,31 @@
   export let isDarkMode = false;
   export let suggestedUsers: ISuggestedFollow[] = [
     { 
-      displayName: 'Brainwalla', 
+      name: 'Brainwalla', 
       username: 'brainwalla', 
-      avatar: '🧠', 
-      verified: true,
-      followerCount: 12300000
+      profile_picture_url: '🧠', 
+      is_verified: true,
+      follower_count: 12300000,
+      user_id: '1',
+      is_following: false
     },
     { 
-      displayName: 'Peach', 
+      name: 'Peach', 
       username: 'peach', 
-      avatar: '🍑', 
-      verified: true,
-      followerCount: 8500000
+      profile_picture_url: '🍑', 
+      is_verified: true,
+      follower_count: 8500000,
+      user_id: '2',
+      is_following: false
     },
     { 
-      displayName: 'YTuber', 
+      name: 'YTuber', 
       username: 'ytuber', 
-      avatar: '▶️', 
-      verified: false,
-      followerCount: 5700000
+      profile_picture_url: '▶️', 
+      is_verified: false,
+      follower_count: 5700000,
+      user_id: '3',
+      is_following: false
     }
   ];
   
@@ -38,7 +44,7 @@
   function toggleFollow(index: number) {
     suggestedUsers = suggestedUsers.map((user, i) => {
       if (i === index) {
-        return { ...user, isFollowing: !user.isFollowing };
+        return { ...user, is_following: !user.is_following };
       }
       return user;
     });
@@ -53,12 +59,12 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center">
           <div class="w-10 h-10 {isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-            <span>{user.avatar}</span>
+            <span>{user.profile_picture_url}</span>
           </div>
           <div class="ml-3">
             <div class="flex items-center">
-              <p class="font-bold hover:underline">{user.displayName}</p>
-              {#if user.verified}
+              <p class="font-bold hover:underline">{user.name}</p>
+              {#if user.is_verified}
                 <span class="ml-1 text-blue-500">✓</span>
               {/if}
             </div>
@@ -66,13 +72,13 @@
           </div>
         </div>
         <button 
-          class="{user.isFollowing 
+          class="{user.is_following 
             ? 'bg-transparent border border-gray-500 text-gray-300 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10' 
             : 'bg-black text-white hover:bg-gray-800'} 
             px-4 py-1.5 rounded-full font-bold transition-colors text-sm"
           on:click={() => toggleFollow(index)}
         >
-          {user.isFollowing ? 'Following' : 'Follow'}
+          {user.is_following ? 'Following' : 'Follow'}
         </button>
       </div>
     </div>

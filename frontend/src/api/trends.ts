@@ -47,7 +47,7 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
       id: trend.id || `trend-${Math.random().toString(36).substring(2, 9)}`,
       category: trend.category || 'Trending',
       title: trend.title,
-      postCount: trend.post_count || 0
+      post_count: trend.post_count || 0
     }));
   } catch (error) {
     logger.error('Error fetching trends:', error);
@@ -57,16 +57,16 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
 
 function getMockTrends(limit: number): ITrend[] {
   const mockTrends = [
-    { id: 'trend-1', category: 'Technology', title: '#AI', postCount: '125K' },
-    { id: 'trend-2', category: 'Entertainment', title: '#Music', postCount: '98K' },
-    { id: 'trend-3', category: 'News', title: '#BreakingNews', postCount: '87K' },
-    { id: 'trend-4', category: 'Sports', title: '#Basketball', postCount: '76K' },
-    { id: 'trend-5', category: 'Politics', title: '#Election', postCount: '65K' },
-    { id: 'trend-6', category: 'Technology', title: '#Blockchain', postCount: '54K' },
-    { id: 'trend-7', category: 'Entertainment', title: '#Movies', postCount: '43K' },
-    { id: 'trend-8', category: 'Sports', title: '#Football', postCount: '32K' },
-    { id: 'trend-9', category: 'Technology', title: '#Programming', postCount: '21K' },
-    { id: 'trend-10', category: 'Lifestyle', title: '#Fitness', postCount: '10K' }
+    { id: 'trend-1', category: 'Technology', title: '#AI', post_count: 125000 },
+    { id: 'trend-2', category: 'Entertainment', title: '#Music', post_count: 98000 },
+    { id: 'trend-3', category: 'News', title: '#BreakingNews', post_count: 87000 },
+    { id: 'trend-4', category: 'Sports', title: '#Basketball', post_count: 76000 },
+    { id: 'trend-5', category: 'Politics', title: '#Election', post_count: 65000 },
+    { id: 'trend-6', category: 'Technology', title: '#Blockchain', post_count: 54000 },
+    { id: 'trend-7', category: 'Entertainment', title: '#Movies', post_count: 43000 },
+    { id: 'trend-8', category: 'Sports', title: '#Football', post_count: 32000 },
+    { id: 'trend-9', category: 'Technology', title: '#Programming', post_count: 21000 },
+    { id: 'trend-10', category: 'Lifestyle', title: '#Fitness', post_count: 10000 }
   ];
   
   return mockTrends.slice(0, limit);
@@ -105,6 +105,6 @@ async function getTrendsFromAPI(limit: number): Promise<ITrend[]> {
     id: trend.id || `trend-${Math.random().toString(36).substring(2, 9)}`,
     category: trend.category || 'Trending',
     title: trend.title,
-    postCount: trend.post_count || 0
+    post_count: trend.post_count || 0
   }));
 }

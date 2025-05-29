@@ -20,10 +20,10 @@
   
   // Local form data that we can safely bind to
   let formData = {
-    displayName: '',
+    name: '',
     bio: '',
     email: '',
-    dateOfBirth: '',
+    date_of_birth: '',
     gender: ''
   };
   
@@ -37,37 +37,22 @@
   // Initialize form data when profile changes
   $: if (profile) {
     formData = {
-      displayName: profile.displayName || '',
+      name: profile.name || '',
       bio: profile.bio || '',
       email: profile.email || '',
-      dateOfBirth: profile.dateOfBirth || '',
+      date_of_birth: profile.date_of_birth || '',
       gender: profile.gender || ''
     };
   }
   
   onMount(() => {
     if (profile) {
-      // Handle all possible profile picture field names
-      profilePicturePreview = 
-        profile.profile_picture_url || 
-        profile.profilePictureUrl || 
-        profile.profile_picture || 
-        profile.profilePicture || 
-        profile.avatar || 
-        DEFAULT_AVATAR;
-      
-      // Handle all possible banner field names
-      bannerPreview = 
-        profile.banner_url || 
-        profile.bannerUrl || 
-        profile.banner || 
-        profile.background_banner_url || 
-        profile.backgroundBanner || 
-        '';
+      profilePicturePreview = profile.profile_picture_url || DEFAULT_AVATAR;
+      bannerPreview = profile.banner_url || '';
       
       console.log('[ProfileEditModal] Profile data:', {
-        profilePicture: profilePicturePreview,
-        banner: bannerPreview,
+        profile_picture_url: profilePicturePreview,
+        banner_url: bannerPreview,
       });
     }
   });
@@ -114,10 +99,10 @@
     // If we have form changes, update those as well
     if (profile) {
       // Update profile with form data
-      if (formData.displayName !== profile.displayName || 
+      if (formData.name !== profile.name || 
           formData.bio !== profile.bio ||
           formData.email !== profile.email ||
-          formData.dateOfBirth !== profile.dateOfBirth ||
+          formData.date_of_birth !== profile.date_of_birth ||
           formData.gender !== profile.gender) {
         // Dispatch event to parent to handle the profile update
         dispatch('updateProfile', formData);
@@ -276,7 +261,7 @@
             />
           {:else}
             <div class="profile-picture-placeholder">
-              {formData.displayName.charAt(0).toUpperCase()}
+              {formData.name.charAt(0).toUpperCase()}
             </div>
           {/if}
         </div>
@@ -300,19 +285,19 @@
     <form class="form-container" on:submit|preventDefault={handleSave}>
       <!-- Display name -->
       <div class="form-field">
-        <label for="displayName" class="form-label">
+        <label for="name" class="form-label">
           Display name
         </label>
         <input 
           type="text" 
-          id="displayName"
-          bind:value={formData.displayName}
+          id="name"
+          bind:value={formData.name}
           maxlength="50"
           class="form-input"
           placeholder="Your display name"
         />
         <p class="form-help-text">
-          {formData.displayName.length}/50
+          {formData.name.length}/50
         </p>
       </div>
       
@@ -350,13 +335,13 @@
       
       <!-- Date of birth -->
       <div class="form-field">
-        <label for="dateOfBirth" class="form-label">
+        <label for="date_of_birth" class="form-label">
           Date of birth
         </label>
         <input 
           type="date" 
-          id="dateOfBirth"
-          bind:value={formData.dateOfBirth}
+          id="date_of_birth"
+          bind:value={formData.date_of_birth}
           class="form-input"
         />
       </div>

@@ -38,13 +38,13 @@ export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFo
     
     // Map the API data to our interface
     return data.users.map((user: any) => ({
-      userId: user.id,
+      user_id: user.id,
       username: user.username,
-      displayName: user.display_name,
-      avatar: user.avatar_url || null,
-      verified: user.is_verified || false,
-      followerCount: user.follower_count || Math.floor(Math.random() * 10000),
-      isFollowing: user.is_following || false
+      name: user.display_name || user.name,
+      profile_picture_url: user.profile_picture_url || user.avatar_url || null,
+      is_verified: user.is_verified || false,
+      follower_count: user.follower_count || Math.floor(Math.random() * 10000),
+      is_following: user.is_following || false
     }));
     
   } catch (error: any) {
@@ -59,49 +59,49 @@ function getRealLookingUsers(limit: number): ISuggestedFollow[] {
   // Real-looking user profiles
   const users = [
     {
-      userId: 'user-1',
+      user_id: 'user-1',
       username: 'javascript_dev',
-      displayName: 'JavaScript Dev',
-      avatar: 'https://i.pravatar.cc/150?u=js_dev',
-      verified: true,
-      followerCount: 7835,
-      isFollowing: false
+      name: 'JavaScript Dev',
+      profile_picture_url: 'https://i.pravatar.cc/150?u=js_dev',
+      is_verified: true,
+      follower_count: 7835,
+      is_following: false
     },
     {
-      userId: 'user-2',
+      user_id: 'user-2',
       username: 'ui_designer',
-      displayName: 'UI/UX Designer',
-      avatar: 'https://i.pravatar.cc/150?u=ui_designer',
-      verified: true,
-      followerCount: 12042,
-      isFollowing: false
+      name: 'UI/UX Designer',
+      profile_picture_url: 'https://i.pravatar.cc/150?u=ui_designer',
+      is_verified: true,
+      follower_count: 12042,
+      is_following: false
     },
     {
-      userId: 'user-3',
+      user_id: 'user-3',
       username: 'tech_journalist',
-      displayName: 'Tech Journalist',
-      avatar: 'https://i.pravatar.cc/150?u=tech_journalist',
-      verified: true,
-      followerCount: 24189,
-      isFollowing: false
+      name: 'Tech Journalist',
+      profile_picture_url: 'https://i.pravatar.cc/150?u=tech_journalist',
+      is_verified: true,
+      follower_count: 24189,
+      is_following: false
     },
     {
-      userId: 'user-4',
+      user_id: 'user-4',
       username: 'productmanager',
-      displayName: 'Product Manager',
-      avatar: 'https://i.pravatar.cc/150?u=productmgr',
-      verified: false,
-      followerCount: 5321,
-      isFollowing: false
+      name: 'Product Manager',
+      profile_picture_url: 'https://i.pravatar.cc/150?u=productmgr',
+      is_verified: false,
+      follower_count: 5321,
+      is_following: false
     },
     {
-      userId: 'user-5',
+      user_id: 'user-5',
       username: 'webdev_tips',
-      displayName: 'Web Dev Tips',
-      avatar: 'https://i.pravatar.cc/150?u=webdev',
-      verified: true,
-      followerCount: 18750,
-      isFollowing: false
+      name: 'Web Dev Tips',
+      profile_picture_url: 'https://i.pravatar.cc/150?u=webdev',
+      is_verified: true,
+      follower_count: 18750,
+      is_following: false
     }
   ];
   

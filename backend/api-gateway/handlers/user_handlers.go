@@ -25,7 +25,7 @@ import (
 func GetUserProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	userIDStr := userID.(string)
@@ -33,12 +33,12 @@ func GetUserProfile(c *gin.Context) {
 
 	if _, err := uuid.Parse(userIDStr); err != nil {
 		log.Printf("GetUserProfile Handler: Invalid UUID format for userID: %s", userIDStr)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
 		return
 	}
 
 	if userServiceClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -47,35 +47,34 @@ func GetUserProfile(c *gin.Context) {
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
-			case 5: 
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
-			case 16: 
-				SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized to access this profile")
+			case 5:
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
+			case 16:
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized to access this profile")
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve user profile: "+st.Message())
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve user profile: "+st.Message())
 			}
 		} else {
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while retrieving profile")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while retrieving profile")
 		}
 		log.Printf("Error retrieving user profile: %v", err)
 		return
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":                    user.ID,
-			"name":                  user.Name,
-			"username":              user.Username,
-			"email":                 user.Email,
-			"profile_picture_url":   user.ProfilePictureURL,
-			"banner_url":            user.BannerURL,
-			"background_banner_url": user.BannerURL, 
-			"bio":                   user.Bio,
-			"is_verified":           user.IsVerified,
-			"is_admin":              user.IsAdmin,
-			"follower_count":        user.FollowerCount,
-			"following_count":       user.FollowingCount,
-			"created_at":            user.CreatedAt,
+			"id":                  user.ID,
+			"name":                user.Name,
+			"username":            user.Username,
+			"email":               user.Email,
+			"profile_picture_url": user.ProfilePictureURL,
+			"banner_url":          user.BannerURL,
+			"bio":                 user.Bio,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
+			"follower_count":      user.FollowerCount,
+			"following_count":     user.FollowingCount,
+			"created_at":          user.CreatedAt,
 		},
 	})
 }
@@ -83,7 +82,7 @@ func GetUserProfile(c *gin.Context) {
 func UpdateUserProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	userIDStr := userID.(string)
@@ -91,32 +90,32 @@ func UpdateUserProfile(c *gin.Context) {
 
 	if _, err := uuid.Parse(userIDStr); err != nil {
 		log.Printf("UpdateUserProfile Handler: Invalid UUID format for userID: %s", userIDStr)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
 		return
 	}
 
 	if userServiceClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
 	var input struct {
 		Name              string `json:"name"`
-		DisplayName       string `json:"displayName"` 
+		DisplayName       string `json:"displayName"`
 		Bio               string `json:"bio"`
 		Email             string `json:"email"`
-		DateOfBirth       string `json:"dateOfBirth"` 
+		DateOfBirth       string `json:"dateOfBirth"`
 		Gender            string `json:"gender"`
 		ProfilePictureURL string `json:"profile_picture_url"`
-		ProfilePicture    string `json:"profilePicture"` 
-		Avatar            string `json:"avatar"`         
+		ProfilePicture    string `json:"profilePicture"`
+		Avatar            string `json:"avatar"`
 		BannerURL         string `json:"banner_url"`
-		Banner            string `json:"banner"`           
-		BackgroundBanner  string `json:"backgroundBanner"` 
+		Banner            string `json:"banner"`
+		BackgroundBanner  string `json:"backgroundBanner"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
 		return
 	}
 
@@ -156,35 +155,34 @@ func UpdateUserProfile(c *gin.Context) {
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
-			case 5: 
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
-			case 16: 
-				SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized to update this profile")
+			case 5:
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User profile not found")
+			case 16:
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized to update this profile")
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user profile: "+st.Message())
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user profile: "+st.Message())
 			}
 		} else {
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while updating profile")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while updating profile")
 		}
 		log.Printf("Error updating user profile: %v", err)
 		return
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":                    updatedUser.ID,
-			"name":                  updatedUser.Name,
-			"username":              updatedUser.Username,
-			"email":                 updatedUser.Email,
-			"profile_picture_url":   updatedUser.ProfilePictureURL,
-			"banner_url":            updatedUser.BannerURL,
-			"background_banner_url": updatedUser.BannerURL, 
-			"bio":                   updatedUser.Bio,
-			"is_verified":           updatedUser.IsVerified,
-			"is_admin":              updatedUser.IsAdmin,
-			"follower_count":        updatedUser.FollowerCount,
-			"following_count":       updatedUser.FollowingCount,
-			"created_at":            updatedUser.CreatedAt,
+			"id":                  updatedUser.ID,
+			"name":                updatedUser.Name,
+			"username":            updatedUser.Username,
+			"email":               updatedUser.Email,
+			"profile_picture_url": updatedUser.ProfilePictureURL,
+			"banner_url":          updatedUser.BannerURL,
+			"bio":                 updatedUser.Bio,
+			"is_verified":         updatedUser.IsVerified,
+			"is_admin":            updatedUser.IsAdmin,
+			"follower_count":      updatedUser.FollowerCount,
+			"following_count":     updatedUser.FollowingCount,
+			"created_at":          updatedUser.CreatedAt,
 		},
 	})
 }
@@ -198,36 +196,36 @@ func RegisterUser(c *gin.Context) {
 		ConfirmPassword       string `json:"confirm_password" binding:"required,eqfield=Password"`
 		Gender                string `json:"gender" binding:"required,oneof=male female"`
 		DateOfBirth           string `json:"date_of_birth" binding:"required"`
-		SecurityQuestion      string `json:"securityQuestion" binding:"required"`
-		SecurityAnswer        string `json:"securityAnswer" binding:"required,min=3"`
-		SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
+		SecurityQuestion      string `json:"security_question" binding:"required"`
+		SecurityAnswer        string `json:"security_answer" binding:"required,min=3"`
+		SubscribeToNewsletter bool   `json:"subscribe_to_newsletter"`
 		RecaptchaToken        string `json:"recaptcha_token"`
 		ProfilePictureUrl     string `json:"profile_picture_url,omitempty"`
 		BannerUrl             string `json:"banner_url,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request: "+err.Error())
 		return
 	}
 
-	if UserClient == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
+	if userServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
 		return
 	}
 
 	if len(req.Password) < 8 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Password must be at least 8 characters"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_PASSWORD", "Password must be at least 8 characters")
 		return
 	}
 
 	if req.Password != req.ConfirmPassword {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Password and confirmation password do not match"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "PASSWORD_MISMATCH", "Password and confirmation password do not match")
 		return
 	}
 
 	user := &userProto.User{
-		Id:                "", 
+		Id:                "",
 		Name:              req.Name,
 		Username:          req.Username,
 		Email:             req.Email,
@@ -236,7 +234,7 @@ func RegisterUser(c *gin.Context) {
 		ProfilePictureUrl: req.ProfilePictureUrl,
 		BannerUrl:         req.BannerUrl,
 
-		Password:              req.Password, 
+		Password:              req.Password,
 		SecurityQuestion:      req.SecurityQuestion,
 		SecurityAnswer:        req.SecurityAnswer,
 		SubscribeToNewsletter: req.SubscribeToNewsletter,
@@ -299,13 +297,13 @@ func LoginUser(c *gin.Context) {
 	token, err := generateJWT(loginResp.User.Id)
 	if err != nil {
 		log.Printf("Error generating JWT token: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error generating authentication token")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error generating authentication token")
 		return
 	}
 
 	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
 	if err != nil || expirySeconds <= 0 {
-		expirySeconds = 3600 
+		expirySeconds = 3600
 	}
 
 	response := AuthServiceResponse{
@@ -358,7 +356,7 @@ func generateJWT(userID string) (string, error) {
 
 	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
 	if err != nil || expirySeconds <= 0 {
-		expirySeconds = 3600 
+		expirySeconds = 3600
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -377,7 +375,7 @@ func generateJWT(userID string) (string, error) {
 
 func GetUserSuggestions(c *gin.Context) {
 
-	limit := 10 
+	limit := 10
 	if limitParam := c.DefaultQuery("limit", "10"); limitParam != "" {
 		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
@@ -506,7 +504,7 @@ func UploadProfileMedia(c *gin.Context) {
 
 	if mediaType == "profile_picture" {
 		url, err = utils.UploadProfilePicture(fileContent, file.Filename, userIDStr)
-	} else { 
+	} else {
 		url, err = utils.UploadBanner(fileContent, file.Filename, userIDStr)
 	}
 
@@ -525,7 +523,7 @@ func UploadProfileMedia(c *gin.Context) {
 			UserId:            userIDStr,
 			ProfilePictureUrl: url,
 		}
-	} else { 
+	} else {
 		updateRequest = userProto.UpdateUserRequest{
 			UserId:    userIDStr,
 			BannerUrl: url,
@@ -570,7 +568,7 @@ func GetAllUsers(c *gin.Context) {
 
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortOrderStr := c.DefaultQuery("ascending", "false")
-	sortDesc := sortOrderStr != "true" 
+	sortDesc := sortOrderStr != "true"
 
 	if UserClient == nil {
 		log.Printf("User service unavailable, using fallback implementation for /users/all endpoint")
@@ -800,7 +798,7 @@ func UpdateBannerURLHandler(c *gin.Context) {
 func GetUserByUsername(c *gin.Context) {
 	username := c.Param("username")
 	if username == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Username is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Username is required")
 		return
 	}
 
@@ -811,7 +809,7 @@ func GetUserByUsername(c *gin.Context) {
 	currentUserIDStr := currentUserID.(string)
 
 	if userServiceClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -822,12 +820,12 @@ func GetUserByUsername(c *gin.Context) {
 		if ok {
 			code := status.Code(err)
 			if code == codes.NotFound {
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 				return
 			}
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
 		} else {
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
 		}
 		log.Printf("Error fetching user by username '%s': %v", username, err)
 		return
@@ -851,7 +849,7 @@ func GetUserByUsername(c *gin.Context) {
 		displayName = user.Name
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
@@ -874,7 +872,7 @@ func GetUserByUsername(c *gin.Context) {
 func GetUserById(c *gin.Context) {
 	userId := c.Param("userId")
 	if userId == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID is required")
 		return
 	}
 
@@ -890,7 +888,7 @@ func GetUserById(c *gin.Context) {
 	}
 
 	if userServiceClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -905,12 +903,12 @@ func GetUserById(c *gin.Context) {
 			if ok {
 				code := status.Code(err)
 				if code == codes.NotFound {
-					SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+					utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 					return
 				}
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
 			} else {
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
 			}
 			log.Printf("Error fetching user with ID/username '%s': %v", userId, err)
 			return
@@ -935,7 +933,7 @@ func GetUserById(c *gin.Context) {
 		displayName = user.Name
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
@@ -974,23 +972,23 @@ func CreateAdminUser(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("CreateAdminUser Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
 		return
 	}
 
 	if !req.IsAdmin {
 		log.Printf("CreateAdminUser Handler: Attempt to create admin user without is_admin=true")
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "is_admin must be set to true for admin user creation")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "is_admin must be set to true for admin user creation")
 		return
 	}
 
 	if userServiceClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User gRPC client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User gRPC client not initialized")
 		return
 	}
 
@@ -1005,7 +1003,7 @@ func CreateAdminUser(c *gin.Context) {
 			SecurityQuestion: req.SecurityQuestion,
 			SecurityAnswer:   req.SecurityAnswer,
 			IsAdmin:          true,
-			IsVerified:       req.IsVerified, 
+			IsVerified:       req.IsVerified,
 		},
 	}
 
@@ -1020,14 +1018,14 @@ func CreateAdminUser(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.AlreadyExists:
-				SendErrorResponse(c, http.StatusConflict, "ALREADY_EXISTS", "User with this email or username already exists")
+				utils.SendErrorResponse(c, http.StatusConflict, "ALREADY_EXISTS", "User with this email or username already exists")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_INPUT", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_INPUT", st.Message())
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create admin user: "+st.Message())
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create admin user: "+st.Message())
 			}
 		} else {
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while creating admin user")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while creating admin user")
 		}
 		log.Printf("Error creating admin user: %v", err)
 		return
@@ -1039,7 +1037,7 @@ func CreateAdminUser(c *gin.Context) {
 
 	}
 
-	SendSuccessResponse(c, http.StatusCreated, gin.H{
+	utils.SendSuccessResponse(c, http.StatusCreated, gin.H{
 		"success": true,
 		"message": "Admin user created successfully",
 		"user": gin.H{
@@ -1061,7 +1059,7 @@ func UpdateUserAdminStatus(c *gin.Context) {
 	currentUserIDValue, exists := c.Get("userID")
 	if !exists {
 		log.Println("UpdateUserAdminStatus: No userID in context - unauthorized")
-		SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
 	log.Printf("UpdateUserAdminStatus: Request from user ID: %v", currentUserIDValue)
@@ -1071,7 +1069,7 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		InitUserServiceClient(AppConfig)
 		if userServiceClient == nil {
 			log.Println("UpdateUserAdminStatus: Failed to initialize userServiceClient")
-			SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+			utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 		log.Println("UpdateUserAdminStatus: Successfully initialized userServiceClient")

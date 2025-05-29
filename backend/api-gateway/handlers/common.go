@@ -202,6 +202,10 @@ func RateLimitMiddleware(c *gin.Context) {
 }
 
 func SendErrorResponse(c *gin.Context, status int, code, message string) {
+	// DEPRECATED: Use utils.SendErrorResponse instead
+	// This function is kept for backward compatibility but will be removed in a future version
+	log.Printf("Warning: Deprecated SendErrorResponse called, use utils.SendErrorResponse instead")
+
 	c.JSON(status, ErrorResponse{
 		Success: false,
 		Message: message,
@@ -210,6 +214,10 @@ func SendErrorResponse(c *gin.Context, status int, code, message string) {
 }
 
 func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
+	// DEPRECATED: Use utils.SendSuccessResponse instead
+	// This function is kept for backward compatibility but will be removed in a future version
+	log.Printf("Warning: Deprecated SendSuccessResponse called, use utils.SendSuccessResponse instead")
+
 	c.JSON(status, gin.H{
 		"success": true,
 		"data":    data,

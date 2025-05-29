@@ -16,19 +16,19 @@ func UploadMedia(c *gin.Context) {
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
 	_, ok := userID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Invalid user ID format"})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID format")
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "No file provided"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "No file provided")
 		return
 	}
 
@@ -44,7 +44,7 @@ func UploadMedia(c *gin.Context) {
 	}
 
 	if !allowedExts[fileExt] {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "File type not allowed"})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "File type not allowed")
 		return
 	}
 
@@ -57,7 +57,7 @@ func UploadMedia(c *gin.Context) {
 
 	fileContent, err := file.Open()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "Failed to open file"})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to open file")
 		return
 	}
 	defer fileContent.Close()
@@ -68,7 +68,7 @@ func UploadMedia(c *gin.Context) {
 	url, err := utils.UploadFile(fileContent, file.Filename, bucket, folder)
 	if err != nil {
 		log.Printf("Failed to upload file to Supabase: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": fmt.Sprintf("Failed to upload file: %v", err)})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Failed to upload file: %v", err))
 		return
 	}
 
@@ -76,11 +76,10 @@ func UploadMedia(c *gin.Context) {
 
 	thumbnailUrl := ""
 	if mediaType == "video" {
-
+		// Thumbnail handling would go here
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":   true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"id":        mediaID,
 		"type":      mediaType,
 		"url":       url,
@@ -91,10 +90,9 @@ func UploadMedia(c *gin.Context) {
 func SearchMedia(c *gin.Context) {
 	query := c.Query("q")
 
-	c.JSON(200, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Media search functionality",
 		"query":   query,
-		"results": []gin.H{}, 
+		"results": []gin.H{},
 	})
 }

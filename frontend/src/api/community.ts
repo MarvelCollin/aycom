@@ -56,27 +56,44 @@ export async function getCommunities(params = {}) {
         success: true,
         communities: [],
         pagination: {
-          total: 0,
-          page: 1,
-          limit: 25,
-          totalPages: 0
+          total_count: 0,
+          current_page: 1,
+          per_page: 25,
+          total_pages: 0
         },
-        limitOptions: [25, 30, 35]
+        limit_options: [25, 30, 35]
       };
     }
     
     try {
       const data = JSON.parse(text);
+      
+      // Normalize community fields to ensure snake_case
+      const normalizedCommunities = (data.communities || []).map(community => ({
+        id: community.id,
+        name: community.name,
+        description: community.description || '',
+        logo_url: community.logo_url || community.logoUrl || community.avatar || '',
+        banner_url: community.banner_url || community.bannerUrl || '',
+        creator_id: community.creator_id || community.creatorId || '',
+        is_approved: community.is_approved || community.isApproved || false,
+        member_count: community.member_count || community.memberCount || 0,
+        created_at: community.created_at || community.createdAt || ''
+      }));
+      
+      // Normalize pagination fields
+      const pagination = {
+        total_count: data.pagination?.total_count || data.pagination?.total || data.pagination?.totalCount || 0,
+        current_page: data.pagination?.current_page || data.pagination?.page || data.pagination?.currentPage || 1,
+        per_page: data.pagination?.per_page || data.pagination?.limit || data.pagination?.perPage || 25,
+        total_pages: data.pagination?.total_pages || data.pagination?.totalPages || 0
+      };
+      
       return {
         success: data.success,
-        communities: data.communities || [],
-        pagination: data.pagination || {
-          total: 0,
-          page: 1,
-          limit: 25,
-          totalPages: 0
-        },
-        limitOptions: data.limitOptions || [25, 30, 35]
+        communities: normalizedCommunities,
+        pagination: pagination,
+        limit_options: data.limitOptions || data.limit_options || [25, 30, 35]
       };
     } catch (parseError) {
       logger.error('Failed to parse JSON response:', parseError);

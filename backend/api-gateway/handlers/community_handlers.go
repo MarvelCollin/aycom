@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	communityProto "aycom/backend/proto/community"
 	"context"
 	"log"
@@ -24,34 +25,13 @@ func GetCommunityByID(c *gin.Context) {
 
 	if communityID == "" {
 		log.Printf("Error: Empty community ID provided")
-		c.JSON(400, gin.H{
-			"success": false,
-			"error":   "bad_request",
-			"message": "Community ID is required",
-		})
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
 		return
 	}
 
 	if CommunityClient == nil {
 		log.Printf("ERROR: CommunityClient is nil! Community service may not be running.")
-
-		c.JSON(200, gin.H{
-			"success": false,
-			"error":   "service_unavailable",
-			"message": "Community service is unavailable",
-			"community": map[string]interface{}{
-				"id":          communityID,
-				"name":        "Unknown Community",
-				"description": "Unable to fetch community data. Service unavailable.",
-				"logo":        "",
-				"banner":      "",
-				"creatorId":   "",
-				"isApproved":  false,
-				"categories":  []interface{}{},
-				"createdAt":   time.Now(),
-				"memberCount": 0,
-			},
-		})
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
@@ -65,45 +45,17 @@ func GetCommunityByID(c *gin.Context) {
 	if err != nil {
 		log.Printf("Error calling GetCommunityByID: %v", err)
 
-		c.JSON(200, gin.H{
-			"success": false,
-			"error":   "server_error",
-			"message": "Failed to get community: " + err.Error(),
-			"community": gin.H{
-				"id":          communityID,
-				"name":        "Unknown Community",
-				"description": "Error loading community data",
-				"logo":        "",
-				"banner":      "",
-				"creatorId":   "",
-				"isApproved":  false,
-				"categories":  []interface{}{},
-				"createdAt":   time.Now(),
-				"memberCount": 0,
-			},
-		})
+		if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
+			utils.SendErrorResponse(c, 404, "NOT_FOUND", "Community not found")
+		} else {
+			utils.SendErrorResponse(c, 500, "INTERNAL_ERROR", "Failed to get community: "+err.Error())
+		}
 		return
 	}
 
 	if resp == nil || resp.Community == nil {
 		log.Printf("GetCommunityByID returned nil response or nil community")
-		c.JSON(200, gin.H{
-			"success": false,
-			"error":   "not_found",
-			"message": "Community not found",
-			"community": gin.H{
-				"id":          communityID,
-				"name":        "Unknown Community",
-				"description": "Community not found",
-				"logo":        "",
-				"banner":      "",
-				"creatorId":   "",
-				"isApproved":  false,
-				"categories":  []interface{}{},
-				"createdAt":   time.Now(),
-				"memberCount": 0,
-			},
-		})
+		utils.SendErrorResponse(c, 404, "NOT_FOUND", "Community not found")
 		return
 	}
 
@@ -122,23 +74,25 @@ func GetCommunityByID(c *gin.Context) {
 		createdAt = community.CreatedAt.AsTime()
 	}
 
-	memberCount := 0
+	// Default member count to 0
+	memberCount := int64(0)
 
-	c.JSON(200, gin.H{
-		"success": true,
-		"community": gin.H{
-			"id":          community.Id,
-			"name":        community.Name,
-			"description": community.Description,
-			"logo":        community.LogoUrl,
-			"banner":      community.BannerUrl,
-			"creatorId":   community.CreatorId,
-			"isApproved":  community.IsApproved,
-			"categories":  formattedCategories,
-			"createdAt":   createdAt,
-			"memberCount": memberCount,
-		},
-	})
+	// We can add actual member count logic here when implemented in the proto
+
+	communityData := gin.H{
+		"id":           community.Id,
+		"name":         community.Name,
+		"description":  community.Description,
+		"logo_url":     community.LogoUrl,
+		"banner_url":   community.BannerUrl,
+		"creator_id":   community.CreatorId,
+		"is_approved":  community.IsApproved,
+		"categories":   formattedCategories,
+		"created_at":   createdAt,
+		"member_count": memberCount,
+	}
+
+	utils.SendSuccessResponse(c, 200, communityData)
 }
 
 func ListCommunities(c *gin.Context) {
@@ -183,7 +137,7 @@ func ListCommunities(c *gin.Context) {
 
 	if CommunityClient == nil {
 		log.Printf("CommunityClient is nil")
-		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		utils.SendErrorResponse(c, 500, "server_error", "Community service unavailable")
 		return
 	}
 
@@ -197,7 +151,7 @@ func ListCommunities(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Error calling ListCommunities: %v", err)
-		SendErrorResponse(c, 500, "server_error", "Failed to list communities: "+err.Error())
+		utils.SendErrorResponse(c, 500, "server_error", "Failed to list communities: "+err.Error())
 		return
 	}
 
@@ -207,7 +161,13 @@ func ListCommunities(c *gin.Context) {
 
 	formattedCommunities := make([]gin.H, 0, len(communities))
 	for _, comm := range communities {
-		formattedCategories := make([]string, 0)
+		// Check for categories in this community
+		formattedCategories := []string{}
+		if comm.Categories != nil {
+			for _, cat := range comm.Categories {
+				formattedCategories = append(formattedCategories, cat.Name)
+			}
+		}
 
 		createdAt := time.Now()
 		if comm.CreatedAt != nil {
@@ -218,33 +178,31 @@ func ListCommunities(c *gin.Context) {
 			"id":          comm.Id,
 			"name":        comm.Name,
 			"description": comm.Description,
-			"logo":        comm.LogoUrl,
-			"banner":      comm.BannerUrl,
-			"creatorId":   comm.CreatorId,
-			"isApproved":  comm.IsApproved,
+			"logo_url":    comm.LogoUrl,
+			"banner_url":  comm.BannerUrl,
+			"creator_id":  comm.CreatorId,
+			"is_approved": comm.IsApproved,
+			"created_at":  createdAt,
 			"categories":  formattedCategories,
-			"createdAt":   createdAt,
 		})
 	}
 
 	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 
-	c.JSON(200, gin.H{
-		"success":     true,
+	utils.SendSuccessResponse(c, 200, gin.H{
 		"communities": formattedCommunities,
 		"pagination": gin.H{
-			"total":      totalCount,
-			"page":       page,
-			"limit":      limit,
-			"totalPages": totalPages,
+			"total_count":  totalCount,
+			"current_page": page,
+			"per_page":     limit,
+			"total_pages":  totalPages,
 		},
-		"limitOptions": limitOptions,
 	})
 }
 
 func ListCategories(c *gin.Context) {
 	if CommunityClient == nil {
-		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
 		return
 	}
 
@@ -256,8 +214,7 @@ func ListCategories(c *gin.Context) {
 		{"id": "5", "name": "Sports"},
 	}
 
-	c.JSON(200, gin.H{
-		"success":    true,
+	utils.SendSuccessResponse(c, 200, gin.H{
 		"categories": categories,
 	})
 }
@@ -268,7 +225,7 @@ func RemoveMember(c *gin.Context) {}
 func ListMembers(c *gin.Context) {
 	communityID := c.Param("id")
 	if communityID == "" {
-		SendErrorResponse(c, 400, "bad_request", "Community ID is required")
+		utils.SendErrorResponse(c, 400, "bad_request", "Community ID is required")
 		return
 	}
 
@@ -291,7 +248,7 @@ func ListMembers(c *gin.Context) {
 
 	if CommunityClient == nil {
 		log.Printf("CommunityClient is nil")
-		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		utils.SendErrorResponse(c, 500, "server_error", "Community service unavailable")
 		return
 	}
 
@@ -306,11 +263,11 @@ func ListMembers(c *gin.Context) {
 		log.Printf("Error calling ListMembers: %v", err)
 
 		if status.Code(err) == codes.NotFound {
-			SendErrorResponse(c, 404, "not_found", "Community not found")
+			utils.SendErrorResponse(c, 404, "not_found", "Community not found")
 			return
 		}
 
-		SendErrorResponse(c, 500, "server_error", "Failed to list members: "+err.Error())
+		utils.SendErrorResponse(c, 500, "server_error", "Failed to list members: "+err.Error())
 		return
 	}
 
@@ -323,13 +280,13 @@ func ListMembers(c *gin.Context) {
 			}
 
 			formattedMembers = append(formattedMembers, gin.H{
-				"id":        member.UserId,
-				"userId":    member.UserId,
-				"username":  "user_" + member.UserId,
-				"name":      "User " + member.UserId,
-				"role":      member.Role,
-				"joinedAt":  joinedAt,
-				"avatarUrl": "",
+				"id":                  member.UserId,
+				"user_id":             member.UserId,
+				"username":            "user_" + member.UserId,
+				"name":                "User " + member.UserId,
+				"role":                member.Role,
+				"joined_at":           joinedAt,
+				"profile_picture_url": "",
 			})
 		}
 	}
@@ -339,14 +296,13 @@ func ListMembers(c *gin.Context) {
 	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 	currentPage := offset/limit + 1
 
-	c.JSON(200, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, 200, gin.H{
 		"members": formattedMembers,
 		"pagination": gin.H{
-			"total":      totalCount,
-			"page":       currentPage,
-			"limit":      limit,
-			"totalPages": totalPages,
+			"total_count":  totalCount,
+			"current_page": currentPage,
+			"per_page":     limit,
+			"total_pages":  totalPages,
 		},
 	})
 }
@@ -359,13 +315,13 @@ func RemoveRule(c *gin.Context) {}
 func ListRules(c *gin.Context) {
 	communityID := c.Param("id")
 	if communityID == "" {
-		SendErrorResponse(c, 400, "bad_request", "Community ID is required")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
 		return
 	}
 
 	if CommunityClient == nil {
 		log.Printf("CommunityClient is nil")
-		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
 		return
 	}
 
@@ -380,11 +336,11 @@ func ListRules(c *gin.Context) {
 		log.Printf("Error calling ListRules: %v", err)
 
 		if status.Code(err) == codes.NotFound {
-			SendErrorResponse(c, 404, "not_found", "Community not found")
+			utils.SendErrorResponse(c, 404, "NOT_FOUND", "Community not found")
 			return
 		}
 
-		SendErrorResponse(c, 500, "server_error", "Failed to list rules: "+err.Error())
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list rules: "+err.Error())
 		return
 	}
 
@@ -392,36 +348,35 @@ func ListRules(c *gin.Context) {
 	if resp != nil && resp.Rules != nil {
 		for i, rule := range resp.Rules {
 			formattedRules = append(formattedRules, gin.H{
-				"id":          rule.Id,
-				"communityId": rule.CommunityId,
-				"title":       "Rule " + strconv.Itoa(i+1),
-				"description": rule.RuleText,
-				"order":       i + 1,
+				"id":           rule.Id,
+				"community_id": rule.CommunityId,
+				"title":        "Rule " + strconv.Itoa(i+1),
+				"description":  rule.RuleText,
+				"order":        i + 1,
 			})
 		}
 	}
 
-	c.JSON(200, gin.H{
-		"success": true,
-		"rules":   formattedRules,
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"rules": formattedRules,
 	})
 }
 
 func RequestToJoin(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	communityID := c.Param("id")
 	if communityID == "" {
-		SendErrorResponse(c, 400, "bad_request", "Community ID is required")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
 		return
 	}
 
 	if CommunityClient == nil {
-		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
 		return
 	}
 
@@ -435,21 +390,20 @@ func RequestToJoin(c *gin.Context) {
 
 	if err != nil {
 		if e, ok := status.FromError(err); ok && e.Code() == codes.AlreadyExists {
-			SendErrorResponse(c, 400, "already_requested", "You have already requested to join this community")
+			utils.SendErrorResponse(c, 400, "ALREADY_REQUESTED", "You have already requested to join this community")
 			return
 		}
-		SendErrorResponse(c, 500, "server_error", "Failed to request to join: "+err.Error())
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to request to join: "+err.Error())
 		return
 	}
 
-	c.JSON(200, gin.H{
-		"success": true,
+	utils.SendSuccessResponse(c, 200, gin.H{
 		"message": "Join request sent successfully",
-		"joinRequest": gin.H{
-			"id":          resp.JoinRequest.Id,
-			"communityId": resp.JoinRequest.CommunityId,
-			"userId":      resp.JoinRequest.UserId,
-			"status":      resp.JoinRequest.Status,
+		"join_request": gin.H{
+			"id":           resp.JoinRequest.Id,
+			"community_id": resp.JoinRequest.CommunityId,
+			"user_id":      resp.JoinRequest.UserId,
+			"status":       resp.JoinRequest.Status,
 		},
 	})
 }
@@ -462,7 +416,7 @@ func CreateChat(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
 		log.Printf("CreateChat: Missing userId in context")
-		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 	log.Printf("CreateChat: Received request from user %v", userID)
@@ -475,26 +429,26 @@ func CreateChat(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("CreateChat: JSON binding error: %v", err)
-		SendErrorResponse(c, 400, "bad_request", "Invalid request body: "+err.Error())
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request body: "+err.Error())
 		return
 	}
 	log.Printf("CreateChat: Request data: type=%s, name=%s, participants=%v", req.Type, req.Name, req.Participants)
 
 	if req.Type != "individual" && req.Type != "group" {
 		log.Printf("CreateChat: Invalid chat type: %s", req.Type)
-		SendErrorResponse(c, 400, "bad_request", "Invalid chat type, must be 'individual' or 'group'")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid chat type, must be 'individual' or 'group'")
 		return
 	}
 
 	if req.Type == "group" && req.Name == "" {
 		log.Printf("CreateChat: Group chat missing name")
-		SendErrorResponse(c, 400, "bad_request", "Group chat name is required")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Group chat name is required")
 		return
 	}
 
 	if len(req.Participants) == 0 {
 		log.Printf("CreateChat: No participants provided")
-		SendErrorResponse(c, 400, "bad_request", "At least one participant is required")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "At least one participant is required")
 		return
 	}
 
@@ -508,14 +462,13 @@ func CreateChat(c *gin.Context) {
 	chat, err := client.CreateChat(isGroup, name, req.Participants, userID.(string))
 	if err != nil {
 		log.Printf("CreateChat: Error from service: %v", err)
-		SendErrorResponse(c, 500, "server_error", "Failed to create chat: "+err.Error())
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to create chat: "+err.Error())
 		return
 	}
 	log.Printf("CreateChat: Chat created successfully with ID %s", chat.ID)
 
-	c.JSON(201, gin.H{
-		"success": true,
-		"chat":    chat,
+	utils.SendSuccessResponse(c, 201, gin.H{
+		"chat": chat,
 	})
 	log.Printf("CreateChat: Response sent with status 201")
 }
@@ -543,21 +496,20 @@ func GetDetailedChats(c *gin.Context) {}
 func GetChatHistoryList(c *gin.Context) {}
 
 func CheckMembershipStatus(c *gin.Context) {
-
 	userID, exists := c.Get("userId")
 	if !exists {
-		SendErrorResponse(c, 401, "unauthorized", "Authentication required")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	communityID := c.Param("id")
 	if communityID == "" {
-		SendErrorResponse(c, 400, "bad_request", "Community ID is required")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
 		return
 	}
 
 	if CommunityClient == nil {
-		SendErrorResponse(c, 500, "server_error", "Community service unavailable")
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
 		return
 	}
 
@@ -571,14 +523,13 @@ func CheckMembershipStatus(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Error checking membership status: %v", err)
-		SendErrorResponse(c, 500, "server_error", "Failed to check membership status: "+err.Error())
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check membership status: "+err.Error())
 		return
 	}
 
 	if memberResp.IsMember {
-		c.JSON(200, gin.H{
-			"success": true,
-			"status":  "member",
+		utils.SendSuccessResponse(c, 200, gin.H{
+			"status": "member",
 		})
 		return
 	}
@@ -590,7 +541,7 @@ func CheckMembershipStatus(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Error checking pending join request: %v", err)
-		SendErrorResponse(c, 500, "server_error", "Failed to check join request status: "+err.Error())
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check join request status: "+err.Error())
 		return
 	}
 
@@ -601,8 +552,7 @@ func CheckMembershipStatus(c *gin.Context) {
 		status = "none"
 	}
 
-	c.JSON(200, gin.H{
-		"success": true,
-		"status":  status,
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"status": status,
 	})
 }

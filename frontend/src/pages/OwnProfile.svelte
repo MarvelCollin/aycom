@@ -136,58 +136,60 @@
     let isPinned = false;
     if (thread.is_pinned === true || thread.is_pinned === 'true' || 
         thread.is_pinned === 1 || thread.is_pinned === '1' || 
-        thread.is_pinned === 't' || thread.IsPinned === true) {
+        thread.is_pinned === 't') {
       isPinned = true;
       console.log(`Thread ${thread.id} IS PINNED`);
     }
     
     // Get username from all possible sources
-    let username = thread.author_username || thread.authorUsername || thread.username || 'anonymous';
+    let username = thread.author_username || thread.username || 'anonymous';
     
     // Get display name from all possible sources
-    let displayName = thread.author_name || thread.authorName || thread.display_name || 
-                     thread.displayName || 'User';
+    let name = thread.author_name || thread.name || 'User';
     
     // Get profile picture from all possible sources
-    let profilePicture = thread.author_avatar || thread.authorAvatar || 
-                       thread.profile_picture_url || thread.profilePictureUrl || 
-                       thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp';
+    let profile_picture_url = thread.author_profile_picture_url || thread.profile_picture_url || 
+                       'https://secure.gravatar.com/avatar/0?d=mp';
     
     // Use the created_at timestamp if available, fall back to UTC now
-    let timestamp = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
-    if (typeof timestamp === 'string' && !timestamp.includes('T')) {
+    let created_at = thread.created_at || new Date().toISOString();
+    if (typeof created_at === 'string' && !created_at.includes('T')) {
       // Convert to ISO format if it's not already
-      timestamp = new Date(timestamp).toISOString();
+      created_at = new Date(created_at).toISOString();
     }
     
     // Normalize metrics
-    const likes = thread.likes_count || thread.like_count || thread.metrics?.likes || 0;
-    const replies = thread.replies_count || thread.reply_count || thread.metrics?.replies || 0;
-    const reposts = thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0;
-    const bookmarks = thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0;
-    const views = thread.views || thread.views_count || '0';
+    const likes_count = thread.likes_count || 0;
+    const replies_count = thread.replies_count || 0;
+    const reposts_count = thread.reposts_count || 0;
+    const bookmarks_count = thread.bookmarks_count || 0;
+    const views_count = thread.views_count || 0;
     
     // Normalize interaction states
-    const isLiked = thread.is_liked || thread.isLiked || false;
-    const isReposted = thread.is_repost || thread.isReposted || false;
-    const isBookmarked = thread.is_bookmarked || thread.isBookmarked || false;
-        return {
+    const is_liked = thread.is_liked || false;
+    const is_reposted = thread.is_reposted || false;
+    const is_bookmarked = thread.is_bookmarked || false;
+
+    return {
       id: thread.id,
-      threadId: thread.thread_id || thread.id,
-      userId: userId,
+      thread_id: thread.thread_id || thread.id,
+      user_id: userId,
       username: username,
-      displayName: displayName,
-      content: thread.content || '',      timestamp: typeof timestamp === 'string' ? timestamp : new Date(timestamp).toISOString(),
-      avatar: profilePicture,
-      likes: likes,
-      replies: replies,
-      reposts: reposts,
-      bookmarks: bookmarks,
-      views: views,      media: thread.media || [],      isLiked: isLiked,
-      isReposted: isReposted,
-      isBookmarked: isBookmarked,
-      isPinned: isPinned,
-      replyTo: thread.parent_id ? { id: thread.parent_id } as any : null
+      name: name,
+      content: thread.content || '',
+      created_at: typeof created_at === 'string' ? created_at : new Date(created_at).toISOString(),
+      profile_picture_url: profile_picture_url,
+      likes_count: likes_count,
+      replies_count: replies_count,
+      reposts_count: reposts_count,
+      bookmarks_count: bookmarks_count,
+      views_count: views_count,
+      media: thread.media || [],
+      is_liked: is_liked,
+      is_reposted: is_reposted,
+      is_bookmarked: is_bookmarked,
+      is_pinned: isPinned,
+      reply_to: thread.parent_id ? { id: thread.parent_id } as any : null
     };
   }
   
@@ -301,7 +303,7 @@
           const convertedReply = ensureTweetFormat(enrichedReply);
           
           // Add reply-specific fields
-          convertedReply.replyTo = threadId as any;
+          convertedReply.reply_to = threadId as any;
           (convertedReply as any).parentReplyId = replyData.parent_id;
           
           return convertedReply;
@@ -389,8 +391,8 @@
           if (!a.is_pinned && b.is_pinned) return 1;
           
           // Then sort by creation date (newest first)
-          const dateA = new Date(a.timestamp);
-          const dateB = new Date(b.timestamp);
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
           return dateB.getTime() - dateA.getTime();
         });
         
@@ -411,8 +413,8 @@
         
         // Sort replies by date (newest first)
         replies.sort((a, b) => {
-          const dateA = new Date(a.timestamp);
-          const dateB = new Date(b.timestamp);
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
           return dateB.getTime() - dateA.getTime();
         });
         
@@ -430,8 +432,8 @@
         
         // Sort by date (newest first)
         likes.sort((a, b) => {
-          const dateA = new Date(a.timestamp);
-          const dateB = new Date(b.timestamp);
+          const dateA = new Date(a.created_at);
+          const dateB = new Date(b.created_at);
           return dateB.getTime() - dateA.getTime();
         });
         
@@ -566,7 +568,6 @@
             ...post, 
             isLiked: true, 
             is_liked: true, 
-            likes: (post.likes || 0) + 1, 
             likes_count: (post.likes_count || 0) + 1 
           };
         }
@@ -580,7 +581,7 @@
             ...like, 
             isLiked: true, 
             is_liked: true, 
-            likes: (like.likes || 0) + 1, 
+            likes_count: (like.likes_count || 0) + 1 
           };
         }
         return like;
@@ -605,7 +606,6 @@
             ...post, 
             isLiked: false, 
             is_liked: false, 
-            likes: Math.max(0, (post.likes || 0) - 1), 
             likes_count: Math.max(0, (post.likes_count || 0) - 1) 
           };
         }
@@ -619,7 +619,7 @@
             ...like, 
             isLiked: false, 
             is_liked: false, 
-            likes: Math.max(0, (like.likes || 0) - 1), 
+            likes_count: Math.max(0, (like.likes_count || 0) - 1) 
           };
         }
         return like;
@@ -644,7 +644,6 @@
             ...post, 
             isBookmarked: true, 
             is_bookmarked: true, 
-            bookmarks: (post.bookmarks || 0) + 1,
             bookmarks_count: (post.bookmarks_count || 0) + 1 
           };
         }
@@ -658,7 +657,6 @@
             ...like, 
             isBookmarked: true, 
             is_bookmarked: true,
-            bookmarks: (like.bookmarks || 0) + 1, 
             bookmarks_count: (like.bookmarks_count || 0) + 1 
           };
         }
@@ -672,7 +670,6 @@
             ...reply, 
             isBookmarked: true, 
             is_bookmarked: true,
-            bookmarks: (reply.bookmarks || 0) + 1, 
             bookmarks_count: (reply.bookmarks_count || 0) + 1 
           };
         }
@@ -698,7 +695,6 @@
             ...post, 
             isBookmarked: false, 
             is_bookmarked: false,
-            bookmarks: Math.max(0, (post.bookmarks || 0) - 1), 
             bookmarks_count: Math.max(0, (post.bookmarks_count || 0) - 1) 
           };
         }
@@ -712,7 +708,6 @@
             ...like, 
             isBookmarked: false, 
             is_bookmarked: false,
-            bookmarks: Math.max(0, (like.bookmarks || 0) - 1), 
             bookmarks_count: Math.max(0, (like.bookmarks_count || 0) - 1) 
           };
         }
@@ -726,7 +721,6 @@
             ...reply, 
             isBookmarked: false, 
             is_bookmarked: false,
-            bookmarks: Math.max(0, (reply.bookmarks || 0) - 1), 
             bookmarks_count: Math.max(0, (reply.bookmarks_count || 0) - 1) 
           };
         }
@@ -757,8 +751,8 @@
         if (!a.is_pinned && b.is_pinned) return 1;
         
         // Then sort by creation date (newest first)
-        const dateA = new Date(a.created_at || a.timestamp);
-        const dateB = new Date(b.created_at || b.timestamp);
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
         return dateB.getTime() - dateA.getTime();
       });
       
@@ -795,8 +789,8 @@
         if (a.is_pinned && !b.is_pinned) return -1;
         if (!a.is_pinned && b.is_pinned) return 1;
         
-        const dateA = new Date(a.created_at || a.timestamp);
-        const dateB = new Date(b.created_at || b.timestamp);
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
         return dateB.getTime() - dateA.getTime();
       });
       

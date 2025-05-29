@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-
 )
 
 func GetCategories(c *gin.Context) {
@@ -22,20 +22,14 @@ func GetCategories(c *gin.Context) {
 
 	resp, err := client.Get(url)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"success": false,
-			"message": "AI service unavailable",
-		})
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "AI service unavailable")
 		return
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to read AI service response",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to read AI service response")
 		return
 	}
 
@@ -53,8 +47,7 @@ func GetCategories(c *gin.Context) {
 			{"id": "travel", "name": "Travel"},
 			{"id": "other", "name": "Other"},
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"success":    true,
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"categories": defaultCategories,
 		})
 		return
@@ -75,12 +68,11 @@ func GetCategories(c *gin.Context) {
 			{"id": "travel", "name": "Travel"},
 			{"id": "other", "name": "Other"},
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"success":    true,
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"categories": defaultCategories,
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, aiResponse)
+	utils.SendSuccessResponse(c, http.StatusOK, aiResponse)
 }
