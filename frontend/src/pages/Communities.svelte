@@ -602,16 +602,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  
-  .community-info p {
-    font-size: 0.875rem;
+    .community-info p {    font-size: 0.875rem;
     color: #718096;
     margin: 0 0 0.5rem;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
+    /* Fallback for browsers that don't support line-clamp */
+    line-height: 1.4;
+    max-height: calc(1.4em * 2);
   }
   
   .dark .community-info p {

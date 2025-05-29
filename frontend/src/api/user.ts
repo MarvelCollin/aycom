@@ -4,6 +4,21 @@ import { uploadProfilePicture as supabaseUploadProfilePicture, uploadBanner as s
 
 const API_BASE_URL = appConfig.api.baseUrl;
 
+// Enhanced response interfaces matching backend protobuf messages
+export interface FollowUserResponse {
+  success: boolean;
+  message: string;
+  was_already_following: boolean;
+  is_now_following: boolean;
+}
+
+export interface UnfollowUserResponse {
+  success: boolean;
+  message: string;
+  was_following: boolean;
+  is_now_following: boolean;
+}
+
 export async function getProfile() {
   const token = getAuthToken();
   const authState = localStorage.getItem('auth');
@@ -97,48 +112,150 @@ export async function checkUsernameAvailability(username: string): Promise<boole
   }
 }
 
-export async function followUser(userId: string): Promise<boolean> {
+export async function followUser(userId: string): Promise<FollowUserResponse> {
   try {
+    console.log(`Attempting to follow user: ${userId}`);
     const token = getAuthToken();
+    
+    if (!token) {
+      console.error('Cannot follow user: No authentication token available');
+      return { success: false, message: 'No authentication token available', was_already_following: false, is_now_following: false };
+    }
+    
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
     const response = await fetch(`${API_BASE_URL}/users/${userId}/follow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      }
+        'Authorization': `Bearer ${token}`
+      },
+      signal: controller.signal
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to follow user: ${response.status}`);
+    clearTimeout(timeoutId);
+    
+    // Get response text first so we can log it even if JSON parsing fails
+    const responseText = await response.text();
+    console.log(`Follow API raw response: ${responseText}`);
+    
+    let responseData: FollowUserResponse;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`Failed to parse follow response as JSON: ${responseText}`);
+      return { success: false, message: 'Invalid response format', was_already_following: false, is_now_following: false };
     }
     
-    return true;
+    console.log('Follow API parsed response:', responseData);
+    
+    if (!response.ok) {
+      console.error(`Failed to follow user: ${response.status}`, responseData);
+      return { 
+        success: false, 
+        message: responseData.message || `Request failed with status ${response.status}`,
+        was_already_following: responseData.was_already_following || false,
+        is_now_following: responseData.is_now_following || false
+      };
+    }
+    
+    // Return the enhanced response data
+    if (responseData && responseData.success === true) {
+      console.log(`Successfully processed follow request for user ${userId}`);
+      return responseData;
+    } else {
+      console.error(`Follow operation failed - API returned success=false:`, responseData);
+      return { 
+        success: false, 
+        message: responseData.message || 'Follow operation failed',
+        was_already_following: responseData.was_already_following || false,
+        is_now_following: responseData.is_now_following || false
+      };
+    }
   } catch (err) {
-    console.error('Failed to follow user:', err);
-    return false;
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      console.error("Follow user request timed out after 10 seconds");
+      return { success: false, message: 'Request timed out after 10 seconds', was_already_following: false, is_now_following: false };
+    } else {
+      console.error('Failed to follow user:', err);
+      return { success: false, message: err instanceof Error ? err.message : 'Unknown error', was_already_following: false, is_now_following: false };
+    }
   }
-}
-
-export async function unfollowUser(userId: string): Promise<boolean> {
+export async function unfollowUser(userId: string): Promise<UnfollowUserResponse> {
   try {
+    console.log(`Attempting to unfollow user: ${userId}`);
     const token = getAuthToken();
+    
+    if (!token) {
+      console.error('Cannot unfollow user: No authentication token available');
+      return { success: false, message: 'No authentication token available', was_following: false, is_now_following: false };
+    }
+    
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
     const response = await fetch(`${API_BASE_URL}/users/${userId}/unfollow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      }
+        'Authorization': `Bearer ${token}`
+      },
+      signal: controller.signal
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to unfollow user: ${response.status}`);
+    clearTimeout(timeoutId);
+    
+    // Get response text first so we can log it even if JSON parsing fails
+    const responseText = await response.text();
+    console.log(`Unfollow API raw response: ${responseText}`);
+    
+    let responseData: UnfollowUserResponse;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`Failed to parse unfollow response as JSON: ${responseText}`);
+      return { success: false, message: 'Invalid response format', was_following: false, is_now_following: false };
     }
     
-    return true;
+    console.log('Unfollow API parsed response:', responseData);
+    
+    if (!response.ok) {
+      console.error(`Failed to unfollow user: ${response.status}`, responseData);
+      return { 
+        success: false, 
+        message: responseData.message || `Request failed with status ${response.status}`,
+        was_following: responseData.was_following || false,
+        is_now_following: responseData.is_now_following || false
+      };
+    }
+    
+    // Return the enhanced response data
+    if (responseData && responseData.success === true) {
+      console.log(`Successfully processed unfollow request for user ${userId}`);
+      return responseData;
+    } else {
+      console.error(`Unfollow operation failed - API returned success=false:`, responseData);
+      return { 
+        success: false, 
+        message: responseData.message || 'Unfollow operation failed',
+        was_following: responseData.was_following || false,
+        is_now_following: responseData.is_now_following || false
+      };
+    }
   } catch (err) {
-    console.error('Failed to unfollow user:', err);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      console.error("Unfollow user request timed out after 10 seconds");
+      return { success: false, message: 'Request timed out after 10 seconds', was_following: false, is_now_following: false };
+    } else {
+      console.error('Failed to unfollow user:', err);
+      return { success: false, message: err instanceof Error ? err.message : 'Unknown error', was_following: false, is_now_following: false };
+    }
+  }
+}     console.error('Failed to unfollow user:', err);
+    }
     return false;
   }
 }
@@ -1072,6 +1189,39 @@ async function checkAdminStatusFallback(): Promise<boolean> {
     return false;
   } catch (error) {
     console.error('Admin fallback check failed:', error);
+    return false;
+  }
+}
+
+export async function checkFollowStatus(userId: string): Promise<boolean> {
+  try {
+    console.log(`Checking follow status for user: ${userId}`);
+    const token = getAuthToken();
+    
+    if (!token) {
+      console.error('Cannot check follow status: No authentication token available');
+      return false;
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/follow-status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to check follow status: ${response.status}`);
+      return false;
+    }
+    
+    const data = await response.json();
+    console.log('Follow status response:', data);
+    
+    return data.success && data.isFollowing === true;
+  } catch (err) {
+    console.error('Failed to check follow status:', err);
     return false;
   }
 }

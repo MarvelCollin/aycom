@@ -328,23 +328,17 @@ func (c *GRPCUserServiceClient) IsFollowing(followerId, followeeId string) (bool
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resp, err := c.client.GetFollowing(ctx, &userProto.GetFollowingRequest{
-		UserId: followerId,
-		Limit:  100,
-		Page:   1,
+	// Use the proper IsFollowing gRPC method instead of GetFollowing
+	resp, err := c.client.IsFollowing(ctx, &userProto.IsFollowingRequest{
+		FollowerId: followerId,
+		FollowedId: followeeId,
 	})
 	if err != nil {
 		log.Printf("Error checking if user %s is following %s: %v", followerId, followeeId, err)
 		return false, nil
 	}
 
-	for _, user := range resp.Following {
-		if user.Id == followeeId {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return resp.IsFollowing, nil
 }
 
 func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int) ([]*User, int, error) {
@@ -405,93 +399,120 @@ func (c *GRPCUserServiceClient) GetUserRecommendations(userID string, limit int)
 }
 
 func (c *GRPCUserServiceClient) FollowUser(followerID string, followedID string) error {
+	if c.client == nil {
+		return fmt.Errorf("user service client not initialized")
+	}
 
-	log.Printf("[MOCK] User %s follows user %s", followerID, followedID)
+	log.Printf("User %s following user %s", followerID, followedID)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &userProto.FollowUserRequest{
+		FollowerId: followerID,
+		FollowedId: followedID,
+	}
+
+	resp, err := c.client.FollowUser(ctx, req)
+	if err != nil {
+		log.Printf("Error in FollowUser gRPC call: %v", err)
+		return err
+	}
+
+	log.Printf("Follow response: success=%v, message=%s", resp.Success, resp.Message)
 	return nil
 }
 
 func (c *GRPCUserServiceClient) UnfollowUser(followerID string, followedID string) error {
+	if c.client == nil {
+		return fmt.Errorf("user service client not initialized")
+	}
 
-	log.Printf("[MOCK] User %s unfollows user %s", followerID, followedID)
+	log.Printf("User %s unfollowing user %s", followerID, followedID)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &userProto.UnfollowUserRequest{
+		FollowerId: followerID,
+		FollowedId: followedID,
+	}
+
+	resp, err := c.client.UnfollowUser(ctx, req)
+	if err != nil {
+		log.Printf("Error in UnfollowUser gRPC call: %v", err)
+		return err
+	}
+
+	log.Printf("Unfollow response: success=%v, message=%s", resp.Success, resp.Message)
 	return nil
 }
 
 func (c *GRPCUserServiceClient) GetFollowers(userID string, page int, limit int) ([]*User, error) {
-
-	log.Printf("[MOCK] Getting followers for user %s, page %d, limit %d", userID, page, limit)
-
-	mockUsers := []*User{
-		{
-			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-			Username:          "follower1",
-			Name:              "Follower One",
-			DisplayName:       "Follower One",
-			ProfilePictureURL: "https://example.com/avatar1.jpg",
-			IsVerified:        true,
-			IsPrivate:         false,
-			Email:             "follower1@example.com",
-			FollowerCount:     10,
-			FollowingCount:    20,
-			IsFollowing:       false,
-			CreatedAt:         time.Now(),
-		},
-		{
-			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d480",
-			Username:          "follower2",
-			Name:              "Follower Two",
-			DisplayName:       "Follower Two",
-			ProfilePictureURL: "https://example.com/avatar2.jpg",
-			IsVerified:        false,
-			IsPrivate:         true,
-			Email:             "follower2@example.com",
-			FollowerCount:     5,
-			FollowingCount:    15,
-			IsFollowing:       true,
-			CreatedAt:         time.Now(),
-		},
+	if c.client == nil {
+		return nil, fmt.Errorf("user service client not initialized")
 	}
 
-	return mockUsers, nil
+	log.Printf("Getting followers for user %s, page %d, limit %d", userID, page, limit)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &userProto.GetFollowersRequest{
+		UserId: userID,
+		Page:   int32(page),
+		Limit:  int32(limit),
+	}
+
+	resp, err := c.client.GetFollowers(ctx, req)
+	if err != nil {
+		log.Printf("Error in GetFollowers gRPC call: %v", err)
+		return nil, err
+	}
+
+	followers := make([]*User, 0, len(resp.GetFollowers()))
+	for _, protoUser := range resp.GetFollowers() {
+		follower := convertProtoToUser(protoUser)
+		if follower != nil {
+			followers = append(followers, follower)
+		}
+	}
+
+	return followers, nil
 }
 
 func (c *GRPCUserServiceClient) GetFollowing(userID string, page int, limit int) ([]*User, error) {
-
-	log.Printf("[MOCK] Getting following for user %s, page %d, limit %d", userID, page, limit)
-
-	mockUsers := []*User{
-		{
-			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d481",
-			Username:          "following1",
-			Name:              "Following One",
-			DisplayName:       "Following One",
-			ProfilePictureURL: "https://example.com/avatar3.jpg",
-			IsVerified:        true,
-			IsPrivate:         false,
-			Email:             "following1@example.com",
-			FollowerCount:     25,
-			FollowingCount:    5,
-			IsFollowing:       true,
-			CreatedAt:         time.Now(),
-		},
-		{
-			ID:                "f47ac10b-58cc-4372-a567-0e02b2c3d482",
-			Username:          "following2",
-			Name:              "Following Two",
-			DisplayName:       "Following Two",
-			ProfilePictureURL: "https://example.com/avatar4.jpg",
-			IsVerified:        false,
-			IsPrivate:         true,
-			Email:             "following2@example.com",
-			FollowerCount:     30,
-			FollowingCount:    3,
-			IsFollowing:       true,
-			CreatedAt:         time.Now(),
-		},
+	if c.client == nil {
+		return nil, fmt.Errorf("user service client not initialized")
 	}
 
-	return mockUsers, nil
+	log.Printf("Getting following for user %s, page %d, limit %d", userID, page, limit)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req := &userProto.GetFollowingRequest{
+		UserId: userID,
+		Page:   int32(page),
+		Limit:  int32(limit),
+	}
+
+	resp, err := c.client.GetFollowing(ctx, req)
+	if err != nil {
+		log.Printf("Error in GetFollowing gRPC call: %v", err)
+		return nil, err
+	}
+
+	following := make([]*User, 0, len(resp.GetFollowing()))
+	for _, protoUser := range resp.GetFollowing() {
+		user := convertProtoToUser(protoUser)
+		if user != nil {
+			user.IsFollowing = true // We're getting users we already follow
+			following = append(following, user)
+		}
+	}
+
+	return following, nil
 }
 
 func convertProtoToUser(u *userProto.User) *User {

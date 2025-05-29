@@ -618,17 +618,18 @@
     color: var(--text-primary);
     margin-right: var(--space-1);
   }
-  
-  .notification-thread {
+    .notification-thread {
     font-size: var(--font-md);
     color: var(--text-secondary);
     margin-top: var(--space-1);
-    line-height: 1.4;
-    overflow: hidden;
+    line-height: 1.4;    overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
+    /* Fallback for browsers that don't support line-clamp */
+    max-height: calc(1.4em * 2);
   }
   
   .notification-time {

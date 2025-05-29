@@ -72,12 +72,15 @@
   </div>
 </div>
 
-<style>
-  /* Line clamp for truncating text */
+<style>  /* Line clamp for truncating text */
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    /* Fallback for browsers that don't support line-clamp */
+    line-height: 1.4;
+    max-height: calc(1.4em * 2);
   }
 </style> 

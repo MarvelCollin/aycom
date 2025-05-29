@@ -5,12 +5,11 @@ import (
 	"log"
 	"time"
 
-	"aycom/backend/proto/user"
-	"aycom/backend/services/user/model"
-	"aycom/backend/services/user/service"
+	"google.golang.org/grpc/code"
+	"googl.golang.org/gpc/status"
+	"google.golang.org/grpc/code"
+	"googl.golang.org/gpc/statusce"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type UserHandler struct {
@@ -303,6 +302,23 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserReques
 		return nil, status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
 	}
 
+	// Check if already following first
+	wasAlreadyFollowing, err := h.svc.IsFollowing(ctx, req.GetFollowerId(), req.GetFollowedId())
+	if err != nil {
+		log.Printf("Error checking follow status: %v", err)
+		return nil, err
+	}
+
+	if wasAlreadyFollowing {
+		// User is already following - return with proper status
+		return &user.FollowUserResponse{
+			Success:             true,
+			Message:             "Already following this user",
+			WasAlreadyFollowing: true,
+			IsNowFollowing:      true, // Still following after "follow" attempt
+		}, nil
+	}
+
 	// Convert proto request to model request
 	followReq := &model.FollowUserRequest{
 		FollowerID: req.GetFollowerId(),
@@ -310,22 +326,38 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserReques
 	}
 
 	// Use service layer to follow user
-	err := h.svc.FollowUser(ctx, followReq)
+	err = h.svc.FollowUser(ctx, followReq)
 	if err != nil {
 		log.Printf("Error following user: %v", err)
 		return nil, err
 	}
 
 	return &user.FollowUserResponse{
-		Success: true,
-		Message: "User followed successfully",
-	}, nil
-}
-
+		Success:             true,
+		Message:             "User followed successfully",
+		WasAlreadyFollowing: false,
+		IsNowFollowing:      true, // Now following after successful follow
 // UnfollowUser handles unfollowing a user
 func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRequest) (*user.UnfollowUserResponse, error) {
 	if req.GetFollowerId() == "" || req.GetFollowedId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
+	}
+
+	// Check if currently following first
+	wasFollowing, err := h.svc.IsFollowing(ctx, req.GetFollowerId(), req.GetFollowedId())
+	if err != nil {
+		log.Printf("Error checking follow status: %v", err)
+		return nil, err
+	}
+
+	if !wasFollowing {
+		// User is not following - return with proper status
+		return &user.UnfollowUserResponse{
+			Success:        true,
+			Message:        "Not following this user",
+			WasFollowing:   false,
+			IsNowFollowing: false, // Still not following after "unfollow" attempt
+		}, nil
 	}
 
 	// Convert proto request to model request
@@ -335,14 +367,19 @@ func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRe
 	}
 
 	// Use service layer to unfollow user
-	err := h.svc.UnfollowUser(ctx, unfollowReq)
+	err = h.svc.UnfollowUser(ctx, unfollowReq)
 	if err != nil {
 		log.Printf("Error unfollowing user: %v", err)
 		return nil, err
 	}
 
 	return &user.UnfollowUserResponse{
-		Success: true,
+		Success:        true,
+		Message:        "User unfollowed successfully",
+		WasFollowing:   true,
+		IsNowFollowing: false, // No longer following after successful unfollow
+	}, nil
+}	Success: true,
 		Message: "User unfollowed successfully",
 	}, nil
 }

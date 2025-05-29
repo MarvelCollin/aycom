@@ -3,20 +3,17 @@
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import { isAuthenticated, getUserId } from '../utils/auth';
-  import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser } from '../api/user';
+  import { isAuthenticated, getUserId } from '../utils/auth';  import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser } from '../api/user';
+  import type { FollowUserResponse, UnfollowUserResponse } from '../api/user';
   import { getUserThreads, getUserReplies, getUserMedia } from '../api/thread';
   import { toastStore } from '../stores/toastStore';
-  import ThreadCard from '../components/explore/ThreadCard.svelte';
   import TweetCard from '../components/social/TweetCard.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import type { ITweet } from '../interfaces/ISocialMedia';
-  import { page } from '../stores/routeStore';
   import { createLoggerWithPrefix } from '../utils/logger';
   
   const logger = createLoggerWithPrefix('OtherProfile');
 
-  // Import Feather icons
   import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
@@ -29,7 +26,6 @@
   import LinkIcon from 'svelte-feather-icons/src/icons/LinkIcon.svelte';
   import MapPinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';
   
-  // Define interfaces for our data structures
   interface Thread {
     id: string;
     content: string;
@@ -54,7 +50,7 @@
       url: string;
     }>;
     avatar?: string;
-    [key: string]: any; // For any additional properties
+    [key: string]: any;
   }
   
   interface Reply {
@@ -69,7 +65,7 @@
     author_avatar?: string;
     likes_count?: number;
     is_liked?: boolean;
-    [key: string]: any; // For any additional properties
+    [key: string]: any;
   }
   
   interface ThreadMedia {
@@ -78,27 +74,22 @@
     type: 'image' | 'video' | 'gif';
     thread_id: string;
     created_at?: string;
-    [key: string]: any; // For any additional properties
+    [key: string]: any; 
   }
   
-  // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
   
-  // Get userId from URL parameter
   export let userId: string;
   
-  // Reactive declarations
   $: isDarkMode = $theme === 'dark';
   $: authState = getAuthState();
   $: currentUserId = getUserId();
   
   $: {
-    // Log whenever userId changes
     logger.debug(`Profile rendering for userId: ${userId}, currentUserId: ${currentUserId}`);
   }
   
-  // Profile data
   let profileData = {
     id: '',
     username: '',
@@ -116,12 +107,10 @@
     isBlocked: false
   };
   
-  // Content data with types
   let posts: Thread[] = [];
   let replies: Reply[] = [];
   let media: ThreadMedia[] = [];
   
-  // UI state
   let activeTab = 'posts';
   let isLoading = true;
   let isFollowLoading = false;
@@ -130,16 +119,16 @@
   let reportReason = '';
   let showBlockConfirmModal = false;
   let showActionsDropdown = false;
+  let showEditProfile = false;
   let errorMessage = '';
   let retryCount = 0;
   const MAX_RETRIES = 3;
+  let isFollowRequestPending = false; 
   
-  // Helper function to ensure an object has all ITweet properties
   function ensureTweetFormat(thread: any): ITweet {
     try {
       if (!thread || typeof thread !== 'object') {
         logger.warn('Invalid thread object provided to ensureTweetFormat');
-        // Return a minimal valid object to prevent rendering errors
         return {
           id: `invalid-${Math.random().toString(36).substring(2, 9)}`,
           threadId: '',
@@ -163,33 +152,26 @@
         };
       }
     
-      // Get username from all possible sources
       let username = thread.author_username || thread.authorUsername || thread.username || 'anonymous';
       
-      // Get display name from all possible sources
       let displayName = thread.author_name || thread.authorName || thread.display_name || 
                         thread.displayName || username || 'User';
       
-      // Get profile picture from all possible sources
       let profilePicture = thread.author_avatar || thread.authorAvatar || 
                           thread.profile_picture_url || thread.profilePictureUrl || 
                           thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp';
       
-      // Use the created_at timestamp if available, fall back to UTC now
       let timestamp = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
       if (typeof timestamp === 'string' && !timestamp.includes('T')) {
-        // Convert to ISO format if it's not already
         timestamp = new Date(timestamp).toISOString();
       }
       
-      // Normalize metrics
       const likes = Number(thread.likes_count || thread.like_count || thread.metrics?.likes || 0);
       const replies = Number(thread.replies_count || thread.reply_count || thread.metrics?.replies || 0);
       const reposts = Number(thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0);
       const bookmarks = Number(thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0);
       const views = Number(thread.views || thread.views_count || 0);
       
-      // Normalize interaction states
       const isLiked = Boolean(thread.is_liked || thread.isLiked || false);
       const isReposted = Boolean(thread.is_repost || thread.isReposted || false);
       const isBookmarked = Boolean(thread.is_bookmarked || thread.isBookmarked || false);
@@ -203,10 +185,8 @@
         false
       );
       
-      // Ensure media array is valid
       const media = Array.isArray(thread.media) ? thread.media : [];
         
-      // Ensure thread ID and thread author ID exist
       const id = thread.id || `thread-${Math.random().toString(36).substring(2, 9)}`;
       const userId = thread.user_id || thread.userId || thread.author_id || thread.authorId || '';
         
@@ -231,9 +211,8 @@
         isPinned,
         replyTo: thread.parent_id ? { id: thread.parent_id } as any : null
       };
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error formatting tweet:', error);
-      // Return a minimal valid object to prevent rendering errors
       return {
         id: `error-${Math.random().toString(36).substring(2, 9)}`,
         threadId: '',
@@ -268,13 +247,11 @@
     loadTabContent(tab);
   }
   
-  // Helper function to handle loading errors with specific messages
   function handleLoadError(error: any, context: string): string {
     logger.error(`Error in ${context}:`, error);
     
     const errorMessage = error?.message || String(error);
     
-    // Check for specific error patterns
     if (errorMessage.includes('invalid UUID format')) {
       return `Invalid user ID format. Please use a valid username or ID.`;
     } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
@@ -289,18 +266,16 @@
       return `Server error while loading ${context}. Please try again later.`;
     }
     
-    // Default message
     return `Failed to load ${context}. Please try again later.`;
   }
   
   async function loadTabContent(tab: string) {
-    if (isLoading) return; // Don't load if already loading
+    if (isLoading) return;
     
     isLoading = true;
     errorMessage = '';
     
     try {
-      // Check if user is private and not following
       if (profileData.isPrivate && !profileData.isFollowing && currentUserId !== userId) {
         logger.debug('User is private and not following, skipping content load');
         isLoading = false;
@@ -530,61 +505,119 @@
       isLoading = false;
     }
   }
-  
-  async function handleFollow() {
-    if (isFollowLoading) return;
+    // Handle follow/unfollow
+  async function toggleFollow() {
+    if (!currentUserId || currentUserId === userId) {
+      return; // Can't follow yourself
+    }
     
-    isFollowLoading = true;
+    if (isFollowRequestPending) {
+      logger.debug('Follow request already in progress - ignoring duplicate request');
+      return; // Prevent multiple simultaneous requests
+    }
+    
+    isFollowRequestPending = true;
+    const wasFollowing = profileData.isFollowing;
+    
     try {
-      let success;
-      const action = profileData.isFollowing ? 'unfollow' : 'follow';
-      const originalFollowState = profileData.isFollowing;
-      const originalFollowerCount = profileData.followerCount;
+      // Log current state before changes
+      logger.debug(`Toggle follow: current state isFollowing=${wasFollowing}, followerCount=${profileData.followerCount}`);
+      logger.debug(`Target userId=${userId}, currentUserId=${currentUserId}`);
       
-      // Optimistic UI update
-      profileData = {
-        ...profileData,
-        isFollowing: !originalFollowState,
-        followerCount: originalFollowState 
-          ? Math.max(0, originalFollowerCount - 1) 
-          : originalFollowerCount + 1
-      };
-      
-      logger.debug(`Attempting to ${action} user ${profileData.id}, previous state: ${originalFollowState}`);
-      
-      if (originalFollowState) {
-        success = await unfollowUser(profileData.id);
-        logger.debug(`Unfollow attempt result: ${success}`);
+      // Optimistic update - change UI immediately
+      profileData.isFollowing = !wasFollowing;
+      if (wasFollowing) {
+        profileData.followerCount = Math.max(0, (profileData.followerCount || 0) - 1);
       } else {
-        success = await followUser(profileData.id);
-        logger.debug(`Follow attempt result: ${success}`);
+        profileData.followerCount = (profileData.followerCount || 0) + 1;
       }
       
-      if (success) {
-        toastStore.showToast(
-          profileData.isFollowing ? 'You are now following this user' : 'You have unfollowed this user',
-          'success'
-        );
-        
-        // If we just followed a private user, reload the content
-        if (profileData.isFollowing && profileData.isPrivate) {
-          await loadTabContent(activeTab);
+      logger.debug(`${wasFollowing ? 'Unfollowing' : 'Following'} user ${userId}`);
+      
+      // Make API call
+      let apiResponse;
+      try {
+        apiResponse = wasFollowing 
+          ? await unfollowUser(userId)
+          : await followUser(userId);
+          
+        logger.debug(`API call response:`, apiResponse);
+      } catch (apiError) {
+        logger.error(`API call threw an exception:`, apiError);
+        throw apiError;
+      }
+      
+      if (!apiResponse.success) {
+        // Revert optimistic update on failure
+        profileData.isFollowing = wasFollowing;
+        if (wasFollowing) {
+          profileData.followerCount = (profileData.followerCount || 0) + 1;
+        } else {
+          profileData.followerCount = Math.max(0, (profileData.followerCount || 0) - 1);
         }
-      } else {
-        // Revert UI state if API call failed
-        profileData = {
-          ...profileData,
-          isFollowing: originalFollowState,
-          followerCount: originalFollowerCount
-        };
         
-        throw new Error(`Failed to ${action} user - API returned failure`);
+        const errorMessage = apiResponse.message || `Failed to ${wasFollowing ? 'unfollow' : 'follow'} user. Please try again.`;
+        toastStore.showToast(errorMessage, 'error');
+        logger.error(`Failed to ${wasFollowing ? 'unfollow' : 'follow'} user ${userId}: ${apiResponse.message}`);
+      } else {
+        // Use enhanced response data to update UI more accurately
+        const actualNewState = wasFollowing ? 
+          (apiResponse.is_now_following === false) : 
+          (apiResponse.is_now_following === true);
+          
+        // Update state based on actual server response
+        profileData.isFollowing = actualNewState;
+        
+        // Generate appropriate success message
+        let message: string;
+        if (wasFollowing) {
+          if (apiResponse.was_following === false) {
+            message = 'You were not following this user';
+          } else {
+            message = 'Unfollowed user successfully';
+          }
+        } else {
+          if (apiResponse.was_already_following === true) {
+            message = 'You were already following this user';
+          } else {
+            message = 'Now following user successfully';
+          }
+        }
+        
+        toastStore.showToast(message, 'success');
+        logger.debug(`Successfully ${wasFollowing ? 'unfollowed' : 'followed'} user. Response:`, apiResponse);
+        
+        // Wait a moment before refreshing profile data to ensure backend is updated
+        setTimeout(() => {
+          // Refresh profile data to ensure we have the latest follower count
+          loadProfileData();
+        }, 500);
       }
-    } catch (error) {
-      logger.error('Error updating follow status:', error);
-      toastStore.showToast('Failed to update follow status. Please try again.', 'error');
+    } catch (error: any) {
+      // Revert optimistic update and show error
+      profileData.isFollowing = wasFollowing;
+      if (wasFollowing) {
+        profileData.followerCount = (profileData.followerCount || 0) + 1;
+      } else {
+        profileData.followerCount = Math.max(0, (profileData.followerCount || 0) - 1);
+      }
+      
+      let errorMessage = 'Failed to update follow status';
+      if (error?.message) {
+        errorMessage = `Error: ${error.message}`;
+        
+        // Add more specific messages for common errors
+        if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out. The server might be busy, please try again later.';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        }
+      }
+      
+      toastStore.showToast(errorMessage, 'error');
+      logger.error(`Error toggling follow status: ${error.message || 'Unknown error'}`);
     } finally {
-      isFollowLoading = false;
+      isFollowRequestPending = false;
     }
   }
   
@@ -604,7 +637,7 @@
       } else {
         throw new Error('Failed to report user');
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error reporting user:', error);
       toastStore.showToast('Failed to report user. Please try again.', 'error');
     }
@@ -657,7 +690,7 @@
       } else {
         throw new Error(`Failed to ${action} user`);
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error updating block status:', error);
       toastStore.showToast('Failed to update block status. Please try again.', 'error');
     } finally {
@@ -684,12 +717,9 @@
       toastStore.showToast('Maximum retries reached. Please refresh the page.', 'error');
     }
   }
-  
-  // Close dropdowns when clicking outside
+    // Close dropdowns when clicking outside
   function handleClickOutside(event) {
-    if (showActionsDropdown && !event.target.closest('.dropdown-container')) {
-      showActionsDropdown = false;
-    }
+    // Note: No dropdown functionality currently implemented
   }
     onMount(() => {
     // Check if user is authenticated
@@ -790,71 +820,47 @@
     </div>
     
     <div class="profile-details">
-      {#if !isLoading && currentUserId !== userId}
-        <div class="profile-actions">
-          <div class="dropdown-container">
-            <button 
-              class="profile-edit-button"
-              on:click={() => showActionsDropdown = !showActionsDropdown}
-              title="More actions"
-            >
-              <MoreHorizontalIcon size="20" />
-            </button>
-            
-            {#if showActionsDropdown}
-              <div class="dropdown-menu">
-                <button 
-                  class="dropdown-item"
-                  on:click={() => {
-                    showBlockConfirmModal = true;
-                    showActionsDropdown = false;
-                  }}
-                >
-                  <ShieldIcon size="16" class="dropdown-icon" />
-                  {profileData.isBlocked ? 'Unblock @' + profileData.username : 'Block @' + profileData.username}
-                </button>
-                
-                <button 
-                  class="dropdown-item"
-                  on:click={() => {
-                    showReportModal = true;
-                    showActionsDropdown = false;
-                  }}
-                >
-                  <FlagIcon size="16" class="dropdown-icon" />
-                  Report @{profileData.username}
-                </button>
-              </div>
-            {/if}
-          </div>
-          
-          <button 
-            class={profileData.isFollowing ? 'profile-following-button' : 'profile-follow-button'}
-            on:click={handleFollow}
-            disabled={isFollowLoading}
-          >
-            {#if isFollowLoading}
-              <span class="loading-spinner"></span>
-            {:else}
-              {profileData.isFollowing ? 'Following' : 'Follow'}
-            {/if}
-          </button>
-        </div>
-      {/if}
+      <!-- Profile header buttons -->
+      <div class="profile-actions">
+        {#if !errorMessage && profileData}
+          {#if profileData.id !== currentUserId}
+            <div class="profile-action-buttons">
+              <button 
+                class={profileData.isFollowing ? 'profile-following-button' : 'profile-follow-button'}
+                on:click={toggleFollow}
+                disabled={isFollowRequestPending}
+              >
+                {#if isFollowRequestPending}
+                  <span class="loading-indicator"></span>
+                {:else if profileData.isFollowing}
+                  Following
+                {:else}
+                  Follow
+                {/if}
+              </button>
+            </div>
+          {:else}
+            <div class="profile-action-buttons">
+              <button class="profile-edit-button" on:click={() => showEditProfile = true}>
+                Edit profile
+              </button>
+            </div>
+          {/if}
+        {/if}
+      </div>
       
       <div class="profile-name-container">
         <h1 class="profile-name">{profileData.displayName}</h1>
         <div class="profile-username">@{profileData.username}</div>
       </div>
-      
-      {#if profileData.isBlocked}
+        {#if profileData.isBlocked}
         <div class="profile-blocked-alert">
-          <SlashIcon size="16" class="alert-icon" />
+          <SlashIcon size="16" class="profile-alert-icon" />
           <span>You have blocked this user</span>
         </div>
       {:else if profileData.isPrivate && !profileData.isFollowing && currentUserId !== userId}
         <div class="profile-private-alert">
-          <UserIcon size="16" class="alert-icon" />
+          <UserIcon size="16" class="profile-alert-icon" />
           <span>This account is private. Follow to see their posts.</span>
         </div>
       {:else if profileData.bio}
@@ -948,10 +954,10 @@
           </p>
           <button 
             class="profile-follow-button"
-            on:click={handleFollow}
-            disabled={isFollowLoading}
+            on:click={toggleFollow}
+            disabled={isFollowRequestPending}
           >
-            {isFollowLoading ? 'Processing...' : 'Follow'}
+            {isFollowRequestPending ? 'Processing...' : 'Follow'}
           </button>
         </div>
       {:else if isLoading}
@@ -1166,68 +1172,437 @@
 </MainLayout>
 
 <style>
-  /* Add any component-specific styles here */
-  .dropdown-container {
-    position: relative;
+  /* Component variables */
+  :root {
+    --bg-color: #ffffff;
+    --text-primary: #0f1419;
+    --text-secondary: #536471;
+    --border-color: #eff3f4;
+    --bg-hover: rgba(0, 0, 0, 0.03);
+    --bg-highlight: #f7f9fa;
+    --accent-light: #f7f9fa;
   }
-  
-  .dropdown-menu {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    margin-top: 4px;
-    background: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    z-index: 10;
+
+  :global(.dark-theme) {
+    --bg-color: #000000;
+    --bg-highlight: #080808;
+    --text-primary: #e7e9ea;
+    --text-secondary: #71767b;
+    --border-color: #2f3336;
+    --bg-hover: rgba(255, 255, 255, 0.03);
+    --accent-light: #1e2328;
+  }
+
+  /* Profile container styling */
+  .profile-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    position: relative;
+    background-color: var(--bg-color);
+    min-height: 100vh;
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+  }
+
+  /* Profile header styling */
+  .profile-header-container {
+    position: relative;
+    width: 100%;
+    height: 200px;
     overflow: hidden;
   }
-  
-  .dropdown-item {
+
+  .profile-header-back {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 2;
     display: flex;
     align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: white;
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .profile-header-back:hover {
+    transform: scale(1.05);
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+
+  .profile-banner-container {
+    position: relative;
     width: 100%;
-    padding: 12px 16px;
-    text-align: left;
+    height: 100%;
+  }
+
+  .profile-banner {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background-color: #1da1f2;
+  }
+
+  .profile-banner-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
+    pointer-events: none;
+  }
+
+  /* Avatar styling */
+  .profile-avatar-container {
+    position: relative;
+    margin-top: -72px;
+    margin-left: 16px;
+    z-index: 1;
+    margin-bottom: 12px;
+  }
+
+  .profile-avatar-wrapper {
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    border: 4px solid var(--bg-color);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #222;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .profile-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 48px;
+    font-weight: bold;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Profile details */
+  .profile-details {
+    padding: 4px 16px;
+  }
+
+  .profile-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .profile-action-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .profile-edit-button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid #536471;
+    background-color: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .profile-edit-button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .profile-follow-button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    background-color: var(--text-primary);
+    color: var(--bg-color);
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .profile-follow-button:hover {
+    opacity: 0.9;
+  }
+
+  .profile-following-button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid #536471;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .profile-following-button:hover {
+    background-color: rgba(244, 33, 46, 0.1);
+    color: #f91880;
+    border-color: rgba(244, 33, 46, 0.3);
+  }
+
+  .profile-name-container {
+    margin-bottom: 0;
+  }
+
+  .profile-name {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 24px;
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .profile-username {
+    font-size: 15px;
+    color: #536471;
+    margin: 0;
+  }
+
+  .profile-bio {
+    font-size: 15px;
+    margin: 12px 0;
+    white-space: pre-wrap;
+    color: var(--text-primary);
+  }
+
+  .profile-meta {
+    display: flex;
+    gap: 16px;
+    margin: 8px 0;
+    color: #536471;
+  }
+
+  .profile-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #536471;
+    font-size: 14px;
+  }
+
+  .profile-website {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .profile-website:hover {
+    text-decoration: underline;
+  }
+
+  /* Profile stats */
+  .profile-stats {
+    display: flex;
+    gap: 20px;
+    margin: 8px 0 12px 0;
+    color: #536471;
+  }
+
+  .profile-stat {
+    display: flex;
+    gap: 4px;
+    color: #536471;
+    font-size: 14px;
+    cursor: pointer;
     background: none;
     border: none;
-    color: var(--text-primary);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    text-align: left;
+    transition: color 0.2s;
   }
-  
-  .dropdown-item:hover {
+
+  .profile-stat:hover {
+    text-decoration: underline;
+  }
+
+  .profile-stat-count {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* Tab Navigation */
+  .profile-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-color);
+    z-index: 10;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .profile-tab {
+    flex: 1;
+    padding: 12px 8px;
+    text-align: center;
+    color: #536471;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s, background-color 0.2s;
+    background-color: transparent;
+    border: none;
+    font-size: 15px;
+  }
+
+  .profile-tab:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .profile-tab.active {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+
+  .profile-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 56px;
+    height: 4px;
+    border-radius: 9999px 9999px 0 0;
+    background-color: var(--color-primary);
+    animation: tabIndicatorAppear 0.3s ease;
+  }
+
+  @keyframes tabIndicatorAppear {
+    from { width: 0; opacity: 0; }
+    to { width: 56px; opacity: 1; }
+  }
+
+  /* Profile content */
+  .profile-content {
+    min-height: 300px;
+    padding: 0;
+    background-color: var(--bg-color);
+  }
+
+  .profile-content-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 32px;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .profile-content-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.7;
+  }
+
+  .profile-content-empty-title {
+    font-size: 31px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+  }
+
+  .profile-content-empty-text {
+    font-size: 15px;
+    color: #536471;
+    max-width: 300px;
+    margin: 0;
+  }
+
+  /* Tweet feed styling */
+  .tweet-feed {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tweet-card-container {
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 0;
+    transition: background-color 0.2s;
+  }
+  .tweet-card-container:hover {
     background-color: var(--bg-hover);
   }
-  
-  .dropdown-icon {
-    margin-right: 12px;
+
+  .reply-indicator {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #536471;
+    padding: 0 16px;
   }
-  
+
+  .reply-indicator a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: text-decoration 0.2s;
+  }
+
+  .reply-indicator a:hover {
+    text-decoration: underline;
+  }
+
+  /* Alerts */
   .profile-blocked-alert,
   .profile-private-alert {
     display: flex;
     align-items: center;
-    padding: 12px;
+    padding: 12px 16px;
     margin: 12px 0;
-    border-radius: var(--radius-md);
+    border-radius: 8px;
+    background-color: var(--accent-light);
+    color: var(--text-secondary);
+    font-size: 14px;
   }
   
-  .profile-blocked-alert {
-    background-color: rgba(244, 33, 46, 0.1);
-    color: #e0245e;
-  }
-  
-  .profile-private-alert {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-  }
-  
-  .alert-icon {
+  .profile-blocked-alert :global(.profile-alert-icon),
+  .profile-private-alert :global(.profile-alert-icon) {
     margin-right: 8px;
   }
-  
+
+  /* Loading indicators */
+  .loading-indicator {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 4px;
+  }
+
   .loading-spinner {
     display: inline-block;
     width: 16px;
@@ -1245,33 +1620,78 @@
     }
   }
   
-  .profile-website {
-    color: var(--color-primary);
-    text-decoration: none;
-  }
-  
-  .profile-website:hover {
-    text-decoration: underline;
-  }
-  
-  /* Error styling */
   .error {
     color: #e0245e;
   }
-  
-  /* Make the profile-stat buttons look like links */
-  button.profile-stat {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: inherit;
-    color: inherit;
-    text-align: left;
+
+  /* Dark mode specific adjustments */
+  :global(.dark-theme) .profile-header-back {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.05);
   }
-  
-  button.profile-stat:hover {
-    text-decoration: underline;
+
+  :global(.dark-theme) .profile-header-back:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  :global(.dark-theme) .profile-avatar-wrapper {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  :global(.dark-theme) .profile-tabs {
+    background-color: rgba(0, 0, 0, 0.8);
+    border-bottom-color: var(--border-color);
+  }
+
+  :global(.dark-theme) .profile-following-button:hover {
+    background-color: rgba(244, 33, 46, 0.15);
+  }
+  :global(.dark-theme) .profile-follow-button {
+    background-color: white;
+    color: black;
+  }
+
+  /* Media queries for responsive design */
+  @media (max-width: 500px) {
+    .profile-header-container {
+      height: 160px;
+    }
+    
+    .profile-avatar-container {
+      margin-top: -50px;
+      margin-left: 12px;
+    }
+    
+    .profile-avatar-wrapper {
+      width: 100px;
+      height: 100px;
+      border-width: 3px;
+    }
+    
+    .profile-details {
+      padding: 8px 12px;
+    }
+    
+    .profile-name {
+      font-size: 18px;
+    }
+    
+    .profile-username {
+      font-size: 14px;
+    }
+    
+    .profile-meta,
+    .profile-stats {
+      gap: 12px;
+    }
+    
+    .profile-tab {
+      font-size: 14px;
+      padding: 10px 6px;
+    }
+    
+    .profile-tab.active::after {
+      width: 40px;
+    }
   }
 </style>

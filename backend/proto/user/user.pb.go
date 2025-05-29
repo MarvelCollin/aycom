@@ -1582,11 +1582,13 @@ func (x *FollowUserRequest) GetFollowedId() string {
 }
 
 type FollowUserResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Success             bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message             string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	WasAlreadyFollowing bool                   `protobuf:"varint,3,opt,name=was_already_following,json=wasAlreadyFollowing,proto3" json:"was_already_following,omitempty"`
+	IsNowFollowing      bool                   `protobuf:"varint,4,opt,name=is_now_following,json=isNowFollowing,proto3" json:"is_now_following,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *FollowUserResponse) Reset() {
@@ -1631,6 +1633,20 @@ func (x *FollowUserResponse) GetMessage() string {
 		return x.Message
 	}
 	return ""
+}
+
+func (x *FollowUserResponse) GetWasAlreadyFollowing() bool {
+	if x != nil {
+		return x.WasAlreadyFollowing
+	}
+	return false
+}
+
+func (x *FollowUserResponse) GetIsNowFollowing() bool {
+	if x != nil {
+		return x.IsNowFollowing
+	}
+	return false
 }
 
 type UnfollowUserRequest struct {
@@ -1686,11 +1702,13 @@ func (x *UnfollowUserRequest) GetFollowedId() string {
 }
 
 type UnfollowUserResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Success        bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message        string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	WasFollowing   bool                   `protobuf:"varint,3,opt,name=was_following,json=wasFollowing,proto3" json:"was_following,omitempty"`
+	IsNowFollowing bool                   `protobuf:"varint,4,opt,name=is_now_following,json=isNowFollowing,proto3" json:"is_now_following,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UnfollowUserResponse) Reset() {
@@ -1735,6 +1753,20 @@ func (x *UnfollowUserResponse) GetMessage() string {
 		return x.Message
 	}
 	return ""
+}
+
+func (x *UnfollowUserResponse) GetWasFollowing() bool {
+	if x != nil {
+		return x.WasFollowing
+	}
+	return false
+}
+
+func (x *UnfollowUserResponse) GetIsNowFollowing() bool {
+	if x != nil {
+		return x.IsNowFollowing
+	}
+	return false
 }
 
 type GetFollowersRequest struct {
@@ -5214,18 +5246,22 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\vfollower_id\x18\x01 \x01(\tR\n" +
 	"followerId\x12\x1f\n" +
 	"\vfollowed_id\x18\x02 \x01(\tR\n" +
-	"followedId\"H\n" +
+	"followedId\"\xa6\x01\n" +
 	"\x12FollowUserResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"W\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x122\n" +
+	"\x15was_already_following\x18\x03 \x01(\bR\x13wasAlreadyFollowing\x12(\n" +
+	"\x10is_now_following\x18\x04 \x01(\bR\x0eisNowFollowing\"W\n" +
 	"\x13UnfollowUserRequest\x12\x1f\n" +
 	"\vfollower_id\x18\x01 \x01(\tR\n" +
 	"followerId\x12\x1f\n" +
 	"\vfollowed_id\x18\x02 \x01(\tR\n" +
-	"followedId\"J\n" +
+	"followedId\"\x99\x01\n" +
 	"\x14UnfollowUserResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"X\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12#\n" +
+	"\rwas_following\x18\x03 \x01(\bR\fwasFollowing\x12(\n" +
+	"\x10is_now_following\x18\x04 \x01(\bR\x0eisNowFollowing\"X\n" +
 	"\x13GetFollowersRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +

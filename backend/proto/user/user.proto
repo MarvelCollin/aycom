@@ -244,6 +244,8 @@ message FollowUserRequest {
 message FollowUserResponse {
   bool success = 1;
   string message = 2;
+  bool was_already_following = 3;
+  bool is_now_following = 4;
 }
 
 message UnfollowUserRequest {
@@ -254,6 +256,8 @@ message UnfollowUserRequest {
 message UnfollowUserResponse {
   bool success = 1;
   string message = 2;
+  bool was_following = 3;
+  bool is_now_following = 4;
 }
 
 message GetFollowersRequest {

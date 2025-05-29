@@ -213,16 +213,18 @@
     white-space: nowrap;
     overflow: hidden;
   }
-  
   .user-bio {
     margin: var(--space-1) 0 0 0;
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     line-height: 1.4;
+    /* Fallback for browsers that don't support line-clamp */
+    max-height: calc(1.4em * 2);
   }
   
   .user-role-badge {

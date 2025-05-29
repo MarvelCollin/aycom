@@ -379,7 +379,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	if err != nil {
 		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
 	}
-
 	// Check if already following
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
@@ -388,7 +387,9 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	}
 
 	if exists {
-		return status.Error(codes.AlreadyExists, "User is already following this account")
+		// Don't treat this as an error - just return success
+		log.Printf("User %s is already following user %s", req.FollowerID, req.FollowedID)
+		return nil
 	}
 
 	follow := &model.Follow{
@@ -401,6 +402,13 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	if err != nil {
 		log.Printf("Error creating follow relationship: %v", err)
 		return status.Error(codes.Internal, "Failed to follow user")
+	}
+
+	// Update follower counts
+	err = s.updateFollowerCounts(followedUUID, followerUUID, true)
+	if err != nil {
+		log.Printf("Error updating follower counts: %v", err)
+		// Don't fail the operation, just log the error
 	}
 
 	return nil
@@ -421,15 +429,16 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
 	}
 
-	// Check if the follow relationship exists
+	// Check if follow relationship exists
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("Error checking follow existence: %v", err)
 		return status.Error(codes.Internal, "Failed to check follow relationship")
 	}
-
 	if !exists {
-		return status.Error(codes.NotFound, "Follow relationship not found")
+		// Don't treat this as an error - just return success
+		log.Printf("User %s is not following user %s - treating as successful unfollow", req.FollowerID, req.FollowedID)
+		return nil
 	}
 
 	err = s.repo.DeleteFollow(followerUUID, followedUUID)
@@ -438,7 +447,47 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Error(codes.Internal, "Failed to unfollow user")
 	}
 
+	// Update follower counts
+	err = s.updateFollowerCounts(followedUUID, followerUUID, false)
+	if err != nil {
+		log.Printf("Error updating follower counts: %v", err)
+		// Don't fail the operation, just log the error
+	}
+
 	return nil
+}
+
+func (s *userService) updateFollowerCounts(followedID, followerID uuid.UUID, isFollow bool) error {
+	// Update followed user's follower count
+	followedUser, err := s.repo.FindUserByID(followedID.String())
+	if err == nil {
+		if isFollow {
+			followedUser.FollowerCount++
+		} else {
+			followedUser.FollowerCount = max(0, followedUser.FollowerCount-1)
+		}
+		s.repo.UpdateUser(followedUser)
+	}
+
+	// Update follower user's following count
+	followerUser, err := s.repo.FindUserByID(followerID.String())
+	if err == nil {
+		if isFollow {
+			followerUser.FollowingCount++
+		} else {
+			followerUser.FollowingCount = max(0, followerUser.FollowingCount-1)
+		}
+		s.repo.UpdateUser(followerUser)
+	}
+
+	return nil
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (s *userService) GetFollowers(ctx context.Context, req *model.GetFollowersRequest) ([]*model.User, int, error) {

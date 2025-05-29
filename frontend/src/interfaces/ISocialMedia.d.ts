@@ -67,7 +67,7 @@ export interface ISuggestedFollow {
   userId: string; 
   username: string;
   displayName: string;
-  avatar: string;
+  avatar: string | null;
   verified: boolean;
   followerCount: number;
   isFollowing?: boolean;
@@ -79,4 +79,4 @@ export interface ICommunity {
   name: string;
   memberCount: number;
   avatar: string;
-} 
+}

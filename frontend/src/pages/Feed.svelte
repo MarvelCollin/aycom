@@ -176,32 +176,28 @@
     } catch (error) {
       console.warn("Invalid date format in thread:", thread.CreatedAt || thread.created_at || thread.timestamp);
     }
-    
-    return {
+      return {
       id: thread.ID || thread.id,
       threadId: thread.thread_id || thread.ID || thread.id,
+      userId: thread.UserID || thread.user_id || thread.author_id || thread.id,
       username: username,
       displayName: displayName,
       content: content,
       timestamp: timestamp,
-      avatar: profilePicture,
-      likes: thread.LikeCount || thread.like_count || thread.metrics?.likes || 0,
+      avatar: profilePicture,      likes: thread.LikeCount || thread.like_count || thread.metrics?.likes || 0,
       replies: thread.ReplyCount || thread.reply_count || thread.metrics?.replies || 0,
       reposts: thread.RepostCount || thread.repost_count || thread.metrics?.reposts || 0,
       bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
-      views: '0', 
+      views: 0,
       media: thread.Media || thread.media || [],
       isLiked: thread.IsLiked || thread.is_liked || false,
       isReposted: thread.IsReposted || thread.is_repost || false,
       isBookmarked: thread.IsBookmarked || thread.is_bookmarked || false,
+      isPinned: thread.IsPinned || thread.is_pinned || false,
       replyTo: null,
       isAdvertisement: thread.is_advertisement || false,
       communityId: thread.community_id || null,
-      communityName: thread.community_name || null,
-      authorId: thread.UserID || thread.author_id || thread.authorId,
-      authorName: thread.DisplayName || thread.author_name || thread.authorName || displayName,
-      authorUsername: thread.Username || thread.author_username || thread.authorUsername || username,
-      authorAvatar: thread.ProfilePicture || thread.author_avatar || thread.authorAvatar || profilePicture
+      communityName: thread.community_name || null
     };
   }
 
@@ -212,7 +208,6 @@
     // If already a full URL, return as is
     if (url.startsWith('http')) return url;
     
-    // Otherwise, construct the Supabase URL
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
     return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
   }
@@ -222,7 +217,6 @@
     if (!authState.isAuthenticated) {
       logger.info('User not authenticated, redirecting to login page');
       
-      // Only redirect if we're not already on the login page
       const currentPath = window.location.pathname;
       if (currentPath !== '/login') {
         window.location.href = '/login';
@@ -317,10 +311,10 @@
           tweetsWithAds.push(tweet);
           
           // After every 5 tweets, add an advertisement
-          if ((index + 1) % 5 === 0) {
-            tweetsWithAds.push({
+          if ((index + 1) % 5 === 0) {            tweetsWithAds.push({
               id: `ad-${Date.now()}-${index}`,
               threadId: `ad-${Date.now()}-${index}`,
+              userId: '',
               username: 'advertisement',
               displayName: 'Advertisement',
               content: 'Sponsored Content',
@@ -330,17 +324,14 @@
               replies: 0,
               reposts: 0,
               bookmarks: 0,
-              views: '0',
+              views: 0,
               media: [],
               isLiked: false,
               isReposted: false,
               isBookmarked: false,
+              isPinned: false,
               replyTo: null,
-              isAdvertisement: true,
-              authorId: '',
-              authorName: 'Advertisement',
-              authorUsername: 'advertisement',
-              authorAvatar: '/assets/ad-icon.png'
+              isAdvertisement: true
             });
           }
         });
@@ -427,10 +418,10 @@
           tweetsWithAds.push(tweet);
           
           // After every 5 tweets, add an advertisement
-          if ((index + 1) % 5 === 0) {
-            tweetsWithAds.push({
+          if ((index + 1) % 5 === 0) {            tweetsWithAds.push({
               id: `ad-${Date.now()}-${index}`,
               threadId: `ad-${Date.now()}-${index}`,
+              userId: '',
               username: 'advertisement',
               displayName: 'Advertisement',
               content: 'Sponsored Content',
@@ -440,17 +431,14 @@
               replies: 0,
               reposts: 0,
               bookmarks: 0,
-              views: '0',
+              views: 0,
               media: [],
               isLiked: false,
               isReposted: false,
               isBookmarked: false,
+              isPinned: false,
               replyTo: null,
-              isAdvertisement: true,
-              authorId: '',
-              authorName: 'Advertisement',
-              authorUsername: 'advertisement',
-              authorAvatar: '/assets/ad-icon.png'
+              isAdvertisement: true
             });
           }
         });

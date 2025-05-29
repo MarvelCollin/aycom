@@ -171,26 +171,22 @@
     const isLiked = thread.is_liked || thread.isLiked || false;
     const isReposted = thread.is_repost || thread.isReposted || false;
     const isBookmarked = thread.is_bookmarked || thread.isBookmarked || false;
-      
-    return {
+        return {
       id: thread.id,
       threadId: thread.thread_id || thread.id,
+      userId: userId,
       username: username,
       displayName: displayName,
-      content: thread.content || '',
-      timestamp: typeof timestamp === 'string' ? timestamp : new Date(timestamp).toISOString(),
+      content: thread.content || '',      timestamp: typeof timestamp === 'string' ? timestamp : new Date(timestamp).toISOString(),
       avatar: profilePicture,
       likes: likes,
       replies: replies,
       reposts: reposts,
       bookmarks: bookmarks,
-      views: String(views),
-      media: thread.media || [],
-      isLiked: isLiked,
-      is_liked: isLiked, // Add the backend format as well for consistency
+      views: views,      media: thread.media || [],      isLiked: isLiked,
       isReposted: isReposted,
       isBookmarked: isBookmarked,
-      is_pinned: isPinned,
+      isPinned: isPinned,
       replyTo: thread.parent_id ? { id: thread.parent_id } as any : null
     };
   }
@@ -585,24 +581,9 @@
             isLiked: true, 
             is_liked: true, 
             likes: (like.likes || 0) + 1, 
-            likes_count: (like.likes_count || 0) + 1 
           };
         }
         return like;
-      });
-      
-      // Update replies tab if the same thread ID exists
-      replies = replies.map(reply => {
-        if (reply.id === threadId) {
-          return { 
-            ...reply, 
-            isLiked: true, 
-            is_liked: true, 
-            likes: (reply.likes || 0) + 1, 
-            likes_count: (reply.likes_count || 0) + 1 
-          };
-        }
-        return reply;
       });
       
       toastStore.showToast('Post liked', 'success');
@@ -639,24 +620,9 @@
             isLiked: false, 
             is_liked: false, 
             likes: Math.max(0, (like.likes || 0) - 1), 
-            likes_count: Math.max(0, (like.likes_count || 0) - 1) 
           };
         }
         return like;
-      });
-      
-      // Update replies tab if the same thread ID exists
-      replies = replies.map(reply => {
-        if (reply.id === threadId) {
-          return { 
-            ...reply, 
-            isLiked: false, 
-            is_liked: false, 
-            likes: Math.max(0, (reply.likes || 0) - 1), 
-            likes_count: Math.max(0, (reply.likes_count || 0) - 1) 
-          };
-        }
-        return reply;
       });
       
       toastStore.showToast('Post unliked', 'success');
@@ -1386,12 +1352,6 @@
     object-fit: cover;
   }
 
-  .profile-banner-default {
-    width: 100%;
-    height: 100%;
-    background-color: #1da1f2;
-  }
-
   /* Profile info section */
   .profile-info-section {
     position: relative;
@@ -1423,21 +1383,9 @@
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
   }
 
-  .profile-avatar {
-    width: 100%;
+  .profile-avatar {    width: 100%;
     height: 100%;
     object-fit: cover;
-  }
-
-  .profile-avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    background-color: #333;
-    color: #fff;
   }
 
   /* Profile actions */
