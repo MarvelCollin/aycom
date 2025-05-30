@@ -10,19 +10,19 @@ const API_URL = appConfig.api.baseUrl;
 const TOKEN_EXPIRY_BUFFER = 300000;
 
 interface AuthState extends IAuthStore {
-  expiresAt: number | null;
+  expires_at: number | null;
   username?: string;
-  displayName?: string;
+  display_name?: string;
   is_admin: boolean;
 }
 
 const createAuthStore = () => {
   const initialState: AuthState = {
-    isAuthenticated: false,
-    userId: null,
-    accessToken: null,
-    refreshToken: null,
-    expiresAt: null,
+    is_authenticated: false,
+    user_id: null,
+    access_token: null,
+    refresh_token: null,
+    expires_at: null,
     is_admin: false
   };
 

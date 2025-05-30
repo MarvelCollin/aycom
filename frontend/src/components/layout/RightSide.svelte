@@ -98,23 +98,57 @@
     
     try {
       followLoading[userId] = true;
-      followingStatus = {...followingStatus};
       
-      if (followingStatus[userId]) {
-        await unfollowUser(userId);
-        followingStatus[userId] = false;
-        toastStore.showToast('User unfollowed', 'success');
+      // Find the user in suggestedFollows
+      const userIndex = suggestedFollows.findIndex(user => user.user_id === userId);
+      if (userIndex === -1) {
+        console.error('User not found in suggested follows list');
+        return;
+      }
+      
+      const user = suggestedFollows[userIndex];
+      const wasFollowing = user.is_following;
+      
+      // Optimistically update UI
+      suggestedFollows = suggestedFollows.map(user => {
+        if (user.user_id === userId) {
+          return { ...user, is_following: !user.is_following };
+        }
+        return user;
+      });
+      
+      // Make API call
+      let response;
+      if (wasFollowing) {
+        response = await unfollowUser(userId);
+        if (response.success) {
+          toastStore.showToast('User unfollowed', 'success');
+        }
       } else {
-        await followUser(userId);
-        followingStatus[userId] = true;
-        toastStore.showToast('User followed', 'success');
+        response = await followUser(userId);
+        if (response.success) {
+          toastStore.showToast('User followed', 'success');
+        }
+      }
+      
+      // If the API call failed, revert the UI change
+      if (!response || !response.success) {
+        suggestedFollows = suggestedFollows.map(user => {
+          if (user.user_id === userId) {
+            return { ...user, is_following: wasFollowing };
+          }
+          return user;
+        });
+        toastStore.showToast(response?.message || 'Failed to update follow status', 'error');
       }
     } catch (error) {
       console.error('Error toggling follow status:', error);
+      
+      // Revert any UI changes on error
+      suggestedFollows = [...suggestedFollows]; // Trigger reactivity
       toastStore.showToast('Failed to update follow status', 'error');
     } finally {
       followLoading[userId] = false;
-      followingStatus = {...followingStatus};
     }
   }  // Debounced search function with proper data transformation
   /**
@@ -393,10 +427,10 @@
               <div class="suggestion-action">
                 <button 
                   class="follow-button {followingStatus[user.username] ? 'following' : ''} {isDarkMode ? 'follow-button-dark' : ''}"
-                  on:click={() => handleToggleFollow(user.username)}
-                  disabled={followLoading[user.username]}
+                  on:click={() => handleToggleFollow(user.user_id)}
+                  disabled={followLoading[user.user_id]}
                 >
-                  {#if followLoading[user.username]}
+                  {#if followLoading[user.user_id]}
                     <span class="loading-dot"></span>
                   {:else}
                     {followingStatus[user.username] ? 'Following' : 'Follow'}

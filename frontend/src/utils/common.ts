@@ -71,7 +71,7 @@ export function formatTimeAgo(timestamp: string): string {
 }
 
 export function checkAuth(authState: IAuthStore, featureName: string): boolean {
-  if (!authState.isAuthenticated) {
+  if (!authState.is_authenticated) {
     toastStore.showToast(`You need to log in to access ${featureName}`, 'warning');
     window.location.href = '/login';
     return false;
@@ -110,9 +110,9 @@ export function generateFilePreview(file: File): IMedia {
 /**
  * Extracts user metadata from content that might contain embedded information
  * @param {string} content - Content string that might contain embedded metadata
- * @returns {object} - Object with extracted username, displayName, and cleaned content
+ * @returns {object} - Object with extracted username, name, and cleaned content
  */
-export function processUserMetadata(content: string): { username?: string, displayName?: string, content: string } {
+export function processUserMetadata(content: string): { username?: string, name?: string, content: string } {
   if (!content) return { content: '' };
   
   const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
@@ -121,7 +121,7 @@ export function processUserMetadata(content: string): { username?: string, displ
   if (match) {
     return {
       username: match[1] || undefined,
-      displayName: match[2] || undefined,
+      name: match[2] || undefined,
       content: match[3] || ''
     };
   }

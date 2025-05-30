@@ -68,7 +68,7 @@ const LOG_LEVEL_NAMES = {
 };
 
 type ToastOptions = {
-  showToast?: boolean;
+  show_toast?: boolean;
   timeout?: number;
 }
 
@@ -119,9 +119,8 @@ const createLogger = (prefix: string): Logger => {
         console.error(`%c[ERROR] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
         break;
     }
-    
-    const { showToast = false, timeout } = options;
-    if (showToast) {
+      const { show_toast = false, timeout } = options;
+    if (show_toast) {
       const toastType = level === LogLevel.ERROR ? 'error' 
         : level === LogLevel.WARN ? 'warning'
         : level === LogLevel.INFO ? 'info'
@@ -157,7 +156,7 @@ export const logger = createLogger('App');
 export const setGlobalLogLevel = (level: LogLevel): void => {
   currentLogLevel = level;
   setLogLevel(level);
-  logger.info(`Log level set to ${LogLevel[level]}`, null, { showToast: true });
+  logger.info(`Log level set to ${LogLevel[level]}`, null, { show_toast: true });
 };
 
 if (typeof window !== 'undefined') {

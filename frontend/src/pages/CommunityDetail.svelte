@@ -14,20 +14,19 @@
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import type { IAuthStore } from '../interfaces/IAuth';
-  
-  // Import ITweet interface or create Thread interface that extends it
+    // Import ITweet interface or create Thread interface that extends it
   interface ITweet {
     id: string;
     content?: string;
     timestamp?: Date;
     username?: string;
-    displayName?: string;
+    display_name?: string;
     avatar?: string;
     likes?: number;
     comments?: number;
-    isLiked?: boolean;
-    isReposted?: boolean;
-    isBookmarked?: boolean;
+    is_liked?: boolean;
+    is_reposted?: boolean;
+    is_bookmarked?: boolean;
     replies?: number;
     reposts?: number;
     bookmarks?: number;
@@ -50,30 +49,29 @@
   import UserCard from '../components/social/UserCard.svelte';
   import TabButtons from '../components/common/TabButtons.svelte';
   import Button from '../components/common/Button.svelte';
-  
-  // Define types for our data
+    // Define types for our data
   interface Community {
     id: string;
     name: string;
     description: string;
     logo: string;
     banner: string;
-    creatorId: string;
-    isApproved: boolean;
-    isPrivate?: boolean;
+    creator_id: string;
+    is_approved: boolean;
+    is_private?: boolean;
     categories: string[];
-    createdAt: Date;
-    memberCount: number;
+    created_at: Date;
+    member_count: number;
   }
   
   interface Member {
     id: string;
-    userId: string;
+    user_id: string;
     username: string;
     name: string;
     role: string;
-    avatarUrl: string;
-    joinedAt?: Date;
+    avatar_url: string;
+    joined_at?: Date;
   }
   
   interface Rule {
@@ -94,12 +92,11 @@
   
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
-  
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { 
-    userId: null, 
-    isAuthenticated: false, 
-    accessToken: null, 
-    refreshToken: null 
+    $: authState = getAuthState ? (getAuthState() as IAuthStore) : { 
+    user_id: null, 
+    is_authenticated: false, 
+    access_token: null, 
+    refresh_token: null 
   };
   $: isDarkMode = $theme === 'dark';
   
@@ -221,7 +218,7 @@
   }
   
   async function handleJoinRequest() {
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to join communities', 'warning');
       return;
     }
@@ -267,7 +264,7 @@
             <div class="community-header-details">
               <div class="community-name-row">
                 <h1 class="community-name">{community.name}</h1>
-                {#if community.isPrivate}
+                {#if community.is_private}
                   <div class="community-badge private">
                     <LockIcon size="16" />
                     <span>Private</span>
@@ -278,7 +275,7 @@
               <div class="community-stats">
                 <div class="stat">
                   <UsersIcon size="16" />
-                  <span>{community.memberCount || members.length} Members</span>
+                  <span>{community.member_count || members.length} Members</span>
                 </div>
                 <div class="stat">
                   <MessageSquareIcon size="16" />
@@ -388,10 +385,9 @@
                 </div>
               </div>
             {/if}
-            
-            {#if community.createdAt}
+              {#if community.created_at}
               <div class="community-metadata">
-                <p>Created: {new Date(community.createdAt).toLocaleDateString()}</p>
+                <p>Created: {new Date(community.created_at).toLocaleDateString()}</p>
               </div>
             {/if}
           </div>

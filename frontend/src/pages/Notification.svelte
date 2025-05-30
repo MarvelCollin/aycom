@@ -17,7 +17,7 @@
   const { theme } = useTheme();
   
   // Reactive declarations
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === 'dark';
   
   // User profile data
@@ -31,24 +31,22 @@
   let activeTab: 'all' | 'mentions' = 'all';
   let notifications: Notification[] = [];
   let mentions: Notification[] = [];
-  
-  // Notification interface
+    // Notification interface
   interface Notification {
     id: string;
     type: 'like' | 'repost' | 'follow' | 'mention';
-    userId: string;
+    user_id: string;
     username: string;
-    displayName: string;
+    display_name: string;
     avatar: string | null;
     timestamp: string;
-    threadId?: string;
-    threadContent?: string;
-    isRead: boolean;
+    thread_id?: string;
+    thread_content?: string;
+    is_read: boolean;
   }
-  
-  // Authentication check
+    // Authentication check
   function validateUserAuth() {
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to access notifications', 'warning');
       window.location.href = '/login';
       return false;
@@ -61,22 +59,19 @@
     isLoadingProfile = true;
     try {
       const response = await getProfile();
-      if (response && response.user) {
-        const userData = response.user;
-        username = userData.username || `user_${authState.userId?.substring(0, 4)}`;
-        displayName = userData.name || userData.display_name || `User ${authState.userId?.substring(0, 4)}`;
+      if (response && response.user) {        const userData = response.user;
+        username = userData.username || `user_${authState.user_id?.substring(0, 4)}`;
+        displayName = userData.name || userData.display_name || `User ${authState.user_id?.substring(0, 4)}`;
         avatar = userData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
-        logger.debug('Profile loaded', { username });
-      } else {
+        logger.debug('Profile loaded', { username });      } else {
         logger.warn('No user data received from API');
-        username = `user_${authState.userId?.substring(0, 4)}`;
-        displayName = `User ${authState.userId?.substring(0, 4)}`;
-      }
-    } catch (error) {
+        username = `user_${authState.user_id?.substring(0, 4)}`;
+        displayName = `User ${authState.user_id?.substring(0, 4)}`;
+      }    } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error('Error fetching user profile:', errorResponse);
-      username = `user_${authState.userId?.substring(0, 4)}`;
-      displayName = `User ${authState.userId?.substring(0, 4)}`;
+      username = `user_${authState.user_id?.substring(0, 4)}`;
+      displayName = `User ${authState.user_id?.substring(0, 4)}`;
     } finally {
       isLoadingProfile = false;
     }
@@ -88,33 +83,31 @@
     
     try {
       // Fetch notifications from API
-      const notificationsData = await getNotifications();
-      notifications = notificationsData.map(notification => ({
+      const notificationsData = await getNotifications();      notifications = notificationsData.map(notification => ({
         id: notification.id,
         type: notification.type,
-        userId: notification.user_id,
+        user_id: notification.user_id,
         username: notification.username,
-        displayName: notification.display_name,
+        display_name: notification.display_name,
         avatar: notification.avatar,
         timestamp: notification.timestamp,
-        threadId: notification.thread_id,
-        threadContent: notification.thread_content,
-        isRead: notification.is_read
+        thread_id: notification.thread_id,
+        thread_content: notification.thread_content,
+        is_read: notification.is_read
       }));
       
       // Fetch mentions from API
-      const mentionsData = await getMentions();
-      mentions = mentionsData.map(mention => ({
+      const mentionsData = await getMentions();      mentions = mentionsData.map(mention => ({
         id: mention.id,
         type: 'mention',
-        userId: mention.user_id,
+        user_id: mention.user_id,
         username: mention.username,
-        displayName: mention.display_name,
+        display_name: mention.display_name,
         avatar: mention.avatar,
         timestamp: mention.timestamp,
-        threadId: mention.thread_id,
-        threadContent: mention.thread_content,
-        isRead: mention.is_read
+        thread_id: mention.thread_id,
+        thread_content: mention.thread_content,
+        is_read: mention.is_read
       }));
       
       logger.debug('Notifications loaded', { count: notifications.length + mentions.length });
@@ -138,25 +131,23 @@
     try {
       // Mark notification as read
       await markNotificationAsRead(notification.id);
-      
-      // Update local state
+        // Update local state
       if (notification.type === 'mention') {
         mentions = mentions.map(n => 
-          n.id === notification.id ? { ...n, isRead: true } : n
+          n.id === notification.id ? { ...n, is_read: true } : n
         );
       } else {
         notifications = notifications.map(n => 
-          n.id === notification.id ? { ...n, isRead: true } : n
+          n.id === notification.id ? { ...n, is_read: true } : n
         );
       }
-      
-      // Navigate based on notification type
+        // Navigate based on notification type
       if (notification.type === 'mention') {
         // For mentions, navigate to the thread where mentioned
-        window.location.href = `/thread/${notification.threadId}`;
-      } else if (notification.threadId) {
+        window.location.href = `/thread/${notification.thread_id}`;
+      } else if (notification.thread_id) {
         // For likes and reposts, navigate to the thread
-        window.location.href = `/thread/${notification.threadId}`;
+        window.location.href = `/thread/${notification.thread_id}`;
       } else if (notification.type === 'follow') {
         // For follows, navigate to the profile of the user who followed
         window.location.href = `/profile/${notification.username}`;
@@ -165,10 +156,9 @@
       const errorResponse = handleApiError(error);
       logger.error('Error marking notification as read:', errorResponse);
       toastStore.showToast('Failed to mark notification as read.', 'error');
-      
-      // Still navigate even if marking as read fails
-      if (notification.threadId) {
-        window.location.href = `/thread/${notification.threadId}`;
+        // Still navigate even if marking as read fails
+      if (notification.thread_id) {
+        window.location.href = `/thread/${notification.thread_id}`;
       } else if (notification.type === 'follow') {
         window.location.href = `/profile/${notification.username}`;
       }
@@ -244,9 +234,8 @@
         </div>
       {:else if activeTab === 'all'}
         <div class="notification-list">
-          {#each notifications as notification}
-            <button 
-              class="notification-item {notification.isRead ? 'read' : ''}"
+          {#each notifications as notification}            <button 
+              class="notification-item {notification.is_read ? 'read' : ''}"
               on:click={() => handleNotificationClick(notification)}
             >
               <div class="notification-icon {notification.type}">
@@ -268,20 +257,19 @@
                   </svg>
                 {/if}
               </div>
-              
-              <div class="notification-avatar">
+                <div class="notification-avatar">
                 {#if notification.avatar}
-                  <img src={notification.avatar} alt={notification.displayName} />
+                  <img src={notification.avatar} alt={notification.display_name} />
                 {:else}
                   <div class="notification-avatar-placeholder">
-                    {notification.displayName.charAt(0).toUpperCase()}
+                    {notification.display_name.charAt(0).toUpperCase()}
                   </div>
                 {/if}
               </div>
               
               <div class="notification-content">
                 <div class="notification-text">
-                  <span class="notification-name">{notification.displayName}</span>
+                  <span class="notification-name">{notification.display_name}</span>
                   {#if notification.type === 'like'}
                     liked your post
                   {:else if notification.type === 'repost'}
@@ -290,10 +278,9 @@
                     followed you
                   {/if}
                 </div>
-                
-                {#if notification.threadContent && notification.type !== 'follow'}
+                  {#if notification.thread_content && notification.type !== 'follow'}
                   <div class="notification-thread">
-                    {notification.threadContent}
+                    {notification.thread_content}
                   </div>
                 {/if}
               </div>
@@ -306,9 +293,8 @@
         </div>
       {:else}
         <div class="notification-list">
-          {#each mentions as mention}
-            <button 
-              class="notification-item mention {mention.isRead ? 'read' : ''}"
+          {#each mentions as mention}            <button 
+              class="notification-item mention {mention.is_read ? 'read' : ''}"
               on:click={() => handleNotificationClick(mention)}
             >
               <div class="notification-icon mention">
@@ -316,26 +302,24 @@
                   <g><path d="M12 1.75C6.34 1.75 1.75 6.34 1.75 12S6.34 22.25 12 22.25 22.25 17.66 22.25 12 17.66 1.75 12 1.75zm-.25 10.48L10.5 17.5l-2-1.5v-3.5L7.5 9 10.5 7l1.25 1.25L11 14.5l.75-5.25L14.5 6.5l2 1.5v3.5L18 15l-3 2-1.25-1.25L14.5 10l-.75 5.25-1.5-2.75z"></path></g>
                 </svg>
               </div>
-              
-              <div class="notification-avatar">
+                <div class="notification-avatar">
                 {#if mention.avatar}
-                  <img src={mention.avatar} alt={mention.displayName} />
+                  <img src={mention.avatar} alt={mention.display_name} />
                 {:else}
                   <div class="notification-avatar-placeholder">
-                    {mention.displayName.charAt(0).toUpperCase()}
+                    {mention.display_name.charAt(0).toUpperCase()}
                   </div>
                 {/if}
               </div>
               
               <div class="notification-content">
                 <div class="notification-text">
-                  <span class="notification-name">{mention.displayName}</span>
+                  <span class="notification-name">{mention.display_name}</span>
                   mentioned you
                 </div>
-                
-                {#if mention.threadContent}
+                  {#if mention.thread_content}
                   <div class="notification-thread">
-                    {mention.threadContent}
+                    {mention.thread_content}
                   </div>
                 {/if}
               </div>

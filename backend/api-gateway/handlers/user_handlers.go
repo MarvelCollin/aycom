@@ -101,17 +101,17 @@ func UpdateUserProfile(c *gin.Context) {
 
 	var input struct {
 		Name              string `json:"name"`
-		DisplayName       string `json:"displayName"`
+		DisplayName       string `json:"display_name"`
 		Bio               string `json:"bio"`
 		Email             string `json:"email"`
-		DateOfBirth       string `json:"dateOfBirth"`
+		DateOfBirth       string `json:"date_of_birth"`
 		Gender            string `json:"gender"`
 		ProfilePictureURL string `json:"profile_picture_url"`
-		ProfilePicture    string `json:"profilePicture"`
+		ProfilePicture    string `json:"profile_picture"`
 		Avatar            string `json:"avatar"`
 		BannerURL         string `json:"banner_url"`
 		Banner            string `json:"banner"`
-		BackgroundBanner  string `json:"backgroundBanner"`
+		BackgroundBanner  string `json:"background_banner"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -711,7 +711,7 @@ func UpdateProfilePictureURLHandler(c *gin.Context) {
 	}
 
 	var req struct {
-		ProfilePictureUrl string `json:"profilePictureUrl"`
+		ProfilePictureUrl string `json:"profile_picture_url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -743,7 +743,7 @@ func UpdateProfilePictureURLHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.ProfilePictureUrl})
+	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.ProfilePictureUrl, "profile_picture_url": req.ProfilePictureUrl})
 }
 
 func UpdateBannerURLHandler(c *gin.Context) {
@@ -760,7 +760,7 @@ func UpdateBannerURLHandler(c *gin.Context) {
 	}
 
 	var req struct {
-		BannerUrl string `json:"bannerUrl"`
+		BannerUrl string `json:"banner_url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -792,7 +792,7 @@ func UpdateBannerURLHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.BannerUrl})
+	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.BannerUrl, "banner_url": req.BannerUrl})
 }
 
 func GetUserByUsername(c *gin.Context) {

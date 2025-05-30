@@ -83,6 +83,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.POST("/:userId/unfollow", handlers.UnfollowUser)
 		users.GET("/:userId/followers", handlers.GetFollowers)
 		users.GET("/:userId/following", handlers.GetFollowing)
+		users.GET("/:userId/follow-status", handlers.CheckFollowStatus)
 		users.GET("/recommendations", handlers.GetUserRecommendations)
 		users.POST("/admin-status", handlers.UpdateUserAdminStatus)
 		// Block and report routes

@@ -145,7 +145,7 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
     const responseText = await response.text();
     console.log(`Follow API raw response: ${responseText}`);
     
-    let responseData: FollowUserResponse;
+    let responseData: any;
     try {
       responseData = JSON.parse(responseText);
     } catch (parseError) {
@@ -160,24 +160,21 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
       return { 
         success: false, 
         message: responseData.message || `Request failed with status ${response.status}`,
-        was_already_following: responseData.was_already_following || false,
-        is_now_following: responseData.is_now_following || false
+        was_already_following: responseData.was_already_following || responseData.wasAlreadyFollowing || false,
+        is_now_following: responseData.is_now_following || responseData.isNowFollowing || false
       };
     }
     
-    // Return the enhanced response data
-    if (responseData && responseData.success === true) {
-      console.log(`Successfully processed follow request for user ${userId}`);
-      return responseData;
-    } else {
-      console.error(`Follow operation failed - API returned success=false:`, responseData);
-      return { 
-        success: false, 
-        message: responseData.message || 'Follow operation failed',
-        was_already_following: responseData.was_already_following || false,
-        is_now_following: responseData.is_now_following || false
-      };
-    }
+    // Return the enhanced response data with standardized field names
+    const standardizedResponse: FollowUserResponse = {
+      success: responseData.success === true,
+      message: responseData.message || 'Follow operation processed',
+      was_already_following: responseData.was_already_following || responseData.wasAlreadyFollowing || false,
+      is_now_following: responseData.is_now_following || responseData.isNowFollowing || true
+    };
+    
+    console.log(`Successfully processed follow request for user ${userId}:`, standardizedResponse);
+    return standardizedResponse;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       console.error("Follow user request timed out after 10 seconds");
@@ -218,7 +215,7 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
     const responseText = await response.text();
     console.log(`Unfollow API raw response: ${responseText}`);
     
-    let responseData: UnfollowUserResponse;
+    let responseData: any;
     try {
       responseData = JSON.parse(responseText);
     } catch (parseError) {
@@ -233,24 +230,21 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
       return { 
         success: false, 
         message: responseData.message || `Request failed with status ${response.status}`,
-        was_following: responseData.was_following || false,
-        is_now_following: responseData.is_now_following || false
+        was_following: responseData.was_following || responseData.wasFollowing || false,
+        is_now_following: responseData.is_now_following || responseData.isNowFollowing || false
       };
     }
     
-    // Return the enhanced response data
-    if (responseData && responseData.success === true) {
-      console.log(`Successfully processed unfollow request for user ${userId}`);
-      return responseData;
-    } else {
-      console.error(`Unfollow operation failed - API returned success=false:`, responseData);
-      return { 
-        success: false, 
-        message: responseData.message || 'Unfollow operation failed',
-        was_following: responseData.was_following || false,
-        is_now_following: responseData.is_now_following || false
-      };
-    }
+    // Return the enhanced response data with standardized field names
+    const standardizedResponse: UnfollowUserResponse = {
+      success: responseData.success === true,
+      message: responseData.message || 'Unfollow operation processed',
+      was_following: responseData.was_following || responseData.wasFollowing || true,
+      is_now_following: responseData.is_now_following || responseData.isNowFollowing || false
+    };
+    
+    console.log(`Successfully processed unfollow request for user ${userId}:`, standardizedResponse);
+    return standardizedResponse;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       console.error("Unfollow user request timed out after 10 seconds");
@@ -262,7 +256,7 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
   }
 }
 
-export async function getFollowers(userId: string, page = 1, limit = 20): Promise<any[]> {
+export async function getFollowers(userId: string, page = 1, limit = 20): Promise<any> {
   try {
     const token = getAuthToken();
     
@@ -278,27 +272,72 @@ export async function getFollowers(userId: string, page = 1, limit = 20): Promis
       throw new Error(`Failed to get followers: ${response.status}`);
     }
     
-    const data = await response.json();
+    const rawData = await response.json();
+    console.log('Followers API response:', rawData);
     
-    if (data && data.followers) {
-      return data.followers.map((follower: any) => ({
-        id: follower.id,
-        name: follower.name,
-        username: follower.username,
-        profile_picture_url: follower.profile_picture_url || '👤',
-        is_verified: follower.is_verified || false,
-        is_following: follower.is_following || false
-      }));
+    // Handle different response formats
+    let data = rawData;
+    if (rawData.data) {
+      // If the response is wrapped in a data property
+      data = rawData.data;
     }
     
-    return [];
+    if (data && data.followers) {
+      const followersList = data.followers.map((follower: any) => ({
+        id: follower.id,
+        name: follower.name || follower.display_name,
+        username: follower.username,
+        profile_picture_url: follower.profile_picture_url || '👤',
+        is_verified: follower.is_verified || follower.verified || false,
+        is_following: follower.is_following || false,
+        bio: follower.bio || ''
+      }));
+      
+      // Return the original response structure to preserve additional metadata
+      if (rawData.data) {
+        return {
+          data: {
+            followers: followersList,
+            pagination: data.pagination || {
+              total_count: followersList.length,
+              current_page: page,
+              per_page: limit
+            }
+          },
+          success: rawData.success
+        };
+      }
+      
+      // Return the direct structure
+      return {
+        followers: followersList,
+        pagination: data.pagination || {
+          total_count: followersList.length,
+          current_page: page,
+          per_page: limit
+        }
+      };
+    }
+    
+    // Return the original structure with empty followers
+    if (rawData.data) {
+      return {
+        data: { 
+          followers: [], 
+          pagination: { total_count: 0, current_page: page, per_page: limit }
+        },
+        success: rawData.success
+      };
+    }
+    
+    return { followers: [], pagination: { total_count: 0, current_page: page, per_page: limit } };
   } catch (err) {
     console.error('Failed to get followers:', err);
-    return [];
+    throw err;
   }
 }
 
-export async function getFollowing(userId: string, page = 1, limit = 20): Promise<any[]> {
+export async function getFollowing(userId: string, page = 1, limit = 20): Promise<any> {
   try {
     const token = getAuthToken();
     
@@ -314,23 +353,68 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
       throw new Error(`Failed to get following: ${response.status}`);
     }
     
-    const data = await response.json();
+    const rawData = await response.json();
+    console.log('Following API response:', rawData);
     
-    if (data && data.following) {
-      return data.following.map((following: any) => ({
-        id: following.id,
-        name: following.name,
-        username: following.username,
-        profile_picture_url: following.profile_picture_url || '👤',
-        is_verified: following.is_verified || false,
-        is_following: true
-      }));
+    // Handle different response formats
+    let data = rawData;
+    if (rawData.data) {
+      // If the response is wrapped in a data property
+      data = rawData.data;
     }
     
-    return [];
+    if (data && data.following) {
+      const followingList = data.following.map((following: any) => ({
+        id: following.id,
+        name: following.name || following.display_name,
+        username: following.username,
+        profile_picture_url: following.profile_picture_url || '👤',
+        is_verified: following.is_verified || following.verified || false,
+        is_following: true,
+        bio: following.bio || ''
+      }));
+      
+      // Return the original response structure to preserve additional metadata
+      if (rawData.data) {
+        return {
+          data: {
+            following: followingList,
+            pagination: data.pagination || {
+              total_count: followingList.length,
+              current_page: page,
+              per_page: limit
+            }
+          },
+          success: rawData.success
+        };
+      }
+      
+      // Return the direct structure
+      return {
+        following: followingList,
+        pagination: data.pagination || {
+          total_count: followingList.length,
+          current_page: page,
+          per_page: limit
+        }
+      };
+    }
+    
+    // Return the original structure with empty following
+    if (rawData.data) {
+      return {
+        data: { 
+          following: [], 
+          pagination: { total_count: 0, current_page: page, per_page: limit }
+        },
+        success: rawData.success
+      };
+    }
+    
+    return { following: [], pagination: { total_count: 0, current_page: page, per_page: limit } };
   } catch (err) {
     console.error('Failed to get following:', err);
-    return [];
+    throw err;
   }
 }
 
@@ -456,7 +540,7 @@ export async function uploadProfilePicture(file: File) {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ profilePictureUrl: url })
+        body: JSON.stringify({ profile_picture_url: url })
       });
       
       if (!response.ok) {
@@ -535,7 +619,7 @@ export async function uploadBanner(file: File) {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ bannerUrl: url })
+        body: JSON.stringify({ banner_url: url })
       });
       
       if (!response.ok) {
@@ -756,16 +840,16 @@ export async function getUserById(userId: string): Promise<any> {
     }
     
     const data = await response.json();
-    console.log('User data received:', data.success);
+    console.log('User data received:', data);
     
     // Get the auth state to check for admin status
-    let isAdmin = false;
+    let is_admin = false;
     try {
       const authState = localStorage.getItem('auth');
       if (authState) {
         const auth = JSON.parse(authState);
         if (auth.is_admin === true) {
-          isAdmin = true;
+          is_admin = true;
           console.log('User is admin according to auth state');
         }
       }
@@ -779,7 +863,7 @@ export async function getUserById(userId: string): Promise<any> {
       
       // Check for admin status in the API response
       if (userData.is_admin === true) {
-        isAdmin = true;
+        is_admin = true;
         console.log('User is admin according to API response');
         
         // Update auth state to reflect admin status
@@ -795,6 +879,10 @@ export async function getUserById(userId: string): Promise<any> {
           console.error('Error updating auth state with admin status:', e);
         }
       }
+
+      // Make sure to extract the is_following flag correctly
+      const isFollowing = userData.is_following === true;
+      console.log(`User is_following status from API: ${isFollowing}`);
       
       return {
         success: true,
@@ -807,10 +895,10 @@ export async function getUserById(userId: string): Promise<any> {
           banner_url: userData.banner_url,
           bio: userData.bio,
           is_verified: userData.is_verified,
-          is_admin: userData.is_admin === true || isAdmin, // Use API response or auth state
+          is_admin: userData.is_admin === true || is_admin, // Use API response or auth state
           follower_count: userData.follower_count || 0,
           following_count: userData.following_count || 0,
-          is_following: userData.is_following || false
+          is_following: isFollowing
         }
       };
     }
@@ -1012,13 +1100,13 @@ export async function getBlockedUsers(page = 1, limit = 20): Promise<any[]> {
 /**
  * Update a user's admin status
  * @param userId The ID of the user to update admin status
- * @param isAdmin Whether the user should be an admin or not
+ * @param is_admin Whether the user should be an admin or not
  * @param isDebugRequest Optional flag to indicate if this is coming from the debug panel
  * @returns Promise resolving to success message
  */
 export async function updateUserAdminStatus(
   userId: string, 
-  isAdmin: boolean,
+  is_admin: boolean,
   isDebugRequest: boolean = false
 ): Promise<{ success: boolean, message: string }> {
   try {
@@ -1027,7 +1115,7 @@ export async function updateUserAdminStatus(
       throw new Error('Authentication required');
     }
     
-    console.log(`Sending updateUserAdminStatus request with isAdmin=${isAdmin} (${typeof isAdmin})`);
+    console.log(`Sending updateUserAdminStatus request with is_admin=${is_admin} (${typeof is_admin})`);
     
     const response = await fetch(`${API_BASE_URL}/users/admin-status`, {
       method: 'POST',
@@ -1037,7 +1125,7 @@ export async function updateUserAdminStatus(
       },
       body: JSON.stringify({ 
         user_id: userId,
-        is_admin: isAdmin,
+        is_admin: is_admin,
         is_debug_request: isDebugRequest
       }),
       credentials: 'include'
@@ -1123,12 +1211,12 @@ export async function checkAdminStatus(): Promise<boolean> {
       // If the endpoint exists and returns OK
       if (response.ok) {
         const data = await response.json();
-        const isAdmin = data.is_admin === true;
+        const is_admin = data.is_admin === true;
         
-        console.log('Admin status check from API:', isAdmin);
+        console.log('Admin status check from API:', is_admin);
         
         // Update auth state with admin status
-        if (isAdmin) {
+        if (is_admin) {
           try {
             const authData = localStorage.getItem('auth');
             if (authData) {
@@ -1142,7 +1230,7 @@ export async function checkAdminStatus(): Promise<boolean> {
           }
         }
         
-        return isAdmin;
+        return is_admin;
       } else {
         console.log('Admin check API returned error:', response.status);
         
@@ -1205,25 +1293,124 @@ export async function checkFollowStatus(userId: string): Promise<boolean> {
       return false;
     }
     
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/follow-status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (!response.ok) {
-      console.error(`Failed to check follow status: ${response.status}`);
+    if (!userId) {
+      console.error('Cannot check follow status: No user ID provided');
       return false;
     }
+
+    // Check if the userId is a username (not a UUID format)
+    const isUsername = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     
-    const data = await response.json();
-    console.log('Follow status response:', data);
+    // If it's a username, we need to get the user ID first
+    if (isUsername) {
+      console.log(`UserId appears to be a username: ${userId}`);
+      try {
+        // Get the user data first to get the actual UUID
+        const userData = await getUserByUsername(userId);
+        if (userData && userData.data && userData.data.user && userData.data.user.id) {
+          const actualUserId = userData.data.user.id;
+          console.log(`Resolved username ${userId} to ID ${actualUserId}`);
+          
+          // Check if we got the is_following info directly from getUserByUsername
+          if (userData.data.user.is_following !== undefined) {
+            const isFollowing = userData.data.user.is_following === true;
+            console.log(`Got follow status directly from user data: ${isFollowing}`);
+            return isFollowing;
+          }
+          
+          // Update userId to the actual UUID for the follow status check
+          userId = actualUserId;
+        } else {
+          console.error('Failed to resolve username to user ID, using fallback');
+          return checkFollowStatusFallback(userId);
+        }
+      } catch (error) {
+        console.error('Error resolving username to ID:', error);
+        return checkFollowStatusFallback(userId);
+      }
+    }
+
+    // Create controller for timeout management
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout - Twitter is fast
     
-    return data.success && data.isFollowing === true;
+    try {
+      // Make the request to check follow status
+      console.log(`Making follow status API request for ID: ${userId}`);
+      const response = await fetch(`${API_BASE_URL}/users/${userId}/follow-status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        console.error(`Failed to check follow status: ${response.status}`);
+        
+        // If endpoint doesn't exist, try to use getUserById as a fallback
+        if (response.status === 404) {
+          console.log('Follow status endpoint not found, trying fallback method');
+          return checkFollowStatusFallback(userId);
+        }
+        
+        return false;
+      }
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('Follow status response:', data);
+      } catch (parseError) {
+        console.error('Failed to parse follow status response:', parseError);
+        return checkFollowStatusFallback(userId);
+      }
+      
+      // Parse result, ensuring boolean conversion
+      const isFollowing = data.is_following === true;
+      console.log(`User ${userId} follow status: ${isFollowing}`);
+      return isFollowing;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+        console.error("Follow status check timed out after 5 seconds");
+      } else {
+        console.error('Failed to check follow status:', fetchError);
+      }
+      
+      // Try fallback method if the main request fails
+      return checkFollowStatusFallback(userId);
+    }
   } catch (err) {
-    console.error('Failed to check follow status:', err);
+    console.error('Unexpected error in checkFollowStatus:', err);
+    return checkFollowStatusFallback(userId);
+  }
+}
+
+// Fallback function to check follow status using getUserById
+async function checkFollowStatusFallback(userId: string): Promise<boolean> {
+  console.log(`Using fallback method to check follow status for ${userId}`);
+  try {
+    // Get the user profile, which should include is_following
+    const userData = await getUserById(userId);
+    
+    if (userData && userData.user) {
+      const isFollowing = userData.user.is_following === true;
+      console.log(`Fallback follow status check result: ${isFollowing}`);
+      return isFollowing;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Fallback follow status check failed:', error);
     return false;
   }
 }
+
+// Aliases for consistent naming
+export const getUserFollowers = getFollowers;
+export const getUserFollowing = getFollowing;

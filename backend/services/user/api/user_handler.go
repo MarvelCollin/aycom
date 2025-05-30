@@ -1,15 +1,15 @@
 package handlers
 
 import (
+	"aycom/backend/proto/user"
+	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/service"
 	"context"
 	"log"
 	"time"
 
-	"google.golang.org/grpc/code"
-	"googl.golang.org/gpc/status"
-	"google.golang.org/grpc/code"
-	"googl.golang.org/gpc/statusce"
-
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserHandler struct {
@@ -312,10 +312,8 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserReques
 	if wasAlreadyFollowing {
 		// User is already following - return with proper status
 		return &user.FollowUserResponse{
-			Success:             true,
-			Message:             "Already following this user",
-			WasAlreadyFollowing: true,
-			IsNowFollowing:      true, // Still following after "follow" attempt
+			Success: true,
+			Message: "Already following this user",
 		}, nil
 	}
 
@@ -333,10 +331,11 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserReques
 	}
 
 	return &user.FollowUserResponse{
-		Success:             true,
-		Message:             "User followed successfully",
-		WasAlreadyFollowing: false,
-		IsNowFollowing:      true, // Now following after successful follow
+		Success: true,
+		Message: "User followed successfully",
+	}, nil
+}
+
 // UnfollowUser handles unfollowing a user
 func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRequest) (*user.UnfollowUserResponse, error) {
 	if req.GetFollowerId() == "" || req.GetFollowedId() == "" {
@@ -353,10 +352,8 @@ func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRe
 	if !wasFollowing {
 		// User is not following - return with proper status
 		return &user.UnfollowUserResponse{
-			Success:        true,
-			Message:        "Not following this user",
-			WasFollowing:   false,
-			IsNowFollowing: false, // Still not following after "unfollow" attempt
+			Success: true,
+			Message: "Not following this user",
 		}, nil
 	}
 
@@ -374,12 +371,7 @@ func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRe
 	}
 
 	return &user.UnfollowUserResponse{
-		Success:        true,
-		Message:        "User unfollowed successfully",
-		WasFollowing:   true,
-		IsNowFollowing: false, // No longer following after successful unfollow
-	}, nil
-}	Success: true,
+		Success: true,
 		Message: "User unfollowed successfully",
 	}, nil
 }

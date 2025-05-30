@@ -30,6 +30,16 @@ type UserRepository interface {
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
 	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 
+	// Transaction support
+	ExecuteInTransaction(fn func(repo UserRepository) error) error
+
+	// Counter management
+	IncrementFollowerCount(userID string) error
+	DecrementFollowerCount(userID string) error
+	IncrementFollowingCount(userID string) error
+	DecrementFollowingCount(userID string) error
+	UserExists(userID string) (bool, error)
+
 	// Block and Report operations
 	BlockUser(blockerID, blockedID string) error
 	UnblockUser(unblockerID, unblockedID string) error
@@ -599,4 +609,69 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 		Error
 
 	return blockedUsers, total, err
+}
+
+// Transaction support
+func (r *PostgresUserRepository) ExecuteInTransaction(fn func(repo UserRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := &PostgresUserRepository{db: tx}
+		return fn(txRepo)
+	})
+}
+
+// Counter management
+func (r *PostgresUserRepository) IncrementFollowerCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("follower_count", gorm.Expr("follower_count + 1")).Error
+}
+
+func (r *PostgresUserRepository) DecrementFollowerCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).Error
+}
+
+func (r *PostgresUserRepository) IncrementFollowingCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("following_count", gorm.Expr("following_count + 1")).Error
+}
+
+func (r *PostgresUserRepository) DecrementFollowingCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("following_count", gorm.Expr("GREATEST(following_count - 1, 0)")).Error
+}
+
+func (r *PostgresUserRepository) UserExists(userID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.User{}).Where("id = ?", userID).Count(&count).Error
+	return count > 0, err
+}
+
+// Additional methods for PostgresUserAuthRepository
+func (r *PostgresUserAuthRepository) ExecuteInTransaction(fn func(repo UserRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Create a new repository with the transaction
+		txRepo := &PostgresUserAuthRepository{
+			PostgresUserRepository: PostgresUserRepository{db: tx},
+			db:                     tx,
+		}
+		return fn(txRepo)
+	})
+}
+
+func (r *PostgresUserAuthRepository) IncrementFollowerCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("follower_count", gorm.Expr("follower_count + 1")).Error
+}
+
+func (r *PostgresUserAuthRepository) DecrementFollowerCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).Error
+}
+
+func (r *PostgresUserAuthRepository) IncrementFollowingCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("following_count", gorm.Expr("following_count + 1")).Error
+}
+
+func (r *PostgresUserAuthRepository) DecrementFollowingCount(userID string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("following_count", gorm.Expr("GREATEST(following_count - 1, 0)")).Error
+}
+
+func (r *PostgresUserAuthRepository) UserExists(userID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.User{}).Where("id = ?", userID).Count(&count).Error
+	return count > 0, err
 }

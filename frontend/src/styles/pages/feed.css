@@ -1,15 +1,17 @@
 /* Feed page styles */
 
 .feed-container {
-  min-height: 100vh;
   background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .feed-header {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   background-color: var(--bg-primary);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -83,6 +85,11 @@
   font-weight: 500;
   cursor: pointer;
   position: relative;
+  transition: all 0.2s ease;
+}
+
+.feed-tab:hover {
+  background-color: var(--bg-hover);
 }
 
 .feed-tab.active {
@@ -102,9 +109,18 @@
   background-color: var(--color-primary);
 }
 
+/* Feed content area */
+.feed-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+/* Feed list for tweets/posts */
 .feed-list {
   display: flex;
   flex-direction: column;
+  padding-bottom: 80px; /* Extra padding at bottom for mobile */
 }
 
 /* Load more button at the bottom of feed */
@@ -129,4 +145,69 @@
 .empty-state-message {
   color: var(--text-secondary);
   margin-bottom: var(--space-4);
+}
+
+/* Loading state */
+.loading-state {
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--space-4);
+}
+
+.loading-text {
+  color: var(--text-secondary);
+}
+
+.feed-loading {
+  padding: var(--space-4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.feed-loading-spinner {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Animation for spinners */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error state */
+.error-state {
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.error-text {
+  color: var(--color-error);
+  margin-bottom: var(--space-4);
+}
+
+/* Feed items container */
+.feed-items {
+  display: flex;
+  flex-direction: column;
 } 

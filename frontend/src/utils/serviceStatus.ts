@@ -2,18 +2,18 @@ import appConfig from '../config/appConfig';
 import { writable } from 'svelte/store';
 
 interface ServiceStatus {
-  userService: boolean;
-  threadService: boolean;
-  communityService: boolean;
-  lastChecked: Date | null;
+  user_service: boolean;
+  thread_service: boolean;
+  community_service: boolean;
+  last_checked: Date | null;
 }
 
 // Create a store to track service status
 export const serviceStatus = writable<ServiceStatus>({
-  userService: true,  // Assume services are available initially
-  threadService: true,
-  communityService: true,
-  lastChecked: null
+  user_service: true,  // Assume services are available initially
+  thread_service: true,
+  community_service: true,
+  last_checked: null
 });
 
 // Check if user service is available
@@ -26,23 +26,21 @@ export async function checkUserServiceStatus(): Promise<boolean> {
     });
     
     const isAvailable = response.ok;
-    
-    // Update the store
+      // Update the store
     serviceStatus.update(status => ({
       ...status,
-      userService: isAvailable,
-      lastChecked: new Date()
+      user_service: isAvailable,
+      last_checked: new Date()
     }));
     
     return isAvailable;
   } catch (error) {
     console.error('Error checking user service status:', error);
-    
-    // Update the store to indicate service is down
+      // Update the store to indicate service is down
     serviceStatus.update(status => ({
       ...status,
-      userService: false,
-      lastChecked: new Date()
+      user_service: false,
+      last_checked: new Date()
     }));
     
     return false;
@@ -52,13 +50,12 @@ export async function checkUserServiceStatus(): Promise<boolean> {
 // Check if all services are available
 export async function checkAllServices(): Promise<ServiceStatus> {
   const userServiceAvailable = await checkUserServiceStatus();
-  
-  // For now we're only checking user service, but we could add others
+    // For now we're only checking user service, but we could add others
   const updatedStatus = {
-    userService: userServiceAvailable,
-    threadService: userServiceAvailable, // Assuming same availability for now
-    communityService: userServiceAvailable, // Assuming same availability for now
-    lastChecked: new Date()
+    user_service: userServiceAvailable,
+    thread_service: userServiceAvailable, // Assuming same availability for now
+    community_service: userServiceAvailable, // Assuming same availability for now
+    last_checked: new Date()
   };
   
   serviceStatus.set(updatedStatus);

@@ -3,16 +3,16 @@ import type { ITweet } from '../interfaces/ISocialMedia';
 
 // Type for tracking interaction status
 interface InteractionStatus {
-  isLiked: boolean;
-  isBookmarked: boolean;
-  isReposted: boolean;
+  is_liked: boolean;
+  is_bookmarked: boolean;
+  is_reposted: boolean;
   likes: number;
   bookmarks: number;
   reposts: number;
   replies: number;
-  pendingLike?: boolean;
-  pendingBookmark?: boolean;
-  pendingRepost?: boolean;
+  pending_like?: boolean;
+  pending_bookmark?: boolean;
+  pending_repost?: boolean;
 }
 
 // Map to track interaction states by tweet ID
@@ -21,15 +21,14 @@ const interactionMap = new Map<string, InteractionStatus>();
 // Create the writable store
 const tweetStore = writable({
   interactions: interactionMap,
-  
-  // Method to update multiple tweet interaction properties at once
+    // Method to update multiple tweet interaction properties at once
   updateTweetInteraction: (id: string, updates: Partial<InteractionStatus>) => {
     if (!interactionMap.has(id)) {
       // Initialize if not exists
       interactionMap.set(id, {
-        isLiked: false,
-        isBookmarked: false,
-        isReposted: false,
+        is_liked: false,
+        is_bookmarked: false,
+        is_reposted: false,
         likes: 0,
         bookmarks: 0,
         reposts: 0,
@@ -55,17 +54,16 @@ const tweetStore = writable({
   // Method to initialize a tweet's interaction state
   initTweet: (tweet: ITweet) => {
     const id = typeof tweet.id === 'number' ? String(tweet.id) : tweet.id;
-    
-    // If we already have data for this tweet, merge with existing data
+      // If we already have data for this tweet, merge with existing data
     const existingData = interactionMap.get(id);
     const newData = {
-      isLiked: tweet.isLiked || tweet.is_liked || false,
-      isBookmarked: tweet.isBookmarked || false,
-      isReposted: tweet.isReposted || false,
-      likes: tweet.likes || tweet.likesCount || 0,
-      bookmarks: tweet.bookmarks || 0,
-      reposts: tweet.reposts || tweet.repostsCount || 0,
-      replies: tweet.replies || tweet.commentsCount || 0
+      is_liked: tweet.is_liked || false,
+      is_bookmarked: tweet.is_bookmarked || false,
+      is_reposted: tweet.is_reposted || false,
+      likes: tweet.likes_count || 0,
+      bookmarks: tweet.bookmarks_count || 0,
+      reposts: tweet.reposts_count || 0,
+      replies: tweet.replies_count || 0
     };
 
     if (existingData) {
@@ -73,9 +71,9 @@ const tweetStore = writable({
       interactionMap.set(id, {
         ...existingData,
         ...newData,
-        isLiked: existingData.pendingLike ? existingData.isLiked : newData.isLiked,
-        isBookmarked: existingData.pendingBookmark ? existingData.isBookmarked : newData.isBookmarked,
-        isReposted: existingData.pendingRepost ? existingData.isReposted : newData.isReposted
+        is_liked: existingData.pending_like ? existingData.is_liked : newData.is_liked,
+        is_bookmarked: existingData.pending_bookmark ? existingData.is_bookmarked : newData.is_bookmarked,
+        is_reposted: existingData.pending_repost ? existingData.is_reposted : newData.is_reposted
       });
     } else {
       interactionMap.set(id, newData);

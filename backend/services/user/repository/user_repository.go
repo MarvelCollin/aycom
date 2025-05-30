@@ -29,6 +29,16 @@ type UserRepository interface {
 	CheckFollowExists(followerID, followedID uuid.UUID) (bool, error)
 	GetFollowers(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
 	GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
+
+	// Follower count operations
+	IncrementFollowerCount(userID string) error
+	DecrementFollowerCount(userID string) error
+	IncrementFollowingCount(userID string) error
+	DecrementFollowingCount(userID string) error
+
+	// Transaction management
+	ExecuteInTransaction(fn func(tx UserRepository) error) error
+
 	// User search and listing
 	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
@@ -164,23 +174,46 @@ func (r *PostgresUserRepository) GetFollowers(userID uuid.UUID, page, limit int)
 	var followers []*model.User
 	var total int64
 
+	fmt.Printf("DEBUG GetFollowers: Checking followers for userID %s, page %d, limit %d\n", userID.String(), page, limit)
+
 	// Count total followers
 	err := r.db.Model(&model.Follow{}).
 		Where("followed_id = ?", userID).
 		Count(&total).
 		Error
 	if err != nil {
+		fmt.Printf("DEBUG GetFollowers: Error counting followers: %v\n", err)
 		return nil, 0, err
 	}
 
+	fmt.Printf("DEBUG GetFollowers: Found %d total followers for user %s\n", total, userID.String())
+
+	if total == 0 {
+		// No followers, return empty result
+		return []*model.User{}, 0, nil
+	}
+
 	// Get followers with pagination
-	err = r.db.Model(&model.User{}).
+	query := r.db.Model(&model.User{}).
 		Joins("JOIN follows ON users.id = follows.follower_id").
 		Where("follows.followed_id = ?", userID).
 		Offset(offset).
-		Limit(limit).
-		Find(&followers).
-		Error
+		Limit(limit)
+
+	// Debug the SQL query
+	sqlDB := r.db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		return query
+	})
+	fmt.Printf("DEBUG GetFollowers SQL: %s\n", sqlDB)
+
+	err = query.Find(&followers).Error
+
+	if err != nil {
+		fmt.Printf("DEBUG GetFollowers: Error fetching followers: %v\n", err)
+		return nil, 0, err
+	}
+
+	fmt.Printf("DEBUG GetFollowers: Returning %d followers (of %d total) for user %s\n", len(followers), total, userID.String())
 
 	return followers, int(total), err
 }
@@ -192,23 +225,46 @@ func (r *PostgresUserRepository) GetFollowing(userID uuid.UUID, page, limit int)
 	var following []*model.User
 	var total int64
 
+	fmt.Printf("DEBUG GetFollowing: Checking following for userID %s, page %d, limit %d\n", userID.String(), page, limit)
+
 	// Count total following
 	err := r.db.Model(&model.Follow{}).
 		Where("follower_id = ?", userID).
 		Count(&total).
 		Error
 	if err != nil {
+		fmt.Printf("DEBUG GetFollowing: Error counting following: %v\n", err)
 		return nil, 0, err
 	}
 
+	fmt.Printf("DEBUG GetFollowing: Found %d total following for user %s\n", total, userID.String())
+
+	if total == 0 {
+		// No following, return empty result
+		return []*model.User{}, 0, nil
+	}
+
 	// Get following with pagination
-	err = r.db.Model(&model.User{}).
+	query := r.db.Model(&model.User{}).
 		Joins("JOIN follows ON users.id = follows.followed_id").
 		Where("follows.follower_id = ?", userID).
 		Offset(offset).
-		Limit(limit).
-		Find(&following).
-		Error
+		Limit(limit)
+
+	// Debug the SQL query
+	sqlDB := r.db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		return query
+	})
+	fmt.Printf("DEBUG GetFollowing SQL: %s\n", sqlDB)
+
+	err = query.Find(&following).Error
+
+	if err != nil {
+		fmt.Printf("DEBUG GetFollowing: Error fetching following: %v\n", err)
+		return nil, 0, err
+	}
+
+	fmt.Printf("DEBUG GetFollowing: Returning %d following (of %d total) for user %s\n", len(following), total, userID.String())
 
 	return following, int(total), err
 }
@@ -436,4 +492,44 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 	}
 
 	return result, total, nil
+}
+
+// IncrementFollowerCount increments a user's follower count
+func (r *PostgresUserRepository) IncrementFollowerCount(userID string) error {
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).
+		Error
+}
+
+// DecrementFollowerCount decrements a user's follower count
+func (r *PostgresUserRepository) DecrementFollowerCount(userID string) error {
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).
+		Error
+}
+
+// IncrementFollowingCount increments a user's following count
+func (r *PostgresUserRepository) IncrementFollowingCount(userID string) error {
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("following_count", gorm.Expr("following_count + 1")).
+		Error
+}
+
+// DecrementFollowingCount decrements a user's following count
+func (r *PostgresUserRepository) DecrementFollowingCount(userID string) error {
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("following_count", gorm.Expr("GREATEST(following_count - 1, 0)")).
+		Error
+}
+
+// ExecuteInTransaction executes the provided function within a transaction
+func (r *PostgresUserRepository) ExecuteInTransaction(fn func(tx UserRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := &PostgresUserRepository{db: tx}
+		return fn(txRepo)
+	})
 }

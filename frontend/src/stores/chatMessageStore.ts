@@ -65,8 +65,8 @@ export function setupWebsocketMethods(methods: {
 export interface User {
   id: string;
   username: string;
-  display_name: string;
-  avatar_url?: string;
+  name: string;
+  profile_picture_url?: string;
 }
 
 export interface MessageWithUser extends Omit<ChatMessage, 'user_id'> {
@@ -143,7 +143,7 @@ function createChatMessageStore() {
       user: { 
         id: userId, 
         username: '', 
-        display_name: '' 
+        name: '' 
       }
     };
     

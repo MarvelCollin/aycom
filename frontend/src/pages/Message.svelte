@@ -21,7 +21,7 @@
   const { theme } = useTheme();
   
   // Reactive declarations
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === 'dark';
   
   // User profile data
@@ -87,34 +87,31 @@
   // Format group chat data for display
   function formatGroupChatForDisplay(chatData: any): Chat {
     return {
-      id: chatData.id,
-      name: chatData.name || 'New Group Chat',
+      id: chatData.id,      name: chatData.name || 'New Group Chat',
       type: 'group',
-      lastMessage: undefined,
+      last_message: undefined,
       avatar: null,
-      participants: chatData.participants?.map(p => ({
-        id: p.id || p.user_id,
+      participants: chatData.participants?.map(p => ({      id: p.id || p.user_id,
         username: p.username || '',
-        displayName: p.display_name || p.username || `User`,
+        display_name: p.display_name || p.username || `User`,
         avatar: p.avatar_url || p.avatar || null,
-        isVerified: p.is_verified || false
+        is_verified: p.is_verified || false
       })) || [],
       messages: [],
-      unreadCount: 0
+      unread_count: 0
     };
   }
-
   // Message interfaces
   interface Message {
     id: string;
     content: string;
     timestamp: string;
-    senderId: string;
-    senderName: string;
-    senderAvatar?: string;
-    isOwn: boolean;
-    isRead: boolean;
-    isDeleted: boolean;
+    sender_id: string;
+    sender_name: string;
+    sender_avatar?: string;
+    is_own: boolean;
+    is_read: boolean;
+    is_deleted: boolean;
     attachments: Attachment[];
   }
 
@@ -124,31 +121,30 @@
     url: string;
     thumbnail?: string;
   }
-
   interface Chat {
     id: string;
     type: 'individual' | 'group';
     name: string;
     avatar: string | null;
     participants: Participant[];
-    lastMessage?: LastMessage;
+    last_message?: LastMessage;
     messages: Message[];
-    unreadCount: number;
+    unread_count: number;
   }
 
   interface Participant {
     id: string;
     username: string;
-    displayName: string;
+    display_name: string;
     avatar: string | null;
-    isVerified: boolean;
+    is_verified: boolean;
   }
   
   interface LastMessage {
     content: string;
     timestamp: string | number;
-    senderId: string;
-    senderName: string;
+    sender_id: string;
+    sender_name: string;
   }
   
   // Add user search results state
@@ -160,21 +156,18 @@
     try {
       const response = await getProfile();
       if (response && response.user) {
-        const userData = response.user;
-        username = userData.username || `user_${authState.userId?.substring(0, 4)}`;
-        displayName = userData.name || userData.display_name || `User ${authState.userId?.substring(0, 4)}`;
+        const userData = response.user;        username = userData.username || `user_${authState.user_id?.substring(0, 4)}`;
+        displayName = userData.name || userData.display_name || `User ${authState.user_id?.substring(0, 4)}`;
         avatar = userData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
-        logger.debug('Profile loaded', { username });
-      } else {
+        logger.debug('Profile loaded', { username });      } else {
         logger.warn('No user data received from API');
-        username = `user_${authState.userId?.substring(0, 4)}`;
-        displayName = `User ${authState.userId?.substring(0, 4)}`;
-      }
-    } catch (error) {
+        username = `user_${authState.user_id?.substring(0, 4)}`;
+        displayName = `User ${authState.user_id?.substring(0, 4)}`;
+      }    } catch (error) {
       const errorResponse = handleApiError(error);
       logger.error('Error fetching user profile:', errorResponse);
-      username = `user_${authState.userId?.substring(0, 4)}`;
-      displayName = `User ${authState.userId?.substring(0, 4)}`;
+      username = `user_${authState.user_id?.substring(0, 4)}`;
+      displayName = `User ${authState.user_id?.substring(0, 4)}`;
     } finally {
       isLoadingProfile = false;
     }
@@ -279,36 +272,32 @@
     if (!selectedChat) return;
 
     // Only process if it's not our own message (those are handled during send)
-    if (message.user_id === authState.userId) return;
+    if (message.user_id === authState.user_id) return;
 
     logger.debug('Processing incoming text message', { messageId: message.message_id });
 
     // Find sender info from participants
     const sender = selectedChat.participants.find(p => p.id === message.user_id);
-    
-    // Create new message object
+      // Create new message object
     const newIncomingMessage: Message = {
       id: message.message_id,
       content: message.content || '',
       timestamp: message.timestamp ? message.timestamp.toString() : (Date.now() / 1000).toString(),
-      senderId: message.user_id,
-      senderName: sender ? (sender.displayName || sender.username) : `User ${message.user_id.substring(0, 4)}`,
-      senderAvatar: sender ? sender.avatar || undefined : undefined,
-      isOwn: false,
-      isRead: false,
-      isDeleted: false,
+      sender_id: message.user_id,
+      sender_name: sender ? (sender.display_name || sender.username) : `User ${message.user_id.substring(0, 4)}`,
+      sender_avatar: sender ? sender.avatar || undefined : undefined,      is_own: false,
+      is_read: false,
+      is_deleted: false,
       attachments: message.attachments || []
     };
 
     // Add message to chat
-    selectedChat.messages = [...selectedChat.messages, newIncomingMessage];
-
-    // Update lastMessage in chat
-    selectedChat.lastMessage = {
+    selectedChat.messages = [...selectedChat.messages, newIncomingMessage];    // Update lastMessage in chat
+    selectedChat.last_message = {
       content: message.content,
       timestamp: message.timestamp || (Date.now() / 1000),
-      senderId: message.user_id,
-      senderName: newIncomingMessage.senderName
+      sender_id: message.user_id,
+      sender_name: newIncomingMessage.sender_name
     };
 
     // Force scroll to bottom to show new message
@@ -322,12 +311,10 @@
 
   // Handle read receipt
   function handleReadReceipt(message: any) {
-    if (!selectedChat) return;
-
-    // Mark messages as read
+    if (!selectedChat) return;    // Mark messages as read
     selectedChat.messages = selectedChat.messages.map(msg => {
-      if (!msg.isRead && message.message_ids && message.message_ids.includes(msg.id)) {
-        return { ...msg, isRead: true };
+      if (!msg.is_read && message.message_ids && message.message_ids.includes(msg.id)) {
+        return { ...msg, is_read: true };
       }
       return msg;
     });
@@ -347,13 +334,11 @@
         };
       }
       return msg;
-    });
-
-    // Update last message if this was the last one
-    if (selectedChat.lastMessage && selectedChat.lastMessage.content) {
+    });    // Update last message if this was the last one
+    if (selectedChat.last_message && selectedChat.last_message.content) {
       const lastMsg = selectedChat.messages[selectedChat.messages.length - 1];
       if (lastMsg && lastMsg.id === message.message_id) {
-        selectedChat.lastMessage.content = message.content;
+        selectedChat.last_message.content = message.content;
       }
     }
   }
@@ -365,14 +350,14 @@
     // Mark message as deleted
     selectedChat.messages = selectedChat.messages.map(msg => {
       if (msg.id === message.message_id) {
-        return { ...msg, isDeleted: true };
+        return { ...msg, is_deleted: true };
       }
       return msg;
     });
 
     // Update last message if needed
-    if (selectedChat && selectedChat.lastMessage) {
-      const lastMessageContent = selectedChat.lastMessage.content;
+    if (selectedChat && selectedChat.last_message) {
+      const lastMessageContent = selectedChat.last_message.content;
       
       if (selectedChat.messages.some(m => 
         m.id === message.message_id && 
@@ -2858,3 +2843,5 @@
 
 <!-- Add the Debug Panel component -->
 <DebugPanel />
+
+

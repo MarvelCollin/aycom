@@ -1,5 +1,10 @@
 <script lang="ts">
   import type { ISuggestedFollow } from '../../interfaces/ISocialMedia';
+  import { followUser, unfollowUser } from '../../api/user';
+  import { toastStore } from '../../stores/toastStore';
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  
+  const logger = createLoggerWithPrefix('SuggestedFollows');
   
   export let isDarkMode = false;
   export let suggestedUsers: ISuggestedFollow[] = [
@@ -32,6 +37,9 @@
     }
   ];
   
+  // Track loading state per user
+  let followingInProgress: Record<string, boolean> = {};
+  
   function formatFollowerCount(count: number): string {
     if (count >= 1000000) {
       return (count / 1000000).toFixed(1) + 'M';
@@ -41,13 +49,64 @@
     return count.toString();
   }
   
-  function toggleFollow(index: number) {
-    suggestedUsers = suggestedUsers.map((user, i) => {
-      if (i === index) {
-        return { ...user, is_following: !user.is_following };
+  async function toggleFollow(index: number) {
+    const user = suggestedUsers[index];
+    if (!user || followingInProgress[user.user_id]) return;
+    
+    // Set loading state
+    followingInProgress[user.user_id] = true;
+    
+    try {
+      // Optimistically update UI
+      suggestedUsers = suggestedUsers.map((u, i) => {
+        if (i === index) {
+          return { ...u, is_following: !u.is_following };
+        }
+        return u;
+      });
+      
+      // Make API call
+      const userId = user.user_id;
+      const wasFollowing = !user.is_following; // We already toggled it above
+      
+      logger.debug(`${wasFollowing ? 'Unfollowing' : 'Following'} user ${userId}`);
+      
+      // API call - note we use the opposite of current state since we already updated it
+      const response = wasFollowing 
+        ? await unfollowUser(userId)
+        : await followUser(userId);
+      
+      logger.debug('Follow/unfollow response:', response);
+      
+      // Show success message
+      if (response.success) {
+        toastStore.showToast(`${wasFollowing ? 'Unfollowed' : 'Followed'} @${user.username}`, 'success');
+      } else {
+        // If request failed, revert UI
+        suggestedUsers = suggestedUsers.map((u, i) => {
+          if (i === index) {
+            return { ...u, is_following: wasFollowing };
+          }
+          return u;
+        });
+        toastStore.showToast(response.message || 'Failed to update follow status', 'error');
       }
-      return user;
-    });
+    } catch (error) {
+      logger.error('Error toggling follow:', error);
+      
+      // Revert UI change
+      suggestedUsers = suggestedUsers.map((u, i) => {
+        if (i === index) {
+          return { ...u, is_following: !u.is_following };
+        }
+        return u;
+      });
+      
+      toastStore.showToast('Failed to update follow status', 'error');
+    } finally {
+      // Clear loading state
+      followingInProgress[user.user_id] = false;
+    }
   }
 </script>
 
@@ -76,9 +135,15 @@
             ? 'bg-transparent border border-gray-500 text-gray-300 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10' 
             : 'bg-black text-white hover:bg-gray-800'} 
             px-4 py-1.5 rounded-full font-bold transition-colors text-sm"
-          on:click={() => toggleFollow(index)}
+          on:click={(e) => {
+            e.stopPropagation();
+            toggleFollow(index);
+          }}
+          disabled={followingInProgress[user.user_id]}
         >
-          {user.is_following ? 'Following' : 'Follow'}
+          {followingInProgress[user.user_id] ? 
+            '...' : 
+            user.is_following ? 'Following' : 'Follow'}
         </button>
       </div>
     </div>

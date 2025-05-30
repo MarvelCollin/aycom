@@ -15,7 +15,7 @@ type Pagination struct {
 	Total   int  `json:"total"`
 	Page    int  `json:"page"`
 	Limit   int  `json:"limit"`
-	HasMore bool `json:"hasMore"`
+	HasMore bool `json:"has_more"`
 }
 
 type User struct {
@@ -88,14 +88,14 @@ type CommunitySearchResponse struct {
 
 type Media struct {
 	ID        string `json:"id"`
-	Type      string `json:"type"` 
+	Type      string `json:"type"`
 	URL       string `json:"url"`
 	Thumbnail string `json:"thumbnail,omitempty"`
 }
 
 type MediaUploadResponse struct {
 	ID        string `json:"id"`
-	Type      string `json:"type"` 
+	Type      string `json:"type"`
 	URL       string `json:"url"`
 	Thumbnail string `json:"thumbnail,omitempty"`
 }
@@ -107,7 +107,7 @@ type MediaSearchResponse struct {
 
 type Notification struct {
 	ID            string    `json:"id"`
-	Type          string    `json:"type"` 
+	Type          string    `json:"type"`
 	UserID        string    `json:"user_id"`
 	Username      string    `json:"username"`
 	DisplayName   string    `json:"display_name"`

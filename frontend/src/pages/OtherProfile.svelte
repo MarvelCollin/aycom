@@ -3,7 +3,8 @@
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import { isAuthenticated, getUserId } from '../utils/auth';  import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser } from '../api/user';
+  import { isAuthenticated, getUserId } from '../utils/auth';
+  import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser, checkFollowStatus, getUserFollowers, getUserFollowing } from '../api/user';
   import type { FollowUserResponse, UnfollowUserResponse } from '../api/user';
   import { getUserThreads, getUserReplies, getUserMedia } from '../api/thread';
   import { toastStore } from '../stores/toastStore';
@@ -30,7 +31,7 @@
     id: string;
     content: string;
     username: string;
-    displayName: string;
+    display_name: string;
     timestamp: string;
     likes: number;
     replies: number;
@@ -90,21 +91,40 @@
     logger.debug(`Profile rendering for userId: ${userId}, currentUserId: ${currentUserId}`);
   }
   
-  let profileData = {
+  // Define proper interface for profile data with snake_case
+  interface ProfileData {
+    id: string;
+    username: string;
+    name: string; // was displayName
+    bio: string;
+    profile_picture_url: string; // was profilePicture
+    banner_url: string; // was backgroundBanner
+    follower_count: number; // was followerCount
+    following_count: number; // was followingCount
+    created_at: string; // was joinedDate
+    location: string;
+    website: string;
+    is_private: boolean; // was isPrivate
+    is_following: boolean; // was isFollowing
+    is_blocked: boolean; // was isBlocked
+  }
+  
+  // Initial profile data using the new interface
+  let profileData: ProfileData = {
     id: '',
     username: '',
-    displayName: '',
+    name: '',
     bio: '',
-    profilePicture: '',
-    backgroundBanner: '',
-    followerCount: 0,
-    followingCount: 0,
-    joinedDate: '',
+    profile_picture_url: '',
+    banner_url: '',
+    follower_count: 0,
+    following_count: 0,
+    created_at: '',
     location: '',
     website: '',
-    isPrivate: false,
-    isFollowing: false,
-    isBlocked: false
+    is_private: false,
+    is_following: false,
+    is_blocked: false
   };
   
   let posts: Thread[] = [];
@@ -125,57 +145,67 @@
   const MAX_RETRIES = 3;
   let isFollowRequestPending = false; 
   
+  // Add state for followers/following modals
+  let showFollowersModal = false;
+  let showFollowingModal = false;
+  let followersList = [];
+  let followingList = [];
+  let isLoadingFollowers = false;
+  let isLoadingFollowing = false;
+  let followersError = '';
+  let followingError = '';
+  
   function ensureTweetFormat(thread: any): ITweet {
     try {
       if (!thread || typeof thread !== 'object') {
         logger.warn('Invalid thread object provided to ensureTweetFormat');
         return {
           id: `invalid-${Math.random().toString(36).substring(2, 9)}`,
-          threadId: '',
-          userId: '',
+          thread_id: '',
+          user_id: '',
           username: 'unknown',
-          displayName: 'Unknown User',
+          name: 'Unknown User',
           content: 'This content is unavailable',
-          timestamp: new Date().toISOString(),
-          avatar: '',
-          likes: 0,
-          replies: 0,
-          reposts: 0,
-          bookmarks: 0,
-          views: 0,
+          created_at: new Date().toISOString(),
+          profile_picture_url: '',
+          likes_count: 0,
+          replies_count: 0,
+          reposts_count: 0,
+          bookmarks_count: 0,
+          views_count: 0,
           media: [],
-          isLiked: false,
-          isReposted: false,
-          isBookmarked: false,
-          isPinned: false,
-          replyTo: null
+          is_liked: false,
+          is_reposted: false,
+          is_bookmarked: false,
+          is_pinned: false,
+          reply_to: null
         };
       }
     
       let username = thread.author_username || thread.authorUsername || thread.username || 'anonymous';
       
-      let displayName = thread.author_name || thread.authorName || thread.display_name || 
-                        thread.displayName || username || 'User';
+      let name = thread.author_name || thread.authorName || thread.display_name || 
+                 thread.displayName || thread.name || username || 'User';
       
-      let profilePicture = thread.author_avatar || thread.authorAvatar || 
+      let profile_picture_url = thread.author_avatar || thread.authorAvatar || 
                           thread.profile_picture_url || thread.profilePictureUrl || 
                           thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp';
       
-      let timestamp = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
-      if (typeof timestamp === 'string' && !timestamp.includes('T')) {
-        timestamp = new Date(timestamp).toISOString();
+      let created_at = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
+      if (typeof created_at === 'string' && !created_at.includes('T')) {
+        created_at = new Date(created_at).toISOString();
       }
       
-      const likes = Number(thread.likes_count || thread.like_count || thread.metrics?.likes || 0);
-      const replies = Number(thread.replies_count || thread.reply_count || thread.metrics?.replies || 0);
-      const reposts = Number(thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0);
-      const bookmarks = Number(thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0);
-      const views = Number(thread.views || thread.views_count || 0);
+      const likes_count = Number(thread.likes_count || thread.like_count || thread.metrics?.likes || 0);
+      const replies_count = Number(thread.replies_count || thread.reply_count || thread.metrics?.replies || 0);
+      const reposts_count = Number(thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0);
+      const bookmarks_count = Number(thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0);
+      const views_count = Number(thread.views || thread.views_count || 0);
       
-      const isLiked = Boolean(thread.is_liked || thread.isLiked || false);
-      const isReposted = Boolean(thread.is_repost || thread.isReposted || false);
-      const isBookmarked = Boolean(thread.is_bookmarked || thread.isBookmarked || false);
-      const isPinned = Boolean(
+      const is_liked = Boolean(thread.is_liked || thread.isLiked || false);
+      const is_reposted = Boolean(thread.is_repost || thread.isReposted || false);
+      const is_bookmarked = Boolean(thread.is_bookmarked || thread.isBookmarked || false);
+      const is_pinned = Boolean(
         thread.is_pinned === true || 
         thread.is_pinned === 'true' || 
         thread.is_pinned === 1 || 
@@ -188,58 +218,58 @@
       const media = Array.isArray(thread.media) ? thread.media : [];
         
       const id = thread.id || `thread-${Math.random().toString(36).substring(2, 9)}`;
-      const userId = thread.user_id || thread.userId || thread.author_id || thread.authorId || '';
+      const user_id = thread.user_id || thread.userId || thread.author_id || thread.authorId || '';
         
       return {
         id,
-        threadId: thread.thread_id || id,
-        userId,
+        thread_id: thread.thread_id || id,
+        user_id,
         username,
-        displayName,
+        name,
         content: thread.content || '',
-        timestamp: typeof timestamp === 'string' ? timestamp : new Date(timestamp).toISOString(),
-        avatar: profilePicture,
-        likes,
-        replies,
-        reposts,
-        bookmarks,
-        views,
+        created_at: typeof created_at === 'string' ? created_at : new Date(created_at).toISOString(),
+        profile_picture_url,
+        likes_count,
+        replies_count,
+        reposts_count,
+        bookmarks_count,
+        views_count,
         media,
-        isLiked,
-        isReposted,
-        isBookmarked,
-        isPinned,
-        replyTo: thread.parent_id ? { id: thread.parent_id } as any : null
+        is_liked,
+        is_reposted,
+        is_bookmarked,
+        is_pinned,
+        reply_to: thread.parent_id ? { id: thread.parent_id } as any : null
       };
     } catch (error: any) {
       logger.error('Error formatting tweet:', error);
       return {
         id: `error-${Math.random().toString(36).substring(2, 9)}`,
-        threadId: '',
-        userId: '',
+        thread_id: '',
+        user_id: '',
         username: 'error',
-        displayName: 'Error',
+        name: 'Error',
         content: 'Error loading tweet',
-        timestamp: new Date().toISOString(),
-        avatar: '',
-        likes: 0,
-        replies: 0,
-        reposts: 0,
-        bookmarks: 0,
-        views: 0,
+        created_at: new Date().toISOString(),
+        profile_picture_url: '',
+        likes_count: 0,
+        replies_count: 0,
+        reposts_count: 0,
+        bookmarks_count: 0,
+        views_count: 0,
         media: [],
-        isLiked: false,
-        isReposted: false,
-        isBookmarked: false,
-        isPinned: false,
-        replyTo: null
+        is_liked: false,
+        is_reposted: false,
+        is_bookmarked: false,
+        is_pinned: false,
+        reply_to: null
       };
     }
   }
 
   function handleReply(event) {
-    const threadId = event.detail;
-    window.location.href = `/thread/${threadId}`;
+    const thread_id = event.detail;
+    window.location.href = `/thread/${thread_id}`;
   }
 
   function setActiveTab(tab) {
@@ -276,7 +306,7 @@
     errorMessage = '';
     
     try {
-      if (profileData.isPrivate && !profileData.isFollowing && currentUserId !== userId) {
+      if (profileData.is_private && !profileData.is_following && currentUserId !== userId) {
         logger.debug('User is private and not following, skipping content load');
         isLoading = false;
         return;
@@ -303,8 +333,8 @@
             
             // Sort by creation date (newest first)
             posts.sort((a, b) => {
-              const dateA = new Date(a.timestamp);
-              const dateB = new Date(b.timestamp);
+              const dateA = new Date(a.created_at);
+              const dateB = new Date(b.created_at);
               return dateB.getTime() - dateA.getTime();
             });
           }
@@ -344,8 +374,8 @@
             
             // Sort replies by date (newest first)
             replies.sort((a, b) => {
-              const dateA = new Date(a.timestamp);
-              const dateB = new Date(b.timestamp);
+              const dateA = new Date(a.created_at);
+              const dateB = new Date(b.created_at);
               return dateB.getTime() - dateA.getTime();
             });
           }
@@ -442,6 +472,7 @@
   async function loadProfileData() {
     isLoading = true;
     errorMessage = '';
+    retryCount = 0;
     
     try {
       logger.debug(`Loading profile data for userId: ${userId}`);
@@ -455,6 +486,7 @@
       let response;
       try {
         response = await getUserById(userId);
+        logger.debug(`Raw API response for getUserById: ${JSON.stringify(response)}`);
       } catch (error: any) {
         logger.error(`Error getting user by ID: ${error.message}`);
         if (error.message?.includes('404') || error.message?.includes('not found')) {
@@ -467,29 +499,61 @@
       }
       
       if (response && response.user) {
-        // Store initial data for comparison
-        const initialFollowState = response.user.is_following || false;
+        // Make sure we get the accurate follow status from the API
+        const initialFollowState = response.user.is_following === true;
+        
+        logger.debug(`Initial follow state from API: ${initialFollowState}`);
+        logger.debug(`Follow state data type: ${typeof response.user.is_following}`);
+        logger.debug(`Raw follow state value: ${response.user.is_following}`);
         
         profileData = {
           id: response.user.id || '',
           username: response.user.username || '',
-          displayName: response.user.display_name || response.user.name || '',
+          name: response.user.display_name || response.user.name || '',
           bio: response.user.bio || '',
-          profilePicture: response.user.profile_picture_url || response.user.avatar || '',
-          backgroundBanner: response.user.banner_url || response.user.background_banner_url || '',
-          followerCount: typeof response.user.follower_count === 'number' ? response.user.follower_count : 0,
-          followingCount: typeof response.user.following_count === 'number' ? response.user.following_count : 0,
-          joinedDate: response.user.created_at ? new Date(response.user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
+          profile_picture_url: response.user.profile_picture_url || response.user.avatar || '',
+          banner_url: response.user.banner_url || response.user.background_banner_url || '',
+          follower_count: typeof response.user.follower_count === 'number' ? response.user.follower_count : 0,
+          following_count: typeof response.user.following_count === 'number' ? response.user.following_count : 0,
+          created_at: response.user.created_at ? new Date(response.user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
           location: response.user.location || '',
           website: response.user.website || '',
-          isPrivate: response.user.is_private || false,
-          isFollowing: initialFollowState, 
-          isBlocked: response.user.is_blocked || false
+          is_private: response.user.is_private || false,
+          is_following: initialFollowState, 
+          is_blocked: response.user.is_blocked || false
         };
         
-        logger.debug(`Profile data loaded: ${profileData.displayName} (@${profileData.username})`);
-        logger.debug(`Following status: ${initialFollowState}`);
-        logger.debug(`Follower count: ${profileData.followerCount}, Following count: ${profileData.followingCount}`);
+        logger.debug(`Profile data loaded: ${profileData.name} (@${profileData.username})`);
+        logger.debug(`Following status in profileData: ${profileData.is_following}`);
+        logger.debug(`Follower count: ${profileData.follower_count}, Following count: ${profileData.following_count}`);
+        
+        // Make an explicit check for follow status to ensure it's correct
+        try {
+          if (currentUserId && currentUserId !== userId) {
+            logger.debug(`Making explicit follow status check for ${userId}`);
+            try {
+              const isActuallyFollowing = await checkFollowStatus(userId);
+              logger.debug(`Explicit follow check result: ${isActuallyFollowing}`);
+              
+              // ALWAYS update the profile data with the latest follow status
+              logger.debug(`Setting follow status to: ${isActuallyFollowing}`);
+              profileData = {
+                ...profileData,
+                is_following: isActuallyFollowing
+              };
+              
+              // Force UI update by logging the new state
+              logger.debug(`Updated follow status in profileData: ${profileData.is_following}`);
+            } catch (followCheckError) {
+              // Don't throw or change the UI state - keep using the value from getUserById
+              logger.error("Error during follow status check:", followCheckError);
+              logger.debug("Continuing with initial follow status value from profile data");
+            }
+          }
+        } catch (outerError) {
+          // Catch any unexpected errors in the outer block but don't disrupt the UI
+          logger.error("Unexpected error in follow status check block:", outerError);
+        }
           
         // Load initial tab content after profile loads
         await loadTabContent('posts');
@@ -517,22 +581,25 @@
     }
     
     isFollowRequestPending = true;
-    const wasFollowing = profileData.isFollowing;
+    // Store the current following state to use throughout the function
+    const wasFollowing = profileData.is_following;
     
     try {
       // Log current state before changes
-      logger.debug(`Toggle follow: current state isFollowing=${wasFollowing}, followerCount=${profileData.followerCount}`);
+      logger.debug(`Toggle follow: current state is_following=${wasFollowing}, follower_count=${profileData.follower_count}`);
       logger.debug(`Target userId=${userId}, currentUserId=${currentUserId}`);
       
-      // Optimistic update - change UI immediately
-      profileData.isFollowing = !wasFollowing;
-      if (wasFollowing) {
-        profileData.followerCount = Math.max(0, (profileData.followerCount || 0) - 1);
-      } else {
-        profileData.followerCount = (profileData.followerCount || 0) + 1;
-      }
+      // Optimistic update - change UI immediately (Twitter-like behavior)
+      profileData = {
+        ...profileData,
+        is_following: !wasFollowing,
+        follower_count: wasFollowing 
+          ? Math.max(0, (profileData.follower_count || 0) - 1) 
+          : (profileData.follower_count || 0) + 1
+      };
       
       logger.debug(`${wasFollowing ? 'Unfollowing' : 'Following'} user ${userId}`);
+      logger.debug(`Updated UI state: is_following=${profileData.is_following}`);
       
       // Make API call
       let apiResponse;
@@ -547,60 +614,66 @@
         throw apiError;
       }
       
-      if (!apiResponse.success) {
+      if (!apiResponse || !apiResponse.success) {
         // Revert optimistic update on failure
-        profileData.isFollowing = wasFollowing;
-        if (wasFollowing) {
-          profileData.followerCount = (profileData.followerCount || 0) + 1;
-        } else {
-          profileData.followerCount = Math.max(0, (profileData.followerCount || 0) - 1);
-        }
+        profileData = {
+          ...profileData,
+          is_following: wasFollowing,
+          follower_count: wasFollowing 
+            ? (profileData.follower_count || 0) + 1
+            : Math.max(0, (profileData.follower_count || 0) - 1)
+        };
         
-        const errorMessage = apiResponse.message || `Failed to ${wasFollowing ? 'unfollow' : 'follow'} user. Please try again.`;
+        const errorMessage = apiResponse?.message || `Failed to ${wasFollowing ? 'unfollow' : 'follow'} user. Please try again.`;
         toastStore.showToast(errorMessage, 'error');
-        logger.error(`Failed to ${wasFollowing ? 'unfollow' : 'follow'} user ${userId}: ${apiResponse.message}`);
+        logger.error(`Failed to ${wasFollowing ? 'unfollow' : 'follow'} user ${userId}: ${apiResponse?.message}`);
+        logger.debug(`Reverted UI state: is_following=${profileData.is_following}`);
       } else {
-        // Use enhanced response data to update UI more accurately
-        const actualNewState = wasFollowing ? 
-          (apiResponse.is_now_following === false) : 
-          (apiResponse.is_now_following === true);
-          
-        // Update state based on actual server response
-        profileData.isFollowing = actualNewState;
+        // Use enhanced response data to update UI more accurately based on actual server state
+        let actualNewState: boolean;
         
-        // Generate appropriate success message
-        let message: string;
         if (wasFollowing) {
+          // When unfollowing, check is_now_following from the response
+          actualNewState = apiResponse.is_now_following === false;
+          
           if (apiResponse.was_following === false) {
-            message = 'You were not following this user';
+            profileData = { ...profileData, is_following: false };
+            // Don't show a toast when we confirm the unfollow (Twitter doesn't)
           } else {
-            message = 'Unfollowed user successfully';
+            profileData = { ...profileData, is_following: false };
+            // Don't show a toast when we confirm the unfollow (Twitter doesn't)
           }
         } else {
+          // When following, check is_now_following from the response
+          actualNewState = apiResponse.is_now_following === true;
+          
           if (apiResponse.was_already_following === true) {
-            message = 'You were already following this user';
+            profileData = { ...profileData, is_following: true };
+            // Don't show a toast for follow action (Twitter doesn't)
           } else {
-            message = 'Now following user successfully';
+            profileData = { ...profileData, is_following: true };
+            // Don't show a toast for follow action (Twitter doesn't)
           }
         }
         
-        toastStore.showToast(message, 'success');
-        logger.debug(`Successfully ${wasFollowing ? 'unfollowed' : 'followed'} user. Response:`, apiResponse);
+        // Ensure profile data reflects the actual state from the server
+        profileData = {
+          ...profileData,
+          is_following: actualNewState
+        };
         
-        // Wait a moment before refreshing profile data to ensure backend is updated
-        setTimeout(() => {
-          // Refresh profile data to ensure we have the latest follower count
-          loadProfileData();
-        }, 500);
+        logger.debug(`Successfully ${wasFollowing ? 'unfollowed' : 'followed'} user. Response:`, apiResponse);
+        logger.debug(`Final UI state after API response: is_following=${profileData.is_following}`);
       }
     } catch (error: any) {
       // Revert optimistic update and show error
-      profileData.isFollowing = wasFollowing;
-      if (wasFollowing) {
-        profileData.followerCount = (profileData.followerCount || 0) + 1;
-      } else {
-        profileData.followerCount = Math.max(0, (profileData.followerCount || 0) - 1);
-      }
+      profileData = {
+        ...profileData,
+        is_following: wasFollowing,
+        follower_count: wasFollowing 
+          ? (profileData.follower_count || 0) + 1
+          : Math.max(0, (profileData.follower_count || 0) - 1)
+      };
       
       let errorMessage = 'Failed to update follow status';
       if (error?.message) {
@@ -616,6 +689,7 @@
       
       toastStore.showToast(errorMessage, 'error');
       logger.error(`Error toggling follow status: ${error.message || 'Unknown error'}`);
+      logger.debug(`Reverted UI state after error: is_following=${profileData.is_following}`);
     } finally {
       isFollowRequestPending = false;
     }
@@ -649,9 +723,9 @@
     isBlockLoading = true;
     try {
       let success;
-      const action = profileData.isBlocked ? 'unblock' : 'block';
+      const action = profileData.is_blocked ? 'unblock' : 'block';
       
-      if (profileData.isBlocked) {
+      if (profileData.is_blocked) {
         success = await unblockUser(profileData.id);
       } else {
         success = await blockUser(profileData.id);
@@ -660,11 +734,11 @@
       if (success) {
         profileData = {
           ...profileData,
-          isBlocked: !profileData.isBlocked
+          is_blocked: !profileData.is_blocked
         };
         
         toastStore.showToast(
-          profileData.isBlocked ? 'User blocked successfully' : 'User unblocked successfully',
+          profileData.is_blocked ? 'User blocked successfully' : 'User unblocked successfully',
           'success'
         );
         
@@ -673,16 +747,16 @@
         showActionsDropdown = false;
         
         // If we just blocked the user and they were being followed, simulate unfollow
-        if (profileData.isBlocked && profileData.isFollowing) {
+        if (profileData.is_blocked && profileData.is_following) {
           profileData = {
             ...profileData,
-            isFollowing: false,
-            followerCount: Math.max(0, profileData.followerCount - 1)
+            is_following: false,
+            follower_count: Math.max(0, profileData.follower_count - 1)
           };
         }
         
         // Clear content if we blocked the user
-        if (profileData.isBlocked) {
+        if (profileData.is_blocked) {
           posts = [];
           replies = [];
           media = [];
@@ -757,16 +831,89 @@
     };
   });
   
-  // Helper function for following/follower links
-  function handleFollowLink(type: 'following' | 'followers', userId: string) {
+  // Replace the handleFollowLink function with this:
+  async function handleFollowLink(type: 'following' | 'followers', userId: string) {
     if (!userId) {
-      logger.error(`Cannot navigate to ${type} - missing userId`);
+      logger.error(`Cannot view ${type} - missing userId`);
       toastStore.showToast('Cannot view followers/following for this user', 'error');
       return;
     }
     
-    logger.debug(`Navigating to ${type} page for userId ${userId}`);
-    window.location.href = `/${type}/${userId}`;
+    logger.debug(`Loading ${type} for userId ${userId}`);
+    
+    if (type === 'followers') {
+      showFollowersModal = true;
+      await loadFollowers(userId);
+    } else {
+      showFollowingModal = true;
+      await loadFollowing(userId);
+    }
+  }
+  
+  // Add functions to load followers and following
+  async function loadFollowers(userId: string) {
+    isLoadingFollowers = true;
+    followersList = [];
+    followersError = '';
+    
+    try {
+      const response = await getUserFollowers(userId);
+      console.log('Full followers response:', response);
+      
+      // Handle the nested structure correctly
+      if (response && response.data && response.data.followers) {
+        followersList = response.data.followers;
+        logger.debug(`Loaded ${followersList.length} followers`);
+      } else if (response && response.followers) {
+        // Handle the non-nested structure as a fallback
+        followersList = response.followers;
+        logger.debug(`Loaded ${followersList.length} followers (direct structure)`);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      logger.error(`Error loading followers: ${error.message}`);
+      followersError = `Failed to load followers: ${error.message}`;
+      toastStore.showToast('Failed to load followers', 'error');
+    } finally {
+      isLoadingFollowers = false;
+    }
+  }
+  
+  async function loadFollowing(userId: string) {
+    isLoadingFollowing = true;
+    followingList = [];
+    followingError = '';
+    
+    try {
+      const response = await getUserFollowing(userId);
+      console.log('Full following response:', response);
+      
+      // Handle the nested structure correctly
+      if (response && response.data && response.data.following) {
+        followingList = response.data.following;
+        logger.debug(`Loaded ${followingList.length} following`);
+      } else if (response && response.following) {
+        // Handle the non-nested structure as a fallback
+        followingList = response.following;
+        logger.debug(`Loaded ${followingList.length} following (direct structure)`);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      logger.error(`Error loading following: ${error.message}`);
+      followingError = `Failed to load following: ${error.message}`;
+      toastStore.showToast('Failed to load following', 'error');
+    } finally {
+      isLoadingFollowing = false;
+    }
+  }
+  
+  // Function to navigate to a user profile
+  function navigateToProfile(userId: string) {
+    if (userId) {
+      window.location.href = `/profile/${userId}`;
+    }
   }
 </script>
 
@@ -779,9 +926,9 @@
       </button>
       
       <div class="profile-banner-container">
-        {#if profileData.backgroundBanner}
+        {#if profileData.banner_url}
           <img 
-            src={profileData.backgroundBanner} 
+            src={profileData.banner_url} 
             alt="Banner" 
             class="profile-banner"
             on:error={(e) => {
@@ -799,9 +946,9 @@
     <!-- Profile info section -->
     <div class="profile-avatar-container">
       <div class="profile-avatar-wrapper">
-        {#if profileData.profilePicture}
+        {#if profileData.profile_picture_url}
           <img 
-            src={profileData.profilePicture} 
+            src={profileData.profile_picture_url} 
             alt="Profile"
             class="profile-avatar"
             on:error={(e) => {
@@ -825,15 +972,20 @@
         {#if !errorMessage && profileData}
           {#if profileData.id !== currentUserId}
             <div class="profile-action-buttons">
+              <!-- Add visible debug indicator -->
+              <span class="debug-indicator" style="display:none;">Status: {profileData.is_following ? 'Following' : 'Not Following'}</span>
               <button 
-                class={profileData.isFollowing ? 'profile-following-button' : 'profile-follow-button'}
+                class={profileData.is_following ? 'profile-following-button' : 'profile-follow-button'}
                 on:click={toggleFollow}
                 disabled={isFollowRequestPending}
+                data-following={profileData.is_following ? 'true' : 'false'}
+                aria-label={profileData.is_following ? 'Unfollow' : 'Follow'}
               >
                 {#if isFollowRequestPending}
                   <span class="loading-indicator"></span>
-                {:else if profileData.isFollowing}
-                  Following
+                {:else if profileData.is_following}
+                  <span class="following-text">Following</span>
+                  <span class="unfollow-text">Unfollow</span>
                 {:else}
                   Follow
                 {/if}
@@ -850,15 +1002,15 @@
       </div>
       
       <div class="profile-name-container">
-        <h1 class="profile-name">{profileData.displayName}</h1>
+        <h1 class="profile-name">{profileData.name}</h1>
         <div class="profile-username">@{profileData.username}</div>
       </div>
-        {#if profileData.isBlocked}
+        {#if profileData.is_blocked}
         <div class="profile-blocked-alert">
           <SlashIcon size="16" class="profile-alert-icon" />
           <span>You have blocked this user</span>
         </div>
-      {:else if profileData.isPrivate && !profileData.isFollowing && currentUserId !== userId}
+      {:else if profileData.is_private && !profileData.is_following && currentUserId !== userId}
         <div class="profile-private-alert">
           <UserIcon size="16" class="profile-alert-icon" />
           <span>This account is private. Follow to see their posts.</span>
@@ -891,7 +1043,7 @@
         
         <div class="profile-meta-item">
           <CalendarIcon size="14" />
-          <span>{formatJoinDate(profileData.joinedDate)}</span>
+          <span>{formatJoinDate(profileData.created_at)}</span>
         </div>
       </div>
       
@@ -900,14 +1052,14 @@
           class="profile-stat" 
           on:click={() => handleFollowLink('following', profileData.id)}
         >
-          <span class="profile-stat-count">{profileData.followingCount}</span>
+          <span class="profile-stat-count">{profileData.following_count}</span>
           <span>Following</span>
         </button>
         <button 
           class="profile-stat" 
           on:click={() => handleFollowLink('followers', profileData.id)}
         >
-          <span class="profile-stat-count">{profileData.followerCount}</span>
+          <span class="profile-stat-count">{profileData.follower_count}</span>
           <span>Followers</span>
         </button>
       </div>
@@ -937,7 +1089,7 @@
     
     <!-- Tab Content -->
     <div class="profile-content">
-      {#if profileData.isBlocked}
+      {#if profileData.is_blocked}
         <div class="profile-content-empty">
           <SlashIcon size="48" class="profile-content-empty-icon error" />
           <p class="profile-content-empty-title error">This user is blocked</p>
@@ -945,7 +1097,7 @@
             Unblock this user to see their content
           </p>
         </div>
-      {:else if profileData.isPrivate && !profileData.isFollowing && currentUserId !== userId}
+      {:else if profileData.is_private && !profileData.is_following && currentUserId !== userId}
         <div class="profile-content-empty">
           <UserIcon size="48" class="profile-content-empty-icon" />
           <p class="profile-content-empty-title">This account is private</p>
@@ -989,9 +1141,9 @@
                   tweet={ensureTweetFormat(post)} 
                   isDarkMode={isDarkMode} 
                   isAuthenticated={true}
-                  isLiked={post.isLiked || post.is_liked}
-                  isReposted={post.isReposted || post.is_repost}
-                  isBookmarked={post.isBookmarked || post.is_bookmarked}
+                  isLiked={post.is_liked}
+                  isReposted={post.is_repost}
+                  isBookmarked={post.is_bookmarked}
                   on:reply={handleReply}
                 />
               </div>
@@ -1018,9 +1170,9 @@
                   tweet={ensureTweetFormat(reply)} 
                   isDarkMode={isDarkMode} 
                   isAuthenticated={true}
-                  isLiked={reply.isLiked || reply.is_liked}
-                  isReposted={reply.isReposted || reply.is_repost}
-                  isBookmarked={reply.isBookmarked || reply.is_bookmarked}
+                  isLiked={reply.is_liked}
+                  isReposted={reply.is_repost}
+                  isBookmarked={reply.is_bookmarked}
                   on:reply={handleReply}
                 />
               </div>
@@ -1133,7 +1285,7 @@
     <div class="modal-overlay" on:click={() => showBlockConfirmModal = false}>
       <div class="modal-container" on:click|stopPropagation>
         <div class="modal-header">
-          <h2>{profileData.isBlocked ? 'Unblock' : 'Block'} @{profileData.username}?</h2>
+          <h2>{profileData.is_blocked ? 'Unblock' : 'Block'} @{profileData.username}?</h2>
           <button class="modal-close-button" on:click={() => showBlockConfirmModal = false}>
             <XIcon size="20" />
           </button>
@@ -1141,7 +1293,7 @@
         
         <div class="modal-content">
           <p class="modal-description">
-            {#if profileData.isBlocked}
+            {#if profileData.is_blocked}
               You will be able to follow this user and see their posts again.
             {:else}
               They will not be able to follow you or view your posts, and you will not see their posts or notifications.
@@ -1161,10 +1313,194 @@
                 <span class="loading-spinner"></span>
                 <span>Processing...</span>
               {:else}
-                {profileData.isBlocked ? 'Unblock' : 'Block'}
+                {profileData.is_blocked ? 'Unblock' : 'Block'}
               {/if}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Followers Modal -->
+  {#if showFollowersModal}
+    <div class="modal-overlay" on:click={() => showFollowersModal = false}>
+      <div class="modal-container" on:click|stopPropagation>
+        <div class="modal-header">
+          <h2>Followers</h2>
+          <button class="modal-close-button" on:click={() => showFollowersModal = false}>
+            <XIcon size="20" />
+          </button>
+        </div>
+        
+        <div class="modal-content">
+          {#if isLoadingFollowers}
+            <div class="modal-loading">
+              <div class="loading-spinner"></div>
+              <p>Loading followers...</p>
+            </div>
+          {:else if followersError}
+            <div class="modal-error">
+              <AlertCircleIcon size="24" />
+              <p>{followersError}</p>
+              <button class="modal-retry-button" on:click={() => loadFollowers(profileData.id)}>
+                Retry
+              </button>
+            </div>
+          {:else if followersList.length === 0}
+            <div class="modal-empty">
+              <p>@{profileData.username} doesn't have any followers yet.</p>
+            </div>
+          {:else}
+            <div class="user-list">
+              {#each followersList as follower}
+                <div class="user-item" on:click={() => navigateToProfile(follower.id)}>
+                  <div class="user-avatar">
+                    <img 
+                      src={follower.profile_picture_url || follower.avatar || '/images/default-avatar.png'} 
+                      alt={follower.username}
+                      on:error={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target) {
+                          target.src = '/images/default-avatar.png';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div class="user-info">
+                    <div class="user-name">{follower.display_name || follower.name}</div>
+                    <div class="user-username">@{follower.username}</div>
+                    {#if follower.bio}
+                      <div class="user-bio">{follower.bio}</div>
+                    {/if}
+                  </div>
+                  {#if follower.id !== currentUserId}
+                    <button 
+                      class={follower.is_following ? 'profile-following-button compact' : 'profile-follow-button compact'}
+                      on:click|stopPropagation={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          if (follower.is_following) {
+                            await unfollowUser(follower.id);
+                            followersList = followersList.map(f => 
+                              f.id === follower.id ? {...f, is_following: false} : f
+                            );
+                          } else {
+                            await followUser(follower.id);
+                            followersList = followersList.map(f => 
+                              f.id === follower.id ? {...f, is_following: true} : f
+                            );
+                          }
+                        } catch (error) {
+                          logger.error(`Error toggling follow for user ${follower.id}:`, error);
+                          toastStore.showToast('Failed to update follow status', 'error');
+                        }
+                      }}
+                    >
+                      {#if follower.is_following}
+                        <span class="following-text">Following</span>
+                        <span class="unfollow-text">Unfollow</span>
+                      {:else}
+                        Follow
+                      {/if}
+                    </button>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Following Modal -->
+  {#if showFollowingModal}
+    <div class="modal-overlay" on:click={() => showFollowingModal = false}>
+      <div class="modal-container" on:click|stopPropagation>
+        <div class="modal-header">
+          <h2>Following</h2>
+          <button class="modal-close-button" on:click={() => showFollowingModal = false}>
+            <XIcon size="20" />
+          </button>
+        </div>
+        
+        <div class="modal-content">
+          {#if isLoadingFollowing}
+            <div class="modal-loading">
+              <div class="loading-spinner"></div>
+              <p>Loading following...</p>
+            </div>
+          {:else if followingError}
+            <div class="modal-error">
+              <AlertCircleIcon size="24" />
+              <p>{followingError}</p>
+              <button class="modal-retry-button" on:click={() => loadFollowing(profileData.id)}>
+                Retry
+              </button>
+            </div>
+          {:else if followingList.length === 0}
+            <div class="modal-empty">
+              <p>@{profileData.username} isn't following anyone yet.</p>
+            </div>
+          {:else}
+            <div class="user-list">
+              {#each followingList as user}
+                <div class="user-item" on:click={() => navigateToProfile(user.id)}>
+                  <div class="user-avatar">
+                    <img 
+                      src={user.profile_picture_url || user.avatar || '/images/default-avatar.png'} 
+                      alt={user.username}
+                      on:error={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target) {
+                          target.src = '/images/default-avatar.png';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div class="user-info">
+                    <div class="user-name">{user.display_name || user.name}</div>
+                    <div class="user-username">@{user.username}</div>
+                    {#if user.bio}
+                      <div class="user-bio">{user.bio}</div>
+                    {/if}
+                  </div>
+                  {#if user.id !== currentUserId}
+                    <button 
+                      class={user.is_following ? 'profile-following-button compact' : 'profile-follow-button compact'}
+                      on:click|stopPropagation={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          if (user.is_following) {
+                            await unfollowUser(user.id);
+                            followingList = followingList.map(f => 
+                              f.id === user.id ? {...f, is_following: false} : f
+                            );
+                          } else {
+                            await followUser(user.id);
+                            followingList = followingList.map(f => 
+                              f.id === user.id ? {...f, is_following: true} : f
+                            );
+                          }
+                        } catch (error) {
+                          logger.error(`Error toggling follow for user ${user.id}:`, error);
+                          toastStore.showToast('Failed to update follow status', 'error');
+                        }
+                      }}
+                    >
+                      {#if user.is_following}
+                        <span class="following-text">Following</span>
+                        <span class="unfollow-text">Unfollow</span>
+                      {:else}
+                        Follow
+                      {/if}
+                    </button>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       </div>
     </div>
@@ -1339,35 +1675,58 @@
   .profile-follow-button {
     padding: 6px 16px;
     border-radius: 20px;
-    font-weight: 600;
+    font-weight: bold;
     font-size: 14px;
-    background-color: var(--text-primary);
-    color: var(--bg-color);
+    background-color: #000000;
+    color: #ffffff;
     border: none;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: background-color 0.15s ease;
+    min-width: 102px; /* Match width with following button */
+    text-align: center;
   }
 
   .profile-follow-button:hover {
-    opacity: 0.9;
+    background-color: #272c30;
   }
-
+  
+  /* Following button - exactly match Twitter's styling */
   .profile-following-button {
     padding: 6px 16px;
     border-radius: 20px;
-    font-weight: 600;
+    font-weight: bold;
     font-size: 14px;
-    background-color: transparent;
-    color: var(--text-primary);
-    border: 1px solid #536471;
+    background-color: #ffffff;
+    color: #0f1419;
+    border: 1px solid #cfd9de;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
+    position: relative;
+    min-width: 102px; /* Prevent button width from changing between states */
+    text-align: center;
   }
 
   .profile-following-button:hover {
     background-color: rgba(244, 33, 46, 0.1);
-    color: #f91880;
-    border-color: rgba(244, 33, 46, 0.3);
+    color: #f4212e; /* Twitter's exact red color */
+    border-color: rgba(244, 33, 46, 0.4);
+  }
+  
+  /* Control text visibility for hover state */
+  .profile-following-button .following-text {
+    display: inline;
+  }
+  
+  .profile-following-button .unfollow-text {
+    display: none;
+  }
+  
+  .profile-following-button:hover .following-text {
+    display: none;
+  }
+  
+  .profile-following-button:hover .unfollow-text {
+    display: inline;
   }
 
   .profile-name-container {
@@ -1624,7 +1983,7 @@
     color: #e0245e;
   }
 
-  /* Dark mode specific adjustments */
+  /* Dark mode adjustments */
   :global(.dark-theme) .profile-header-back {
     background-color: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.05);
@@ -1642,13 +2001,26 @@
     background-color: rgba(0, 0, 0, 0.8);
     border-bottom-color: var(--border-color);
   }
-
-  :global(.dark-theme) .profile-following-button:hover {
-    background-color: rgba(244, 33, 46, 0.15);
-  }
+  
   :global(.dark-theme) .profile-follow-button {
-    background-color: white;
-    color: black;
+    background-color: #ffffff;
+    color: #000000;
+  }
+  
+  :global(.dark-theme) .profile-follow-button:hover {
+    background-color: #e6e6e6;
+  }
+  
+  :global(.dark-theme) .profile-following-button {
+    background-color: transparent;
+    color: #e7e9ea;
+    border: 1px solid #536471;
+  }
+  
+  :global(.dark-theme) .profile-following-button:hover {
+    background-color: rgba(244, 33, 46, 0.1);
+    color: #f4212e;
+    border-color: rgba(244, 33, 46, 0.4);
   }
 
   /* Media queries for responsive design */
@@ -1693,5 +2065,188 @@
     .profile-tab.active::after {
       width: 40px;
     }
+  }
+
+  /* Modal styling for followers/following */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+  
+  .modal-container {
+    background-color: var(--bg-color);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    animation: modalAppear 0.2s ease;
+  }
+  
+  @keyframes modalAppear {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .modal-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+  }
+  
+  .modal-close-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 50%;
+    color: var(--text-secondary);
+  }
+  
+  .modal-close-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  
+  .modal-content {
+    padding: 0;
+    overflow-y: auto;
+    max-height: calc(80vh - 70px);
+  }
+  
+  .modal-loading, .modal-error, .modal-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+  
+  .modal-retry-button {
+    margin-top: 16px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  
+  .modal-retry-button:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  /* User list styling */
+  .user-list {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .user-item {
+    display: flex;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    align-items: center;
+  }
+  
+  .user-item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+  
+  .user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .user-name {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 15px;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .user-username {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  
+  .user-bio {
+    color: var(--text-primary);
+    font-size: 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .profile-follow-button.compact,
+  .profile-following-button.compact {
+    padding: 6px 12px;
+    font-size: 13px;
+    min-width: auto;
+  }
+  
+  /* Dark mode adjustments for modals */
+  :global(.dark-theme) .modal-container {
+    background-color: #000;
+    border: 1px solid #2f3336;
+  }
+  
+  :global(.dark-theme) .modal-retry-button {
+    background-color: #000;
+    border-color: #2f3336;
+  }
+  
+  :global(.dark-theme) .modal-retry-button:hover {
+    background-color: rgba(255, 255, 255, 0.03);
   }
 </style>

@@ -18,13 +18,12 @@
   import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import PinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';
-  
-  // Define interfaces for our data structures
+    // Define interfaces for our data structures
   interface Thread {
     id: string;
     content: string;
     username: string;
-    displayName: string;
+    display_name: string;
     timestamp: string;
     likes: number;
     replies: number;
@@ -379,7 +378,6 @@
           // Check if this thread is in our liked threads
           if (likedThreadIds.includes(thread.id)) {
             thread.is_liked = true;
-            thread.isLiked = true;
           }
           return ensureTweetFormat(thread);
         });
@@ -397,72 +395,67 @@
         });
         
         posts = allPosts;
-        console.log(`Loaded ${posts.length} posts (${posts.filter(p => p.is_pinned).length} pinned, ${posts.filter(p => p.isLiked || p.is_liked).length} liked)`);
-      } 
-      else if (tab === 'replies') {
+        
+        console.log('Posts processed:', posts.length);
+        console.log('Pinned posts:', posts.filter(p => p.is_pinned).length);
+        
+      } else if (tab === 'replies') {
         // Load user's replies
         const repliesData = await getUserReplies(profileUserId);
-        replies = (repliesData.replies || []).map(reply => {
+        console.log('Raw replies data from API:', repliesData);
+        
+        // Ensure we have an array of replies
+        replies = ((repliesData.replies || []).map(reply => {
           // Check if this reply is in our liked threads
-          if (likedThreadIds.includes(reply.id)) {
+          if (reply.id && likedThreadIds.includes(reply.id)) {
             reply.is_liked = true;
-            reply.isLiked = true;
           }
           return ensureTweetFormat(reply);
-        });
-        
-        // Sort replies by date (newest first)
-        replies.sort((a, b) => {
-          const dateA = new Date(a.created_at);
-          const dateB = new Date(b.created_at);
-          return dateB.getTime() - dateA.getTime();
-        });
-        
-        console.log(`Loaded ${replies.length} replies (${replies.filter(r => r.isLiked || r.is_liked).length} liked)`);
-      } 
-      else if (tab === 'likes') {
-        // Load user's liked threads
-        const likesData = await getUserLikedThreads(profileUserId);
-        likes = (likesData.threads || []).map(thread => {
-          // Liked threads should always be marked as liked
-          thread.is_liked = true;
-          thread.isLiked = true;
-          return ensureTweetFormat(thread);
-        });
-        
-        // Sort by date (newest first)
-        likes.sort((a, b) => {
-          const dateA = new Date(a.created_at);
-          const dateB = new Date(b.created_at);
-          return dateB.getTime() - dateA.getTime();
-        });
-        
-        console.log(`Loaded ${likes.length} liked threads`);
-      } 
-      else if (tab === 'media') {
-        // Load user's media posts
-        const mediaData = await getUserMedia(profileUserId);
-        
-        // Ensure media items have all required fields
-        media = (mediaData.media || []).map(item => ({
-          id: item.id || `media-${Math.random().toString(36).substr(2, 9)}`,
-          url: item.url || '',
-          type: item.type || 'image',
-          thread_id: item.thread_id || '',
-          created_at: item.created_at || new Date().toISOString()
         }));
         
-        // Sort by date (newest first)
-        media.sort((a, b) => {
-          const dateA = new Date(a.created_at || '');
-          const dateB = new Date(b.created_at || '');
-          return dateB.getTime() - dateA.getTime();
+      } else if (tab === 'likes') {
+        // Load user's liked threads
+        const likesData = await getUserLikedThreads(profileUserId);
+        console.log('Raw likes data from API:', likesData);
+        
+        // Ensure we have an array of likes
+        likes = ((likesData.threads || []).map(thread => {
+          thread.is_liked = true; // These are liked by definition
+          return ensureTweetFormat(thread);
+        }));
+        
+      } else if (tab === 'media') {
+        // Load user's media
+        const mediaData = await getUserMedia(profileUserId);
+        console.log('Raw media data from API:', mediaData);
+        
+        // Process media data
+        media = (mediaData.media || []).map(item => {
+          // Ensure all media items have consistent field names
+          return {
+            id: item.id || `media-${Math.random().toString(36).substr(2, 9)}`,
+            url: item.url || item.media_url || '',
+            type: item.type || item.media_type || 'image',
+            thread_id: item.thread_id || '',
+            created_at: item.created_at || new Date().toISOString()
+          };
         });
       }
-    } catch (error) {
-      console.error(`Error loading ${tab} tab:`, error);
-      errorMessage = `Failed to load ${tab}. Please try again later.`;
-      toastStore.showToast(`Failed to load ${tab}. Please try again later.`, 'error');
+      
+      // Update the active tab
+      activeTab = tab;
+      
+      // Debug: log content counts
+      console.log(`Loaded ${tab} content:`, {
+        posts: tab === 'posts' ? posts.length : '(not loaded)',
+        replies: tab === 'replies' ? replies.length : '(not loaded)',
+        likes: tab === 'likes' ? likes.length : '(not loaded)',
+        media: tab === 'media' ? media.length : '(not loaded)'
+      });
+      
+    } catch (error: any) {
+      console.error(`Error loading ${tab} content:`, error);
+      toastStore.showToast(`Failed to load ${tab}. ${error.message || ''}`, 'error');
     } finally {
       isLoading = false;
     }
@@ -1224,17 +1217,17 @@
       profile={{
         id: profileData.id,
         username: profileData.username,
-        displayName: profileData.displayName,
+        name: profileData.displayName,
         bio: profileData.bio,
         profile_picture_url: profileData.profilePicture,
         banner_url: profileData.backgroundBanner,
         email: profileData.email,
-        dateOfBirth: profileData.dateOfBirth,
+        date_of_birth: profileData.dateOfBirth,
         gender: profileData.gender,
-        verified: false,
-        followerCount: profileData.followerCount,
-        followingCount: profileData.followingCount,
-        joinDate: profileData.joinedDate
+        is_verified: false,
+        follower_count: profileData.followerCount,
+        following_count: profileData.followingCount,
+        created_at: profileData.joinedDate
       }}
       isOpen={showEditModal}
       on:close={() => showEditModal = false}

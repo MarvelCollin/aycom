@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,98 +19,75 @@ import (
 func FollowUser(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "User ID parameter is required",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID parameter is required")
 		return
 	}
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "User not authenticated",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 	currentUserID := userID.(string)
 
-	// Check if targetUserID is a valid UUID
-	_, uuidErr := uuid.Parse(targetUserID)
-	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
-		log.Printf("FollowUser: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
-
-		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "User service client not initialized",
-			})
-			return
-		}
-
-		user, err := userServiceClient.GetUserByUsername(targetUserID)
-		if err != nil {
-			// Failed to find user by username
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("User with username '%s' not found", targetUserID),
-			})
-			log.Printf("FollowUser: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
-			return
-		}
-
-		// Use the resolved UUID
-		targetUserID = user.ID
-		log.Printf("FollowUser: Resolved username '%s' to UUID '%s'", c.Param("userId"), targetUserID)
+	// Prevent users from following themselves
+	if targetUserID == currentUserID {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot follow themselves")
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
-		UserId: targetUserID,
-	})
-
+	// Resolve the target user ID (could be a username or UUID)
+	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "Target user not found",
-		})
-		log.Printf("Error following user: target user %s not found: %v", targetUserID, err)
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
+		log.Printf("FollowUser: Failed to resolve user identifier: %v", err)
 		return
 	}
+
+	// Check if already following first (optional optimization)
+	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
+	if err != nil {
+		log.Printf("Error checking follow status: %v", err)
+		// Continue with the follow operation even if this check fails
+	}
+
+	if isFollowing {
+		log.Printf("FollowUser: User %s is already following user %s", currentUserID, resolvedUserID)
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"success":               true,
+			"action":                "already_following",
+			"is_following":          true,
+			"message":               "Already following this user",
+			"was_already_following": true,
+			"is_now_following":      true,
+		})
+		return
+	}
+
+	// Perform the follow operation
 	followRequest := &userProto.FollowUserRequest{
 		FollowerId: currentUserID,
-		FollowedId: targetUserID,
+		FollowedId: resolvedUserID,
 	}
 	followResp, err := UserClient.FollowUser(ctx, followRequest)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to follow user: " + err.Error(),
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to follow user: "+err.Error())
 		log.Printf("Error following user: %v", err)
 		return
 	}
 
-	// Determine the action based on the response
-	var action string
-	var isFollowing bool = followResp.Success
-
-	if followResp.Message == "Already following" {
-		action = "already_following"
-		log.Printf("User %s was already following user %s", currentUserID, targetUserID)
-	} else {
-		action = "followed"
-		log.Printf("User %s successfully followed user %s", currentUserID, targetUserID)
-	}
+	log.Printf("User %s successfully followed user %s", currentUserID, resolvedUserID)
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"action":       action,
-		"is_following": isFollowing,
-		"message":      followResp.Message,
+		"success":               true,
+		"action":                "followed",
+		"is_following":          true,
+		"message":               followResp.Message,
+		"was_already_following": followResp.WasAlreadyFollowing,
+		"is_now_following":      followResp.IsNowFollowing,
 	})
 }
 
@@ -129,76 +105,64 @@ func UnfollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Check if targetUserID is a valid UUID
-	_, uuidErr := uuid.Parse(targetUserID)
-	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
-		log.Printf("UnfollowUser: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
-
-		if userServiceClient == nil {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
-			return
-		}
-
-		user, err := userServiceClient.GetUserByUsername(targetUserID)
-		if err != nil {
-			// Failed to find user by username
-			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", targetUserID))
-			log.Printf("UnfollowUser: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
-			return
-		}
-
-		// Use the resolved UUID
-		targetUserID = user.ID
-		log.Printf("UnfollowUser: Resolved username '%s' to UUID '%s'", c.Param("userId"), targetUserID)
+	// Prevent users from unfollowing themselves
+	if targetUserID == currentUserID {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot unfollow themselves")
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
-		UserId: targetUserID,
-	})
-
+	// Resolve the target user ID (could be a username or UUID)
+	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "Target user not found",
-		})
-		log.Printf("Error unfollowing user: target user %s not found: %v", targetUserID, err)
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
+		log.Printf("UnfollowUser: Failed to resolve user identifier: %v", err)
 		return
 	}
+
+	// Check if actually following first (optional optimization)
+	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
+	if err != nil {
+		log.Printf("Error checking follow status: %v", err)
+		// Continue with the unfollow operation even if this check fails
+	}
+
+	if !isFollowing {
+		log.Printf("UnfollowUser: User %s is already not following user %s", currentUserID, resolvedUserID)
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"success":          true,
+			"action":           "not_following",
+			"message":          "User was not following this user",
+			"is_following":     false,
+			"was_following":    false,
+			"is_now_following": false,
+		})
+		return
+	}
+
+	// Perform the unfollow operation
 	unfollowRequest := &userProto.UnfollowUserRequest{
 		FollowerId: currentUserID,
-		FollowedId: targetUserID,
+		FollowedId: resolvedUserID,
 	}
-	unfollowResp, err := UserClient.UnfollowUser(ctx, unfollowRequest)
+	_, err = UserClient.UnfollowUser(ctx, unfollowRequest)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to unfollow user: " + err.Error(),
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unfollow user: "+err.Error())
 		log.Printf("Error unfollowing user: %v", err)
 		return
 	}
 
-	// Determine the action based on the response
-	var action string
-	var isFollowing bool = false
-
-	if !unfollowResp.Success {
-		action = "not_following"
-		log.Printf("User %s was not following user %s", currentUserID, targetUserID)
-	} else {
-		action = "unfollowed"
-		log.Printf("User %s successfully unfollowed user %s", currentUserID, targetUserID)
-	}
+	log.Printf("User %s successfully unfollowed user %s", currentUserID, resolvedUserID)
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"success":      unfollowResp.Success,
-		"message":      unfollowResp.Message,
-		"action":       action,
-		"is_following": isFollowing,
+		"success":          true,
+		"message":          "Successfully unfollowed user",
+		"action":           "unfollowed",
+		"is_following":     false,
+		"was_following":    true,
+		"is_now_following": false,
 	})
 }
 
@@ -226,41 +190,19 @@ func GetFollowers(c *gin.Context) {
 		}
 	}
 
-	// Check if targetUserID is a valid UUID
-	_, uuidErr := uuid.Parse(targetUserID)
-	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
-		log.Printf("GetFollowers: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
-
-		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "User service client not initialized",
-			})
-			return
-		}
-
-		user, err := userServiceClient.GetUserByUsername(targetUserID)
-		if err != nil {
-			// Failed to find user by username
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("User with username '%s' not found", targetUserID),
-			})
-			log.Printf("GetFollowers: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
-			return
-		}
-
-		// Use the resolved UUID
-		targetUserID = user.ID
-		log.Printf("GetFollowers: Resolved username '%s' to UUID '%s'", c.Param("userId"), targetUserID)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Resolve the target user ID (could be a username or UUID)
+	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User not found: %v", err))
+		log.Printf("GetFollowers: Failed to resolve user identifier: %v", err)
+		return
+	}
+
 	followersReq := &userProto.GetFollowersRequest{
-		UserId: targetUserID,
+		UserId: resolvedUserID,
 		Page:   int32(page),
 		Limit:  int32(limit),
 	}
@@ -295,17 +237,20 @@ func GetFollowers(c *gin.Context) {
 			"bio":                 follower.Bio,
 			"profile_picture_url": follower.ProfilePictureUrl,
 			"is_verified":         follower.IsVerified,
-			"is_following":        follower.IsFollowing,
+			"is_following":        follower.IsFollowing, // This comes from the service
+			"follower_count":      follower.FollowerCount,
+			"following_count":     follower.FollowingCount,
 		})
 	}
 
+	// Return response in the format expected by the frontend
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"followers": followers,
 		"pagination": gin.H{
 			"total_count":  followersResp.TotalCount,
 			"current_page": page,
 			"per_page":     limit,
-			"has_more":     len(followers) == limit,
+			"has_more":     followersResp.TotalCount > int32(page*limit),
 		},
 	})
 }
@@ -334,41 +279,19 @@ func GetFollowing(c *gin.Context) {
 		}
 	}
 
-	// Check if targetUserID is a valid UUID
-	_, uuidErr := uuid.Parse(targetUserID)
-	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
-		log.Printf("GetFollowing: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
-
-		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "User service client not initialized",
-			})
-			return
-		}
-
-		user, err := userServiceClient.GetUserByUsername(targetUserID)
-		if err != nil {
-			// Failed to find user by username
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("User with username '%s' not found", targetUserID),
-			})
-			log.Printf("GetFollowing: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
-			return
-		}
-
-		// Use the resolved UUID
-		targetUserID = user.ID
-		log.Printf("GetFollowing: Resolved username '%s' to UUID '%s'", c.Param("userId"), targetUserID)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Resolve the target user ID (could be a username or UUID)
+	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User not found: %v", err))
+		log.Printf("GetFollowing: Failed to resolve user identifier: %v", err)
+		return
+	}
+
 	followingReq := &userProto.GetFollowingRequest{
-		UserId: targetUserID,
+		UserId: resolvedUserID,
 		Page:   int32(page),
 		Limit:  int32(limit),
 	}
@@ -403,17 +326,20 @@ func GetFollowing(c *gin.Context) {
 			"bio":                 user.Bio,
 			"profile_picture_url": user.ProfilePictureUrl,
 			"is_verified":         user.IsVerified,
-			"is_following":        true, // We are following all users in this list
+			"is_following":        true, // These are users we're following, so this is always true
+			"follower_count":      user.FollowerCount,
+			"following_count":     user.FollowingCount,
 		})
 	}
 
+	// Return response in the format expected by the frontend
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"following": following,
 		"pagination": gin.H{
 			"total_count":  followingResp.TotalCount,
 			"current_page": page,
 			"per_page":     limit,
-			"has_more":     len(following) == limit,
+			"has_more":     followingResp.TotalCount > int32(page*limit),
 		},
 	})
 }
@@ -1763,61 +1689,41 @@ func CheckFollowStatus(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Check if targetUserID is a valid UUID
-	_, uuidErr := uuid.Parse(targetUserID)
-	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
-		log.Printf("CheckFollowStatus: Target user ID '%s' is not a valid UUID, attempting to resolve as username", targetUserID)
-
-		if userServiceClient == nil {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
-			return
-		}
-
-		user, err := userServiceClient.GetUserByUsername(targetUserID)
-		if err != nil {
-			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", targetUserID))
-			log.Printf("CheckFollowStatus: Failed to resolve username '%s' to UUID: %v", targetUserID, err)
-			return
-		}
-
-		// Use the resolved UUID
-		targetUserID = user.ID
-		log.Printf("CheckFollowStatus: Resolved username '%s' to UUID '%s'", c.Param("userId"), targetUserID)
-	}
+	log.Printf("CheckFollowStatus: Checking if user %s is following user %s", currentUserID, targetUserID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Check if the target user exists
-	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
-		UserId: targetUserID,
-	})
-
+	// Resolve the target user ID (could be a username or UUID)
+	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
-		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Target user not found")
-		log.Printf("CheckFollowStatus: target user %s not found: %v", targetUserID, err)
+		log.Printf("CheckFollowStatus: Failed to resolve user identifier %s: %v", targetUserID, err)
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
 		return
 	}
 
-	// Check follow status using IsFollowing service
+	log.Printf("CheckFollowStatus: Resolved user ID %s to %s", targetUserID, resolvedUserID)
+
+	// Check if user is following target
 	isFollowingReq := &userProto.IsFollowingRequest{
 		FollowerId: currentUserID,
-		FollowedId: targetUserID,
+		FollowedId: resolvedUserID,
 	}
 
 	isFollowingResp, err := UserClient.IsFollowing(ctx, isFollowingReq)
 	if err != nil {
+		log.Printf("CheckFollowStatus: Error checking follow status: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to check follow status: "+err.Error())
-		log.Printf("Error checking follow status: %v", err)
 		return
 	}
 
-	log.Printf("Follow status check: User %s following user %s: %v", currentUserID, targetUserID, isFollowingResp.IsFollowing)
+	isFollowing := isFollowingResp.IsFollowing
+	log.Printf("CheckFollowStatus: User %s following user %s: %v", currentUserID, resolvedUserID, isFollowing)
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"is_following": isFollowingResp.IsFollowing,
+		"success":      true,
+		"is_following": isFollowing,
 		"follower_id":  currentUserID,
-		"followed_id":  targetUserID,
+		"followed_id":  resolvedUserID,
 	})
 }

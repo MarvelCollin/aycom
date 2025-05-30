@@ -25,8 +25,8 @@ type User struct {
 	IsVerified            bool       `gorm:"default:false"`
 	IsAdmin               bool       `gorm:"default:false"`
 	IsBanned              bool       `gorm:"default:false"`
-	FollowerCount         int        `gorm:"-"` // Virtual field, not stored in DB
-	FollowingCount        int        `gorm:"-"` // Virtual field, not stored in DB
+	FollowerCount         int        `gorm:"default:0"` // Stored in DB
+	FollowingCount        int        `gorm:"default:0"` // Stored in DB
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }

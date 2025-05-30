@@ -33,6 +33,7 @@ func Migrate(db *gorm.DB) error {
 		{"00001_init_schema", migrateInitSchema},
 		{"00002_add_admin_fields", migrateAddAdminFields},
 		{"00003_add_admin_tables", migrateAddAdminTables},
+		{"00004_add_follower_counts", migrateAddFollowerCounts},
 	}
 
 	for _, migration := range migrations {
@@ -139,6 +140,56 @@ func migrateAddAdminTables(db *gorm.DB) error {
 			table.name, table.column, table.name, table.column)).Error; err != nil {
 			log.Printf("Warning: Failed to create index %s on %s: %v", table.column, table.name, err)
 		}
+	}
+
+	return nil
+}
+
+func migrateAddFollowerCounts(db *gorm.DB) error {
+	// Add follower_count column if it doesn't exist
+	if !db.Migrator().HasColumn(&model.User{}, "follower_count") {
+		if err := db.Exec("ALTER TABLE users ADD COLUMN follower_count INT DEFAULT 0").Error; err != nil {
+			return fmt.Errorf("failed to add follower_count column: %w", err)
+		}
+		log.Println("Added follower_count column to users table")
+	}
+
+	// Add following_count column if it doesn't exist
+	if !db.Migrator().HasColumn(&model.User{}, "following_count") {
+		if err := db.Exec("ALTER TABLE users ADD COLUMN following_count INT DEFAULT 0").Error; err != nil {
+			return fmt.Errorf("failed to add following_count column: %w", err)
+		}
+		log.Println("Added following_count column to users table")
+	}
+
+	// Create index on follower_id for improved query performance on following
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id)").Error; err != nil {
+		log.Printf("Warning: Failed to create index on follower_id: %v", err)
+	}
+
+	// Create index on followed_id for improved query performance on followers
+	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_follows_followed_id ON follows(followed_id)").Error; err != nil {
+		log.Printf("Warning: Failed to create index on followed_id: %v", err)
+	}
+
+	// Recalculate follower and following counts for all users
+	log.Println("Recalculating follower and following counts for all users...")
+	// Update follower counts
+	if err := db.Exec(`
+		UPDATE users u SET follower_count = (
+			SELECT COUNT(*) FROM follows f WHERE f.followed_id = u.id
+		)
+	`).Error; err != nil {
+		log.Printf("Warning: Failed to update follower counts: %v", err)
+	}
+
+	// Update following counts
+	if err := db.Exec(`
+		UPDATE users u SET following_count = (
+			SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id
+		)
+	`).Error; err != nil {
+		log.Printf("Warning: Failed to update following counts: %v", err)
 	}
 
 	return nil

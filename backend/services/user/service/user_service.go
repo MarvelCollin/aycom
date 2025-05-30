@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"aycom/backend/proto/user"
-	"aycom/backend/services/user/db"
+	userpb "aycom/backend/proto/user"
 	"aycom/backend/services/user/model"
+	"aycom/backend/services/user/repository"
 	"aycom/backend/services/user/utils"
 
 	"github.com/google/uuid"
@@ -20,14 +20,31 @@ import (
 	"gorm.io/gorm"
 )
 
+// ServiceFollowUserResponse represents the response for follow user operation within the service
+type ServiceFollowUserResponse struct {
+	Success             bool   `json:"success"`
+	Message             string `json:"message"`
+	WasAlreadyFollowing bool   `json:"was_already_following"`
+	IsNowFollowing      bool   `json:"is_now_following"`
+}
+
+// ServiceUnfollowUserResponse represents the response for unfollow user operation within the service
+type ServiceUnfollowUserResponse struct {
+	Success        bool   `json:"success"`
+	Message        string `json:"message"`
+	WasFollowing   bool   `json:"was_following"`
+	IsNowFollowing bool   `json:"is_now_following"`
+}
+
+// UserService defines methods for user business logic
 type UserService interface {
-	CreateUserProfile(ctx context.Context, req *user.CreateUserRequest) (*model.User, error)
+	CreateUserProfile(ctx context.Context, req *userpb.CreateUserRequest) (*model.User, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
-	UpdateUserProfile(ctx context.Context, req *user.UpdateUserRequest) (*model.User, error)
-	UpdateUserVerificationStatus(ctx context.Context, req *user.UpdateUserVerificationStatusRequest) error
+	UpdateUserProfile(ctx context.Context, req *userpb.UpdateUserRequest) (*model.User, error)
+	UpdateUserVerificationStatus(ctx context.Context, req *userpb.UpdateUserVerificationStatusRequest) error
 	DeleteUser(ctx context.Context, id string) error
-	LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error)
+	LoginUser(ctx context.Context, req *userpb.LoginUserRequest) (*model.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	FollowUser(ctx context.Context, req *model.FollowUserRequest) error
 	UnfollowUser(ctx context.Context, req *model.UnfollowUserRequest) error
@@ -47,16 +64,16 @@ type UserService interface {
 }
 
 type userService struct {
-	repo db.UserRepository
+	repo repository.UserRepository
 }
 
-func NewUserService(repo db.UserRepository) UserService {
+func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{
 		repo: repo,
 	}
 }
 
-func (s *userService) CreateUserProfile(ctx context.Context, req *user.CreateUserRequest) (*model.User, error) {
+func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateUserRequest) (*model.User, error) {
 	if req.User == nil {
 		return nil, status.Error(codes.InvalidArgument, "Missing user information")
 	}
@@ -200,7 +217,7 @@ func (s *userService) GetUserByUsername(ctx context.Context, username string) (*
 	return user, nil
 }
 
-func (s *userService) UpdateUserProfile(ctx context.Context, req *user.UpdateUserRequest) (*model.User, error) {
+func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateUserRequest) (*model.User, error) {
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required for update")
 	}
@@ -298,7 +315,7 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *userService) LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error) {
+func (s *userService) LoginUser(ctx context.Context, req *userpb.LoginUserRequest) (*model.User, error) {
 	// Validate email format
 	if err := utils.ValidateEmail(req.Email); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email format")
@@ -340,7 +357,7 @@ func (s *userService) GetUserByEmail(ctx context.Context, email string) (*model.
 	return user, nil
 }
 
-func (s *userService) UpdateUserVerificationStatus(ctx context.Context, req *user.UpdateUserVerificationStatusRequest) error {
+func (s *userService) UpdateUserVerificationStatus(ctx context.Context, req *userpb.UpdateUserVerificationStatusRequest) error {
 	if req.UserId == "" {
 		return status.Error(codes.InvalidArgument, "User ID is required")
 	}
@@ -379,6 +396,7 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	if err != nil {
 		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
 	}
+
 	// Check if already following
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
@@ -398,17 +416,29 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		CreatedAt:  time.Now(),
 	}
 
-	err = s.repo.CreateFollow(follow)
-	if err != nil {
-		log.Printf("Error creating follow relationship: %v", err)
-		return status.Error(codes.Internal, "Failed to follow user")
-	}
+	// Use a transaction to ensure atomic updates
+	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
+		// Create follow relationship
+		if err := tx.CreateFollow(follow); err != nil {
+			return fmt.Errorf("failed to create follow relationship: %w", err)
+		}
 
-	// Update follower counts
-	err = s.updateFollowerCounts(followedUUID, followerUUID, true)
+		// Increment followed user's follower count
+		if err := tx.IncrementFollowerCount(req.FollowedID); err != nil {
+			return fmt.Errorf("failed to increment follower count: %w", err)
+		}
+
+		// Increment follower's following count
+		if err := tx.IncrementFollowingCount(req.FollowerID); err != nil {
+			return fmt.Errorf("failed to increment following count: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		log.Printf("Error updating follower counts: %v", err)
-		// Don't fail the operation, just log the error
+		log.Printf("Transaction failed for follow operation: %v", err)
+		return status.Error(codes.Internal, "Failed to follow user")
 	}
 
 	return nil
@@ -441,53 +471,32 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return nil
 	}
 
-	err = s.repo.DeleteFollow(followerUUID, followedUUID)
+	// Use a transaction to ensure atomic updates
+	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
+		// Delete follow relationship
+		if err := tx.DeleteFollow(followerUUID, followedUUID); err != nil {
+			return fmt.Errorf("failed to delete follow relationship: %w", err)
+		}
+
+		// Decrement followed user's follower count
+		if err := tx.DecrementFollowerCount(req.FollowedID); err != nil {
+			return fmt.Errorf("failed to decrement follower count: %w", err)
+		}
+
+		// Decrement follower's following count
+		if err := tx.DecrementFollowingCount(req.FollowerID); err != nil {
+			return fmt.Errorf("failed to decrement following count: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		log.Printf("Error deleting follow relationship: %v", err)
+		log.Printf("Transaction failed for unfollow operation: %v", err)
 		return status.Error(codes.Internal, "Failed to unfollow user")
 	}
 
-	// Update follower counts
-	err = s.updateFollowerCounts(followedUUID, followerUUID, false)
-	if err != nil {
-		log.Printf("Error updating follower counts: %v", err)
-		// Don't fail the operation, just log the error
-	}
-
 	return nil
-}
-
-func (s *userService) updateFollowerCounts(followedID, followerID uuid.UUID, isFollow bool) error {
-	// Update followed user's follower count
-	followedUser, err := s.repo.FindUserByID(followedID.String())
-	if err == nil {
-		if isFollow {
-			followedUser.FollowerCount++
-		} else {
-			followedUser.FollowerCount = max(0, followedUser.FollowerCount-1)
-		}
-		s.repo.UpdateUser(followedUser)
-	}
-
-	// Update follower user's following count
-	followerUser, err := s.repo.FindUserByID(followerID.String())
-	if err == nil {
-		if isFollow {
-			followerUser.FollowingCount++
-		} else {
-			followerUser.FollowingCount = max(0, followerUser.FollowingCount-1)
-		}
-		s.repo.UpdateUser(followerUser)
-	}
-
-	return nil
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 func (s *userService) GetFollowers(ctx context.Context, req *model.GetFollowersRequest) ([]*model.User, int, error) {

@@ -66,19 +66,121 @@
   // Add isMobile variable near the top of the script
   let isMobile = false;
 
-  // Check for mobile view on mount
-  onMount(() => {
-    // Simple check for mobile screens - can be replaced with a more sophisticated check
-    isMobile = window.innerWidth < 768;
+  let loadingMoreTweets = false;
+  
+  // Function to check scroll position and load more tweets if needed
+  function checkScrollAndLoadMore() {
+    // If already loading or no more to load, don't do anything
+    if (loadingMoreTweets || isLoading) return;
     
-    // Add resize listener
-    const handleResize = () => {
-      isMobile = window.innerWidth < 768;
+    const scrollPosition = window.scrollY;
+    const windowHeight = window.innerHeight;
+    const bodyHeight = document.body.scrollHeight;
+    
+    // When user scrolls to near bottom (300px from bottom), load more
+    if (bodyHeight - (scrollPosition + windowHeight) < 300) {
+      loadingMoreTweets = true;
+      logger.info('Near bottom of page, loading more tweets');
+      
+      loadMoreTweets().finally(() => {
+        loadingMoreTweets = false;
+      });
+    }
+  }
+  
+  // Scroll event listener setup (more reliable than IntersectionObserver)
+  function setupScrollListener() {
+    // Remove existing listener if any
+    window.removeEventListener('scroll', checkScrollAndLoadMore);
+    
+    // Add new scroll listener
+    window.addEventListener('scroll', checkScrollAndLoadMore);
+    logger.info('Scroll listener set up for infinite scrolling');
+    
+    // Initial check in case page is already at bottom
+    setTimeout(checkScrollAndLoadMore, 500);
+    
+    return () => {
+      window.removeEventListener('scroll', checkScrollAndLoadMore);
     };
+  }
+
+  // Function to load more tweets with reset capability 
+  async function loadMoreTweets() {
+    try {
+      if (activeTab === 'for-you') {
+        // If no more tweets to fetch from API, go back to first page for infinite loop
+        if (!hasMoreForYou) {
+          logger.info('Reached end of available tweets, starting from beginning');
+          pageForYou = 1; // Reset to first page
+          hasMoreForYou = true; // Enable fetching again
+        }
+        
+        await fetchTweetsForYou();
+      } else {
+        // If no more tweets to fetch from API, go back to first page for infinite loop
+        if (!hasMoreFollowing) {
+          logger.info('Reached end of available following tweets, starting from beginning');
+          pageFollowing = 1; // Reset to first page
+          hasMoreFollowing = true; // Enable fetching again
+        }
+        
+        await fetchTweetsFollowing();
+      }
+    } catch (error) {
+      logger.error('Error loading more tweets:', error);
+    }
+  }
+  
+  // Setup scroll listener when component mounts
+  onMount(() => {
+    console.log('Feed page - Auth state:', authState.isAuthenticated, 'Current path:', window.location.pathname);
     
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // Let the Router handle redirects rather than doing it directly
+    if (!authState.isAuthenticated) {
+      logger.info('User not authenticated, letting Router handle the redirect');
+      return;
+    }
+    
+    // Load user profile first
+    fetchUserProfile();
+    
+    // Then fetch tweets, trends, etc.
+    fetchTweetsForYou();
+    fetchTweetsFollowing();
+    
+    // Fetch trends and suggestions in parallel
+    Promise.all([
+      fetchTrends(),
+      fetchSuggestedUsers()
+    ]).catch(error => {
+      logger.error('Error fetching additional data:', error);
+    });
+
+    // Setup infinite scroll through scroll listener
+    const cleanup = setupScrollListener();
+    
+    return () => {
+      // Clean up scroll listener when component is destroyed
+      cleanup();
+    };
   });
+
+  // Function to handle tab change
+  function handleTabChange(tab: 'for-you' | 'following') {
+    activeTab = tab;
+    
+    // Load data for the selected tab if it's empty
+    if (tab === 'for-you' && tweetsForYou.length === 0) {
+      fetchTweetsForYou(true);
+    } else if (tab === 'following' && tweetsFollowing.length === 0) {
+      fetchTweetsFollowing(true);
+    }
+    
+    // Check scroll position after tab change
+    setTimeout(checkScrollAndLoadMore, 100);
+  }
+
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
     // Check if we have debugging enabled
@@ -468,18 +570,6 @@
     }
   }
 
-  // Function to handle tab change
-  function handleTabChange(tab: 'for-you' | 'following') {
-    activeTab = tab;
-    
-    // Load data for the selected tab if it's empty
-    if (tab === 'for-you' && tweetsForYou.length === 0) {
-      fetchTweetsForYou(true);
-    } else if (tab === 'following' && tweetsFollowing.length === 0) {
-      fetchTweetsFollowing(true);
-    }
-  }
-
   async function fetchTrends() {
     logger.debug('Fetching trends');
     isTrendsLoading = true;
@@ -514,36 +604,89 @@
     }
   }
 
-  onMount(async () => {
-    console.log('Feed page - Auth state:', authState.isAuthenticated, 'Current path:', window.location.pathname);
+  // Get the current tweets array based on active tab
+  $: currentTweets = activeTab === 'for-you' ? tweetsForYou : tweetsFollowing;
+  $: isLoading = activeTab === 'for-you' ? isLoadingForYou : isLoadingFollowing;
+  $: error = activeTab === 'for-you' ? errorForYou : errorFollowing;
+  $: hasMore = activeTab === 'for-you' ? hasMoreForYou : hasMoreFollowing;
+  
+  // Function to fetch replies for a given thread
+  async function fetchRepliesForThread(threadId: string) {
+    logger.debug(`Fetching replies for thread: ${threadId}`);
     
-    // Let the Router handle redirects rather than doing it directly
-    if (!authState.isAuthenticated) {
-      logger.info('User not authenticated, letting Router handle the redirect');
-      return;
+    try {
+      const response = await getThreadReplies(threadId);
+      
+      if (response && response.replies && response.replies.length > 0) {
+        logger.info(`Received ${response.replies.length} replies for thread ${threadId}`);
+        
+        // Debug the raw reply data structure
+        console.log('Sample reply structure for thread', threadId, ':', response.replies[0]);
+        
+        // Create a more detailed mapping for replies that properly extracts user data
+        const convertedReplies = response.replies.map(reply => {
+          // Extract core data
+          const replyData = reply.reply || reply;
+          
+          // Handle user data which might be nested or at the top level
+          const userData = reply.user || {};
+          
+          // Build a comprehensive reply object that ensures all fields are populated
+          const enrichedReply = {
+            id: replyData.id,
+            thread_id: replyData.thread_id || threadId,
+            content: replyData.content || '',
+            created_at: replyData.created_at || new Date().toISOString(),
+            author_id: userData.id || replyData.user_id,
+            author_username: userData.username || reply.author_username,
+            author_name: userData.name || reply.author_name,
+            author_avatar: userData.profile_picture_url || reply.author_avatar,
+            parent_id: replyData.parent_id,
+            metrics: {
+              likes: reply.likes_count || 0,
+              replies: 0 // Replies to replies not tracked yet
+            }
+          };
+          
+          const convertedReply = threadToTweet(enrichedReply);
+          
+          // Ensure the parent references are set properly
+          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
+          (convertedReply as any).parentReplyId = replyData.parent_id;
+          
+          return convertedReply;
+        });
+        
+        // Store replies in the map for the thread
+        repliesMap.set(threadId, convertedReplies);
+        
+        // Process nested replies (replies to replies)
+        convertedReplies.forEach(reply => {
+          const parentId = (reply as any).parentReplyId;
+          if (parentId) {
+            // If this reply has a parent that is not the main thread
+            const parentReplies = nestedRepliesMap.get(parentId) || [];
+            nestedRepliesMap.set(parentId, [...parentReplies, reply]);
+          }
+        });
+        
+        // Trigger reactivity update
+        repliesMap = repliesMap;
+        nestedRepliesMap = nestedRepliesMap;
+        
+        logger.debug(`Replies loaded for thread ${threadId}`, { count: convertedReplies.length });
+      } else {
+        logger.warn(`No replies returned for thread ${threadId}`);
+        repliesMap.set(threadId, []);
+        repliesMap = repliesMap;
+      }
+    } catch (error) {
+      logger.error(`Error fetching replies for thread ${threadId}:`, error);
+      toastStore.showToast('Failed to load replies. Please try again.', 'error');
+      repliesMap.set(threadId, []);
+      repliesMap = repliesMap;
     }
-    
-    // Load user profile first
-    await fetchUserProfile();
-    
-    // Then fetch tweets, trends, etc.
-    fetchTweetsForYou();
-    fetchTweetsFollowing();
-    
-    // Fetch trends and suggestions in parallel
-    Promise.all([
-      fetchTrends(),
-      fetchSuggestedUsers()
-    ]).catch(error => {
-      logger.error('Error fetching additional data:', error);
-    });
-  });
-
-  // Note for the backend: these functions are placeholders that need to be implemented
-  // We need to implement:
-  // 1. getFollowingThreads in the API to get tweets from followed users
-  // 2. Check if a user is part of a community
-  // 3. Add advertisement functionality to the backend
+  }
 
   function toggleComposeModal() {
     logger.debug('Toggling compose modal', { currentState: showComposeModal });
@@ -810,99 +953,6 @@
     logger.debug(`Loading replies for thread: ${threadId}`);
     await fetchRepliesForThread(threadId);
   }
-
-  // Function to fetch replies for a given thread
-  async function fetchRepliesForThread(threadId: string) {
-    logger.debug(`Fetching replies for thread: ${threadId}`);
-    
-    try {
-      const response = await getThreadReplies(threadId);
-      
-      if (response && response.replies && response.replies.length > 0) {
-        logger.info(`Received ${response.replies.length} replies for thread ${threadId}`);
-        
-        // Debug the raw reply data structure
-        console.log('Sample reply structure for thread', threadId, ':', response.replies[0]);
-        
-        // Create a more detailed mapping for replies that properly extracts user data
-        const convertedReplies = response.replies.map(reply => {
-          // Extract core data
-          const replyData = reply.reply || reply;
-          
-          // Handle user data which might be nested or at the top level
-          const userData = reply.user || {};
-          
-          // Build a comprehensive reply object that ensures all fields are populated
-          const enrichedReply = {
-            id: replyData.id,
-            thread_id: replyData.thread_id || threadId,
-            content: replyData.content || '',
-            created_at: replyData.created_at || new Date().toISOString(),
-            author_id: userData.id || replyData.user_id,
-            author_username: userData.username || reply.author_username,
-            author_name: userData.name || reply.author_name,
-            author_avatar: userData.profile_picture_url || reply.author_avatar,
-            parent_id: replyData.parent_id,
-            metrics: {
-              likes: reply.likes_count || 0,
-              replies: 0 // Replies to replies not tracked yet
-            }
-          };
-          
-          const convertedReply = threadToTweet(enrichedReply);
-          
-          // Ensure the parent references are set properly
-          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
-          (convertedReply as any).parentReplyId = replyData.parent_id;
-          
-          return convertedReply;
-        });
-        
-        // Store replies in the map for the thread
-        repliesMap.set(threadId, convertedReplies);
-        
-        // Process nested replies (replies to replies)
-        convertedReplies.forEach(reply => {
-          const parentId = (reply as any).parentReplyId;
-          if (parentId) {
-            // If this reply has a parent that is not the main thread
-            const parentReplies = nestedRepliesMap.get(parentId) || [];
-            nestedRepliesMap.set(parentId, [...parentReplies, reply]);
-          }
-        });
-        
-        // Trigger reactivity update
-        repliesMap = repliesMap;
-        nestedRepliesMap = nestedRepliesMap;
-        
-        logger.debug(`Replies loaded for thread ${threadId}`, { count: convertedReplies.length });
-      } else {
-        logger.warn(`No replies returned for thread ${threadId}`);
-        repliesMap.set(threadId, []);
-        repliesMap = repliesMap;
-      }
-    } catch (error) {
-      logger.error(`Error fetching replies for thread ${threadId}:`, error);
-      toastStore.showToast('Failed to load replies. Please try again.', 'error');
-      repliesMap.set(threadId, []);
-      repliesMap = repliesMap;
-    }
-  }
-
-  // Get the current tweets array based on active tab
-  $: currentTweets = activeTab === 'for-you' ? tweetsForYou : tweetsFollowing;
-  $: isLoading = activeTab === 'for-you' ? isLoadingForYou : isLoadingFollowing;
-  $: error = activeTab === 'for-you' ? errorForYou : errorFollowing;
-  $: hasMore = activeTab === 'for-you' ? hasMoreForYou : hasMoreFollowing;
-  
-  // Function to load more tweets based on active tab
-  function loadMoreTweets() {
-    if (activeTab === 'for-you') {
-      fetchTweetsForYou();
-    } else {
-      fetchTweetsFollowing();
-    }
-  }
 </script>
 
 <MainLayout {username} {displayName} {avatar} on:toggleComposeModal={toggleComposeModal} on:posted={handleNewPost}>
@@ -930,156 +980,149 @@
       </button>
     </div>
 
-    <!-- Mobile compose tweet button for smaller screens -->
-    {#if isMobile}
-      <div class="feed-compose">
-        <div class="compose-avatar">
-          <img src={avatar} alt={username} />
-        </div>
-        <div class="compose-input-container">
-          <button 
-            class="compose-input" 
-            on:click={toggleComposeModal}
-            aria-label="Compose new post"
-          >
-            What's happening?
-          </button>
-          <div class="compose-tools">
-            <button class="compose-tweet-tool">
-              <ImageIcon size="20" />
-            </button>
-            <button class="compose-tweet-tool">
-              <FileIcon size="20" />
-            </button>
-            <button class="compose-tweet-tool">
-              <BarChartIcon size="20" />
-            </button>
-            <button class="compose-tweet-tool">
-              <SmileIcon size="20" />
-            </button>
+    <div class="feed-content">
+      <!-- Mobile compose tweet button for smaller screens -->
+      {#if isMobile}
+        <div class="feed-compose">
+          <div class="compose-avatar">
+            <img src={avatar} alt={username} />
           </div>
-        </div>
-      </div>
-    {/if}
-    
-    <!-- Tweet List -->
-    <div class="feed-items">
-      <!-- Loading state when first loading tab -->
-      {#if isLoading && currentTweets.length === 0}
-        <div class="feed-loading">
-          <div class="feed-loading-spinner"></div>
-        </div>
-      <!-- Error state -->
-      {:else if error}
-        <div class="empty-state">
-          <div class="empty-state-title">Something went wrong</div>
-          <div class="empty-state-message">{error}</div>
-          <button 
-            class="btn btn-primary" 
-            on:click={() => activeTab === 'for-you' ? fetchTweetsForYou(true) : fetchTweetsFollowing(true)}
-          >
-            Try Again
-          </button>
-        </div>
-      <!-- Empty state -->
-      {:else if currentTweets.length === 0 && !isLoading}
-        <div class="empty-state">
-          <div class="empty-state-title">
-            {#if activeTab === 'for-you'}
-              No posts yet
-            {:else}
-              You're not following anyone yet
-            {/if}
-          </div>
-          <div class="empty-state-message">
-            {#if activeTab === 'for-you'}
-              Start the conversation by creating your first post
-            {:else}
-              When you follow people, their posts will show up here
-            {/if}
-          </div>
-          {#if activeTab === 'for-you'}
+          <div class="compose-input-container">
             <button 
-              class="btn btn-primary" 
+              class="compose-input" 
               on:click={toggleComposeModal}
+              aria-label="Compose new post"
             >
-              Create First Post
+              What's happening?
             </button>
-          {:else}
-            <a 
-              href="/explore" 
-              class="btn btn-primary"
-            >
-              Find People to Follow
-            </a>
-          {/if}
-        </div>
-      <!-- Tweets list -->
-      {:else}
-        {#each currentTweets as tweet, index (tweet.id || `tweet-${index}`)}
-          {#if tweet.isAdvertisement}
-            <!-- Advertisement card using our CSS classes -->
-            <div class="tweet-card">
-              <div class="tweet-header">
-                <div class="tweet-avatar">
-                  <img src={tweet.avatar} alt="Advertisement" />
-                </div>
-                <div class="tweet-user-info">
-                  <span class="tweet-user-name">{tweet.displayName}</span>
-                  <span class="tweet-user-handle">@{tweet.username}</span>
-                  <span class="tweet-ad-label">Advertisement</span>
-                </div>
-              </div>
-              <div class="tweet-content">
-                {tweet.content}
-              </div>
-              <div class="tweet-media">
-                <div class="ad-content">
-                  <p>Sponsored content goes here</p>
-                </div>
-              </div>
+            <div class="compose-tools">
+              <button class="compose-tweet-tool">
+                <ImageIcon size="20" />
+              </button>
+              <button class="compose-tweet-tool">
+                <FileIcon size="20" />
+              </button>
+              <button class="compose-tweet-tool">
+                <BarChartIcon size="20" />
+              </button>
+              <button class="compose-tweet-tool">
+                <SmileIcon size="20" />
+              </button>
             </div>
-          {:else}
-            <TweetCard 
-              tweet={tweet} 
-              isDarkMode={isDarkMode} 
-              isAuthenticated={authState.isAuthenticated}
-              isLiked={tweet.isLiked || false}
-              isReposted={tweet.isReposted || false}
-              isBookmarked={tweet.isBookmarked || false}
-              on:reply={handleReply}
-              on:repost={handleTweetRepost}
-              on:unrepost={handleTweetUnrepost}
-              on:like={handleLikeClick}
-              on:unlike={handleUnlikeClick}
-              on:bookmark={handleTweetBookmark}
-              on:removeBookmark={handleTweetUnbookmark}
-              on:loadReplies={handleLoadReplies}
-              replies={repliesMap.get(tweet.id) || []}
-              showReplies={false}
-              nestedRepliesMap={nestedRepliesMap}
-            />
-          {/if}
-        {/each}
-        
-        <!-- Loading more state -->
-        {#if isLoading}
+          </div>
+        </div>
+      {/if}
+      
+      <!-- Tweet List -->
+      <div class="feed-items">
+        <!-- Loading state when first loading tab -->
+        {#if isLoading && currentTweets.length === 0}
           <div class="feed-loading">
             <div class="feed-loading-spinner"></div>
           </div>
-        <!-- Load more button -->
-        {:else if hasMore}
-          <div class="feed-pagination">
+        <!-- Error state -->
+        {:else if error}
+          <div class="empty-state">
+            <div class="empty-state-title">Something went wrong</div>
+            <div class="empty-state-message">{error}</div>
             <button 
-              class="feed-load-more" 
-              on:click={loadMoreTweets}
+              class="btn btn-primary" 
+              on:click={() => activeTab === 'for-you' ? fetchTweetsForYou(true) : fetchTweetsFollowing(true)}
             >
-              Load More
+              Try Again
             </button>
           </div>
+        <!-- Empty state -->
+        {:else if currentTweets.length === 0 && !isLoading}
+          <div class="empty-state">
+            <div class="empty-state-title">
+              {#if activeTab === 'for-you'}
+                No posts yet
+              {:else}
+                You're not following anyone yet
+              {/if}
+            </div>
+            <div class="empty-state-message">
+              {#if activeTab === 'for-you'}
+                Start the conversation by creating your first post
+              {:else}
+                When you follow people, their posts will show up here
+              {/if}
+            </div>
+            {#if activeTab === 'for-you'}
+              <button 
+                class="btn btn-primary" 
+                on:click={toggleComposeModal}
+              >
+                Create First Post
+              </button>
+            {:else}
+              <a 
+                href="/explore" 
+                class="btn btn-primary"
+              >
+                Find People to Follow
+              </a>
+            {/if}
+          </div>
+        <!-- Tweets list -->
+        {:else}
+          {#each currentTweets as tweet, index (tweet.id || `tweet-${index}`)}
+            {#if tweet.isAdvertisement}
+              <!-- Advertisement card using our CSS classes -->
+              <div class="tweet-card">
+                <div class="tweet-header">
+                  <div class="tweet-avatar">
+                    <img src={tweet.avatar} alt="Advertisement" />
+                  </div>
+                  <div class="tweet-user-info">
+                    <span class="tweet-user-name">{tweet.displayName}</span>
+                    <span class="tweet-user-handle">@{tweet.username}</span>
+                    <span class="tweet-ad-label">Advertisement</span>
+                  </div>
+                </div>
+                <div class="tweet-content">
+                  {tweet.content}
+                </div>
+                <div class="tweet-media">
+                  <div class="ad-content">
+                    <p>Sponsored content goes here</p>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <TweetCard 
+                tweet={tweet} 
+                isDarkMode={isDarkMode} 
+                isAuthenticated={authState.isAuthenticated}
+                isLiked={tweet.isLiked || false}
+                isReposted={tweet.isReposted || false}
+                isBookmarked={tweet.isBookmarked || false}
+                on:reply={handleReply}
+                on:repost={handleTweetRepost}
+                on:unrepost={handleTweetUnrepost}
+                on:like={handleLikeClick}
+                on:unlike={handleUnlikeClick}
+                on:bookmark={handleTweetBookmark}
+                on:removeBookmark={handleTweetUnbookmark}
+                on:loadReplies={handleLoadReplies}
+                replies={repliesMap.get(tweet.id) || []}
+                showReplies={false}
+                nestedRepliesMap={nestedRepliesMap}
+              />
+            {/if}
+          {/each}
+          
+          <!-- Loading indicator for infinite scrolling -->
+          {#if loadingMoreTweets}
+            <div class="feed-pagination">
+              <div class="feed-loading">
+                <div class="feed-loading-spinner"></div>
+              </div>
+            </div>
+          {/if}
         {/if}
-      {/if}
-      
+      </div>
     </div>
   </div>
 </MainLayout>
@@ -1313,18 +1356,24 @@
   }
   
   .feed-pagination {
+    padding: 20px 0;
     display: flex;
     justify-content: center;
-    padding: 16px;
+    margin-top: 10px;
+    margin-bottom: 30px;
   }
   
-  .feed-load-more {
-    background-color: transparent;
-    border: 1px solid var(--color-primary, #1d9bf0);
-    color: var(--color-primary, #1d9bf0);
-    padding: 8px 16px;
-    border-radius: 9999px;
-    font-weight: 600;
-    cursor: pointer;
+  .feed-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(29, 155, 240, 0.2);
+    border-top-color: var(--color-primary, #1d9bf0);
+    border-radius: 50%;
+    animation: spinner 1s ease-in-out infinite;
+  }
+  
+  @keyframes spinner {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 </style>

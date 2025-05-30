@@ -91,7 +91,13 @@ func CreateThread(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, gin.H{
+		"id":         resp.Thread.Id,
+		"content":    resp.Thread.Content,
+		"media":      resp.Thread.Media,
+		"media_urls": resp.Thread.Media,
+		"success":    true,
+	})
 }
 
 func GetThread(c *gin.Context) {
@@ -1472,7 +1478,6 @@ func BookmarkThreadHandler(c *gin.Context) {
 }
 
 func UpdateThreadMediaURLsHandler(c *gin.Context) {
-
 	threadID := c.Param("id")
 	if threadID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
@@ -1491,16 +1496,17 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		MediaUrls []string `json:"mediaUrls"`
+	// Completely rewritten struct with clean JSON tag
+	var request struct {
+		MediaUrls []string `json:"media_urls"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	for _, url := range req.MediaUrls {
+	for _, url := range request.MediaUrls {
 		if !strings.Contains(url, ".supabase.co") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
 			return
@@ -1522,6 +1528,6 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,
 		"thread":     updatedThread,
-		"media_urls": req.MediaUrls,
+		"media_urls": request.MediaUrls,
 	})
 }

@@ -27,13 +27,13 @@ export interface CategoriesResponse extends BaseResponse {
 }
 
 export interface StatisticsResponse extends BaseResponse {
-  totalUsers?: number;
-  activeUsers?: number;
-  totalCommunities?: number;
-  totalThreads?: number;
-  pendingReports?: number;
-  newUsersToday?: number;
-  newPostsToday?: number;
+  total_users?: number;
+  active_users?: number;
+  total_communities?: number;
+  total_threads?: number;
+  pending_reports?: number;
+  new_users_today?: number;
+  new_posts_today?: number;
   [key: string]: any;
 }
 

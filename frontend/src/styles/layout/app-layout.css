@@ -65,7 +65,8 @@
   min-width: 0;
   border-left: 1px solid var(--border-color);
   border-right: 1px solid var(--border-color);
-  min-height: 100vh;
+  height: calc(100vh - 60px);
+  max-height: calc(100vh - 60px);
   background-color: var(--bg-primary);
   overflow-y: auto;
   scrollbar-width: thin;
@@ -276,7 +277,7 @@
   .app-layout {
     grid-template-columns: 1fr;
     grid-template-areas: "main";
-    margin-bottom: 60px; /* Space for mobile navigation */
+    padding-bottom: 60px;
   }
   
   .sidebar {
@@ -286,7 +287,9 @@
   .main-content {
     border-left: none;
     border-right: none;
-    min-height: calc(100vh - 60px);
+    height: calc(100vh - 120px);
+    max-height: calc(100vh - 120px);
+    padding-bottom: 60px;
   }
   
   .main-content-dark {

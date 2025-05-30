@@ -20,7 +20,7 @@ export interface ITweet {
   // User-related fields
   user_id: string;
   username: string;
-  name: string;              // Was displayName
+  name: string;              // Was display_name
   profile_picture_url: string;  // Was avatar
   
   // Interaction metrics
@@ -34,23 +34,23 @@ export interface ITweet {
   media?: IMedia[];
   
   // Interaction states
-  is_liked: boolean;         // Was isLiked
-  is_reposted: boolean;      // Was isReposted
-  is_bookmarked: boolean;    // Was isBookmarked
-  is_pinned: boolean;        // Was isPinned
+  is_liked: boolean;         // Was is_liked
+  is_reposted: boolean;      // Was is_reposted
+  is_bookmarked: boolean;    // Was is_bookmarked
+  is_pinned: boolean;        // Was is_pinned
   
   // Relations
-  reply_to?: ITweet | null;  // Was replyTo
+  reply_to?: ITweet | null;  // Was reply_to
   
   // Community-related fields
-  community_id?: string | null; // Was communityId
-  community_name?: string | null; // Was communityName
+  community_id?: string | null; // Was community_id
+  community_name?: string | null; // Was community_name
   
   // Additional metadata
-  is_advertisement?: boolean; // Was isAdvertisement
+  is_advertisement?: boolean; // Was is_advertisement
   
   // Legacy fields for backward compatibility (optional)
-  _original_data?: any;      // Was _originalData
+  _original_data?: any;      // Was _original_data
 }
 
 // Trend interface
@@ -58,24 +58,24 @@ export interface ITrend {
   id?: string;
   category: string;
   title: string;
-  post_count: number;       // Was postCount
+  post_count: number;       // Was post_count
 }
 
 // Suggested follow interface
 export interface ISuggestedFollow {
-  user_id: string;          // Was userId
+  user_id: string;          // Was user_id
   username: string;
-  name: string;             // Was displayName
+  name: string;             // Was display_name
   profile_picture_url: string | null; // Was avatar
   is_verified: boolean;     // Was verified
-  follower_count: number;   // Was followerCount
-  is_following?: boolean;   // Was isFollowing
+  follower_count: number;   // Was follower_count
+  is_following?: boolean;   // Was is_following
 }
 
 // Community interface
 export interface ICommunity {
   id: string;
   name: string;
-  member_count: number;     // Was memberCount
+  member_count: number;     // Was member_count
   logo_url: string;         // Was avatar
 }

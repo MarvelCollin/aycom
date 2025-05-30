@@ -8,12 +8,12 @@ type RegisterRequest struct {
 	ConfirmPassword       string `json:"confirm_password" binding:"required,eqfield=Password"`
 	Gender                string `json:"gender" binding:"required"`
 	DateOfBirth           string `json:"date_of_birth" binding:"required"`
-	SecurityQuestion      string `json:"securityQuestion" binding:"required"`
-	SecurityAnswer        string `json:"securityAnswer" binding:"required"`
-	SubscribeToNewsletter bool   `json:"subscribeToNewsletter"`
+	SecurityQuestion      string `json:"security_question" binding:"required"`
+	SecurityAnswer        string `json:"security_answer" binding:"required"`
+	SubscribeToNewsletter bool   `json:"subscribe_to_newsletter"`
 	RecaptchaToken        string `json:"recaptcha_token" binding:"required"`
-	ProfilePictureUrl     string `json:"profile_picture_url,omitempty"`
-	BannerUrl             string `json:"banner_url,omitempty"`
+	ProfilePictureUrl     string `json:"profile_picture_url" binding:"omitempty"`
+	BannerUrl             string `json:"banner_url" binding:"omitempty"`
 }
 
 type LoginRequest struct {
