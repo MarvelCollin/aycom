@@ -280,16 +280,15 @@
       if (!checkAuth()) return;
       
       logger.debug('Fetching bookmarks');
-      const response = await getUserBookmarks(page, limit);
+      const response = await getUserBookmarks('me', page, limit);
       
       console.log('Bookmarks API response:', response);
       
-      if (response && response.bookmarks && Array.isArray(response.bookmarks)) {
-        logger.info(`Received ${response.bookmarks.length} bookmarks from API`);
+      if (response && response.threads && Array.isArray(response.threads)) {
+        logger.info(`Received ${response.threads.length} bookmarks from API`);
         
-        // Convert bookmarks to tweets format - bookmarks are now directly the threads
-        const convertedTweets = response.bookmarks.map(bookmark => {
-          // Each bookmark is already the thread data
+        // Convert bookmarks to tweets format
+        const convertedTweets = response.threads.map(bookmark => {
           const tweet = threadToTweet(bookmark);
           return tweet;
         });

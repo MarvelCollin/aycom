@@ -1428,3 +1428,38 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
     throw error;
   }
 };
+
+export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Promise<any> => {
+  try {
+    const token = getAuthToken();
+    const actualUserId = userId === 'me' ? getUserId() : userId;
+    
+    if (!actualUserId) {
+      throw new Error('User ID is required');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: "include"
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to get bookmarks' }));
+      throw new Error(errorData.message || `Failed to get bookmarks: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return {
+      threads: data.bookmarks || [],
+      total: data.total || 0,
+      pagination: data.pagination || null
+    };
+  } catch (err) {
+    console.error('Error getting user bookmarks:', err);
+    throw err;
+  }
+}
