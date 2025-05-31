@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import type { ITweet } from '../interfaces/ISocialMedia';
 
 // Type for tracking interaction status
-interface InteractionStatus {
+export interface InteractionStatus {
   is_liked: boolean;
   is_bookmarked: boolean;
   is_reposted: boolean;
@@ -21,7 +21,7 @@ const interactionMap = new Map<string, InteractionStatus>();
 // Create the writable store
 const tweetStore = writable({
   interactions: interactionMap,
-    // Method to update multiple tweet interaction properties at once
+  // Method to update multiple tweet interaction properties at once
   updateTweetInteraction: (id: string, updates: Partial<InteractionStatus>) => {
     if (!interactionMap.has(id)) {
       // Initialize if not exists
@@ -54,14 +54,14 @@ const tweetStore = writable({
   // Method to initialize a tweet's interaction state
   initTweet: (tweet: ITweet) => {
     const id = typeof tweet.id === 'number' ? String(tweet.id) : tweet.id;
-      // If we already have data for this tweet, merge with existing data
+    // If we already have data for this tweet, merge with existing data
     const existingData = interactionMap.get(id);
     const newData = {
       is_liked: tweet.is_liked || false,
       is_bookmarked: tweet.is_bookmarked || false,
       is_reposted: tweet.is_reposted || false,
       likes: tweet.likes_count || 0,
-      bookmarks: tweet.bookmarks_count || 0,
+      bookmarks: tweet.bookmark_count || 0,
       reposts: tweet.reposts_count || 0,
       replies: tweet.replies_count || 0
     };

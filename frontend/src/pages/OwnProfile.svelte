@@ -12,7 +12,7 @@
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import ProfileEditModal from '../components/profile/ProfileEditModal.svelte';
   import { formatStorageUrl, isSupabaseStorageUrl } from '../utils/common';
-  import type { ITweet } from '../interfaces/ISocialMedia';
+  import type { ITweet, IFollowUser } from '../interfaces/ISocialMedia';
   
   // Import Feather icons
   import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
@@ -124,8 +124,8 @@
   // Modal state for followers/following
   let showFollowersModal = false;
   let showFollowingModal = false;
-  let followersList = [];
-  let followingList = [];
+  let followersList: IFollowUser[] = [];
+  let followingList: IFollowUser[] = [];
   let isLoadingFollowers = false;
   let isLoadingFollowing = false;
   let followersError = '';
@@ -171,7 +171,7 @@
     const likes_count = thread.likes_count || 0;
     const replies_count = thread.replies_count || 0;
     const reposts_count = thread.reposts_count || 0;
-    const bookmarks_count = thread.bookmarks_count || 0;
+    const bookmark_count = thread.bookmark_count || thread.bookmarks_count || 0;
     const views_count = thread.views_count || 0;
     
     // Normalize interaction states
@@ -191,7 +191,7 @@
       likes_count: likes_count,
       replies_count: replies_count,
       reposts_count: reposts_count,
-      bookmarks_count: bookmarks_count,
+      bookmark_count: bookmark_count,
       views_count: views_count,
       media: thread.media || [],
       is_liked: is_liked,
@@ -1080,6 +1080,40 @@
       isLoading = false;
     }
   });
+
+  function handleFollowerClick(follower: IFollowUser, e: Event) {
+    e.stopPropagation();
+    
+    if (e.target && (e.target as HTMLElement).tagName === 'BUTTON') {
+      // Skip navigation if a button was clicked (like follow/unfollow)
+      return;
+    }
+    
+    window.location.href = `/user/${follower.username}`;
+  }
+
+  function handleFollowerImageError(e: Event) {
+    if (e.target) {
+      (e.target as HTMLImageElement).src = DEFAULT_AVATAR;
+    }
+  }
+
+  function handleFollowingClick(following: IFollowUser, e: Event) {
+    e.stopPropagation();
+    
+    if (e.target && (e.target as HTMLElement).tagName === 'BUTTON') {
+      // Skip navigation if a button was clicked (like follow/unfollow)
+      return;
+    }
+    
+    window.location.href = `/user/${following.username}`;
+  }
+
+  function handleFollowingImageError(e: Event) {
+    if (e.target) {
+      (e.target as HTMLImageElement).src = DEFAULT_AVATAR;
+    }
+  }
 </script>
 
 <MainLayout
@@ -1220,18 +1254,18 @@
                 {/if}
                 <TweetCard 
                   tweet={ensureTweetFormat(post)} 
-                  isDarkMode={isDarkMode} 
-                  isAuthenticated={true}
+                  isDarkMode={isDarkMode}
+                  isAuth={isAuthenticated()}
                   isLiked={post.isLiked || post.is_liked}
                   isReposted={post.isReposted || post.is_repost}
                   isBookmarked={post.isBookmarked || post.is_bookmarked}
-                  on:reply={handleReply}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
                   on:like={handleLike}
                   on:unlike={handleUnlike}
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
+                  on:reply={handleReply}
                   on:loadReplies={handleLoadReplies}
                   replies={repliesMap.get(post.id) || []}
                   showReplies={false}
@@ -1269,18 +1303,18 @@
                 </div>
                 <TweetCard 
                   tweet={ensureTweetFormat(reply)} 
-                  isDarkMode={isDarkMode} 
-                  isAuthenticated={true}
+                  isDarkMode={isDarkMode}
+                  isAuth={isAuthenticated()}
                   isLiked={reply.isLiked || reply.is_liked}
                   isReposted={reply.isReposted || reply.is_repost}
                   isBookmarked={reply.isBookmarked || reply.is_bookmarked}
-                  on:reply={handleReply}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
                   on:like={handleLike}
                   on:unlike={handleUnlike}
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
+                  on:reply={handleReply}
                   on:loadReplies={handleLoadReplies}
                   replies={repliesMap.get(reply.id) || []}
                   showReplies={false}
@@ -1309,18 +1343,18 @@
               <div class="tweet-card-container">
                 <TweetCard 
                   tweet={ensureTweetFormat(like)} 
-                  isDarkMode={isDarkMode} 
-                  isAuthenticated={true}
+                  isDarkMode={isDarkMode}
+                  isAuth={isAuthenticated()}
                   isLiked={like.isLiked || like.is_liked}
                   isReposted={like.isReposted || like.is_repost}
                   isBookmarked={like.isBookmarked || like.is_bookmarked}
-                  on:reply={handleReply}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
                   on:like={handleLike}
                   on:unlike={handleUnlike}
                   on:bookmark={handleBookmark}
                   on:removeBookmark={handleRemoveBookmark}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
+                  on:reply={handleReply}
                   on:loadReplies={handleLoadReplies}
                   replies={repliesMap.get(like.id) || []}
                   showReplies={false}
@@ -1455,22 +1489,28 @@
           </div>
         {:else}
           <div class="user-list">
-            {#each followersList as user (user.id)}
-              <div class="user-item" on:click={() => navigateToProfile(user.username)}>
-                <div class="user-avatar">
+            {#each followersList as follower (follower.id)}
+              <div 
+                class="follower-card {isDarkMode ? 'dark' : ''}" 
+                on:click={(e) => handleFollowerClick(follower, e)} 
+                on:keydown={(e) => e.key === 'Enter' && handleFollowerClick(follower, e)}
+                role="button"
+                tabindex="0"
+              >
+                <div class="follower-avatar">
                   <img 
-                    src={user.profile_picture_url || '/images/default-avatar.png'} 
-                    alt={user.name || user.username}
-                    on:error={(e) => e.target.src = '/images/default-avatar.png'}
+                    src={follower.profile_picture_url || DEFAULT_AVATAR} 
+                    alt={follower.name || follower.username} 
+                    on:error={handleFollowerImageError}
                   />
                 </div>
-                <div class="user-info">
-                  <div class="user-name">{user.name || user.display_name || 'User'}</div>
-                  <div class="user-username">@{user.username}</div>
-                  {#if user.bio}
-                    <div class="user-bio">{user.bio}</div>
-                  {/if}
+                <div class="follower-info">
+                  <div class="follower-name">{follower.name || follower.display_name || 'User'}</div>
+                  <div class="follower-username">@{follower.username}</div>
+                  <div class="follower-bio">{follower.bio || ''}</div>
+                  <p class="follower-bio-preview">{follower.bio || ''}</p>
                 </div>
+                <!-- Follow button UI here -->
               </div>
             {/each}
           </div>
@@ -1510,22 +1550,28 @@
           </div>
         {:else}
           <div class="user-list">
-            {#each followingList as user (user.id)}
-              <div class="user-item" on:click={() => navigateToProfile(user.username)}>
-                <div class="user-avatar">
+            {#each followingList as following (following.id)}
+              <div 
+                class="follower-card {isDarkMode ? 'dark' : ''}" 
+                on:click={(e) => handleFollowingClick(following, e)} 
+                on:keydown={(e) => e.key === 'Enter' && handleFollowingClick(following, e)}
+                role="button"
+                tabindex="0"
+              >
+                <div class="follower-avatar">
                   <img 
-                    src={user.profile_picture_url || '/images/default-avatar.png'} 
-                    alt={user.name || user.username}
-                    on:error={(e) => e.target.src = '/images/default-avatar.png'}
+                    src={following.profile_picture_url || DEFAULT_AVATAR} 
+                    alt={following.name || following.username} 
+                    on:error={handleFollowingImageError}
                   />
                 </div>
-                <div class="user-info">
-                  <div class="user-name">{user.name || user.display_name || 'User'}</div>
-                  <div class="user-username">@{user.username}</div>
-                  {#if user.bio}
-                    <div class="user-bio">{user.bio}</div>
-                  {/if}
+                <div class="follower-info">
+                  <div class="follower-name">{following.name || following.display_name || 'User'}</div>
+                  <div class="follower-username">@{following.username}</div>
+                  <div class="follower-bio">{following.bio || ''}</div>
+                  <p class="follower-bio-preview">{following.bio || ''}</p>
                 </div>
+                <!-- Follow button UI here -->
               </div>
             {/each}
           </div>
@@ -2129,5 +2175,13 @@
   @keyframes slideIn {
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
+  }
+
+  .profile-container .user-bio p.line-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
   }
 </style>

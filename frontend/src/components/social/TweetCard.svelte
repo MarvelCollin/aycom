@@ -1,33 +1,96 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import type { ITweet } from '../../interfaces/ISocialMedia.d.ts';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { isAuthenticated as checkAuth } from '../../utils/auth';
+  import { likeThread, unlikeThread, replyToThread, getReplyReplies, likeReply, unlikeReply, bookmarkThread, removeBookmark } from '../../api/thread';
+  import { tweetInteractionStore } from '../../stores/tweetInteractionStore';
+  import { notificationStore } from '../../stores/notificationStore';
   import { toastStore } from '../../stores/toastStore';
-  import { tweetInteractionStore } from '../../stores/tweetStore';
-  import { formatTimeAgo, processUserMetadata } from '../../utils/common';
-  import { likeThread, unlikeThread, bookmarkThread, removeBookmark, likeReply, unlikeReply, bookmarkReply, removeReplyBookmark, getReplyReplies } from '../../api/thread';
+  import type { ITweet, IMedia } from '../../interfaces/ISocialMedia';
+  import Linkify from '../common/Linkify.svelte';
   
   import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
   import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
   import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
   import BookmarkIcon from 'svelte-feather-icons/src/icons/BookmarkIcon.svelte';
-  import EyeIcon from 'svelte-feather-icons/src/icons/EyeIcon.svelte';
-  import ChevronUpIcon from 'svelte-feather-icons/src/icons/ChevronUpIcon.svelte';
-  import ChevronDownIcon from 'svelte-feather-icons/src/icons/ChevronDownIcon.svelte';
-  import ChevronRightIcon from 'svelte-feather-icons/src/icons/ChevronRightIcon.svelte';
-  import ArrowRightIcon from 'svelte-feather-icons/src/icons/ArrowRightIcon.svelte';
-  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import ChevronLeftIcon from 'svelte-feather-icons/src/icons/ChevronLeftIcon.svelte';
+  import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
+  import ArrowUpIcon from 'svelte-feather-icons/src/icons/ArrowUpIcon.svelte';
+  import AlertTriangleIcon from 'svelte-feather-icons/src/icons/AlertTriangleIcon.svelte';
+  import TrashIcon from 'svelte-feather-icons/src/icons/Trash2Icon.svelte';
+  import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
   import CornerUpRightIcon from 'svelte-feather-icons/src/icons/CornerUpRightIcon.svelte';
 
-  // Define a TypeScript type for a tweet with extended properties
-  type ExtendedTweet = ITweet & { 
-    bookmarked_thread?: any; 
-    [key: string]: any; 
+  // Extended tweet interface for additional properties that might be in the data
+  interface ExtendedTweet extends ITweet {
+    // Fields for retweets and bookmarks
+    retweet_id?: string;
+    threadId?: string;
+    thread_id?: string;
+    tweetId?: string;
+    userId?: string;
+    authorId?: string;
+    author_id?: string;
+    author_username?: string;
+    authorUsername?: string;
+    authorName?: string;
+    avatar?: string;
+    displayName?: string;
+    timestamp?: string;
+    
+    // Legacy metric fields
+    likes?: number;
+    replies?: number;
+    reposts?: number;
+    bookmarks?: number;
+    views?: number;
+    
+    // Legacy interaction state fields
+    isLiked?: boolean;
+    isReposted?: boolean;
+    isBookmarked?: boolean;
+    isPinned?: boolean;
+    
+    // Nested data
+    bookmarked_thread?: any;
+    bookmarked_reply?: any;
+    parent_reply?: any;
+    parent_thread?: any;
+    isComment?: boolean;
+    
+    // User data
+    user?: {
+      id?: string;
+      username?: string;
+      name?: string;
+      profile_picture_url?: string;
+    };
+    thread?: {
+      author?: {
+        id?: string;
+        username?: string;
+        name?: string;
+      };
+    };
+    user_data?: {
+      id?: string;
+      username?: string;
+      name?: string;
+    };
+    author?: {
+      id?: string;
+      username?: string;
+      name?: string;
+      profile_picture_url?: string;
+    };
   }
-
-  export let tweet: ITweet;
+  
+  // Initialize logger
+  const logger = createLoggerWithPrefix('TweetCard');
+  
+  // Reactive tweet store setup
+  export let tweet: ITweet | ExtendedTweet;
   export let isDarkMode: boolean = false;
-  export let isAuthenticated: boolean = false;
+  export let isAuth: boolean = false;
   
   export let isLiked: boolean = false;
   export let isReposted: boolean = false;
@@ -43,7 +106,45 @@
   
   const dispatch = createEventDispatcher();
   
+  // Process the tweet and create a standardized version to work with
   $: processedTweet = processTweetContent(tweet);
+  
+  // Connect to the interaction store
+  $: storeInteraction = $tweetInteractionStore?.get(processedTweet.id);
+  
+  // For interaction states, use the store if available, otherwise use the tweet's values
+  $: effectiveIsLiked = storeInteraction?.is_liked ?? processedTweet.is_liked;
+  $: effectiveIsReposted = storeInteraction?.is_reposted ?? processedTweet.is_reposted;
+  $: effectiveIsBookmarked = storeInteraction?.is_bookmarked ?? processedTweet.is_bookmarked;
+  
+  // For count values, use the store if available, otherwise use the tweet's values
+  $: effectiveLikes = storeInteraction?.likes ?? parseCount(processedTweet.likes_count);
+  $: effectiveReplies = storeInteraction?.replies ?? parseCount(processedTweet.replies_count);
+  $: effectiveReposts = storeInteraction?.reposts ?? parseCount(processedTweet.reposts_count);
+  $: effectiveBookmarks = storeInteraction?.bookmarks ?? parseCount(processedTweet.bookmark_count);
+  
+  // Track loading states for interaction buttons
+  let isLikeLoading = false;
+  let isRepostLoading = false;
+  let isBookmarkLoading = false;
+  let isShowingReplies = showReplies;
+  
+  // For tracking reply loading states
+  let isLoadingReplies = false;
+  let repliesErrorState = false;
+  
+  // For loading nested replies
+  let isLoadingNestedReplies = new Map<string, boolean>();
+  let nestedRepliesErrorState = new Map<string, boolean>();
+  
+  // Current request IDs to prevent race conditions
+  let currentLikeRequestId = 0;
+  let currentRepostRequestId = 0;
+  let currentBookmarkRequestId = 0;
+  
+  // Update the conditional rendering logic to make the replies toggle more visible
+  // First, modify how we determine if a tweet has replies
+  $: hasReplies = effectiveReplies > 0 || parseCount(processedTweet.replies_count) > 0;
   
   $: processedReplies = replies.map(reply => processTweetContent(reply));
   
@@ -67,43 +168,11 @@
   $: {
     if (tweetId) {
       tweetInteractionStore.subscribe(store => {
-        storeInteraction = store.interactions.get(tweetId);
+        storeInteraction = store.get(tweetId);
       });
     }
   }
 
-  // Use store values for interaction counts and status if available
-  $: effectiveIsLiked = storeInteraction?.isLiked ?? isLiked;
-  $: effectiveIsReposted = storeInteraction?.isReposted ?? isReposted;
-  $: effectiveIsBookmarked = storeInteraction?.isBookmarked ?? isBookmarked;
-  
-  // For count values, use the store if available, otherwise use the tweet's values
-  $: effectiveLikes = storeInteraction?.likes ?? parseCount(processedTweet.likes);
-  $: effectiveReplies = storeInteraction?.replies ?? parseCount(processedTweet.replies);
-  $: effectiveReposts = storeInteraction?.reposts ?? parseCount(processedTweet.reposts);
-  $: effectiveBookmarks = storeInteraction?.bookmarks ?? parseCount(processedTweet.bookmarks);
-  
-  // Track loading states for interaction buttons
-  let isLikeLoading = false;
-  let isBookmarkLoading = false;
-  let isRepostLoading = false;
-  
-  // Track error states for retry functionality
-  let likeErrorState = false;
-  let bookmarkErrorState = false;
-  
-  // Request tracking to prevent race conditions
-  let currentLikeRequestId = 0;
-  let currentBookmarkRequestId = 0;
-  let isLikeRequestPending = false;
-  
-  // Update the conditional rendering logic to make the replies toggle more visible
-  // First, modify how we determine if a tweet has replies
-  $: hasReplies = effectiveReplies > 0 || parseCount(processedTweet.replies) > 0;
-  
-  // Track loading and error states for reply actions
-  let replyActionsLoading = new Map<string, { like?: boolean, bookmark?: boolean }>();
-  
   function isValidUsername(username: string | undefined | null): boolean {
     return !!username && 
            username !== 'anonymous' && 
@@ -120,294 +189,229 @@
            name !== 'undefined';
   }
 
-  function processTweetContent(originalTweet: ITweet): ITweet {
-    console.log('Processing tweet content for tweet:', originalTweet.id, {
-      rawTweet: originalTweet,
-      hasUsername: !!originalTweet.username,
-      hasDisplayName: !!originalTweet.displayName,
-      hasAuthorId: !!originalTweet.authorId,
-      hasUserId: !!originalTweet.userId,
-      threadInfo: originalTweet.thread || originalTweet.threadInfo,
-      author_id: originalTweet.author_id,
-      user_id: originalTweet.user_id
-    });
-    
-    const processedTweet = { ...originalTweet };
-    
-    // Clean up any "no reply" text that might be in the username field
-    if (processedTweet.username === 'no reply') {
-      processedTweet.username = '';
+  function processTweetContent(rawTweet: any): ExtendedTweet {
+    if (!rawTweet) {
+      console.error('Invalid tweet data provided to processTweetContent:', rawTweet);
+      return createPlaceholderTweet();
     }
     
-    // Store the original ID as tweetId if not already set
-    if (processedTweet.id && !processedTweet.tweetId) {
-      processedTweet.tweetId = String(processedTweet.id);
-    }
-    
-    // When tweet comes from a bookmarked thread, extract the actual author information
-    if (processedTweet.thread_id && !isValidUsername(processedTweet.username)) {
-      console.log(`[${processedTweet.id}] This appears to be a bookmarked tweet with thread_id`, processedTweet.thread_id);
-    }
-    
-    // Extract author information from all possible locations
-    
-    // Check for embedded author object
-    if (processedTweet.author && typeof processedTweet.author === 'object') {
-      console.log(`[${processedTweet.id}] Found author object`, processedTweet.author);
-      if (isValidUsername(processedTweet.author.username) && !isValidUsername(processedTweet.username)) {
-        console.log(`[${processedTweet.id}] Using author.username:`, processedTweet.author.username);
-        processedTweet.username = String(processedTweet.author.username || '');
-      }
-      if (isValidDisplayName(processedTweet.author.name) && !isValidDisplayName(processedTweet.displayName)) {
-        console.log(`[${processedTweet.id}] Using author.name:`, processedTweet.author.name);
-        processedTweet.displayName = String(processedTweet.author.name || '');
-      }
-    }
-    
-    // Check if thread or reply object contains author information
-    if (processedTweet.thread && typeof processedTweet.thread === 'object') {
-      console.log(`[${processedTweet.id}] Found thread object`, processedTweet.thread);
-      if (processedTweet.thread.author) {
-        const threadAuthor = processedTweet.thread.author;
-        // Extract from thread author if available
-        if (threadAuthor.username && !processedTweet.username) {
-          console.log(`[${processedTweet.id}] Using thread.author.username:`, threadAuthor.username);
-          processedTweet.username = threadAuthor.username;
-        }
-        if (threadAuthor.name && !processedTweet.displayName) {
-          console.log(`[${processedTweet.id}] Using thread.author.name:`, threadAuthor.name);
-          processedTweet.displayName = threadAuthor.name;
-        }
-        if (threadAuthor.id && !processedTweet.userId) {
-          console.log(`[${processedTweet.id}] Using thread.author.id:`, threadAuthor.id);
-          processedTweet.userId = threadAuthor.id;
-        }
-        if (threadAuthor.profile_picture_url && !processedTweet.avatar) {
-          console.log(`[${processedTweet.id}] Using thread.author.profile_picture_url`);
-          processedTweet.avatar = threadAuthor.profile_picture_url;
-        }
-      }
-    }
-    
-    // Check if user or author object contains information
-    if (processedTweet.user && typeof processedTweet.user === 'object') {
-      console.log(`[${processedTweet.id}] Found user object`, processedTweet.user);
-      const user = processedTweet.user;
-      // Extract from user if available
-      if (user.username && !processedTweet.username) {
-        console.log(`[${processedTweet.id}] Using user.username:`, user.username);
-        processedTweet.username = user.username;
-      }
-      if (user.name && !processedTweet.displayName) {
-        console.log(`[${processedTweet.id}] Using user.name:`, user.name);
-        processedTweet.displayName = user.name;
-      }
-      if (user.id && !processedTweet.userId) {
-        console.log(`[${processedTweet.id}] Using user.id:`, user.id);
-        processedTweet.userId = user.id;
-      }
-      if (user.profile_picture_url && !processedTweet.avatar) {
-        console.log(`[${processedTweet.id}] Using user.profile_picture_url`);
-        processedTweet.avatar = user.profile_picture_url;
-      }
-    }
-    
-    // Handle user ID fields - use snake_case variants too
-    if (processedTweet.authorId && !processedTweet.userId) {
-      console.log(`[${processedTweet.id}] Using authorId as userId:`, processedTweet.authorId);
-      processedTweet.userId = processedTweet.authorId;
-    } else if (processedTweet.author_id && !processedTweet.userId) {
-      console.log(`[${processedTweet.id}] Using author_id as userId:`, processedTweet.author_id);
-      processedTweet.userId = processedTweet.author_id;
-    } else if (processedTweet.user_id && !processedTweet.userId) {
-      console.log(`[${processedTweet.id}] Using user_id as userId:`, processedTweet.user_id);
-      processedTweet.userId = processedTweet.user_id;
-    }
-    
-    // Handle username fields - try camelCase and snake_case
-    if (processedTweet.authorUsername && !processedTweet.username) {
-      console.log(`[${processedTweet.id}] Using authorUsername as username:`, processedTweet.authorUsername);
-      processedTweet.username = processedTweet.authorUsername;
-    } else if (processedTweet.author_username && !processedTweet.username) {
-      console.log(`[${processedTweet.id}] Using author_username as username:`, processedTweet.author_username);
-      processedTweet.username = processedTweet.author_username;
-    }
-    
-    // Handle display name fields - try all variants with different cases
-    if (processedTweet.authorName && !processedTweet.displayName) {
-      console.log(`[${processedTweet.id}] Using authorName as displayName:`, processedTweet.authorName);
-      processedTweet.displayName = processedTweet.authorName;
-    } else if (processedTweet.author_name && !processedTweet.displayName) {
-      console.log(`[${processedTweet.id}] Using author_name as displayName:`, processedTweet.author_name);
-      processedTweet.displayName = processedTweet.author_name;
-    } else if (processedTweet.name && !processedTweet.displayName) {
-      console.log(`[${processedTweet.id}] Using name as displayName:`, processedTweet.name);
-      processedTweet.displayName = processedTweet.name;
-    } else if (processedTweet.display_name && !processedTweet.displayName) {
-      console.log(`[${processedTweet.id}] Using display_name as displayName:`, processedTweet.display_name);
-      processedTweet.displayName = processedTweet.display_name;
-    }
-    
-    // Handle avatar/profile picture - try all variants
-    if (processedTweet.authorAvatar && !processedTweet.avatar) {
-      console.log(`[${processedTweet.id}] Using authorAvatar as avatar`);
-      processedTweet.avatar = processedTweet.authorAvatar;
-    } else if (processedTweet.author_avatar && !processedTweet.avatar) {
-      console.log(`[${processedTweet.id}] Using author_avatar as avatar`);
-      processedTweet.avatar = processedTweet.author_avatar;
-    } else if (processedTweet.profile_picture_url && !processedTweet.avatar) {
-      console.log(`[${processedTweet.id}] Using profile_picture_url as avatar:`, processedTweet.profile_picture_url);
-      processedTweet.avatar = processedTweet.profile_picture_url;
-    }
-    
-    // If timestamp is in created_at but not in timestamp field
-    if (processedTweet.created_at && !processedTweet.timestamp) {
-      console.log(`[${processedTweet.id}] Using created_at as timestamp`);
-      processedTweet.timestamp = processedTweet.created_at;
-    }
-    
-    // Process content for embedded metadata if still missing key fields
-    if ((typeof processedTweet.content === 'string') && 
-        (!processedTweet.username || processedTweet.username === 'anonymous' || 
-         processedTweet.username === 'user' || processedTweet.username === 'unknown')) {
-      console.log(`[${processedTweet.id}] Extracting username/displayName from content`);
-      const processed = processUserMetadata(processedTweet.content);
+    try {
+      // Make a deep copy to avoid modifying the original
+      const processed: ExtendedTweet = {
+        ...rawTweet,
+        // Ensure all required ITweet fields exist with fallbacks
+        id: rawTweet.id || rawTweet.thread_id || rawTweet.threadId || `unknown-${Date.now()}`,
+        content: rawTweet.content || rawTweet.Content || '',
+        created_at: rawTweet.created_at || rawTweet.CreatedAt || new Date().toISOString(),
+        updated_at: rawTweet.updated_at || rawTweet.UpdatedAt,
+        
+        // User information with extensive fallbacks
+        user_id: extractUserId(rawTweet),
+        username: extractUsername(rawTweet),
+        name: extractDisplayName(rawTweet),
+        profile_picture_url: extractProfilePicture(rawTweet),
+        
+        // Interaction metrics with fallbacks
+        likes_count: safeParseNumber(rawTweet.likes_count || rawTweet.LikesCount || rawTweet.LikeCount || rawTweet.like_count || rawTweet.metrics?.likes),
+        replies_count: safeParseNumber(rawTweet.replies_count || rawTweet.RepliesCount || rawTweet.ReplyCount || rawTweet.reply_count || rawTweet.metrics?.replies),
+        reposts_count: safeParseNumber(rawTweet.reposts_count || rawTweet.RepostsCount || rawTweet.RepostCount || rawTweet.repost_count || rawTweet.metrics?.reposts),
+        bookmark_count: safeParseNumber(rawTweet.bookmark_count || rawTweet.BookmarkCount || rawTweet.bookmarks_count || rawTweet.metrics?.bookmarks),
+        
+        // Interaction states with fallbacks
+        is_liked: Boolean(rawTweet.is_liked || rawTweet.IsLiked || rawTweet.liked_by_user || rawTweet.LikedByUser || false),
+        is_reposted: Boolean(rawTweet.is_reposted || rawTweet.IsReposted || rawTweet.reposted_by_user || rawTweet.RepostedByUser || rawTweet.is_repost || false),
+        is_bookmarked: Boolean(rawTweet.is_bookmarked || rawTweet.IsBookmarked || rawTweet.bookmarked_by_user || rawTweet.BookmarkedByUser || false),
+        is_pinned: Boolean(rawTweet.is_pinned || rawTweet.IsPinned || rawTweet.pinned || false),
+        
+        // Media with validation
+        media: validateMedia(rawTweet.media || rawTweet.Media || []),
+        
+        // Other fields with fallbacks
+        parent_id: rawTweet.parent_id || rawTweet.ParentID || rawTweet.parent_thread_id || null,
+        community_id: rawTweet.community_id || rawTweet.CommunityID || null,
+        community_name: rawTweet.community_name || rawTweet.CommunityName || null
+      };
       
-      if (processed.username && !processedTweet.username) {
-        console.log(`[${processedTweet.id}] Extracted username from content:`, processed.username);
-        processedTweet.username = processed.username;
-      }
-      
-      if (processed.displayName && !processedTweet.displayName) {
-        console.log(`[${processedTweet.id}] Extracted displayName from content:`, processed.displayName);
-        processedTweet.displayName = processed.displayName;
-      }
-      
-      processedTweet.content = processed.content;
+      return processed;
+    } catch (error) {
+      console.error('Error processing tweet content:', error, rawTweet);
+      return createPlaceholderTweet();
     }
-    
-    // Handle special case - if username is 'anonymous' try to find a better username
-    if (processedTweet.username === 'anonymous') {
-      console.log(`[${processedTweet.id}] Found 'anonymous' username, searching for better alternatives`);
-      
-      // Look in user_data if it exists
-      if (processedTweet.user_data && typeof processedTweet.user_data === 'object') {
-        if (isValidUsername(processedTweet.user_data.username)) {
-          console.log(`[${processedTweet.id}] Using user_data.username instead of anonymous:`, processedTweet.user_data.username);
-          processedTweet.username = String(processedTweet.user_data.username || '');
-        }
-        if (isValidDisplayName(processedTweet.user_data.name)) {
-          console.log(`[${processedTweet.id}] Using user_data.name:`, processedTweet.user_data.name);
-          processedTweet.displayName = String(processedTweet.user_data.name || '');
-        }
-      }
-      
-      // Try to extract username from the URL if it exists in content
-      if (processedTweet.content && processedTweet.content.includes('/profile/') && !isValidUsername(processedTweet.username)) {
-        const urlMatch = processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/);
-        if (urlMatch && urlMatch[1]) {
-          console.log(`[${processedTweet.id}] Extracted username from profile URL:`, urlMatch[1]);
-          processedTweet.username = urlMatch[1];
-        }
-      }
-    }
-    
-    // Modify the final username/displayName checks to use the helper methods
-    if (!isValidUsername(processedTweet.username)) {
-      console.warn(`⚠️ [${processedTweet.id}] USING FALLBACK for username! No valid username found in:`, {
-        username: originalTweet.username,
-        authorUsername: originalTweet.authorUsername,
-        author_username: originalTweet.author_username,
-        extractedFromURL: processedTweet.content && processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/) 
-          ? processedTweet.content.match(/\/profile\/([a-zA-Z0-9_]+)/)?.[1] || null 
-          : null
-      });
-      
-      // If this is a bookmarked tweet, try to extract author info from content or metadata
-      if (processedTweet.content && processedTweet.content.includes('wrote:')) {
-        const contentMatch = processedTweet.content.match(/([a-zA-Z0-9_]+)\s+wrote:/);
-        if (contentMatch && contentMatch[1]) {
-          console.log(`[${processedTweet.id}] Extracted username from content:`, contentMatch[1]);
-          processedTweet.username = contentMatch[1];
-          // Also try to extract display name if we can
-          if (!isValidDisplayName(processedTweet.displayName) && processedTweet.content.includes('(')) {
-            const nameMatch = processedTweet.content.match(/\(([^)]+)\)/);
-            if (nameMatch && nameMatch[1]) {
-              console.log(`[${processedTweet.id}] Extracted display name from content:`, nameMatch[1]);
-              processedTweet.displayName = nameMatch[1];
-            }
-          }
-        } else {
-          processedTweet.username = 'user';
-        }
-      } else {
-        processedTweet.username = 'user';
-      }
-    }
-    
-    if (!isValidDisplayName(processedTweet.displayName)) {
-      console.warn(`⚠️ [${processedTweet.id}] USING FALLBACK for displayName! No valid display name found in:`, {
-        displayName: originalTweet.displayName,
-        authorName: originalTweet.authorName,
-        author_name: originalTweet.author_name,
-        name: originalTweet.name,
-        display_name: originalTweet.display_name
-      });
-      processedTweet.displayName = 'User';
-    }
-    
-    if (!processedTweet.avatar) {
-      console.log(`[${processedTweet.id}] No avatar found, using null`);
-      processedTweet.avatar = null;
-    }
-    
-    console.log('Tweet processing result:', {
-      id: processedTweet.id,
-      username: processedTweet.username,
-      displayName: processedTweet.displayName,
-      hasAvatar: !!processedTweet.avatar
-    });
-    
-    return processedTweet;
   }
   
-  function formatTimestamp(timestamp: string): string {
+  // Helper function to create a placeholder tweet when data is invalid
+  function createPlaceholderTweet(): ExtendedTweet {
+    return {
+      id: `error-${Date.now()}`,
+      content: 'Error loading content',
+      created_at: new Date().toISOString(),
+      user_id: '',
+      username: 'error',
+      name: 'Error Loading Data',
+      profile_picture_url: 'https://secure.gravatar.com/avatar/0?d=mp',
+      likes_count: 0,
+      replies_count: 0,
+      reposts_count: 0,
+      bookmark_count: 0,
+      is_liked: false,
+      is_reposted: false,
+      is_bookmarked: false,
+      is_pinned: false,
+      parent_id: null,
+      media: []
+    };
+  }
+  
+  // Helper function to extract user ID with fallbacks
+  function extractUserId(rawTweet: any): string {
+    return rawTweet.user_id || 
+      rawTweet.UserID || 
+      rawTweet.userId ||
+      rawTweet.author_id || 
+      rawTweet.authorId ||
+      rawTweet.user?.id || 
+      rawTweet.author?.id ||
+      rawTweet.thread?.author?.id ||
+      rawTweet.user_data?.id || 
+      '';
+  }
+  
+  // Helper function to extract username with fallbacks
+  function extractUsername(rawTweet: any): string {
+    return rawTweet.username || 
+      rawTweet.Username || 
+      rawTweet.author_username || 
+      rawTweet.authorUsername ||
+      rawTweet.user?.username || 
+      rawTweet.author?.username ||
+      rawTweet.thread?.author?.username ||
+      rawTweet.user_data?.username || 
+      'anonymous';
+  }
+  
+  // Helper function to extract display name with fallbacks
+  function extractDisplayName(rawTweet: any): string {
+    return rawTweet.name || 
+      rawTweet.DisplayName || 
+      rawTweet.display_name || 
+      rawTweet.authorName ||
+      rawTweet.author_name ||
+      rawTweet.user?.name || 
+      rawTweet.user?.display_name ||
+      rawTweet.author?.name ||
+      rawTweet.thread?.author?.name ||
+      rawTweet.user_data?.name || 
+      'User';
+  }
+  
+  // Helper function to extract profile picture with fallbacks
+  function extractProfilePicture(rawTweet: any): string {
+    const picUrl = rawTweet.profile_picture_url || 
+      rawTweet.ProfilePicture || 
+      rawTweet.author_avatar || 
+      rawTweet.avatar ||
+      rawTweet.user?.profile_picture_url ||
+      rawTweet.author?.profile_picture_url ||
+      rawTweet.user_data?.profile_picture_url;
+      
+    if (!picUrl) return 'https://secure.gravatar.com/avatar/0?d=mp';
+    
+    // If already a full URL, return as is
+    if (picUrl.startsWith('http')) return picUrl;
+    
+    // Try to construct a proper URL
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+      return `${supabaseUrl}/storage/v1/object/public/tpaweb/${picUrl}`;
+    } catch (e) {
+      return 'https://secure.gravatar.com/avatar/0?d=mp';
+    }
+  }
+  
+  // Helper function to safely parse numbers
+  function safeParseNumber(value: any): number {
+    if (value === undefined || value === null) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = parseInt(value, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  }
+  
+  // Helper function to validate media
+  function validateMedia(media: any): IMedia[] {
+    if (!Array.isArray(media)) {
+      try {
+        // Try to parse if it's a string
+        if (typeof media === 'string') {
+          const parsed = JSON.parse(media);
+          if (Array.isArray(parsed)) return parsed;
+        }
+        return [];
+      } catch (e) {
+        return [];
+      }
+    }
+    
+    // Filter out invalid media items
+    return media.filter(item => item && item.url).map(item => ({
+      id: item.id || `media-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      url: item.url,
+      type: item.type || 'image',
+      thumbnail: item.thumbnail || item.url,
+      alt: item.alt || 'Media attachment'
+    }));
+  }
+  
+  // Helper function to format timestamp (custom implementation instead of timeago.js)
+  function formatTimeAgo(timestamp: string | undefined): string {
+    if (!timestamp) return '';
+    
     try {
       const date = new Date(timestamp);
-      
-      if (isNaN(date.getTime())) {
-        return 'now';
-      }
-      
       const now = new Date();
       const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
       
-      if (seconds < 0) return 'now';
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return '';
+      }
       
-      let interval = seconds / 31536000;
-      if (interval > 1) {
-        return Math.floor(interval) + 'y';
+      // Less than a minute
+      if (seconds < 60) {
+        return 'just now';
       }
-      interval = seconds / 2592000;
-      if (interval > 1) {
-        return Math.floor(interval) + 'mo';
+      
+      // Less than an hour
+      if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        return `${minutes}m`;
       }
-      interval = seconds / 86400;
-      if (interval > 1) {
-        return Math.floor(interval) + 'd';
+      
+      // Less than a day
+      if (seconds < 86400) {
+        const hours = Math.floor(seconds / 3600);
+        return `${hours}h`;
       }
-      interval = seconds / 3600;
-      if (interval > 1) {
-        return Math.floor(interval) + 'h';
+      
+      // Less than a week
+      if (seconds < 604800) {
+        const days = Math.floor(seconds / 86400);
+        return `${days}d`;
       }
-      interval = seconds / 60;
-      if (interval > 1) {
-        return Math.floor(interval) + 'm';
+      
+      // Format as date
+      const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+      // Add year if it's not the current year
+      if (date.getFullYear() !== now.getFullYear()) {
+        options.year = 'numeric';
       }
-      return Math.floor(seconds) + 's';
-    } catch (error) {
-      console.error('Error formatting timestamp:', error);
-      return 'now';
+      
+      return date.toLocaleDateString(undefined, options);
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return '';
     }
   }
 
@@ -429,7 +433,7 @@
   }
 
   function handleReply() {
-    if (!isAuthenticated) {
+    if (!checkAuth()) {
       toastStore.showToast('Please log in to reply to posts', 'info');
       return;
     }
@@ -449,7 +453,7 @@
   }
 
   async function handleRetweet() {
-    if (!isAuthenticated) {
+    if (!checkAuth()) {
       toastStore.showToast('Please log in to repost', 'info');
       return;
     }
@@ -463,80 +467,60 @@
     dispatch('repost', tweetId);
   }
 
-  // Handle like/unlike action
+  // Handle like/unlike
   async function handleLikeClick() {
-    if (!isAuthenticated) {
-      toastStore.showToast('Please log in to like posts', 'info');
+    if (!checkAuth()) {
+      dispatch('like');
       return;
     }
-
-    if (isLikeLoading || isLikeRequestPending) {
-      console.log('Like request already in progress, ignoring click');
-      return;
-    }
-
-    const requestId = ++currentLikeRequestId;
-    isLikeRequestPending = true;
+    
+    if (isLikeLoading) return;
     isLikeLoading = true;
-    likeErrorState = false;
-
-    // Determine if we're liking or unliking
-    const isLiking = !effectiveIsLiked;
-    const action = isLiking ? 'like' : 'unlike';
-
+    repliesErrorState = false;
+    
+    // Create a unique request ID to track this request
+    const requestId = ++currentLikeRequestId;
+    let isLikeRequestPending = true;
+    
     try {
-      // Optimistically update UI
+      // Optimistically update UI first
+      const newStatus = !effectiveIsLiked;
+      const newCount = newStatus ? effectiveLikes + 1 : effectiveLikes - 1;
+      
+      // Optimistically update the store
       tweetInteractionStore.updateTweetInteraction(tweetId, {
-        isLiked: isLiking,
-        likes: effectiveLikes + (isLiking ? 1 : -1),
-        pendingLike: true
+        is_liked: newStatus,
+        likes: newCount,
+        pending_like: true
       });
-
-      console.log(`${action} action started for tweet ${tweetId}, isLiking=${isLiking}`);
-
-      // Make API call
-      if (isLiking) {
-        await likeThread(tweetId);
-      } else {
-        await unlikeThread(tweetId);
-      }
-
-      // If this is still the most recent request
+      
+      // Make the API call
+      const apiCall = newStatus ? likeThread : unlikeThread;
+      await apiCall(tweetId);
+      
+      // Only update if this is still the current request
       if (requestId === currentLikeRequestId) {
-        console.log(`${action} action completed successfully for tweet ${tweetId}`);
-        // Update the store to remove pending state
+        // Update the store with the final state
         tweetInteractionStore.updateTweetInteraction(tweetId, {
-          pendingLike: false
+          is_liked: newStatus,
+          likes: newCount,
+          pending_like: false
         });
       }
     } catch (error) {
-      console.error(`Error ${action}ing tweet:`, error);
+      console.error('Error toggling like:', error);
       
-      // Only revert UI if this is the most recent request
       if (requestId === currentLikeRequestId) {
-        // Check if this was an "already in state" error - don't revert the UI in that case
-        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
-        const isAlreadyInState = (isLiking && errorMsg.includes('already liked')) || 
-                              (!isLiking && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
+        // Revert the optimistic update
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+          is_liked: !effectiveIsLiked,
+          likes: effectiveIsLiked ? effectiveLikes + 1 : effectiveLikes - 1,
+          pending_like: false
+        });
         
-        if (!isAlreadyInState) {
-          // Revert optimistic update
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            isLiked: !isLiking,
-            likes: effectiveLikes,
-            pendingLike: false
-          });
-          likeErrorState = true;
-          toastStore.showToast(`Failed to ${action} the tweet. Please try again.`, 'error', 5000);
-        } else {
-          // If it was already in the desired state, just update the UI to match reality
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            pendingLike: false
-          });
-        }
+          repliesErrorState = true;
       }
     } finally {
-      // Only reset loading state if this is the most recent request
       if (requestId === currentLikeRequestId) {
         isLikeLoading = false;
         isLikeRequestPending = false;
@@ -544,111 +528,48 @@
     }
   }
 
-  async function handleBookmark() {
+  // Handle bookmark toggle
+  async function toggleBookmarkStatus(event: Event) {
+    event.stopPropagation();
+    
     if (!isAuthenticated) {
-      toastStore.showToast('Please log in to bookmark posts', 'info');
+      toastStore.showToast('Please log in to bookmark tweets', 'error');
       return;
     }
     
-    // Prevent concurrent bookmark operations
-    if (isBookmarkLoading) {
-      return;
-    }
+    // Determine the current status
+    const status = storeInteraction?.is_bookmarked || processedTweet.is_bookmarked || false;
     
-    isBookmarkLoading = true;
-    bookmarkErrorState = false;
-    const requestId = ++currentBookmarkRequestId;
+    // Update the UI optimistically
+    tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+      is_bookmarked: !status,
+      bookmarks: !status ? effectiveBookmarks + 1 : effectiveBookmarks - 1,
+      pending_bookmark: true
+    });
     
     try {
-      // Ensure we have a valid ID
-      if (!tweetId) {
-        console.error('Cannot bookmark/unbookmark: Missing tweet ID');
-        toastStore.showToast('Cannot process action: Invalid tweet ID', 'error');
-        return;
-      }
-      
-      // Set optimistic UI update based on current state
-      const newBookmarkState = !effectiveIsBookmarked;
-      
-      // Optimistic UI update through the store
-      tweetInteractionStore.updateTweetInteraction(tweetId, {
-        isBookmarked: newBookmarkState,
-        bookmarks: effectiveBookmarks + (newBookmarkState ? 1 : -1),
-        pendingBookmark: true
-      });
-      
-      // Trigger proper event using a string ID
-      if (newBookmarkState) {
-        dispatch('bookmark', String(tweetId));
+      if (!status) {
+        await bookmarkThread(processedTweet.id);
+        toastStore.showToast('Tweet bookmarked', 'success');
       } else {
-        dispatch('removeBookmark', String(tweetId));
+        await removeBookmark(processedTweet.id);
+        toastStore.showToast('Bookmark removed', 'success');
       }
       
-      // Call the appropriate API
-      try {
-        if (newBookmarkState) {
-          await bookmarkThread(String(tweetId));
-        } else {
-          await removeBookmark(String(tweetId));
-        }
-        
-        // Only update state if this is still the most recent request
-        if (requestId !== currentBookmarkRequestId) {
-          console.log('Ignoring stale bookmark response', requestId, currentBookmarkRequestId);
-          return;
-        }
-        
-        // Update the store to remove pending state
-        tweetInteractionStore.updateTweetInteraction(tweetId, {
-          pendingBookmark: false
-        });
-        
-        // Clear any error state on success
-        bookmarkErrorState = false;
-      } catch (error) {
-        console.error(`Error ${newBookmarkState ? 'bookmarking' : 'unbookmarking'} thread:`, error);
-        
-        // Only revert UI if this is still the most recent request
-        if (requestId !== currentBookmarkRequestId) {
-          console.log('Ignoring stale bookmark error', requestId, currentBookmarkRequestId);
-          return;
-        }
-        
-        // Check for already bookmarked/unbookmarked scenarios - don't revert the UI
-        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
-        const isAlreadyInState = (newBookmarkState && errorMsg.includes('already bookmarked')) || 
-                                (!newBookmarkState && (errorMsg.includes('not bookmarked') || errorMsg.includes('not found')));
-        
-        if (!isAlreadyInState) {
-          // Set error state for retry functionality
-          bookmarkErrorState = true;
-          
-          // Revert the optimistic update
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            isBookmarked: !newBookmarkState,
-            bookmarks: effectiveBookmarks,
-            pendingBookmark: false
-          });
-          
-          // Notify user
-          const errorMessage = error instanceof Error ? error.message : `Failed to ${newBookmarkState ? 'bookmark' : 'remove bookmark'}. Please try again.`;
-          toastStore.showToast(errorMessage, 'error', 5000);
-        } else {
-          // If it was already in the desired state, just update the UI to match reality
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            pendingBookmark: false
-          });
-        }
-      }
+      // Confirm the update was successful
+      tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+        pending_bookmark: false
+      });
     } catch (error) {
-      console.error('Unhandled error in handleBookmark:', error);
-      toastStore.showToast('An unexpected error occurred. Please try again later.', 'error', 5000);
-      bookmarkErrorState = true;
-    } finally {
-      // Only reset loading state if this is still the most recent request
-      if (requestId === currentBookmarkRequestId) {
-        isBookmarkLoading = false;
-      }
+      console.error('Error toggling bookmark:', error);
+      toastStore.showToast('Failed to update bookmark', 'error');
+          
+      // Revert the optimistic update
+      tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+        is_bookmarked: status,
+        bookmarks: status ? effectiveBookmarks + 1 : effectiveBookmarks - 1,
+        pending_bookmark: false
+      });
     }
   }
 
@@ -848,7 +769,7 @@
 
   async function handleLikeReply(replyId: any) {
     try {
-      if (!isAuthenticated) {
+      if (!checkAuth()) {
         showLoginModal();
         return;
       }
@@ -903,7 +824,7 @@
 
   async function handleUnlikeReply(replyId: any) {
     try {
-      if (!isAuthenticated) {
+      if (!checkAuth()) {
         showLoginModal();
         return;
       }
@@ -958,7 +879,7 @@
 
   async function handleBookmarkReply(replyId: any) {
     try {
-      if (!isAuthenticated) {
+      if (!checkAuth()) {
         showLoginModal();
         return;
       }
@@ -983,7 +904,7 @@
       
       // Call API
       try {
-        await bookmarkReply(String(replyId));
+        await likeReply(String(replyId));
       } catch (error) {
         console.error('Error bookmarking reply:', error);
         
@@ -1013,7 +934,7 @@
 
   async function handleUnbookmarkReply(replyId: any) {
     try {
-      if (!isAuthenticated) {
+      if (!checkAuth()) {
         showLoginModal();
         return;
       }
@@ -1038,7 +959,7 @@
       
       // Call API
       try {
-        await removeReplyBookmark(String(replyId));
+        await unlikeReply(String(replyId));
       } catch (error) {
         console.error('Error unbookmarking reply:', error);
         
@@ -1242,6 +1163,51 @@
       }
     }
   }
+
+  // Create a copy of isAuthenticated from the parameter to avoid redeclaration
+  $: isAuthenticated = isAuth;
+
+  // Handle repost/unrepost
+  async function handleRepostClick(event: Event) {
+    event.stopPropagation();
+    
+    if (!checkAuth()) {
+      toastStore.showToast('Please log in to repost', 'error');
+      return;
+    }
+    
+    const status = storeInteraction?.is_reposted || processedTweet.is_reposted || false;
+    
+    // Update UI optimistically
+    tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+      is_reposted: !status,
+      reposts: !status ? effectiveReposts + 1 : effectiveReposts - 1,
+      pending_repost: true
+    });
+    
+    try {
+      if (!status) {
+        dispatch('repost');
+      } else {
+        dispatch('unrepost');
+      }
+      
+      // Final update
+      tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+        pending_repost: false
+      });
+    } catch (error) {
+      console.error('Error toggling repost:', error);
+      toastStore.showToast('Failed to update repost', 'error');
+      
+      // Revert the optimistic update
+      tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+        is_reposted: status,
+        reposts: status ? effectiveReposts + 1 : effectiveReposts - 1,
+        pending_repost: false
+      });
+    }
+  }
 </script>
 
 <div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}">
@@ -1353,7 +1319,7 @@
             <div class="tweet-action-item">
               <button 
                 class="tweet-action-btn tweet-repost-btn {effectiveIsReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleRetweet}
+                on:click|stopPropagation={handleRepostClick}
                 aria-label="{effectiveIsReposted ? 'Undo repost' : 'Repost'}"
               >
                 <RefreshCwIcon size="20" class="tweet-action-icon" />
@@ -1380,7 +1346,7 @@
             <div class="tweet-action-item">
               <button 
                 class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isBookmarkLoading ? 'loading' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleBookmark}
+                on:click|stopPropagation={toggleBookmarkStatus}
                 aria-label="{effectiveIsBookmarked ? 'Remove bookmark' : 'Bookmark'}"
                 disabled={isBookmarkLoading}
               >

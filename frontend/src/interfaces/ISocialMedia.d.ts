@@ -3,54 +3,54 @@ import type { IUserProfile } from './IUser';
 
 // Media interface
 export interface IMedia {
-  id?: string;
+  id: string;
   url: string;
   type: string;
+  thumbnail?: string;
   alt?: string;
 }
 
-// Tweet/Post interface
+// Thread/Tweet interface
 export interface ITweet {
   // Core fields
   id: string;
-  thread_id: string;
   content: string;
   created_at: string;        // ISO timestamp
+  updated_at?: string;
   
   // User-related fields
   user_id: string;
   username: string;
-  name: string;              // Was display_name
-  profile_picture_url: string;  // Was avatar
+  name: string;             
+  profile_picture_url: string;
   
   // Interaction metrics
-  likes_count: number;       // Was likes
-  replies_count: number;     // Was replies
-  reposts_count: number;     // Was reposts
-  bookmarks_count: number;   // Was bookmarks
-  views_count: number;       // Was views
+  likes_count: number;       
+  replies_count: number;     
+  reposts_count: number;     
+  bookmark_count: number;    
+  views_count?: number;       
   
   // Media
   media?: IMedia[];
   
   // Interaction states
-  is_liked: boolean;         // Was is_liked
-  is_reposted: boolean;      // Was is_reposted
-  is_bookmarked: boolean;    // Was is_bookmarked
-  is_pinned: boolean;        // Was is_pinned
+  is_liked: boolean;         
+  is_reposted: boolean;      
+  is_bookmarked: boolean;    
+  is_pinned: boolean;        
   
   // Relations
-  reply_to?: ITweet | null;  // Was reply_to
+  parent_id?: string | null; 
+  thread_id?: string;
+  reply_to?: ITweet | null;
   
   // Community-related fields
-  community_id?: string | null; // Was community_id
-  community_name?: string | null; // Was community_name
+  community_id?: string | null;
+  community_name?: string | null;
   
   // Additional metadata
-  is_advertisement?: boolean; // Was is_advertisement
-  
-  // Legacy fields for backward compatibility (optional)
-  _original_data?: any;      // Was _original_data
+  is_advertisement?: boolean;
 }
 
 // Trend interface
@@ -58,24 +58,35 @@ export interface ITrend {
   id?: string;
   category: string;
   title: string;
-  post_count: number;       // Was post_count
+  post_count: number;
 }
 
 // Suggested follow interface
 export interface ISuggestedFollow {
-  user_id: string;          // Was user_id
+  user_id: string;
   username: string;
-  name: string;             // Was display_name
-  profile_picture_url: string | null; // Was avatar
-  is_verified: boolean;     // Was verified
-  follower_count: number;   // Was follower_count
-  is_following?: boolean;   // Was is_following
+  name: string;
+  profile_picture_url: string | null;
+  is_verified: boolean;
+  follower_count: number;
+  is_following?: boolean;
 }
 
 // Community interface
 export interface ICommunity {
   id: string;
   name: string;
-  member_count: number;     // Was member_count
-  logo_url: string;         // Was avatar
+  member_count: number;
+  logo_url: string;
+}
+
+// Follower/Following interface
+export interface IFollowUser {
+  id: string;
+  username: string;
+  name: string;
+  display_name?: string;
+  profile_picture_url: string;
+  is_following: boolean;
+  bio: string;
 }

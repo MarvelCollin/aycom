@@ -416,14 +416,14 @@
   function testLogLevels() {
     logger.trace('This is a TRACE message');
     logger.debug('This is a DEBUG message');
-    logger.info('This is an INFO message', null, { showToast: true });
-    logger.warn('This is a WARN message', null, { showToast: true });
+    logger.info('This is an INFO message', null, { show_toast: true });
+    logger.warn('This is a WARN message', null, { show_toast: true });
     
     // Create a real error for testing
     try {
       throw new Error('This is a test error with stack trace');
     } catch (error) {
-      logger.error('This is an ERROR message', { error }, { showToast: true });
+      logger.error('This is an ERROR message', { error }, { show_toast: true });
     }
   }
   
@@ -453,13 +453,13 @@
       const response = await getProfile();
       
       userProfileInfo = response;
-      logger.info('User profile fetched successfully', { profileData: response }, { showToast: true });
+      logger.info('User profile fetched successfully', { profileData: response }, { show_toast: true });
       logMessages.update(logs => [
         { level: LogLevel.INFO, message: `User profile fetched successfully: ${JSON.stringify(response)}`, timestamp: new Date() },
         ...logs
       ]);
     } catch (err) {
-      logger.error('Error fetching user profile', { error: err }, { showToast: true });
+      logger.error('Error fetching user profile', { error: err }, { show_toast: true });
       logMessages.update(logs => [
         { level: LogLevel.ERROR, message: `Error fetching user profile: ${err}`, timestamp: new Date() },
         ...logs
@@ -738,26 +738,56 @@
         // Search users
         result = await searchUsers(userSearchQuery, currentPage, pageSize);
         userList = result.users || [];
-        totalPages = result.totalPages || 1;
+        totalPages = result.pagination?.total_pages || result.totalPages || 1;
       } else {
         // Get all users
-        result = await getAllUsers(pageSize, currentPage);
-        userList = result.users || [];
-        totalPages = result.totalPages || 1;
+        try {
+          result = await getAllUsers(pageSize, currentPage);
+          userList = result.users || [];
+          totalPages = result.total_pages || result.totalPages || 1;
+          
+          // Log users to check if admin status is included
+          console.log('Loaded users:', userList);
+          if (userList.length > 0) {
+            console.log('First user admin status:', userList[0].is_admin);
+            console.log('First user admin status type:', typeof userList[0].is_admin);
+            
+            // Add diagnostic info directly in the panel for real-time debugging
+            statusMessage = `Debug info - First user: ${userList[0].username || userList[0].id}, is_admin: ${String(userList[0].is_admin)}, type: ${typeof userList[0].is_admin}`;
+          }
+          
+          logger.info(`Loaded ${userList.length} users`);
+        } catch (apiError) {
+          // Handle API errors more gracefully
+          console.error('Error getting users:', apiError);
+          
+          // Use mock data if the API fails
+          userList = [
+            {
+              id: "mock-user-1",
+              username: "testuser1",
+              display_name: "Test User One",
+              avatar_url: "https://secure.gravatar.com/avatar/1?d=mp",
+              is_verified: true,
+              is_admin: false,
+              name: "Test User One"
+            },
+            {
+              id: "mock-user-2", 
+              username: "adminuser",
+              display_name: "Admin User",
+              avatar_url: "https://secure.gravatar.com/avatar/2?d=mp",
+              is_verified: true,
+              is_admin: true,
+              name: "Admin User"
+            }
+          ];
+          
+          totalPages = 1;
+          statusMessage = `Using mock data due to API error: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`;
+          logger.warn('Using mock user data', { reason: 'API error', error: apiError });
+        }
       }
-      
-      // Log users to check if admin status is included
-      console.log('Loaded users:', userList);
-      if (userList.length > 0) {
-        console.log('First user admin status:', userList[0].is_admin);
-        console.log('First user admin status type:', typeof userList[0].is_admin);
-        
-        // Add diagnostic info directly in the panel for real-time debugging
-        statusMessage = `Debug info - First user: ${userList[0].username || userList[0].id}, is_admin: ${String(userList[0].is_admin)}, type: ${typeof userList[0].is_admin}`;
-      }
-      
-      logger.info(`Loaded ${userList.length} users`);
-      
     } catch (error) {
       statusMessage = `Failed to load users: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error('Failed to load users', { error });
@@ -849,6 +879,34 @@
       toastStore.showToast(statusMessage, 'error');
     } finally {
       isUpdatingAdmin = false;
+    }
+  }
+
+  // Function to test user search
+  async function testUserSearch() {
+    try {
+      searchStatus = 'Searching...';
+      debugLogger.info(`Testing user search with query: ${searchQuery}`);
+      
+      const response = await searchUsers(searchQuery, 1, 10);
+      
+      if (response && response.users) {
+        searchStatus = `Found ${response.users.length} users`;
+        searchResults = response.users;
+        debugLogger.info(`Search results: ${response.users.length} users found`);
+      } else if (response && response.error) {
+        searchStatus = `Error: ${response.error}`;
+        searchResults = [];
+        debugLogger.error(`Search error: ${response.error}`);
+      } else {
+        searchStatus = 'No results or invalid response format';
+        searchResults = [];
+        debugLogger.warn('Invalid search response format');
+      }
+    } catch (error) {
+      searchStatus = `Error: ${error.message || 'Unknown error during search'}`;
+      searchResults = [];
+      debugLogger.error('Search failed with error', { error });
     }
   }
 </script>

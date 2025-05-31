@@ -26,7 +26,11 @@
   
   export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   export let isDarkMode = false;
+  export let parent_tweet: ITweet | null = null;
+  
+  // Backward compatibility
   export let replyTo: ITweet | null = null;
+  $: actualParent = parent_tweet || replyTo;
   
   let newTweet = '';
   let files: File[] = [];
@@ -78,7 +82,7 @@
   let pollExpiryHours = 24;
   let pollWhoCanVote = 'everyone';
   
-  $: isReplyMode = replyTo !== null;
+  $: isReplyMode = actualParent !== null;
   $: modalTitle = isReplyMode ? 'Reply to Tweet' : 'New Post';
   $: canSchedule = !isReplyMode; // Only allow scheduling for new posts, not replies
   $: canPostForCommunity = !isReplyMode; // Only allow community posts for new posts, not replies
@@ -216,21 +220,21 @@
     try {
       let response;
       
-      if (isReplyMode && replyTo) {
+      if (isReplyMode && actualParent) {
         const replyData: any = {
           content: newTweet,
-          thread_id: replyTo.threadId || replyTo.thread_id || replyTo.id,
+          thread_id: actualParent.threadId || actualParent.thread_id || actualParent.id,
           mentioned_user_ids: [],
         };
         
         // Add parent_reply_id only when we're replying to a reply, not the main thread
         // For nested replies, we need to check if the target is itself a reply
-        if (replyTo.parent_reply_id || replyTo.parentReplyId) {
+        if (actualParent.parent_reply_id || actualParent.parentReplyId) {
           // This is a reply to a reply (nested reply)
-          replyData.parent_reply_id = replyTo.id;
-        } else if (replyTo.id !== replyTo.threadId && replyTo.id !== replyTo.thread_id) {
+          replyData.parent_reply_id = actualParent.id;
+        } else if (actualParent.id !== actualParent.threadId && actualParent.id !== actualParent.thread_id) {
           // This is a reply to a reply (first level nesting)
-          replyData.parent_reply_id = replyTo.id;
+          replyData.parent_reply_id = actualParent.id;
         }
         
         console.log('Creating reply with data:', replyData);
@@ -485,24 +489,24 @@
       <div class="compose-tweet-spacer"></div>
     </div>
     <div class="compose-tweet-body {isDarkMode ? 'compose-tweet-body-dark' : ''}">
-      {#if isReplyMode && replyTo}
+      {#if isReplyMode && actualParent}
         <div class="compose-tweet-reply-to {isDarkMode ? 'compose-tweet-reply-to-dark' : ''}">
           <div class="compose-tweet-reply-content">
             <div class="compose-tweet-reply-avatar-container">
-              {#if typeof replyTo.avatar === 'string' && replyTo.avatar.startsWith('http')}
-                <img src={replyTo.avatar} alt={replyTo.username} class="compose-tweet-reply-avatar" />
+              {#if typeof actualParent.avatar === 'string' && actualParent.avatar.startsWith('http')}
+                <img src={actualParent.avatar} alt={actualParent.username} class="compose-tweet-reply-avatar" />
               {:else}
                 <div class="compose-tweet-reply-avatar-placeholder">
-                  {replyTo.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'}
+                  {actualParent.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'}
                 </div>
               {/if}
             </div>
             <div class="compose-tweet-reply-info">
               <div class="compose-tweet-reply-author">
-                <span class="compose-tweet-reply-name">{replyTo.displayName || 'User'}</span>
-                <span class="compose-tweet-reply-username">@{replyTo.username || 'user'}</span>
+                <span class="compose-tweet-reply-name">{actualParent.displayName || 'User'}</span>
+                <span class="compose-tweet-reply-username">@{actualParent.username || 'user'}</span>
               </div>
-              <p class="compose-tweet-reply-text">{replyTo.content}</p>
+              <p class="compose-tweet-reply-text">{actualParent.content}</p>
             </div>
           </div>
         </div>

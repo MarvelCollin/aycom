@@ -1016,7 +1016,8 @@ export async function searchUsers(
         pagination: {
           total_count: 0,
           current_page: page,
-          per_page: limit
+          per_page: limit,
+          total_pages: 0
         }
       };
     }
@@ -1040,7 +1041,7 @@ export async function searchUsers(
       }
     }
     
-    // Use only the most likely endpoint instead of multiple fallbacks
+    // Use the search endpoint
     const searchUrl = `${API_BASE_URL}/users/search?${params.toString()}`;
     
     try {
@@ -1065,7 +1066,8 @@ export async function searchUsers(
             pagination: {
               total_count: 0,
               current_page: page,
-              per_page: limit
+              per_page: limit,
+              total_pages: 0
             }
           };
         }
@@ -1079,7 +1081,8 @@ export async function searchUsers(
             pagination: {
               total_count: 0,
               current_page: page,
-              per_page: limit
+              per_page: limit,
+              total_pages: 0
             }
           };
         } catch (parseError) {
@@ -1090,47 +1093,67 @@ export async function searchUsers(
       const data = await response.json();
       console.log('Search API response:', data);
       
-      // Handle different response formats
-      if (data && data.users) {
-        return {
-          users: data.users,
-          pagination: data.pagination || {
-            total_count: data.users.length,
-            current_page: page,
-            per_page: limit
-          }
+      // Format the response consistently
+      let formattedResponse: {
+        users: any[];
+        pagination: {
+          total_count: number;
+          current_page: number;
+          per_page: number;
+          total_pages: number;
         };
-      } else if (data && data.data && data.data.users) {
-        return {
-          users: data.data.users,
-          pagination: data.data.pagination || {
-            total_count: data.data.users.length,
-            current_page: page,
-            per_page: limit
-          }
-        };
-      } else if (Array.isArray(data)) {
-        // Handle case where API returns just an array of users
-        return {
-          users: data,
-          pagination: {
-            total_count: data.length,
-            current_page: page,
-            per_page: limit
-          }
-        };
-      }
-      
-      // If we get here but data format is unexpected, log and return empty
-      console.warn('Unexpected data format from search API:', data);
-      return {
+        error?: string;
+      } = {
         users: [],
         pagination: {
           total_count: 0,
           current_page: page,
-          per_page: limit
+          per_page: limit,
+          total_pages: 0
         }
       };
+      
+      // Handle different response formats
+      if (data && data.users) {
+        formattedResponse.users = data.users;
+        
+        if (data.pagination) {
+          formattedResponse.pagination = {
+            ...formattedResponse.pagination,
+            ...data.pagination
+          };
+          
+          // Calculate total_pages if not provided
+          if (!formattedResponse.pagination.total_pages && formattedResponse.pagination.total_count > 0) {
+            formattedResponse.pagination.total_pages = Math.ceil(
+              formattedResponse.pagination.total_count / formattedResponse.pagination.per_page
+            );
+          }
+        }
+      } else if (data && data.data && data.data.users) {
+        formattedResponse.users = data.data.users;
+        
+        if (data.data.pagination) {
+          formattedResponse.pagination = {
+            ...formattedResponse.pagination,
+            ...data.data.pagination
+          };
+          
+          // Calculate total_pages if not provided
+          if (!formattedResponse.pagination.total_pages && formattedResponse.pagination.total_count > 0) {
+            formattedResponse.pagination.total_pages = Math.ceil(
+              formattedResponse.pagination.total_count / formattedResponse.pagination.per_page
+            );
+          }
+        }
+      } else if (Array.isArray(data)) {
+        // Handle case where API returns just an array of users
+        formattedResponse.users = data;
+        formattedResponse.pagination.total_count = data.length;
+        formattedResponse.pagination.total_pages = Math.ceil(data.length / limit);
+      }
+      
+      return formattedResponse;
     } catch (fetchError) {
       console.error('Error during fetch operation:', fetchError);
       
@@ -1141,7 +1164,8 @@ export async function searchUsers(
         pagination: {
           total_count: 0,
           current_page: page,
-          per_page: limit
+          per_page: limit,
+          total_pages: 0
         }
       };
     }
@@ -1155,7 +1179,8 @@ export async function searchUsers(
       pagination: {
         total_count: 0,
         current_page: page,
-        per_page: limit
+        per_page: limit,
+        total_pages: 0
       }
     };
   }

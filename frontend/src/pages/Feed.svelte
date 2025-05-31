@@ -4,10 +4,10 @@
   import TweetCard from '../components/social/TweetCard.svelte';
   import Toast from '../components/common/Toast.svelte';
   import DebugPanel from '../components/common/DebugPanel.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
+  import type { ITweet, ITrend, ISuggestedFollow, IMedia } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
   import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads, getThreadReplies, getFollowingThreads, removeRepost } from '../api/thread';
   import { getTrends } from '../api/trends';
@@ -27,7 +27,12 @@
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
 
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { 
+    user_id: null, 
+    is_authenticated: false, 
+    access_token: null, 
+    refresh_token: null 
+  };
   $: isDarkMode = $theme === 'dark';
 
   let username = '';
@@ -68,6 +73,18 @@
 
   let loadingMoreTweets = false;
   
+  // Add this after the variable declarations
+  let loadingTimeout: ReturnType<typeof setTimeout> | null = null;
+  let fetchAttempts = {
+    forYou: 0,
+    following: 0
+  };
+  const maxFetchAttempts = 3;
+  const loadingTimeoutDuration = 15000; // 15 seconds
+
+  // Add this to store the cleanup function
+  let scrollListenerCleanup: (() => void) | null = null;
+
   // Function to check scroll position and load more tweets if needed
   function checkScrollAndLoadMore() {
     // If already loading or no more to load, don't do anything
@@ -132,12 +149,12 @@
     }
   }
   
-  // Setup scroll listener when component mounts
+  // Update onMount to use the cleanup function
   onMount(() => {
-    console.log('Feed page - Auth state:', authState.isAuthenticated, 'Current path:', window.location.pathname);
+    console.log('Feed page - Auth state:', authState.is_authenticated, 'Current path:', window.location.pathname);
     
     // Let the Router handle redirects rather than doing it directly
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       logger.info('User not authenticated, letting Router handle the redirect');
       return;
     }
@@ -158,12 +175,7 @@
     });
 
     // Setup infinite scroll through scroll listener
-    const cleanup = setupScrollListener();
-    
-    return () => {
-      // Clean up scroll listener when component is destroyed
-      cleanup();
-    };
+    scrollListenerCleanup = setupScrollListener();
   });
 
   // Function to handle tab change
@@ -183,128 +195,137 @@
 
   // Convert thread data to tweet format
   function threadToTweet(thread: any): ITweet {
-    // Check if we have debugging enabled
-    const debug = true;
-    if (debug) {
-      console.log('Converting thread to tweet:', thread);
-    }
-      // Default values
-    let username = 'anonymous';
-    let displayName = 'User';
-    let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
-    let content = thread.Content || thread.content || '';
+    // Always log the raw thread data to diagnose issues
+    console.log('Converting thread to tweet (raw data):', JSON.stringify(thread, null, 2));
     
-    // Get author data from all possible locations
-    // First try direct author fields and the capitalized API response fields
-    if (thread.author_username) {
-      username = thread.author_username;
-    } else if (thread.authorUsername) {
-      username = thread.authorUsername;
-    } else if (thread.Username) {
-      username = thread.Username;
-    } else if (thread.username) {
-      username = thread.username;
-    }
-    
-    if (thread.author_name) {
-      displayName = thread.author_name;
-    } else if (thread.authorName) {
-      displayName = thread.authorName;
-    } else if (thread.DisplayName) {
-      displayName = thread.DisplayName;
-    } else if (thread.display_name) {
-      displayName = thread.display_name;
-    } else if (thread.displayName) {
-      displayName = thread.displayName;
-    }
-    
-    // Handle avatar URLs from Supabase
-    if (thread.author_avatar) {
-      profilePicture = formatSupabaseImageUrl(thread.author_avatar);
-    } else if (thread.authorAvatar) {
-      profilePicture = formatSupabaseImageUrl(thread.authorAvatar);
-    } else if (thread.ProfilePicture) {
-      profilePicture = formatSupabaseImageUrl(thread.ProfilePicture);
-    } else if (thread.profile_picture_url) {
-      profilePicture = formatSupabaseImageUrl(thread.profile_picture_url);
-    } else if (thread.avatar) {
-      profilePicture = formatSupabaseImageUrl(thread.avatar);
-    }
-    
-    // Fallback: if user data is not directly in the thread, check for embedded content format
-    if (username === 'anonymous' && typeof content === 'string') {
-      // Look for enhanced user metadata that includes profile picture
-      // Format: [USER:username@displayName@profileUrl]content
-      const enhancedMetadataRegex = /^\[USER:([^@\]]+)@([^@\]]+)@([^\]]+)\](.*)/;
-      const match = enhancedMetadataRegex.exec(content);
-      
-      if (match) {
-        username = match[1] || username;
-        displayName = match[2] || displayName;
-        profilePicture = match[3] || profilePicture;
-        content = match[4] || '';
-      } else {
-        // Try the old format without profile picture
-        const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
-        const basicMatch = content.match(userMetadataRegex);
-        
-        if (basicMatch) {
-          username = basicMatch[1] || username;
-          displayName = basicMatch[2] || displayName;
-          content = basicMatch[3] || '';
-        }
-      }
-    }    // Safe date conversion with fallback
-    let timestamp = new Date().toISOString();
-    try {
-      if (thread.CreatedAt) {
-        const date = new Date(thread.CreatedAt);
-        // Check if date is valid before converting to ISO string
-        if (!isNaN(date.getTime())) {
-          timestamp = date.toISOString();
-        }
-      } else if (thread.created_at) {
-        const date = new Date(thread.created_at);
-        // Check if date is valid before converting to ISO string
-        if (!isNaN(date.getTime())) {
-          timestamp = date.toISOString();
-        }
-      } else if (thread.timestamp) {
-        const date = new Date(thread.timestamp);
-        if (!isNaN(date.getTime())) {
-          timestamp = date.toISOString();
-        }
-      }
-    } catch (error) {
-      console.warn("Invalid date format in thread:", thread.CreatedAt || thread.created_at || thread.timestamp);
-    }
+    if (!thread || typeof thread !== 'object') {
+      console.error('Invalid thread data received:', thread);
+      // Return a placeholder tweet with error indicator
       return {
-      id: thread.ID || thread.id,
-      threadId: thread.thread_id || thread.ID || thread.id,
-      userId: thread.UserID || thread.user_id || thread.author_id || thread.id,
+        id: `error-${Date.now()}`,
+        content: 'Error loading tweet content',
+        created_at: new Date().toISOString(),
+        user_id: '',
+        username: 'error',
+        name: 'Error Loading Data',
+        profile_picture_url: 'https://secure.gravatar.com/avatar/0?d=mp',
+        likes_count: 0,
+        replies_count: 0,
+        reposts_count: 0,
+        bookmark_count: 0,
+        is_liked: false,
+        is_reposted: false,
+        is_bookmarked: false,
+        is_pinned: false,
+        parent_id: null,
+        media: []
+      };
+    }
+
+    // Extract user information with fallbacks for different backend formats
+    const userId = thread.user_id || thread.UserID || thread.user?.id || thread.author_id || thread.user?.user_id || '';
+    const username = thread.username || thread.Username || thread.user?.username || thread.author_username || 'anonymous';
+    const displayName = thread.name || thread.DisplayName || thread.display_name || thread.user?.name || thread.user?.display_name || thread.authorName || 'User';
+    const profilePic = formatProfilePicture(thread.profile_picture_url || thread.ProfilePicture || thread.user?.profile_picture_url || thread.author_avatar || thread.avatar);
+    
+    // Handle metrics with extensive fallbacks
+    const likesCount = parseMetric(thread.likes_count || thread.LikesCount || thread.LikeCount || thread.like_count || thread.metrics?.likes);
+    const repliesCount = parseMetric(thread.replies_count || thread.RepliesCount || thread.ReplyCount || thread.reply_count || thread.metrics?.replies);
+    const repostsCount = parseMetric(thread.reposts_count || thread.RepostsCount || thread.RepostCount || thread.repost_count || thread.metrics?.reposts);
+    const bookmarkCount = parseMetric(thread.bookmark_count || thread.BookmarkCount || thread.bookmarks_count || thread.view_count || thread.metrics?.bookmarks);
+    
+    // Handle interaction states with fallbacks
+    const isLiked = Boolean(thread.is_liked || thread.IsLiked || thread.liked_by_user || thread.LikedByUser || false);
+    const isReposted = Boolean(thread.is_reposted || thread.IsReposted || thread.reposted_by_user || thread.RepostedByUser || thread.is_repost || false);
+    const isBookmarked = Boolean(thread.is_bookmarked || thread.IsBookmarked || thread.bookmarked_by_user || thread.BookmarkedByUser || false);
+    const isPinned = Boolean(thread.is_pinned || thread.IsPinned || false);
+    
+    // Handle media array with type checking
+    let mediaArray: IMedia[] = [];
+    if (Array.isArray(thread.media)) {
+      mediaArray = thread.media;
+    } else if (Array.isArray(thread.Media)) {
+      mediaArray = thread.Media;
+    } else if (typeof thread.media === 'string') {
+      try {
+        // Sometimes the backend might send media as a JSON string
+        const parsedMedia = JSON.parse(thread.media);
+        if (Array.isArray(parsedMedia)) {
+          mediaArray = parsedMedia;
+        }
+      } catch (e) {
+        console.warn('Failed to parse media string:', thread.media);
+      }
+    }
+    
+    // Create the standardized tweet object
+    const tweet: ITweet = {
+      id: thread.id || '',
+      content: thread.content || '',
+      created_at: formatTimestamp(thread.created_at || thread.CreatedAt || new Date().toISOString()),
+      updated_at: formatTimestamp(thread.updated_at || thread.UpdatedAt),
+      
+      user_id: userId,
       username: username,
-      displayName: displayName,
-      content: content,
-      timestamp: timestamp,
-      avatar: profilePicture,      likes: thread.LikeCount || thread.like_count || thread.metrics?.likes || 0,
-      replies: thread.ReplyCount || thread.reply_count || thread.metrics?.replies || 0,
-      reposts: thread.RepostCount || thread.repost_count || thread.metrics?.reposts || 0,
-      bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
-      views: 0,
-      media: thread.Media || thread.media || [],
-      isLiked: thread.IsLiked || thread.is_liked || false,
-      isReposted: thread.IsReposted || thread.is_repost || false,
-      isBookmarked: thread.IsBookmarked || thread.is_bookmarked || false,
-      isPinned: thread.IsPinned || thread.is_pinned || false,
-      replyTo: null,
-      isAdvertisement: thread.is_advertisement || false,
-      communityId: thread.community_id || null,
-      communityName: thread.community_name || null
+      name: displayName,
+      profile_picture_url: profilePic,
+      
+      likes_count: likesCount,
+      replies_count: repliesCount,
+      reposts_count: repostsCount,
+      bookmark_count: bookmarkCount,
+      views_count: parseMetric(thread.views_count || thread.view_count),
+      
+      media: mediaArray,
+      
+      is_liked: isLiked,
+      is_reposted: isReposted,
+      is_bookmarked: isBookmarked,
+      is_pinned: isPinned,
+      
+      parent_id: thread.parent_id || thread.ParentID || null,
+      
+      community_id: thread.community_id || thread.CommunityID || null,
+      community_name: thread.community_name || thread.CommunityName || null,
+      
+      is_advertisement: Boolean(thread.is_advertisement || thread.IsAdvertisement || false)
     };
+    
+    // Log the final converted tweet
+    console.log('Converted tweet result:', tweet);
+    return tweet;
   }
 
-  // Helper function to format Supabase image URLs
-  function formatSupabaseImageUrl(url: string): string {
+  // Helper function to safely parse numeric metrics
+  function parseMetric(value: any): number {
+    if (value === undefined || value === null) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = parseInt(value, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  }
+
+  // Helper function to format timestamps
+  function formatTimestamp(timestamp: string | Date | undefined): string {
+    if (!timestamp) return new Date().toISOString();
+    
+    try {
+      const date = new Date(timestamp);
+      // Check if date is valid before converting to ISO string
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    } catch (error) {
+      console.warn("Invalid date format:", timestamp);
+    }
+    
+    return new Date().toISOString();
+  }
+
+  // Helper function to format profile pictures
+  function formatProfilePicture(url: string | undefined): string {
     if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
     
     // If already a full URL, return as is
@@ -316,7 +337,7 @@
 
   // Authentication check
   function checkAuth() {
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       logger.info('User not authenticated, redirecting to login page');
       
       const currentPath = window.location.pathname;
@@ -369,204 +390,233 @@
 
   // Function to fetch tweets for the "For You" tab
   async function fetchTweetsForYou(resetPage = false) {
-    logger.info('Fetching tweets for the "For You" tab', { resetPage, page: pageForYou });
-    
     if (resetPage) {
       pageForYou = 1;
       tweetsForYou = [];
     }
     
-    isLoadingForYou = true;
-    errorForYou = null;
+    if (!hasMoreForYou) {
+      logger.info('No more tweets to fetch in For You feed');
+      return;
+    }
+    
+    if (isLoadingForYou && !resetPage) {
+      logger.info('Already loading For You feed');
+      return;
+    }
     
     try {
-      if (!checkAuth()) return;
+      fetchAttempts.forYou++;
+      isLoadingForYou = true;
+      errorForYou = null;
       
-      logger.debug('Fetching personalized feed');
+      // Set a timeout to prevent infinite loading
+      setLoadingTimeout('for-you');
+      
+      logger.info(`Fetching For You feed - page ${pageForYou}, limit ${limit}`);
       const response = await getAllThreads(pageForYou, limit);
       
-      if (response && response.threads) {
-        logger.info(`Received ${response.threads.length} threads from API`);
+      // Clear the timeout
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
+      
+      // Handle explicit API errors
+      if (response.error) {
+        logger.error('Error fetching For You feed', { error: response.error });
+        errorForYou = `Error loading tweets: ${response.error}`;
         
-        // Process threads to identify replies and link them to parent threads
-        const threadsMap = new Map();
-          // First, convert all threads to tweets and create a map
-        let convertedThreads = response.threads.map(thread => {
+        // If we've reached max attempts, don't try again
+        if (fetchAttempts.forYou >= maxFetchAttempts) {
+          logger.warn(`Reached max fetch attempts (${maxFetchAttempts}) for For You feed`);
+          isLoadingForYou = false;
+          return;
+        }
+        
+        // Try again after a delay if there was an error
+        setTimeout(() => {
+          fetchTweetsForYou(false);
+        }, 3000);
+        return;
+      }
+      
+      // Reset attempt counter on success
+      fetchAttempts.forYou = 0;
+      
+      // Validate threads array exists
+      if (!response.threads) {
+        logger.warn('Response missing threads array:', response);
+        errorForYou = 'No threads received from server';
+        isLoadingForYou = false;
+        
+        // Try again after a delay
+        if (fetchAttempts.forYou < maxFetchAttempts) {
+          setTimeout(() => {
+            fetchTweetsForYou(false);
+          }, 3000);
+        }
+        return;
+      }
+      
+      // Ensure threads is an array
+      const threads = Array.isArray(response.threads) ? response.threads : [];
+      
+      if (threads.length === 0) {
+        logger.info('No threads found in For You feed');
+        hasMoreForYou = false;
+        isLoadingForYou = false;
+        return;
+      }
+      
+      // Process the response and update state
+      const threadsMap = new Map();
+      
+      // First, convert all threads to tweets and create a map
+      let convertedThreads = threads
+        .filter(thread => thread && typeof thread === 'object') // Filter out invalid entries
+        .map(thread => {
           console.log('Raw thread data from API:', thread);
           const tweet = threadToTweet(thread);
           console.log('Converted tweet:', tweet);
-          threadsMap.set(tweet.threadId, tweet);
+          // Use id instead of threadId since threadId doesn't exist on ITweet
+          threadsMap.set(tweet.id, tweet);
           // Initialize the tweet in our global interaction store
           tweetInteractionStore.initTweet(tweet);
           return tweet;
         });
-        
-        // Filter for community threads - only show if user is in that community
-        convertedThreads = convertedThreads.filter(tweet => {
-          // Show thread if not from a community or user is in that community
-          return !tweet.communityId || (tweet.communityId && true); // Replace true with check if user is in community
-        });
-        
-        // Insert advertisements
-        const tweetsWithAds: ITweet[] = [];
-        convertedThreads.forEach((tweet, index) => {
-          tweetsWithAds.push(tweet);
-          
-          // After every 5 tweets, add an advertisement
-          if ((index + 1) % 5 === 0) {            tweetsWithAds.push({
-              id: `ad-${Date.now()}-${index}`,
-              threadId: `ad-${Date.now()}-${index}`,
-              userId: '',
-              username: 'advertisement',
-              displayName: 'Advertisement',
-              content: 'Sponsored Content',
-              timestamp: new Date().toISOString(),
-              avatar: '/assets/ad-icon.png', // Use proper ad icon path
-              likes: 0,
-              replies: 0,
-              reposts: 0,
-              bookmarks: 0,
-              views: 0,
-              media: [],
-              isLiked: false,
-              isReposted: false,
-              isBookmarked: false,
-              isPinned: false,
-              replyTo: null,
-              isAdvertisement: true
-            });
-          }
-        });
-        
-        // If first page, replace tweets, otherwise append
-        tweetsForYou = pageForYou === 1 ? tweetsWithAds : [...tweetsForYou, ...tweetsWithAds];
-        
-        // Pre-fetch replies for tweets with replies
-        // Only pre-fetch for the first few tweets with replies to avoid too many requests
-        const tweetsWithReplies = tweetsForYou
-          .filter(tweet => {
-            // Check if there are replies using any of the possible properties
-            const replyCount = tweet.replies || 0;
-            return parseInt(String(replyCount)) > 0;
-          })
-          .slice(0, 3); // Limit to first 3 tweets with replies
-        
-        if (tweetsWithReplies.length > 0) {
-          logger.debug(`Pre-fetching replies for ${tweetsWithReplies.length} tweets`);
-          
-          // Pre-fetch replies in parallel
-          Promise.all(
-            tweetsWithReplies.map(tweet => fetchRepliesForThread(String(tweet.id)))
-          ).catch(error => {
-            logger.warn('Error pre-fetching replies:', error);
-          });
-        }
-        
-        // Check if there are more threads to load
-        hasMoreForYou = convertedThreads.length === limit;
-        pageForYou++;
-        
-        logger.debug('Updated tweets state', { 
-          totalTweets: tweetsForYou.length, 
-          hasMore: hasMoreForYou, 
-          nextPage: pageForYou 
-        });
-      } else {
-        logger.info('No threads received from API');
-        hasMoreForYou = false;
+      
+      // Next, add new tweets to our list
+      tweetsForYou = [...tweetsForYou, ...convertedThreads];
+      
+      // Check if we have more tweets to fetch
+      hasMoreForYou = convertedThreads.length >= limit;
+      
+      // Increment page for next fetch
+      pageForYou++;
+      
+      logger.info(`Loaded ${convertedThreads.length} tweets for For You feed`);
+      
+    } catch (error) {
+      logger.error('Error fetching For You feed', { error });
+      errorForYou = 'Error loading tweets. Please try again.';
+      
+      // If we've reached max attempts, stop trying
+      if (fetchAttempts.forYou >= maxFetchAttempts) {
+        logger.warn(`Reached max fetch attempts (${maxFetchAttempts}) for For You feed`);
+        isLoadingForYou = false;
+        return;
       }
-    } catch (err) {
-      console.error('Error loading feed:', err);
-      toastStore.showToast('Failed to load feed. Please try again.', 'error');
-      errorForYou = err instanceof Error ? err.message : 'Failed to fetch tweets';
+      
+      // Try again after a delay
+      setTimeout(() => {
+        fetchTweetsForYou(false);
+      }, 3000);
     } finally {
       isLoadingForYou = false;
+      // Clear timeout if it exists
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
     }
   }
 
   // Function to fetch tweets for the "Following" tab
   async function fetchTweetsFollowing(resetPage = false) {
-    logger.info('Fetching tweets for the "Following" tab', { resetPage, page: pageFollowing });
-    
     if (resetPage) {
       pageFollowing = 1;
       tweetsFollowing = [];
     }
     
-    isLoadingFollowing = true;
-    errorFollowing = null;
+    if (!hasMoreFollowing) {
+      logger.info('No more tweets to fetch in Following feed');
+      return;
+    }
+    
+    if (isLoadingFollowing && !resetPage) {
+      logger.info('Already loading Following feed');
+      return;
+    }
     
     try {
-      if (!checkAuth()) return;
+      fetchAttempts.following++;
+      isLoadingFollowing = true;
+      errorFollowing = null;
       
-      logger.debug('Fetching following feed');
-      // Here we'll call a specific API to get tweets from users the current user follows
+      // Set a timeout to prevent infinite loading
+      setLoadingTimeout('following');
+      
+      logger.info(`Fetching Following feed - page ${pageFollowing}, limit ${limit}`);
       const response = await getFollowingThreads(pageFollowing, limit);
       
-      if (response && response.threads) {
-        logger.info(`Received ${response.threads.length} following threads from API`);
-        
-        // Convert threads to tweets
-        let convertedThreads = response.threads.map(thread => {
-          const tweet = threadToTweet(thread);
-          // Initialize the tweet in our global interaction store
-          tweetInteractionStore.initTweet(tweet);
-          return tweet;
-        });
-        
-        // Insert advertisements
-        const tweetsWithAds: ITweet[] = [];
-        convertedThreads.forEach((tweet, index) => {
-          tweetsWithAds.push(tweet);
-          
-          // After every 5 tweets, add an advertisement
-          if ((index + 1) % 5 === 0) {            tweetsWithAds.push({
-              id: `ad-${Date.now()}-${index}`,
-              threadId: `ad-${Date.now()}-${index}`,
-              userId: '',
-              username: 'advertisement',
-              displayName: 'Advertisement',
-              content: 'Sponsored Content',
-              timestamp: new Date().toISOString(),
-              avatar: '/assets/ad-icon.png', // Use proper ad icon path
-              likes: 0,
-              replies: 0,
-              reposts: 0,
-              bookmarks: 0,
-              views: 0,
-              media: [],
-              isLiked: false,
-              isReposted: false,
-              isBookmarked: false,
-              isPinned: false,
-              replyTo: null,
-              isAdvertisement: true
-            });
-          }
-        });
-        
-        // If first page, replace tweets, otherwise append
-        tweetsFollowing = pageFollowing === 1 ? tweetsWithAds : [...tweetsFollowing, ...tweetsWithAds];
-        
-        // Check if there are more threads to load
-        hasMoreFollowing = convertedThreads.length === limit;
-        pageFollowing++;
-        
-        logger.debug('Updated following tweets state', { 
-          totalTweets: tweetsFollowing.length, 
-          hasMore: hasMoreFollowing, 
-          nextPage: pageFollowing 
-        });
-      } else {
-        logger.info('No following threads received from API');
-        hasMoreFollowing = false;
+      // Clear the timeout
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
       }
-    } catch (err) {
-      console.error('Error loading following feed:', err);
-      toastStore.showToast('Failed to load following feed. Please try again.', 'error');
-      errorFollowing = err instanceof Error ? err.message : 'Failed to fetch following tweets';
+      
+      if (response.error) {
+        logger.error('Error fetching Following feed', { error: response.error });
+        errorFollowing = `Error loading tweets: ${response.error}`;
+        
+        // If we've reached max attempts, don't try again
+        if (fetchAttempts.following >= maxFetchAttempts) {
+          logger.warn(`Reached max fetch attempts (${maxFetchAttempts}) for Following feed`);
+          isLoadingFollowing = false;
+          return;
+        }
+        
+        // Try again after a delay if there was an error
+        setTimeout(() => {
+          fetchTweetsFollowing(false);
+        }, 3000);
+        return;
+      }
+      
+      // Reset attempt counter on success
+      fetchAttempts.following = 0;
+      
+      if (!response.threads || response.threads.length === 0) {
+        logger.info('No threads found in Following feed');
+        hasMoreFollowing = false;
+        isLoadingFollowing = false;
+        return;
+      }
+      
+      // Process the response and update state
+      const threadsMap = new Map();
+      
+      // First, convert all threads to tweets
+      let convertedThreads = response.threads.map(thread => {
+        const tweet = threadToTweet(thread);
+        threadsMap.set(tweet.id, tweet);
+        // Initialize the tweet in our global interaction store
+        tweetInteractionStore.initTweet(tweet);
+        return tweet;
+      });
+      
+      // Next, add new tweets to our list
+      tweetsFollowing = [...tweetsFollowing, ...convertedThreads];
+      
+      // Check if we have more tweets to fetch
+      hasMoreFollowing = response.threads.length >= limit;
+      
+      // Increment page for next fetch
+      pageFollowing++;
+      
+      logger.info(`Loaded ${convertedThreads.length} tweets for Following feed`);
+      
+    } catch (error) {
+      logger.error('Error fetching Following feed', { error });
+      errorFollowing = 'Error loading tweets. Please try again.';
     } finally {
       isLoadingFollowing = false;
+      // Clear timeout if it exists
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
     }
   }
 
@@ -651,8 +701,7 @@
           const convertedReply = threadToTweet(enrichedReply);
           
           // Ensure the parent references are set properly
-          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
-          (convertedReply as any).parentReplyId = replyData.parent_id;
+          convertedReply.parent_id = threadId;
           
           return convertedReply;
         });
@@ -662,7 +711,7 @@
         
         // Process nested replies (replies to replies)
         convertedReplies.forEach(reply => {
-          const parentId = (reply as any).parentReplyId;
+          const parentId = reply.parent_id;
           if (parentId) {
             // If this reply has a parent that is not the main thread
             const parentReplies = nestedRepliesMap.get(parentId) || [];
@@ -690,7 +739,7 @@
 
   function toggleComposeModal() {
     logger.debug('Toggling compose modal', { currentState: showComposeModal });
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to create posts', 'warning');
       return;
     }
@@ -715,28 +764,56 @@
     selectedTweet = null;
   }
   
-  // Add this function to update the UI after a reply is posted
+  // Add this type to handle legacy properties in tweets
+  type ExtendedTweet = ITweet & {
+    threadId?: string;
+    replyTo?: ITweet | null;
+    userId?: string;
+    displayName?: string;
+    timestamp?: string;
+    avatar?: string;
+    likes?: number;
+    replies?: number;
+    reposts?: number;
+    bookmarks?: number;
+    isLiked?: boolean;
+    isReposted?: boolean;
+    isBookmarked?: boolean;
+    isPinned?: boolean;
+    [key: string]: any;
+  };
+
+  // Function to handle reply posted event
   function handleReplyPosted(event) {
+    // @ts-ignore - Using legacy property for backward compatibility
     const { threadId, newReply } = event.detail;
     logger.info('Reply posted', { threadId });
     
     // Find the tweet that was replied to
+    // @ts-ignore - Using legacy property for backward compatibility
     const repliedTweet = tweetsForYou.find(t => String(t.id) === String(threadId)) || 
                          tweetsFollowing.find(t => String(t.id) === String(threadId));
                          
     if (repliedTweet) {
       // Increment the reply count
-      repliedTweet.replies = (parseInt(String(repliedTweet.replies)) || 0) + 1;
+      repliedTweet.replies_count = (parseInt(String(repliedTweet.replies_count)) || 0) + 1;
       
       // Update the store
+      // @ts-ignore - Using legacy property for backward compatibility
       tweetInteractionStore.updateTweetInteraction(String(threadId), {
-        replies: repliedTweet.replies
+        replies: repliedTweet.replies_count
       });
       
       // Add the reply to our replies map if it exists
+      // @ts-ignore - Using legacy property for backward compatibility
       if (repliesMap.has(threadId)) {
+        // @ts-ignore - Using legacy property for backward compatibility
         const currentReplies = repliesMap.get(threadId) || [];
         const processedNewReply = threadToTweet(newReply);
+        // Set the parent_id to link to the original thread
+        // @ts-ignore - Using legacy property for backward compatibility
+        processedNewReply.parent_id = threadId;
+        // @ts-ignore - Using legacy property for backward compatibility
         repliesMap.set(threadId, [processedNewReply, ...currentReplies]);
         repliesMap = repliesMap; // Trigger reactivity
       }
@@ -761,45 +838,45 @@
   // Handle tweet like
   async function handleLikeClick(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to like posts', 'warning');
       return;
     }
     
     try {
       await likeThread(tweetId);
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: true });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_liked: true });
       toastStore.showToast('Post liked', 'success');
     } catch (error) {
       toastStore.showToast('Failed to like post', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: false });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_liked: false });
     }
   }
   
   // Handle tweet unlike
   async function handleUnlikeClick(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to unlike posts', 'warning');
       return;
     }
     
     try {
       await unlikeThread(tweetId);
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: false });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_liked: false });
       toastStore.showToast('Post unliked', 'success');
     } catch (error) {
       toastStore.showToast('Failed to unlike post', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isLiked: true });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_liked: true });
     }
   }
   
   // Handle tweet reply
   function handleReply(event) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to reply', 'warning');
       return;
     }
@@ -860,7 +937,7 @@
   // New function: Handle tweet repost
   async function handleTweetRepost(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to repost', 'warning');
       return;
     }
@@ -868,19 +945,19 @@
     
     try {
       await repostThread(tweetId);
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: true });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_reposted: true });
       toastStore.showToast('Tweet reposted', 'success');
     } catch (error) {
       toastStore.showToast('Failed to repost tweet', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: false });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_reposted: false });
     }
   }
   
   // New function: Handle tweet unrepost
   async function handleTweetUnrepost(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to remove a repost', 'warning');
       return;
     }
@@ -888,18 +965,18 @@
     
     try {
       await removeRepost(tweetId);
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: false });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_reposted: false });
       toastStore.showToast('Repost removed', 'success');
     } catch (error) {
       toastStore.showToast('Failed to remove repost', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isReposted: true });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_reposted: true });
     }
   }
   
   async function handleTweetBookmark(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to bookmark posts', 'warning');
       return;
     }
@@ -912,19 +989,19 @@
       console.log(`Bookmark response:`, response);
       
       // Update bookmark state in the store
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: true });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_bookmarked: true });
       toastStore.showToast('Tweet bookmarked', 'success');
     } catch (error) {
       console.error('Error bookmarking tweet:', error);
       toastStore.showToast('Failed to bookmark tweet', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: false });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_bookmarked: false });
     }
   }
   
   async function handleTweetUnbookmark(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to remove bookmarks', 'warning');
       return;
     }
@@ -937,13 +1014,13 @@
       console.log(`Unbookmark response:`, response);
       
       // Update bookmark state in the store
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: false });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_bookmarked: false });
       toastStore.showToast('Bookmark removed', 'success');
     } catch (error) {
       console.error('Error removing bookmark:', error);
       toastStore.showToast('Failed to remove bookmark', 'error');
       // Revert the optimistic update
-      tweetInteractionStore.updateTweetInteraction(tweetId, { isBookmarked: true });
+      tweetInteractionStore.updateTweetInteraction(tweetId, { is_bookmarked: true });
     }
   }
   
@@ -953,6 +1030,38 @@
     logger.debug(`Loading replies for thread: ${threadId}`);
     await fetchRepliesForThread(threadId);
   }
+
+  // Add this function to handle fetch timeout
+  function setLoadingTimeout(type: 'for-you' | 'following') {
+    // Clear any existing timeout
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
+    }
+    
+    // Set a new timeout
+    loadingTimeout = setTimeout(() => {
+      if (type === 'for-you' && isLoadingForYou) {
+        logger.warn('Loading timeout reached for "For You" feed');
+        isLoadingForYou = false;
+        errorForYou = 'Loading timed out. Please try again.';
+      } else if (type === 'following' && isLoadingFollowing) {
+        logger.warn('Loading timeout reached for "Following" feed');
+        isLoadingFollowing = false;
+        errorFollowing = 'Loading timed out. Please try again.';
+      }
+    }, loadingTimeoutDuration);
+  }
+
+  // Fix the onDestroy reference to use scrollListenerCleanup
+  onDestroy(() => {
+    // Clean up scroll listener when component is destroyed
+    if (scrollListenerCleanup) scrollListenerCleanup();
+    
+    // Clean up loading timeout
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
+    }
+  });
 </script>
 
 <MainLayout {username} {displayName} {avatar} on:toggleComposeModal={toggleComposeModal} on:posted={handleNewPost}>
@@ -1068,15 +1177,15 @@
         <!-- Tweets list -->
         {:else}
           {#each currentTweets as tweet, index (tweet.id || `tweet-${index}`)}
-            {#if tweet.isAdvertisement}
+            {#if tweet.is_advertisement}
               <!-- Advertisement card using our CSS classes -->
               <div class="tweet-card">
                 <div class="tweet-header">
                   <div class="tweet-avatar">
-                    <img src={tweet.avatar} alt="Advertisement" />
+                    <img src={tweet.profile_picture_url} alt="Advertisement" />
                   </div>
                   <div class="tweet-user-info">
-                    <span class="tweet-user-name">{tweet.displayName}</span>
+                    <span class="tweet-user-name">{tweet.name}</span>
                     <span class="tweet-user-handle">@{tweet.username}</span>
                     <span class="tweet-ad-label">Advertisement</span>
                   </div>
@@ -1094,10 +1203,10 @@
               <TweetCard 
                 tweet={tweet} 
                 isDarkMode={isDarkMode} 
-                isAuthenticated={authState.isAuthenticated}
-                isLiked={tweet.isLiked || false}
-                isReposted={tweet.isReposted || false}
-                isBookmarked={tweet.isBookmarked || false}
+                isAuth={authState.is_authenticated}
+                isLiked={tweet.is_liked || false}
+                isReposted={tweet.is_reposted || false}
+                isBookmarked={tweet.is_bookmarked || false}
                 on:reply={handleReply}
                 on:repost={handleTweetRepost}
                 on:unrepost={handleTweetUnrepost}
@@ -1136,9 +1245,9 @@
 <!-- Add ComposeTweetModal with selectedTweet -->
 {#if showComposeModal}
   <ComposeTweet 
-    {avatar}
-    {isDarkMode}
-    replyTo={selectedTweet}
+    avatar={avatar}
+    isDarkMode={isDarkMode}
+    parent_tweet={selectedTweet as ExtendedTweet}
     on:close={() => { 
       showComposeModal = false;
       selectedTweet = null;
@@ -1147,7 +1256,7 @@
   />
 {/if}
 
-<style>
+<style lang="css">
   .tweet-ad-label {
     background-color: var(--color-primary-light);
     color: var(--color-primary);
