@@ -1,3 +1,7 @@
+// DEPRECATED: These functions are now available in user.ts
+// This file is maintained for backward compatibility and will be removed in future versions
+// Please import these functions from user.ts instead
+
 import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 

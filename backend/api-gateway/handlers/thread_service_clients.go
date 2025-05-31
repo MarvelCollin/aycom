@@ -98,13 +98,12 @@ func InitThreadServiceClient(cfg *config.Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Use modern connection approach with context-based dial
-	dialOptions := []grpc.DialOption{
+	// Update to use the recommended non-deprecated approach
+	conn, err := grpc.NewClient(
+		cfg.Services.ThreadService,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	}
-
-	conn, err := grpc.DialContext(ctx, cfg.Services.ThreadService, dialOptions...)
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)), // Replacement for WithBlock
+	)
 
 	if err != nil {
 		log.Printf("ERROR: Failed to connect to Thread service at %s: %v", cfg.Services.ThreadService, err)

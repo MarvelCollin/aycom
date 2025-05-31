@@ -7,6 +7,7 @@ import (
 	_ "aycom/backend/api-gateway/docs"
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/middleware"
+	"aycom/backend/api-gateway/utils"
 )
 
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
@@ -53,7 +54,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	publicThreads := v1.Group("/threads")
-	publicThreads.Use(middleware.OptionalJWTAuth(string(handlers.GetJWTSecret())))
+	publicThreads.Use(middleware.OptionalJWTAuth(string(utils.GetJWTSecret())))
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
 		publicThreads.GET("/search", handlers.SearchThreads)
@@ -69,7 +70,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	protected := v1.Group("")
-	protected.Use(middleware.JWTAuth(string(handlers.GetJWTSecret())))
+	protected.Use(middleware.JWTAuth(string(utils.GetJWTSecret())))
 
 	users := protected.Group("/users")
 	{

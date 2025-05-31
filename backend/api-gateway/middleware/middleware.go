@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"aycom/backend/api-gateway/utils"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -190,79 +190,72 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Printf("Checking admin privileges for: %s %s", c.Request.Method, c.Request.URL.Path)
-
-		userID, exists := c.Get("userID")
+		// Get user ID from context
+		_, exists := c.Get("userID")
 		if !exists {
-			log.Printf("No userID found in context - admin check failed")
-			c.JSON(http.StatusUnauthorized, gin.H{
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"message": "Authentication required",
+				"message": "Unauthorized, missing user identity",
 				"code":    "UNAUTHORIZED",
 			})
-			c.Abort()
 			return
 		}
 
-		authHeader := c.GetHeader("Authorization")
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			log.Printf("Invalid Authorization header format: %s", authHeader[:min(len(authHeader), 30)])
-			c.JSON(http.StatusUnauthorized, gin.H{
+		// Check admin status with actual token
+		tokenString := c.GetHeader("Authorization")
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"message": "Authentication required",
+				"message": "Unauthorized, missing token",
 				"code":    "UNAUTHORIZED",
 			})
-			c.Abort()
 			return
 		}
 
-		token := parts[1]
+		if !strings.HasPrefix(tokenString, "Bearer ") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "Unauthorized, invalid token format",
+				"code":    "UNAUTHORIZED",
+			})
+			return
+		}
+
+		tokenString = tokenString[7:] // Remove Bearer prefix
+
+		// Actually validate the token and check isAdmin claim
 		claims := jwt.MapClaims{}
+		secret := utils.GetJWTSecret()
 
-		secret := getJWTSecret()
-		_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+		_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(secret), nil
+			return secret, nil
 		})
 
 		if err != nil {
-			log.Printf("JWT parse error: %v", err)
-			c.JSON(http.StatusUnauthorized, gin.H{
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"message": "Authentication required",
+				"message": "Unauthorized, invalid token",
 				"code":    "UNAUTHORIZED",
 			})
-			c.Abort()
 			return
 		}
 
-		isAdmin, exists := claims["is_admin"]
-		if !exists || isAdmin != true {
-			log.Printf("User %v is not an admin", userID)
-			c.JSON(http.StatusForbidden, gin.H{
+		// Check if user is admin in claims
+		isAdmin, ok := claims["is_admin"].(bool)
+		if !ok || !isAdmin {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"success": false,
-				"message": "Admin privileges required",
+				"message": "Forbidden, admin access required",
 				"code":    "FORBIDDEN",
 			})
-			c.Abort()
 			return
 		}
 
-		log.Printf("Admin check passed for user %v", userID)
 		c.Next()
 	}
-}
-
-func getJWTSecret() string {
-
-	if secret := os.Getenv("JWT_SECRET"); secret != "" {
-		return secret
-	}
-
-	return "your-secret-key"
 }
 
 func min(a, b int) int {

@@ -33,11 +33,11 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
 		return
 	}
 
-	refreshSecret := GetJWTSecret()
+	refreshSecret := utils.GetJWTSecret()
 	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -46,32 +46,32 @@ func RefreshToken(c *gin.Context) {
 	})
 
 	if err != nil {
-		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid refresh token")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid refresh token")
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid refresh token")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid refresh token")
 		return
 	}
 
 	userID, ok := claims["sub"].(string)
 	if !ok {
-		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
 		return
 	}
 
 	accessToken, err := utils.GenerateJWT(userID, time.Hour)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
 		return
 	}
 
 	refreshTokenDuration := 7 * 24 * time.Hour
 	newRefreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate new tokens")
 		return
 	}
 
@@ -117,12 +117,12 @@ func VerifyEmail(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format. Email and verification code are required.")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format. Email and verification code are required.")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
 		return
 	}
 
@@ -135,12 +135,12 @@ func VerifyEmail(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Error fetching user by email: %v", err)
-		SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+		utils.SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
 		return
 	}
 
 	if userResp.User == nil {
-		SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+		utils.SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
 		return
 	}
 
@@ -155,14 +155,14 @@ func VerifyEmail(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_CODE", "Invalid verification code")
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_CODE", "Invalid verification code")
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "USER_NOT_FOUND", "User not found")
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "VERIFICATION_FAILED", "Failed to verify email: "+st.Message())
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "VERIFICATION_FAILED", "Failed to verify email: "+st.Message())
 			}
 		} else {
-			SendErrorResponse(c, http.StatusInternalServerError, "VERIFICATION_FAILED", "Failed to verify email")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "VERIFICATION_FAILED", "Failed to verify email")
 		}
 		return
 	}
@@ -170,14 +170,14 @@ func VerifyEmail(c *gin.Context) {
 	if updateResp.Success {
 		accessToken, err := utils.GenerateJWT(userResp.User.Id, time.Hour)
 		if err != nil {
-			SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
 			return
 		}
 
 		refreshTokenDuration := 7 * 24 * time.Hour
 		refreshToken, err := utils.GenerateJWT(userResp.User.Id, refreshTokenDuration)
 		if err != nil {
-			SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Email verified but failed to generate token")
 			return
 		}
 
@@ -191,7 +191,7 @@ func VerifyEmail(c *gin.Context) {
 			"token_type":    "Bearer",
 		})
 	} else {
-		SendErrorResponse(c, http.StatusBadRequest, "VERIFICATION_FAILED", updateResp.Message)
+		utils.SendErrorResponse(c, http.StatusBadRequest, "VERIFICATION_FAILED", updateResp.Message)
 	}
 }
 
@@ -201,12 +201,12 @@ func ResendVerification(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid email format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid email format")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
 		return
 	}
 
@@ -228,7 +228,7 @@ func ResendVerification(c *gin.Context) {
 			return
 		}
 
-		SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to process request")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to process request")
 		return
 	}
 
@@ -275,26 +275,26 @@ func GoogleLogin(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid token format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid token format")
 		return
 	}
 
 	googleAPIURL := "https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=" + req.TokenID
 	resp, err := http.Get(googleAPIURL)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "GOOGLE_API_ERROR", "Failed to verify Google token")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "GOOGLE_API_ERROR", "Failed to verify Google token")
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid Google token")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid Google token")
 		return
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "READ_ERROR", "Failed to read Google API response")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "READ_ERROR", "Failed to read Google API response")
 		return
 	}
 
@@ -307,12 +307,12 @@ func GoogleLogin(c *gin.Context) {
 	}
 
 	if err := json.Unmarshal(body, &tokenInfo); err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "PARSE_ERROR", "Failed to parse Google API response")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "PARSE_ERROR", "Failed to parse Google API response")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
 		return
 	}
 
@@ -349,7 +349,7 @@ func GoogleLogin(c *gin.Context) {
 
 		createResp, err := UserClient.CreateUser(ctx, createReq)
 		if err != nil {
-			SendErrorResponse(c, http.StatusInternalServerError, "USER_CREATION_FAILED", "Failed to create user account")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "USER_CREATION_FAILED", "Failed to create user account")
 			return
 		}
 
@@ -361,14 +361,14 @@ func GoogleLogin(c *gin.Context) {
 
 	accessToken, err := utils.GenerateJWT(userID, time.Hour)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
 		return
 	}
 
 	refreshTokenDuration := 7 * 24 * time.Hour
 	refreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
 		return
 	}
 
@@ -389,12 +389,12 @@ func ForgotPassword(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid email format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid email format")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -406,7 +406,7 @@ func ForgotPassword(c *gin.Context) {
 	})
 
 	if err != nil || userResp.User == nil {
-		SendSuccessResponse(c, http.StatusOK, gin.H{
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"message": "If the email address exists in our system, a security question will be sent",
 		})
 		return
@@ -417,7 +417,7 @@ func ForgotPassword(c *gin.Context) {
 		securityQuestion = "What is your mother's maiden name?"
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":           "Please answer your security question to reset your password",
 		"security_question": securityQuestion,
 		"email":             req.Email,
@@ -431,12 +431,12 @@ func VerifySecurityAnswer(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -448,18 +448,18 @@ func VerifySecurityAnswer(c *gin.Context) {
 	})
 
 	if err != nil || userResp.User == nil {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_EMAIL", "User not found")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_EMAIL", "User not found")
 		return
 	}
 
 	if userResp.User.SecurityAnswer != req.SecurityAnswer {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_ANSWER", "Security answer is incorrect")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_ANSWER", "Security answer is incorrect")
 		return
 	}
 
 	resetToken := utils.GetTokenManager().Generate(req.Email)
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Security answer verified. You may now reset your password.",
 		"token":   resetToken.Token,
 		"email":   req.Email,
@@ -475,17 +475,17 @@ func ResetPassword(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request. Token, email, and password (min 8 chars) are required.")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request. Token, email, and password (min 8 chars) are required.")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
 	if !utils.GetTokenManager().Validate(req.Token, req.Email) {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_TOKEN", "Reset token is invalid or expired")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_TOKEN", "Reset token is invalid or expired")
 		return
 	}
 
@@ -497,13 +497,13 @@ func ResetPassword(c *gin.Context) {
 	})
 
 	if err != nil || userResp.User == nil {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_EMAIL", "User not found")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_EMAIL", "User not found")
 		return
 	}
 
 	storedPassword := userResp.User.Password
 	if storedPassword == req.NewPassword {
-		SendErrorResponse(c, http.StatusBadRequest, "SAME_PASSWORD", "New password cannot be the same as the old one")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "SAME_PASSWORD", "New password cannot be the same as the old one")
 		return
 	}
 
@@ -516,11 +516,11 @@ func ResetPassword(c *gin.Context) {
 
 	_, err = UserClient.UpdateUser(ctx, updateReq)
 	if err != nil {
-		SendErrorResponse(c, http.StatusInternalServerError, "PASSWORD_UPDATE_FAILED", "Failed to update password")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "PASSWORD_UPDATE_FAILED", "Failed to update password")
 		return
 	}
 
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Password has been reset successfully. You can now log in with your new password",
 	})
 

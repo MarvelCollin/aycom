@@ -942,61 +942,67 @@ async function checkAdminStatusFallback(): Promise<boolean> {
 }
 
 /**
- * Get all users with pagination
- * @param limit Number of users to fetch per page
- * @param page Page number
- * @param sortBy Field to sort by (e.g., 'created_at', 'username')
- * @param ascending Whether to sort in ascending order
+ * Get all users with standardized pagination
+ * 
+ * @param page Page number (starts at 1)
+ * @param limit Number of items per page
+ * @param sortBy Field to sort by
+ * @param ascending Sort direction (true for ascending, false for descending)
  * @param searchQuery Optional search query to filter users
  * @returns Promise with users data
  */
 export async function getAllUsers(
-  limit: number = 20, 
-  page: number = 1, 
-  sortBy: string = 'created_at', 
+  page: number = 1,
+  limit: number = 10, 
+  sortBy: string = 'created_at',
   ascending: boolean = false,
   searchQuery?: string
 ): Promise<any> {
   try {
     const token = getAuthToken();
-    
+
     // Construct query parameters
     const params = new URLSearchParams({
-      limit: limit.toString(),
       page: page.toString(),
+      limit: limit.toString(),
       sort_by: sortBy,
       ascending: ascending.toString()
     });
-    
-    // Add search query if provided
-    if (searchQuery && searchQuery.trim() !== '') {
-      params.append('query', searchQuery.trim());
+
+    if (searchQuery) {
+      params.append('search', searchQuery);
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/users?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       }
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Failed to get users: ${response.status}`);
+      throw new Error(`Failed to get users (${response.status})`);
     }
-    
-    return response.json();
-  } catch (err) {
-    console.error('Failed to get users:', err);
-    throw err;
+
+    return await response.json();
+  } catch (error) {
+    console.error('Get all users failed:', error);
+    return {
+      success: false,
+      users: [],
+      total: 0,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
 }
 
 /**
- * Search for users by username or display name
- * @param query Search query
- * @param page Page number
- * @param limit Number of results per page
+ * Search users with standardized pagination
+ * 
+ * @param query Search query string
+ * @param page Page number (starts at 1)
+ * @param limit Number of items per page
  * @param options Additional search options
  * @returns Promise with search results
  */
@@ -1009,179 +1015,48 @@ export async function searchUsers(
   try {
     const token = getAuthToken();
     
-    // Don't perform empty searches
-    if (!query || query.trim() === '') {
-      return { 
-        users: [],
-        pagination: {
-          total_count: 0,
-          current_page: page,
-          per_page: limit,
-          total_pages: 0
-        }
-      };
-    }
-    
-    // Log the search parameters
-    console.log('Searching users with params:', { query, page, limit, options });
-    
     // Construct query parameters
-    const params = new URLSearchParams();
-    params.append('q', query.trim());
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-    
-    // Add additional options if provided
+    const params = new URLSearchParams({
+      query: query,
+      page: page.toString(),
+      limit: limit.toString()
+    });
+
+    // Add any additional options
     if (options) {
-      if (options.excludeCurrentUser) {
-        params.append('exclude_current_user', 'true');
-      }
-      if (options.includeFollowStatus) {
-        params.append('include_follow_status', 'true');
-      }
-    }
-    
-    // Use the search endpoint
-    const searchUrl = `${API_BASE_URL}/users/search?${params.toString()}`;
-    
-    try {
-      console.log('Searching users with URL:', searchUrl);
-      const response = await fetch(searchUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+      Object.keys(options).forEach(key => {
+        if (options[key] !== undefined) {
+          params.append(key, options[key].toString());
         }
       });
-      
-      if (!response.ok) {
-        console.warn(`Search failed with status: ${response.status}`);
-        
-        // If the backend is down or endpoint doesn't exist, return graceful empty results
-        if (response.status === 404 || response.status === 503 || response.status === 502) {
-          console.log('Search endpoint unavailable (likely backend issue)');
-          return {
-            users: [],
-            error: 'Search temporarily unavailable - backend may be down',
-            pagination: {
-              total_count: 0,
-              current_page: page,
-              per_page: limit,
-              total_pages: 0
-            }
-          };
-        }
-        
-        // For other errors, try to get more information
-        try {
-          const errorData = await response.json();
-          return {
-            users: [],
-            error: errorData.message || `Failed to search users: ${response.status}`,
-            pagination: {
-              total_count: 0,
-              current_page: page,
-              per_page: limit,
-              total_pages: 0
-            }
-          };
-        } catch (parseError) {
-          throw new Error(`Failed to search users: ${response.status}`);
-        }
-      }
-      
-      const data = await response.json();
-      console.log('Search API response:', data);
-      
-      // Format the response consistently
-      let formattedResponse: {
-        users: any[];
-        pagination: {
-          total_count: number;
-          current_page: number;
-          per_page: number;
-          total_pages: number;
-        };
-        error?: string;
-      } = {
-        users: [],
-        pagination: {
-          total_count: 0,
-          current_page: page,
-          per_page: limit,
-          total_pages: 0
-        }
-      };
-      
-      // Handle different response formats
-      if (data && data.users) {
-        formattedResponse.users = data.users;
-        
-        if (data.pagination) {
-          formattedResponse.pagination = {
-            ...formattedResponse.pagination,
-            ...data.pagination
-          };
-          
-          // Calculate total_pages if not provided
-          if (!formattedResponse.pagination.total_pages && formattedResponse.pagination.total_count > 0) {
-            formattedResponse.pagination.total_pages = Math.ceil(
-              formattedResponse.pagination.total_count / formattedResponse.pagination.per_page
-            );
-          }
-        }
-      } else if (data && data.data && data.data.users) {
-        formattedResponse.users = data.data.users;
-        
-        if (data.data.pagination) {
-          formattedResponse.pagination = {
-            ...formattedResponse.pagination,
-            ...data.data.pagination
-          };
-          
-          // Calculate total_pages if not provided
-          if (!formattedResponse.pagination.total_pages && formattedResponse.pagination.total_count > 0) {
-            formattedResponse.pagination.total_pages = Math.ceil(
-              formattedResponse.pagination.total_count / formattedResponse.pagination.per_page
-            );
-          }
-        }
-      } else if (Array.isArray(data)) {
-        // Handle case where API returns just an array of users
-        formattedResponse.users = data;
-        formattedResponse.pagination.total_count = data.length;
-        formattedResponse.pagination.total_pages = Math.ceil(data.length / limit);
-      }
-      
-      return formattedResponse;
-    } catch (fetchError) {
-      console.error('Error during fetch operation:', fetchError);
-      
-      // Return a user-friendly result instead of throwing
-      return {
-        users: [],
-        error: fetchError instanceof Error ? fetchError.message : 'Network error during search',
-        pagination: {
-          total_count: 0,
-          current_page: page,
-          per_page: limit,
-          total_pages: 0
-        }
-      };
     }
-  } catch (err) {
-    console.error('Failed to search users:', err);
-    
-    // Return a safe fallback that won't break the UI
+
+    const response = await fetch(`${API_BASE_URL}/users/search?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      throw new Error(`Search users failed (${response.status})`);
+    }
+
+    const data = await response.json();
     return {
+      success: true,
+      users: data.users || [],
+      total: data.total || (data.users ? data.users.length : 0)
+    };
+  } catch (error) {
+    console.error('Search users failed:', error);
+    return {
+      success: false,
       users: [],
-      error: err instanceof Error ? err.message : 'Unknown error',
-      pagination: {
-        total_count: 0,
-        current_page: page,
-        per_page: limit,
-        total_pages: 0
-      }
+      total: 0,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }

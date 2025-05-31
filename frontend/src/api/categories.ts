@@ -1,6 +1,21 @@
-import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
+import { getAuthToken } from '../utils/auth';
+
+/**
+ * Interface representing a category
+ */
+export interface ICategory {
+  id: string;
+  name: string;
+  description?: string;
+  slug?: string;
+  thread_count?: number;
+  icon?: string;
+  color?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CategoriesAPI');
@@ -21,26 +36,32 @@ const DEFAULT_CATEGORIES = [
 ];
 
 /**
- * Fetch available categories from the API
- * @returns Array of category objects
+ * Get thread categories from the API
+ * 
+ * NOTE: For community categories, use getCommunityCategories from community.ts
+ * 
+ * @returns Promise with categories
  */
-export async function getCategories() {
+export async function getThreadCategories(): Promise<ICategory[]> {
   try {
-    logger.debug('Fetching categories from API');
-    
-    return {
-      success: true,
-      categories: DEFAULT_CATEGORIES
-    };
-    
-   
-    
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/categories`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error fetching categories: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.categories || [];
   } catch (error) {
-    logger.error('Failed to fetch categories:', error);
-    
-    return {
-      success: true,
-      categories: DEFAULT_CATEGORIES
-    };
+    console.error('Failed to fetch categories:', error);
+    return [];
   }
-} 
+}
+
+// Maintain backwards compatibility
+export const getCategories = getThreadCategories; 

@@ -1,6 +1,7 @@
 import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
+import type { ICategory } from './categories';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
@@ -106,40 +107,35 @@ export async function getCommunities(params = {}) {
 }
 
 /**
- * Get available community categories
- * @returns Object with success status and categories array (id, name)
+ * Get community categories from the API
+ * 
+ * NOTE: For thread categories, use getThreadCategories from categories.ts
+ * 
+ * @returns Promise with community categories
  */
-export async function getCategories() {
+export async function getCommunityCategories(): Promise<ICategory[]> {
   try {
     const token = getAuthToken();
-    
-    const response = await fetch(`${API_BASE_URL}/categories`, {
-      method: 'GET',
+    const response = await fetch(`${API_BASE_URL}/communities/categories`, {
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`,
       },
-      credentials: 'include'
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Failed to get categories (${response.status})`);
+      throw new Error(`Error fetching community categories: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
-    return {
-      success: data.success,
-      categories: data.categories || []
-    };
+    return data.categories || [];
   } catch (error) {
-    logger.error('Get categories failed:', error);
-    return {
-      success: false,
-      categories: [],
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    console.error('Failed to fetch community categories:', error);
+    return [];
   }
 }
+
+// Maintain backwards compatibility
+export const getCategories = getCommunityCategories;
 
 /**
  * Check user membership status in a community

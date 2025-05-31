@@ -121,117 +121,42 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
   }
 }
 
-export async function getAllThreads(page = 1, limit = 20) {
+/**
+ * Get all threads with standardized pagination
+ * @param page Page number (starts at 1)
+ * @param limit Number of items per page
+ * @returns Promise with threads data
+ */
+export async function getAllThreads(page = 1, limit = 10) {
   try {
-    console.log(`Fetching all threads - page: ${page}, limit: ${limit}`);
     const token = getAuthToken();
     
-    // Create controller for timeout management
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    // Construct query parameters
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: limit.toString()
-    });
-    
-    const response = await fetch(`${API_BASE_URL}/threads?${params.toString()}`, {
-      method: "GET",
+    const response = await fetch(`${API_BASE_URL}/threads?page=${page}&limit=${limit}`, {
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
       },
-      credentials: "include",
-      signal: controller.signal
+      credentials: 'include'
     });
-    
-    // Clear the timeout
-    clearTimeout(timeoutId);
     
     if (!response.ok) {
-      // Extract detailed error information if possible
-      try {
-        const errorData = await response.json();
-        const errorMessage = errorData.message || 
-          errorData.error?.message || 
-          `Failed to get threads (${response.status} ${response.statusText})`;
-        
-        console.error(`Get threads error: ${errorMessage}`, errorData);
-        return {
-          threads: [],
-          error: errorMessage,
-          status: response.status
-        };
-      } catch (parseError) {
-        // If response body cannot be parsed as JSON
-        console.error(`Get threads error (non-JSON response): ${response.status} ${response.statusText}`);
-        return {
-          threads: [],
-          error: `Failed to get threads (${response.status} ${response.statusText})`,
-          status: response.status
-        };
-      }
+      throw new Error(`Failed to get threads (${response.status})`);
     }
     
     const data = await response.json();
-    console.log(`Received threads response: status=${response.status}, threads=${data.threads ? data.threads.length : 0}`);
-    
-    // Validate the response format
-    if (!data.threads && !data.data && !data.threads) {
-      console.warn('Unexpected API response format:', data);
-      return {
-        threads: [],
-        error: 'Unexpected API response format',
-        data: data // Include the raw data for debugging
-      };
-    }
-    
-    // Handle different response formats
-    let threads: Array<Record<string, any>> = [];
-    
-    if (Array.isArray(data.threads)) {
-      threads = data.threads;
-    } else if (data.data && Array.isArray(data.data.threads)) {
-      threads = data.data.threads;
-    } else if (Array.isArray(data)) {
-      threads = data;
-    }
-    
-    // Validate each thread has at least the minimum required fields
-    threads = threads.filter(thread => {
-      const hasMinimumFields = thread && 
-        typeof thread === 'object' &&
-        thread.id && 
-        (thread.content !== undefined || thread.Content !== undefined);
-      
-      if (!hasMinimumFields) {
-        console.warn('Filtered out invalid thread:', thread);
-      }
-      
-      return hasMinimumFields;
-    });
-    
     return {
-      threads: threads,
-      total: data.total || data.totalCount || (Array.isArray(data.threads) ? data.threads.length : threads.length),
-      pagination: data.pagination || null
+      success: data.success !== false,
+      threads: data.threads || [],
+      total_count: data.total || 0
     };
-  } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error("Get threads request timed out after 10 seconds");
-      return {
-        threads: [],
-        error: "Request timed out. Please try again.",
-        status: 408 // Request Timeout
-      };
-    }
-    
-    console.error("Error in getAllThreads:", error);
+  } catch (error) {
+    console.error('Get all threads failed:', error);
     return {
+      success: false,
       threads: [],
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
-      status: 500 // Internal Server Error
+      total_count: 0,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }

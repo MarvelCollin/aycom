@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"math/big"
 	"os"
 	"strings"
@@ -28,6 +29,16 @@ func GenerateJWT(userID string, expiryDuration time.Duration) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secret)
+}
+
+// GetJWTSecret returns the JWT secret key from environment variables or a fallback value
+func GetJWTSecret() []byte {
+	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+	if len(jwtSecret) == 0 {
+		log.Println("Warning: JWT_SECRET environment variable not set or empty, using fallback value. This is not secure for production use.")
+		jwtSecret = []byte("insecure_fallback_jwt_key")
+	}
+	return jwtSecret
 }
 
 func GenerateVerificationCode() string {

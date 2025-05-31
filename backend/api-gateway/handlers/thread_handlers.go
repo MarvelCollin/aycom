@@ -23,31 +23,19 @@ import (
 func CreateThread(c *gin.Context) {
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
 	var request threadProto.CreateThreadRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Invalid request: " + err.Error(),
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request: "+err.Error())
 		return
 	}
 
@@ -55,11 +43,7 @@ func CreateThread(c *gin.Context) {
 
 	conn, err := threadConnPool.Get()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
 	defer threadConnPool.Put(conn)
@@ -76,17 +60,9 @@ func CreateThread(c *gin.Context) {
 			if st.Code() == codes.InvalidArgument {
 				httpStatus = http.StatusBadRequest
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to create thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create thread: "+err.Error())
 		}
 		return
 	}
@@ -173,21 +149,13 @@ func GetThread(c *gin.Context) {
 func GetThreadsByUser(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	authenticatedUserIDStr, ok := authenticatedUserID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
@@ -199,11 +167,7 @@ func GetThreadsByUser(c *gin.Context) {
 	}
 
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "User ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
 
@@ -231,22 +195,14 @@ func GetThreadsByUser(c *gin.Context) {
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "User service client not initialized",
-				Code:    "SERVICE_UNAVAILABLE",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
 			// Failed to find user by username
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Success: false,
-				Message: fmt.Sprintf("User with username '%s' not found", userID),
-				Code:    "NOT_FOUND",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
@@ -258,11 +214,7 @@ func GetThreadsByUser(c *gin.Context) {
 
 	conn, err := threadConnPool.Get()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
 	defer threadConnPool.Put(conn)
@@ -283,17 +235,9 @@ func GetThreadsByUser(c *gin.Context) {
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to get threads: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get threads: "+err.Error())
 		}
 		return
 	}
@@ -363,21 +307,13 @@ func GetThreadsByUser(c *gin.Context) {
 func UpdateThread(c *gin.Context) {
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
@@ -385,21 +321,13 @@ func UpdateThread(c *gin.Context) {
 
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Thread ID is required")
 		return
 	}
 
 	var request threadProto.UpdateThreadRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Invalid request: " + err.Error(),
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request: "+err.Error())
 		return
 	}
 
@@ -407,11 +335,7 @@ func UpdateThread(c *gin.Context) {
 
 	conn, err := threadConnPool.Get()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
 	defer threadConnPool.Put(conn)
@@ -432,17 +356,9 @@ func UpdateThread(c *gin.Context) {
 			} else if st.Code() == codes.PermissionDenied {
 				httpStatus = http.StatusForbidden
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to update thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update thread: "+err.Error())
 		}
 		return
 	}
@@ -453,41 +369,25 @@ func UpdateThread(c *gin.Context) {
 func DeleteThread(c *gin.Context) {
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Thread ID is required")
 		return
 	}
 
 	conn, err := threadConnPool.Get()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
 	defer threadConnPool.Put(conn)
@@ -509,17 +409,9 @@ func DeleteThread(c *gin.Context) {
 			} else if st.Code() == codes.PermissionDenied {
 				httpStatus = http.StatusForbidden
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to delete thread: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete thread: "+err.Error())
 		}
 		return
 	}
@@ -768,11 +660,7 @@ func GetAllThreads(c *gin.Context) {
 	conn, err := threadConnPool.Get()
 	if err != nil {
 		log.Printf("Failed to get thread service connection: %v", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to connect to thread service: " + err.Error(),
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
 	defer threadConnPool.Put(conn)
@@ -796,17 +684,9 @@ func GetAllThreads(c *gin.Context) {
 		log.Printf("Error from GetAllThreads RPC: %v", err)
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to get threads: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get threads: "+err.Error())
 		}
 		return
 	}
@@ -831,21 +711,13 @@ func GetAllThreads(c *gin.Context) {
 func GetUserReplies(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	authenticatedUserIDStr, ok := authenticatedUserID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
@@ -857,11 +729,7 @@ func GetUserReplies(c *gin.Context) {
 	}
 
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "User ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
 
@@ -883,11 +751,7 @@ func GetUserReplies(c *gin.Context) {
 	}
 
 	if threadServiceClient == nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Thread service client not initialized",
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
@@ -898,22 +762,14 @@ func GetUserReplies(c *gin.Context) {
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "User service client not initialized",
-				Code:    "SERVICE_UNAVAILABLE",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
 			// Failed to find user by username
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Success: false,
-				Message: fmt.Sprintf("User with username '%s' not found", userID),
-				Code:    "NOT_FOUND",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
@@ -930,17 +786,9 @@ func GetUserReplies(c *gin.Context) {
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to get user replies: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user replies: "+err.Error())
 		}
 		return
 	}
@@ -990,21 +838,13 @@ func GetUserReplies(c *gin.Context) {
 func GetUserLikedThreads(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	authenticatedUserIDStr, ok := authenticatedUserID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
@@ -1016,11 +856,7 @@ func GetUserLikedThreads(c *gin.Context) {
 	}
 
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "User ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
 
@@ -1042,11 +878,7 @@ func GetUserLikedThreads(c *gin.Context) {
 	}
 
 	if threadServiceClient == nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Thread service client not initialized",
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
@@ -1057,22 +889,14 @@ func GetUserLikedThreads(c *gin.Context) {
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "User service client not initialized",
-				Code:    "SERVICE_UNAVAILABLE",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
 			// Failed to find user by username
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Success: false,
-				Message: fmt.Sprintf("User with username '%s' not found", userID),
-				Code:    "NOT_FOUND",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
@@ -1089,17 +913,9 @@ func GetUserLikedThreads(c *gin.Context) {
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to get user liked threads: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user liked threads: "+err.Error())
 		}
 		return
 	}
@@ -1148,21 +964,13 @@ func GetUserLikedThreads(c *gin.Context) {
 func GetUserMedia(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	authenticatedUserIDStr, ok := authenticatedUserID.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
@@ -1174,11 +982,7 @@ func GetUserMedia(c *gin.Context) {
 	}
 
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "User ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
 
@@ -1200,11 +1004,7 @@ func GetUserMedia(c *gin.Context) {
 	}
 
 	if threadServiceClient == nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Thread service client not initialized",
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
@@ -1215,22 +1015,14 @@ func GetUserMedia(c *gin.Context) {
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "User service client not initialized",
-				Code:    "SERVICE_UNAVAILABLE",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
 			// Failed to find user by username
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Success: false,
-				Message: fmt.Sprintf("User with username '%s' not found", userID),
-				Code:    "NOT_FOUND",
-			})
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
@@ -1247,17 +1039,9 @@ func GetUserMedia(c *gin.Context) {
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
 			}
-			c.JSON(httpStatus, ErrorResponse{
-				Success: false,
-				Message: st.Message(),
-				Code:    st.Code().String(),
-			})
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Success: false,
-				Message: "Failed to get user media: " + err.Error(),
-				Code:    "INTERNAL_ERROR",
-			})
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user media: "+err.Error())
 		}
 		return
 	}
@@ -1281,31 +1065,19 @@ func GetUserMedia(c *gin.Context) {
 func PinThread(c *gin.Context) {
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Thread ID is required")
 		return
 	}
 
@@ -1313,22 +1085,14 @@ func PinThread(c *gin.Context) {
 
 	if threadServiceClient == nil {
 		log.Println("Thread service client not initialized - using mock implementation")
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Thread service client not initialized",
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
 	err := threadServiceClient.PinThread(threadID, userID)
 	if err != nil {
 		log.Printf("Error pinning thread: %v", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to pin thread: " + err.Error(),
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to pin thread: "+err.Error())
 		return
 	}
 
@@ -1341,31 +1105,19 @@ func PinThread(c *gin.Context) {
 func UnpinThread(c *gin.Context) {
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{
-			Success: false,
-			Message: "User ID not found in token",
-			Code:    "UNAUTHORIZED",
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Invalid User ID format in token",
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
 	threadID := c.Param("id")
 	if threadID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Thread ID is required",
-			Code:    "INVALID_REQUEST",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Thread ID is required")
 		return
 	}
 
@@ -1373,22 +1125,14 @@ func UnpinThread(c *gin.Context) {
 
 	if threadServiceClient == nil {
 		log.Println("Thread service client not initialized - using mock implementation")
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Thread service client not initialized",
-			Code:    "SERVICE_UNAVAILABLE",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
 	err := threadServiceClient.UnpinThread(threadID, userID)
 	if err != nil {
 		log.Printf("Error unpinning thread: %v", err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Success: false,
-			Message: "Failed to unpin thread: " + err.Error(),
-			Code:    "INTERNAL_ERROR",
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unpin thread: "+err.Error())
 		return
 	}
 

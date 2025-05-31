@@ -76,7 +76,7 @@ func HandleCommunityChat(c *gin.Context) {
 			tokenString := token[7:]
 			log.Printf("DEBUG: Parsing token string: %s... (length: %d)", tokenString[:min(len(tokenString), 20)]+"...", len(tokenString))
 
-			jwtSecret := string(GetJWTSecret())
+			jwtSecret := string(utils.GetJWTSecret())
 
 			parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 

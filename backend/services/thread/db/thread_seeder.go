@@ -350,7 +350,7 @@ func SeedDatabase(db *gorm.DB) error {
 	var threadHashtags []model.ThreadHashtag
 
 	// Helper function to extract hashtags from content and create associations
-	extractAndCreateHashtags := func(thread model.Thread, content string) {
+	extractAndCreateHashtags := func(thread model.Thread) {
 		// This is a simplified version - in a real app you would parse the content to extract hashtags
 		// Format of content: "Text #hashtag1 #hashtag2"
 		// We're going to extract based on predefined hashtags in the content
@@ -379,7 +379,7 @@ func SeedDatabase(db *gorm.DB) error {
 
 	// Extract hashtags for each thread
 	for _, thread := range threads {
-		extractAndCreateHashtags(thread, thread.Content)
+		extractAndCreateHashtags(thread)
 	}
 
 	// Manual associations for demo purposes

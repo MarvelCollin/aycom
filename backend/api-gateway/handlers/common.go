@@ -44,12 +44,6 @@ type RateLimiter struct {
 	mu             sync.Mutex
 }
 
-type ErrorResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Code    string `json:"code,omitempty"`
-}
-
 type AuthServiceResponse struct {
 	Success      bool        `json:"success"`
 	Message      string      `json:"message"`
@@ -197,41 +191,7 @@ func HealthCheck(c *gin.Context) {
 }
 
 func RateLimitMiddleware(c *gin.Context) {
-
 	c.Next()
-}
-
-func SendErrorResponse(c *gin.Context, status int, code, message string) {
-	// DEPRECATED: Use utils.SendErrorResponse instead
-	// This function is kept for backward compatibility but will be removed in a future version
-	log.Printf("Warning: Deprecated SendErrorResponse called, use utils.SendErrorResponse instead")
-
-	c.JSON(status, ErrorResponse{
-		Success: false,
-		Message: message,
-		Code:    code,
-	})
-}
-
-func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
-	// DEPRECATED: Use utils.SendSuccessResponse instead
-	// This function is kept for backward compatibility but will be removed in a future version
-	log.Printf("Warning: Deprecated SendSuccessResponse called, use utils.SendSuccessResponse instead")
-
-	c.JSON(status, gin.H{
-		"success": true,
-		"data":    data,
-	})
-}
-
-func GetJWTSecret() []byte {
-	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
-	if len(jwtSecret) == 0 {
-		log.Println("Warning: JWT_SECRET environment variable not set or empty, using fallback value. This is not secure for production use.")
-
-		jwtSecret = []byte("insecure_fallback_jwt_key")
-	}
-	return jwtSecret
 }
 
 func ProxyServiceHealthCheck(serviceName, port string) gin.HandlerFunc {

@@ -148,7 +148,7 @@ func GetCommunityRequests(c *gin.Context) {
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -163,7 +163,7 @@ func GetCommunityRequests(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("GetCommunityRequests Handler: gRPC error: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get community requests")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get community requests")
 		return
 	}
 
@@ -180,7 +180,7 @@ func GetCommunityRequests(c *gin.Context) {
 func ProcessCommunityRequest(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
 		return
 	}
 
@@ -191,12 +191,12 @@ func ProcessCommunityRequest(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("ProcessCommunityRequest Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -213,16 +213,16 @@ func ProcessCommunityRequest(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community request not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community request not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("ProcessCommunityRequest Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
 			}
 		} else {
 			log.Printf("ProcessCommunityRequest Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
 		}
 		return
 	}
@@ -256,7 +256,7 @@ func GetPremiumRequests(c *gin.Context) {
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -271,7 +271,7 @@ func GetPremiumRequests(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("GetPremiumRequests Handler: gRPC error: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get premium requests")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get premium requests")
 		return
 	}
 
@@ -288,7 +288,7 @@ func GetPremiumRequests(c *gin.Context) {
 func ProcessPremiumRequest(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
 		return
 	}
 
@@ -299,12 +299,12 @@ func ProcessPremiumRequest(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("ProcessPremiumRequest Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -321,16 +321,16 @@ func ProcessPremiumRequest(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Premium request not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Premium request not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("ProcessPremiumRequest Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process premium request")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process premium request")
 			}
 		} else {
 			log.Printf("ProcessPremiumRequest Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process premium request")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process premium request")
 		}
 		return
 	}
@@ -364,7 +364,7 @@ func GetReportRequests(c *gin.Context) {
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -379,7 +379,7 @@ func GetReportRequests(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("GetReportRequests Handler: gRPC error: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get report requests")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get report requests")
 		return
 	}
 
@@ -396,7 +396,7 @@ func GetReportRequests(c *gin.Context) {
 func ProcessReportRequest(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
 		return
 	}
 
@@ -407,12 +407,12 @@ func ProcessReportRequest(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("ProcessReportRequest Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -429,16 +429,16 @@ func ProcessReportRequest(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Report request not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Report request not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("ProcessReportRequest Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process report request")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process report request")
 			}
 		} else {
 			log.Printf("ProcessReportRequest Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process report request")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process report request")
 		}
 		return
 	}
@@ -467,7 +467,7 @@ func GetThreadCategories(c *gin.Context) {
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -481,7 +481,7 @@ func GetThreadCategories(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("GetThreadCategories Handler: gRPC error: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get thread categories")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get thread categories")
 		return
 	}
 
@@ -503,12 +503,12 @@ func CreateThreadCategory(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("CreateThreadCategory Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -525,14 +525,14 @@ func CreateThreadCategory(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("CreateThreadCategory Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create thread category")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create thread category")
 			}
 		} else {
 			log.Printf("CreateThreadCategory Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create thread category")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create thread category")
 		}
 		return
 	}
@@ -547,7 +547,7 @@ func CreateThreadCategory(c *gin.Context) {
 func UpdateThreadCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
 		return
 	}
 
@@ -558,12 +558,12 @@ func UpdateThreadCategory(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("UpdateThreadCategory Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -581,16 +581,16 @@ func UpdateThreadCategory(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread category not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread category not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("UpdateThreadCategory Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update thread category")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update thread category")
 			}
 		} else {
 			log.Printf("UpdateThreadCategory Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update thread category")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update thread category")
 		}
 		return
 	}
@@ -605,12 +605,12 @@ func UpdateThreadCategory(c *gin.Context) {
 func DeleteThreadCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -626,16 +626,16 @@ func DeleteThreadCategory(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread category not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Thread category not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("DeleteThreadCategory Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete thread category")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete thread category")
 			}
 		} else {
 			log.Printf("DeleteThreadCategory Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete thread category")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete thread category")
 		}
 		return
 	}
@@ -664,7 +664,7 @@ func GetCommunityCategories(c *gin.Context) {
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -678,7 +678,7 @@ func GetCommunityCategories(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("GetCommunityCategories Handler: gRPC error: %v", err)
-		SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get community categories")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get community categories")
 		return
 	}
 
@@ -700,12 +700,12 @@ func CreateCommunityCategory(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("CreateCommunityCategory Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -722,14 +722,14 @@ func CreateCommunityCategory(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("CreateCommunityCategory Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create community category")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create community category")
 			}
 		} else {
 			log.Printf("CreateCommunityCategory Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create community category")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create community category")
 		}
 		return
 	}
@@ -744,7 +744,7 @@ func CreateCommunityCategory(c *gin.Context) {
 func UpdateCommunityCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
 		return
 	}
 
@@ -755,12 +755,12 @@ func UpdateCommunityCategory(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("UpdateCommunityCategory Handler: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -778,16 +778,16 @@ func UpdateCommunityCategory(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community category not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community category not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("UpdateCommunityCategory Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update community category")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update community category")
 			}
 		} else {
 			log.Printf("UpdateCommunityCategory Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update community category")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update community category")
 		}
 		return
 	}
@@ -802,12 +802,12 @@ func UpdateCommunityCategory(c *gin.Context) {
 func DeleteCommunityCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
-		SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
 		return
 	}
 
 	if UserClient == nil {
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -823,16 +823,16 @@ func DeleteCommunityCategory(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community category not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community category not found")
 			case codes.InvalidArgument:
-				SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("DeleteCommunityCategory Handler: gRPC error: %v", err)
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete community category")
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete community category")
 			}
 		} else {
 			log.Printf("DeleteCommunityCategory Handler: Unknown error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete community category")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete community category")
 		}
 		return
 	}

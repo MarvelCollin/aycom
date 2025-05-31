@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -250,20 +248,20 @@ func RegisterUser(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.AlreadyExists:
-				c.JSON(http.StatusConflict, ErrorResponse{Success: false, Message: "User already exists"})
+				utils.SendErrorResponse(c, http.StatusConflict, "ALREADY_EXISTS", "User already exists")
 				return
 			case codes.InvalidArgument:
-				c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: st.Message()})
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 				return
 			default:
-				c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to register user: " + err.Error()})
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to register user: "+err.Error())
 				return
 			}
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "Failed to register user: " + err.Error()})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to register user: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Registration successful", "user": resp.User})
+	utils.SendSuccessResponse(c, http.StatusCreated, gin.H{"message": "Registration successful", "user": resp.User})
 }
 
 func LoginUser(c *gin.Context) {
@@ -272,12 +270,12 @@ func LoginUser(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "Invalid request: " + err.Error()})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request: "+err.Error())
 		return
 	}
 
 	if UserClient == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Success: false, Message: "User service unavailable"})
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
 		return
 	}
 
@@ -290,30 +288,31 @@ func LoginUser(c *gin.Context) {
 	}
 	loginResp, err := UserClient.LoginUser(ctx, loginReq)
 	if err != nil || loginResp.User == nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Success: false, Message: "Invalid credentials"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials")
 		return
 	}
 
-	token, err := generateJWT(loginResp.User.Id)
+	token, err := utils.GenerateJWT(loginResp.User.Id, time.Hour)
 	if err != nil {
-		log.Printf("Error generating JWT token: %v", err)
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error generating authentication token")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
 		return
 	}
 
-	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
-	if err != nil || expirySeconds <= 0 {
-		expirySeconds = 3600
+	refreshTokenDuration := 7 * 24 * time.Hour
+	refreshToken, err := utils.GenerateJWT(loginResp.User.Id, refreshTokenDuration)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate refresh token")
+		return
 	}
 
 	response := AuthServiceResponse{
 		Success:      true,
 		Message:      "Login successful",
 		AccessToken:  token,
-		RefreshToken: "",
+		RefreshToken: refreshToken,
 		UserId:       loginResp.User.Id,
 		TokenType:    "Bearer",
-		ExpiresIn:    int64(expirySeconds),
+		ExpiresIn:    int64(time.Hour.Seconds()),
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -324,18 +323,12 @@ func GetUserByEmail(c *gin.Context) {
 		Email string `json:"email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Email == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Success: false,
-			Message: "Email is required",
-		})
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Email is required")
 		return
 	}
 
 	if UserClient == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Success: false,
-			Message: "User service unavailable",
-		})
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
 		return
 	}
 
@@ -345,32 +338,11 @@ func GetUserByEmail(c *gin.Context) {
 	grpcReq := &userProto.GetUserByEmailRequest{Email: req.Email}
 	resp, err := UserClient.GetUserByEmail(ctx, grpcReq)
 	if err != nil || resp.User == nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Success: false, Message: "User not found"})
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "user": resp.User})
-}
-
-func generateJWT(userID string) (string, error) {
-
-	expirySeconds, err := strconv.Atoi(os.Getenv("JWT_EXPIRY"))
-	if err != nil || expirySeconds <= 0 {
-		expirySeconds = 3600
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(time.Duration(expirySeconds) * time.Second).Unix(),
-		"iat":     time.Now().Unix(),
-	})
-
-	tokenString, err := token.SignedString(GetJWTSecret())
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{"user": resp.User})
 }
 
 func GetUserSuggestions(c *gin.Context) {
@@ -1031,10 +1003,17 @@ func CreateAdminUser(c *gin.Context) {
 		return
 	}
 
-	token, err := generateJWT(resp.User.Id)
+	token, err := utils.GenerateJWT(resp.User.Id, time.Hour)
 	if err != nil {
-		log.Printf("Error generating JWT for new admin user: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
+		return
+	}
 
+	refreshTokenDuration := 7 * 24 * time.Hour
+	refreshToken, err := utils.GenerateJWT(resp.User.Id, refreshTokenDuration)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate refresh token")
+		return
 	}
 
 	utils.SendSuccessResponse(c, http.StatusCreated, gin.H{
@@ -1049,7 +1028,8 @@ func CreateAdminUser(c *gin.Context) {
 			"is_verified": resp.User.IsVerified,
 			"created_at":  resp.User.CreatedAt,
 		},
-		"token": token,
+		"token":         token,
+		"refresh_token": refreshToken,
 	})
 }
 
@@ -1083,7 +1063,7 @@ func UpdateUserAdminStatus(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("UpdateUserAdminStatus: Invalid request payload: %v", err)
-		SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
+		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request payload: "+err.Error())
 		return
 	}
 
@@ -1104,7 +1084,7 @@ func UpdateUserAdminStatus(c *gin.Context) {
 
 	if UserClient == nil {
 		log.Println("UpdateUserAdminStatus: UserClient is nil")
-		SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
 
@@ -1117,14 +1097,14 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		currentUser, err := userServiceClient.GetUserProfile(req.UserID)
 		if err != nil {
 			log.Printf("UpdateUserAdminStatus: Error getting user profile: %v", err)
-			SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Only admins can update admin status")
+			utils.SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Only admins can update admin status")
 			return
 		}
 
 		log.Printf("UpdateUserAdminStatus: Current user IsAdmin: %t", currentUser.IsAdmin)
 		if !currentUser.IsAdmin {
 			log.Printf("UpdateUserAdminStatus: User %s is not an admin", req.UserID)
-			SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Only admins can update admin status")
+			utils.SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Only admins can update admin status")
 			return
 		}
 		log.Printf("UpdateUserAdminStatus: User %s is an admin, proceeding", req.UserID)
@@ -1151,13 +1131,13 @@ func UpdateUserAdminStatus(c *gin.Context) {
 			log.Printf("UpdateUserAdminStatus: gRPC error code: %d, message: %s", st.Code(), st.Message())
 			switch st.Code() {
 			case codes.NotFound:
-				SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 			default:
-				SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user admin status: "+st.Message())
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update user admin status: "+st.Message())
 			}
 		} else {
 			log.Printf("UpdateUserAdminStatus: Non-gRPC error: %v", err)
-			SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while updating user admin status")
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while updating user admin status")
 		}
 		log.Printf("Error updating user admin status: %v", err)
 		return
@@ -1184,7 +1164,7 @@ func UpdateUserAdminStatus(c *gin.Context) {
 	}
 
 	log.Printf("UpdateUserAdminStatus: Successfully completed. User %s has been %s", userName, action)
-	SendSuccessResponse(c, http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"success":  true,
 		"message":  fmt.Sprintf("User %s has been %s", userName, action),
 		"user_id":  req.UserID,
