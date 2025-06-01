@@ -20,20 +20,7 @@ export interface ICategory {
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CategoriesAPI');
 
-// Default categories for fallback
-const DEFAULT_CATEGORIES = [
-  {"id": "technology", "name": "Technology"},
-  {"id": "health", "name": "Health"},
-  {"id": "education", "name": "Education"},
-  {"id": "entertainment", "name": "Entertainment"},
-  {"id": "science", "name": "Science"},
-  {"id": "sports", "name": "Sports"},
-  {"id": "politics", "name": "Politics"},
-  {"id": "business", "name": "Business"},
-  {"id": "lifestyle", "name": "Lifestyle"},
-  {"id": "travel", "name": "Travel"},
-  {"id": "other", "name": "Other"}
-];
+// Default categories fallback removed as part of cleanup - all data now comes from real API endpoints
 
 /**
  * Get thread categories from the API
@@ -52,14 +39,24 @@ export async function getThreadCategories(): Promise<ICategory[]> {
     });
 
     if (!response.ok) {
-      throw new Error(`Error fetching categories: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.message || `Error ${response.status}: ${response.statusText}`;
+      logger.error(`Failed to fetch categories: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
-    return data.categories || [];
+    
+    if (!data || !data.categories || !Array.isArray(data.categories)) {
+      logger.warn('API returned invalid categories data format');
+      return [];
+    }
+    
+    logger.info('Successfully fetched categories from API', { count: data.categories.length });
+    return data.categories;
   } catch (error) {
-    console.error('Failed to fetch categories:', error);
-    return [];
+    logger.error('Failed to fetch categories:', error);
+    throw error; // Remove fallback, let error bubble up
   }
 }
 

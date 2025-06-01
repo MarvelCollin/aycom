@@ -25,6 +25,11 @@
   let isConnecting = false;
   let isDisconnecting = false;
   
+  // Search variables
+  let searchQuery = '';
+  let searchStatus = '';
+  let searchResults: any[] = [];
+  
   // Subscribe to websocket store to track status
   const unsubscribeWs = websocketStore.subscribe(state => {
     wsStatus = state.connected ? 'Connected' : (state.reconnecting ? 'Reconnecting' : 'Disconnected');
@@ -756,36 +761,15 @@
             statusMessage = `Debug info - First user: ${userList[0].username || userList[0].id}, is_admin: ${String(userList[0].is_admin)}, type: ${typeof userList[0].is_admin}`;
           }
           
-          logger.info(`Loaded ${userList.length} users`);
-        } catch (apiError) {
+          logger.info(`Loaded ${userList.length} users`);        } catch (apiError) {
           // Handle API errors more gracefully
           console.error('Error getting users:', apiError);
           
-          // Use mock data if the API fails
-          userList = [
-            {
-              id: "mock-user-1",
-              username: "testuser1",
-              display_name: "Test User One",
-              avatar_url: "https://secure.gravatar.com/avatar/1?d=mp",
-              is_verified: true,
-              is_admin: false,
-              name: "Test User One"
-            },
-            {
-              id: "mock-user-2", 
-              username: "adminuser",
-              display_name: "Admin User",
-              avatar_url: "https://secure.gravatar.com/avatar/2?d=mp",
-              is_verified: true,
-              is_admin: true,
-              name: "Admin User"
-            }
-          ];
-          
-          totalPages = 1;
-          statusMessage = `Using mock data due to API error: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`;
-          logger.warn('Using mock user data', { reason: 'API error', error: apiError });
+          // Set error state instead of using mock data
+          userList = [];
+          totalPages = 0;
+          statusMessage = `API error: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`;
+          logger.error('Failed to load users', { reason: 'API error', error: apiError });
         }
       }
     } catch (error) {
@@ -902,9 +886,9 @@
         searchStatus = 'No results or invalid response format';
         searchResults = [];
         debugLogger.warn('Invalid search response format');
-      }
-    } catch (error) {
-      searchStatus = `Error: ${error.message || 'Unknown error during search'}`;
+      }    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error during search';
+      searchStatus = `Error: ${errorMsg}`;
       searchResults = [];
       debugLogger.error('Search failed with error', { error });
     }

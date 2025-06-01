@@ -89,87 +89,19 @@
             user.id !== authState.userId && 
             !selectedParticipants.some(p => p.id === user.id)
           );
-          logger.info('Retrieved users from API', { count: searchResults.length });
-        } else {
-          logger.warn('No users found from API, trying to get all users', { query: searchQuery });
-          
-          // Second attempt: Try to get all users and filter client-side
-          try {
-            const allUsersResponse = await getAllUsers(30, 1, 'username', true);
-            
-            if (allUsersResponse.users && allUsersResponse.users.length > 0) {
-              // Filter users client-side based on the query
-              const filteredUsers = allUsersResponse.users.filter(user => 
-                (user.username && user.username.toLowerCase().includes(query)) ||
-                (user.display_name && user.display_name.toLowerCase().includes(query))
-              );
-              
-              if (filteredUsers.length > 0) {
-                const transformedUsers = transformApiUsers(filteredUsers);
-                searchResults = transformedUsers.filter(user => 
-                  user.id !== authState.userId && 
-                  !selectedParticipants.some(p => p.id === user.id)
-                );
-                logger.info('Retrieved filtered users from all users list', { count: searchResults.length });
-              } else {
-                // Third attempt: Try with basic search as fallback
-                tryEmptyQuerySearch();
-              }
-            } else {
-              // If no users returned from all users API, try with basic search as fallback
-              tryEmptyQuerySearch();
-            }
-          } catch (fallbackError) {
-            logger.error('Error getting all users:', fallbackError);
-            // Try with basic search as fallback
-            tryEmptyQuerySearch();
-          }
-        }
-      } catch (error) {
+          logger.info('Retrieved users from API', { count: searchResults.length });        } else {
+          logger.warn('No users found from API search');
+          searchResults = [];
+        }      } catch (error) {
         logger.error('Error searching users:', error);
         errorMessage = 'Failed to search for users. Please try again.';
         searchResults = [];
-        
-        // Try fallback methods
-        tryEmptyQuerySearch();
       } finally {
         isLoading = false;
       }
     }, 300); // 300ms debounce
   }
-  
-  // Helper function for empty query search fallback
-  async function tryEmptyQuerySearch() {
-    try {
-      logger.warn('Falling back to search endpoint with empty query');
-      const query = searchQuery.toLowerCase();
-      const fallbackResponse = await searchUsers(" ");
-      
-      if (fallbackResponse.users && fallbackResponse.users.length > 0) {
-        // Filter users client-side based on the query
-        const filteredUsers = fallbackResponse.users.filter(user => 
-          (user.username && user.username.toLowerCase().includes(query)) ||
-          (user.display_name && user.display_name.toLowerCase().includes(query))
-        );
-        
-        if (filteredUsers.length > 0) {
-          const transformedUsers = transformApiUsers(filteredUsers);
-          searchResults = transformedUsers.filter(user => 
-            user.id !== authState.userId && 
-            !selectedParticipants.some(p => p.id === user.id)
-          );
-          logger.info('Retrieved filtered users from search with empty query', { count: searchResults.length });
-        } else {
-          searchResults = [];
-        }
-      } else {
-        searchResults = [];
-      }
-    } catch (error) {
-      logger.error('Error with search fallback:', error);
-      searchResults = [];
-    }
-  }
+    // Helper function for empty query search fallback has been removed - API should handle search properly
 
   // Add user to selected participants
   function addParticipant(user: StandardUser): void {

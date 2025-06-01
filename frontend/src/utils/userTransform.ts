@@ -9,6 +9,11 @@ export interface StandardUser {
   is_verified: boolean;
   is_following?: boolean;
   follower_count?: number;
+  // Adding missing properties
+  avatar?: string | null;
+  displayName?: string;
+  display_name?: string;
+  role?: string;
 }
 
 export function transformApiUser(user: any): StandardUser {
@@ -25,7 +30,12 @@ export function transformApiUser(user: any): StandardUser {
     bio: user.bio || '',
     is_verified: !!user.is_verified,
     is_following: !!user.is_following,
-    follower_count: user.follower_count || 0
+    follower_count: user.follower_count || 0,
+    // Adding missing properties
+    avatar: user.avatar || user.profile_picture_url || null,
+    displayName: user.display_name || user.name || user.username || 'User',
+    display_name: user.display_name || user.name || user.username || 'User',
+    role: user.role || 'user'
   };
 }
 

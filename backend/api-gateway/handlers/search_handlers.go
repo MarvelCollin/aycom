@@ -38,14 +38,13 @@ func SearchUsers(c *gin.Context) {
 		log.Printf("Error searching users: %v", err)
 		return
 	}
-
 	var userResults []gin.H
 	for _, user := range users {
 		userResults = append(userResults, gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
-			"name":                user.Name,
-			"profile_picture_url": user.ProfilePictureURL,
+			"name":                user.Name,              // Use consistent 'name' field
+			"profile_picture_url": user.ProfilePictureURL, // Use consistent field name
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
@@ -135,15 +134,14 @@ func GetUserRecommendations(c *gin.Context) {
 		userResults = append(userResults, gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
-			"name":                user.Name,
-			"profile_picture_url": user.ProfilePictureURL,
+			"name":                user.Name,              // Use consistent 'name' field
+			"profile_picture_url": user.ProfilePictureURL, // Use consistent field name
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
 		})
 	}
-
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"users": userResults,
 	})

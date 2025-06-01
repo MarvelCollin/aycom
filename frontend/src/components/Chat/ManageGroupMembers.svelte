@@ -65,54 +65,21 @@
         const transformedUsers = transformApiUsers(response.users);
         availableUsers = transformedUsers.filter(user => !participantIds.has(user.id));
         
-        logger.debug('Filtered available users', { count: availableUsers.length });
-      } else {
-        // Try alternative queries if no results
-        await tryAlternativeSearchQueries();
-      }
-    } catch (error) {
+        logger.debug('Filtered available users', { count: availableUsers.length });      } else {
+        logger.warn('No users found from search API');
+        errorMessage = 'No users found. Try searching by username.';
+      }    } catch (error) {
       logger.error('Error loading users with searchUsers API:', error);
-      await tryAlternativeSearchQueries();
+      errorMessage = 'Failed to load users. Try searching by username.';
     }
   }
-  
-  // Try different common letters that should return users
-  async function tryAlternativeSearchQueries(): Promise<void> {
-    // Try a series of common letters that should return results
-    const commonLetters = ['e', 'i', 'o', 's', 'm'];
-    
-    for (const letter of commonLetters) {
-      try {
-        logger.debug(`Trying alternative search with letter "${letter}"`);
-        const response = await searchUsers(letter, 1, 50);
-        
-        if (response && response.users && response.users.length > 0) {
-          logger.debug(`Users found with letter "${letter}"`, { count: response.users.length });
-          
-          // Filter out users who are already in the chat
-          const participantIds = new Set(currentParticipants.map(p => p.id));
-          
-          // Transform and filter users
-          const transformedUsers = transformApiUsers(response.users);
-          availableUsers = transformedUsers.filter(user => !participantIds.has(user.id));
-          
-          logger.debug('Filtered available users from alternative search', { count: availableUsers.length });
-          return; // Exit after finding users
-        }
-      } catch (err) {
-        logger.warn(`Search with letter "${letter}" failed:`, err);
-      }
-    }
-    
-    logger.warn('All alternative searches failed to load users');
-    errorMessage = 'Could not load available users. Try searching by username.';
-  }
+    // Alternative search function has been removed - API should handle search properly
   
   // Filtered users based on search query
   $: filteredUsers = searchQuery 
     ? availableUsers.filter(user => 
         user.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        user.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+        (user.displayName || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : availableUsers;
   

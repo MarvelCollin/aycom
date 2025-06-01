@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"aycom/backend/api-gateway/config"
+
+
 )
 
 type ThreadServiceClient interface {
@@ -88,15 +90,10 @@ func InitThreadServiceClient(cfg *config.Config) {
 	log.Println("Initializing thread service client...")
 
 	if cfg.Services.ThreadService == "" {
-		log.Println("Warning: Thread service address is not configured, using local implementation")
-		threadServiceClient = &localThreadServiceClient{}
+		log.Fatal("Error: Thread service address is not configured")
 		return
 	}
-
 	log.Printf("Attempting to connect to Thread service at %s", cfg.Services.ThreadService)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	// Update to use the recommended non-deprecated approach
 	conn, err := grpc.NewClient(
@@ -106,21 +103,18 @@ func InitThreadServiceClient(cfg *config.Config) {
 	)
 
 	if err != nil {
-		log.Printf("ERROR: Failed to connect to Thread service at %s: %v", cfg.Services.ThreadService, err)
-		log.Println("Falling back to local implementation")
-		threadServiceClient = &localThreadServiceClient{}
+		log.Fatalf("ERROR: Failed to connect to Thread service at %s: %v", cfg.Services.ThreadService, err)
 		return
 	}
 
 	log.Printf("Successfully connected to Thread service at %s", cfg.Services.ThreadService)
-
 	grpcClient := threadProto.NewThreadServiceClient(conn)
 	threadServiceClient = &GRPCThreadServiceClient{
 		client: grpcClient,
 		conn:   conn,
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	_, testErr := grpcClient.GetTrendingHashtags(ctx, &threadProto.GetTrendingHashtagsRequest{Limit: 1})
@@ -137,165 +131,7 @@ func GetThreadServiceClient() ThreadServiceClient {
 	return threadServiceClient
 }
 
-type localThreadServiceClient struct {
-}
 
-func (c *localThreadServiceClient) CreateThread(userID, content string, mediaIDs []string) (string, error) {
-	log.Printf("Mock: Creating thread for user %s", userID)
-	return "mock-thread-id", nil
-}
-
-func (c *localThreadServiceClient) GetThreadByID(threadID string, userID string) (*Thread, error) {
-	log.Printf("Mock: Getting thread %s for user %s", threadID, userID)
-
-	return &Thread{
-		ID:          threadID,
-		Content:     "Mock thread content",
-		UserID:      userID,
-		Username:    "mockuser",
-		DisplayName: "Mock User",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}, nil
-}
-
-func (c *localThreadServiceClient) GetThreadsByUserID(userID string, requestingUserID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Getting threads for user %s", userID)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) GetAllThreads(userID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Getting all threads page %d limit %d", page, limit)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) UpdateThread(threadID, userID, content string) (*Thread, error) {
-	log.Printf("Mock: Updating thread %s for user %s", threadID, userID)
-
-	return &Thread{
-		ID:          threadID,
-		Content:     content,
-		UserID:      userID,
-		Username:    "mockuser",
-		DisplayName: "Mock User",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}, nil
-}
-
-func (c *localThreadServiceClient) DeleteThread(threadID, userID string) error {
-	log.Printf("Mock: Deleting thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) SearchThreads(query string, userID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Searching threads with query %s", query)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) LikeThread(threadID, userID string) error {
-	log.Printf("Mock: Liking thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) UnlikeThread(threadID, userID string) error {
-	log.Printf("Mock: Unliking thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) ReplyToThread(threadID, userID, content string, mediaIDs []string) (string, error) {
-	log.Printf("Mock: Replying to thread %s for user %s", threadID, userID)
-	return "mock-reply-id", nil
-}
-
-func (c *localThreadServiceClient) GetThreadReplies(threadID string, userID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Getting replies for thread %s", threadID)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) RepostThread(threadID, userID string) error {
-	log.Printf("Mock: Reposting thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) RemoveRepost(threadID, userID string) error {
-	log.Printf("Mock: Removing repost for thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) BookmarkThread(threadID, userID string) error {
-	log.Printf("Mock: Bookmarking thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) RemoveBookmark(threadID, userID string) error {
-	log.Printf("Mock: Removing bookmark for thread %s for user %s", threadID, userID)
-	return nil
-}
-
-func (c *localThreadServiceClient) GetUserBookmarks(userID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Getting bookmarks for user %s", userID)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) SearchUserBookmarks(userID, query string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Searching bookmarks for user %s with query %s", userID, query)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) GetRepliesByUser(userID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Getting replies for user %s", userID)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) GetLikedThreadsByUser(userID string, page, limit int) ([]*Thread, error) {
-	log.Printf("Mock: Getting liked threads for user %s", userID)
-
-	return []*Thread{}, nil
-}
-
-func (c *localThreadServiceClient) GetMediaByUser(userID string, page, limit int) ([]Media, error) {
-	log.Printf("Mock: Getting media for user %s", userID)
-
-	return []Media{}, nil
-}
-
-func (c *localThreadServiceClient) GetTrendingHashtags(limit int) ([]string, error) {
-	log.Printf("Mock: Getting trending hashtags with limit %d", limit)
-
-	return []string{"mock1", "mock2", "mock3"}, nil
-}
-
-func (c *localThreadServiceClient) PinThread(threadID, userID string) error {
-	log.Printf("Local implementation: Pinning thread %s for user %s", threadID, userID)
-
-	return nil
-}
-
-func (c *localThreadServiceClient) UnpinThread(threadID, userID string) error {
-	log.Printf("Local implementation: Unpinning thread %s for user %s", threadID, userID)
-
-	return nil
-}
-
-func (c *localThreadServiceClient) PinReply(replyID, userID string) error {
-	log.Printf("Local implementation: Pinning reply %s for user %s", replyID, userID)
-
-	return nil
-}
-
-func (c *localThreadServiceClient) UnpinReply(replyID, userID string) error {
-	log.Printf("Local implementation: Unpinning reply %s for user %s", replyID, userID)
-
-	return nil
-}
 
 func (c *GRPCThreadServiceClient) CreateThread(userID, content string, mediaIDs []string) (string, error) {
 	if c.client == nil {

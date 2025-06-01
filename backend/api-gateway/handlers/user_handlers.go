@@ -7,9 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
-	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -346,34 +344,52 @@ func GetUserByEmail(c *gin.Context) {
 }
 
 func GetUserSuggestions(c *gin.Context) {
+	// This endpoint is deprecated - use /users/recommendations instead
+	// Redirecting to the proper recommendations endpoint
+	userID, exists := c.Get("userID")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	userIDStr := userID.(string)
 
-	limit := 10
-	if limitParam := c.DefaultQuery("limit", "10"); limitParam != "" {
-		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
-		}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "3"))
+
+	if userServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
 	}
 
-	log.Printf("GetUserSuggestions: Providing mock suggestions data (limit=%d)", limit)
+	users, err := userServiceClient.GetUserRecommendations(userIDStr, limit)
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user recommendations: "+st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while getting user recommendations")
+		}
+		log.Printf("Error getting user recommendations: %v", err)
+		return
+	}
 
-	var users []gin.H
-	for i := 1; i <= limit; i++ {
-		users = append(users, gin.H{
-			"id":              fmt.Sprintf("user-%d", i),
-			"username":        fmt.Sprintf("user%d", i),
-			"display_name":    fmt.Sprintf("User %d", i),
-			"avatar_url":      fmt.Sprintf("https://i.pravatar.cc/150?u=user%d", i),
-			"is_verified":     i%3 == 0,
-			"bio":             fmt.Sprintf("This is user %d bio", i),
-			"follower_count":  i*100 + 50,
-			"following_count": i * 75,
-			"is_following":    false,
+	var userResults []gin.H
+	for _, user := range users {
+		userResults = append(userResults, gin.H{
+			"id":                  user.ID,
+			"username":            user.Username,
+			"name":                user.Name,
+			"profile_picture_url": user.ProfilePictureURL,
+			"bio":                 user.Bio,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
+			"follower_count":      user.FollowerCount,
+			"is_following":        false, // Will be enriched by frontend if needed
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"users":   users,
+		"users":   userResults,
 	})
 }
 
@@ -523,13 +539,21 @@ func UploadProfileMedia(c *gin.Context) {
 }
 
 func GetAllUsers(c *gin.Context) {
+	if userServiceClient == nil {
+		log.Printf("User service unavailable")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		return
+	}
 
-	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	// Parse pagination parameters
+	pageStr := c.DefaultQuery("page", "1")
+	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	limitStr := c.DefaultQuery("limit", "10")
+	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 {
 		limit = 10
 	}
@@ -538,389 +562,226 @@ func GetAllUsers(c *gin.Context) {
 		limit = 100
 	}
 
+	// Parse sorting parameters
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortOrderStr := c.DefaultQuery("ascending", "false")
-	sortDesc := sortOrderStr != "true"
+	ascending := sortOrderStr == "true"
 
-	if UserClient == nil {
-		log.Printf("User service unavailable, using fallback implementation for /users/all endpoint")
-		provideFallbackAllUsersList(c, page, limit)
-		return
-	}
+	log.Printf("GetAllUsers: page=%d, limit=%d, sortBy=%s, ascending=%v", page, limit, sortBy, ascending)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	req := &userProto.GetAllUsersRequest{
-		Page:   int32(page),
-		Limit:  int32(limit),
-		SortBy: sortBy,
-	}
-
-	reflect.ValueOf(req).Elem().FieldByName("SortDesc").SetBool(sortDesc)
-
-	resp, err := UserClient.GetAllUsers(ctx, req)
+	// Call the service client to get users
+	users, totalCount, totalPages, err := userServiceClient.GetAllUsers(page, limit, sortBy, ascending)
 
 	if err != nil {
-		log.Printf("Error getting all users: %v, using fallback implementation", err)
-		provideFallbackAllUsersList(c, page, limit)
+		log.Printf("Error getting all users: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve users")
 		return
 	}
 
-	users := make([]map[string]interface{}, 0, len(resp.GetUsers()))
-	for _, u := range resp.GetUsers() {
-		users = append(users, map[string]interface{}{
-			"id":              u.GetId(),
-			"username":        u.GetUsername(),
-			"display_name":    u.GetName(),
-			"avatar_url":      u.GetProfilePictureUrl(),
-			"is_verified":     u.GetIsVerified(),
-			"is_admin":        u.GetIsAdmin(),
-			"bio":             u.GetBio(),
-			"follower_count":  u.GetFollowerCount(),
-			"following_count": u.GetFollowingCount(),
+	// Transform users to the expected format
+	usersData := make([]map[string]interface{}, 0, len(users))
+	for _, user := range users {
+		usersData = append(usersData, map[string]interface{}{
+			"id":                  user.ID,
+			"username":            user.Username,
+			"name":                user.Name,
+			"profile_picture_url": user.ProfilePictureURL,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
+			"bio":                 user.Bio,
+			"follower_count":      user.FollowerCount,
+			"following_count":     user.FollowingCount,
 		})
 	}
-
-	totalPages := int(1)
-	if resp.GetTotalCount() > 0 && int32(limit) > 0 {
-		totalPages = int((resp.GetTotalCount() + int32(limit) - 1) / int32(limit))
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"users":       users,
-		"total_count": resp.GetTotalCount(),
-		"page":        resp.GetPage(),
-		"total_pages": totalPages,
-	})
-}
-
-func provideFallbackAllUsersList(c *gin.Context, page, limit int) {
-
-	mockUsers := []map[string]interface{}{
-		{
-			"id":              "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-			"username":        "testuser1",
-			"display_name":    "Test User One",
-			"avatar_url":      "https://secure.gravatar.com/avatar/1?d=mp",
-			"is_verified":     true,
-			"is_admin":        false,
-			"bio":             "This is a test user bio",
-			"follower_count":  42,
-			"following_count": 24,
-		},
-		{
-			"id":              "f47ac10b-58cc-4372-a567-0e02b2c3d480",
-			"username":        "testuser2",
-			"display_name":    "Test User Two",
-			"avatar_url":      "https://secure.gravatar.com/avatar/2?d=mp",
-			"is_verified":     false,
-			"is_admin":        false,
-			"bio":             "Another test user bio",
-			"follower_count":  17,
-			"following_count": 35,
-		},
-		{
-			"id":              "f47ac10b-58cc-4372-a567-0e02b2c3d481",
-			"username":        "kolin",
-			"display_name":    "Kolin",
-			"avatar_url":      "https://secure.gravatar.com/avatar/3?d=mp",
-			"is_verified":     true,
-			"is_admin":        true,
-			"bio":             "A developer bio",
-			"follower_count":  128,
-			"following_count": 55,
-		},
-	}
-
-	totalCount := len(mockUsers)
-	totalPages := (totalCount + limit - 1) / limit
-
-	if page > totalPages && totalPages > 0 {
-		page = totalPages
-	}
-
-	startIdx := (page - 1) * limit
-	endIdx := startIdx + limit
-
-	if startIdx >= totalCount {
-		startIdx = 0
-		endIdx = 0
-	}
-
-	if endIdx > totalCount {
-		endIdx = totalCount
-	}
-
-	var pageUsers []map[string]interface{}
-	if startIdx < endIdx {
-		pageUsers = mockUsers[startIdx:endIdx]
-	} else {
-		pageUsers = []map[string]interface{}{}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"users":       pageUsers,
+		"users":       usersData,
 		"total_count": totalCount,
 		"page":        page,
 		"total_pages": totalPages,
 	})
 
-	log.Printf("Provided %d fallback users for page %d (limit %d)", len(pageUsers), page, limit)
+	log.Printf("Provided %d users for page %d (limit %d)", len(usersData), page, limit)
 }
 
 func UpdateProfilePictureURLHandler(c *gin.Context) {
-	userIdValue, exists := c.Get("userID")
+	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	userIDStr := userID.(string)
+
+	var input struct {
+		URL string `json:"profile_picture_url" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
 		return
 	}
 
-	userID, ok := userIdValue.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+	if input.URL == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Profile picture URL is required")
 		return
 	}
 
-	var req struct {
-		ProfilePictureUrl string `json:"profile_picture_url"`
+	log.Printf("UpdateProfilePictureURLHandler: Updating profile picture URL for user %s: %s", userIDStr, input.URL)
+
+	profileUpdate := &UserProfileUpdate{
+		ProfilePictureURL: input.URL,
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	_, err := userServiceClient.UpdateUserProfile(userIDStr, profileUpdate)
 
-	if !strings.Contains(req.ProfilePictureUrl, ".supabase.co") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
-		return
-	}
-
-	if UserClient == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "User service unavailable"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	updateReq := &userProto.UpdateUserRequest{
-		UserId:            userID,
-		ProfilePictureUrl: req.ProfilePictureUrl,
-	}
-
-	_, err := UserClient.UpdateUser(ctx, updateReq)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update profile: %v", err)})
+		log.Printf("Error updating profile picture URL: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update profile picture URL")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.ProfilePictureUrl, "profile_picture_url": req.ProfilePictureUrl})
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"message":             "Profile picture URL updated successfully",
+		"profile_picture_url": input.URL,
+	})
 }
 
+// UpdateBannerURLHandler handles requests to update a user's banner URL
 func UpdateBannerURLHandler(c *gin.Context) {
-	userIdValue, exists := c.Get("userID")
+	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	userIDStr := userID.(string)
+
+	var input struct {
+		URL string `json:"banner_url" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body")
 		return
 	}
 
-	userID, ok := userIdValue.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+	if input.URL == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Banner URL is required")
 		return
 	}
 
-	var req struct {
-		BannerUrl string `json:"banner_url"`
+	log.Printf("UpdateBannerURLHandler: Updating banner URL for user %s: %s", userIDStr, input.URL)
+
+	profileUpdate := &UserProfileUpdate{
+		BannerURL: input.URL,
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	_, err := userServiceClient.UpdateUserProfile(userIDStr, profileUpdate)
 
-	if !strings.Contains(req.BannerUrl, ".supabase.co") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL source"})
-		return
-	}
-
-	if UserClient == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "User service unavailable"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	updateReq := &userProto.UpdateUserRequest{
-		UserId:    userID,
-		BannerUrl: req.BannerUrl,
-	}
-
-	_, err := UserClient.UpdateUser(ctx, updateReq)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update profile: %v", err)})
+		log.Printf("Error updating banner URL: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update banner URL")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "url": req.BannerUrl, "banner_url": req.BannerUrl})
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"message":    "Banner URL updated successfully",
+		"banner_url": input.URL,
+	})
 }
 
+// GetUserByUsername handles requests to get a user by their username
 func GetUserByUsername(c *gin.Context) {
 	username := c.Param("username")
 	if username == "" {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Username is required")
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Username is required")
 		return
 	}
 
-	currentUserID, exists := c.Get("userID")
-	if !exists {
-		currentUserID = ""
-	}
-	currentUserIDStr := currentUserID.(string)
+	log.Printf("GetUserByUsername Handler: Looking up user with username: %s", username)
 
-	if userServiceClient == nil {
-		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
-		return
-	}
-
+	// Get user by username
 	user, err := userServiceClient.GetUserByUsername(username)
-	if err != nil {
 
-		st, ok := status.FromError(err)
-		if ok {
-			code := status.Code(err)
-			if code == codes.NotFound {
-				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
-				return
-			}
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
-		} else {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
-		}
-		log.Printf("Error fetching user by username '%s': %v", username, err)
+	if err != nil {
+		log.Printf("Error getting user by username: %v", err)
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 		return
 	}
 
-	isUserBlocked, err := userServiceClient.IsUserBlocked(user.ID, currentUserIDStr)
-	if err != nil {
-		log.Printf("Error checking if user is blocked: %v", err)
-	}
-
-	isFollowing := false
-	if currentUserIDStr != "" && currentUserIDStr != user.ID {
-		isFollowing, err = userServiceClient.IsFollowing(currentUserIDStr, user.ID)
-		if err != nil {
-			log.Printf("Error checking follow status: %v", err)
+	// Check if requesting user is following this user
+	if id, exists := c.Get("userID"); exists {
+		requesterID := id.(string)
+		if requesterID != "" && user.ID != requesterID {
+			isFollowing, _ := userServiceClient.IsFollowing(requesterID, user.ID)
+			user.IsFollowing = isFollowing
 		}
-	}
-
-	displayName := user.DisplayName
-	if displayName == "" {
-		displayName = user.Name
 	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
-			"display_name":        displayName,
+			"name":                user.Name,
 			"bio":                 user.Bio,
 			"profile_picture_url": user.ProfilePictureURL,
 			"banner_url":          user.BannerURL,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
 			"following_count":     user.FollowingCount,
-			"created_at":          user.CreatedAt.Format(time.RFC3339),
-			"is_verified":         user.IsVerified,
-			"is_private":          user.IsPrivate,
-			"is_following":        isFollowing,
-			"is_blocked":          isUserBlocked,
-			"is_current_user":     currentUserIDStr == user.ID,
+			"created_at":          user.CreatedAt,
+			"is_following":        user.IsFollowing,
 		},
 	})
 }
 
+// GetUserById handles requests to get a user by their ID
 func GetUserById(c *gin.Context) {
-	userId := c.Param("userId")
-	if userId == "" {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "User ID is required")
+	userIdParam := c.Param("userId")
+	if userIdParam == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
 
-	log.Printf("GetUserById: Fetching user with ID: %s", userId)
-
-	currentUserID, exists := c.Get("userID")
-	if !exists {
-		currentUserID = ""
-	}
-	currentUserIDStr, ok := currentUserID.(string)
-	if !ok {
-		currentUserIDStr = ""
-	}
-
-	if userServiceClient == nil {
-		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+	// Validate UUID format
+	if _, err := uuid.Parse(userIdParam); err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
 		return
 	}
 
-	user, err := userServiceClient.GetUserById(userId)
+	log.Printf("GetUserById Handler: Looking up user with ID: %s", userIdParam)
+
+	// Get user by ID
+	user, err := userServiceClient.GetUserById(userIdParam)
+
 	if err != nil {
+		log.Printf("Error getting user by ID: %v", err)
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+		return
+	}
 
-		log.Printf("Failed to find user with ID %s, trying as username", userId)
-		user, err = userServiceClient.GetUserByUsername(userId)
-		if err != nil {
-
-			st, ok := status.FromError(err)
-			if ok {
-				code := status.Code(err)
-				if code == codes.NotFound {
-					utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
-					return
-				}
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch user: "+st.Message())
-			} else {
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while fetching user")
-			}
-			log.Printf("Error fetching user with ID/username '%s': %v", userId, err)
-			return
+	// Check if requesting user is following this user
+	if id, exists := c.Get("userID"); exists {
+		requesterID := id.(string)
+		if requesterID != "" && user.ID != requesterID {
+			isFollowing, _ := userServiceClient.IsFollowing(requesterID, user.ID)
+			user.IsFollowing = isFollowing
 		}
-	}
-
-	isUserBlocked, err := userServiceClient.IsUserBlocked(user.ID, currentUserIDStr)
-	if err != nil {
-		log.Printf("Error checking if user is blocked: %v", err)
-	}
-
-	isFollowing := false
-	if currentUserIDStr != "" && currentUserIDStr != user.ID {
-		isFollowing, err = userServiceClient.IsFollowing(currentUserIDStr, user.ID)
-		if err != nil {
-			log.Printf("Error checking follow status: %v", err)
-		}
-	}
-
-	displayName := user.DisplayName
-	if displayName == "" {
-		displayName = user.Name
 	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
-			"display_name":        displayName,
+			"name":                user.Name,
 			"bio":                 user.Bio,
 			"profile_picture_url": user.ProfilePictureURL,
 			"banner_url":          user.BannerURL,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
 			"following_count":     user.FollowingCount,
-			"created_at":          user.CreatedAt.Format(time.RFC3339),
-			"is_verified":         user.IsVerified,
-			"is_private":          user.IsPrivate,
-			"is_following":        isFollowing,
-			"is_blocked":          isUserBlocked,
-			"is_current_user":     currentUserIDStr == user.ID,
+			"created_at":          user.CreatedAt,
+			"is_following":        user.IsFollowing,
 		},
 	})
 }

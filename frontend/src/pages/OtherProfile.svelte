@@ -1,5 +1,4 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
+<script lang="ts">  import { onMount } from 'svelte';
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
@@ -7,10 +6,11 @@
   import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser, checkFollowStatus, getUserFollowers, getUserFollowing, getUserByUsername } from '../api/user';
   import type { FollowUserResponse, UnfollowUserResponse } from '../api/user';
   import { getUserThreads, getUserReplies, getUserMedia } from '../api/thread';
-  import { toastStore } from '../stores/toastStore';
-  import TweetCard from '../components/social/TweetCard.svelte';
+  import { toastStore } from '../stores/toastStore';  import TweetCard from '../components/social/TweetCard.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
-  import type { ITweet } from '../interfaces/ISocialMedia';
+  import type { ITweet, IMedia } from '../interfaces/ISocialMedia';
+  import type { ExtendedTweet } from '../interfaces/ITweet.extended';
+  import { ensureTweetFormat } from '../interfaces/ITweet.extended';
   import { createLoggerWithPrefix } from '../utils/logger';
   
   const logger = createLoggerWithPrefix('OtherProfile');
@@ -25,55 +25,15 @@
   import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
   import ArrowLeftIcon from 'svelte-feather-icons/src/icons/ArrowLeftIcon.svelte';
   import LinkIcon from 'svelte-feather-icons/src/icons/LinkIcon.svelte';
-  import MapPinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';
-  
-  interface Thread {
-    id: string;
-    content: string;
-    username: string;
-    display_name: string;
-    timestamp: string;
-    likes: number;
-    replies: number;
-    reposts: number;
-    created_at: string;
-    author_id?: string;
-    author_username?: string;
-    author_name?: string;
-    author_avatar?: string;
-    likes_count?: number;
-    replies_count?: number;
-    is_liked?: boolean;
-    is_reposted?: boolean;
-    is_bookmarked?: boolean;
-    media?: Array<{
-      type: string;
-      url: string;
-    }>;
-    avatar?: string;
-    [key: string]: any;
-  }
-  
-  interface Reply {
-    id: string;
-    content: string;
-    created_at: string;
-    thread_id: string;
-    thread_author: string;
-    author_id?: string;
-    author_username?: string;
-    author_name?: string;
-    author_avatar?: string;
-    likes_count?: number;
-    is_liked?: boolean;
-    [key: string]: any;
-  }
-  
-  interface ThreadMedia {
+  import MapPinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';  // Use the extended interface instead of defining custom ones
+  type Thread = ExtendedTweet;
+  type Reply = ExtendedTweet;
+    interface ThreadMedia {
     id: string;
     url: string;
     type: 'image' | 'video' | 'gif';
-    thread_id: string;
+    thread_id?: string;  // Make thread_id optional to handle potential missing values
+    threadId?: string;   // Add alternative property name
     created_at?: string;
     [key: string]: any; 
   }
@@ -148,125 +108,23 @@
   
   // Add state for followers/following modals
   let showFollowersModal = false;
-  let showFollowingModal = false;
-  let followersList = [];
-  let followingList = [];
+  let showFollowingModal = false;  interface UserFollower {
+    id: string;
+    username: string;
+    name: string;
+    profile_picture_url: string;
+    is_following: boolean;
+    bio: string;
+    display_name?: string;
+  }
+  
+  let followersList: UserFollower[] = [];
+  let followingList: UserFollower[] = [];
   let isLoadingFollowers = false;
   let isLoadingFollowing = false;
   let followersError = '';
   let followingError = '';
-  
-  function ensureTweetFormat(thread: any): ITweet {
-    try {
-      if (!thread || typeof thread !== 'object') {
-        logger.warn('Invalid thread object provided to ensureTweetFormat');
-        return {
-          id: `invalid-${Math.random().toString(36).substring(2, 9)}`,
-          thread_id: '',
-          user_id: '',
-          username: 'unknown',
-          name: 'Unknown User',
-          content: 'This content is unavailable',
-          created_at: new Date().toISOString(),
-          profile_picture_url: '',
-          likes_count: 0,
-          replies_count: 0,
-          reposts_count: 0,
-          bookmarks_count: 0,
-          views_count: 0,
-          media: [],
-          is_liked: false,
-          is_reposted: false,
-          is_bookmarked: false,
-          is_pinned: false,
-          reply_to: null
-        };
-      }
-    
-      let username = thread.author_username || thread.authorUsername || thread.username || 'anonymous';
-      
-      let name = thread.author_name || thread.authorName || thread.display_name || 
-                 thread.displayName || thread.name || username || 'User';
-      
-      let profile_picture_url = thread.author_avatar || thread.authorAvatar || 
-                          thread.profile_picture_url || thread.profilePictureUrl || 
-                          thread.avatar || 'https://secure.gravatar.com/avatar/0?d=mp';
-      
-      let created_at = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
-      if (typeof created_at === 'string' && !created_at.includes('T')) {
-        created_at = new Date(created_at).toISOString();
-      }
-      
-      const likes_count = Number(thread.likes_count || thread.like_count || thread.metrics?.likes || 0);
-      const replies_count = Number(thread.replies_count || thread.reply_count || thread.metrics?.replies || 0);
-      const reposts_count = Number(thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0);
-      const bookmarks_count = Number(thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0);
-      const views_count = Number(thread.views || thread.views_count || 0);
-      
-      const is_liked = Boolean(thread.is_liked || thread.isLiked || false);
-      const is_reposted = Boolean(thread.is_repost || thread.isReposted || false);
-      const is_bookmarked = Boolean(thread.is_bookmarked || thread.isBookmarked || false);
-      const is_pinned = Boolean(
-        thread.is_pinned === true || 
-        thread.is_pinned === 'true' || 
-        thread.is_pinned === 1 || 
-        thread.is_pinned === '1' || 
-        thread.is_pinned === 't' || 
-        thread.IsPinned === true || 
-        false
-      );
-      
-      const media = Array.isArray(thread.media) ? thread.media : [];
-        
-      const id = thread.id || `thread-${Math.random().toString(36).substring(2, 9)}`;
-      const user_id = thread.user_id || thread.userId || thread.author_id || thread.authorId || '';
-        
-      return {
-        id,
-        thread_id: thread.thread_id || id,
-        user_id,
-        username,
-        name,
-        content: thread.content || '',
-        created_at: typeof created_at === 'string' ? created_at : new Date(created_at).toISOString(),
-        profile_picture_url,
-        likes_count,
-        replies_count,
-        reposts_count,
-        bookmarks_count,
-        views_count,
-        media,
-        is_liked,
-        is_reposted,
-        is_bookmarked,
-        is_pinned,
-        reply_to: thread.parent_id ? { id: thread.parent_id } as any : null
-      };
-    } catch (error: any) {
-      logger.error('Error formatting tweet:', error);
-      return {
-        id: `error-${Math.random().toString(36).substring(2, 9)}`,
-        thread_id: '',
-        user_id: '',
-        username: 'error',
-        name: 'Error',
-        content: 'Error loading tweet',
-        created_at: new Date().toISOString(),
-        profile_picture_url: '',
-        likes_count: 0,
-        replies_count: 0,
-        reposts_count: 0,
-        bookmarks_count: 0,
-        views_count: 0,
-        media: [],
-        is_liked: false,
-        is_reposted: false,
-        is_bookmarked: false,
-        is_pinned: false,
-        reply_to: null
-      };
-    }
-  }
+    // Using the imported ensureTweetFormat function instead of local implementation
 
   // Format join date helper
   function formatJoinDate(dateString: string): string {
@@ -463,9 +321,14 @@
       } else if (response && Array.isArray(response.followers)) {
         followersList = response.followers;
         logger.debug(`Extracted ${followersList.length} followers from response.followers`);
-      } else {
-        // Try to find the followers data in any possible location
-        const possibleFollowersArrays = [];
+      } else {        // Try to find the followers data in any possible location
+        interface ArrayInfo {
+          key: string;
+          data: UserFollower[];
+          length: number;
+        }
+        
+        const possibleFollowersArrays: ArrayInfo[] = [];
         
         if (response && typeof response === 'object') {
           // Try to find arrays in the response object
@@ -498,19 +361,9 @@
           logger.debug(`Using array from ${possibleFollowersArrays[0].key} with ${followersList.length} items`);
         } else {
           logger.warn('Unexpected followers data format:', response);
-          
-          // If the API fails but we know there are followers (based on the count),
-          // create placeholder data for testing the UI
+            // API failed - set appropriate error
           if (profileData.follower_count > 0) {
-            logger.debug('Creating mock followers data for testing UI');
-            followersList = Array.from({ length: Math.min(profileData.follower_count, 5) }, (_, i) => ({
-              id: `mock-follower-${i}`,
-              username: `follower${i}`,
-              name: `Follower ${i}`,
-              profile_picture_url: '',
-              is_following: Math.random() > 0.5,
-              bio: `This is a mock follower for testing the UI when the API fails.`
-            }));
+            followersError = `Failed to load followers data. Expected ${profileData.follower_count} followers but API returned no data.`;
           } else {
             followersError = 'Failed to load followers data';
           }
@@ -520,18 +373,9 @@
       logger.debug(`Loaded ${followersList.length} followers`);
     } catch (error) {
       logger.error('Error loading followers:', error);
-      
-      // If the API fails but we know there are followers, create placeholder data
+        // API error - set appropriate error message
       if (profileData.follower_count > 0) {
-        logger.debug('Creating mock followers data after API error');
-        followersList = Array.from({ length: Math.min(profileData.follower_count, 5) }, (_, i) => ({
-          id: `mock-follower-${i}`,
-          username: `follower${i}`,
-          name: `Follower ${i}`,
-          profile_picture_url: '',
-          is_following: Math.random() > 0.5,
-          bio: `This is a mock follower for testing the UI when the API fails.`
-        }));
+        followersError = `Failed to load followers after API error. Expected ${profileData.follower_count} followers.`;
       } else {
         followersError = 'Failed to load followers';
       }
@@ -562,9 +406,14 @@
       } else if (response && Array.isArray(response.following)) {
         followingList = response.following;
         logger.debug(`Extracted ${followingList.length} following from response.following`);
-      } else {
-        // Try to find the following data in any possible location
-        const possibleFollowingArrays = [];
+      } else {        // Try to find the following data in any possible location
+        interface ArrayInfo {
+          key: string;
+          data: UserFollower[];
+          length: number;
+        }
+        
+        const possibleFollowingArrays: ArrayInfo[] = [];
         
         if (response && typeof response === 'object') {
           // Try to find arrays in the response object
@@ -595,21 +444,12 @@
           logger.debug('Found possible following arrays:', possibleFollowingArrays);
           followingList = possibleFollowingArrays[0].data;
           logger.debug(`Using array from ${possibleFollowingArrays[0].key} with ${followingList.length} items`);
-        } else {
+        } else {          // API failed but response format was unexpected
           logger.warn('Unexpected following data format:', response);
           
-          // If the API fails but we know the user is following people (based on count),
-          // create placeholder data for testing the UI
+          // API failed - set appropriate error message
           if (profileData.following_count > 0) {
-            logger.debug('Creating mock following data for testing UI');
-            followingList = Array.from({ length: Math.min(profileData.following_count, 5) }, (_, i) => ({
-              id: `mock-following-${i}`,
-              username: `following${i}`,
-              name: `Following ${i}`,
-              profile_picture_url: '',
-              is_following: true,
-              bio: `This is a mock following user for testing the UI when the API fails.`
-            }));
+            followingError = `Failed to load following data. Expected ${profileData.following_count} following but API returned unexpected format.`;
           } else {
             followingError = 'Failed to load following data';
           }
@@ -929,12 +769,20 @@
               This user hasn't posted any media yet
             </p>
           </div>
-        {:else}
-          <div class="media-grid">
+        {:else}          <div class="media-grid">
             {#each media as item (item.id)}
-              <div class="media-item">
-                <img src={item.url} alt="Media" />
-              </div>
+              <a href={`/thread/${item.thread_id || item.id}`} class="media-item">
+                <img 
+                  src={item.url} 
+                  alt="Media" 
+                  on:error={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target) {
+                      target.src = '/images/default-media.png';
+                    }
+                  }}
+                />
+              </a>
             {/each}
           </div>
         {/if}
@@ -979,7 +827,12 @@
                   <img 
                     src={user.profile_picture_url || '/images/default-avatar.png'} 
                     alt={user.name || user.username}
-                    on:error={(e) => e.target.src = '/images/default-avatar.png'}
+                    on:error={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (target) {
+                        target.src = '/images/default-avatar.png';
+                      }
+                    }}
                   />
                 </div>
                 <div class="user-info">
@@ -1044,7 +897,12 @@
                   <img 
                     src={user.profile_picture_url || '/images/default-avatar.png'} 
                     alt={user.name || user.username}
-                    on:error={(e) => e.target.src = '/images/default-avatar.png'}
+                    on:error={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (target) {
+                        target.src = '/images/default-avatar.png';
+                      }
+                    }}
                   />
                 </div>
                 <div class="user-info">
@@ -1698,15 +1556,15 @@
     color: var(--text-secondary);
     margin-bottom: 4px;
   }
-  
-  .user-bio {
+    .user-bio {
     font-size: 14px;
-    color: var(--text-primary);
-    overflow: hidden;
+    color: var(--text-primary);    overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
+    max-height: 2.6em; /* Fallback for browsers that don't support line-clamp */
     line-height: 1.3;
   }
   
@@ -1734,4 +1592,4 @@
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-</style> 
+</style>

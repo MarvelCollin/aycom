@@ -540,35 +540,9 @@ export async function getUserByUsername(username: string): Promise<any> {
         'Authorization': token ? `Bearer ${token}` : ''
       }
     });
-    
-    if (!response.ok) {
+      if (!response.ok) {
       console.error(`Failed to fetch user by username: ${response.status}`);
-      
-      // Backend might be down - provide a fallback response to avoid breaking the UI
-      // Get userId from local storage to see if this is the current user
-      const currentUserId = getUserId();
-      
-      console.log(`Using fallback for username ${username} - currentUserId: ${currentUserId}`);
-      
-      // Create a mock user with the username
-      return {
-        success: true,
-        user: {
-          id: `temp-${Math.random().toString(36).substring(2, 9)}`,
-          username: username,
-          display_name: username,
-          name: username,
-          bio: "User profile temporarily unavailable",
-          profile_picture_url: null,
-          banner_url: null,
-          follower_count: 0,
-          following_count: 0,
-          created_at: new Date().toISOString(),
-          is_following: false,
-          is_blocked: false,
-          is_private: false
-        }
-      };
+      throw new Error(`Failed to fetch user by username: ${response.status} ${response.statusText}`);
     }
     
     // For successful responses
@@ -601,67 +575,7 @@ export async function getUserByUsername(username: string): Promise<any> {
   }
 }
 
-// Fallback function to check follow status using getUserById
-async function checkFollowStatusFallback(userId: string): Promise<boolean> {
-  console.log(`[DEBUG] Using fallback method to check follow status for ${userId}`);
-  try {
-    // Get the user profile, which should include is_following
-    const userData = await getUserById(userId);
-    
-    console.log('[DEBUG] Fallback getUserById response:', userData);
-    
-    if (userData && userData.user) {
-      // Make sure to handle different response formats
-      const isFollowing = userData.user.is_following === true;
-      console.log(`[DEBUG] Fallback follow status check result: ${isFollowing} (type: ${typeof userData.user.is_following}, raw value: ${userData.user.is_following})`);
-      
-      // Double-check against followers/following list as a last resort
-      if (!isFollowing) {
-        console.log(`[DEBUG] isFollowing is false, trying to verify against followers/following lists`);
-        try {
-          // Get the current user's following list to see if target user is in it
-          const currentUserId = getUserId();
-          if (currentUserId) {
-            console.log(`[DEBUG] Checking if current user ${currentUserId} is following ${userId}`);
-            
-            try {
-              const followingData = await getFollowing(currentUserId);
-              console.log('[DEBUG] Following data:', followingData);
-              
-              let followingList = [];
-              if (followingData && followingData.following) {
-                followingList = followingData.following;
-              } else if (followingData && followingData.data && followingData.data.following) {
-                followingList = followingData.data.following;
-              }
-              
-              // Check if the target user is in the following list
-              const isInFollowingList = followingList.some((following: any) => following.id === userId);
-              console.log(`[DEBUG] User ${userId} found in following list: ${isInFollowingList}`);
-              
-              if (isInFollowingList) {
-                console.log(`[DEBUG] Override - User IS in following list despite API saying not following`);
-                return true; // Override the API response if we find evidence the user is following
-              }
-            } catch (followingError) {
-              console.error('[DEBUG] Error checking following list:', followingError);
-            }
-          }
-        } catch (verifyError) {
-          console.error('[DEBUG] Error during follow verification:', verifyError);
-        }
-      }
-      
-      return isFollowing;
-    }
-    
-    console.log('[DEBUG] Fallback getUserById did not return valid user data');
-    return false;
-  } catch (error) {
-    console.error('[DEBUG] Fallback follow status check failed:', error);
-    return false;
-  }
-}
+// Fallback function to check follow status has been removed - API should handle this directly
 
 export async function checkFollowStatus(userId: string): Promise<boolean> {
   try {

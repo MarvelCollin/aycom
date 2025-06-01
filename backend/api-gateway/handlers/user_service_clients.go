@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"reflect"
 	"strings"
 	"time"
 
@@ -556,14 +555,12 @@ func (c *GRPCUserServiceClient) GetAllUsers(page, limit int, sortBy string, asce
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	req := &userProto.GetAllUsersRequest{
-		Page:   int32(page),
-		Limit:  int32(limit),
-		SortBy: sortBy,
+		Page:     int32(page),
+		Limit:    int32(limit),
+		SortBy:   sortBy,
+		SortDesc: !ascending,
 	}
-
-	reflect.ValueOf(req).Elem().FieldByName("SortDesc").SetBool(!ascending)
 
 	resp, err := c.client.GetAllUsers(ctx, req)
 	if err != nil {

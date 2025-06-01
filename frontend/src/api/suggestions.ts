@@ -11,99 +11,47 @@ const USERS_ENDPOINT = `${API_BASE_URL}/users/all`;
 
 export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFollow[]> {
   try {
-    // Get real user data from the public users endpoint
-    const response = await fetch(`${USERS_ENDPOINT}?limit=${limit}&page=1`, {
+    // Use the dedicated recommendations endpoint instead of the general users endpoint
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/users/recommendations?limit=${limit}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
     });
     
     if (!response.ok) {
-      logger.error(`Failed to fetch users: ${response.status}`);
-      throw new Error(`API returned status ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      logger.error(`Failed to fetch user recommendations: ${response.status}`, errorData);
+      throw new Error(errorData.message || `API returned status ${response.status}`);
     }
     
     const data = await response.json();
     
     if (!data || !data.users || !Array.isArray(data.users)) {
-      logger.error('Invalid data format from users API');
-      throw new Error('Invalid data format');
+      logger.error('Invalid data format from user recommendations API');
+      throw new Error('Invalid response format from server');
     }
     
-    if (data.users.length === 0) {
-      logger.warn('No users found, will use real-looking data');
-      return getRealLookingUsers(limit);
-    }
-    
-    logger.info(`Successfully fetched ${data.users.length} users from API`);
-    
-    // Map the API data to our interface
+    logger.info(`Successfully fetched ${data.users.length} user recommendations from API`);
+      // Map the API data to our interface with consistent field names
     return data.users.map((user: any) => ({
-      user_id: user.id,
+      id: user.id, // Use 'id' as expected by ISuggestedFollow interface
       username: user.username,
-      name: user.display_name || user.name,
-      profile_picture_url: user.profile_picture_url || user.avatar_url || null,
+      name: user.name || user.display_name, // Prefer 'name' over 'display_name'
+      profile_picture_url: user.profile_picture_url,
       is_verified: user.is_verified || false,
-      follower_count: user.follower_count || Math.floor(Math.random() * 10000),
+      follower_count: user.follower_count || 0,
       is_following: user.is_following || false
     }));
     
   } catch (error: any) {
     logger.error('Failed to fetch suggested users', { error: error.message });
-    // Return real-looking users as a last resort
-    return getRealLookingUsers(limit);
+    throw error; // Remove fallback, let error bubble up
   }
 }
 
-// Generate realistic user data
-function getRealLookingUsers(limit: number): ISuggestedFollow[] {
-  // Real-looking user profiles
-  const users = [
-    {
-      user_id: 'user-1',
-      username: 'javascript_dev',
-      name: 'JavaScript Dev',
-      profile_picture_url: 'https://i.pravatar.cc/150?u=js_dev',
-      is_verified: true,
-      follower_count: 7835,
-      is_following: false
-    },
-    {
-      user_id: 'user-2',
-      username: 'ui_designer',
-      name: 'UI/UX Designer',
-      profile_picture_url: 'https://i.pravatar.cc/150?u=ui_designer',
-      is_verified: true,
-      follower_count: 12042,
-      is_following: false
-    },
-    {
-      user_id: 'user-3',
-      username: 'tech_journalist',
-      name: 'Tech Journalist',
-      profile_picture_url: 'https://i.pravatar.cc/150?u=tech_journalist',
-      is_verified: true,
-      follower_count: 24189,
-      is_following: false
-    },
-    {
-      user_id: 'user-4',
-      username: 'productmanager',
-      name: 'Product Manager',
-      profile_picture_url: 'https://i.pravatar.cc/150?u=productmgr',
-      is_verified: false,
-      follower_count: 5321,
-      is_following: false
-    },
-    {
-      user_id: 'user-5',
-      username: 'webdev_tips',
-      name: 'Web Dev Tips',
-      profile_picture_url: 'https://i.pravatar.cc/150?u=webdev',
-      is_verified: true,
-      follower_count: 18750,
-      is_following: false
-    }
-  ];
-  
-  return users.slice(0, limit);
-}
+// This function has been removed as part of removing mock data implementations
+// All user suggestions now come from real API endpoints

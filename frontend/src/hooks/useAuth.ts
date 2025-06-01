@@ -14,6 +14,7 @@ interface AuthState extends IAuthStore {
   username?: string;
   display_name?: string;
   is_admin: boolean;
+  userId?: string; // Add userId property for compatibility
 }
 
 const createAuthStore = () => {
@@ -27,12 +28,16 @@ const createAuthStore = () => {
   };
 
   const auth = writable<AuthState>(initialState);
-  
-  const initAuth = () => {
+    const initAuth = () => {
     try {
       const storedAuth = localStorage.getItem('auth');
       if (storedAuth) {
         const parsedAuth = JSON.parse(storedAuth) as AuthState;
+        
+        // Set userId for compatibility (maps from user_id)
+        if (parsedAuth.user_id && !parsedAuth.userId) {
+          parsedAuth.userId = parsedAuth.user_id;
+        }
         
         if (parsedAuth.expiresAt && parsedAuth.expiresAt > Date.now()) {
           auth.set(parsedAuth);
@@ -389,14 +394,18 @@ export function useAuth() {
       message: 'Logged out successfully'
     };
   };
-  
-  const getAuthState = () => {
+    const getAuthState = () => {
     const store = get(authStore);
     
     if (store.expiresAt && store.expiresAt - TOKEN_EXPIRY_BUFFER < Date.now()) {
       if (store.refreshToken && store.isAuthenticated) {
         console.log('Token is expired or about to expire. Refreshing...');
       }
+    }
+    
+    // Set userId from user_id for compatibility
+    if (store.user_id && !store.userId) {
+      store.userId = store.user_id;
     }
     
     return store;

@@ -21,9 +21,4 @@ export * from './thread';
 export * from './trends';
 export * from './user';
 
-/**
- * NOTE: user_block.ts is deprecated.
- * All functionality is now available in user.ts
- * user_block.ts will be removed in a future update
- */
-// We don't export user_block.ts directly to discourage its use 
+// Note: user_block.ts has been removed - all functionality is now available in user.ts
