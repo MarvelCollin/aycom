@@ -5,6 +5,7 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import Button from '../common/Button.svelte';
   import { formatStorageUrl } from '../../utils/common';
+  import type { IUser } from '../../interfaces/IUser';
   
   // Icons
   import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
@@ -19,15 +20,18 @@
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
 
-  // Props
-  export let user: {
+  // Props - Accept either a full IUser object or the custom structure
+  export let user: IUser | {
     id: string;
     name?: string;
     username?: string;
     avatar?: string;
+    profile_picture_url?: string;
     bio?: string;
     isVerified?: boolean;
+    is_verified?: boolean;
     isFollowing?: boolean;
+    is_following?: boolean;
     role?: string;
   };
   
@@ -38,8 +42,13 @@
   // Computed values
   $: displayName = user.name || `User_${user.id.substring(0, 4)}`;
   $: username = user.username || `user_${user.id.substring(0, 4)}`;
-  $: isFollowing = user.isFollowing || false;
-  $: avatarUrl = user.avatar ? formatStorageUrl(user.avatar) : '';
+  $: isFollowing = 'isFollowing' in user ? user.isFollowing : ('is_following' in user ? user.is_following : false);
+  $: isVerified = 'isVerified' in user ? user.isVerified : ('is_verified' in user ? user.is_verified : false);
+  $: avatarUrl = ('avatar' in user && user.avatar) 
+    ? formatStorageUrl(user.avatar) 
+    : (('profile_picture_url' in user && user.profile_picture_url) 
+        ? formatStorageUrl(user.profile_picture_url) 
+        : '');
   
   // Handle click on user card
   function handleCardClick() {
@@ -90,7 +99,7 @@
     <div class="user-name-container">
       <h4 class="user-display-name">
         {displayName}
-        {#if user.isVerified}
+        {#if isVerified}
           <span class="user-verified-badge">
             <CheckCircleIcon size="14" />
           </span>
@@ -99,11 +108,11 @@
       <p class="user-username">@{username}</p>
     </div>
     
-    {#if user.bio && !compact}
+    {#if ('bio' in user) && user.bio && !compact}
       <p class="user-bio">{user.bio}</p>
     {/if}
     
-    {#if user.role}
+    {#if ('role' in user) && user.role}
       <div class="user-role-badge">
         {user.role}
       </div>

@@ -1,50 +1,48 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import ChatWindow from './ChatWindow.svelte';
-  import { listChatParticipants, listMessages } from '../../api/chat';
+  import { listChatParticipants, listMessages } from '../../api';
   import { getAuthToken } from '../../utils/auth';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { chatMessageStore } from '../../stores/chatMessageStore';
+  import type { MessageType } from '../../stores/websocketStore';
   
   const logger = createLoggerWithPrefix('ChatContainer');
   
   // Props
   export let chatId: string;
   
-  // Define message interface
-  interface Message {
-    id?: string;
-    message_id?: string;
-    sender_id: string;
-    chat_id?: string;
-    user_id?: string;
-    content: string;
-    timestamp: number | string;
-    is_read?: boolean;
-    is_deleted?: boolean;
-    is_edited?: boolean;
-    user?: {
-      id: string;
-      username?: string;
-      display_name?: string;
-      avatar_url?: string;
-    };
-  }
-  
-  interface Participant {
+  // Define our own simplified types
+  type BasicUser = {
     id?: string;
     user_id?: string;
     username?: string;
     display_name?: string;
     avatar_url?: string;
-  }
+    name?: string;
+    profile_picture_url?: string;
+  };
+
+  type ChatMessage = {
+    id?: string;
+    message_id?: string;
+    sender_id?: string;
+    user_id?: string;
+    chat_id?: string;
+    content: string;
+    timestamp: number | string;
+    is_read?: boolean;
+    is_deleted?: boolean;
+    is_edited?: boolean;
+    user?: BasicUser;
+  };
   
   // State
-  let participants: Participant[] = [];
+  let participants: BasicUser[] = [];
   let userId = '';
   let isLoading = true;
   let error: string | null = null;
-  let messages: Message[] = [];
+  let messages: ChatMessage[] = [];
   
   // Load chat participants and message history when component mounts
   onMount(async () => {
@@ -84,40 +82,37 @@
       if (messages.length > 0) {
         messages.forEach(message => {
           // Use existing user data if available, otherwise find from participants
-          const sender = message.user || participants.find(p => 
-            (p.user_id === message.sender_id) || 
-            (p.id === message.sender_id) || 
-            (p.user_id === message.user_id) || 
-            (p.id === message.user_id)
-          );
+          let sender = message.user;
+          const senderId = message.user_id || message.sender_id || '';
+          
+          if (!sender && participants.length > 0) {
+            sender = participants.find(p => p.id === senderId || p.user_id === senderId);
+          }
           
           // Ensure we have message_id (use either id or message_id from backend)
           const messageId = message.message_id || message.id || '';
           
-          // Ensure we have user_id (use either sender_id or user_id from backend)
-          const messageUserId = message.user_id || message.sender_id;
-          
-          const messageWithUser = {
-            ...message,
-            user_id: messageUserId,
+          const storeMessage = {
+            type: 'text' as MessageType,
+            content: message.content,
+            user_id: senderId,
             chat_id: chatId,
             message_id: messageId,
-            type: 'text' as const,
             timestamp: typeof message.timestamp === 'number' ? 
               new Date(message.timestamp * 1000) : 
               (typeof message.timestamp === 'string' ? new Date(message.timestamp) : new Date()),
-            content: message.content,
             is_read: message.is_read || false,
             is_deleted: message.is_deleted || false,
             is_edited: message.is_edited || false,
             user: {
-              id: messageUserId,
+              id: senderId || 'unknown',
               username: sender?.username || 'Unknown',
-              display_name: sender?.display_name || 'Unknown User',
-              avatar_url: sender?.avatar_url
+              name: sender?.display_name || sender?.name || 'Unknown User',
+              profile_picture_url: sender?.avatar_url || sender?.profile_picture_url
             }
           };
-          chatMessageStore.addMessage(messageWithUser);
+          
+          chatMessageStore.addMessage(storeMessage);
         });
       }
       

@@ -9,13 +9,14 @@
   import { useTheme } from '../hooks/useTheme';
   import type { ITweet, ITrend, ISuggestedFollow, IMedia } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
-  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads, getThreadReplies, getFollowingThreads, removeRepost } from '../api/thread';
+  import { getThreadsByUser, likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getAllThreads, getThreadReplies, getFollowingThreads, removeRepost, directFetchThreads } from '../api/thread';
   import { getTrends } from '../api/trends';
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { tweetInteractionStore } from '../stores/tweetStore';
   import { getProfile } from '../api/user';
+  import appConfig, { checkApiHealth } from '../config/appConfig';
   
   import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
   import FileIcon from 'svelte-feather-icons/src/icons/FileIcon.svelte';
@@ -73,15 +74,6 @@
 
   let loadingMoreTweets = false;
   
-  // Add this after the variable declarations
-  let loadingTimeout: ReturnType<typeof setTimeout> | null = null;
-  let fetchAttempts = {
-    forYou: 0,
-    following: 0
-  };
-  const maxFetchAttempts = 3;
-  const loadingTimeoutDuration = 15000; // 15 seconds
-
   // Add this to store the cleanup function
   let scrollListenerCleanup: (() => void) | null = null;
 
@@ -149,13 +141,62 @@
     }
   }
   
-  // Update onMount to use the cleanup function
-  onMount(() => {
-    console.log('Feed page - Auth state:', authState.is_authenticated, 'Current path:', window.location.pathname);
+  // Update onMount to have more debugging for API URLs
+  onMount(async () => {
+    console.log('[Feed Debug] Feed page mounted - Auth state:', authState.is_authenticated, 'Current path:', window.location.pathname);
+    
+    // Log API base URL for debugging
+    console.log('[Feed Debug] API Base URL:', appConfig.api.baseUrl);
+    
+    // Check API health with more detailed logging
+    console.log('[Feed Debug] Starting API health check...');
+    
+    try {
+      // Test the API connection using /trends endpoint which we know is working
+      console.log(`[Feed Debug] Testing API connection to ${appConfig.api.baseUrl}/trends`);
+      const testResponse = await fetch(`${appConfig.api.baseUrl}/trends`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        mode: 'cors' // Explicitly set CORS mode
+      });
+      
+      console.log(`[Feed Debug] API trends check response status:`, testResponse.status);
+      
+      if (testResponse.ok) {
+        try {
+          const testData = await testResponse.json();
+          console.log('[Feed Debug] API connection test successful:', testData);
+          
+          if (testData && Array.isArray(testData)) {
+            console.log('[Feed Debug] API is working properly, retrieved', testData.length, 'trends');
+          }
+        } catch (parseError) {
+          console.error('[Feed Debug] Error parsing API test response:', parseError);
+          
+          // Try to get the raw text
+          try {
+            const rawText = await testResponse.text();
+            console.log('[Feed Debug] Raw API response text:', rawText);
+          } catch (textError) {
+            console.error('[Feed Debug] Error getting raw response text:', textError);
+          }
+        }
+      } else {
+        console.error('[Feed Debug] API test failed with status:', testResponse.status);
+      }
+    } catch (connectionError) {
+      console.error('[Feed Debug] API connection test error:', connectionError);
+    }
+    
+    // Check API health and switch to fallback if needed
+    await checkApiHealth();
     
     // Let the Router handle redirects rather than doing it directly
     if (!authState.is_authenticated) {
-      logger.info('User not authenticated, letting Router handle the redirect');
+      logger.info('[Feed Debug] User not authenticated, letting Router handle the redirect');
       return;
     }
     
@@ -163,6 +204,7 @@
     fetchUserProfile();
     
     // Then fetch tweets, trends, etc.
+    console.log('[Feed Debug] Starting to fetch tweets for feed...');
     fetchTweetsForYou();
     fetchTweetsFollowing();
     
@@ -171,7 +213,7 @@
       fetchTrends(),
       fetchSuggestedUsers()
     ]).catch(error => {
-      logger.error('Error fetching additional data:', error);
+      logger.error('[Feed Debug] Error fetching additional data:', error);
     });
 
     // Setup infinite scroll through scroll listener
@@ -191,109 +233,6 @@
     
     // Check scroll position after tab change
     setTimeout(checkScrollAndLoadMore, 100);
-  }
-
-  // Convert thread data to tweet format
-  function threadToTweet(thread: any): ITweet {
-    // Always log the raw thread data to diagnose issues
-    console.log('Converting thread to tweet (raw data):', JSON.stringify(thread, null, 2));
-    
-    if (!thread || typeof thread !== 'object') {
-      console.error('Invalid thread data received:', thread);
-      // Return a placeholder tweet with error indicator
-      return {
-        id: `error-${Date.now()}`,
-        content: 'Error loading tweet content',
-        created_at: new Date().toISOString(),
-        user_id: '',
-        username: 'error',
-        name: 'Error Loading Data',
-        profile_picture_url: 'https://secure.gravatar.com/avatar/0?d=mp',
-        likes_count: 0,
-        replies_count: 0,
-        reposts_count: 0,
-        bookmark_count: 0,
-        is_liked: false,
-        is_reposted: false,
-        is_bookmarked: false,
-        is_pinned: false,
-        parent_id: null,
-        media: []
-      };
-    }
-
-    // Extract user information with fallbacks for different backend formats
-    const userId = thread.user_id || thread.UserID || thread.user?.id || thread.author_id || thread.user?.user_id || '';
-    const username = thread.username || thread.Username || thread.user?.username || thread.author_username || 'anonymous';
-    const displayName = thread.name || thread.DisplayName || thread.display_name || thread.user?.name || thread.user?.display_name || thread.authorName || 'User';
-    const profilePic = formatProfilePicture(thread.profile_picture_url || thread.ProfilePicture || thread.user?.profile_picture_url || thread.author_avatar || thread.avatar);
-    
-    // Handle metrics with extensive fallbacks
-    const likesCount = parseMetric(thread.likes_count || thread.LikesCount || thread.LikeCount || thread.like_count || thread.metrics?.likes);
-    const repliesCount = parseMetric(thread.replies_count || thread.RepliesCount || thread.ReplyCount || thread.reply_count || thread.metrics?.replies);
-    const repostsCount = parseMetric(thread.reposts_count || thread.RepostsCount || thread.RepostCount || thread.repost_count || thread.metrics?.reposts);
-    const bookmarkCount = parseMetric(thread.bookmark_count || thread.BookmarkCount || thread.bookmarks_count || thread.view_count || thread.metrics?.bookmarks);
-    
-    // Handle interaction states with fallbacks
-    const isLiked = Boolean(thread.is_liked || thread.IsLiked || thread.liked_by_user || thread.LikedByUser || false);
-    const isReposted = Boolean(thread.is_reposted || thread.IsReposted || thread.reposted_by_user || thread.RepostedByUser || thread.is_repost || false);
-    const isBookmarked = Boolean(thread.is_bookmarked || thread.IsBookmarked || thread.bookmarked_by_user || thread.BookmarkedByUser || false);
-    const isPinned = Boolean(thread.is_pinned || thread.IsPinned || false);
-    
-    // Handle media array with type checking
-    let mediaArray: IMedia[] = [];
-    if (Array.isArray(thread.media)) {
-      mediaArray = thread.media;
-    } else if (Array.isArray(thread.Media)) {
-      mediaArray = thread.Media;
-    } else if (typeof thread.media === 'string') {
-      try {
-        // Sometimes the backend might send media as a JSON string
-        const parsedMedia = JSON.parse(thread.media);
-        if (Array.isArray(parsedMedia)) {
-          mediaArray = parsedMedia;
-        }
-      } catch (e) {
-        console.warn('Failed to parse media string:', thread.media);
-      }
-    }
-    
-    // Create the standardized tweet object
-    const tweet: ITweet = {
-      id: thread.id || '',
-      content: thread.content || '',
-      created_at: formatTimestamp(thread.created_at || thread.CreatedAt || new Date().toISOString()),
-      updated_at: formatTimestamp(thread.updated_at || thread.UpdatedAt),
-      
-      user_id: userId,
-      username: username,
-      name: displayName,
-      profile_picture_url: profilePic,
-      
-      likes_count: likesCount,
-      replies_count: repliesCount,
-      reposts_count: repostsCount,
-      bookmark_count: bookmarkCount,
-      views_count: parseMetric(thread.views_count || thread.view_count),
-      
-      media: mediaArray,
-      
-      is_liked: isLiked,
-      is_reposted: isReposted,
-      is_bookmarked: isBookmarked,
-      is_pinned: isPinned,
-      
-      parent_id: thread.parent_id || thread.ParentID || null,
-      
-      community_id: thread.community_id || thread.CommunityID || null,
-      community_name: thread.community_name || thread.CommunityName || null,
-      
-      is_advertisement: Boolean(thread.is_advertisement || thread.IsAdvertisement || false)
-    };
-    
-    // Log the final converted tweet
-    console.log('Converted tweet result:', tweet);
-    return tweet;
   }
 
   // Helper function to safely parse numeric metrics
@@ -406,119 +345,121 @@
     }
     
     try {
-      fetchAttempts.forYou++;
       isLoadingForYou = true;
       errorForYou = null;
       
-      // Set a timeout to prevent infinite loading
-      setLoadingTimeout('for-you');
+      // Log API URL for debugging
+      console.log(`[Feed Debug] API URL: ${appConfig.api.baseUrl}`);
+      logger.info(`Fetching For You feed - page ${pageForYou}, limit ${limit} from ${appConfig.api.baseUrl}/threads`);
       
-      logger.info(`Fetching For You feed - page ${pageForYou}, limit ${limit}`);
-      const response = await getAllThreads(pageForYou, limit);
+      // Capture start time for performance measurement
+      const startTime = performance.now();
       
-      // Clear the timeout
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-        loadingTimeout = null;
+      // Try the standard method first
+      let response;
+      try {
+        console.log('[Feed Debug] Attempting standard API call via getAllThreads');
+        response = await getAllThreads(pageForYou, limit);
+      } catch (standardError) {
+        console.error('[Feed Debug] Standard API call failed:', standardError);
+        
+        // If standard method fails, try direct fetch
+        console.log('[Feed Debug] Falling back to direct fetch method');
+        try {
+          response = await directFetchThreads(pageForYou, limit);
+          console.log('[Feed Debug] Direct fetch succeeded:', response);
+        } catch (directError) {
+          console.error('[Feed Debug] Direct fetch also failed:', directError);
+          throw directError;
+        }
       }
       
-      // Handle explicit API errors
-      if (response.error) {
-        logger.error('Error fetching For You feed', { error: response.error });
-        errorForYou = `Error loading tweets: ${response.error}`;
+      const endTime = performance.now();
+      
+      // Log performance metrics
+      logger.info(`API response time: ${Math.round(endTime - startTime)}ms`);
+      
+      // Log the raw API response to help debug
+      console.log('[Feed Debug] Raw API response:', response);
+      
+      if (!response || !response.success) {
+        const errorMessage = response && typeof response === 'object' && 'error' in response 
+            ? response.error as string 
+            : 'Failed to load tweets from server';
         
-        // If we've reached max attempts, don't try again
-        if (fetchAttempts.forYou >= maxFetchAttempts) {
-          logger.warn(`Reached max fetch attempts (${maxFetchAttempts}) for For You feed`);
-          isLoadingForYou = false;
-          return;
-        }
-        
-        // Try again after a delay if there was an error
-        setTimeout(() => {
-          fetchTweetsForYou(false);
-        }, 3000);
+        logger.error('[Feed Debug] Error from API:', errorMessage);
+        errorForYou = errorMessage;
+        toastStore.showToast(errorForYou, 'error');
         return;
       }
       
-      // Reset attempt counter on success
-      fetchAttempts.forYou = 0;
+      // Just use response.threads directly since that seems to be the format from the backend
+      const threads = response.threads;
       
-      // Validate threads array exists
-      if (!response.threads) {
-        logger.warn('Response missing threads array:', response);
-        errorForYou = 'No threads received from server';
-        isLoadingForYou = false;
-        
-        // Try again after a delay
-        if (fetchAttempts.forYou < maxFetchAttempts) {
-          setTimeout(() => {
-            fetchTweetsForYou(false);
-          }, 3000);
-        }
-        return;
-      }
-      
-      // Ensure threads is an array
-      const threads = Array.isArray(response.threads) ? response.threads : [];
-      
-      if (threads.length === 0) {
-        logger.info('No threads found in For You feed');
+      if (!threads || !Array.isArray(threads) || threads.length === 0) {
+        logger.info('[Feed Debug] No threads found in For You feed');
         hasMoreForYou = false;
         isLoadingForYou = false;
         return;
       }
       
-      // Process the response and update state
-      const threadsMap = new Map();
+      // Convert all threads to tweets
+      const convertedThreads = threads.map(thread => {
+        // Log each thread for debugging
+        if (import.meta.env.DEV) {
+          console.log('[Feed Debug] Thread from API:', thread);
+        }
+        
+        // Use thread data directly from API
+        const tweet: ITweet = {
+          id: thread.id,
+          content: thread.content || '',
+          created_at: thread.created_at || new Date().toISOString(),
+          updated_at: thread.updated_at,
+          user_id: thread.user_id,
+          username: thread.username,
+          name: thread.name,
+          profile_picture_url: thread.profile_picture_url,
+          likes_count: thread.likes_count || 0,
+          replies_count: thread.replies_count || 0,
+          reposts_count: thread.reposts_count || 0,
+          bookmark_count: thread.bookmark_count || 0,
+          views_count: thread.views_count || 0,
+          is_liked: !!thread.is_liked,
+          is_reposted: !!thread.is_reposted, 
+          is_bookmarked: !!thread.is_bookmarked,
+          is_pinned: !!thread.is_pinned,
+          parent_id: thread.parent_id || null,
+          media: thread.media || [],
+          community_id: thread.community_id,
+          community_name: thread.community_name,
+          is_advertisement: !!thread.is_advertisement
+        };
+        
+        // Add to interaction store
+        tweetInteractionStore.initTweet(tweet);
+        
+        return tweet;
+      });
       
-      // First, convert all threads to tweets and create a map
-      let convertedThreads = threads
-        .filter(thread => thread && typeof thread === 'object') // Filter out invalid entries
-        .map(thread => {
-          console.log('Raw thread data from API:', thread);
-          const tweet = threadToTweet(thread);
-          console.log('Converted tweet:', tweet);
-          // Use id instead of threadId since threadId doesn't exist on ITweet
-          threadsMap.set(tweet.id, tweet);
-          // Initialize the tweet in our global interaction store
-          tweetInteractionStore.initTweet(tweet);
-          return tweet;
-        });
-      
-      // Next, add new tweets to our list
+      // Add new tweets to our list
       tweetsForYou = [...tweetsForYou, ...convertedThreads];
       
-      // Check if we have more tweets to fetch
+      // Check if we have more tweets to fetch based on whether we got as many tweets as requested
       hasMoreForYou = convertedThreads.length >= limit;
       
       // Increment page for next fetch
       pageForYou++;
       
-      logger.info(`Loaded ${convertedThreads.length} tweets for For You feed`);
+      logger.info(`[Feed Debug] Loaded ${convertedThreads.length} tweets for For You feed`);
       
     } catch (error) {
-      logger.error('Error fetching For You feed', { error });
-      errorForYou = 'Error loading tweets. Please try again.';
-      
-      // If we've reached max attempts, stop trying
-      if (fetchAttempts.forYou >= maxFetchAttempts) {
-        logger.warn(`Reached max fetch attempts (${maxFetchAttempts}) for For You feed`);
-        isLoadingForYou = false;
-        return;
-      }
-      
-      // Try again after a delay
-      setTimeout(() => {
-        fetchTweetsForYou(false);
-      }, 3000);
+      const errorMessage = error instanceof Error ? error.message : 'Error loading tweets. Please try again.';
+      logger.error('[Feed Debug] Error fetching For You feed:', error);
+      errorForYou = errorMessage;
+      toastStore.showToast(errorForYou, 'error');
     } finally {
       isLoadingForYou = false;
-      // Clear timeout if it exists
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-        loadingTimeout = null;
-      }
     }
   }
 
@@ -540,67 +481,73 @@
     }
     
     try {
-      fetchAttempts.following++;
       isLoadingFollowing = true;
       errorFollowing = null;
-      
-      // Set a timeout to prevent infinite loading
-      setLoadingTimeout('following');
       
       logger.info(`Fetching Following feed - page ${pageFollowing}, limit ${limit}`);
       const response = await getFollowingThreads(pageFollowing, limit);
       
-      // Clear the timeout
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-        loadingTimeout = null;
-      }
+      // Log the raw API response to help debug
+      console.log('Raw API response for Following feed:', response);
       
-      if (response.error) {
-        logger.error('Error fetching Following feed', { error: response.error });
-        errorFollowing = `Error loading tweets: ${response.error}`;
-        
-        // If we've reached max attempts, don't try again
-        if (fetchAttempts.following >= maxFetchAttempts) {
-          logger.warn(`Reached max fetch attempts (${maxFetchAttempts}) for Following feed`);
-          isLoadingFollowing = false;
-          return;
-        }
-        
-        // Try again after a delay if there was an error
-        setTimeout(() => {
-          fetchTweetsFollowing(false);
-        }, 3000);
+      if (!response || !response.success) {
+        logger.error('Error from API:', response);
+        errorFollowing = response && typeof response === 'object' && 'error' in response 
+          ? response.error as string 
+          : 'Failed to load tweets from server';
+        toastStore.showToast(errorFollowing || 'Failed to load tweets', 'error');
         return;
       }
       
-      // Reset attempt counter on success
-      fetchAttempts.following = 0;
+      // Just use response.threads directly
+      const threads = response.threads;
       
-      if (!response.threads || response.threads.length === 0) {
+      if (!threads || !Array.isArray(threads) || threads.length === 0) {
         logger.info('No threads found in Following feed');
         hasMoreFollowing = false;
         isLoadingFollowing = false;
         return;
       }
       
-      // Process the response and update state
-      const threadsMap = new Map();
-      
-      // First, convert all threads to tweets
-      let convertedThreads = response.threads.map(thread => {
-        const tweet = threadToTweet(thread);
-        threadsMap.set(tweet.id, tweet);
-        // Initialize the tweet in our global interaction store
+      // Convert all threads to tweets
+      const convertedThreads = threads.map(thread => {
+        // Use thread data directly from API
+        const tweet: ITweet = {
+          id: thread.id,
+          content: thread.content || '',
+          created_at: thread.created_at || new Date().toISOString(),
+          updated_at: thread.updated_at,
+          user_id: thread.user_id,
+          username: thread.username,
+          name: thread.name,
+          profile_picture_url: thread.profile_picture_url,
+          likes_count: thread.likes_count || 0,
+          replies_count: thread.replies_count || 0,
+          reposts_count: thread.reposts_count || 0,
+          bookmark_count: thread.bookmark_count || 0,
+          views_count: thread.views_count || 0,
+          is_liked: !!thread.is_liked,
+          is_reposted: !!thread.is_reposted, 
+          is_bookmarked: !!thread.is_bookmarked,
+          is_pinned: !!thread.is_pinned,
+          parent_id: thread.parent_id || null,
+          media: thread.media || [],
+          community_id: thread.community_id,
+          community_name: thread.community_name,
+          is_advertisement: !!thread.is_advertisement
+        };
+        
+        // Add to interaction store
         tweetInteractionStore.initTweet(tweet);
+        
         return tweet;
       });
       
-      // Next, add new tweets to our list
+      // Add new tweets to our list
       tweetsFollowing = [...tweetsFollowing, ...convertedThreads];
       
       // Check if we have more tweets to fetch
-      hasMoreFollowing = response.threads.length >= limit;
+      hasMoreFollowing = convertedThreads.length >= limit;
       
       // Increment page for next fetch
       pageFollowing++;
@@ -608,15 +555,11 @@
       logger.info(`Loaded ${convertedThreads.length} tweets for Following feed`);
       
     } catch (error) {
-      logger.error('Error fetching Following feed', { error });
-      errorFollowing = 'Error loading tweets. Please try again.';
+      logger.error('Error fetching Following feed:', error);
+      errorFollowing = error instanceof Error ? error.message : 'Error loading tweets. Please try again.';
+      toastStore.showToast(errorFollowing || 'Error loading tweets', 'error');
     } finally {
       isLoadingFollowing = false;
-      // Clear timeout if it exists
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-        loadingTimeout = null;
-      }
     }
   }
 
@@ -698,7 +641,27 @@
             }
           };
           
-          const convertedReply = threadToTweet(enrichedReply);
+          // Convert reply directly to the ITweet format
+          const convertedReply: ITweet = {
+            id: enrichedReply.id,
+            content: enrichedReply.content || '',
+            created_at: enrichedReply.created_at || new Date().toISOString(),
+            user_id: enrichedReply.author_id,
+            username: enrichedReply.author_username || 'anonymous',
+            name: enrichedReply.author_name || 'User',
+            profile_picture_url: enrichedReply.author_avatar || 'https://secure.gravatar.com/avatar/0?d=mp',
+            likes_count: enrichedReply.metrics?.likes || 0,
+            replies_count: 0,
+            reposts_count: 0,
+            bookmark_count: 0,
+            views_count: 0,
+            is_liked: false,
+            is_reposted: false,
+            is_bookmarked: false,
+            is_pinned: false,
+            parent_id: threadId,
+            media: []
+          };
           
           // Ensure the parent references are set properly
           convertedReply.parent_id = threadId;
@@ -805,11 +768,30 @@
       });
       
       // Add the reply to our replies map if it exists
-      // @ts-ignore - Using legacy property for backward compatibility
       if (repliesMap.has(threadId)) {
         // @ts-ignore - Using legacy property for backward compatibility
         const currentReplies = repliesMap.get(threadId) || [];
-        const processedNewReply = threadToTweet(newReply);
+        // Convert the new reply directly to ITweet format
+        const processedNewReply: ITweet = {
+          id: newReply.id || `new-reply-${Date.now()}`,
+          content: newReply.content || '',
+          created_at: newReply.created_at || new Date().toISOString(),
+          user_id: newReply.user_id,
+          username: newReply.username || 'anonymous',
+          name: newReply.name || 'User',
+          profile_picture_url: newReply.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp',
+          likes_count: newReply.likes_count || 0,
+          replies_count: 0,
+          reposts_count: 0,
+          bookmark_count: 0,
+          views_count: 0,
+          is_liked: false,
+          is_reposted: false,
+          is_bookmarked: false,
+          is_pinned: false,
+          parent_id: threadId,
+          media: newReply.media || []
+        };
         // Set the parent_id to link to the original thread
         // @ts-ignore - Using legacy property for backward compatibility
         processedNewReply.parent_id = threadId;
@@ -1031,36 +1013,10 @@
     await fetchRepliesForThread(threadId);
   }
 
-  // Add this function to handle fetch timeout
-  function setLoadingTimeout(type: 'for-you' | 'following') {
-    // Clear any existing timeout
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
-    }
-    
-    // Set a new timeout
-    loadingTimeout = setTimeout(() => {
-      if (type === 'for-you' && isLoadingForYou) {
-        logger.warn('Loading timeout reached for "For You" feed');
-        isLoadingForYou = false;
-        errorForYou = 'Loading timed out. Please try again.';
-      } else if (type === 'following' && isLoadingFollowing) {
-        logger.warn('Loading timeout reached for "Following" feed');
-        isLoadingFollowing = false;
-        errorFollowing = 'Loading timed out. Please try again.';
-      }
-    }, loadingTimeoutDuration);
-  }
-
   // Fix the onDestroy reference to use scrollListenerCleanup
   onDestroy(() => {
     // Clean up scroll listener when component is destroyed
     if (scrollListenerCleanup) scrollListenerCleanup();
-    
-    // Clean up loading timeout
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
-    }
   });
 </script>
 
@@ -1146,32 +1102,67 @@
           <div class="empty-state">
             <div class="empty-state-title">
               {#if activeTab === 'for-you'}
-                No posts yet
+                {#if error}
+                  API Connection Issue
+                {:else}
+                  No posts yet
+                {/if}
               {:else}
-                You're not following anyone yet
+                {#if error}
+                  API Connection Issue
+                {:else}
+                  You're not following anyone yet
+                {/if}
               {/if}
             </div>
             <div class="empty-state-message">
               {#if activeTab === 'for-you'}
-                Start the conversation by creating your first post
+                {#if error}
+                  {error}
+                  <div class="api-diagnosis">
+                    Current API URL: {appConfig.api.baseUrl}
+                    <br>
+                    <span class="api-hint">Check that your Docker containers are running with <code>docker-compose ps</code></span>
+                  </div>
+                {:else}
+                  Start the conversation by creating your first post
+                {/if}
               {:else}
-                When you follow people, their posts will show up here
+                {#if error}
+                  {error}
+                  <div class="api-diagnosis">
+                    Current API URL: {appConfig.api.baseUrl}
+                    <br>
+                    <span class="api-hint">Check that your Docker containers are running with <code>docker-compose ps</code></span>
+                  </div>
+                {:else}
+                  When you follow people, their posts will show up here
+                {/if}
               {/if}
             </div>
-            {#if activeTab === 'for-you'}
+            {#if error}
               <button 
                 class="btn btn-primary" 
-                on:click={toggleComposeModal}
+                on:click={() => activeTab === 'for-you' ? fetchTweetsForYou(true) : fetchTweetsFollowing(true)}
               >
-                Create First Post
+                Try Again
               </button>
             {:else}
-              <a 
-                href="/explore" 
-                class="btn btn-primary"
-              >
-                Find People to Follow
-              </a>
+              {#if activeTab === 'for-you'}
+                <button 
+                  class="btn btn-primary" 
+                  on:click={toggleComposeModal}
+                >
+                  Create First Post
+                </button>
+              {:else}
+                <a 
+                  href="/explore" 
+                  class="btn btn-primary"
+                >
+                  Find People to Follow
+                </a>
+              {/if}
             {/if}
           </div>
         <!-- Tweets list -->
@@ -1484,5 +1475,27 @@
   @keyframes spinner {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  
+  .api-diagnosis {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-family: monospace;
+  }
+  
+  .api-hint {
+    display: block;
+    margin-top: var(--space-2);
+    font-style: italic;
+  }
+  
+  .api-hint code {
+    background-color: var(--bg-tertiary);
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
   }
 </style>

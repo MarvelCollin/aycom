@@ -3,7 +3,7 @@
   import { chatMessageStore, getMessagesForChat, getTypingUsersForChat } from '../../stores/chatMessageStore';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { fade } from 'svelte/transition';
-  import { listMessages, sendMessage as sendMessageApi } from '../../api/chat';
+  import { listMessages, sendMessage as sendMessageApi } from '../../api';
   import type { MessageType } from '../../stores/websocketStore';
   
   const logger = createLoggerWithPrefix('ChatWindow');

@@ -2,7 +2,7 @@
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { isAuthenticated as checkAuth } from '../../utils/auth';
-  import { likeThread, unlikeThread, replyToThread, getReplyReplies, likeReply, unlikeReply, bookmarkThread, removeBookmark } from '../../api/thread';
+  import { likeThread, unlikeThread, replyToThread, getReplyReplies, likeReply, unlikeReply, bookmarkThread, removeBookmark } from '../../api';
   import { tweetInteractionStore } from '../../stores/tweetInteractionStore';
   import { notificationStore } from '../../stores/notificationStore';
   import { toastStore } from '../../stores/toastStore';

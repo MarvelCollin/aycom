@@ -1,8 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { useAuth } from '../../hooks/useAuth';
-  import { searchUsers, getAllUsers, getUserById } from '../../api/user';
-  import { createChat } from '../../api/chat';
+  import { searchUsers, getAllUsers, getUserById, createChat } from '../../api';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { handleApiError } from '../../utils/common';

@@ -10,10 +10,14 @@
     AlertCircleIcon,
     UsersIcon
   } from 'svelte-feather-icons';
-  import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
-  import { getCategories } from '../../api/categories';
-  import { getCommunities } from '../../api/community';
-  import { predictThreadCategory } from '../../api/ai';
+  import { 
+    createThread, 
+    uploadThreadMedia, 
+    replyToThread,
+    getThreadCategories,
+    getCommunityCategories,
+    predictThreadCategory
+  } from '../../api';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { getAuthToken, getUserRole } from '../../utils/auth';
@@ -92,7 +96,7 @@
   
   async function loadCategories() {
     try {
-      const data = await getCategories();
+      const data = await getThreadCategories();
       if (data.success) {
         availableCategories = data.categories;
       } else {
@@ -107,7 +111,7 @@
 
   async function loadCommunities() {
     try {
-      const data = await getCommunities();
+      const data = await getCommunityCategories();
       if (data && data.success) {
         availableCommunities = data.communities || [];
       } else {

@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { addChatParticipant, removeChatParticipant, listChatParticipants } from '../../api/chat';
+  import { addChatParticipant, removeChatParticipant, listChatParticipants, searchUsers } from '../../api';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  import { searchUsers } from '../../api/user';
   import { getAuthToken } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
   import { transformApiUsers, type StandardUser } from '../../utils/userTransform';

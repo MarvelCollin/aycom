@@ -1,7 +1,7 @@
 <!-- ProfileEditModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { uploadProfilePicture, uploadBanner } from '../../api/user';
+  import { uploadProfilePicture, uploadBanner } from '../../api';
   import { toastStore } from '../../stores/toastStore';
   import type { IUserProfile } from '../../interfaces/IUser';
   import { useTheme } from '../../hooks/useTheme';

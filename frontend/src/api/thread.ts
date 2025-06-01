@@ -5,6 +5,9 @@ import { uploadMultipleThreadMedia } from '../utils/supabase';
 const API_BASE_URL = appConfig.api.baseUrl;
 const AI_SERVICE_URL = appConfig.api.aiServiceUrl || 'http://localhost:5000';
 
+// Log the API URL being used for debugging
+console.log('Thread API using URL:', API_BASE_URL);
+
 export async function createThread(data: Record<string, any>) {
   try {
     const token = getAuthToken();
@@ -131,33 +134,95 @@ export async function getAllThreads(page = 1, limit = 10) {
   try {
     const token = getAuthToken();
     
-    const response = await fetch(`${API_BASE_URL}/threads?page=${page}&limit=${limit}`, {
-      method: 'GET',
-      headers: {
+    // Log what URL we're trying to hit
+    const url = `${API_BASE_URL}/threads?page=${page}&limit=${limit}`;
+    console.log(`[Thread API] Attempting to fetch threads from: ${url}`);
+    
+    // Create an AbortController for timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
+    try {
+      console.log(`[Thread API] Making fetch request with headers:`, {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get threads (${response.status})`);
+        'Authorization': token ? 'Bearer [token]' : 'none'
+      });
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        credentials: 'include',
+        signal: controller.signal
+      });
+      
+      // Clear timeout
+      clearTimeout(timeoutId);
+      
+      console.log(`[Thread API] getAllThreads response status: ${response.status}`);
+      
+      if (!response.ok) {
+        try {
+          const errorText = await response.text();
+          console.error(`[Thread API] API returned error status: ${response.status}`, errorText);
+          throw new Error(`Failed to fetch threads (${response.status}): ${errorText.substring(0, 100)}`);
+        } catch (textError) {
+          console.error(`[Thread API] Failed to read error response text:`, textError);
+          throw new Error(`Failed to fetch threads (${response.status})`);
+        }
+      }
+      
+      let data;
+      try {
+        const responseText = await response.text();
+        console.log(`[Thread API] Raw response text (first 100 chars): ${responseText.substring(0, 100)}...`);
+        
+        try {
+          data = JSON.parse(responseText);
+        } catch (jsonError) {
+          console.error(`[Thread API] JSON parse error:`, jsonError);
+          console.error(`[Thread API] Response text that failed to parse:`, responseText);
+          throw new Error('Failed to parse API response as JSON');
+        }
+      } catch (textError) {
+        console.error(`[Thread API] Error reading response text:`, textError);
+        throw new Error('Failed to read API response');
+      }
+      
+      console.log(`[Thread API] getAllThreads received ${data.threads?.length || 0} threads`);
+      
+      if (!data.threads || !Array.isArray(data.threads)) {
+        console.warn('[Thread API] API returned invalid threads data structure', data);
+        return {
+          success: false,
+          error: 'Invalid data format received from API',
+          threads: [],
+          total_count: 0
+        };
+      }
+      
+      return {
+        success: true,
+        threads: data.threads || [],
+        total_count: data.total || 0
+      };
+    } catch (fetchError: unknown) {
+      // Clear timeout
+      clearTimeout(timeoutId);
+      
+      // Check if this was a timeout
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error("[Thread API] getAllThreads request timed out after 15 seconds");
+        throw new Error("Request timed out. The API server might be overloaded or unavailable.");
+      }
+      
+      throw fetchError;
     }
-    
-    const data = await response.json();
-    return {
-      success: data.success !== false,
-      threads: data.threads || [],
-      total_count: data.total || 0
-    };
   } catch (error) {
-    console.error('Get all threads failed:', error);
-    return {
-      success: false,
-      threads: [],
-      total_count: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    console.error('[Thread API] Get all threads failed:', error);
+    throw error;
   }
 }
 
@@ -813,11 +878,14 @@ export async function getFollowingThreads(page = 1, limit = 20) {
   try {
     const token = getAuthToken();
     
-    // Must have auth token for this endpoint
     if (!token) {
-      console.log('No auth token available, returning empty results for following threads');
-      return { threads: [], total_count: 0, page, limit, error: 'Authentication required' };
+      console.error('No auth token available, cannot fetch following threads');
+      throw new Error('Authentication required');
     }
+    
+    // Log what URL we're trying to hit
+    const url = `${API_BASE_URL}/threads/following?page=${page}&limit=${limit}`;
+    console.log(`Attempting to fetch following threads from: ${url}`);
     
     // Create an AbortController for timeout handling
     const controller = new AbortController();
@@ -825,7 +893,7 @@ export async function getFollowingThreads(page = 1, limit = 20) {
     
     try {
       console.log('Fetching following threads...');
-      const response = await fetch(`${API_BASE_URL}/threads/following?page=${page}&limit=${limit}`, {
+      const response = await fetch(url, {
         method: "GET",
         headers: {
           'Content-Type': 'application/json',
@@ -843,64 +911,46 @@ export async function getFollowingThreads(page = 1, limit = 20) {
       if (response.ok) {
         const data = await response.json();
         
-        // Debug information
+        // Log received data for debugging
         if (data && data.threads && data.threads.length > 0) {
           console.log(`Received ${data.threads.length} following threads from API`);
           console.log('First thread data structure:', data.threads[0]);
         } else {
           console.log('API returned no following threads');
-          return { threads: [], total_count: 0, page, limit };
+          return { 
+            success: true,
+            threads: [], 
+            total_count: 0, 
+            page, 
+            limit 
+          };
         }
         
-        // Ensure threads have consistent field names
-        if (data.threads) {
-          data.threads = data.threads.map(thread => ({
-            ...thread,
-            likes_count: thread.likes_count || thread.LikeCount || 0,
-            replies_count: thread.replies_count || thread.ReplyCount || 0,
-            reposts_count: thread.reposts_count || thread.RepostCount || 0,
-            content: thread.content || thread.Content || '',
-            created_at: thread.created_at || thread.CreatedAt || new Date().toISOString(),
-            id: thread.id || thread.Id || thread.thread_id || thread.ThreadId || '',
-            user_id: thread.user_id || thread.UserID || thread.UserId || ''
-          }));
-        }
-        
-        return data;
+        return {
+          ...data,
+          success: true
+        };
       }
       
-      // If 401 Unauthorized, return empty results with auth message
-      if (response.status === 401) {
-        console.warn('Unauthorized when fetching following threads - returning empty results');
-        return { threads: [], total_count: 0, page, limit, error: 'Authentication required' };
-      }
-      
-      // For other errors, try to parse the error message but don't throw
-      try {
-        const errorData = await response.json();
-        console.error("Error fetching following threads:", errorData);
-        return { threads: [], total_count: 0, page, limit, error: errorData.message || `Status: ${response.status}` };
-      } catch (parseError) {
-        console.error("Failed to parse error response:", parseError);
-        return { threads: [], total_count: 0, page, limit, error: `Status: ${response.status}` };
-      }
-    } catch (fetchError: any) {
+      // Handle API errors
+      console.error(`API returned error status: ${response.status}`);
+      throw new Error(`Failed to fetch following threads: ${response.status}`);
+    } catch (fetchError: unknown) {
       // Clear timeout
       clearTimeout(timeoutId);
       
       // Check if this was a timeout
-      if (fetchError.name === 'AbortError') {
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         console.error("Request timed out after 15 seconds");
-        return { threads: [], total_count: 0, page, limit, error: "Request timed out" };
+        throw new Error("Request timed out after 15 seconds");
+      } else {
+        console.error("Network error when fetching following threads:", fetchError);
+        throw fetchError;
       }
-      
-      // Log the error and return empty data
-      console.error("Network error when fetching following threads:", fetchError);
-      return { threads: [], total_count: 0, page, limit, error: fetchError.message || 'Unknown network error' };
     }
   } catch (error: any) {
     console.error("Unexpected error in getFollowingThreads:", error);
-    return { threads: [], total_count: 0, page, limit, error: error.message || 'Unknown error' };
+    throw error;
   }
 }
 
@@ -1360,10 +1410,15 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     const actualUserId = userId === 'me' ? getUserId() : userId;
     
     if (!actualUserId) {
+      console.error('No user ID available, cannot fetch bookmarks');
       throw new Error('User ID is required');
     }
     
-    const response = await fetch(`${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`, {
+    // Log what URL we're trying to hit
+    const url = `${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`;
+    console.log(`Attempting to fetch bookmarks from: ${url}`);
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -1373,12 +1428,15 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     });
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to get bookmarks' }));
-      throw new Error(errorData.message || `Failed to get bookmarks: ${response.status}`);
+      console.error(`Failed to get bookmarks: ${response.status}`);
+      throw new Error(`Failed to get bookmarks: ${response.status}`);
     }
     
     const data = await response.json();
+    console.log('Bookmarks API returned data:', data);
+    
     return {
+      success: true,
       threads: data.bookmarks || [],
       total: data.total || 0,
       pagination: data.pagination || null
@@ -1386,5 +1444,63 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
   } catch (err) {
     console.error('Error getting user bookmarks:', err);
     throw err;
+  }
+}
+
+/**
+ * Direct attempt to fetch from the API in case of network issues
+ * Provides a fallback method in case normal API calls fail
+ */
+export async function directFetchThreads(page = 1, limit = 10) {
+  try {
+    // Try multiple possible URLs to find one that works
+    const possibleUrls = [
+      // Docker internal network
+      'http://api_gateway:8081/api/v1/threads',
+      // Host machine mapping
+      'http://localhost:8083/api/v1/threads',
+      // Config URL
+      `${API_BASE_URL}/threads`
+    ];
+    
+    console.log('[Thread API] Attempting direct fetch from multiple URLs');
+    
+    // Try each URL in sequence
+    for (const baseUrl of possibleUrls) {
+      try {
+        const url = `${baseUrl}?page=${page}&limit=${limit}`;
+        console.log(`[Thread API] Trying direct fetch from: ${url}`);
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[Thread API] Direct fetch successful from ${url}, got ${data.threads?.length || 0} threads`);
+          
+          return {
+            success: true,
+            threads: data.threads || [],
+            total_count: data.total || 0,
+            source_url: url
+          };
+        } else {
+          console.log(`[Thread API] Direct fetch failed from ${url} with status ${response.status}`);
+        }
+      } catch (urlError) {
+        console.log(`[Thread API] Error with URL ${baseUrl}:`, urlError);
+      }
+    }
+    
+    throw new Error('All direct fetch attempts failed');
+  } catch (error) {
+    console.error('[Thread API] Direct fetch failed:', error);
+    throw error;
   }
 }

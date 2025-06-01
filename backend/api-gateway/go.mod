@@ -4,7 +4,6 @@ go 1.24.2
 
 require (
 	aycom/backend/proto v0.0.0-00010101000000-000000000000
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0

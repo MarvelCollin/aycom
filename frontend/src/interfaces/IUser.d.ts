@@ -23,6 +23,8 @@ export interface IUserProfile {
   email?: string;
   date_of_birth?: string;
   gender?: string;
+  is_admin?: boolean;
+  is_banned?: boolean;
 }
 
 export interface IUserUpdateRequest {
@@ -47,6 +49,8 @@ export interface IUserRegistrationRequest {
   gender: string;
   security_question: string;
   security_answer: string;
+  subscribe_to_newsletter?: boolean;
+  recaptcha_token?: string;
 }
 
 export interface IUserVerificationRequest {
@@ -69,4 +73,99 @@ export interface IPasswordResetRequest {
   security_answer: string;
   new_password: string;
   confirm_password: string;
+}
+
+/**
+ * User API response interfaces
+ */
+export interface IUserResponse {
+  success: boolean;
+  data: IUserProfile;
+}
+
+export interface IUsersResponse {
+  success: boolean;
+  data: {
+    users: IUser[];
+    pagination: {
+      total_count: number;
+      current_page: number;
+      per_page: number;
+      total_pages: number;
+      has_more?: boolean;
+    };
+  };
+}
+
+export interface IUsernameCheckResponse {
+  success: boolean;
+  data: {
+    available: boolean;
+  };
+}
+
+export interface IMediaUploadRequest {
+  file: File;
+}
+
+export interface IMediaUpdateRequest {
+  url: string;
+}
+
+export interface IMediaUpdateResponse {
+  success: boolean;
+  data: {
+    message: string;
+    url: string;
+  };
+}
+
+export interface IFollowResponse {
+  success: boolean;
+  data: {
+    message: string;
+    was_already_following?: boolean;
+    is_now_following?: boolean;
+  };
+}
+
+export interface IFollowStatusResponse {
+  success: boolean;
+  data: {
+    is_following: boolean;
+  };
+}
+
+export interface IBlockResponse {
+  success: boolean;
+  data: {
+    message: string;
+  };
+}
+
+export interface IReportUserRequest {
+  reason: string;
+}
+
+export interface IReportUserResponse {
+  success: boolean;
+  data: {
+    message: string;
+  };
+}
+
+export interface IBlockedUsersResponse {
+  success: boolean;
+  data: {
+    blocked_users: IUser[];
+    pagination: {
+      total_count: number;
+      current_page: number;
+      per_page: number;
+    };
+  };
+}
+
+export interface IAdminStatusUpdateRequest {
+  is_admin: boolean;
 } 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -795,30 +796,15 @@ func RemoveBookmark(c *gin.Context) {
 }
 
 func GetThreadsFromFollowing(c *gin.Context) {
-
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		log.Printf("GetThreadsFromFollowing: No userId in context, returning empty results")
-
-		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-			"threads": []gin.H{},
-			"pagination": gin.H{
-				"total_count": 0,
-			},
-		})
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
 		return
 	}
 
 	authenticatedUserIDStr, ok := authenticatedUserID.(string)
 	if !ok {
-		log.Printf("GetThreadsFromFollowing: Invalid userId type, returning empty results")
-
-		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-			"threads": []gin.H{},
-			"pagination": gin.H{
-				"total_count": 0,
-			},
-		})
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
 
@@ -843,10 +829,85 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	log.Printf("Getting following threads for user: %s, page: %d, limit: %d", authenticatedUserIDStr, page, limit)
 
+	// Step 1: Get the list of users the authenticated user follows
+	if userServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	followingList, err := userServiceClient.GetFollowing(authenticatedUserIDStr, page, limit)
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Error retrieving following users: "+err.Error())
+		return
+	}
+
+	// If user doesn't follow anyone, return empty result
+	if len(followingList) == 0 {
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"threads": []gin.H{},
+			"pagination": gin.H{
+				"total_count":  0,
+				"current_page": page,
+				"per_page":     limit,
+			},
+		})
+		return
+	}
+
+	// Extract user IDs from the following list
+	followingIDs := make([]string, len(followingList))
+	for i, user := range followingList {
+		followingIDs[i] = user.ID
+	}
+
+	// Step 2: Get threads from followed users using thread service
+	if threadServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
+		return
+	}
+
+	// Get threads for each followed user and combine them
+	var allThreads []*Thread
+	for _, followedUserID := range followingIDs {
+		userThreads, err := threadServiceClient.GetThreadsByUserID(followedUserID, authenticatedUserIDStr, 1, 10)
+		if err != nil {
+			log.Printf("Error getting threads for user %s: %v", followedUserID, err)
+			continue // Skip this user if there's an error
+		}
+		allThreads = append(allThreads, userThreads...)
+	}
+
+	// Step 3: Sort threads by creation time (newest first)
+	sort.Slice(allThreads, func(i, j int) bool {
+		return allThreads[i].CreatedAt.After(allThreads[j].CreatedAt)
+	})
+
+	// Step 4: Apply pagination to the combined results
+	startIdx := (page - 1) * limit
+	endIdx := startIdx + limit
+	if startIdx >= len(allThreads) {
+		// If starting index is beyond available threads, return empty result
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"threads": []gin.H{},
+			"pagination": gin.H{
+				"total_count":  len(allThreads),
+				"current_page": page,
+				"per_page":     limit,
+			},
+		})
+		return
+	}
+
+	if endIdx > len(allThreads) {
+		endIdx = len(allThreads)
+	}
+
+	pagedThreads := allThreads[startIdx:endIdx]
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"threads": []gin.H{},
+		"threads": pagedThreads,
 		"pagination": gin.H{
-			"total_count":  0,
+			"total_count":  len(allThreads),
 			"current_page": page,
 			"per_page":     limit,
 		},

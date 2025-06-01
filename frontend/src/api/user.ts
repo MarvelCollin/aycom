@@ -665,140 +665,52 @@ async function checkFollowStatusFallback(userId: string): Promise<boolean> {
 
 export async function checkFollowStatus(userId: string): Promise<boolean> {
   try {
-    console.log(`[DEBUG] Checking follow status for user: ${userId}`);
     const token = getAuthToken();
     
-    if (!token) {
-      console.error('[DEBUG] Cannot check follow status: No authentication token available');
+    if (!token || !userId) {
       return false;
     }
-    
-    if (!userId) {
-      console.error('[DEBUG] Cannot check follow status: No user ID provided');
-      return false;
-    }
-
-    console.log(`[DEBUG] Current user ID from localStorage: ${getUserId()}`);
-    console.log(`[DEBUG] Token available: ${!!token}`);
 
     // Check if the userId is a username (not a UUID format)
-    const isUsername = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-    
-    // If it's a username, we need to get the user ID first
-    if (isUsername) {
-      console.log(`[DEBUG] UserId appears to be a username: ${userId}`);
-      try {
-        // Get the user data first to get the actual UUID
-        const userData = await getUserByUsername(userId);
-        if (userData && userData.data && userData.data.user && userData.data.user.id) {
-          const actualUserId = userData.data.user.id;
-          console.log(`[DEBUG] Resolved username ${userId} to ID ${actualUserId}`);
-          
-          // Check if we got the is_following info directly from getUserByUsername
-          if (userData.data.user.is_following !== undefined) {
-            const isFollowing = userData.data.user.is_following === true;
-            console.log(`[DEBUG] Got follow status directly from user data: ${isFollowing} (type: ${typeof userData.data.user.is_following})`);
-            return isFollowing;
-          }
-          
-          // Update userId to the actual UUID for the follow status check
-          userId = actualUserId;
-        } else {
-          console.error('[DEBUG] Failed to resolve username to user ID, using fallback');
-          return checkFollowStatusFallback(userId);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      // Get the user data first to get the actual UUID
+      const userData = await getUserByUsername(userId);
+      if (userData?.data?.user?.id) {
+        // If we got the is_following info directly from getUserByUsername
+        if (userData.data.user.is_following !== undefined) {
+          return userData.data.user.is_following === true;
         }
-      } catch (error) {
-        console.error('[DEBUG] Error resolving username to ID:', error);
-        return checkFollowStatusFallback(userId);
-      }
-    }
-
-    // Create controller for timeout management
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout - Twitter is fast
-    
-    try {
-      // Make the request to check follow status
-      console.log(`[DEBUG] Making follow status API request for ID: ${userId}`);
-      console.log(`[DEBUG] API URL: ${API_BASE_URL}/users/${userId}/follow-status`);
-      
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/follow-status`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      console.log(`[DEBUG] Follow status response status: ${response.status}`);
-      
-      if (!response.ok) {
-        console.error(`[DEBUG] Failed to check follow status: ${response.status}`);
-        
-        // If endpoint doesn't exist, try to use getUserById as a fallback
-        if (response.status === 404) {
-          console.log('[DEBUG] Follow status endpoint not found, trying fallback method');
-          return checkFollowStatusFallback(userId);
-        }
-        
+        userId = userData.data.user.id;
+      } else {
         return false;
       }
-      
-      let data;
-      try {
-        const responseText = await response.text();
-        console.log('[DEBUG] Raw follow status response:', responseText);
-        
-        try {
-          data = JSON.parse(responseText);
-        } catch (jsonError) {
-          console.error('[DEBUG] Failed to parse follow status response as JSON:', jsonError);
-          return checkFollowStatusFallback(userId);
-        }
-        
-        console.log('[DEBUG] Parsed follow status response:', data);
-      } catch (parseError) {
-        console.error('[DEBUG] Failed to parse follow status response:', parseError);
-        return checkFollowStatusFallback(userId);
-      }
-      
-      // Check for different response formats
-      if (data && typeof data.is_following !== 'undefined') {
-        // Direct format: { is_following: true/false }
-        const isFollowing = data.is_following === true;
-        console.log(`[DEBUG] User ${userId} follow status (direct format): ${isFollowing} (type: ${typeof data.is_following}, raw value: ${data.is_following})`);
-        return isFollowing;
-      } else if (data && data.data && typeof data.data.is_following !== 'undefined') {
-        // Nested format: { data: { is_following: true/false } }
-        const isFollowing = data.data.is_following === true;
-        console.log(`[DEBUG] User ${userId} follow status (nested format): ${isFollowing} (type: ${typeof data.data.is_following}, raw value: ${data.data.is_following})`);
-        return isFollowing;
-      } else if (data && data.success === true && typeof data.is_following === 'undefined') {
-        // If we get a success response but no is_following field, try the fallback
-        console.log('[DEBUG] Follow status response missing is_following field, using fallback');
-        return checkFollowStatusFallback(userId);
-      } else {
-        // Unknown format or missing data, use fallback
-        console.log('[DEBUG] Unknown follow status response format, using fallback');
-        return checkFollowStatusFallback(userId);
-      }
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      
-      if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
-        console.error("[DEBUG] Follow status check timed out after 5 seconds");
-      } else {
-        console.error('[DEBUG] Failed to check follow status:', fetchError);
-      }
-      
-      // Try fallback method if the main request fails
-      return checkFollowStatusFallback(userId);
     }
+    
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/follow-status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      return false;
+    }
+    
+    const data = await response.json();
+    
+    // Check response format
+    if (data?.is_following !== undefined) {
+      return data.is_following === true;
+    } else if (data?.data?.is_following !== undefined) {
+      return data.data.is_following === true;
+    }
+    
+    return false;
   } catch (err) {
-    console.error('[DEBUG] Unexpected error in checkFollowStatus:', err);
-    return checkFollowStatusFallback(userId);
+    console.error('Error checking follow status:', err);
+    return false;
   }
 }
 
@@ -807,121 +719,42 @@ export const getUserFollowers = getFollowers;
 export const getUserFollowing = getFollowing; 
 
 /**
- * Check if the current user has admin status
- * @returns Promise<boolean> - True if the user is an admin, false otherwise
+ * Check if the current user has admin privileges
+ * @returns Promise<boolean> - True if user is admin, false otherwise
  */
 export async function checkAdminStatus(): Promise<boolean> {
   try {
     const token = getAuthToken();
+    if (!token) return false;
     
-    if (!token) {
-      console.log('No token available, user cannot be admin');
-      return false;
-    }
-    
-    // First check if admin status is already stored in auth data
-    try {
-      const authData = localStorage.getItem('auth');
-      if (authData) {
-        const auth = JSON.parse(authData);
-        if (auth.is_admin === true) {
-          console.log('User is admin according to stored auth data');
-          return true;
-        }
-      }
-    } catch (e) {
-      console.error('Error checking admin status from auth data:', e);
-    }
-    
-    // Check if user is one of the known admin IDs
-    try {
-      const userId = getUserId();
-      if (userId === "91df5727-a9c5-427e-94ce-e0486e3bfdb7" || 
-          userId === "f9d1a0f6-1b06-4411-907a-7a0f585df535") {
-        console.log('User is admin based on known ID');
-        
-        // Update auth state
-        try {
-          const authData = localStorage.getItem('auth');
-          if (authData) {
-            const auth = JSON.parse(authData);
-            auth.is_admin = true;
-            localStorage.setItem('auth', JSON.stringify(auth));
-          }
-        } catch (e) {}
-        
-        return true;
-      }
-    } catch (e) {
-      console.error('Error checking for known admin IDs:', e);
-    }
-    
-    // Finally, try the API endpoint if it exists
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/check-admin`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      // If the endpoint exists and returns OK
-      if (response.ok) {
-        const data = await response.json();
-        const is_admin = data.is_admin === true;
-        
-        console.log('Admin status check from API:', is_admin);
-        
-        // Update auth state with admin status
-        if (is_admin) {
-          try {
-            const authData = localStorage.getItem('auth');
-            if (authData) {
-              const auth = JSON.parse(authData);
-              auth.is_admin = true;
-              localStorage.setItem('auth', JSON.stringify(auth));
-              console.log('Updated auth state with admin status');
-            }
-          } catch (e) {
-            console.error('Error updating auth state with admin status:', e);
-          }
-        }
-        
-        return is_admin;
-      } else {
-        console.log('Admin check API returned error:', response.status);
-        
-        // If endpoint doesn't exist (404) or other error, fall back to getUserById
-        return checkAdminStatusFallback();
-      }
-    } catch (error) {
-      console.error('Admin status check API failed:', error);
-      
-      // If API call fails, try fallback method
-      return checkAdminStatusFallback();
-    }
-  } catch (error) {
-    console.error('Admin status check failed:', error);
-    return false;
-  }
-}
-
-/**
- * Fallback method to check admin status by fetching the user profile
- */
-async function checkAdminStatusFallback(): Promise<boolean> {
-  try {
     const userId = getUserId();
     if (!userId) return false;
     
-    console.log('Using fallback method to check admin status');
-    const userData = await getUserById(userId);
+    const response = await fetch(`${API_BASE_URL}/auth/check-admin`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
     
-    if (userData && userData.user && userData.user.is_admin === true) {
-      console.log('User is admin according to fallback check');
-      
-      // Update auth state
+    if (!response.ok) {
+      return false;
+    }
+    
+    const data = await response.json();
+    
+    // Extract admin status from response data (handling different possible formats)
+    let is_admin = false;
+    
+    if (data && typeof data.is_admin === 'boolean') {
+      is_admin = data.is_admin;
+    } else if (data && data.data && typeof data.data.is_admin === 'boolean') {
+      is_admin = data.data.is_admin;
+    }
+    
+    // Update auth data in localStorage if user is admin
+    if (is_admin) {
       try {
         const authData = localStorage.getItem('auth');
         if (authData) {
@@ -929,14 +762,14 @@ async function checkAdminStatusFallback(): Promise<boolean> {
           auth.is_admin = true;
           localStorage.setItem('auth', JSON.stringify(auth));
         }
-      } catch (e) {}
-      
-      return true;
+      } catch (e) {
+        // Silent catch - localStorage update is not critical
+      }
     }
     
-    return false;
+    return is_admin;
   } catch (error) {
-    console.error('Admin fallback check failed:', error);
+    console.error('Admin status check failed:', error);
     return false;
   }
 }

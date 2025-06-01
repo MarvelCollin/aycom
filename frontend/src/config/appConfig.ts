@@ -6,12 +6,55 @@ const appConfig = {
   },
   
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1',
+    // For development in Docker, use the service name
+    // For browser access from outside Docker, use the port mapping
+    baseUrl: (typeof window !== 'undefined' && window.location.hostname === 'localhost') 
+      ? 'http://localhost:8083/api/v1'  // Browser accessing localhost
+      : (import.meta.env.VITE_API_BASE_URL || 'http://api_gateway:8081/api/v1'), // Inside Docker network
     aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:5000'
   },
 
   ui: {
     showErrorToasts: true
+  }
+};
+
+// Log the configuration for debugging
+console.log('[Config] Environment:', appConfig.environment);
+console.log('[Config] API Base URL:', appConfig.api.baseUrl);
+console.log('[Config] AI Service URL:', appConfig.api.aiServiceUrl);
+
+// Helper function to log API health status
+export const checkApiHealth = async () => {
+  try {
+    console.log(`[Config] Testing API connection to: ${appConfig.api.baseUrl}`);
+    // Use /trends endpoint which we know is working from the logs
+    const response = await fetch(`${appConfig.api.baseUrl}/trends`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      mode: 'cors' // Ensure CORS is enabled
+    });
+    
+    console.log(`[Config] API health check status: ${response.status}`);
+    
+    if (!response.ok) {
+      console.warn(`[Config] API endpoint returned ${response.status} - API may not be working correctly`);
+      
+      // Try to read the error response
+      try {
+        const errorText = await response.text();
+        console.warn(`[Config] API error response: ${errorText}`);
+      } catch (textError) {
+        console.warn(`[Config] Could not read API error response: ${textError}`);
+      }
+    } else {
+      console.log('[Config] API connection successful');
+    }
+  } catch (error) {
+    console.error('[Config] Error connecting to API:', error);
   }
 };
 

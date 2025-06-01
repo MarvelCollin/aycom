@@ -6,7 +6,7 @@
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import type { ITweet, ITrend, ISuggestedFollow } from '../interfaces/ISocialMedia';
+  import type { ITweet, ITrend, ISuggestedFollow, IMedia } from '../interfaces/ISocialMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
   import { likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getThreadReplies, removeRepost, getUserBookmarks } from '../api/thread';
   import { getTrends } from '../api/trends';
@@ -25,12 +25,12 @@
   const { theme } = useTheme();
 
   // Reactive declarations for auth and theme
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === 'dark';
   
   // User profile data
   let username = '';
-  let displayName = '';
+  let name = '';
   let avatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar image URL
   let isLoadingProfile = true;
 
@@ -71,7 +71,7 @@
       filteredBookmarks = bookmarkedTweets.filter(tweet => 
         tweet.content.toLowerCase().includes(query) || 
         (tweet.username && tweet.username.toLowerCase().includes(query)) || 
-        (tweet.displayName && tweet.displayName.toLowerCase().includes(query))
+        (tweet.name && tweet.name.toLowerCase().includes(query))
       );
     }
   }
@@ -89,139 +89,9 @@
     }
   }
 
-  // Convert thread data to tweet format
-  function threadToTweet(thread: any): ITweet {
-    // Check if we have debugging enabled
-    const debug = false;
-    if (debug) {
-      console.log('Converting thread to tweet:', thread);
-    }
-    
-    // Default values
-    let username = 'anonymous';
-    let displayName = 'User';
-    let profilePicture = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar
-    let content = thread.content || '';
-    
-    // Get author data from all possible locations
-    // First try direct author fields
-    if (thread.author_username) {
-      username = thread.author_username;
-    } else if (thread.authorUsername) {
-      username = thread.authorUsername;
-    } else if (thread.username) {
-      username = thread.username;
-    }
-    
-    if (thread.author_name) {
-      displayName = thread.author_name;
-    } else if (thread.authorName) {
-      displayName = thread.authorName;
-    } else if (thread.display_name) {
-      displayName = thread.display_name;
-    } else if (thread.displayName) {
-      displayName = thread.displayName;
-    }
-    
-    // Handle avatar URLs from Supabase
-    if (thread.author_avatar) {
-      profilePicture = formatSupabaseImageUrl(thread.author_avatar);
-    } else if (thread.authorAvatar) {
-      profilePicture = formatSupabaseImageUrl(thread.authorAvatar);
-    } else if (thread.profile_picture_url) {
-      profilePicture = formatSupabaseImageUrl(thread.profile_picture_url);
-    } else if (thread.avatar) {
-      profilePicture = formatSupabaseImageUrl(thread.avatar);
-    }
-    
-    // Fallback: if user data is not directly in the thread, check for embedded content format
-    if (username === 'anonymous' && typeof content === 'string') {
-      // Look for enhanced user metadata that includes profile picture
-      // Format: [USER:username@displayName@profileUrl]content
-      const enhancedMetadataRegex = /^\[USER:([^@\]]+)@([^@\]]+)@([^\]]+)\](.*)/;
-      const match = enhancedMetadataRegex.exec(content);
-      
-      if (match) {
-        username = match[1] || username;
-        displayName = match[2] || displayName;
-        profilePicture = match[3] || profilePicture;
-        content = match[4] || '';
-      } else {
-        // Try the old format without profile picture
-        const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
-        const basicMatch = content.match(userMetadataRegex);
-        
-        if (basicMatch) {
-          username = basicMatch[1] || username;
-          displayName = basicMatch[2] || displayName;
-          content = basicMatch[3] || '';
-        }
-      }
-    }
-
-    // Safe date conversion with fallback
-    let timestamp = new Date().toISOString();
-    try {
-      if (thread.created_at) {
-        const date = new Date(thread.created_at);
-        // Check if date is valid before converting to ISO string
-        if (!isNaN(date.getTime())) {
-          timestamp = date.toISOString();
-        }
-      } else if (thread.timestamp) {
-        const date = new Date(thread.timestamp);
-        if (!isNaN(date.getTime())) {
-          timestamp = date.toISOString();
-        }
-      }
-    } catch (error) {
-      console.warn("Invalid date format in thread:", thread.created_at || thread.timestamp);
-    }
-    
-    return {
-      id: thread.id,
-      threadId: thread.thread_id || thread.id,
-      username: username,
-      displayName: displayName,
-      content: content,
-      timestamp: timestamp,
-      avatar: profilePicture,
-      likes: thread.like_count || thread.metrics?.likes || 0,
-      replies: thread.reply_count || thread.metrics?.replies || 0,
-      reposts: thread.repost_count || thread.metrics?.reposts || 0,
-      bookmarks: thread.bookmark_count || (thread.view_count > 0 ? thread.view_count : 0) || thread.metrics?.bookmarks || 0,
-      views: '0', // We're temporarily using view_count for bookmarks, so display 0 for now
-      media: thread.media || [],
-      isLiked: thread.is_liked || false,
-      isReposted: thread.is_repost || false,
-      isBookmarked: true, // Always true for bookmarks page
-      replyTo: null, // Will be populated later if this is a reply
-      isAdvertisement: thread.is_advertisement || false,
-      communityId: thread.community_id || null,
-      communityName: thread.community_name || null,
-      // Include additional fields for replies
-      authorId: thread.author_id || thread.authorId,
-      authorName: thread.author_name || thread.authorName || displayName,
-      authorUsername: thread.author_username || thread.authorUsername || username,
-      authorAvatar: thread.author_avatar || thread.authorAvatar || profilePicture
-    };
-  }
-
-  // Helper function to format Supabase image URLs
-  function formatSupabaseImageUrl(url: string): string {
-    if (!url) return 'https://secure.gravatar.com/avatar/0?d=mp';
-    
-    // If already a full URL, return as is
-    if (url.startsWith('http')) return url;
-    
-    // Otherwise, construct the Supabase URL
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
-    return `${supabaseUrl}/storage/v1/object/public/tpaweb/${url}`;
-  }
-
   // Authentication check
   function checkAuth() {
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       logger.info('User not authenticated, redirecting to login page');
       
       // Only redirect if we're not already on the login page
@@ -241,7 +111,7 @@
       const response = await getProfile();
       if (response && response.user) {
         username = response.user.username || '';
-        displayName = response.user.name || response.user.display_name || username;
+        name = response.user.name || response.user.display_name || username;
         
         // Use direct Supabase URL for profile picture if available
         if (response.user.profile_picture_url && response.user.profile_picture_url.startsWith('http')) {
@@ -254,7 +124,7 @@
           avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
         }
         
-        logger.debug('User profile loaded', { username, displayName });
+        logger.debug('User profile loaded', { username, name });
       }
     } catch (err) {
       logger.error('Error loading user profile', err);
@@ -287,14 +157,34 @@
       if (response && response.threads && Array.isArray(response.threads)) {
         logger.info(`Received ${response.threads.length} bookmarks from API`);
         
-        // Convert bookmarks to tweets format
-        const convertedTweets = response.threads.map(bookmark => {
-          const tweet = threadToTweet(bookmark);
+        // Use threads directly from API
+        const receivedThreads = response.threads.map(thread => {
+          // Ensure all required ITweet fields are present
+          const tweet: ITweet = {
+            id: thread.id,
+            content: thread.content || '',
+            created_at: thread.created_at || new Date().toISOString(),
+            updated_at: thread.updated_at,
+            user_id: thread.user_id,
+            username: thread.username || 'anonymous',
+            name: thread.name || 'User',
+            profile_picture_url: thread.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp',
+            likes_count: thread.likes_count || 0,
+            replies_count: thread.replies_count || 0,
+            reposts_count: thread.reposts_count || 0,
+            bookmark_count: thread.bookmark_count || 0,
+            is_liked: !!thread.is_liked,
+            is_reposted: !!thread.is_reposted,
+            is_bookmarked: true, // Always true for bookmarks page
+            is_pinned: !!thread.is_pinned,
+            parent_id: thread.parent_id || null,
+            media: thread.media || []
+          };
           return tweet;
         });
         
         // If first page, replace tweets, otherwise append
-        bookmarkedTweets = page === 1 ? convertedTweets : [...bookmarkedTweets, ...convertedTweets];
+        bookmarkedTweets = page === 1 ? receivedThreads : [...bookmarkedTweets, ...receivedThreads];
         
         // Use pagination info from API if available
         if (response.pagination) {
@@ -303,7 +193,7 @@
           page = response.pagination.page + 1;
         } else {
           // Fallback to old logic
-          hasMore = convertedTweets.length === limit;
+          hasMore = receivedThreads.length >= limit;
           page++;
         }
         
@@ -384,7 +274,7 @@
   // Handle tweet actions - updating the bookmarked tweets array
   async function handleTweetLike(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to like posts', 'warning');
       return;
     }
@@ -397,7 +287,7 @@
       // Update bookmarked tweets array
       bookmarkedTweets = bookmarkedTweets.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, likes: (tweet.likes || 0) + 1, isLiked: true };
+          return { ...tweet, likes_count: (tweet.likes_count || 0) + 1, is_liked: true };
         }
         return tweet;
       });
@@ -408,7 +298,7 @@
   
   async function handleTweetUnlike(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to unlike posts', 'warning');
       return;
     }
@@ -421,7 +311,7 @@
       // Update bookmarked tweets array
       bookmarkedTweets = bookmarkedTweets.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, likes: Math.max(0, (tweet.likes || 0) - 1), isLiked: false };
+          return { ...tweet, likes_count: Math.max(0, (tweet.likes_count || 0) - 1), is_liked: false };
         }
         return tweet;
       });
@@ -433,7 +323,7 @@
   // Handle tweet reply
   function handleTweetReply(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to reply to posts', 'warning');
       return;
     }
@@ -454,7 +344,7 @@
   // Handle tweet repost
   async function handleTweetRepost(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to repost', 'warning');
       return;
     }
@@ -467,7 +357,7 @@
       // Update bookmarked tweets array
       bookmarkedTweets = bookmarkedTweets.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, reposts: (tweet.reposts || 0) + 1, isReposted: true };
+          return { ...tweet, reposts_count: (tweet.reposts_count || 0) + 1, is_reposted: true };
         }
         return tweet;
       });
@@ -479,7 +369,7 @@
   // Handle tweet unrepost
   async function handleTweetUnrepost(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to remove a repost', 'warning');
       return;
     }
@@ -492,7 +382,7 @@
       // Update bookmarked tweets array
       bookmarkedTweets = bookmarkedTweets.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, reposts: Math.max(0, (tweet.reposts || 0) - 1), isReposted: false };
+          return { ...tweet, reposts_count: Math.max(0, (tweet.reposts_count || 0) - 1), is_reposted: false };
         }
         return tweet;
       });
@@ -504,7 +394,7 @@
   // Handle tweet unbookmark - remove from the list
   async function handleTweetUnbookmark(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to remove bookmarks', 'warning');
       return;
     }
@@ -524,7 +414,7 @@
   // Handle tweet bookmark - add bookmark to the backend
   async function handleTweetBookmark(event: CustomEvent) {
     const tweetId = event.detail;
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to bookmark posts', 'warning');
       return;
     }
@@ -537,7 +427,7 @@
       // Update bookmarks count in the local state
       bookmarkedTweets = bookmarkedTweets.map(tweet => {
         if (tweet.id === tweetId) {
-          return { ...tweet, bookmarks: (tweet.bookmarks || 0) + 1, isBookmarked: true };
+          return { ...tweet, bookmark_count: (tweet.bookmark_count || 0) + 1, is_bookmarked: true };
         }
         return tweet;
       });
@@ -575,28 +465,26 @@
           // Handle user data which might be nested or at the top level
           const userData = reply.user || {};
           
-          // Build a comprehensive reply object that ensures all fields are populated
-          const enrichedReply = {
+          // Map directly to ITweet format
+          const convertedReply: ITweet = {
             id: replyData.id,
-            thread_id: replyData.thread_id || threadId,
             content: replyData.content || '',
             created_at: replyData.created_at || new Date().toISOString(),
-            author_id: userData.id || replyData.user_id,
-            author_username: userData.username || reply.author_username,
-            author_name: userData.name || reply.author_name,
-            author_avatar: userData.profile_picture_url || reply.author_avatar,
-            parent_id: replyData.parent_id,
-            metrics: {
-              likes: reply.likes_count || 0,
-              replies: 0 // Replies to replies not tracked yet
-            }
+            user_id: userData.id || replyData.user_id,
+            username: userData.username || reply.author_username || 'anonymous',
+            name: userData.name || reply.author_name || 'User',
+            profile_picture_url: userData.profile_picture_url || reply.author_avatar || 'https://secure.gravatar.com/avatar/0?d=mp',
+            likes_count: reply.likes_count || 0,
+            replies_count: 0, // Replies to replies not tracked yet
+            reposts_count: 0,
+            bookmark_count: 0,
+            is_liked: false,
+            is_reposted: false,
+            is_bookmarked: false,
+            is_pinned: false,
+            parent_id: threadId,
+            media: []
           };
-          
-          const convertedReply = threadToTweet(enrichedReply);
-          
-          // Ensure the parent references are set properly
-          convertedReply.replyTo = threadId as any; // Use type assertion to avoid type error
-          (convertedReply as any).parentReplyId = replyData.parent_id;
           
           return convertedReply;
         });
@@ -636,11 +524,59 @@
   function loadMoreBookmarks() {
     fetchBookmarkedTweets();
   }
+
+  // Function to handle reply posted event
+  function handleReplyPosted(event) {
+    // @ts-ignore - Using legacy property for backward compatibility
+    const { threadId, newReply } = event.detail;
+    logger.info('Reply posted', { threadId });
+    
+    // Find the tweet that was replied to
+    // @ts-ignore - Using legacy property for backward compatibility
+    const repliedTweet = bookmarkedTweets.find(t => String(t.id) === String(threadId));
+                         
+    if (repliedTweet) {
+      // Increment the reply count
+      repliedTweet.replies_count = (parseInt(String(repliedTweet.replies_count)) || 0) + 1;
+      
+      // Add the reply to our replies map if it exists
+      // @ts-ignore - Using legacy property for backward compatibility
+      if (repliesMap.has(threadId)) {
+        // @ts-ignore - Using legacy property for backward compatibility
+        const currentReplies = repliesMap.get(threadId) || [];
+        
+        // Map the reply directly to ITweet format
+        const processedNewReply: ITweet = {
+          id: newReply.id || `new-reply-${Date.now()}`,
+          content: newReply.content || '',
+          created_at: newReply.created_at || new Date().toISOString(),
+          user_id: newReply.user_id,
+          username: newReply.username || 'anonymous',
+          name: newReply.name || 'User',
+          profile_picture_url: newReply.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp',
+          likes_count: newReply.likes_count || 0,
+          replies_count: 0,
+          reposts_count: 0,
+          bookmark_count: 0,
+          is_liked: false,
+          is_reposted: false,
+          is_bookmarked: false,
+          is_pinned: false,
+          parent_id: threadId,
+          media: newReply.media || []
+        };
+        
+        // @ts-ignore - Using legacy property for backward compatibility
+        repliesMap.set(threadId, [processedNewReply, ...currentReplies]);
+        repliesMap = repliesMap; // Trigger reactivity
+      }
+    }
+  }
 </script>
 
 <MainLayout
   username={username}
-  displayName={displayName}
+  displayName={name}
   avatar={avatar}
 >
   <div class="bookmarks-container">
