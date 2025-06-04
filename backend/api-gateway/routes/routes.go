@@ -7,18 +7,22 @@ import (
 	_ "aycom/backend/api-gateway/docs"
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/middleware"
-	"aycom/backend/api-gateway/utils"
+	"os"
 )
 
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	handlers.AppConfig = cfg
 
-	router.Use(middleware.Logger())
-	router.Use(middleware.CORS())
-
 	v1 := router.Group("/api/v1")
 
-	v1.GET("/suggestions", handlers.GetUserSuggestions)
+	// Get JWT secret as string for middleware
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "insecure_fallback_jwt_key" // Same fallback as in utils.GetJWTSecret()
+	}
+
+	// Add public suggestions endpoint directly to v1 - NO MIDDLEWARE
+	v1.GET("/public-suggestions", handlers.GetPublicUserSuggestions)
 
 	auth := v1.Group("/auth")
 	auth.Use(handlers.RateLimitMiddleware)
@@ -40,6 +44,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	publicUsers := v1.Group("/users")
+
+	publicUsers.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
 		publicUsers.POST("/register", handlers.RegisterUser)
 		publicUsers.POST("/login", handlers.LoginUser)
@@ -54,13 +60,47 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	publicThreads := v1.Group("/threads")
-	publicThreads.Use(middleware.OptionalJWTAuth(string(utils.GetJWTSecret())))
+	// Apply OptionalJWTAuth middleware to all routes in publicThreads to allow authentication if available
+	publicThreads.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
 		publicThreads.GET("/search", handlers.SearchThreads)
+
+		// Apply JWTAuth middleware to these specific routes to require authentication
+		authPublicThreads := publicThreads.Group("/")
+		authPublicThreads.Use(middleware.JWTAuth(jwtSecret))
+		{
+			authPublicThreads.POST("", handlers.CreateThread)
+			authPublicThreads.POST("/:id/like", handlers.LikeThreadHandler)
+			authPublicThreads.DELETE("/:id/like", handlers.UnlikeThreadHandler)
+			authPublicThreads.POST("/:id/bookmark", handlers.BookmarkThreadHandler)
+			authPublicThreads.DELETE("/:id/bookmark", handlers.RemoveBookmarkHandler)
+			authPublicThreads.PUT("/:id", handlers.UpdateThread)
+			authPublicThreads.DELETE("/:id", handlers.DeleteThread)
+			authPublicThreads.POST("/media", handlers.UploadThreadMedia)
+			authPublicThreads.POST("/:id/media/update", handlers.UpdateThreadMediaURLsHandler)
+			authPublicThreads.POST("/:id/pin", handlers.PinThread)
+			authPublicThreads.DELETE("/:id/pin", handlers.UnpinThread)
+			authPublicThreads.POST("/:id/replies", handlers.ReplyToThread)
+			authPublicThreads.POST("/:id/repost", handlers.RepostThread)
+			authPublicThreads.DELETE("/:id/repost", handlers.RemoveRepost)
+			authPublicThreads.GET("/user/me", handlers.GetThreadsByUser)
+			authPublicThreads.GET("/user/:id", handlers.GetThreadsByUser)
+			authPublicThreads.GET("/user/:id/replies", handlers.GetUserReplies)
+			authPublicThreads.GET("/user/:id/likes", handlers.GetUserLikedThreads)
+			authPublicThreads.GET("/user/:id/media", handlers.GetUserMedia)
+			authPublicThreads.GET("/following", handlers.GetThreadsFromFollowing)
+		}
+
+		publicThreads.GET("/:id", handlers.GetThread)
+		publicThreads.GET("/:id/replies", handlers.GetThreadReplies)
 	}
 
-	v1.Group("/trends").GET("", handlers.GetTrends)
+	trendsGroup := v1.Group("/trends")
+	trendsGroup.Use(middleware.OptionalJWTAuth(jwtSecret))
+	{
+		trendsGroup.GET("", handlers.GetTrends)
+	}
 
 	v1.Group("/categories").GET("", handlers.GetCategories)
 
@@ -69,10 +109,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicWebsockets.GET("/:id/ws", handlers.HandleCommunityChat)
 	}
 
-	protected := v1.Group("")
-	protected.Use(middleware.JWTAuth(string(utils.GetJWTSecret())))
-
-	users := protected.Group("/users")
+	users := v1.Group("/users")
+	users.Use(middleware.JWTAuth(jwtSecret))
 	{
 		users.GET("/profile", handlers.GetUserProfile)
 		users.GET("/me", handlers.GetUserProfile)
@@ -87,41 +125,14 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.GET("/:userId/follow-status", handlers.CheckFollowStatus)
 		users.GET("/recommendations", handlers.GetUserRecommendations)
 		users.POST("/admin-status", handlers.UpdateUserAdminStatus)
-		// Block and report routes
 		users.POST("/:userId/block", handlers.BlockUser)
 		users.POST("/:userId/unblock", handlers.UnblockUser)
 		users.GET("/blocked", handlers.GetBlockedUsers)
 		users.POST("/:userId/report", handlers.ReportUser)
 	}
 
-	threads := protected.Group("/threads")
-	{
-		threads.POST("", handlers.CreateThread)
-		threads.GET("/:id", handlers.GetThread)
-		threads.GET("/user/me", handlers.GetThreadsByUser)
-		threads.GET("/user/:id", handlers.GetThreadsByUser)
-		threads.GET("/user/:id/replies", handlers.GetUserReplies)
-		threads.GET("/user/:id/likes", handlers.GetUserLikedThreads)
-		threads.GET("/user/:id/media", handlers.GetUserMedia)
-		threads.PUT("/:id", handlers.UpdateThread)
-		threads.DELETE("/:id", handlers.DeleteThread)
-		threads.GET("/following", handlers.GetThreadsFromFollowing)
-		threads.POST("/media", handlers.UploadThreadMedia)
-		threads.POST("/:id/media/update", handlers.UpdateThreadMediaURLsHandler)
-		threads.POST("/:id/pin", handlers.PinThread)
-		threads.DELETE("/:id/pin", handlers.UnpinThread)
-
-		threads.POST("/:id/like", handlers.LikeThread)
-		threads.DELETE("/:id/like", handlers.UnlikeThread)
-		threads.POST("/:id/replies", handlers.ReplyToThread)
-		threads.GET("/:id/replies", handlers.GetThreadReplies)
-		threads.POST("/:id/repost", handlers.RepostThread)
-		threads.DELETE("/:id/repost", handlers.RemoveRepost)
-		threads.POST("/:id/bookmark", handlers.BookmarkThread)
-		threads.DELETE("/:id/bookmark", handlers.RemoveBookmark)
-	}
-
-	replies := protected.Group("/replies")
+	replies := v1.Group("/replies")
+	replies.Use(middleware.JWTAuth(jwtSecret))
 	{
 		replies.POST("/:id/like", handlers.LikeReply)
 		replies.DELETE("/:id/like", handlers.UnlikeReply)
@@ -133,7 +144,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		replies.DELETE("/:id/pin", handlers.UnpinReply)
 	}
 
-	communities := protected.Group("/communities")
+	communities := v1.Group("/communities")
+	communities.Use(middleware.JWTAuth(jwtSecret))
 	{
 		communities.POST("", handlers.CreateCommunity)
 		communities.GET("", handlers.ListCommunities)
@@ -160,7 +172,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.GET("/:id/membership", handlers.CheckMembershipStatus)
 	}
 
-	chats := protected.Group("/chats")
+	chats := v1.Group("/chats")
+	chats.Use(middleware.JWTAuth(jwtSecret))
 	{
 		chats.POST("", handlers.CreateChat)
 		chats.GET("", handlers.ListChats)
@@ -176,7 +189,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		chats.GET("/:id/messages/search", handlers.SearchMessages)
 	}
 
-	notifications := protected.Group("/notifications")
+	notifications := v1.Group("/notifications")
+	notifications.Use(middleware.JWTAuth(jwtSecret))
 	{
 		notifications.GET("", handlers.GetUserNotifications)
 		notifications.GET("/mentions", handlers.GetMentionNotifications)
@@ -186,40 +200,36 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		notifications.GET("/ws", handlers.HandleNotificationsWebSocket)
 	}
 
-	bookmarks := protected.Group("/bookmarks")
+	bookmarks := v1.Group("/bookmarks")
+	bookmarks.Use(middleware.JWTAuth(jwtSecret))
 	{
 		bookmarks.GET("", handlers.GetUserBookmarks)
 		bookmarks.GET("/search", handlers.SearchBookmarks)
 		bookmarks.DELETE("/:id", handlers.DeleteBookmarkById)
 	}
-	media := protected.Group("/media")
+	media := v1.Group("/media")
+	media.Use(middleware.JWTAuth(jwtSecret))
 	{
 		media.POST("", handlers.UploadMedia)
 		media.GET("/search", handlers.SearchMedia)
 	}
 
-	admin := protected.Group("/admin")
+	admin := v1.Group("/admin")
+	admin.Use(middleware.JWTAuth(jwtSecret))
 	admin.Use(middleware.AdminOnly())
 	{
-
 		admin.POST("/users/:userId/ban", handlers.BanUser)
-
 		admin.POST("/newsletter/send", handlers.SendNewsletter)
-
 		admin.GET("/community-requests", handlers.GetCommunityRequests)
 		admin.POST("/community-requests/:requestId/process", handlers.ProcessCommunityRequest)
-
 		admin.GET("/premium-requests", handlers.GetPremiumRequests)
 		admin.POST("/premium-requests/:requestId/process", handlers.ProcessPremiumRequest)
-
 		admin.GET("/report-requests", handlers.GetReportRequests)
 		admin.POST("/report-requests/:requestId/process", handlers.ProcessReportRequest)
-
 		admin.GET("/thread-categories", handlers.GetThreadCategories)
 		admin.POST("/thread-categories", handlers.CreateThreadCategory)
 		admin.PUT("/thread-categories/:categoryId", handlers.UpdateThreadCategory)
 		admin.DELETE("/thread-categories/:categoryId", handlers.DeleteThreadCategory)
-
 		admin.GET("/community-categories", handlers.GetCommunityCategories)
 		admin.POST("/community-categories", handlers.CreateCommunityCategory)
 		admin.PUT("/community-categories/:categoryId", handlers.UpdateCommunityCategory)

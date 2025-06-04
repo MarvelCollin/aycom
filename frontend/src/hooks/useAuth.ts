@@ -1,20 +1,21 @@
 import { writable, get } from 'svelte/store';
 import type { IUserRegistration, IGoogleCredentialResponse, ITokenResponse, IAuthStore } from '../interfaces/IAuth';
-import { setAuthData, clearAuthData, getAuthToken } from '../utils/auth';
+import { setAuthData, clearAuthData, getAuthToken, ensureTokenFreshness } from '../utils/auth';
 import * as authApi from '../api/auth';
 import appConfig from '../config/appConfig';
 import { uploadFile } from '../utils/supabase';
 import { getProfile, checkAdminStatus } from '../api/user';
+import { createLoggerWithPrefix } from '../utils/logger';
 
 const API_URL = appConfig.api.baseUrl;
-const TOKEN_EXPIRY_BUFFER = 300000;
+const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
+const logger = createLoggerWithPrefix('Auth');
 
 interface AuthState extends IAuthStore {
   expires_at: number | null;
   username?: string;
   display_name?: string;
   is_admin: boolean;
-  userId?: string; // Add userId property for compatibility
 }
 
 const createAuthStore = () => {
@@ -34,15 +35,17 @@ const createAuthStore = () => {
       if (storedAuth) {
         const parsedAuth = JSON.parse(storedAuth) as AuthState;
         
-        // Set userId for compatibility (maps from user_id)
-        if (parsedAuth.user_id && !parsedAuth.userId) {
-          parsedAuth.userId = parsedAuth.user_id;
-        }
+        const now = Date.now();
+        const isAboutToExpire = parsedAuth.expires_at && (parsedAuth.expires_at - now) < TOKEN_EXPIRY_BUFFER;
         
-        if (parsedAuth.expiresAt && parsedAuth.expiresAt > Date.now()) {
+        if (parsedAuth.expires_at && !isAboutToExpire) {
           auth.set(parsedAuth);
-        } else if (parsedAuth.refreshToken) {
-          refreshExpiredToken(parsedAuth.refreshToken);
+          
+          if (parsedAuth.expires_at) {
+            startTokenRefreshTimer(parsedAuth.expires_at, parsedAuth.refresh_token);
+          }
+        } else if (parsedAuth.refresh_token) {
+          refreshExpiredToken(parsedAuth.refresh_token);
         } else {
           clearAuth();
         }
@@ -52,16 +55,51 @@ const createAuthStore = () => {
       clearAuth();
     }
   };
+
+  // Setup a timer to check and refresh token before it expires
+  let tokenRefreshTimer: number | null = null;
+  
+  const startTokenRefreshTimer = (expiresAt: number, refreshToken: string | null) => {
+    if (tokenRefreshTimer !== null) {
+      window.clearTimeout(tokenRefreshTimer);
+      tokenRefreshTimer = null;
+    }
+    
+    if (!refreshToken) return;
+    
+    const timeUntilRefresh = expiresAt - Date.now() - TOKEN_EXPIRY_BUFFER;
+    
+    if (timeUntilRefresh > 0) {
+      console.log(`Token refresh scheduled in ${Math.round(timeUntilRefresh/1000)} seconds`);
+      tokenRefreshTimer = window.setTimeout(() => {
+        console.log('Token refresh timer triggered');
+        if (refreshToken) {
+          refreshExpiredToken(refreshToken);
+        }
+      }, timeUntilRefresh);
+    } else {
+      // Token is already expired or about to expire, refresh it immediately
+      if (refreshToken) {
+        refreshExpiredToken(refreshToken);
+      }
+    }
+  };
   
   const persistAuth = (authState: AuthState) => {
     try {
-      if (authState.accessToken && authState.userId) {
+      if (authState.access_token && authState.userId) {
         setAuthData({
-          accessToken: authState.accessToken,
-          refreshToken: authState.refreshToken || undefined,
+          accessToken: authState.access_token,
+          refreshToken: authState.refresh_token || undefined,
           userId: authState.userId,
-          expiresAt: authState.expiresAt || undefined
+          expiresAt: authState.expires_at || undefined,
+          is_admin: authState.is_admin
         });
+        
+        // Setup refresh timer whenever we persist auth state
+        if (authState.expires_at && authState.refresh_token) {
+          startTokenRefreshTimer(authState.expires_at, authState.refresh_token);
+        }
       } else {
         localStorage.setItem('auth', JSON.stringify(authState));
       }
@@ -71,6 +109,10 @@ const createAuthStore = () => {
   };
 
   const clearAuth = () => {
+    if (tokenRefreshTimer !== null) {
+      window.clearTimeout(tokenRefreshTimer);
+      tokenRefreshTimer = null;
+    }
     clearAuthData();
     auth.set(initialState);
   };
@@ -82,13 +124,14 @@ const createAuthStore = () => {
       if (data.success && data.access_token) {
         const expiresAt = Date.now() + (data.expires_in * 1000);
         const newState: AuthState = {
-          isAuthenticated: true,
-          userId: data.user_id,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          expiresAt,
+          is_authenticated: true,
+          user_id: data.user_id,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: expiresAt,
           is_admin: data.user_data?.is_admin || false
         };
+        
         auth.set(newState);
         persistAuth(newState);
       } else {
@@ -210,12 +253,12 @@ export function useAuth() {
       if (data.success && data.access_token) {
         const expiresAt = Date.now() + (data.expires_in * 1000);
         authStore.set({
-          isAuthenticated: true,
-          userId: data.user_id,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          expiresAt,
-          is_admin: data.user_data?.is_admin || false
+          is_authenticated: true,
+          user_id: data.user_id,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: expiresAt,
+          is_admin: false
         });
       }
       
@@ -248,86 +291,47 @@ export function useAuth() {
   
   const login = async (email: string, password: string) => {
     try {
-      console.log(`Login attempt for email: ${email}`);
       const data = await authApi.login(email, password);
-      console.log('Login API response:', JSON.stringify(data, null, 2));
       
-      // Check if response contains token information - various formats possible
-      if ((data.success && data.access_token) || data.access_token) {
-        // Use the token data from whatever format we receive
-        const accessToken = data.access_token;
-        const userId = data.user_id;
-        const expiresIn = data.expires_in || 3600;
-        const refreshToken = data.refresh_token || null;
-        
-        // Properly extract admin status from response
+      if (data.access_token) {
+        const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
         let isAdmin = false;
         
-        // Check all possible locations for admin flag in the response
-        if (data.is_admin === true) {
+        if (data.is_admin === true || data.user?.is_admin === true || data.user_data?.is_admin === true) {
           isAdmin = true;
-          console.log('Admin status found directly in login response');
-        } else if (data.user_data && data.user_data.is_admin === true) {
-          isAdmin = true;
-          console.log('Admin status found in user_data of login response');
-        } else if (data.user && data.user.is_admin === true) {
-          isAdmin = true;
-          console.log('Admin status found in user object of login response');
-        } else {
-          console.log('No admin status found in login response');
         }
         
-        const expiresAt = Date.now() + (expiresIn * 1000);
-        
-        console.log(`Login successful. Token exists: ${!!accessToken}, User ID: ${userId}, Admin: ${isAdmin}`);
-        
-        // Store auth data immediately to avoid issues with subsequent requests
-        const initialAuthState: AuthState = {
-          isAuthenticated: true,
-          userId,
-          accessToken,
-          refreshToken,
-          expiresAt,
-          is_admin: isAdmin
+        const authState: AuthState = {
+          is_authenticated: true,
+          user_id: data.user_id,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || null,
+          expires_at: expiresAt,
+          is_admin: isAdmin,
+          username: data.user?.username,
+          display_name: data.user?.name || data.user?.display_name
         };
         
-        // Update the store immediately
-        authStore.set(initialAuthState);
+        authStore.set(authState);
         
-        // Try multiple methods to determine admin status
         try {
-          // Direct admin check via API
           const adminCheck = await checkAdminStatus();
-          if (adminCheck) {
-            isAdmin = true;
-            console.log('Admin status confirmed via admin check API');
+          if (adminCheck && !authState.is_admin) {
             authStore.update(state => ({ ...state, is_admin: true }));
           }
           
-          // Also get the user's complete profile to update any missing information
           const userProfile = await getProfile();
-          const userData = userProfile?.user;
-          
-          if (userData) {
-            // Check admin status from profile response and preserve any existing admin status
-            isAdmin = userData.is_admin === true || isAdmin;
-            
-            // Update auth state with user info including admin status
-            const authState: AuthState = {
-              ...initialAuthState,
+          if (userProfile?.user) {
+            const userData = userProfile.user;
+            authStore.update(state => ({
+              ...state,
               username: userData?.username,
-              displayName: userData?.name || userData?.display_name,
-              is_admin: isAdmin
-            };
-            
-            authStore.set(authState);
-            console.log('Auth state updated with user profile, admin status:', isAdmin);
-          } else {
-            console.log('User profile data not found in response, keeping initial auth state');
+              display_name: userData?.name || userData?.display_name,
+              is_admin: userData?.is_admin === true || state.is_admin
+            }));
           }
         } catch (profileError) {
           console.error('Failed to get user profile after login:', profileError);
-          // Continue with login even if profile fetch fails
         }
         
         return {
@@ -335,7 +339,6 @@ export function useAuth() {
           message: 'Login successful!'
         };
       } else {
-        console.error('Login failed: Invalid or missing token in response');
         return {
           success: false,
           message: data.message || 'Login failed. Please check your credentials.'
@@ -361,11 +364,11 @@ export function useAuth() {
           : Date.now() + (3600 * 1000);
         
         const authState: AuthState = {
-          isAuthenticated: true,
-          userId: data.user_id,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          expiresAt,
+          is_authenticated: true,
+          user_id: data.user_id,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: expiresAt,
           is_admin: data.user_data?.is_admin || false
         };
         
@@ -397,15 +400,10 @@ export function useAuth() {
     const getAuthState = () => {
     const store = get(authStore);
     
-    if (store.expiresAt && store.expiresAt - TOKEN_EXPIRY_BUFFER < Date.now()) {
-      if (store.refreshToken && store.isAuthenticated) {
+    if (store.expires_at && store.expires_at - TOKEN_EXPIRY_BUFFER < Date.now()) {
+      if (store.refresh_token && store.is_authenticated) {
         console.log('Token is expired or about to expire. Refreshing...');
       }
-    }
-    
-    // Set userId from user_id for compatibility
-    if (store.user_id && !store.userId) {
-      store.userId = store.user_id;
     }
     
     return store;
@@ -413,7 +411,45 @@ export function useAuth() {
   
   const getAuthToken = () => {
     const state = get(authStore);
-    return state.accessToken;
+    return state.access_token;
+  };
+  
+  // Check if token needs refresh and do it proactively
+  const checkAndRefreshTokenIfNeeded = async () => {
+    const state = get(authStore);
+    if (!state.is_authenticated) {
+      return Promise.resolve();
+    }
+    
+    if (state && state.refresh_token && state.expires_at) {
+      const now = Date.now();
+      const timeUntilExpiry = state.expires_at - now;
+      const needsRefresh = timeUntilExpiry < TOKEN_EXPIRY_BUFFER;
+      
+      if (needsRefresh) {
+        logger.info(`Token expires in ${Math.floor(timeUntilExpiry/1000)}s, refreshing now...`);
+        try {
+          return await authStore.refreshToken(state.refresh_token);
+        } catch (error) {
+          logger.error('Failed to refresh token during proactive check:', error);
+          
+          // If token is completely expired, clear auth state
+          if (timeUntilExpiry <= 0) {
+            logger.warn('Token is completely expired, clearing auth state');
+            authStore.logout();
+          }
+          
+          throw error;
+        }
+      } else {
+        logger.debug(`Token still valid for ${Math.floor(timeUntilExpiry/1000)}s, no refresh needed`);
+      }
+    } else if (state.is_authenticated) {
+      // We're authenticated but don't have proper refresh info
+      logger.warn('Missing refresh token or expiry but user is authenticated - this may cause issues');
+    }
+    
+    return Promise.resolve();
   };
   
   return {
@@ -427,6 +463,7 @@ export function useAuth() {
     refreshToken: authStore.refreshToken,
     getAuthState,
     getAuthToken,
-    subscribe: authStore.subscribe
+    subscribe: authStore.subscribe,
+    checkAndRefreshTokenIfNeeded
   };
 }

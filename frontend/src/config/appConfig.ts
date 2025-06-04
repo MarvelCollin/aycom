@@ -2,7 +2,12 @@ const appConfig = {
   environment: import.meta.env.MODE || process.env.NODE_ENV || 'development',
   
   auth: {
-    enabled: true
+    enabled: true,
+    tokenRefreshBuffer: 5 * 60 * 1000, // 5 minutes in milliseconds
+    tokenRefreshRetryDelay: 10 * 1000, // 10 seconds between failed refresh attempts
+    loginUrl: '/login',
+    registerUrl: '/register',
+    logoutRedirectUrl: '/'
   },
   
   api: {
@@ -11,7 +16,14 @@ const appConfig = {
     baseUrl: (typeof window !== 'undefined' && window.location.hostname === 'localhost') 
       ? 'http://localhost:8083/api/v1'  // Browser accessing localhost
       : (import.meta.env.VITE_API_BASE_URL || 'http://api_gateway:8081/api/v1'), // Inside Docker network
+    wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:8083/api/v1',
     aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:5000'
+  },
+
+  supabase: {
+    url: import.meta.env.VITE_SUPABASE_URL || '',
+    publicKey: import.meta.env.VITE_SUPABASE_PUBLIC_KEY || '',
+    bucketName: import.meta.env.VITE_SUPABASE_BUCKET || 'aycom-media'
   },
 
   ui: {

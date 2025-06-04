@@ -1195,6 +1195,243 @@ func BookmarkThreadHandler(c *gin.Context) {
 	})
 }
 
+func LikeThreadHandler(c *gin.Context) {
+	threadID := c.Param("id")
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("LikeThreadHandler: No user ID found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		log.Printf("LikeThreadHandler: User ID is not a string: %v", userID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	if threadID == "" {
+		log.Printf("LikeThreadHandler: No thread ID provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
+		return
+	}
+
+	log.Printf("LikeThreadHandler: Request received - threadID=%s, userID=%s", threadID, userIDStr)
+
+	if threadServiceClient == nil {
+		log.Printf("LikeThreadHandler: Thread service client is nil")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Thread service unavailable",
+		})
+		return
+	}
+
+	log.Printf("LikeThreadHandler: Calling threadServiceClient.LikeThread")
+	err := threadServiceClient.LikeThread(threadID, userIDStr)
+	if err != nil {
+		log.Printf("LikeThreadHandler: Error from thread service: %v", err)
+
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		if strings.Contains(err.Error(), "Invalid") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to like thread: " + err.Error(),
+		})
+		return
+	}
+
+	log.Printf("LikeThreadHandler: Successfully liked thread %s for user %s", threadID, userIDStr)
+
+	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
+	if err == nil && thread != nil {
+		log.Printf("LikeThreadHandler: Verification - Thread %s for user %s: like status is now %v",
+			threadID, userIDStr, thread.IsLiked)
+	} else if err != nil {
+		log.Printf("LikeThreadHandler: Error verifying like: %v", err)
+	} else {
+		log.Printf("LikeThreadHandler: Thread not found during verification")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Thread liked successfully",
+	})
+}
+
+func UnlikeThreadHandler(c *gin.Context) {
+	threadID := c.Param("id")
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("UnlikeThreadHandler: No user ID found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		log.Printf("UnlikeThreadHandler: User ID is not a string: %v", userID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	if threadID == "" {
+		log.Printf("UnlikeThreadHandler: No thread ID provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
+		return
+	}
+
+	log.Printf("UnlikeThreadHandler: Request received - threadID=%s, userID=%s", threadID, userIDStr)
+
+	if threadServiceClient == nil {
+		log.Printf("UnlikeThreadHandler: Thread service client is nil")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Thread service unavailable",
+		})
+		return
+	}
+
+	log.Printf("UnlikeThreadHandler: Calling threadServiceClient.UnlikeThread")
+	err := threadServiceClient.UnlikeThread(threadID, userIDStr)
+	if err != nil {
+		log.Printf("UnlikeThreadHandler: Error from thread service: %v", err)
+
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		if strings.Contains(err.Error(), "Invalid") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to unlike thread: " + err.Error(),
+		})
+		return
+	}
+
+	log.Printf("UnlikeThreadHandler: Successfully unliked thread %s for user %s", threadID, userIDStr)
+
+	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
+	if err == nil && thread != nil {
+		log.Printf("UnlikeThreadHandler: Verification - Thread %s for user %s: like status is now %v",
+			threadID, userIDStr, thread.IsLiked)
+	} else if err != nil {
+		log.Printf("UnlikeThreadHandler: Error verifying unlike: %v", err)
+	} else {
+		log.Printf("UnlikeThreadHandler: Thread not found during verification")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Thread unliked successfully",
+	})
+}
+
+func RemoveBookmarkHandler(c *gin.Context) {
+	threadID := c.Param("id")
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("RemoveBookmarkHandler: No user ID found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		log.Printf("RemoveBookmarkHandler: User ID is not a string: %v", userID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	if threadID == "" {
+		log.Printf("RemoveBookmarkHandler: No thread ID provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thread ID is required"})
+		return
+	}
+
+	log.Printf("RemoveBookmarkHandler: Request received - threadID=%s, userID=%s", threadID, userIDStr)
+
+	if threadServiceClient == nil {
+		log.Printf("RemoveBookmarkHandler: Thread service client is nil")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Thread service unavailable",
+		})
+		return
+	}
+
+	log.Printf("RemoveBookmarkHandler: Calling threadServiceClient.RemoveBookmark")
+	err := threadServiceClient.RemoveBookmark(threadID, userIDStr)
+	if err != nil {
+		log.Printf("RemoveBookmarkHandler: Error from thread service: %v", err)
+
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		if strings.Contains(err.Error(), "Invalid") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to remove bookmark: " + err.Error(),
+		})
+		return
+	}
+
+	log.Printf("RemoveBookmarkHandler: Successfully removed bookmark for thread %s for user %s", threadID, userIDStr)
+
+	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
+	if err == nil && thread != nil {
+		log.Printf("RemoveBookmarkHandler: Verification - Thread %s for user %s: bookmark status is now %v",
+			threadID, userIDStr, thread.IsBookmarked)
+	} else if err != nil {
+		log.Printf("RemoveBookmarkHandler: Error verifying bookmark removal: %v", err)
+	} else {
+		log.Printf("RemoveBookmarkHandler: Thread not found during verification")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Bookmark removed successfully",
+	})
+}
+
 func UpdateThreadMediaURLsHandler(c *gin.Context) {
 	threadID := c.Param("id")
 	if threadID == "" {

@@ -1,7 +1,8 @@
-import { getAuthToken, getUserId } from '../utils/auth';
+import { getAuthToken, getUserId, getAuthData } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { uploadMultipleThreadMedia } from '../utils/supabase';
 import { createLoggerWithPrefix } from '../utils/logger';
+import { useAuth } from '../hooks/useAuth';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const AI_SERVICE_URL = appConfig.api.aiServiceUrl || 'http://localhost:5000';
@@ -26,44 +27,77 @@ async function handleApiResponse(response: Response, errorMessage: string = 'API
   return response.json();
 }
 
-async function makeApiRequest(url: string, method: string, body?: any, errorMessage?: string, timeout: number = 15000) {
-  const token = getAuthToken();
-
-  logger.debug(`Making ${method} request to ${url}`);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
+// Check if token needs refresh before making API request
+async function ensureValidToken() {
   try {
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include',
-      signal: controller.signal
-    };
-
-    if (body) {
-      options.body = JSON.stringify(body);
-    }
-
-    const response = await fetch(url, options);
-
-    clearTimeout(timeoutId);
-
-    return handleApiResponse(response, errorMessage);
+    const { checkAndRefreshTokenIfNeeded } = useAuth();
+    await checkAndRefreshTokenIfNeeded();
   } catch (error) {
+    logger.warn('Error ensuring token freshness:', error);
+    // Continue with the request even if token refresh fails
+    // The server will respond with 401 if necessary
+  }
+}
 
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      logger.error(`Request to ${url} timed out after ${timeout}ms`);
-      throw new Error("Request timed out. The API server might be overloaded or unavailable.");
+async function makeApiRequest(url: string, method: string, body?: any, errorMessage?: string, timeout: number = 15000) {
+  try {
+    // For GET requests that can work without authentication, we'll try but not fail if auth refresh fails
+    const isPublicReadRequest = method === 'GET' && url.includes('/threads');
+    
+    try {
+      const { checkAndRefreshTokenIfNeeded } = useAuth();
+      await checkAndRefreshTokenIfNeeded();
+    } catch (error) {
+      // If this is a public read request, continue without a token
+      // Otherwise re-throw the error
+      if (!isPublicReadRequest) {
+        throw error;
+      }
     }
+    
+    const token = getAuthToken();
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-    logger.error(`Error making request to ${url}:`, error);
+    try {
+      const options: RequestInit = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        credentials: 'include',
+        signal: controller.signal
+      };
+
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(url, options);
+      clearTimeout(timeoutId);
+      
+      // For 401 responses on public endpoints, try again without auth token
+      if (response.status === 401 && isPublicReadRequest && token) {
+        logger.warn('Got 401 on public endpoint, retrying without auth');
+        const publicOptions = { ...options };
+        publicOptions.headers = { 'Content-Type': 'application/json' };
+        
+        const publicResponse = await fetch(url, publicOptions);
+        return await handleApiResponse(publicResponse, errorMessage);
+      }
+      
+      return await handleApiResponse(response, errorMessage);
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out');
+      }
+      throw error;
+    }
+  } catch (error: any) {
+    logger.error(`API request failed: ${error.message}`);
     throw error;
   }
 }
@@ -186,7 +220,6 @@ export async function getAllThreads(page = 1, limit = 10): Promise<ThreadsRespon
         };
       }
 
-      // Handle both total_count and total fields for backward compatibility
       const totalCount = data.total_count !== undefined ? data.total_count : data.total || 0;
 
       return {
@@ -324,13 +357,16 @@ export async function likeThread(threadId: string) {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
+    const url = `${API_BASE_URL}/threads/${threadId}/like`;
+    logger.debug(`Making like request to ${url}`);
+
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/likes`, 
+      url, 
       'POST', 
       null, 
       'Failed to like thread'
     );
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`Like thread ${threadId} failed:`, error);
     throw error;
   } finally {
@@ -358,7 +394,7 @@ export async function unlikeThread(threadId: string) {
     }, DEBOUNCE_DELAY);
 
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/likes`, 
+      `${API_BASE_URL}/threads/${threadId}/like`, 
       'DELETE', 
       null, 
       'Failed to unlike thread'
@@ -435,31 +471,78 @@ export async function removeRepost(repostId: string) {
   }
 }
 
+// Prevent multiple rapid bookmark/unbookmark requests
+let bookmarkDebounceMap = new Map();
+
 export async function bookmarkThread(threadId: string) {
   try {
+    // Check for existing ongoing request
+    if (bookmarkDebounceMap.has(threadId)) {
+      logger.warn(`Bookmark operation for thread ${threadId} already in progress, skipping`);
+      return { success: false, message: 'Operation already in progress' };
+    }
+
+    // Set debounce lock
+    bookmarkDebounceMap.set(threadId, true);
+    
+    // Clear lock after delay regardless of outcome
+    setTimeout(() => {
+      bookmarkDebounceMap.delete(threadId);
+    }, DEBOUNCE_DELAY);
+
+    const url = `${API_BASE_URL}/threads/${threadId}/bookmark`;
+    logger.debug(`Making bookmark request to ${url}`);
+
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/bookmarks`, 
+      url, 
       'POST', 
       null, 
       'Failed to bookmark thread'
     );
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`Bookmark thread ${threadId} failed:`, error);
     throw error;
+  } finally {
+    // Ensure lock is cleared in case of early return
+    setTimeout(() => {
+      bookmarkDebounceMap.delete(threadId);
+    }, 50);
   }
 }
 
 export async function removeBookmark(threadId: string) {
   try {
+    // Check for existing ongoing request
+    if (bookmarkDebounceMap.has(threadId)) {
+      logger.warn(`Remove bookmark operation for thread ${threadId} already in progress, skipping`);
+      return { success: false, message: 'Operation already in progress' };
+    }
+
+    // Set debounce lock
+    bookmarkDebounceMap.set(threadId, true);
+    
+    // Clear lock after delay regardless of outcome
+    setTimeout(() => {
+      bookmarkDebounceMap.delete(threadId);
+    }, DEBOUNCE_DELAY);
+
+    const url = `${API_BASE_URL}/threads/${threadId}/bookmark`;
+    logger.debug(`Removing bookmark request to ${url}`);
+    
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/bookmarks`, 
+      url, 
       'DELETE', 
       null, 
       'Failed to remove bookmark'
     );
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`Remove bookmark for thread ${threadId} failed:`, error);
     throw error;
+  } finally {
+    // Ensure lock is cleared in case of early return
+    setTimeout(() => {
+      bookmarkDebounceMap.delete(threadId);
+    }, 50);
   }
 }
 
@@ -693,8 +776,8 @@ export async function unlikeReply(replyId: string) {
   try {
     const token = getAuthToken();
 
-    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/unlike`, {
-      method: "POST",
+    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
+      method: "DELETE",
       headers: {
         "Content-Type": "application/json",
         "Authorization": token ? `Bearer ${token}` : ''

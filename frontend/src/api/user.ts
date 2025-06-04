@@ -1,5 +1,5 @@
 import appConfig from '../config/appConfig';
-import { getAuthToken } from '../utils/auth';
+import { getAuthToken, getUserId as getUserIdFromAuth } from '../utils/auth';
 import { uploadProfilePicture as supabaseUploadProfilePicture, uploadBanner as supabaseUploadBanner } from '../utils/supabase';
 
 const API_BASE_URL = appConfig.api.baseUrl;
@@ -400,17 +400,8 @@ export async function getFollowing(userId: string, page = 1, limit = 20): Promis
 }
 
 function getUserId(): string {
-  try {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      return user.id || '';
-    }
-    return '';
-  } catch (err) {
-    console.error('Failed to get user ID from localStorage:', err);
-    return '';
-  }
+  const userId = getUserIdFromAuth();
+  return userId || '';
 }
 
 export async function getUserById(userId: string): Promise<any> {
@@ -698,30 +689,56 @@ export async function searchUsers(
   try {
     const token = getAuthToken();
 
-    const params = new URLSearchParams({
-      query: query,
-      page: page.toString(),
-      limit: limit.toString()
-    });
-
-    if (options) {
-      Object.keys(options).forEach(key => {
-        if (options[key] !== undefined) {
-          params.append(key, options[key].toString());
-        }
+    // Function to make a search request with or without auth
+    const makeSearchRequest = async (withAuth: boolean) => {
+      const params = new URLSearchParams({
+        query: query,
+        page: page.toString(),
+        limit: limit.toString()
       });
+  
+      if (options) {
+        Object.keys(options).forEach(key => {
+          if (options[key] !== undefined) {
+            params.append(key, options[key].toString());
+          }
+        });
+      }
+  
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+  
+      if (withAuth && token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+  
+      return await fetch(`${API_BASE_URL}/users/search?${params.toString()}`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+    };
+
+    // First try with authentication if we have a token
+    let response = await makeSearchRequest(!!token);
+    
+    // If we get a 401 error and tried with auth, retry without auth
+    if (response.status === 401 && token) {
+      console.log('Search API returned 401, retrying without authentication');
+      response = await makeSearchRequest(false);
     }
 
-    const response = await fetch(`${API_BASE_URL}/users/search?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include'
-    });
-
     if (!response.ok) {
+      // For certain error codes, return empty results instead of throwing
+      if (response.status === 401 || response.status === 403) {
+        console.warn(`Search users returned ${response.status}, returning empty results`);
+        return {
+          success: true,
+          users: [],
+          total: 0
+        };
+      }
       throw new Error(`Search users failed (${response.status})`);
     }
 
@@ -733,6 +750,7 @@ export async function searchUsers(
     };
   } catch (error) {
     console.error('Search users failed:', error);
+    // Always return a valid response object even when an error occurs
     return {
       success: false,
       users: [],

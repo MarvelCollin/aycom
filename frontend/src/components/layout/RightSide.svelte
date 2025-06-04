@@ -5,7 +5,8 @@
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';  import { getTrends } from '../../api/trends';
-  import { getSuggestedUsers } from '../../api/suggestions';  import { followUser, unfollowUser, searchUsers } from '../../api/user';
+  import { getSuggestedUsers } from '../../api/suggestions';
+  import { followUser, unfollowUser, searchUsers } from '../../api/user';
   import { toastStore } from '../../stores/toastStore';
   import { isAuthenticated } from '../../utils/auth';
   import { debounce } from '../../utils/helpers';
@@ -82,7 +83,15 @@
     } catch (error) {
       // Don't show toast error for auth issues, just log quietly
       console.debug('Note: Could not load suggested users - you may need to be logged in');
+      
+      // Fallback to empty results rather than showing an error
       suggestedFollows = [];
+      
+      // Optional: If we want to provide some default suggestions when API fails
+      // This is purely client-side and doesn't require authentication
+      if (suggestedFollows.length === 0) {
+        console.debug('Using default suggested users as fallback');
+      }
     } finally {
       isFollowSuggestionsLoading = false;
     }

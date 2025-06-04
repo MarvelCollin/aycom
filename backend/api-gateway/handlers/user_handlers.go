@@ -344,32 +344,83 @@ func GetUserByEmail(c *gin.Context) {
 }
 
 func GetUserSuggestions(c *gin.Context) {
-	// This endpoint is deprecated - use /users/recommendations instead
-	// Redirecting to the proper recommendations endpoint
-	userID, exists := c.Get("userID")
-	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
-		return
+	log.Printf("======= GetUserSuggestions endpoint called PATH=%s METHOD=%s =======", c.Request.URL.Path, c.Request.Method)
+
+	// Log all headers to help debug
+	log.Printf("Request Headers:")
+	for name, values := range c.Request.Header {
+		log.Printf("  %s: %s", name, values)
 	}
-	userIDStr := userID.(string)
+
+	// Get optional user ID if authenticated
+	var userIDStr string
+	userID, exists := c.Get("userID")
+	if exists {
+		var ok bool
+		userIDStr, ok = userID.(string)
+		if ok {
+			log.Printf("UserID from context exists: %s", userIDStr)
+		} else {
+			log.Printf("UserID from context exists but is not a string: %v, %T", userID, userID)
+			userIDStr = ""
+		}
+	} else {
+		log.Printf("No userID in context, proceeding as anonymous user")
+	}
+
+	userId, exists := c.Get("userId")
+	if exists {
+		log.Printf("Found alternative 'userId' in context: %v", userId)
+	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "3"))
+	log.Printf("Using limit: %d", limit)
 
 	if userServiceClient == nil {
-		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
-		return
+		log.Printf("ERROR: userServiceClient is nil - initializing client for this request")
+		// Try to initialize it on the fly
+		InitUserServiceClient(AppConfig)
+
+		if userServiceClient == nil {
+			log.Printf("ERROR: Failed to initialize userServiceClient")
+			// Instead of returning an error, return empty results
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"users":   []gin.H{},
+				"message": "Service temporarily unavailable, please try again later",
+			})
+			return
+		}
 	}
 
-	users, err := userServiceClient.GetUserRecommendations(userIDStr, limit)
-	if err != nil {
-		st, ok := status.FromError(err)
-		if ok {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user recommendations: "+st.Message())
-		} else {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while getting user recommendations")
+	var users []*User
+	var err error
+
+	if userIDStr != "" {
+		// If authenticated, get personalized recommendations
+		log.Printf("Getting personalized recommendations for user %s", userIDStr)
+		users, err = userServiceClient.GetUserRecommendations(userIDStr, limit)
+		if err != nil {
+			log.Printf("Error getting user recommendations: %v", err)
+			// Continue with fallback to all users
 		}
-		log.Printf("Error getting user recommendations: %v", err)
-		return
+	}
+
+	// If no recommendations (unauthenticated or error), get popular users
+	if users == nil || len(users) == 0 {
+		log.Printf("No recommendations found or user not authenticated, falling back to all users")
+		// We don't have a GetPopularUsers, so use GetAllUsers sorted by newest
+		users, totalCount, _, err := userServiceClient.GetAllUsers(1, limit, "created_at", false) // Sort by newest
+		if err != nil {
+			log.Printf("Error getting all users: %v", err)
+			// Return empty array instead of error
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"users":   []gin.H{},
+			})
+			return
+		}
+		log.Printf("Got %d users from fallback (total count: %d)", len(users), totalCount)
 	}
 
 	var userResults []gin.H
@@ -383,10 +434,11 @@ func GetUserSuggestions(c *gin.Context) {
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
-			"is_following":        false, // Will be enriched by frontend if needed
+			"is_following":        userIDStr != "" && user.IsFollowing, // only relevant if authenticated
 		})
 	}
 
+	log.Printf("Returning %d user suggestions", len(userResults))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"users":   userResults,
@@ -1030,5 +1082,56 @@ func UpdateUserAdminStatus(c *gin.Context) {
 		"message":  fmt.Sprintf("User %s has been %s", userName, action),
 		"user_id":  req.UserID,
 		"is_admin": isAdmin,
+	})
+}
+
+func GetPublicUserSuggestions(c *gin.Context) {
+	log.Printf("GetPublicUserSuggestions endpoint called")
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "3"))
+
+	if userServiceClient == nil {
+		InitUserServiceClient(AppConfig)
+		if userServiceClient == nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"users":   []gin.H{},
+				"message": "Service temporarily unavailable, please try again later",
+			})
+			return
+		}
+	}
+
+	// Get popular users without authentication
+	users, totalCount, _, err := userServiceClient.GetAllUsers(1, limit, "created_at", false)
+	if err != nil {
+		log.Printf("Error getting all users: %v", err)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"users":   []gin.H{},
+		})
+		return
+	}
+
+	log.Printf("Got %d users for public suggestions (total count: %d)", len(users), totalCount)
+
+	var userResults []gin.H
+	for _, user := range users {
+		userResults = append(userResults, gin.H{
+			"id":                  user.ID,
+			"username":            user.Username,
+			"name":                user.Name,
+			"profile_picture_url": user.ProfilePictureURL,
+			"bio":                 user.Bio,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
+			"follower_count":      user.FollowerCount,
+			"is_following":        false, // Always false for public suggestions
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"users":   userResults,
 	})
 }

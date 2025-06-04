@@ -13,28 +13,13 @@ export function getAuthToken(): string {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
-
-      if (auth.accessToken) {
-        if (auth.expiresAt && Date.now() > auth.expiresAt) {
-          logger.warn('Token has expired, will need refresh');
-
-          if (!auth.refreshToken) {
-            logger.warn('No refresh token available for expired token');
-            return '';
-          }
-        }
-
-        logger.debug(`Found token: ${auth.accessToken.substring(0, 10)}...`);
-        return auth.accessToken;
-      } else {
-        logger.warn('Token exists in auth data but is empty');
+      if (auth.access_token) {
+        return auth.access_token;
       }
     }
   } catch (err) {
     logger.error("Error parsing auth data:", err);
   }
-
-  logger.warn('No auth token found');
   return '';
 }
 
@@ -43,29 +28,16 @@ export function isAuthenticated(): boolean {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
-
-      if (auth.accessToken && auth.isAuthenticated === true) {
-        if (auth.expiresAt) {
-          const isValid = Date.now() < auth.expiresAt;
-          logger.debug(`Token expiry check: now=${Date.now()}, expires=${auth.expiresAt}, isValid=${isValid}`);
-          return isValid;
+      if (auth.is_authenticated && auth.access_token) {
+        if (auth.expires_at) {
+          return Date.now() < auth.expires_at;
         }
         return true;
-      } else {
-        logger.warn(`Auth validation failed: token=${!!auth.accessToken}, isAuthenticated=${auth.isAuthenticated}`);
       }
-    } else {
-      logger.warn('No auth data in localStorage');
     }
   } catch (err) {
     logger.error("Error checking authentication status:", err);
   }
-
-  if (localStorage.getItem('aycom_authenticated') === 'true') {
-    logger.warn('Simple auth flag is true but auth data validation failed - clearing flag');
-    localStorage.setItem('aycom_authenticated', 'false');
-  }
-
   return false;
 }
 
@@ -74,30 +46,24 @@ export function getUserId(): string | null {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
-
-      if (auth.userId || auth.user_id) {
-        const id = auth.user_id || auth.userId;
-        logger.debug(`Found user ID: ${id}`);
-        return id;
-      } else {
-        logger.warn('Auth data exists but no user ID found');
+      if (auth.user_id) {
+        return auth.user_id;
       }
     }
   } catch (err) {
     logger.error("Error getting user ID:", err);
   }
-
   return null;
 }
 
 export function ensureTokenFreshness(): boolean {
   try {
     const authData = getAuthData();
-    if (!authData || !authData.expiresAt) return false;
+    if (!authData || !authData.expires_at) return false;
 
-    const fiveMinutesMs = 5 * 60 * 1000;
-    const timeUntilExpiry = authData.expiresAt - Date.now();
-    const isNearExpiry = timeUntilExpiry < fiveMinutesMs;
+    const refreshBuffer = appConfig.auth.tokenRefreshBuffer || 5 * 60 * 1000; // Default to 5 minutes
+    const timeUntilExpiry = authData.expires_at - Date.now();
+    const isNearExpiry = timeUntilExpiry < refreshBuffer;
 
     if (isNearExpiry) {
       logger.info(`Token is near expiry (expires in ${Math.round(timeUntilExpiry/1000)}s), should be refreshed`);
@@ -120,40 +86,22 @@ export function setAuthData(userData: {
   try {
     if (userData === null) {
       clearAuthData();
-      logger.info('Auth data cleared');
       return;
     }
 
     const expiresAt = userData.expiresAt || (Date.now() + 3600 * 1000);
-
-    let existingData = {};
-    try {
-      const existingAuth = localStorage.getItem('auth');
-      if (existingAuth) {
-        existingData = JSON.parse(existingAuth);
-      }
-    } catch (e) {
-      logger.error('Error reading existing auth data:', e);
-    }
-
+    
     const authData = {
-      ...existingData, 
-      isAuthenticated: true,
-      userId: userData.userId, 
-      user_id: userData.userId, 
-      accessToken: userData.accessToken,
-      refreshToken: userData.refreshToken || null,
-      expiresAt: expiresAt,
-
-      is_admin: userData.is_admin !== undefined ? userData.is_admin : (existingData as any).is_admin || false
+      is_authenticated: true,
+      user_id: userData.userId,
+      access_token: userData.accessToken,
+      refresh_token: userData.refreshToken || null,
+      expires_at: expiresAt,
+      is_admin: userData.is_admin || false
     };
 
     localStorage.setItem('auth', JSON.stringify(authData));
-    localStorage.setItem('aycom_authenticated', 'true');
-
-    logger.info('Auth data updated successfully');
-    logger.debug(`User ID: ${userData.userId}, Token: ${userData.accessToken.substring(0, 10)}..., Expires: ${new Date(expiresAt).toLocaleString()}, Admin: ${authData.is_admin}`);
-
+    
     setupTokenValidation();
   } catch (err) {
     logger.error("Error setting auth data:", err);
@@ -163,13 +111,10 @@ export function setAuthData(userData: {
 export function clearAuthData(): void {
   try {
     localStorage.removeItem('auth');
-    localStorage.setItem('aycom_authenticated', 'false');
-    logger.info('Auth data cleared');
-
+    
     if (tokenValidationTimer !== null) {
       window.clearInterval(tokenValidationTimer);
       tokenValidationTimer = null;
-      logger.debug('Token validation interval cleared');
     }
   } catch (err) {
     logger.error("Error clearing auth data:", err);
@@ -209,7 +154,8 @@ export function updateTokenExpiry(newExpiresAt: number): void {
   try {
     const authData = getAuthData();
     if (authData) {
-      authData.expiresAt = newExpiresAt;
+      authData.expires_at = newExpiresAt;
+      authData.expiresAt = newExpiresAt; // For backward compatibility
       localStorage.setItem('auth', JSON.stringify(authData));
       logger.debug(`Token expiry updated to ${new Date(newExpiresAt).toLocaleString()}`);
     }

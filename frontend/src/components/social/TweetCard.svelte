@@ -1,6 +1,7 @@
 <script lang="ts">  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { createLoggerWithPrefix } from '../../utils/logger';
-  import { isAuthenticated as checkAuth } from '../../utils/auth';
+  import { isAuthenticated as checkAuth, getUserId } from '../../utils/auth';
+  import { useAuth } from '../../hooks/useAuth';
   import { likeThread, unlikeThread, replyToThread, getReplyReplies, likeReply, unlikeReply, bookmarkThread, removeBookmark } from '../../api';
   import { tweetInteractionStore } from '../../stores/tweetInteractionStore';
   import { notificationStore } from '../../stores/notificationStore';
@@ -89,10 +90,31 @@
   
   // Initialize logger
   const logger = createLoggerWithPrefix('TweetCard');
-    // Reactive tweet store setup
+  
+  // Initialize auth hook with proper destructuring
+  const { getAuthState, getAuthToken, refreshToken, checkAndRefreshTokenIfNeeded } = useAuth();
+  
+  // This will be injected from props when component is used
+  export let isAuth: boolean = false;
+  
+  // Set up local authentication state - make this writable
+  let authState = getAuthState();
+  let isAuthenticated = authState?.is_authenticated || isAuth;
+  
+  // Store auth update function for later use
+  const updateAuthState = () => {
+    authState = getAuthState();
+    isAuthenticated = authState?.is_authenticated || isAuth;
+  };
+  
+  $: {
+    // Keep isAuthenticated up to date with props and auth state
+    isAuthenticated = authState?.is_authenticated || isAuth || false;
+  }
+  
+  // Reactive tweet store setup
   export let tweet: ITweet | ExtendedTweet;
   export let isDarkMode: boolean = false;
-  export let isAuth: boolean = false;
   
   // Changed from export let to export const since they're only for external reference
   export const isLiked: boolean = false;
@@ -463,9 +485,12 @@
 
   // Handle like/unlike
   async function handleLikeClick() {
-    if (!checkAuth()) {
+    // Check authentication status first
+    const authState = getAuthState();
+    isAuthenticated = authState?.is_authenticated || isAuth;
+    
+    if (!isAuthenticated) {
       toastStore.showToast('Please log in to like posts', 'info');
-      dispatch('like');
       return;
     }
     
@@ -477,6 +502,9 @@
     const requestId = ++currentLikeRequestId;
     
     try {
+      // Try to refresh the token before making the request
+      await checkAndRefreshTokenIfNeeded();
+      
       // Determine current like status from the store or the processed tweet
       const currentLikeStatus = storeInteraction?.is_liked ?? processedTweet.is_liked ?? false;
       
@@ -513,10 +541,6 @@
       // Only make the API call if online
       if (navigator.onLine) {
         try {
-          // Double-check server state first to avoid unnecessary calls
-          // This is commented out as it would require a new API endpoint to check status
-          // For now, we rely on error handling to fix mismatches
-
           // Make the API call
           const apiCall = newLikeStatus ? likeThread : unlikeThread;
           await apiCall(tweetId);
@@ -552,7 +576,18 @@
             (newLikeStatus && errorMsg.includes('already liked')) ||
             (!newLikeStatus && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
           
-          if (isAlreadyInState) {
+          // Handle 401 errors specifically
+          if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
+            isAuthenticated = false;
+            toastStore.showToast('Your session has expired. Please log in again.', 'error');
+            
+            // Update auth state
+            updateAuthState();
+            if (!authState?.is_authenticated) {
+              // Redirect to login page
+              window.location.href = '/login';
+            }
+          } else if (isAlreadyInState) {
             // The server state already matches what we want, so this isn't really an error
             console.log(`Tweet ${tweetId} is already in the ${newLikeStatus ? 'liked' : 'unliked'} state on server`);
             
@@ -652,10 +687,18 @@
   async function toggleBookmarkStatus(event: Event) {
     event.stopPropagation();
     
+    // Check authentication status first
+    const authState = getAuthState();
+    isAuthenticated = authState?.is_authenticated || isAuth;
+    
     if (!isAuthenticated) {
-      toastStore.showToast('Please log in to bookmark tweets', 'error');
+      toastStore.showToast('Please log in to bookmark tweets', 'info');
       return;
     }
+    
+    // Prevent interaction while loading
+    if (isBookmarkLoading) return;
+    isBookmarkLoading = true;
     
     // Determine the current status
     const status = storeInteraction?.is_bookmarked || processedTweet.is_bookmarked || false;
@@ -668,6 +711,9 @@
     });
     
     try {
+      // Try to refresh the token before making the request
+      await checkAndRefreshTokenIfNeeded();
+      
       if (!status) {
         await bookmarkThread(processedTweet.id);
         toastStore.showToast('Tweet bookmarked', 'success');
@@ -682,14 +728,32 @@
       });
     } catch (error) {
       console.error('Error toggling bookmark:', error);
-      toastStore.showToast('Failed to update bookmark', 'error');
-          
+      
+      // Handle error based on type
+      const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+      
+      if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
+        isAuthenticated = false;
+        toastStore.showToast('Your session has expired. Please log in again.', 'error');
+        
+        // Update auth state
+        updateAuthState();
+        if (!authState?.is_authenticated) {
+          // Redirect to login page
+          window.location.href = '/login';
+        }
+      } else {
+        toastStore.showToast('Failed to update bookmark', 'error');
+      }
+      
       // Revert the optimistic update
       tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
         is_bookmarked: status,
         bookmarks: status ? effectiveBookmarks + 1 : effectiveBookmarks - 1,
         pending_bookmark: false
       });
+    } finally {
+      isBookmarkLoading = false;
     }
   }
 
@@ -1299,9 +1363,6 @@
     }
   }
 
-  // Create a copy of isAuthenticated from the parameter to avoid redeclaration
-  $: isAuthenticated = isAuth;
-
   // Handle repost/unrepost
   async function handleRepostClick(event: Event) {
     event.stopPropagation();
@@ -1358,12 +1419,32 @@
       syncInteractionWithServer();
     }
     
+    // Check authentication status
+    const checkAuthStatus = () => {
+      updateAuthState();
+      console.log('Authentication status:', isAuthenticated);
+    };
+    
+    // Run immediately and set up refresh interval
+    checkAuthStatus();
+    const authCheckInterval = setInterval(checkAuthStatus, 60000); // Check every minute
+    
+    // Set up auth change listener
+    window.addEventListener('auth:changed', checkAuthStatus);
+    
     // Add visibility change listener to sync when returning to page
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(authCheckInterval);
+      window.removeEventListener('auth:changed', checkAuthStatus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   });
   
   onDestroy(() => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('auth:changed', () => {});
   });
   
   // Function to sync interactions when returning to the tab

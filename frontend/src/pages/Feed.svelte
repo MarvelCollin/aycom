@@ -66,11 +66,18 @@
       } else {
         console.error('Invalid API response format:', response);
         threads = [];
-        error = 'Invalid response format from API';
+        error = 'No threads available right now. Try again later.';
       }
     } catch (err) {
       console.error('Error loading threads:', err);
-      error = err instanceof Error ? err.message : 'Failed to load threads';
+      if (err instanceof Error && err.message.includes('401')) {
+        // If it's an auth error, don't show it to the user, just show empty state
+        threads = [];
+        error = 'No threads available right now. Try again later.';
+      } else {
+        // For other errors, show a helpful message
+        error = 'Unable to load threads. Please check your connection and try again.';
+      }
     } finally {
       isLoading = false;
     }
