@@ -1,22 +1,16 @@
-# Base image for building the application
 FROM golang:1.24-alpine
 
 WORKDIR /app
 
-# Install necessary tools and Air for hot reloading
 RUN apk add --no-cache git && \
     go install github.com/air-verse/air@latest
 
-# Copy Go module files for dependency caching
 COPY go.mod go.sum ./
 
-# Only prepare directories - actual code will be mounted via volume in development
 RUN mkdir -p services/user
 
-# Set up for Air in development mode
 WORKDIR /app/services/user
 
-# Create default Air config
 RUN touch .air.toml && \
     echo 'root = "."' > .air.toml && \
     echo 'tmp_dir = "tmp"' >> .air.toml && \
@@ -32,14 +26,11 @@ RUN touch .air.toml && \
     echo '[screen]' >> .air.toml && \
     echo '  clear_on_rebuild = true' >> .air.toml
 
-# Set environment variables
 ENV PORT=9091
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GO111MODULE=on
 
-# Expose port
 EXPOSE 9091
 
-# Use Air for hot reloading in development
 CMD ["air", "-c", ".air.toml"] 

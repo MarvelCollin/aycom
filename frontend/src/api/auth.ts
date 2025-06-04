@@ -3,9 +3,47 @@ import { getAuthToken } from '../utils/auth';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 
+async function handleApiResponse(response: Response, errorMessage: string = 'Operation failed') {
+  console.log(`Response status: ${response.status}`);
+
+  if (!response.ok) {
+    try {
+      const errorData = await response.json();
+      console.error('Error data:', errorData);
+      throw new Error(errorData.message || `${errorMessage} with status: ${response.status}`);
+    } catch (parseError) {
+      console.error('Failed to parse error response:', parseError);
+      throw new Error(`${errorMessage} with status: ${response.status}`);
+    }
+  }
+
+  const data = await response.json();
+  console.log('Successful response with keys:', Object.keys(data));
+  return data;
+}
+
+function standardizeUserResponse(data: any) {
+  return {
+    user: data.user ? {
+      id: data.user.id,
+      username: data.user.username,
+      name: data.user.name || data.user.display_name,
+      email: data.user.email,
+      profile_picture_url: data.user.profile_picture_url || data.user.profilePictureUrl,
+      is_verified: data.user.is_verified || data.user.verified || false,
+      is_admin: data.user.is_admin || data.user.admin || false
+    } : data.user,
+    access_token: data.access_token || data.accessToken || data.token,
+    refresh_token: data.refresh_token || data.refreshToken,
+    expires_in: data.expires_in || data.expiresIn,
+    token_type: data.token_type || data.tokenType || 'bearer',
+    user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
+  };
+}
+
 export async function login(email: string, password: string) {
   console.log(`Attempting to login with email: ${email.substring(0, 3)}...${email.split('@')[1]}`);
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/users/login`, {
       method: "POST",
@@ -13,42 +51,9 @@ export async function login(email: string, password: string) {
       body: JSON.stringify({ email, password }),
       credentials: "include",
     });
-    
-    console.log(`Login response status: ${response.status}`);
-    
-    if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        console.error('Login error data:', errorData);
-        throw new Error(errorData.message || `Login failed with status: ${response.status}`);
-      } catch (parseError) {
-        console.error('Failed to parse error response:', parseError);
-        throw new Error(`Login failed with status: ${response.status}`);
-      }
-    }
-    
-    const data = await response.json();
-    console.log('Login successful, received data with keys:', Object.keys(data));
-    
-    // Ensure we have consistent field names
-    const standardizedResponse = {
-      user: data.user ? {
-        id: data.user.id,
-        username: data.user.username,
-        name: data.user.name || data.user.display_name,
-        email: data.user.email,
-        profile_picture_url: data.user.profile_picture_url || data.user.profilePictureUrl,
-        is_verified: data.user.is_verified || data.user.verified || false,
-        is_admin: data.user.is_admin || data.user.admin || false
-      } : data.user,
-      access_token: data.access_token || data.accessToken || data.token,
-      refresh_token: data.refresh_token || data.refreshToken,
-      expires_in: data.expires_in || data.expiresIn,
-      token_type: data.token_type || data.tokenType || 'bearer',
-      user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
-    };
-    
-    return standardizedResponse;
+
+    const data = await handleApiResponse(response, 'Login failed');
+    return standardizeUserResponse(data);
   } catch (error) {
     console.error('Login exception:', error);
     throw error;
@@ -62,38 +67,24 @@ export async function register(data: Record<string, any>) {
     body: JSON.stringify(data),
     credentials: "include",
   });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Registration failed");
-    } catch (parseError) {
-      throw new Error("Registration failed");
-    }
-  }
-  return response.json();
+
+  return handleApiResponse(response, 'Registration failed');
 }
 
 export async function refreshToken(refreshToken: string) {
   const token = getAuthToken();
-  
+
   const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
     method: "POST",
     headers: { 
       "Content-Type": "application/json",
       "Authorization": token ? `Bearer ${token}` : '' 
     },
-    body: JSON.stringify({ refreshToken }),
+    body: JSON.stringify({ refresh_token: refreshToken }),
     credentials: "include",
   });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Token refresh failed");
-    } catch (parseError) {
-      throw new Error("Token refresh failed");
-    }
-  }
-  return response.json();
+
+  return handleApiResponse(response, 'Token refresh failed');
 }
 
 export async function verifyEmail(email: string, verificationCode: string) {
@@ -103,15 +94,8 @@ export async function verifyEmail(email: string, verificationCode: string) {
     body: JSON.stringify({ email, verification_code: verificationCode }),
     credentials: "include",
   });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Email verification failed");
-    } catch (parseError) {
-      throw new Error("Email verification failed");
-    }
-  }
-  return response.json();
+
+  return handleApiResponse(response, 'Email verification failed');
 }
 
 export async function resendVerification(email: string) {
@@ -121,22 +105,15 @@ export async function resendVerification(email: string) {
     body: JSON.stringify({ email }),
     credentials: "include",
   });
-  if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Resend verification failed");
-    } catch (parseError) {
-      throw new Error("Resend verification failed");
-    }
-  }
-  return response.json();
+
+  return handleApiResponse(response, 'Resend verification failed');
 }
 
 export async function googleLogin(tokenId: string) {
   try {
     console.log('Sending Google token to backend API for verification');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
     const response = await fetch(`${API_BASE_URL}/auth/google`, {
       method: "POST",
@@ -147,42 +124,11 @@ export async function googleLogin(tokenId: string) {
     });
 
     clearTimeout(timeoutId);
-    
-    console.log('Google login API response status:', response.status);
 
-    if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        console.error('Google login API error:', errorData);
-        throw new Error(errorData.message || "Google login failed");
-      } catch (parseError) {
-        console.error('Failed to parse Google login error response', parseError);
-        throw new Error(`Google login failed with status code: ${response.status}`);
-      }
-    }
-    
-    const data = await response.json();
+    const data = await handleApiResponse(response, 'Google login failed');
     console.log('Google login successful');
-    
-    // Ensure we have consistent field names
-    const standardizedResponse = {
-      user: data.user ? {
-        id: data.user.id,
-        username: data.user.username,
-        name: data.user.name || data.user.display_name,
-        email: data.user.email,
-        profile_picture_url: data.user.profile_picture_url || data.user.profilePictureUrl,
-        is_verified: data.user.is_verified || data.user.verified || false,
-        is_admin: data.user.is_admin || data.user.admin || false
-      } : data.user,
-      access_token: data.access_token || data.accessToken || data.token,
-      refresh_token: data.refresh_token || data.refreshToken,
-      expires_in: data.expires_in || data.expiresIn,
-      token_type: data.token_type || data.tokenType || 'bearer',
-      user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
-    };
-    
-    return standardizedResponse;
+
+    return standardizeUserResponse(data);
   } catch (error) {
     console.error('Google login request error:', error);
     if (error instanceof Error && error.name === 'AbortError') {
@@ -195,8 +141,7 @@ export async function googleLogin(tokenId: string) {
 export async function createAdminUser(data: Record<string, any>) {
   try {
     console.log("Creating admin user with data:", data);
-    
-    // Use the regular registration endpoint which is known to work
+
     const response = await fetch(`${API_BASE_URL}/users/register`, {
       method: "POST",
       headers: { 
@@ -204,26 +149,15 @@ export async function createAdminUser(data: Record<string, any>) {
       },
       body: JSON.stringify({
         ...data,
-        is_admin: true,  // This flag should tell the backend to create an admin
-        is_verified: true // Admins should be auto-verified
+        is_admin: true,  
+        is_verified: true 
       }),
       credentials: "include",
     });
-    
-    console.log("Admin user creation response:", response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.message || `Admin user creation failed (${response.status})`;
-      console.error("Admin user creation error:", errorData);
-      throw new Error(errorMessage);
-    }
-    
-    const result = await response.json();
-    console.log("Admin user created successfully:", result);
-    return result;
+
+    return handleApiResponse(response, 'Admin user creation failed');
   } catch (error) {
     console.error("Admin user creation failed:", error);
     throw error;
   }
-} 
+}

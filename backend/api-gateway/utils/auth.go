@@ -31,7 +31,6 @@ func GenerateJWT(userID string, expiryDuration time.Duration) (string, error) {
 	return token.SignedString(secret)
 }
 
-// GetJWTSecret returns the JWT secret key from environment variables or a fallback value
 func GetJWTSecret() []byte {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	if len(jwtSecret) == 0 {

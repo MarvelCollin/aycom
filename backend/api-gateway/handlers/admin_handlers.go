@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// BanUser handles banning/unbanning users
 func BanUser(c *gin.Context) {
 	userID := c.Param("userId")
 	if userID == "" {
@@ -69,7 +68,6 @@ func BanUser(c *gin.Context) {
 	})
 }
 
-// SendNewsletter handles sending newsletters to subscribed users
 func SendNewsletter(c *gin.Context) {
 	var req struct {
 		Subject string `json:"subject" binding:"required"`
@@ -82,7 +80,6 @@ func SendNewsletter(c *gin.Context) {
 		return
 	}
 
-	// Get admin ID from context
 	adminID, exists := c.Get("userID")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Admin not authenticated")
@@ -125,7 +122,6 @@ func SendNewsletter(c *gin.Context) {
 	})
 }
 
-// GetCommunityRequests handles getting community creation requests
 func GetCommunityRequests(c *gin.Context) {
 	page := 1
 	limit := 10
@@ -176,7 +172,6 @@ func GetCommunityRequests(c *gin.Context) {
 	})
 }
 
-// ProcessCommunityRequest handles approving/rejecting community creation requests
 func ProcessCommunityRequest(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
@@ -233,7 +228,6 @@ func ProcessCommunityRequest(c *gin.Context) {
 	})
 }
 
-// GetPremiumRequests handles getting premium user requests
 func GetPremiumRequests(c *gin.Context) {
 	page := 1
 	limit := 10
@@ -284,7 +278,6 @@ func GetPremiumRequests(c *gin.Context) {
 	})
 }
 
-// ProcessPremiumRequest handles approving/rejecting premium user requests
 func ProcessPremiumRequest(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
@@ -341,7 +334,6 @@ func ProcessPremiumRequest(c *gin.Context) {
 	})
 }
 
-// GetReportRequests handles getting user report requests
 func GetReportRequests(c *gin.Context) {
 	page := 1
 	limit := 10
@@ -392,7 +384,6 @@ func GetReportRequests(c *gin.Context) {
 	})
 }
 
-// ProcessReportRequest handles approving/rejecting user report requests
 func ProcessReportRequest(c *gin.Context) {
 	requestID := c.Param("requestId")
 	if requestID == "" {
@@ -449,7 +440,6 @@ func ProcessReportRequest(c *gin.Context) {
 	})
 }
 
-// GetThreadCategories handles getting thread categories
 func GetThreadCategories(c *gin.Context) {
 	page := 1
 	limit := 10
@@ -494,7 +484,6 @@ func GetThreadCategories(c *gin.Context) {
 	})
 }
 
-// CreateThreadCategory handles creating thread categories
 func CreateThreadCategory(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required"`
@@ -543,7 +532,6 @@ func CreateThreadCategory(c *gin.Context) {
 	})
 }
 
-// UpdateThreadCategory handles updating thread categories
 func UpdateThreadCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
@@ -601,7 +589,6 @@ func UpdateThreadCategory(c *gin.Context) {
 	})
 }
 
-// DeleteThreadCategory handles deleting thread categories
 func DeleteThreadCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
@@ -646,7 +633,6 @@ func DeleteThreadCategory(c *gin.Context) {
 	})
 }
 
-// GetCommunityCategories handles getting community categories
 func GetCommunityCategories(c *gin.Context) {
 	page := 1
 	limit := 10
@@ -691,7 +677,6 @@ func GetCommunityCategories(c *gin.Context) {
 	})
 }
 
-// CreateCommunityCategory handles creating community categories
 func CreateCommunityCategory(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required"`
@@ -740,7 +725,6 @@ func CreateCommunityCategory(c *gin.Context) {
 	})
 }
 
-// UpdateCommunityCategory handles updating community categories
 func UpdateCommunityCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
@@ -798,7 +782,6 @@ func UpdateCommunityCategory(c *gin.Context) {
 	})
 }
 
-// DeleteCommunityCategory handles deleting community categories
 func DeleteCommunityCategory(c *gin.Context) {
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {

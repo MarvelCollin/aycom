@@ -38,7 +38,7 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
     ...ALLOWED_MIME_TYPES.video,
     ...ALLOWED_MIME_TYPES.audio
   ];
-  
+
   if (!allowedTypes.includes(file.type)) {
     return {
       valid: false,
@@ -73,35 +73,35 @@ export async function uploadMedia(
       logger.error('File validation failed:', validation.error);
       throw new Error(validation.error);
     }
-    
+
     const fileName = generateUniqueFilename(file);
     const filePath = `${folder}/${fileName}`;
-    
+
     const { data, error } = await supabase.storage
       .from(SUPABASE_BUCKETS.MEDIA)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
-    
+
     if (error) {
       logger.error('Supabase storage upload error:', error);
       throw error;
     }
-    
+
     const { data: urlData } = supabase.storage
       .from(SUPABASE_BUCKETS.MEDIA)
       .getPublicUrl(filePath);
-      
+
     if (!urlData.publicUrl) {
       throw new Error('Failed to get public URL');
     }
-    
+
     return {
       url: urlData.publicUrl,
       mediaType: getMediaType(file.type)
     };
-    
+
   } catch (error) {
     logger.error('Media upload failed:', error);
     return null;
@@ -114,22 +114,22 @@ export async function deleteMedia(url: string): Promise<boolean> {
       logger.warn('Not a Supabase URL, cannot delete:', url);
       return false;
     }
-    
+
     const { bucket, path } = extractBucketAndPathFromUrl(url);
     if (!bucket || !path) {
       logger.error('Failed to extract path from URL:', url);
       return false;
     }
-    
+
     const { error } = await supabase.storage
       .from(bucket)
       .remove([path]);
-    
+
     if (error) {
       logger.error(`Supabase storage delete error for ${bucket}/${path}:`, error);
       throw error;
     }
-    
+
     return true;
   } catch (error) {
     logger.error('Media deletion failed:', error);
@@ -141,15 +141,15 @@ export function extractBucketAndPathFromUrl(url: string): { bucket: string | nul
   try {
     const urlObj = new URL(url);
     const pathParts = urlObj.pathname.split('/');
-    
+
     const publicIndex = pathParts.indexOf('public');
     if (publicIndex === -1 || publicIndex + 1 >= pathParts.length) {
       return { bucket: null, path: null };
     }
-    
+
     const bucket = pathParts[publicIndex + 1];
     const path = pathParts.slice(publicIndex + 2).join('/');
-    
+
     return { bucket, path };
   } catch (error) {
     logger.error('Failed to parse Supabase URL:', error);
@@ -175,23 +175,23 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
       logger.error('File validation failed:', validation.error);
       return null;
     }
-    
+
     const fileName = generateUniqueFilename(file);
     const filePath = `${path}/${fileName}`;
-    
+
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
-      
+
     if (error) {
       logger.error(`Error uploading to ${bucket}:`, error);
-      
+
       if (bucket === SUPABASE_BUCKETS.PROFILES || bucket === SUPABASE_BUCKETS.BANNERS) {
         logger.debug(`Attempting upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
-        
+
         const fallbackPath = `${bucket}/${path}/${fileName}`;
         const fallbackResult = await supabase.storage
           .from(SUPABASE_BUCKETS.FALLBACK)
@@ -199,27 +199,27 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
             cacheControl: '3600',
             upsert: false
           });
-          
+
         if (fallbackResult.error) {
           logger.error('Fallback upload also failed:', fallbackResult.error);
           return null;
         }
-        
+
         const { data: fallbackUrlData } = supabase.storage
           .from(SUPABASE_BUCKETS.FALLBACK)
           .getPublicUrl(fallbackPath);
-          
+
         logger.debug('Fallback upload successful');
         return fallbackUrlData.publicUrl;
       }
-      
+
       return null;
     }
-    
+
     const { data: { publicUrl } } = supabase.storage
       .from(bucket)
       .getPublicUrl(filePath);
-      
+
     logger.debug('Upload successful');
     return publicUrl;
   } catch (err) {
@@ -234,31 +234,30 @@ export async function uploadProfilePicture(file: File, userId: string): Promise<
 
 export async function uploadBanner(file: File, userId: string): Promise<string | null> {
   logger.debug(`Uploading banner for user ${userId}, fileType: ${file.type}, fileSize: ${file.size}`);
-  
+
   try {
     const validation = validateFile(file);
     if (!validation.valid) {
       logger.error('Banner validation failed:', validation.error);
       return null;
     }
-    
+
     const fileName = generateUniqueFilename(file);
     const filePath = `${userId}/${fileName}`;
     logger.debug(`Banner upload path: ${filePath} in bucket: ${SUPABASE_BUCKETS.BANNERS}`);
-    
+
     const { data, error } = await supabase.storage
       .from(SUPABASE_BUCKETS.BANNERS)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       });
-      
+
     if (error) {
       logger.error(`Banner upload error for ${userId}:`, error);
-      
-      // Try fallback bucket
+
       logger.debug(`Attempting banner upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
-      
+
       const fallbackPath = `banners/${userId}/${fileName}`;
       const fallbackResult = await supabase.storage
         .from(SUPABASE_BUCKETS.FALLBACK)
@@ -266,24 +265,24 @@ export async function uploadBanner(file: File, userId: string): Promise<string |
           cacheControl: '3600',
           upsert: false
         });
-        
+
       if (fallbackResult.error) {
         logger.error('Fallback banner upload also failed:', fallbackResult.error);
         return null;
       }
-      
+
       const { data: fallbackUrlData } = supabase.storage
         .from(SUPABASE_BUCKETS.FALLBACK)
         .getPublicUrl(fallbackPath);
-        
+
       logger.debug('Fallback banner upload successful:', fallbackUrlData.publicUrl);
       return fallbackUrlData.publicUrl;
     }
-    
+
     const { data: urlData } = supabase.storage
       .from(SUPABASE_BUCKETS.BANNERS)
       .getPublicUrl(filePath);
-      
+
     logger.debug('Banner upload successful:', urlData.publicUrl);
     return urlData.publicUrl;
   } catch (err) {
@@ -322,12 +321,12 @@ export async function deleteFile(bucket: string, path: string): Promise<boolean>
     const { error } = await supabase.storage
       .from(bucket)
       .remove([path]);
-      
+
     if (error) {
       logger.error('Error deleting file:', error);
       return false;
     }
-    
+
     return true;
   } catch (err) {
     logger.error('Exception during file deletion:', err);
@@ -340,7 +339,7 @@ export function getPublicUrl(bucket: string, path: string): string | null {
     const { data } = supabase.storage
       .from(bucket)
       .getPublicUrl(path);
-      
+
     return data.publicUrl;
   } catch (error) {
     logger.error('Failed to get public URL:', error);

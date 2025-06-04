@@ -11,9 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// InteractionRepository defines the methods for user-thread interactions (likes, reposts, bookmarks)
 type InteractionRepository interface {
-	// Like methods
 	LikeThread(userID, threadID string) error
 	LikeReply(userID, replyID string) error
 	UnlikeThread(userID, threadID string) error
@@ -23,44 +21,39 @@ type InteractionRepository interface {
 	CountThreadLikes(threadID string) (int64, error)
 	CountReplyLikes(replyID string) (int64, error)
 
-	// Repost methods
 	RepostThread(repost *model.Repost) error
 	RemoveRepost(userID, threadID string) error
 	IsThreadRepostedByUser(userID, threadID string) (bool, error)
 	CountThreadReposts(threadID string) (int64, error)
 
-	// Bookmark methods
 	BookmarkThread(userID, threadID string) error
 	RemoveBookmark(userID, threadID string) error
 	IsThreadBookmarkedByUser(userID, threadID string) (bool, error)
 	GetUserBookmarks(userID string, page, limit int) ([]*model.Thread, error)
 	CountThreadBookmarks(threadID string) (int64, error)
 
-	// Reply bookmark methods
 	BookmarkReply(userID, replyID string) error
 	RemoveReplyBookmark(userID, replyID string) error
 	IsReplyBookmarkedByUser(userID, replyID string) (bool, error)
 	CountReplyBookmarks(replyID string) (int64, error)
 
-	// New methods
 	FindLikedThreadsByUserID(userID string, page, limit int) ([]string, error)
 
-	// Bookmark operations
 	BookmarkExists(userID, threadID string) (bool, error)
 	CreateBookmark(bookmark *model.Bookmark) error
+
+	BatchCountThreadLikes(threadIDs []string) (map[string]int64, error)
+	BatchCheckThreadsLikedByUser(userID string, threadIDs []string) (map[string]bool, error)
 }
 
-// PostgresInteractionRepository implements the InteractionRepository interface
 type PostgresInteractionRepository struct {
 	db *gorm.DB
 }
 
-// NewInteractionRepository creates a new interaction repository
 func NewInteractionRepository(db *gorm.DB) InteractionRepository {
 	return &PostgresInteractionRepository{db: db}
 }
 
-// LikeThread adds a like to a thread
 func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) error {
 	log.Printf("LikeThread called with userID: %s, threadID: %s", userID, threadID)
 
@@ -74,7 +67,7 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 	if err != nil {
 		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
-	}	// Use a simple UPSERT operation to avoid PostgreSQL FOR UPDATE with aggregates error
+	}
 	err = r.db.Exec(`
 		INSERT INTO likes (user_id, thread_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4)
@@ -90,7 +83,6 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 	return nil
 }
 
-// LikeReply adds a like to a reply
 func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error {
 	log.Printf("LikeReply called with userID: %s, replyID: %s", userID, replyID)
 
@@ -104,7 +96,7 @@ func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error 
 	if err != nil {
 		log.Printf("Invalid UUID format for reply ID: %s - %v", replyID, err)
 		return errors.New("invalid UUID format for reply ID")
-	} // Use a simple UPSERT operation to avoid PostgreSQL FOR UPDATE with aggregates error
+	}
 	err = r.db.Exec(`
 		INSERT INTO likes (user_id, reply_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4)
@@ -120,7 +112,6 @@ func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error 
 	return nil
 }
 
-// UnlikeThread removes a like from a thread
 func (r *PostgresInteractionRepository) UnlikeThread(userID, threadID string) error {
 	log.Printf("UnlikeThread called with userID: %s, threadID: %s", userID, threadID)
 
@@ -136,41 +127,71 @@ func (r *PostgresInteractionRepository) UnlikeThread(userID, threadID string) er
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// Start a transaction for safety
 	tx := r.db.Begin()
 	if tx.Error != nil {
 		log.Printf("Failed to begin transaction: %v", tx.Error)
 		return tx.Error
 	}
 
-	// Set a deferred rollback that will be ignored if we commit successfully
+	// Use errChan to communicate panic recovery errors
+	errChan := make(chan error, 1)
+
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in UnlikeThread: %v", r)
+			// Convert panic to error and send to channel
+			errStr := fmt.Sprintf("Recovered from panic in UnlikeThread: %v", r)
+			log.Printf(errStr)
 			tx.Rollback()
+			errChan <- errors.New(errStr)
 		}
 	}()
 
-	// Use soft deletion to keep history if needed
-	result := tx.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Like{})
+	// Use soft delete (set deleted_at timestamp) instead of hard delete
+	result := tx.Model(&model.Like{}).
+		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", userUUID, threadUUID).
+		Update("deleted_at", time.Now())
+
 	if result.Error != nil {
-		log.Printf("Error removing like: %v", result.Error)
+		log.Printf("Error soft-deleting like: %v", result.Error)
 		tx.Rollback()
 		return result.Error
 	}
 
-	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("Error committing transaction: %v", err)
 		return err
 	}
 
-	// Return success even if no rows were affected (unlike was idempotent)
+	// Check if there's a panic error in the channel
+	select {
+	case err := <-errChan:
+		return err
+	default:
+		// No panic occurred
+	}
+
 	log.Printf("Successfully processed unlike for thread %s by user %s (rows affected: %d)", threadID, userID, result.RowsAffected)
 	return nil
 }
 
-// UnlikeReply removes a like from a reply
+// CleanupSoftDeletedLikes permanently removes like records that were soft-deleted before the given cutoff time
+// This helps maintain database performance by periodically removing old soft-deleted records
+func (r *PostgresInteractionRepository) CleanupSoftDeletedLikes(cutoffTime time.Time) (int64, error) {
+	log.Printf("Running cleanup of soft-deleted likes older than %v", cutoffTime)
+
+	result := r.db.Unscoped().
+		Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoffTime).
+		Delete(&model.Like{})
+
+	if result.Error != nil {
+		log.Printf("Error cleaning up soft-deleted likes: %v", result.Error)
+		return 0, result.Error
+	}
+
+	log.Printf("Successfully cleaned up %d soft-deleted like records", result.RowsAffected)
+	return result.RowsAffected, nil
+}
+
 func (r *PostgresInteractionRepository) UnlikeReply(userID, replyID string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -185,7 +206,6 @@ func (r *PostgresInteractionRepository) UnlikeReply(userID, replyID string) erro
 	return r.db.Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).Delete(&model.Like{}).Error
 }
 
-// IsThreadLikedByUser checks if a thread is liked by a specific user
 func (r *PostgresInteractionRepository) IsThreadLikedByUser(userID, threadID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -210,7 +230,6 @@ func (r *PostgresInteractionRepository) IsThreadLikedByUser(userID, threadID str
 	return count > 0, nil
 }
 
-// IsReplyLikedByUser checks if a reply is liked by a specific user
 func (r *PostgresInteractionRepository) IsReplyLikedByUser(userID, replyID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -235,7 +254,6 @@ func (r *PostgresInteractionRepository) IsReplyLikedByUser(userID, replyID strin
 	return count > 0, nil
 }
 
-// CountThreadLikes counts the number of likes for a thread
 func (r *PostgresInteractionRepository) CountThreadLikes(threadID string) (int64, error) {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -247,7 +265,6 @@ func (r *PostgresInteractionRepository) CountThreadLikes(threadID string) (int64
 	return count, nil
 }
 
-// CountReplyLikes counts the number of likes for a reply
 func (r *PostgresInteractionRepository) CountReplyLikes(replyID string) (int64, error) {
 	replyUUID, err := uuid.Parse(replyID)
 	if err != nil {
@@ -259,9 +276,8 @@ func (r *PostgresInteractionRepository) CountReplyLikes(replyID string) (int64, 
 	return count, nil
 }
 
-// RepostThread reposts a thread
 func (r *PostgresInteractionRepository) RepostThread(repost *model.Repost) error {
-	// First check if the repost already exists
+
 	userUUID := repost.UserID
 	threadUUID := repost.ThreadID
 
@@ -274,10 +290,9 @@ func (r *PostgresInteractionRepository) RepostThread(repost *model.Repost) error
 
 	if count > 0 {
 		log.Printf("Repost already exists for user %s and thread %s", userUUID, threadUUID)
-		return nil // Return success for idempotent behavior
+		return nil
 	}
 
-	// Create the repost
 	if err := r.db.Create(repost).Error; err != nil {
 		return fmt.Errorf("failed to create repost: %w", err)
 	}
@@ -286,7 +301,6 @@ func (r *PostgresInteractionRepository) RepostThread(repost *model.Repost) error
 	return nil
 }
 
-// RemoveRepost removes a thread repost
 func (r *PostgresInteractionRepository) RemoveRepost(userID, threadID string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -301,7 +315,6 @@ func (r *PostgresInteractionRepository) RemoveRepost(userID, threadID string) er
 	return r.db.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Repost{}).Error
 }
 
-// IsThreadRepostedByUser checks if a thread is reposted by a specific user
 func (r *PostgresInteractionRepository) IsThreadRepostedByUser(userID, threadID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -318,7 +331,6 @@ func (r *PostgresInteractionRepository) IsThreadRepostedByUser(userID, threadID 
 	return count > 0, nil
 }
 
-// CountThreadReposts counts the number of reposts for a thread
 func (r *PostgresInteractionRepository) CountThreadReposts(threadID string) (int64, error) {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -330,7 +342,6 @@ func (r *PostgresInteractionRepository) CountThreadReposts(threadID string) (int
 	return count, nil
 }
 
-// BookmarkThread adds a bookmark to a thread
 func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) error {
 	log.Printf("BookmarkThread called with userID: %s, threadID: %s", userID, threadID)
 
@@ -344,7 +355,7 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 	if err != nil {
 		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
-	} // Use a simple UPSERT operation to avoid PostgreSQL FOR UPDATE with aggregates error
+	}
 	err = r.db.Exec(`
 		INSERT INTO bookmarks (user_id, thread_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4)
@@ -360,7 +371,6 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 	return nil
 }
 
-// RemoveBookmark removes a bookmark from a thread
 func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) error {
 	log.Printf("RemoveBookmark called with userID: %s, threadID: %s", userID, threadID)
 
@@ -376,14 +386,12 @@ func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) 
 		return errors.New("invalid UUID format for thread ID")
 	}
 
-	// Start a transaction for safety
 	tx := r.db.Begin()
 	if tx.Error != nil {
 		log.Printf("Failed to begin transaction: %v", tx.Error)
 		return tx.Error
 	}
 
-	// Set a deferred rollback that will be ignored if we commit successfully
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Recovered from panic in RemoveBookmark: %v", r)
@@ -391,7 +399,6 @@ func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) 
 		}
 	}()
 
-	// Delete the bookmark - use soft delete to maintain history if needed
 	result := tx.Where("user_id = ? AND thread_id = ?", userUUID, threadUUID).Delete(&model.Bookmark{})
 	if result.Error != nil {
 		log.Printf("Error removing bookmark: %v", result.Error)
@@ -399,18 +406,15 @@ func (r *PostgresInteractionRepository) RemoveBookmark(userID, threadID string) 
 		return result.Error
 	}
 
-	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		log.Printf("Error committing transaction: %v", err)
 		return err
 	}
 
-	// Return success even if no rows were affected (unbookmark is idempotent)
 	log.Printf("Successfully processed unbookmark for thread %s by user %s (rows affected: %d)", threadID, userID, result.RowsAffected)
 	return nil
 }
 
-// IsThreadBookmarkedByUser checks if a thread is bookmarked by a specific user
 func (r *PostgresInteractionRepository) IsThreadBookmarkedByUser(userID, threadID string) (bool, error) {
 	log.Printf("Checking if thread is bookmarked - userID: %s, threadID: %s", userID, threadID)
 
@@ -440,7 +444,6 @@ func (r *PostgresInteractionRepository) IsThreadBookmarkedByUser(userID, threadI
 	return isBookmarked, nil
 }
 
-// GetUserBookmarks gets all bookmarked threads for a user with pagination
 func (r *PostgresInteractionRepository) GetUserBookmarks(userID string, page, limit int) ([]*model.Thread, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -465,7 +468,6 @@ func (r *PostgresInteractionRepository) GetUserBookmarks(userID string, page, li
 	return threads, nil
 }
 
-// CountThreadBookmarks counts the number of bookmarks for a thread
 func (r *PostgresInteractionRepository) CountThreadBookmarks(threadID string) (int64, error) {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -477,7 +479,6 @@ func (r *PostgresInteractionRepository) CountThreadBookmarks(threadID string) (i
 	return count, nil
 }
 
-// BookmarkReply adds a bookmark to a reply
 func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -489,7 +490,6 @@ func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) er
 		return errors.New("invalid UUID format for reply ID")
 	}
 
-	// First, check if the bookmark already exists
 	var count int64
 	if err := r.db.Model(&model.Bookmark{}).
 		Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).
@@ -498,10 +498,10 @@ func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) er
 	}
 
 	if count > 0 {
-		// Bookmark already exists, nothing to do
+
 		return nil
 	}
-	// Use raw SQL to ensure NULL is used for thread_id
+
 	result := r.db.Exec(
 		"INSERT INTO bookmarks (user_id, thread_id, reply_id, created_at) VALUES ($1, NULL, $2, $3)",
 		userUUID,
@@ -512,7 +512,6 @@ func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) er
 	return result.Error
 }
 
-// RemoveReplyBookmark removes a bookmark from a reply
 func (r *PostgresInteractionRepository) RemoveReplyBookmark(userID, replyID string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -524,11 +523,9 @@ func (r *PostgresInteractionRepository) RemoveReplyBookmark(userID, replyID stri
 		return errors.New("invalid UUID format for reply ID")
 	}
 
-	// Use the reply_id field instead of thread_id
 	return r.db.Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).Delete(&model.Bookmark{}).Error
 }
 
-// IsReplyBookmarkedByUser checks if a reply is bookmarked by a specific user
 func (r *PostgresInteractionRepository) IsReplyBookmarkedByUser(userID, replyID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -552,7 +549,6 @@ func (r *PostgresInteractionRepository) IsReplyBookmarkedByUser(userID, replyID 
 	return count > 0, nil
 }
 
-// CountReplyBookmarks counts the number of bookmarks for a reply
 func (r *PostgresInteractionRepository) CountReplyBookmarks(replyID string) (int64, error) {
 	replyUUID, err := uuid.Parse(replyID)
 	if err != nil {
@@ -564,7 +560,6 @@ func (r *PostgresInteractionRepository) CountReplyBookmarks(replyID string) (int
 	return count, nil
 }
 
-// FindLikedThreadsByUserID gets all thread IDs liked by a specific user
 func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, page, limit int) ([]string, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -584,7 +579,6 @@ func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, 
 		return nil, err
 	}
 
-	// Extract thread IDs
 	threadIDs := make([]string, len(likes))
 	for i, like := range likes {
 		threadIDs[i] = like.ThreadID.String()
@@ -593,7 +587,6 @@ func (r *PostgresInteractionRepository) FindLikedThreadsByUserID(userID string, 
 	return threadIDs, nil
 }
 
-// inspectBookmarksTableSchema logs information about the bookmarks table schema
 func (r *PostgresInteractionRepository) inspectBookmarksTableSchema() {
 	var columnNames []string
 	r.db.Raw(`
@@ -614,7 +607,6 @@ func (r *PostgresInteractionRepository) inspectBookmarksTableSchema() {
 	`).Scan(&uniqueConstraints)
 }
 
-// BookmarkExists checks if a bookmark already exists
 func (r *PostgresInteractionRepository) BookmarkExists(userID, threadID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -638,9 +630,8 @@ func (r *PostgresInteractionRepository) BookmarkExists(userID, threadID string) 
 	return count > 0, nil
 }
 
-// CreateBookmark creates a new bookmark record
 func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark) error {
-	// Check if the bookmark already exists
+
 	var count int64
 	if err := r.db.Model(&model.Bookmark{}).
 		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", bookmark.UserID, bookmark.ThreadID).
@@ -649,10 +640,127 @@ func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark)
 	}
 
 	if count > 0 {
-		// Bookmark already exists, nothing to do
+
 		return nil
 	}
 
-	// Create the bookmark
 	return r.db.Create(bookmark).Error
+}
+
+// BatchCountThreadLikes counts likes for multiple threads in a single database query
+// This is more efficient than making separate queries for each thread
+func (r *PostgresInteractionRepository) BatchCountThreadLikes(threadIDs []string) (map[string]int64, error) {
+	if len(threadIDs) == 0 {
+		return map[string]int64{}, nil
+	}
+
+	// Convert string IDs to UUID
+	threadUUIDs := make([]uuid.UUID, 0, len(threadIDs))
+	for _, idStr := range threadIDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			log.Printf("Skipping invalid thread ID %s: %v", idStr, err)
+			continue
+		}
+		threadUUIDs = append(threadUUIDs, id)
+	}
+
+	if len(threadUUIDs) == 0 {
+		log.Printf("No valid thread UUIDs to query")
+		return map[string]int64{}, nil
+	}
+
+	// Results will be stored here
+	type Result struct {
+		ThreadID uuid.UUID `gorm:"column:thread_id"`
+		Count    int64     `gorm:"column:count"`
+	}
+	var results []Result
+
+	// Execute a single query with GROUP BY to get counts for all threads
+	err := r.db.Model(&model.Like{}).
+		Select("thread_id, COUNT(*) as count").
+		Where("thread_id IN ? AND deleted_at IS NULL", threadUUIDs).
+		Group("thread_id").
+		Find(&results).Error
+
+	if err != nil {
+		log.Printf("Error batch counting likes: %v", err)
+		return nil, err
+	}
+
+	// Convert results to map for easy lookup
+	countMap := make(map[string]int64, len(results))
+	for _, result := range results {
+		countMap[result.ThreadID.String()] = result.Count
+	}
+
+	// Ensure all requested IDs are in the map (with count 0 if no likes)
+	for _, idStr := range threadIDs {
+		if _, exists := countMap[idStr]; !exists {
+			countMap[idStr] = 0
+		}
+	}
+
+	return countMap, nil
+}
+
+// BatchCheckThreadsLikedByUser checks if a user has liked multiple threads in a single query
+func (r *PostgresInteractionRepository) BatchCheckThreadsLikedByUser(userID string, threadIDs []string) (map[string]bool, error) {
+	if len(threadIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, errors.New("invalid UUID format for user ID")
+	}
+
+	// Convert string IDs to UUID
+	threadUUIDs := make([]uuid.UUID, 0, len(threadIDs))
+	for _, idStr := range threadIDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			log.Printf("Skipping invalid thread ID %s: %v", idStr, err)
+			continue
+		}
+		threadUUIDs = append(threadUUIDs, id)
+	}
+
+	if len(threadUUIDs) == 0 {
+		log.Printf("No valid thread UUIDs to query")
+		return map[string]bool{}, nil
+	}
+
+	// Results will be stored here
+	type Result struct {
+		ThreadID uuid.UUID `gorm:"column:thread_id"`
+	}
+	var results []Result
+
+	// Query to find all threads liked by the user
+	err = r.db.Model(&model.Like{}).
+		Select("thread_id").
+		Where("user_id = ? AND thread_id IN ? AND deleted_at IS NULL", userUUID, threadUUIDs).
+		Find(&results).Error
+
+	if err != nil {
+		log.Printf("Error batch checking liked threads: %v", err)
+		return nil, err
+	}
+
+	// Convert results to map for easy lookup
+	likedMap := make(map[string]bool, len(threadIDs))
+
+	// First mark all as not liked
+	for _, idStr := range threadIDs {
+		likedMap[idStr] = false
+	}
+
+	// Then mark the ones that are liked
+	for _, result := range results {
+		likedMap[result.ThreadID.String()] = true
+	}
+
+	return likedMap, nil
 }

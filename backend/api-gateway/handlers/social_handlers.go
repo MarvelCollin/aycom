@@ -32,7 +32,6 @@ func FollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Prevent users from following themselves
 	if targetUserID == currentUserID {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot follow themselves")
 		return
@@ -41,7 +40,6 @@ func FollowUser(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Resolve the target user ID (could be a username or UUID)
 	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
@@ -49,11 +47,10 @@ func FollowUser(c *gin.Context) {
 		return
 	}
 
-	// Check if already following first (optional optimization)
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
 		log.Printf("Error checking follow status: %v", err)
-		// Continue with the follow operation even if this check fails
+
 	}
 
 	if isFollowing {
@@ -69,7 +66,6 @@ func FollowUser(c *gin.Context) {
 		return
 	}
 
-	// Perform the follow operation
 	followRequest := &userProto.FollowUserRequest{
 		FollowerId: currentUserID,
 		FollowedId: resolvedUserID,
@@ -107,7 +103,6 @@ func UnfollowUser(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
-	// Prevent users from unfollowing themselves
 	if targetUserID == currentUserID {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot unfollow themselves")
 		return
@@ -116,7 +111,6 @@ func UnfollowUser(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Resolve the target user ID (could be a username or UUID)
 	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
@@ -124,11 +118,10 @@ func UnfollowUser(c *gin.Context) {
 		return
 	}
 
-	// Check if actually following first (optional optimization)
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
 		log.Printf("Error checking follow status: %v", err)
-		// Continue with the unfollow operation even if this check fails
+
 	}
 
 	if !isFollowing {
@@ -144,7 +137,6 @@ func UnfollowUser(c *gin.Context) {
 		return
 	}
 
-	// Perform the unfollow operation
 	unfollowRequest := &userProto.UnfollowUserRequest{
 		FollowerId: currentUserID,
 		FollowedId: resolvedUserID,
@@ -195,7 +187,6 @@ func GetFollowers(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Resolve the target user ID (could be a username or UUID)
 	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User not found: %v", err))
@@ -239,13 +230,12 @@ func GetFollowers(c *gin.Context) {
 			"bio":                 follower.Bio,
 			"profile_picture_url": follower.ProfilePictureUrl,
 			"is_verified":         follower.IsVerified,
-			"is_following":        follower.IsFollowing, // This comes from the service
+			"is_following":        follower.IsFollowing,
 			"follower_count":      follower.FollowerCount,
 			"following_count":     follower.FollowingCount,
 		})
 	}
 
-	// Return response in the format expected by the frontend
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"followers": followers,
 		"pagination": gin.H{
@@ -284,7 +274,6 @@ func GetFollowing(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Resolve the target user ID (could be a username or UUID)
 	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
 		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User not found: %v", err))
@@ -328,13 +317,12 @@ func GetFollowing(c *gin.Context) {
 			"bio":                 user.Bio,
 			"profile_picture_url": user.ProfilePictureUrl,
 			"is_verified":         user.IsVerified,
-			"is_following":        true, // These are users we're following, so this is always true
+			"is_following":        true,
 			"follower_count":      user.FollowerCount,
 			"following_count":     user.FollowingCount,
 		})
 	}
 
-	// Return response in the format expected by the frontend
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"following": following,
 		"pagination": gin.H{
@@ -353,19 +341,19 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("userID")
+	// Use standardized userID extraction
+	userID, exists := getUserIDFromContext(c)
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
-	userIDStr := userID.(string)
 
 	if threadServiceClient == nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Thread service client not initialized")
 		return
 	}
 
-	err := threadServiceClient.LikeThread(threadID, userIDStr)
+	err := threadServiceClient.LikeThread(threadID, userID)
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok {
@@ -376,6 +364,8 @@ func LikeThread(c *gin.Context) {
 				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			case codes.AlreadyExists:
 				utils.SendErrorResponse(c, http.StatusConflict, "ALREADY_LIKED", "Thread already liked")
+			case codes.ResourceExhausted:
+				utils.SendErrorResponse(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please try again later")
 			default:
 				log.Printf("Error liking thread: %v", err)
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to like thread")
@@ -401,25 +391,24 @@ func UnlikeThread(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("userID")
+	// Use standardized userID extraction
+	userID, exists := getUserIDFromContext(c)
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
-	userIDStr := userID.(string)
 
 	if threadServiceClient == nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Thread service client not initialized")
 		return
 	}
 
-	err := threadServiceClient.UnlikeThread(threadID, userIDStr)
+	err := threadServiceClient.UnlikeThread(threadID, userID)
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
-				// Could be either thread not found or like not found (already unliked)
 				if strings.Contains(st.Message(), "like") || strings.Contains(st.Message(), "not liked") {
 					utils.SendErrorResponse(c, http.StatusBadRequest, "NOT_LIKED", "Thread was not liked by user")
 				} else {
@@ -427,6 +416,8 @@ func UnlikeThread(c *gin.Context) {
 				}
 			case codes.InvalidArgument:
 				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+			case codes.ResourceExhausted:
+				utils.SendErrorResponse(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please try again later")
 			default:
 				log.Printf("Error unliking thread: %v", err)
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unlike thread")
@@ -443,6 +434,25 @@ func UnlikeThread(c *gin.Context) {
 		"thread_id":    threadID,
 		"is_now_liked": false,
 	})
+}
+
+// Helper function to standardize userID extraction from context
+func getUserIDFromContext(c *gin.Context) (string, bool) {
+	// Try "userId" first (newer convention)
+	if userID, exists := c.Get("userId"); exists {
+		if userIDStr, ok := userID.(string); ok && userIDStr != "" {
+			return userIDStr, true
+		}
+	}
+
+	// Fall back to "userID" (older convention)
+	if userID, exists := c.Get("userID"); exists {
+		if userIDStr, ok := userID.(string); ok && userIDStr != "" {
+			return userIDStr, true
+		}
+	}
+
+	return "", false
 }
 
 func ReplyToThread(c *gin.Context) {
@@ -829,7 +839,6 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	log.Printf("Getting following threads for user: %s, page: %d, limit: %d", authenticatedUserIDStr, page, limit)
 
-	// Step 1: Get the list of users the authenticated user follows
 	if userServiceClient == nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
@@ -841,7 +850,6 @@ func GetThreadsFromFollowing(c *gin.Context) {
 		return
 	}
 
-	// If user doesn't follow anyone, return empty result
 	if len(followingList) == 0 {
 		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"threads": []gin.H{},
@@ -854,39 +862,34 @@ func GetThreadsFromFollowing(c *gin.Context) {
 		return
 	}
 
-	// Extract user IDs from the following list
 	followingIDs := make([]string, len(followingList))
 	for i, user := range followingList {
 		followingIDs[i] = user.ID
 	}
 
-	// Step 2: Get threads from followed users using thread service
 	if threadServiceClient == nil {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
 
-	// Get threads for each followed user and combine them
 	var allThreads []*Thread
 	for _, followedUserID := range followingIDs {
 		userThreads, err := threadServiceClient.GetThreadsByUserID(followedUserID, authenticatedUserIDStr, 1, 10)
 		if err != nil {
 			log.Printf("Error getting threads for user %s: %v", followedUserID, err)
-			continue // Skip this user if there's an error
+			continue
 		}
 		allThreads = append(allThreads, userThreads...)
 	}
 
-	// Step 3: Sort threads by creation time (newest first)
 	sort.Slice(allThreads, func(i, j int) bool {
 		return allThreads[i].CreatedAt.After(allThreads[j].CreatedAt)
 	})
 
-	// Step 4: Apply pagination to the combined results
 	startIdx := (page - 1) * limit
 	endIdx := startIdx + limit
 	if startIdx >= len(allThreads) {
-		// If starting index is beyond available threads, return empty result
+
 		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"threads": []gin.H{},
 			"pagination": gin.H{
@@ -1356,7 +1359,6 @@ func GetRepliesByParentReply(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// CheckFollowStatus checks if a user is following another user
 func CheckFollowStatus(c *gin.Context) {
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
@@ -1376,7 +1378,6 @@ func CheckFollowStatus(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Resolve the target user ID (could be a username or UUID)
 	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
 		log.Printf("CheckFollowStatus: Failed to resolve user identifier %s: %v", targetUserID, err)
@@ -1386,7 +1387,6 @@ func CheckFollowStatus(c *gin.Context) {
 
 	log.Printf("CheckFollowStatus: Resolved user ID %s to %s", targetUserID, resolvedUserID)
 
-	// Check if user is following target
 	isFollowingReq := &userProto.IsFollowingRequest{
 		FollowerId: currentUserID,
 		FollowedId: resolvedUserID,

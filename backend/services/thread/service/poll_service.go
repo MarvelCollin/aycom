@@ -15,7 +15,6 @@ import (
 	"aycom/backend/services/thread/repository"
 )
 
-// PollService defines the interface for poll operations
 type PollService interface {
 	CreatePoll(ctx context.Context, threadID string, req *thread.PollRequest) (*model.Poll, []*model.PollOption, error)
 	GetPollByID(ctx context.Context, pollID string) (*model.Poll, []*model.PollOption, error)
@@ -24,7 +23,6 @@ type PollService interface {
 	GetPollResults(ctx context.Context, pollID string, userID *string) (*PollResults, error)
 }
 
-// PollResults represents the results of a poll
 type PollResults struct {
 	PollID          uuid.UUID
 	ThreadID        uuid.UUID
@@ -37,7 +35,6 @@ type PollResults struct {
 	IsClosed        bool
 }
 
-// PollOptionResult represents the result of a poll option
 type PollOptionResult struct {
 	OptionID   uuid.UUID
 	Text       string
@@ -45,41 +42,34 @@ type PollOptionResult struct {
 	Percentage float32
 }
 
-// pollService implements the PollService interface
 type pollService struct {
 	pollRepo repository.PollRepository
 }
 
-// NewPollService creates a new poll service
 func NewPollService(pollRepo repository.PollRepository) PollService {
 	return &pollService{
 		pollRepo: pollRepo,
 	}
 }
 
-// CreatePoll creates a new poll for a thread
 func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *thread.PollRequest) (*model.Poll, []*model.PollOption, error) {
-	// Validate required fields
+
 	if threadID == "" || req.Question == "" || len(req.Options) < 2 {
 		return nil, nil, status.Error(codes.InvalidArgument, "Thread ID, question, and at least 2 options are required")
 	}
 
-	// Parse thread ID
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.InvalidArgument, "Invalid thread ID: %v", err)
 	}
 
-	// Set closing time if not provided
-	closesAt := time.Now().Add(24 * time.Hour) // Default: 24 hours from now
+	closesAt := time.Now().Add(24 * time.Hour) 
 	if req.EndTime != nil {
 		closesAt = req.EndTime.AsTime()
 	}
 
-	// Set who can vote if not provided (this might not be in your PollInfo message)
-	whoCanVote := "Everyone" // Default
+	whoCanVote := "Everyone" 
 
-	// Create poll
 	pollID := uuid.New()
 	poll := &model.Poll{
 		PollID:     pollID,
@@ -91,12 +81,10 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *thre
 		UpdatedAt:  time.Now(),
 	}
 
-	// Create poll in database
 	if err := s.pollRepo.CreatePoll(poll); err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "Failed to create poll: %v", err)
 	}
 
-	// Create poll options
 	pollOptions := make([]*model.PollOption, 0, len(req.Options))
 	for _, optionText := range req.Options {
 		option := &model.PollOption{
@@ -108,7 +96,6 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *thre
 		pollOptions = append(pollOptions, option)
 	}
 
-	// Create poll options in database
 	if err := s.pollRepo.CreatePollOptions(pollOptions); err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "Failed to create poll options: %v", err)
 	}
@@ -116,7 +103,6 @@ func (s *pollService) CreatePoll(ctx context.Context, threadID string, req *thre
 	return poll, pollOptions, nil
 }
 
-// GetPollByID retrieves a poll by its ID
 func (s *pollService) GetPollByID(ctx context.Context, pollID string) (*model.Poll, []*model.PollOption, error) {
 	if pollID == "" {
 		return nil, nil, status.Error(codes.InvalidArgument, "Poll ID is required")
@@ -130,7 +116,6 @@ func (s *pollService) GetPollByID(ctx context.Context, pollID string) (*model.Po
 		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
 	}
 
-	// Load options
 	options, err := s.pollRepo.FindPollOptionsByPollID(pollID)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
@@ -139,7 +124,6 @@ func (s *pollService) GetPollByID(ctx context.Context, pollID string) (*model.Po
 	return poll, options, nil
 }
 
-// GetPollByThreadID retrieves a poll by thread ID
 func (s *pollService) GetPollByThreadID(ctx context.Context, threadID string) (*model.Poll, []*model.PollOption, error) {
 	if threadID == "" {
 		return nil, nil, status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -153,7 +137,6 @@ func (s *pollService) GetPollByThreadID(ctx context.Context, threadID string) (*
 		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
 	}
 
-	// Load options
 	options, err := s.pollRepo.FindPollOptionsByPollID(poll.PollID.String())
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
@@ -162,14 +145,12 @@ func (s *pollService) GetPollByThreadID(ctx context.Context, threadID string) (*
 	return poll, options, nil
 }
 
-// AddVoteToPoll adds a vote to a poll option
 func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userID string) error {
-	// Validate required fields
+
 	if pollID == "" || optionID == "" || userID == "" {
 		return status.Error(codes.InvalidArgument, "Poll ID, Option ID, and User ID are required")
 	}
 
-	// Parse IDs
 	pollUUID, err := uuid.Parse(pollID)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "Invalid poll ID: %v", err)
@@ -185,7 +166,6 @@ func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userI
 		return status.Errorf(codes.InvalidArgument, "Invalid user ID: %v", err)
 	}
 
-	// Check if poll exists
 	poll, err := s.pollRepo.FindPollByID(pollID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -194,31 +174,27 @@ func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userI
 		return status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
 	}
 
-	// Check if poll is closed
 	if poll.ClosesAt.Before(time.Now()) {
 		return status.Error(codes.FailedPrecondition, "Poll is closed")
 	}
 
-	// Check if option exists
 	_, err = s.pollRepo.FindPollOptionByID(optionID)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "Option with ID %s not found", optionID)
 	}
 
-	// Check if user has already voted
 	existingVote, err := s.pollRepo.FindVoteByUserAndPoll(userID, pollID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "Failed to check if user has voted: %v", err)
 	}
 
 	if existingVote != nil {
-		// Delete existing vote
+
 		if err := s.pollRepo.DeleteVote(userID, pollID); err != nil {
 			return status.Errorf(codes.Internal, "Failed to delete existing vote: %v", err)
 		}
 	}
 
-	// Create new vote
 	vote := &model.PollVote{
 		VoteID:    uuid.New(),
 		PollID:    pollUUID,
@@ -234,13 +210,11 @@ func (s *pollService) AddVoteToPoll(ctx context.Context, pollID, optionID, userI
 	return nil
 }
 
-// GetPollResults gets the results of a poll
 func (s *pollService) GetPollResults(ctx context.Context, pollID string, userID *string) (*PollResults, error) {
 	if pollID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Poll ID is required")
 	}
 
-	// Get poll
 	poll, err := s.pollRepo.FindPollByID(pollID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -249,25 +223,21 @@ func (s *pollService) GetPollResults(ctx context.Context, pollID string, userID 
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll: %v", err)
 	}
 
-	// Get options
 	options, err := s.pollRepo.FindPollOptionsByPollID(pollID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve poll options: %v", err)
 	}
 
-	// Get vote counts
 	voteCounts, totalVotes, err := s.pollRepo.GetPollVoteCounts(pollID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve vote counts: %v", err)
 	}
 
-	// Check if poll is closed
 	isClosed, err := s.pollRepo.IsPollClosed(pollID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to check if poll is closed: %v", err)
 	}
 
-	// Prepare option results
 	optionResults := make([]PollOptionResult, 0, len(options))
 	for _, option := range options {
 		voteCount := voteCounts[option.OptionID.String()]
@@ -285,7 +255,6 @@ func (s *pollService) GetPollResults(ctx context.Context, pollID string, userID 
 		optionResults = append(optionResults, optionResult)
 	}
 
-	// Check if user has voted
 	var hasUserVoted bool
 	var userVotedOption *uuid.UUID
 	if userID != nil {

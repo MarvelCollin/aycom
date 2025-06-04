@@ -51,6 +51,5 @@ func PredictCategory(c *gin.Context) {
 		return
 	}
 
-	// Forward the AI service response but with our consistent format
 	utils.SendSuccessResponse(c, resp.StatusCode, aiResponse)
 }

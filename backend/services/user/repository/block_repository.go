@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// BlockRepositoryInterface defines the interface for block operations
 type BlockRepositoryInterface interface {
 	BlockUser(blockerID, blockedID uuid.UUID) error
 	UnblockUser(blockerID, blockedID uuid.UUID) error
@@ -15,7 +14,6 @@ type BlockRepositoryInterface interface {
 	GetBlockedUsers(blockerID uuid.UUID, page, limit int) ([]model.User, int64, error)
 }
 
-// ReportRepositoryInterface defines the interface for report operations
 type ReportRepositoryInterface interface {
 	ReportUser(reporterID, reportedID uuid.UUID, reason string) error
 	GetUserReports(page, limit int, status string) ([]model.UserReport, int64, error)
@@ -30,16 +28,14 @@ func NewBlockRepository(db *gorm.DB) *BlockRepository {
 	return &BlockRepository{db: db}
 }
 
-// BlockUser creates a block relationship between two users
 func (r *BlockRepository) BlockUser(blockerID, blockedID uuid.UUID) error {
-	// First check if already blocked
+
 	var existingBlock model.UserBlock
 	if err := r.db.Where("blocker_id = ? AND blocked_id = ?", blockerID, blockedID).First(&existingBlock).Error; err == nil {
-		// Already blocked
+
 		return nil
 	}
 
-	// Create new block
 	block := model.UserBlock{
 		BlockerID: blockerID,
 		BlockedID: blockedID,
@@ -48,12 +44,10 @@ func (r *BlockRepository) BlockUser(blockerID, blockedID uuid.UUID) error {
 	return r.db.Create(&block).Error
 }
 
-// UnblockUser removes a block relationship between two users
 func (r *BlockRepository) UnblockUser(blockerID, blockedID uuid.UUID) error {
 	return r.db.Where("blocker_id = ? AND blocked_id = ?", blockerID, blockedID).Delete(&model.UserBlock{}).Error
 }
 
-// IsUserBlocked checks if userID is blocked by blockerID
 func (r *BlockRepository) IsUserBlocked(userID, blockerID uuid.UUID) (bool, error) {
 	var count int64
 	err := r.db.Model(&model.UserBlock{}).
@@ -63,12 +57,10 @@ func (r *BlockRepository) IsUserBlocked(userID, blockerID uuid.UUID) (bool, erro
 	return count > 0, err
 }
 
-// GetBlockedUsers returns a list of users blocked by the given user
 func (r *BlockRepository) GetBlockedUsers(blockerID uuid.UUID, page, limit int) ([]model.User, int64, error) {
 	var blockedUsers []model.User
 	var total int64
 
-	// First get the count
 	err := r.db.Model(&model.UserBlock{}).
 		Where("blocker_id = ?", blockerID).
 		Count(&total).Error
@@ -76,7 +68,6 @@ func (r *BlockRepository) GetBlockedUsers(blockerID uuid.UUID, page, limit int) 
 		return nil, 0, err
 	}
 
-	// Get the blocked users with pagination
 	offset := (page - 1) * limit
 	err = r.db.Table("users").
 		Select("users.*").
@@ -97,16 +88,14 @@ func NewReportRepository(db *gorm.DB) *ReportRepository {
 	return &ReportRepository{db: db}
 }
 
-// ReportUser creates a new user report
 func (r *ReportRepository) ReportUser(reporterID, reportedID uuid.UUID, reason string) error {
-	// Check if already reported
+
 	var existingReport model.UserReport
 	if err := r.db.Where("reporter_id = ? AND reported_id = ? AND status = ?", reporterID, reportedID, "pending").First(&existingReport).Error; err == nil {
-		// Already reported and pending
+
 		return nil
 	}
 
-	// Create new report
 	report := model.UserReport{
 		ReporterID: reporterID,
 		ReportedID: reportedID,
@@ -117,7 +106,6 @@ func (r *ReportRepository) ReportUser(reporterID, reportedID uuid.UUID, reason s
 	return r.db.Create(&report).Error
 }
 
-// GetUserReports returns reports with optional status filter
 func (r *ReportRepository) GetUserReports(page, limit int, status string) ([]model.UserReport, int64, error) {
 	var reports []model.UserReport
 	var total int64
@@ -127,13 +115,11 @@ func (r *ReportRepository) GetUserReports(page, limit int, status string) ([]mod
 		query = query.Where("status = ?", status)
 	}
 
-	// Get count
 	err := query.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get reports with pagination
 	offset := (page - 1) * limit
 	err = query.Preload("Reporter").
 		Preload("ReportedUser").
@@ -145,7 +131,6 @@ func (r *ReportRepository) GetUserReports(page, limit int, status string) ([]mod
 	return reports, total, err
 }
 
-// ProcessReport updates the status of a report
 func (r *ReportRepository) ProcessReport(reportID uuid.UUID, approved bool, adminID uuid.UUID, adminNotes string) error {
 	status := "rejected"
 	if approved {

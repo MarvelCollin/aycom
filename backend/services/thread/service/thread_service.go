@@ -15,24 +15,22 @@ import (
 	"gorm.io/gorm"
 )
 
-// ThreadService defines the interface for thread operations
 type ThreadService interface {
 	CreateThread(ctx context.Context, req *thread.CreateThreadRequest) (*model.Thread, error)
 	GetThreadByID(ctx context.Context, threadID string) (*model.Thread, error)
 	GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, error)
 	GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error)
+	GetTotalThreadCount(ctx context.Context) (int64, error)
 	UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*model.Thread, error)
 	DeleteThread(ctx context.Context, threadID, userID string) error
 	GetMediaByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Media, error)
 
-	// Pinning operations
 	PinThread(ctx context.Context, threadID, userID string) error
 	UnpinThread(ctx context.Context, threadID, userID string) error
 	PinReply(ctx context.Context, replyID, userID string) error
 	UnpinReply(ctx context.Context, replyID, userID string) error
 }
 
-// threadService implements the ThreadService interface
 type threadService struct {
 	threadRepo  repository.ThreadRepository
 	mediaRepo   repository.MediaRepository
@@ -40,7 +38,6 @@ type threadService struct {
 	replyRepo   repository.ReplyRepository
 }
 
-// NewThreadService creates a new thread service
 func NewThreadService(
 	threadRepo repository.ThreadRepository,
 	mediaRepo repository.MediaRepository,
@@ -55,7 +52,6 @@ func NewThreadService(
 	}
 }
 
-// CreateThread creates a new thread
 func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThreadRequest) (*model.Thread, error) {
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
@@ -150,7 +146,6 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 	return thread, nil
 }
 
-// GetThreadByID retrieves a thread by its ID
 func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*model.Thread, error) {
 	if threadID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -167,7 +162,6 @@ func (s *threadService) GetThreadByID(ctx context.Context, threadID string) (*mo
 	return thread, nil
 }
 
-// GetThreadsByUserID retrieves threads by user ID with pagination
 func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Thread, error) {
 	if page <= 0 {
 		page = 1
@@ -188,7 +182,6 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 	return threads, nil
 }
 
-// GetAllThreads retrieves all threads with pagination
 func (s *threadService) GetAllThreads(ctx context.Context, page, limit int) ([]*model.Thread, error) {
 	threads, err := s.threadRepo.FindAllThreads(page, limit)
 	if err != nil {
@@ -198,7 +191,10 @@ func (s *threadService) GetAllThreads(ctx context.Context, page, limit int) ([]*
 	return threads, nil
 }
 
-// UpdateThread updates a thread
+func (s *threadService) GetTotalThreadCount(ctx context.Context) (int64, error) {
+	return s.threadRepo.CountAllThreads()
+}
+
 func (s *threadService) UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*model.Thread, error) {
 	if req.ThreadId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -271,7 +267,6 @@ func (s *threadService) UpdateThread(ctx context.Context, req *thread.UpdateThre
 	return thread, nil
 }
 
-// DeleteThread deletes a thread
 func (s *threadService) DeleteThread(ctx context.Context, threadID, userID string) error {
 	if threadID == "" || userID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID and User ID are required")
@@ -296,7 +291,6 @@ func (s *threadService) DeleteThread(ctx context.Context, threadID, userID strin
 	return nil
 }
 
-// Request/response types needed for the service implementation
 type BookmarkReplyRequest struct {
 	ReplyId string
 	UserId  string
@@ -307,7 +301,6 @@ type RemoveReplyBookmarkRequest struct {
 	UserId  string
 }
 
-// PinThread pins a thread to the user's profile
 func (s *threadService) PinThread(ctx context.Context, threadID, userID string) error {
 	if threadID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -349,7 +342,6 @@ func (s *threadService) PinThread(ctx context.Context, threadID, userID string) 
 	return nil
 }
 
-// UnpinThread unpins a thread from the user's profile
 func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string) error {
 	if threadID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -391,7 +383,6 @@ func (s *threadService) UnpinThread(ctx context.Context, threadID, userID string
 	return nil
 }
 
-// PinReply pins a reply to the user's profile
 func (s *threadService) PinReply(ctx context.Context, replyID, userID string) error {
 	if replyID == "" {
 		return status.Error(codes.InvalidArgument, "Reply ID is required")
@@ -433,7 +424,6 @@ func (s *threadService) PinReply(ctx context.Context, replyID, userID string) er
 	return nil
 }
 
-// UnpinReply unpins a reply from the user's profile
 func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) error {
 	if replyID == "" {
 		return status.Error(codes.InvalidArgument, "Reply ID is required")
@@ -475,7 +465,6 @@ func (s *threadService) UnpinReply(ctx context.Context, replyID, userID string) 
 	return nil
 }
 
-// GetMediaByUserID retrieves media for a specific user with pagination
 func (s *threadService) GetMediaByUserID(ctx context.Context, userID string, page, limit int) ([]*model.Media, error) {
 	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")

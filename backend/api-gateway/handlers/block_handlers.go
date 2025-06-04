@@ -9,16 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// BlockUser handles blocking a user
 func BlockUser(c *gin.Context) {
-	// Get target user ID from route parameter
+
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
 		return
 	}
 
-	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -26,13 +24,11 @@ func BlockUser(c *gin.Context) {
 	}
 	blockerID := currentUserID.(string)
 
-	// Don't allow users to block themselves
 	if blockerID == targetUserID {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot block themselves")
 		return
 	}
 
-	// Block the user
 	err := userServiceClient.BlockUser(blockerID, targetUserID)
 	if err != nil {
 		log.Printf("Error blocking user %s: %v", targetUserID, err)
@@ -45,16 +41,14 @@ func BlockUser(c *gin.Context) {
 	})
 }
 
-// UnblockUser handles unblocking a user
 func UnblockUser(c *gin.Context) {
-	// Get target user ID from route parameter
+
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
 		return
 	}
 
-	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -62,7 +56,6 @@ func UnblockUser(c *gin.Context) {
 	}
 	blockerID := currentUserID.(string)
 
-	// Unblock the user
 	err := userServiceClient.UnblockUser(blockerID, targetUserID)
 	if err != nil {
 		log.Printf("Error unblocking user %s: %v", targetUserID, err)
@@ -75,9 +68,8 @@ func UnblockUser(c *gin.Context) {
 	})
 }
 
-// GetBlockedUsers returns a list of users blocked by the current user
 func GetBlockedUsers(c *gin.Context) {
-	// Get authenticated user ID from context
+
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -85,7 +77,6 @@ func GetBlockedUsers(c *gin.Context) {
 	}
 	userID := currentUserID.(string)
 
-	// Parse pagination parameters
 	page := 1
 	limit := 20
 
@@ -103,7 +94,6 @@ func GetBlockedUsers(c *gin.Context) {
 		}
 	}
 
-	// Get blocked users
 	blockedUsers, err := userServiceClient.GetBlockedUsers(userID, page, limit)
 	if err != nil {
 		log.Printf("Error getting blocked users for %s: %v", userID, err)
@@ -111,7 +101,6 @@ func GetBlockedUsers(c *gin.Context) {
 		return
 	}
 
-	// Format response
 	formattedUsers := make([]gin.H, 0, len(blockedUsers))
 	for _, user := range blockedUsers {
 		formattedUsers = append(formattedUsers, gin.H{
@@ -134,16 +123,14 @@ func GetBlockedUsers(c *gin.Context) {
 	})
 }
 
-// ReportUser handles reporting a user
 func ReportUser(c *gin.Context) {
-	// Get target user ID from route parameter
+
 	targetUserID := c.Param("userId")
 	if targetUserID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID parameter is required")
 		return
 	}
 
-	// Get authenticated user ID from context
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -151,13 +138,11 @@ func ReportUser(c *gin.Context) {
 	}
 	reporterID := currentUserID.(string)
 
-	// Don't allow users to report themselves
 	if reporterID == targetUserID {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Users cannot report themselves")
 		return
 	}
 
-	// Parse request body
 	var requestBody struct {
 		Reason string `json:"reason" binding:"required"`
 	}
@@ -172,7 +157,6 @@ func ReportUser(c *gin.Context) {
 		return
 	}
 
-	// Report the user
 	err := userServiceClient.ReportUser(reporterID, targetUserID, requestBody.Reason)
 	if err != nil {
 		log.Printf("Error reporting user %s: %v", targetUserID, err)

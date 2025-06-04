@@ -55,7 +55,7 @@ func Migrate(db *gorm.DB) error {
 }
 
 func migrateInitSchema(db *gorm.DB) error {
-	// Migrate all required models including Follow
+
 	err := db.AutoMigrate(&model.User{}, &model.Session{}, &model.Follow{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate models: %w", err)
@@ -73,7 +73,7 @@ func migrateInitSchema(db *gorm.DB) error {
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON sessions(refresh_token)").Error; err != nil {
 		log.Printf("Warning: Failed to create session refresh_token index: %v", err)
 	}
-	// Add index for follower-followed pairs
+
 	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_follower_followed ON follows(follower_id, followed_id)").Error; err != nil {
 		log.Printf("Warning: Failed to create follow index: %v", err)
 	}
@@ -82,7 +82,7 @@ func migrateInitSchema(db *gorm.DB) error {
 }
 
 func migrateAddAdminFields(db *gorm.DB) error {
-	// Add IsAdmin column if it doesn't exist
+
 	if !db.Migrator().HasColumn(&model.User{}, "is_admin") {
 		if err := db.Exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE").Error; err != nil {
 			return fmt.Errorf("failed to add is_admin column: %w", err)
@@ -90,7 +90,6 @@ func migrateAddAdminFields(db *gorm.DB) error {
 		log.Println("Added is_admin column to users table")
 	}
 
-	// Add IsBanned column if it doesn't exist
 	if !db.Migrator().HasColumn(&model.User{}, "is_banned") {
 		if err := db.Exec("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE").Error; err != nil {
 			return fmt.Errorf("failed to add is_banned column: %w", err)
@@ -98,7 +97,6 @@ func migrateAddAdminFields(db *gorm.DB) error {
 		log.Println("Added is_banned column to users table")
 	}
 
-	// Set admin flag for admin user
 	if err := db.Exec("UPDATE users SET is_admin = TRUE WHERE username = 'admin'").Error; err != nil {
 		log.Printf("Warning: Failed to set admin flag for admin user: %v", err)
 	}
@@ -107,7 +105,7 @@ func migrateAddAdminFields(db *gorm.DB) error {
 }
 
 func migrateAddAdminTables(db *gorm.DB) error {
-	// Migrate admin-related models
+
 	err := db.AutoMigrate(
 		&model.CommunityRequest{},
 		&model.PremiumRequest{},
@@ -120,7 +118,6 @@ func migrateAddAdminTables(db *gorm.DB) error {
 		return fmt.Errorf("failed to migrate admin models: %w", err)
 	}
 
-	// Create indices for admin tables
 	tables := []struct {
 		name   string
 		column string
@@ -146,7 +143,7 @@ func migrateAddAdminTables(db *gorm.DB) error {
 }
 
 func migrateAddFollowerCounts(db *gorm.DB) error {
-	// Add follower_count column if it doesn't exist
+
 	if !db.Migrator().HasColumn(&model.User{}, "follower_count") {
 		if err := db.Exec("ALTER TABLE users ADD COLUMN follower_count INT DEFAULT 0").Error; err != nil {
 			return fmt.Errorf("failed to add follower_count column: %w", err)
@@ -154,7 +151,6 @@ func migrateAddFollowerCounts(db *gorm.DB) error {
 		log.Println("Added follower_count column to users table")
 	}
 
-	// Add following_count column if it doesn't exist
 	if !db.Migrator().HasColumn(&model.User{}, "following_count") {
 		if err := db.Exec("ALTER TABLE users ADD COLUMN following_count INT DEFAULT 0").Error; err != nil {
 			return fmt.Errorf("failed to add following_count column: %w", err)
@@ -162,19 +158,16 @@ func migrateAddFollowerCounts(db *gorm.DB) error {
 		log.Println("Added following_count column to users table")
 	}
 
-	// Create index on follower_id for improved query performance on following
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id)").Error; err != nil {
 		log.Printf("Warning: Failed to create index on follower_id: %v", err)
 	}
 
-	// Create index on followed_id for improved query performance on followers
 	if err := db.Exec("CREATE INDEX IF NOT EXISTS idx_follows_followed_id ON follows(followed_id)").Error; err != nil {
 		log.Printf("Warning: Failed to create index on followed_id: %v", err)
 	}
 
-	// Recalculate follower and following counts for all users
 	log.Println("Recalculating follower and following counts for all users...")
-	// Update follower counts
+
 	if err := db.Exec(`
 		UPDATE users u SET follower_count = (
 			SELECT COUNT(*) FROM follows f WHERE f.followed_id = u.id
@@ -183,7 +176,6 @@ func migrateAddFollowerCounts(db *gorm.DB) error {
 		log.Printf("Warning: Failed to update follower counts: %v", err)
 	}
 
-	// Update following counts
 	if err := db.Exec(`
 		UPDATE users u SET following_count = (
 			SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id

@@ -20,7 +20,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// ServiceFollowUserResponse represents the response for follow user operation within the service
 type ServiceFollowUserResponse struct {
 	Success             bool   `json:"success"`
 	Message             string `json:"message"`
@@ -28,7 +27,6 @@ type ServiceFollowUserResponse struct {
 	IsNowFollowing      bool   `json:"is_now_following"`
 }
 
-// ServiceUnfollowUserResponse represents the response for unfollow user operation within the service
 type ServiceUnfollowUserResponse struct {
 	Success        bool   `json:"success"`
 	Message        string `json:"message"`
@@ -36,7 +34,6 @@ type ServiceUnfollowUserResponse struct {
 	IsNowFollowing bool   `json:"is_now_following"`
 }
 
-// UserService defines methods for user business logic
 type UserService interface {
 	CreateUserProfile(ctx context.Context, req *userpb.CreateUserRequest) (*model.User, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
@@ -55,7 +52,6 @@ type UserService interface {
 	GetRecommendedUsers(ctx context.Context, limit int) ([]*model.User, error)
 	GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 
-	// Block and Report functionality
 	BlockUser(ctx context.Context, blockerID, blockedID string) error
 	UnblockUser(ctx context.Context, unblockerID, unblockedID string) error
 	IsUserBlocked(ctx context.Context, userID, blockedByID string) (bool, error)
@@ -80,47 +76,38 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 
 	userProto := req.User
 
-	// Validate all required fields with proper validation
 	var validationErrors []string
 
-	// 1. Validate name
 	if err := utils.ValidateName(userProto.Name); err != nil {
 		validationErrors = append(validationErrors, err.Error())
 	}
 
-	// 2. Validate username
 	if err := utils.ValidateUsername(userProto.Username); err != nil {
 		validationErrors = append(validationErrors, err.Error())
 	}
 
-	// 3. Validate email
 	if err := utils.ValidateEmail(userProto.Email); err != nil {
 		validationErrors = append(validationErrors, err.Error())
 	}
 
-	// 4. Validate password
 	if passwordErrors := utils.ValidatePassword(userProto.Password); len(passwordErrors) > 0 {
 		for _, err := range passwordErrors {
 			validationErrors = append(validationErrors, err.Error())
 		}
 	}
 
-	// 5. Validate gender
 	if err := utils.ValidateGender(userProto.Gender); err != nil {
 		validationErrors = append(validationErrors, err.Error())
 	}
 
-	// 6. Validate date of birth
 	if err := utils.ValidateDateOfBirth(userProto.DateOfBirth); err != nil {
 		validationErrors = append(validationErrors, err.Error())
 	}
 
-	// 7. Validate security question and answer
 	if err := utils.ValidateSecurityQuestion(userProto.SecurityQuestion, userProto.SecurityAnswer); err != nil {
 		validationErrors = append(validationErrors, err.Error())
 	}
 
-	// If there are validation errors, return them
 	if len(validationErrors) > 0 {
 		errorMsg := fmt.Sprintf("Validation failed: %s", strings.Join(validationErrors, "; "))
 		return nil, status.Error(codes.InvalidArgument, errorMsg)
@@ -128,7 +115,6 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 
 	userID := uuid.New()
 
-	// Check if email already exists
 	existingUser, err := s.repo.FindUserByEmail(userProto.Email)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "User with this email already exists")
@@ -138,7 +124,6 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 		return nil, status.Error(codes.Internal, "Failed to check email existence")
 	}
 
-	// Check if username already exists
 	existingUser, err = s.repo.FindUserByUsername(userProto.Username)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "Username already taken")
@@ -148,14 +133,12 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 		return nil, status.Error(codes.Internal, "Failed to check username existence")
 	}
 
-	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userProto.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Error hashing password: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to process registration")
 	}
 
-	// Create user object
 	user := &model.User{
 		ID:                    userID,
 		Username:              userProto.Username,
@@ -174,7 +157,6 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 		UpdatedAt:             time.Now(),
 	}
 
-	// Parse date of birth properly
 	if userProto.DateOfBirth != "" {
 		dob, err := utils.ParseCustomDateFormat(userProto.DateOfBirth)
 		if err == nil {
@@ -184,7 +166,6 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 		}
 	}
 
-	// Save the user to database
 	err = s.repo.CreateUser(user)
 	if err != nil {
 		log.Printf("Error creating user in repository: %v", err)
@@ -233,7 +214,6 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 
 	updated := false
 
-	// Handle direct fields
 	if req.Name != "" {
 		user.Name = req.Name
 		updated = true
@@ -251,7 +231,6 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 		updated = true
 	}
 
-	// Handle fields from the User object
 	if req.User != nil {
 		if req.User.Bio != "" {
 			user.Bio = req.User.Bio
@@ -262,7 +241,7 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 			updated = true
 		}
 		if req.User.DateOfBirth != "" {
-			// Convert string date to time.Time if needed
+
 			if date, err := time.Parse("2006-01-02", req.User.DateOfBirth); err == nil {
 				user.DateOfBirth = &date
 				updated = true
@@ -271,8 +250,6 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 			}
 		}
 
-		// Handle admin status update explicitly instead of using reflection
-		// Check if the admin status field is provided in the request
 		if req.User.IsAdmin != user.IsAdmin {
 			prevStatus := user.IsAdmin
 			user.IsAdmin = req.User.IsAdmin
@@ -316,12 +293,11 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 }
 
 func (s *userService) LoginUser(ctx context.Context, req *userpb.LoginUserRequest) (*model.User, error) {
-	// Validate email format
+
 	if err := utils.ValidateEmail(req.Email); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid email format")
 	}
 
-	// Password is required
 	if req.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "Password is required")
 	}
@@ -329,7 +305,7 @@ func (s *userService) LoginUser(ctx context.Context, req *userpb.LoginUserReques
 	user, err := s.repo.FindUserByEmail(req.Email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Use generic error message to avoid user enumeration
+
 			return nil, status.Error(codes.NotFound, "Invalid email or password")
 		}
 		log.Printf("Error finding user by email for login: %v", err)
@@ -338,7 +314,7 @@ func (s *userService) LoginUser(ctx context.Context, req *userpb.LoginUserReques
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
-		// Use generic error message to avoid user enumeration
+
 		return nil, status.Error(codes.Unauthenticated, "Invalid email or password")
 	}
 
@@ -386,7 +362,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
 	}
 
-	// Check if users exist
 	_, err = s.repo.FindUserByID(req.FollowerID)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "Follower user with ID %s not found", req.FollowerID)
@@ -397,7 +372,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
 	}
 
-	// Check if already following
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("Error checking follow existence: %v", err)
@@ -405,7 +379,7 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	}
 
 	if exists {
-		// Don't treat this as an error - just return success
+
 		log.Printf("User %s is already following user %s", req.FollowerID, req.FollowedID)
 		return nil
 	}
@@ -416,19 +390,16 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		CreatedAt:  time.Now(),
 	}
 
-	// Use a transaction to ensure atomic updates
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
-		// Create follow relationship
+
 		if err := tx.CreateFollow(follow); err != nil {
 			return fmt.Errorf("failed to create follow relationship: %w", err)
 		}
 
-		// Increment followed user's follower count
 		if err := tx.IncrementFollowerCount(req.FollowedID); err != nil {
 			return fmt.Errorf("failed to increment follower count: %w", err)
 		}
 
-		// Increment follower's following count
 		if err := tx.IncrementFollowingCount(req.FollowerID); err != nil {
 			return fmt.Errorf("failed to increment following count: %w", err)
 		}
@@ -459,31 +430,27 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
 	}
 
-	// Check if follow relationship exists
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("Error checking follow existence: %v", err)
 		return status.Error(codes.Internal, "Failed to check follow relationship")
 	}
 	if !exists {
-		// Don't treat this as an error - just return success
+
 		log.Printf("User %s is not following user %s - treating as successful unfollow", req.FollowerID, req.FollowedID)
 		return nil
 	}
 
-	// Use a transaction to ensure atomic updates
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
-		// Delete follow relationship
+
 		if err := tx.DeleteFollow(followerUUID, followedUUID); err != nil {
 			return fmt.Errorf("failed to delete follow relationship: %w", err)
 		}
 
-		// Decrement followed user's follower count
 		if err := tx.DecrementFollowerCount(req.FollowedID); err != nil {
 			return fmt.Errorf("failed to decrement follower count: %w", err)
 		}
 
-		// Decrement follower's following count
 		if err := tx.DecrementFollowingCount(req.FollowerID); err != nil {
 			return fmt.Errorf("failed to decrement following count: %w", err)
 		}
@@ -560,7 +527,7 @@ func (s *userService) GetAllUsers(ctx context.Context, page, limit int, sortBy s
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
-		limit = 10 // Default limit
+		limit = 10 
 	}
 
 	users, total, err := s.repo.GetAllUsers(page, limit, sortBy, ascending)
@@ -572,14 +539,12 @@ func (s *userService) GetAllUsers(ctx context.Context, page, limit int, sortBy s
 	return users, total, nil
 }
 
-// BlockUser implements the UserService interface method for blocking users
 func (s *userService) BlockUser(ctx context.Context, blockerID, blockedID string) error {
-	// Validate inputs
+
 	if blockerID == "" || blockedID == "" {
 		return status.Error(codes.InvalidArgument, "Both blocker ID and blocked ID are required")
 	}
 
-	// Check if users exist
 	_, err := s.GetUserByID(ctx, blockerID)
 	if err != nil {
 		return status.Error(codes.NotFound, "Blocker user not found")
@@ -590,7 +555,6 @@ func (s *userService) BlockUser(ctx context.Context, blockerID, blockedID string
 		return status.Error(codes.NotFound, "User to be blocked not found")
 	}
 
-	// Use repository to block user
 	if err := s.repo.BlockUser(blockerID, blockedID); err != nil {
 		log.Printf("Error blocking user: %v", err)
 		return status.Error(codes.Internal, "Failed to block user")
@@ -599,14 +563,12 @@ func (s *userService) BlockUser(ctx context.Context, blockerID, blockedID string
 	return nil
 }
 
-// UnblockUser implements the UserService interface method for unblocking users
 func (s *userService) UnblockUser(ctx context.Context, unblockerID, unblockedID string) error {
-	// Validate inputs
+
 	if unblockerID == "" || unblockedID == "" {
 		return status.Error(codes.InvalidArgument, "Both unblocker ID and unblocked ID are required")
 	}
 
-	// Check if users exist
 	_, err := s.GetUserByID(ctx, unblockerID)
 	if err != nil {
 		return status.Error(codes.NotFound, "Unblocker user not found")
@@ -617,7 +579,6 @@ func (s *userService) UnblockUser(ctx context.Context, unblockerID, unblockedID 
 		return status.Error(codes.NotFound, "User to be unblocked not found")
 	}
 
-	// Use repository to unblock user
 	if err := s.repo.UnblockUser(unblockerID, unblockedID); err != nil {
 		log.Printf("Error unblocking user: %v", err)
 		return status.Error(codes.Internal, "Failed to unblock user")
@@ -626,14 +587,12 @@ func (s *userService) UnblockUser(ctx context.Context, unblockerID, unblockedID 
 	return nil
 }
 
-// IsUserBlocked checks if a user is blocked by another user
 func (s *userService) IsUserBlocked(ctx context.Context, userID, blockedByID string) (bool, error) {
-	// Validate inputs
+
 	if userID == "" || blockedByID == "" {
 		return false, status.Error(codes.InvalidArgument, "Both user ID and blocker ID are required")
 	}
 
-	// Use repository to check block status
 	isBlocked, err := s.repo.IsUserBlocked(userID, blockedByID)
 	if err != nil {
 		log.Printf("Error checking if user is blocked: %v", err)
@@ -643,14 +602,12 @@ func (s *userService) IsUserBlocked(ctx context.Context, userID, blockedByID str
 	return isBlocked, nil
 }
 
-// ReportUser implements the UserService interface method for reporting users
 func (s *userService) ReportUser(ctx context.Context, reporterID, reportedID string, reason string) error {
-	// Validate inputs
+
 	if reporterID == "" || reportedID == "" {
 		return status.Error(codes.InvalidArgument, "Both reporter ID and reported ID are required")
 	}
 
-	// Check if users exist
 	_, err := s.GetUserByID(ctx, reporterID)
 	if err != nil {
 		return status.Error(codes.NotFound, "Reporter user not found")
@@ -661,7 +618,6 @@ func (s *userService) ReportUser(ctx context.Context, reporterID, reportedID str
 		return status.Error(codes.NotFound, "User to be reported not found")
 	}
 
-	// Use repository to report user
 	if err := s.repo.ReportUser(reporterID, reportedID, reason); err != nil {
 		log.Printf("Error reporting user: %v", err)
 		return status.Error(codes.Internal, "Failed to report user")
@@ -670,9 +626,8 @@ func (s *userService) ReportUser(ctx context.Context, reporterID, reportedID str
 	return nil
 }
 
-// GetBlockedUsers retrieves a list of blocked users
 func (s *userService) GetBlockedUsers(ctx context.Context, userID string, page, limit int) ([]map[string]interface{}, int64, error) {
-	// Validate inputs
+
 	if userID == "" {
 		return nil, 0, status.Error(codes.InvalidArgument, "User ID is required")
 	}
@@ -681,10 +636,9 @@ func (s *userService) GetBlockedUsers(ctx context.Context, userID string, page, 
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
-		limit = 10 // Default limit
+		limit = 10 
 	}
 
-	// Use repository to get blocked users
 	blockedUsers, total, err := s.repo.GetBlockedUsers(userID, page, limit)
 	if err != nil {
 		log.Printf("Error getting blocked users: %v", err)
@@ -694,7 +648,6 @@ func (s *userService) GetBlockedUsers(ctx context.Context, userID string, page, 
 	return blockedUsers, total, nil
 }
 
-// IsFollowing checks if a user is following another user
 func (s *userService) IsFollowing(ctx context.Context, followerID, followedID string) (bool, error) {
 	if followerID == "" || followedID == "" {
 		return false, status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")

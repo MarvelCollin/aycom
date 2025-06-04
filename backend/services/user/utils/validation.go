@@ -10,7 +10,6 @@ import (
 	"unicode"
 )
 
-// Validation error messages
 var (
 	ErrNameRequired     = errors.New("name is required")
 	ErrNameTooShort     = errors.New("name must be more than 4 characters")
@@ -44,7 +43,6 @@ var (
 	ErrSecurityAnswerTooShort   = errors.New("security answer must be at least 3 characters")
 )
 
-// ValidateName checks if a name is valid
 func ValidateName(name string) error {
 	nameRegex := regexp.MustCompile(`^[a-zA-Z\s]+$`)
 
@@ -61,7 +59,6 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// ValidateUsername checks if a username is valid
 func ValidateUsername(username string) error {
 	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
@@ -78,7 +75,6 @@ func ValidateUsername(username string) error {
 	return nil
 }
 
-// ValidateEmail checks if an email is valid
 func ValidateEmail(email string) error {
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$`)
 
@@ -91,7 +87,6 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidatePassword checks if a password meets complexity requirements
 func ValidatePassword(password string) []error {
 	var errors []error
 
@@ -139,7 +134,6 @@ func ValidatePassword(password string) []error {
 	return errors
 }
 
-// ValidateGender checks if a gender value is valid
 func ValidateGender(gender string) error {
 	if gender == "" {
 		return ErrGenderRequired
@@ -153,7 +147,6 @@ func ValidateGender(gender string) error {
 	return nil
 }
 
-// ParseCustomDateFormat parses a date in the format "month_index-day-year"
 func ParseCustomDateFormat(dateStr string) (time.Time, error) {
 	if dateStr == "" {
 		return time.Time{}, ErrDOBRequired
@@ -164,14 +157,12 @@ func ParseCustomDateFormat(dateStr string) (time.Time, error) {
 		return time.Time{}, ErrInvalidDOB
 	}
 
-	// Parse month (0-indexed to 1-indexed)
 	monthIdx, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return time.Time{}, ErrInvalidDOB
 	}
-	month := monthIdx + 1 // Convert from 0-indexed to 1-indexed
+	month := monthIdx + 1
 
-	// Parse day and year
 	day, err := strconv.Atoi(parts[1])
 	if err != nil {
 		return time.Time{}, ErrInvalidDOB
@@ -182,12 +173,10 @@ func ParseCustomDateFormat(dateStr string) (time.Time, error) {
 		return time.Time{}, ErrInvalidDOB
 	}
 
-	// Create a date string in the format expected by Go
 	formattedDateStr := fmt.Sprintf("%04d-%02d-%02d", year, month, day)
 	return time.Parse("2006-01-02", formattedDateStr)
 }
 
-// ValidateDateOfBirth checks if a date of birth is valid and if the user is at least 13 years old
 func ValidateDateOfBirth(dateStr string) error {
 	if dateStr == "" {
 		return ErrDOBRequired
@@ -198,11 +187,9 @@ func ValidateDateOfBirth(dateStr string) error {
 		return err
 	}
 
-	// Check if the user is at least 13 years old
 	today := time.Now()
 	age := today.Year() - dob.Year()
 
-	// Adjust age if birth date hasn't occurred yet this year
 	if today.Month() < dob.Month() || (today.Month() == dob.Month() && today.Day() < dob.Day()) {
 		age--
 	}
@@ -214,7 +201,6 @@ func ValidateDateOfBirth(dateStr string) error {
 	return nil
 }
 
-// ValidateSecurityQuestion validates the security question and answer
 func ValidateSecurityQuestion(question, answer string) error {
 	if question == "" {
 		return ErrSecurityQuestionRequired

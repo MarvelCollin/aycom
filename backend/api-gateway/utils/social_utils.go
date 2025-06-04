@@ -10,12 +10,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// ResolveUserIdentifier attempts to resolve a user identifier (which could be a UUID or username)
-// to a valid user ID.
 func ResolveUserIdentifier(ctx context.Context, userClient userProto.UserServiceClient, identifier string) (string, error) {
-	// First check if it's a valid UUID
+
 	if _, err := uuid.Parse(identifier); err == nil {
-		// It's a valid UUID, verify the user exists
+
 		_, err := userClient.GetUser(ctx, &userProto.GetUserRequest{
 			UserId: identifier,
 		})
@@ -25,7 +23,6 @@ func ResolveUserIdentifier(ctx context.Context, userClient userProto.UserService
 		return identifier, nil
 	}
 
-	// Try to resolve as username
 	resp, err := userClient.GetUserByUsername(ctx, &userProto.GetUserByUsernameRequest{
 		Username: identifier,
 	})
@@ -39,7 +36,6 @@ func ResolveUserIdentifier(ctx context.Context, userClient userProto.UserService
 	return resp.User.Id, nil
 }
 
-// CheckFollowStatus checks if one user is following another
 func CheckFollowStatus(ctx context.Context, userClient userProto.UserServiceClient, followerID, followedID string) (bool, error) {
 	isFollowingReq := &userProto.IsFollowingRequest{
 		FollowerId: followerID,
@@ -54,7 +50,6 @@ func CheckFollowStatus(ctx context.Context, userClient userProto.UserServiceClie
 	return isFollowingResp.IsFollowing, nil
 }
 
-// EnrichUsersWithFollowStatus adds the is_following field to a list of users
 func EnrichUsersWithFollowStatus(ctx context.Context, userClient userProto.UserServiceClient, currentUserID string, users []gin.H) error {
 	for i, user := range users {
 		userID, ok := user["id"].(string)

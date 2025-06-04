@@ -8,8 +8,34 @@ export * from './ICommon';
 // Auth interfaces
 export * from './IAuth';
 
-// User interfaces
-export * from './IUser';
+// Media interfaces - these need to be exported first to avoid conflicts
+export * from './IMedia';
+
+// User interfaces - export everything except IMediaUpdateResponse which is already exported from IMedia.ts
+export {
+  type IUser,
+  type IUserProfile,
+  type IUserUpdateRequest,
+  type IUserRegistrationRequest,
+  type IUserVerificationRequest,
+  type IUserLoginRequest,
+  type IUserLoginResponse,
+  type IPasswordResetRequest,
+  type IUserResponse,
+  type IUsersResponse,
+  type IUsernameCheckResponse,
+  type IMediaUploadRequest,
+  type IFollowResponse,
+  type IFollowStatusResponse,
+  type IBlockResponse,
+  type IReportUserRequest,
+  type IReportUserResponse,
+  type IBlockedUsersResponse,
+  type IAdminStatusUpdateRequest
+} from './IUser';
+
+// Trend interfaces - these need to be exported first to avoid conflicts
+export * from './ITrend';
 
 // Social media interfaces
 export * from './ISocialMedia';
@@ -26,21 +52,8 @@ export * from './ICategory';
 // Admin interfaces
 export * from './IAdmin';
 
-// Media interfaces - resolve ambiguous exports
-export { 
-  type IMediaUploadResponse, 
-  type IMediaSearchResponse 
-} from './IMedia';
-// Re-export IMedia specifically from IMedia.ts
-export { type IMedia as IMediaType } from './IMedia';
-
 // Notification interfaces
 export * from './INotification';
-
-// Trend interfaces - resolve ambiguous exports
-export { type ITrendsResponse } from './ITrend';
-// Re-export ITrend specifically from ITrend.ts
-export { type ITrend as ITrendItem } from './ITrend';
 
 // Bookmark interfaces
 export * from './IBookmark';
@@ -52,4 +65,7 @@ export * from './IAI';
 export * from './ISearch';
 
 // Toast interfaces
-export * from './IToast'; 
+export * from './IToast';
+
+// Extended tweet utilities
+export * from './ITweet.extended'; 

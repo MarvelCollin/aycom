@@ -9,7 +9,7 @@ export interface StandardUser {
   is_verified: boolean;
   is_following?: boolean;
   follower_count?: number;
-  // Adding missing properties
+
   avatar?: string | null;
   displayName?: string;
   display_name?: string;
@@ -31,7 +31,7 @@ export function transformApiUser(user: any): StandardUser {
     is_verified: !!user.is_verified,
     is_following: !!user.is_following,
     follower_count: user.follower_count || 0,
-    // Adding missing properties
+
     avatar: user.avatar || user.profile_picture_url || null,
     displayName: user.display_name || user.name || user.username || 'User',
     display_name: user.display_name || user.name || user.username || 'User',
@@ -44,7 +44,7 @@ export function transformApiUsers(users: any[]): StandardUser[] {
     logger.warn('Invalid users array provided to transform', { users });
     return [];
   }
-  
+
   return users.map(user => {
     try {
       return transformApiUser(user);
@@ -53,4 +53,4 @@ export function transformApiUsers(users: any[]): StandardUser[] {
       return null;
     }
   }).filter(Boolean) as StandardUser[];
-} 
+}

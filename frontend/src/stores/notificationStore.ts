@@ -17,10 +17,10 @@ function createNotificationStore() {
 
   return {
     subscribe,
-    
+
     addNotification: (notification: Notification) => {
       update(notifications => {
-        // Check if notification already exists
+
         const exists = notifications.some(n => n.id === notification.id);
         if (!exists) {
           return [notification, ...notifications];
@@ -28,7 +28,7 @@ function createNotificationStore() {
         return notifications;
       });
     },
-    
+
     markAsRead: (id: string) => {
       update(notifications => {
         return notifications.map(notification => {
@@ -39,23 +39,23 @@ function createNotificationStore() {
         });
       });
     },
-    
+
     markAllAsRead: () => {
       update(notifications => {
         return notifications.map(notification => ({ ...notification, read: true }));
       });
     },
-    
+
     removeNotification: (id: string) => {
       update(notifications => {
         return notifications.filter(notification => notification.id !== id);
       });
     },
-    
+
     reset: () => {
       set([]);
     }
   };
 }
 
-export const notificationStore = createNotificationStore(); 
+export const notificationStore = createNotificationStore();

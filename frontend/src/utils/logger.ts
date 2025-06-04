@@ -84,7 +84,7 @@ interface Logger {
 
 const createLogger = (prefix: string): Logger => {
   const formatMessage = (message: string) => `[${prefix}] ${message}`;
-  
+
   const log = (level: LogLevel, message: string, data?: any, options: ToastOptions = {}) => {
     const timestamp = new Date().toISOString();
     const logEntry: LogEntry = {
@@ -95,13 +95,13 @@ const createLogger = (prefix: string): Logger => {
       data,
       source: prefix
     };
-    
+
     addLogEntry(logEntry);
-    
+
     if (level < currentLogLevel) return;
-    
+
     const formattedMessage = formatMessage(message);
-    
+
     switch (level) {
       case LogLevel.TRACE:
         console.log(`%c[TRACE] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
@@ -125,11 +125,11 @@ const createLogger = (prefix: string): Logger => {
         : level === LogLevel.WARN ? 'warning'
         : level === LogLevel.INFO ? 'info'
         : 'info';
-      
+
       toastStore.showToast(message, toastType, timeout);
     }
   };
-  
+
   return {
     trace: (message: string, data?: any, options?: ToastOptions) => 
       log(LogLevel.TRACE, message, data, options),
@@ -164,4 +164,4 @@ if (typeof window !== 'undefined') {
   (window as any).LogLevel = LogLevel;
   (window as any).setLogLevel = setGlobalLogLevel;
   (window as any).clearLogs = clearLogs;
-} 
+}

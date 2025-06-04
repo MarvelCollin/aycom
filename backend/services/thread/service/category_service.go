@@ -14,7 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// CategoryService defines the interface for category operations
 type CategoryService interface {
 	CreateCategory(ctx context.Context, name string, categoryType string) (*model.Category, error)
 	GetCategoryByID(ctx context.Context, categoryID string) (*model.Category, error)
@@ -22,28 +21,23 @@ type CategoryService interface {
 	UpdateCategory(ctx context.Context, categoryID string, name string) (*model.Category, error)
 	DeleteCategory(ctx context.Context, categoryID string) error
 
-	// Thread category operations
 	AddCategoryToThread(ctx context.Context, threadID string, categoryID string) error
 	RemoveCategoryFromThread(ctx context.Context, threadID string, categoryID string) error
 	GetThreadCategories(ctx context.Context, threadID string) ([]*model.Category, error)
 
-	// Helper methods for working with category names
 	GetOrCreateCategoriesByNames(ctx context.Context, categoryNames []string, categoryType string) ([]string, error)
 }
 
-// categoryService implements the CategoryService interface
 type categoryService struct {
 	categoryRepo repository.CategoryRepository
 }
 
-// NewCategoryService creates a new category service
 func NewCategoryService(categoryRepo repository.CategoryRepository) CategoryService {
 	return &categoryService{
 		categoryRepo: categoryRepo,
 	}
 }
 
-// CreateCategory creates a new category
 func (s *categoryService) CreateCategory(ctx context.Context, name string, categoryType string) (*model.Category, error) {
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Category name is required")
@@ -75,7 +69,6 @@ func (s *categoryService) CreateCategory(ctx context.Context, name string, categ
 	return category, nil
 }
 
-// GetCategoryByID retrieves a category by its ID
 func (s *categoryService) GetCategoryByID(ctx context.Context, categoryID string) (*model.Category, error) {
 	if categoryID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Category ID is required")
@@ -92,7 +85,6 @@ func (s *categoryService) GetCategoryByID(ctx context.Context, categoryID string
 	return category, nil
 }
 
-// GetAllCategories retrieves all categories of a specific type
 func (s *categoryService) GetAllCategories(ctx context.Context, categoryType string) ([]*model.Category, error) {
 	categories, err := s.categoryRepo.FindAllCategories(categoryType)
 	if err != nil {
@@ -102,7 +94,6 @@ func (s *categoryService) GetAllCategories(ctx context.Context, categoryType str
 	return categories, nil
 }
 
-// UpdateCategory updates a category
 func (s *categoryService) UpdateCategory(ctx context.Context, categoryID string, name string) (*model.Category, error) {
 	if categoryID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Category ID is required")
@@ -130,7 +121,6 @@ func (s *categoryService) UpdateCategory(ctx context.Context, categoryID string,
 	return category, nil
 }
 
-// DeleteCategory deletes a category
 func (s *categoryService) DeleteCategory(ctx context.Context, categoryID string) error {
 	if categoryID == "" {
 		return status.Error(codes.InvalidArgument, "Category ID is required")
@@ -143,7 +133,6 @@ func (s *categoryService) DeleteCategory(ctx context.Context, categoryID string)
 	return nil
 }
 
-// AddCategoryToThread adds a category to a thread
 func (s *categoryService) AddCategoryToThread(ctx context.Context, threadID string, categoryID string) error {
 	if threadID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -160,7 +149,6 @@ func (s *categoryService) AddCategoryToThread(ctx context.Context, threadID stri
 	return nil
 }
 
-// RemoveCategoryFromThread removes a category from a thread
 func (s *categoryService) RemoveCategoryFromThread(ctx context.Context, threadID string, categoryID string) error {
 	if threadID == "" {
 		return status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -177,7 +165,6 @@ func (s *categoryService) RemoveCategoryFromThread(ctx context.Context, threadID
 	return nil
 }
 
-// GetThreadCategories gets all categories associated with a thread
 func (s *categoryService) GetThreadCategories(ctx context.Context, threadID string) ([]*model.Category, error) {
 	if threadID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -191,7 +178,6 @@ func (s *categoryService) GetThreadCategories(ctx context.Context, threadID stri
 	return categories, nil
 }
 
-// GetOrCreateCategoriesByNames gets or creates categories by their names and returns their IDs
 func (s *categoryService) GetOrCreateCategoriesByNames(ctx context.Context, categoryNames []string, categoryType string) ([]string, error) {
 	if len(categoryNames) == 0 {
 		return []string{}, nil

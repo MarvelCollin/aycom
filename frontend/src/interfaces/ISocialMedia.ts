@@ -1,3 +1,7 @@
+import type { IMedia } from './IMedia';
+import type { ITrend } from './ITrend';
+import type { IPagination } from './ICommon';
+
 export interface ITweet {
   id: string;
   content: string;
@@ -37,24 +41,6 @@ export interface ITweet {
   is_advertisement?: boolean;
 }
 
-export interface IMedia {
-  id?: string;
-  url: string;
-  type: 'image' | 'video' | 'gif';
-  width?: number;
-  height?: number;
-  thumbnail_url?: string;
-  alt_text?: string;
-}
-
-export interface ITrend {
-  id: string;
-  name: string;
-  query: string;
-  tweet_count: number;
-  category?: string;
-}
-
 export interface ISuggestedFollow {
   id: string;
   username: string;
@@ -87,6 +73,17 @@ export interface IThreadApiResponse {
   media: IMedia[];
 }
 
+// Standard thread interaction interface for consistent naming
+export interface IThreadInteraction {
+  likes_count: number;
+  is_liked: boolean;
+  replies_count: number;
+  reposts_count: number;
+  is_reposted: boolean;
+  bookmark_count: number; 
+  is_bookmarked: boolean;
+}
+
 /**
  * Thread API response interfaces
  */
@@ -99,13 +96,7 @@ export interface IThreadsResponse {
   success: boolean;
   data: {
     threads: ITweet[];
-    pagination: {
-      total_count: number;
-      current_page: number;
-      per_page: number;
-      total_pages: number;
-      has_more?: boolean;
-    };
+    pagination: IPagination;
   };
 }
 

@@ -9,7 +9,6 @@ import (
 	"aycom/backend/services/thread/model"
 )
 
-// MediaRepository defines the methods for media-related database operations
 type MediaRepository interface {
 	CreateMedia(media *model.Media) error
 	FindMediaByID(id string) (*model.Media, error)
@@ -19,17 +18,14 @@ type MediaRepository interface {
 	DeleteMedia(id string) error
 }
 
-// PostgresMediaRepository is the PostgreSQL implementation of MediaRepository
 type PostgresMediaRepository struct {
 	db *gorm.DB
 }
 
-// NewMediaRepository creates a new PostgreSQL media repository
 func NewMediaRepository(db *gorm.DB) MediaRepository {
 	return &PostgresMediaRepository{db: db}
 }
 
-// CreateMedia creates a new media record
 func (r *PostgresMediaRepository) CreateMedia(media *model.Media) error {
 	if media.MediaID == uuid.Nil {
 		media.MediaID = uuid.New()
@@ -37,7 +33,6 @@ func (r *PostgresMediaRepository) CreateMedia(media *model.Media) error {
 	return r.db.Create(media).Error
 }
 
-// FindMediaByID finds a media record by its ID
 func (r *PostgresMediaRepository) FindMediaByID(id string) (*model.Media, error) {
 	mediaID, err := uuid.Parse(id)
 	if err != nil {
@@ -92,7 +87,6 @@ func (r *PostgresMediaRepository) FindMediaByUserID(userID string, page, limit i
 	var media []*model.Media
 	offset := (page - 1) * limit
 
-	// Use a join query to get media for both threads and replies created by the user
 	result := r.db.Raw(`
 		SELECT m.* FROM media m
 		LEFT JOIN threads t ON m.thread_id = t.thread_id

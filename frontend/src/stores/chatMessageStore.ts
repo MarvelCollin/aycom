@@ -18,8 +18,6 @@ export interface ChatMessage {
   is_read?: boolean;
 }
 
-// Reference to the websocketStore methods we need
-// These will be set after websocketStore is initialized
 let websocketConnect: (chatId: string) => void;
 let websocketDisconnect: (chatId: string) => void;
 let websocketSendMessage: (chatId: string, message: ChatMessage) => void;
@@ -28,11 +26,9 @@ let websocketRegisterMessageHandler: (handler: (message: any) => void) => () => 
 let websocketResetError: () => void;
 let websocketDisconnectAll: () => void;
 
-// Store unsubscribe functions
 let unsubscribeWsState: (() => void) | null = null;
 let unsubscribeMessageHandler: (() => void) | null = null;
 
-// Function to set up the websocket methods
 export function setupWebsocketMethods(methods: {
   connect: (chatId: string) => void;
   disconnect: (chatId: string) => void;
@@ -49,15 +45,14 @@ export function setupWebsocketMethods(methods: {
   websocketRegisterMessageHandler = methods.registerMessageHandler;
   websocketResetError = methods.resetError;
   websocketDisconnectAll = methods.disconnectAll;
-  
-  // Initialize handlers once websocket methods are available
+
   if (chatMessageStore) {
     unsubscribeWsState = websocketSubscribe(wsState => {
       if (wsState.lastError) {
         chatMessageStore.update(state => ({ ...state, lastError: wsState.lastError }));
       }
     });
-    
+
     unsubscribeMessageHandler = websocketRegisterMessageHandler(handleIncomingMessage);
   }
 }
@@ -88,8 +83,6 @@ const initialState: ChatState = {
   lastError: null
 };
 
-// Standalone function to handle incoming WebSocket messages
-// This is exported to be used by other modules
 export function handleIncomingMessage(message: ChatMessage & { user?: User }) {
   chatMessageStore.addIncomingMessage(message);
 }
@@ -97,7 +90,6 @@ export function handleIncomingMessage(message: ChatMessage & { user?: User }) {
 function createChatMessageStore() {
   const { subscribe, update, set } = writable<ChatState>(initialState);
 
-  // Initialize chat state for a given chat ID
   const initChat = (chatId: string) => {
     update(state => {
       if (!state.messages[chatId]) {
@@ -112,24 +104,20 @@ function createChatMessageStore() {
     });
   };
 
-  // Connect to chat WebSocket and initialize state
   const connectToChat = (chatId: string) => {
     initChat(chatId);
     websocketConnect(chatId);
   };
 
-  // Disconnect from chat WebSocket
   const disconnectFromChat = (chatId: string) => {
     websocketDisconnect(chatId);
   };
 
-  // Send a message through WebSocket
   const sendMessage = (chatId: string, content: string, userId: string) => {
-    // Generate a temporary ID for optimistic UI updates
+
     const tempId = `temp-${Date.now()}`;
     const timestamp = new Date();
-    
-    // Create message with temporary ID
+
     const tempMessage: MessageWithUser = {
       type: 'text',
       content,
@@ -146,25 +134,22 @@ function createChatMessageStore() {
         name: '' 
       }
     };
-    
-    // Optimistically add to local state
+
     addMessage(tempMessage);
-    
-    // Send via websocket
+
     const message: ChatMessage = {
       type: 'text',
       content,
       user_id: userId,
       chat_id: chatId,
       timestamp: new Date(),
-      message_id: tempId // Include temp ID to link with server response
+      message_id: tempId 
     };
 
     logger.debug('Sending message to WebSocket', { chatId, tempId });
     websocketSendMessage(chatId, message);
   };
 
-  // Send a typing indicator
   const sendTypingIndicator = (chatId: string, userId: string) => {
     const message: ChatMessage = {
       type: 'typing',
@@ -175,7 +160,6 @@ function createChatMessageStore() {
     websocketSendMessage(chatId, message);
   };
 
-  // Send a read receipt
   const sendReadReceipt = (chatId: string, messageId: string, userId: string) => {
     const message: ChatMessage = {
       type: 'read',
@@ -185,8 +169,7 @@ function createChatMessageStore() {
     };
 
     websocketSendMessage(chatId, message);
-    
-    // Update local state to mark this message as read
+
     update(state => {
       if (state.messages[chatId] && state.messages[chatId][messageId]) {
         const updatedMessages = { ...state.messages };
@@ -195,7 +178,7 @@ function createChatMessageStore() {
           ...updatedMessages[chatId][messageId],
           is_read: true
         };
-        
+
         return {
           ...state,
           messages: updatedMessages,
@@ -209,17 +192,16 @@ function createChatMessageStore() {
     });
   };
 
-  // Add a message to the store
   const addMessage = (message: MessageWithUser) => {
     const { chat_id: chatId, message_id: messageId } = message;
-    
+
     if (!chatId || !messageId) {
       logger.error('Cannot add message without chat_id and message_id', message);
       return;
     }
-    
+
     update(state => {
-      // Initialize chat data if not exists
+
       if (!state.messages[chatId]) {
         state = {
           ...state,
@@ -228,18 +210,16 @@ function createChatMessageStore() {
           unreadCount: { ...state.unreadCount, [chatId]: 0 }
         };
       }
-      
-      // Add the message
+
       const updatedMessages = { ...state.messages };
       updatedMessages[chatId] = { 
         ...updatedMessages[chatId], 
         [messageId]: message 
       };
-      
-      // Increment unread count if the message is from someone else
+
       const currentUserId = getCurrentUserId();
       const isFromOther = message.user_id !== currentUserId;
-      
+
       return {
         ...state,
         messages: updatedMessages,
@@ -253,18 +233,16 @@ function createChatMessageStore() {
     });
   };
 
-  // Process an incoming message from WebSocket
   const addIncomingMessage = (message: any) => {
     const { type, chat_id: chatId } = message;
-    
+
     if (!chatId) {
       logger.error('Received message without chat_id', message);
       return;
     }
-    
-    // Initialize chat if needed
+
     initChat(chatId);
-    
+
     switch (type) {
       case 'text':
         if (message.user) {
@@ -273,31 +251,31 @@ function createChatMessageStore() {
           logger.error('Received text message without user data', message);
         }
         break;
-        
+
       case 'typing':
         updateTypingStatus(chatId, message.user_id);
         break;
-        
+
       case 'read':
         if (message.message_id) {
           markMessageAsRead(chatId, message.message_id, message.user_id);
         }
         break;
-        
+
       case 'edit':
         if (message.message_id) {
           updateMessage(message as MessageWithUser);
         }
         break;
-        
+
       case 'delete':
         if (message.message_id) {
           deleteMessage(chatId, message.message_id);
         }
         break;
-        
+
       case 'update':
-        // Handle update messages from chat.ts for temp message updates
+
         if (message.originalTempId && message.message_id) {
           updateMessageWithServerData(
             message.originalTempId,
@@ -310,7 +288,6 @@ function createChatMessageStore() {
     }
   };
 
-  // Update typing status for a user
   const updateTypingStatus = (chatId: string, userId: string) => {
     update(state => {
       if (!state.typingUsers[chatId]) {
@@ -319,40 +296,37 @@ function createChatMessageStore() {
           typingUsers: { ...state.typingUsers, [chatId]: {} }
         };
       }
-      
+
       const updatedTyping = { ...state.typingUsers };
       updatedTyping[chatId] = { 
         ...updatedTyping[chatId], 
         [userId]: new Date() 
       };
-      
+
       return {
         ...state,
         typingUsers: updatedTyping
       };
     });
-    
-    // Automatically clear typing indicator after 3 seconds
+
     setTimeout(() => {
       clearTypingStatus(chatId, userId);
     }, 3000);
   };
 
-  // Clear typing status for a user
   const clearTypingStatus = (chatId: string, userId: string) => {
     update(state => {
       if (!state.typingUsers[chatId]) return state;
-      
+
       const updatedTyping = { ...state.typingUsers };
       updatedTyping[chatId] = { ...updatedTyping[chatId] };
-      
+
       const userTypingTime = updatedTyping[chatId][userId];
-      
-      // Only clear if the typing indicator is older than 3 seconds
+
       if (userTypingTime && (new Date().getTime() - userTypingTime.getTime() >= 3000)) {
         delete updatedTyping[chatId][userId];
       }
-      
+
       return {
         ...state,
         typingUsers: updatedTyping
@@ -360,18 +334,17 @@ function createChatMessageStore() {
     });
   };
 
-  // Mark a message as read
   const markMessageAsRead = (chatId: string, messageId: string, userId: string) => {
     update(state => {
       if (!state.messages[chatId] || !state.messages[chatId][messageId]) return state;
-      
+
       const updatedMessages = { ...state.messages };
       updatedMessages[chatId] = { ...updatedMessages[chatId] };
       updatedMessages[chatId][messageId] = {
         ...updatedMessages[chatId][messageId],
         is_read: true
       };
-      
+
       return {
         ...state,
         messages: updatedMessages
@@ -379,18 +352,17 @@ function createChatMessageStore() {
     });
   };
 
-  // Update a message (for edits)
   const updateMessage = (message: MessageWithUser) => {
     const { chat_id: chatId, message_id: messageId } = message;
-    
+
     if (!chatId || !messageId) {
       logger.error('Cannot update message without chat_id and message_id', message);
       return;
     }
-    
+
     update(state => {
       if (!state.messages[chatId] || !state.messages[chatId][messageId]) return state;
-      
+
       const updatedMessages = { ...state.messages };
       updatedMessages[chatId] = { ...updatedMessages[chatId] };
       updatedMessages[chatId][messageId] = {
@@ -398,7 +370,7 @@ function createChatMessageStore() {
         ...message,
         is_edited: true
       };
-      
+
       return {
         ...state,
         messages: updatedMessages
@@ -406,11 +378,10 @@ function createChatMessageStore() {
     });
   };
 
-  // Delete a message
   const deleteMessage = (chatId: string, messageId: string) => {
     update(state => {
       if (!state.messages[chatId] || !state.messages[chatId][messageId]) return state;
-      
+
       const updatedMessages = { ...state.messages };
       updatedMessages[chatId] = { ...updatedMessages[chatId] };
       updatedMessages[chatId][messageId] = {
@@ -418,7 +389,7 @@ function createChatMessageStore() {
         content: '',
         is_deleted: true
       };
-      
+
       return {
         ...state,
         messages: updatedMessages
@@ -426,13 +397,11 @@ function createChatMessageStore() {
     });
   };
 
-  // Reset error
   const resetError = () => {
     update(state => ({ ...state, lastError: null }));
     websocketResetError();
   };
 
-  // Clean up on unmount
   const cleanup = () => {
     if (unsubscribeWsState) {
       unsubscribeWsState();
@@ -447,15 +416,14 @@ function createChatMessageStore() {
     }
   };
 
-  // Helper to get current user ID from auth token
   const getCurrentUserId = (): string => {
     const token = getAuthToken();
     if (!token) return '';
-    
+
     try {
-      // JWT tokens are base64 encoded with 3 parts separated by dots
+
       const payload = token.split('.')[1];
-      // Decode the base64 payload
+
       const decoded = JSON.parse(atob(payload));
       return decoded.sub || '';
     } catch (e) {
@@ -464,39 +432,34 @@ function createChatMessageStore() {
     }
   };
 
-  // Add a method to update a temporary message with real data from server
   const updateMessageWithServerData = (tempMessageId: string, chatId: string, serverMessageId: string, serverTimestamp: Date) => {
     update(state => {
-      // If chat doesn't exist yet, do nothing
+
       if (!state.messages[chatId]) return state;
-      
-      // Find the temp message
+
       const tempMessage = state.messages[chatId][tempMessageId];
       if (!tempMessage) {
         logger.warn('Could not find temporary message to update', { tempMessageId, chatId });
         return state;
       }
-      
-      // Create updated message
+
       const updatedMessages = { ...state.messages };
       updatedMessages[chatId] = { ...updatedMessages[chatId] };
-      
-      // Create updated message with server data, preserving content
+
       const updatedMessage = {
         ...tempMessage,
         message_id: serverMessageId,
         timestamp: serverTimestamp
       };
-      
-      // Add the updated message with real ID and remove temp
+
       updatedMessages[chatId][serverMessageId] = updatedMessage;
       delete updatedMessages[chatId][tempMessageId];
-      
+
       logger.debug('Updated temporary message with server data', { 
         tempId: tempMessageId, 
         serverId: serverMessageId 
       });
-      
+
       return {
         ...state,
         messages: updatedMessages
@@ -504,21 +467,18 @@ function createChatMessageStore() {
     });
   };
 
-  // Clear all messages for a specific chat
   const clearChat = (chatId: string) => {
     update(state => {
-      // Create a new state with the chat's messages removed
+
       const updatedState = {
         ...state,
         messages: { ...state.messages }
       };
-      
-      // Remove the messages for this chat
+
       delete updatedState.messages[chatId];
-      
-      // Initialize with empty structure
+
       updatedState.messages[chatId] = {};
-      
+
       logger.debug(`Cleared messages for chat ${chatId}`);
       return updatedState;
     });
@@ -546,13 +506,10 @@ function createChatMessageStore() {
   };
 }
 
-// Export the singleton store instance
 export const chatMessageStore = createChatMessageStore();
 
-// Register the message handler with chat.ts
 registerChatMessageHandler(handleIncomingMessage);
 
-// Derived store for getting messages for a specific chat
 export function getMessagesForChat(chatId: string) {
   return derived(chatMessageStore, $chatStore => {
     const messages = $chatStore.messages[chatId] || {};
@@ -564,7 +521,6 @@ export function getMessagesForChat(chatId: string) {
   });
 }
 
-// Derived store for getting typing users for a specific chat
 export function getTypingUsersForChat(chatId: string) {
   return derived(chatMessageStore, $chatStore => {
     const typing = $chatStore.typingUsers[chatId] || {};
@@ -575,9 +531,8 @@ export function getTypingUsersForChat(chatId: string) {
   });
 }
 
-// Derived store for getting unread count for a specific chat
 export function getUnreadCountForChat(chatId: string) {
   return derived(chatMessageStore, $chatStore => {
     return $chatStore.unreadCount[chatId] || 0;
   });
-} 
+}

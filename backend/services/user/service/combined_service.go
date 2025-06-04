@@ -8,13 +8,11 @@ import (
 
 )
 
-// CombinedService implements both UserService and block/report functionality
 type CombinedService struct {
 	userService  UserService
 	blockService *UserBlockService
 }
 
-// NewCombinedService creates a new CombinedService
 func NewCombinedService(userService UserService, blockService *UserBlockService) *CombinedService {
 	return &CombinedService{
 		userService:  userService,
@@ -22,7 +20,6 @@ func NewCombinedService(userService UserService, blockService *UserBlockService)
 	}
 }
 
-// All UserService methods
 func (s *CombinedService) CreateUserProfile(ctx context.Context, req *user.CreateUserRequest) (*model.User, error) {
 	return s.userService.CreateUserProfile(ctx, req)
 }
@@ -87,7 +84,6 @@ func (s *CombinedService) GetAllUsers(ctx context.Context, page, limit int, sort
 	return s.userService.GetAllUsers(ctx, page, limit, sortBy, ascending)
 }
 
-// Block and Report methods
 func (s *CombinedService) BlockUser(ctx context.Context, blockerID, blockedID string) error {
 	return s.blockService.BlockUser(ctx, blockerID, blockedID)
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	threadProto "aycom/backend/proto/thread"
 	"context"
 	"fmt"
 	"log"
@@ -10,14 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"aycom/backend/api-gateway/utils"
-	threadProto "aycom/backend/proto/thread"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func CreateThread(c *gin.Context) {
@@ -188,10 +187,9 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	// Check if userID is a valid UUID
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
+
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
@@ -201,13 +199,12 @@ func GetThreadsByUser(c *gin.Context) {
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-			// Failed to find user by username
+
 			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
 
-		// Use the resolved UUID
 		userID = user.ID
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
@@ -611,6 +608,8 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 }
 
 func GetAllThreads(c *gin.Context) {
+	log.Printf("GetAllThreads endpoint called")
+
 	page := 1
 	limit := 20
 
@@ -628,83 +627,66 @@ func GetAllThreads(c *gin.Context) {
 		}
 	}
 
-	userID := ""
-	if userIDVal, exists := c.Get("userId"); exists {
-		if userIDStr, ok := userIDVal.(string); ok {
+	var userID string
+	if userIDAny, exists := c.Get("userId"); exists {
+		if userIDStr, ok := userIDAny.(string); ok {
 			userID = userIDStr
-			log.Printf("Authenticated user %s is viewing threads", userID)
 		}
-	} else {
-		log.Printf("Anonymous user is viewing threads")
 	}
 
-	log.Printf("GetAllThreads - page: %d, limit: %d, userID: %s", page, limit, userID)
-
-	if threadServiceClient != nil {
-
-		log.Printf("Attempting to get threads using threadServiceClient")
-		threads, err := threadServiceClient.GetAllThreads(userID, page, limit)
-		if err == nil {
-
-			log.Printf("Successfully retrieved %d threads using threadServiceClient", len(threads))
-			c.JSON(http.StatusOK, gin.H{
-				"threads": threads,
-				"total":   len(threads),
-			})
-			return
-		}
-
-		log.Printf("Error using threadServiceClient.GetAllThreads: %v", err)
-	}
-
-	conn, err := threadConnPool.Get()
-	if err != nil {
-		log.Printf("Failed to get thread service connection: %v", err)
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
+	if threadServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
-	defer threadConnPool.Put(conn)
 
-	client := threadProto.NewThreadServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	if userID != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	threads, err := threadServiceClient.GetAllThreads(userID, page, limit)
+	if err != nil {
+		log.Printf("Error getting threads from service: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch threads: "+err.Error())
+		return
 	}
 
-	log.Printf("Calling thread service GetAllThreads RPC")
-	resp, err := client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
-		Page:  int32(page),
-		Limit: int32(limit),
-	})
+	log.Printf("Retrieved %d threads from thread service", len(threads))
 
-	if err != nil {
-		log.Printf("Error from GetAllThreads RPC: %v", err)
-		if st, ok := status.FromError(err); ok {
-			httpStatus := http.StatusInternalServerError
-			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+	threadList := make([]map[string]interface{}, len(threads))
+	for i, thread := range threads {
+		threadList[i] = map[string]interface{}{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"created_at":          thread.CreatedAt.Format(time.RFC3339),
+			"updated_at":          thread.UpdatedAt.Format(time.RFC3339),
+			"user_id":             thread.UserID,
+			"username":            thread.Username,
+			"name":                thread.DisplayName,
+			"profile_picture_url": thread.ProfilePicture,
+			"likes_count":         thread.LikeCount,
+			"replies_count":       thread.ReplyCount,
+			"reposts_count":       thread.RepostCount,
+			"is_liked":            thread.IsLiked,
+			"is_reposted":         thread.IsReposted,
+			"is_bookmarked":       thread.IsBookmarked,
+			"is_pinned":           thread.IsPinned,
+		}
+
+		if len(thread.Media) > 0 {
+			mediaList := make([]map[string]interface{}, len(thread.Media))
+			for j, m := range thread.Media {
+				mediaList[j] = map[string]interface{}{
+					"id":   m.ID,
+					"url":  m.URL,
+					"type": m.Type,
+				}
+			}
+			threadList[i]["media"] = mediaList
 		} else {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get threads: "+err.Error())
+			threadList[i]["media"] = []interface{}{}
 		}
-		return
 	}
 
-	log.Printf("Successfully received %d threads from thread service", len(resp.Threads))
-
-	threads := make([]map[string]interface{}, len(resp.Threads))
-	for i, t := range resp.Threads {
-
-		log.Printf("Thread %d type: %T", i, t)
-
-		threads[i] = safeExtractThreadData(t)
-	}
-
-	log.Printf("Returning %d threads to client", len(threads))
 	c.JSON(http.StatusOK, gin.H{
-		"threads": threads,
-		"total":   resp.Total,
+		"success":     true,
+		"threads":     threadList,
+		"total_count": len(threads),
 	})
 }
 
@@ -755,10 +737,9 @@ func GetUserReplies(c *gin.Context) {
 		return
 	}
 
-	// Check if userID is a valid UUID
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
+
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
@@ -768,13 +749,12 @@ func GetUserReplies(c *gin.Context) {
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-			// Failed to find user by username
+
 			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
 
-		// Use the resolved UUID
 		userID = user.ID
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
@@ -882,10 +862,9 @@ func GetUserLikedThreads(c *gin.Context) {
 		return
 	}
 
-	// Check if userID is a valid UUID
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
+
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
@@ -895,13 +874,12 @@ func GetUserLikedThreads(c *gin.Context) {
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-			// Failed to find user by username
+
 			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
 
-		// Use the resolved UUID
 		userID = user.ID
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
@@ -1008,10 +986,9 @@ func GetUserMedia(c *gin.Context) {
 		return
 	}
 
-	// Check if userID is a valid UUID
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-		// Not a UUID, try to resolve as username
+
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
@@ -1021,13 +998,12 @@ func GetUserMedia(c *gin.Context) {
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-			// Failed to find user by username
+
 			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
 		}
 
-		// Use the resolved UUID
 		userID = user.ID
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
@@ -1084,7 +1060,6 @@ func PinThread(c *gin.Context) {
 	log.Printf("Pinning thread %s for user %s", threadID, userID)
 
 	if threadServiceClient == nil {
-		log.Println("Thread service client not initialized - using mock implementation")
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
@@ -1124,7 +1099,6 @@ func UnpinThread(c *gin.Context) {
 	log.Printf("Unpinning thread %s for user %s", threadID, userID)
 
 	if threadServiceClient == nil {
-		log.Println("Thread service client not initialized - using mock implementation")
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
 		return
 	}
@@ -1240,13 +1214,17 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		return
 	}
 
-	// Completely rewritten struct with clean JSON tag
 	var request struct {
 		MediaUrls []string `json:"media_urls"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(request.MediaUrls) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No media URLs provided"})
 		return
 	}
 
@@ -1257,21 +1235,63 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		}
 	}
 
-	threadClient := GetThreadServiceClient()
-	if threadClient == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Thread service unavailable"})
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	client := threadProto.NewThreadServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	mediaObjects := make([]*threadProto.Media, len(request.MediaUrls))
+	for i, url := range request.MediaUrls {
+
+		mediaType := "image"
+		if strings.Contains(url, ".mp4") || strings.Contains(url, ".webm") || strings.Contains(url, ".mov") {
+			mediaType = "video"
+		} else if strings.Contains(url, ".gif") {
+			mediaType = "gif"
+		}
+
+		mediaObjects[i] = &threadProto.Media{
+			Id:   uuid.New().String(),
+			Url:  url,
+			Type: mediaType,
+		}
+	}
+
+	resp, err := client.UpdateThread(ctx, &threadProto.UpdateThreadRequest{
+		ThreadId: threadID,
+		UserId:   userID,
+		Media:    mediaObjects,
+	})
+
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			} else if st.Code() == codes.PermissionDenied {
+				httpStatus = http.StatusForbidden
+			}
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update thread media: "+err.Error())
+		}
 		return
 	}
 
-	updatedThread, err := threadClient.UpdateThread(threadID, userID, "")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update thread media: %v", err)})
-		return
-	}
+	threadData := safeExtractThreadData(resp)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,
-		"thread":     updatedThread,
+		"thread":     threadData,
 		"media_urls": request.MediaUrls,
 	})
 }

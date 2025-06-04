@@ -1,3 +1,5 @@
+import type { IUserRegistrationRequest } from './IUser';
+
 export interface IGoogleAccountsId {
   initialize: (config: any) => void;
   renderButton: (element: HTMLElement, options: any) => void;
@@ -45,21 +47,8 @@ export interface ICustomWindow extends Window {
   handleGoogleCredentialResponse?: (response: IGoogleCredentialResponse) => void;
 }
 
-export interface IUserRegistration {
-  name: string;
-  email: string;
-  username: string;
-  password: string;
-  confirm_password: string;
-  gender: string;
-  date_of_birth: string;
-  security_question: string;
-  security_answer: string;
-  subscribe_to_newsletter: boolean;
-  recaptcha_token: string;
-  profile_picture_url?: string;
-  banner_url?: string;
-}
+// Using IUserRegistrationRequest from IUser.d.ts instead
+export type IUserRegistration = IUserRegistrationRequest;
 
 export interface IDateOfBirth {
   month: string;
@@ -90,12 +79,8 @@ export interface ILoginCredentials {
   password: string;
 }
 
-export interface IRegisterCredentials {
-  username: string;
-  email: string;
-  password: string;
-  confirm_password: string;
-}
+// Unify with IUserRegistrationRequest
+export type IRegisterCredentials = Pick<IUserRegistrationRequest, 'username' | 'email' | 'password' | 'confirm_password'>;
 
 /**
  * Auth endpoint response interfaces

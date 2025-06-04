@@ -19,53 +19,47 @@
   import UserProfile from '../pages/UserProfile.svelte';
   import Premium from '../pages/Premium.svelte';
   import Setting from '../pages/Setting.svelte';
-  
+
   let route = '/';
   let isAuthenticated = false;
   let userProfileId = '';
   let communityId = '';
-  
+
   function handleNavigation() {
     const fullPath = window.location.pathname;
     console.log('Handling navigation to:', fullPath);
-    
-    // Check for user profile route pattern
+
     const userProfileMatch = fullPath.match(/^\/user\/([^\/]+)$/);
     if (userProfileMatch) {
       userProfileId = userProfileMatch[1];
       route = '/user';
       console.log(`User profile route matched with userId: ${userProfileId}`);
-      
-      // Update the route store with the userId parameter
+
       updatePageStore();
       return;
     }
-    
-    // Check for community detail route pattern
+
     const communityDetailMatch = fullPath.match(/^\/communities\/([^\/]+)$/);
     if (communityDetailMatch) {
       communityId = communityDetailMatch[1];
       route = '/community-detail';
       console.log(`Community detail route matched with communityId: ${communityId}`);
-      
-      // Update the route store with the communityId parameter
+
       updatePageStore();
       return;
     }
-    
+
     route = fullPath;
-    
-    // Update the route store for other routes too
+
     updatePageStore();
-    
+
     isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
     console.log(`Authentication status: ${isAuthenticated}`);
-    
-    // Skip auth checks if disabled in config
+
     if (!appConfig.auth.enabled) {
       return;
     }
-    
+
     if (!isAuthenticated && 
         (route === '/feed' ||
          route === '/explore' || 
@@ -83,7 +77,7 @@
       window.history.replaceState({}, '', '/login');
       route = '/login';
     }
-    
+
     if (isAuthenticated && 
         (route === '/login' || 
          route === '/register')) {
@@ -92,24 +86,24 @@
       route = '/feed';
     }
   }
-  
+
   function setAuthenticated(value: boolean): void {
     localStorage.setItem('aycom_authenticated', value.toString());
     isAuthenticated = value;
     handleNavigation();
   }
-  
+
   onMount(() => {
     (window as any).login = () => setAuthenticated(true);
     (window as any).logout = () => setAuthenticated(false);
-    
+
     window.addEventListener('popstate', handleNavigation);
     handleNavigation();
-    
+
     document.body.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const anchor = target.closest('a');
-      
+
       if (anchor && anchor.href.includes(window.location.origin) && !anchor.hasAttribute('target')) {
         e.preventDefault();
         const href = anchor.getAttribute('href') || '/';
@@ -119,7 +113,7 @@
         }
       }
     });
-    
+
     return () => {
       window.removeEventListener('popstate', handleNavigation);
     };
@@ -178,7 +172,7 @@
   main {
     width: 100%;
   }
-  
+
   .not-found {
     text-align: center;
     padding: 50px 20px;
@@ -190,12 +184,12 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .not-found h1 {
     font-size: var(--font-size-3xl);
     margin-bottom: var(--space-4);
   }
-  
+
   .not-found a {
     display: inline-block;
     margin-top: var(--space-6);
@@ -206,7 +200,7 @@
     border-radius: var(--radius-full);
     font-weight: var(--font-weight-bold);
   }
-  
+
   .not-found a:hover {
     background-color: var(--color-primary-hover);
   }

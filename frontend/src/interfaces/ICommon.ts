@@ -3,7 +3,7 @@
  */
 
 /**
- * Standard pagination metadata
+ * Standard pagination metadata - use this interface for all paginated responses
  */
 export interface IPagination {
   total_count: number;

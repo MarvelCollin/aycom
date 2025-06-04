@@ -7,7 +7,6 @@ import (
 	"aycom/backend/services/community/model"
 )
 
-// GormChatRepository is the implementation of ChatRepository using GORM
 type GormChatRepository struct {
 	db *gorm.DB
 }
@@ -31,7 +30,6 @@ func (r *GormChatRepository) CreateChat(chat *model.ChatDTO) error {
 func (r *GormChatRepository) FindChatByID(id string) (*model.ChatDTO, error) {
 	var dbChat model.Chat
 
-	// Parse the ID to UUID
 	chatID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
@@ -57,7 +55,6 @@ func (r *GormChatRepository) FindChatByID(id string) (*model.ChatDTO, error) {
 func (r *GormChatRepository) ListChatsByUserID(userID string, limit, offset int) ([]*model.ChatDTO, error) {
 	var dbChats []model.Chat
 
-	// Parse the user ID to UUID
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, err
@@ -99,7 +96,7 @@ func (r *GormChatRepository) UpdateChat(chat *model.ChatDTO) error {
 }
 
 func (r *GormChatRepository) DeleteChat(chatID string) error {
-	// Parse the chat ID to UUID
+
 	id, err := uuid.Parse(chatID)
 	if err != nil {
 		return err

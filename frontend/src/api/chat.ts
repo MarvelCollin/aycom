@@ -13,13 +13,12 @@ export function setMessageHandler(handler: (message: any) => void) {
 
 export function processWebSocketMessage(message: any) {
   logger.debug('Processing WebSocket message', { messageType: message.type, messageId: message.message_id });
-  
+
   if (!message || !message.type) {
     logger.error('Invalid message format', { message });
     return;
   }
-  
-  // Simple direct mapping of fields to ensure consistent naming
+
   const normalizedMessage: any = {
     type: message.type,
     message_id: message.message_id || message.messageId || message.id,
@@ -27,8 +26,7 @@ export function processWebSocketMessage(message: any) {
     user_id: message.user_id || message.userId || message.sender_id || message.senderId,
     timestamp: message.timestamp || message.created_at || message.createdAt || new Date().toISOString()
   };
-  
-  // Add additional fields based on message type
+
   switch (message.type) {
     case 'text':
       normalizedMessage.content = message.content || message.text || '';
@@ -36,45 +34,45 @@ export function processWebSocketMessage(message: any) {
       normalizedMessage.is_deleted = message.is_deleted || message.isDeleted || false;
       normalizedMessage.attachments = message.attachments || message.media || [];
       break;
-      
+
     case 'typing':
       normalizedMessage.is_typing = message.is_typing || message.isTyping || true;
       break;
-      
+
     case 'read':
       normalizedMessage.last_read_id = message.last_read_id || message.lastReadId;
       break;
-      
+
     case 'edit':
       normalizedMessage.content = message.content || message.text || '';
       normalizedMessage.original_message_id = message.original_message_id || message.originalMessageId;
       break;
-      
+
     case 'delete':
       normalizedMessage.target_message_id = message.target_message_id || message.targetMessageId;
       break;
   }
-  
+
   switch (normalizedMessage.type) {
     case 'text':
       const originalTempId = extractTempIdFromMessage(normalizedMessage);
-      
+
       if (originalTempId && normalizedMessage.message_id && normalizedMessage.message_id !== originalTempId) {
         logger.debug('Updating temp message with server data', { 
           tempId: originalTempId, 
           serverId: normalizedMessage.message_id 
         });
-        
+
         const timestamp = normalizedMessage.timestamp ? 
           (typeof normalizedMessage.timestamp === 'number' ? 
             new Date(normalizedMessage.timestamp * 1000) : new Date(normalizedMessage.timestamp)) 
           : new Date();
-        
+
         if (messageHandler) {
           const updateMessage = {
             ...normalizedMessage,
             type: 'update',
-            originalTempId,
+            original_temp_id: originalTempId,
             timestamp
           };
           messageHandler(updateMessage);
@@ -83,14 +81,14 @@ export function processWebSocketMessage(message: any) {
         internalHandleIncomingMessage(normalizedMessage);
       }
       break;
-    
+
     case 'typing':
     case 'read':
     case 'edit':
     case 'delete':
       internalHandleIncomingMessage(normalizedMessage);
       break;
-      
+
     default:
       logger.warn('Unknown WebSocket message type', { type: normalizedMessage.type });
   }
@@ -100,15 +98,15 @@ function extractTempIdFromMessage(message: any): string | null {
   if (message.original_id && message.original_id.startsWith('temp-')) {
     return message.original_id;
   }
-  
+
   if (message.client_id && message.client_id.startsWith('temp-')) {
     return message.client_id;
   }
-  
+
   if (message.message_id && message.message_id.startsWith('temp-')) {
     return message.message_id;
   }
-  
+
   return null;
 }
 
@@ -117,7 +115,7 @@ function internalHandleIncomingMessage(message: any) {
     logger.error('Invalid message for processing', { message });
     return;
   }
-  
+
   if (messageHandler) {
     messageHandler(message);
   }
@@ -127,24 +125,24 @@ export async function createChat(data: Record<string, any>) {
   try {
     const token = getAuthToken();
     logger.debug('Creating chat with data', { data, apiUrl: `${API_BASE_URL}/chats` });
-    
+
     if (!data.is_group && data.participants && data.participants.length === 1) {
       const participantId = data.participants[0];
-      
+
       try {
         const existingChats = await getChatHistoryList();
         logger.debug('Checking existing chats for participant', { participantId, chatsCount: existingChats.chats?.length || 0 });
-        
+
         const existingChat = existingChats.chats?.find(chat => {
           if (chat.is_group_chat || !chat.participants || chat.participants.length !== 2) {
             return false;
           }
-          
+
           return chat.participants.some(p => 
             (p.id === participantId || p.user_id === participantId)
           );
         });
-        
+
         if (existingChat) {
           logger.debug('Found existing chat with this participant', { chatId: existingChat.id });
           return { 
@@ -156,7 +154,7 @@ export async function createChat(data: Record<string, any>) {
         logger.warn('Error checking existing chats:', err);
       }
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'POST',
       headers: {
@@ -166,22 +164,22 @@ export async function createChat(data: Record<string, any>) {
       body: JSON.stringify(data),
       credentials: 'include'
     });
-    
+
     logger.debug('Create chat response status', { 
       status: response.status, 
       statusText: response.statusText
     });
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
         const responseData = await response.json();
         logger.debug('Create chat response data', { responseData });
-        
+
         if (!response.ok) {
           throw new Error(responseData.message || `Failed to create chat: ${response.status} ${response.statusText}`);
         }
-        
+
         return responseData;
       } catch (parseError: unknown) {
         logger.error('Failed to parse JSON response for chat creation:', parseError);
@@ -216,7 +214,7 @@ export async function createChat(data: Record<string, any>) {
 export async function listChats() {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'GET',
       headers: {
@@ -225,7 +223,7 @@ export async function listChats() {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -235,7 +233,7 @@ export async function listChats() {
         throw new Error(`Failed to list chats: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -257,7 +255,7 @@ export async function listChats() {
 export async function listChatParticipants(chatId: string) {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
       method: 'GET',
       headers: {
@@ -266,7 +264,7 @@ export async function listChatParticipants(chatId: string) {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -276,7 +274,7 @@ export async function listChatParticipants(chatId: string) {
         throw new Error(`Failed to list chat participants: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -298,7 +296,7 @@ export async function listChatParticipants(chatId: string) {
 export async function addChatParticipant(chatId: string, data: Record<string, any>) {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
       method: 'POST',
       headers: {
@@ -308,7 +306,7 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
       body: JSON.stringify(data),
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -318,7 +316,7 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
         throw new Error(`Failed to add chat participant: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -340,7 +338,7 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
 export async function removeChatParticipant(chatId: string, userId: string) {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants/${userId}`, {
       method: 'DELETE',
       headers: {
@@ -348,7 +346,7 @@ export async function removeChatParticipant(chatId: string, userId: string) {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -358,7 +356,7 @@ export async function removeChatParticipant(chatId: string, userId: string) {
         throw new Error(`Failed to remove chat participant: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -381,7 +379,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
   try {
     const token = getAuthToken();
     logger.debug(`Sending message to chat ${chatId}`, { content: data.content });
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
       method: 'POST',
       headers: {
@@ -391,7 +389,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
       body: JSON.stringify(data),
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -405,7 +403,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         throw new Error(`Failed to send message: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const responseText = await response.text();
     if (!responseText || responseText.trim() === '') {
       logger.warn(`Empty response for sending message to chat ${chatId}`);
@@ -418,7 +416,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         } 
       };
     }
-    
+
     try {
       const responseData = JSON.parse(responseText);
       logger.debug(`Message sent successfully to chat ${chatId}`, { 
@@ -451,10 +449,10 @@ export async function listMessages(chatId: string) {
       logger.error('Cannot list messages: Chat ID is undefined or empty');
       throw new Error('Invalid chat ID: Chat ID is required');
     }
-    
+
     const token = getAuthToken();
     logger.debug(`Fetching messages for chat ${chatId}`);
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
       method: 'GET',
       headers: {
@@ -463,7 +461,7 @@ export async function listMessages(chatId: string) {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -477,7 +475,7 @@ export async function listMessages(chatId: string) {
         throw new Error(`Failed to list messages: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -501,7 +499,7 @@ export async function listMessages(chatId: string) {
 export async function deleteMessage(chatId: string, messageId: string) {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/${messageId}`, {
       method: 'DELETE',
       headers: {
@@ -509,7 +507,7 @@ export async function deleteMessage(chatId: string, messageId: string) {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -519,7 +517,7 @@ export async function deleteMessage(chatId: string, messageId: string) {
         throw new Error(`Failed to delete message: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -541,7 +539,7 @@ export async function deleteMessage(chatId: string, messageId: string) {
 export async function unsendMessage(chatId: string, messageId: string) {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/${messageId}/unsend`, {
       method: 'POST',
       headers: {
@@ -549,7 +547,7 @@ export async function unsendMessage(chatId: string, messageId: string) {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -559,7 +557,7 @@ export async function unsendMessage(chatId: string, messageId: string) {
         throw new Error(`Failed to unsend message: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -581,7 +579,7 @@ export async function unsendMessage(chatId: string, messageId: string) {
 export async function searchMessages(chatId: string, query: string) {
   try {
     const token = getAuthToken();
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/search?query=${encodeURIComponent(query)}`, {
       method: 'GET',
       headers: {
@@ -590,7 +588,7 @@ export async function searchMessages(chatId: string, query: string) {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -600,7 +598,7 @@ export async function searchMessages(chatId: string, query: string) {
         throw new Error(`Failed to search messages: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {
@@ -623,7 +621,7 @@ export async function getChatHistoryList() {
   try {
     const token = getAuthToken();
     logger.debug('Fetching chat history list');
-    
+
     const response = await fetch(`${API_BASE_URL}/chats/history`, {
       method: 'GET',
       headers: {
@@ -632,12 +630,12 @@ export async function getChatHistoryList() {
       },
       credentials: 'include'
     });
-    
+
     logger.debug('Chat history response status', { 
       status: response.status, 
       statusText: response.statusText
     });
-    
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -648,7 +646,7 @@ export async function getChatHistoryList() {
         throw new Error(`Failed to get chat history: ${response.status} ${response.statusText}`);
       }
     }
-    
+
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       try {

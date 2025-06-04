@@ -11,11 +11,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// CheckUserDataExists verifies that user data exists before seeding threads
 func CheckUserDataExists(db *gorm.DB) bool {
 	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 
-	// Try to find the admin user using GORM
 	var count int64
 	db.Table("users").Where("id = ?", adminID).Count(&count)
 
@@ -27,16 +25,13 @@ func CheckUserDataExists(db *gorm.DB) bool {
 	return true
 }
 
-// SeedDatabase seeds the database with initial data
 func SeedDatabase(db *gorm.DB) error {
 	log.Println("Starting thread database seeding...")
 
-	// Seed categories first
 	if err := seedCategories(db); err != nil {
 		return err
 	}
 
-	// Check if threads already exist
 	var count int64
 	db.Model(&model.Thread{}).Count(&count)
 	if count > 0 {
@@ -44,13 +39,11 @@ func SeedDatabase(db *gorm.DB) error {
 		return nil
 	}
 
-	// Check if user data exists
 	if !CheckUserDataExists(db) {
 		log.Println("Unable to seed thread data: user data doesn't exist yet")
 		return nil
 	}
 
-	// Get category IDs
 	categoryMap := make(map[string]uuid.UUID)
 	var categories []model.Category
 	db.Find(&categories)
@@ -58,28 +51,24 @@ func SeedDatabase(db *gorm.DB) error {
 		categoryMap[cat.Name] = cat.CategoryID
 	}
 
-	// Predefined user IDs from user_seeder.go
 	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
 	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
 	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
 
-	// Get additional users
 	var additionalUsers []struct {
 		ID       uuid.UUID
 		Username string
 	}
 	db.Table("users").Select("id, username").Where("username IN ?", []string{"techguru", "fitnesscoach", "travelbug", "foodie123"}).Find(&additionalUsers)
 
-	// Create a map for easier lookup
 	userMap := make(map[string]uuid.UUID)
 	for _, user := range additionalUsers {
 		userMap[user.Username] = user.ID
 	}
 
-	// Create sample threads with categories
 	threads := []model.Thread{
-		// Admin threads
+
 		{
 			ThreadID:  uuid.New(),
 			UserID:    adminID,
@@ -96,7 +85,6 @@ func SeedDatabase(db *gorm.DB) error {
 			UpdatedAt: time.Now().Add(-24 * time.Hour),
 		},
 
-		// John's threads
 		{
 			ThreadID:  uuid.New(),
 			UserID:    johnID,
@@ -112,7 +100,6 @@ func SeedDatabase(db *gorm.DB) error {
 			UpdatedAt: time.Now().Add(-12 * time.Hour),
 		},
 
-		// Jane's threads
 		{
 			ThreadID:  uuid.New(),
 			UserID:    janeID,
@@ -128,7 +115,6 @@ func SeedDatabase(db *gorm.DB) error {
 			UpdatedAt: time.Now().Add(-6 * time.Hour),
 		},
 
-		// Sam's threads
 		{
 			ThreadID:  uuid.New(),
 			UserID:    samID,
@@ -145,7 +131,6 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 	}
 
-	// Add threads for other users if they exist
 	if techGuruID, ok := userMap["techguru"]; ok {
 		threads = append(threads,
 			model.Thread{
@@ -222,14 +207,12 @@ func SeedDatabase(db *gorm.DB) error {
 		)
 	}
 
-	// Insert threads
 	result := db.Create(&threads)
 	if result.Error != nil {
 		log.Printf("Error seeding threads: %v", result.Error)
 		return result.Error
 	}
 
-	// Create hashtags with post counts for trending
 	hashtags := []model.Hashtag{
 		{
 			HashtagID: uuid.New(),
@@ -333,27 +316,21 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 	}
 
-	// Insert hashtags
 	result = db.Create(&hashtags)
 	if result.Error != nil {
 		log.Printf("Error seeding hashtags: %v", result.Error)
 		return result.Error
 	}
 
-	// Create a map for easier lookup of hashtags
 	hashtagMap := make(map[string]uuid.UUID)
 	for _, hashtag := range hashtags {
 		hashtagMap[hashtag.Text] = hashtag.HashtagID
 	}
 
-	// Create thread-hashtag associations based on content
 	var threadHashtags []model.ThreadHashtag
 
-	// Helper function to extract hashtags from content and create associations
 	extractAndCreateHashtags := func(thread model.Thread) {
-		// This is a simplified version - in a real app you would parse the content to extract hashtags
-		// Format of content: "Text #hashtag1 #hashtag2"
-		// We're going to extract based on predefined hashtags in the content
+
 		for tag, id := range hashtagMap {
 			if tag == "coding" && thread.ThreadID == threads[3].ThreadID {
 				threadHashtags = append(threadHashtags, model.ThreadHashtag{
@@ -373,20 +350,18 @@ func SeedDatabase(db *gorm.DB) error {
 					HashtagID: id,
 				})
 			}
-			// Add similar entries for other threads and hashtags
+
 		}
 	}
 
-	// Extract hashtags for each thread
 	for _, thread := range threads {
 		extractAndCreateHashtags(thread)
 	}
 
-	// Manual associations for demo purposes
 	threadHashtags = []model.ThreadHashtag{
-		// John's coding thread
+
 		{
-			ThreadID:  threads[3].ThreadID, // John's second thread
+			ThreadID:  threads[3].ThreadID, 
 			HashtagID: hashtagMap["coding"],
 		},
 		{
@@ -398,7 +373,6 @@ func SeedDatabase(db *gorm.DB) error {
 			HashtagID: hashtagMap["webdev"],
 		},
 
-		// Jane's project thread
 		{
 			ThreadID:  threads[4].ThreadID,
 			HashtagID: hashtagMap["design"],
@@ -408,22 +382,19 @@ func SeedDatabase(db *gorm.DB) error {
 			HashtagID: hashtagMap["portfolio"],
 		},
 
-		// Jane's opensource thread
 		{
 			ThreadID:  threads[5].ThreadID,
 			HashtagID: hashtagMap["opensource"],
 		},
 
-		// Sam's tech conference thread
 		{
 			ThreadID:  threads[7].ThreadID,
 			HashtagID: hashtagMap["techconf"],
 		},
 	}
 
-	// Add associations for the additional threads if they exist
 	for _, thread := range threads[8:] {
-		// Extract hashtags from thread content (simplified approach)
+
 		if strings.Contains(thread.Content, "AI") {
 			threadHashtags = append(threadHashtags, model.ThreadHashtag{
 				ThreadID:  thread.ThreadID,
@@ -442,19 +413,17 @@ func SeedDatabase(db *gorm.DB) error {
 				HashtagID: hashtagMap["technology"],
 			})
 		}
-		// Add more conditions for other hashtags
+
 	}
 
-	// Insert thread-hashtag associations
 	result = db.Create(&threadHashtags)
 	if result.Error != nil {
 		log.Printf("Error seeding thread hashtags: %v", result.Error)
 		return result.Error
 	}
 
-	// Create media attachments for threads
 	media := []model.Media{
-		// Media for Admin's second thread
+
 		{
 			MediaID:   uuid.New(),
 			ThreadID:  &threads[1].ThreadID,
@@ -463,7 +432,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: threads[1].CreatedAt,
 		},
 
-		// Media for Jane's project thread
 		{
 			MediaID:   uuid.New(),
 			ThreadID:  &threads[4].ThreadID,
@@ -472,7 +440,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: threads[4].CreatedAt,
 		},
 
-		// Media for Tech Guru's threads (if they exist)
 		{
 			MediaID:   uuid.New(),
 			ThreadID:  &threads[8].ThreadID,
@@ -488,7 +455,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: threads[9].CreatedAt,
 		},
 
-		// Media for Fitness Coach threads
 		{
 			MediaID:   uuid.New(),
 			ThreadID:  &threads[10].ThreadID,
@@ -504,7 +470,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: threads[11].CreatedAt,
 		},
 
-		// Media for Travel Bug threads
 		{
 			MediaID:   uuid.New(),
 			ThreadID:  &threads[12].ThreadID,
@@ -513,7 +478,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: threads[12].CreatedAt,
 		},
 
-		// Media for Foodie threads
 		{
 			MediaID:   uuid.New(),
 			ThreadID:  &threads[14].ThreadID,
@@ -530,18 +494,16 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 	}
 
-	// Insert media
 	result = db.Create(&media)
 	if result.Error != nil {
 		log.Printf("Error seeding media: %v", result.Error)
 		return result.Error
 	}
 
-	// Create some replies
 	replies := []model.Reply{
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[0].ThreadID, // Admin's first thread
+			ThreadID:  threads[0].ThreadID, 
 			UserID:    johnID,
 			Content:   "Excited to be here!",
 			CreatedAt: time.Now().Add(-47 * time.Hour),
@@ -549,7 +511,7 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[2].ThreadID, // John's first thread
+			ThreadID:  threads[2].ThreadID, 
 			UserID:    janeID,
 			Content:   "Welcome John! Nice to meet you.",
 			CreatedAt: time.Now().Add(-35 * time.Hour),
@@ -557,7 +519,7 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[4].ThreadID, // Jane's first thread
+			ThreadID:  threads[4].ThreadID, 
 			UserID:    johnID,
 			Content:   "That looks amazing! Great work.",
 			CreatedAt: time.Now().Add(-17 * time.Hour),
@@ -565,7 +527,7 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[6].ThreadID, // Sam's first thread
+			ThreadID:  threads[6].ThreadID, 
 			UserID:    adminID,
 			Content:   "Congratulations on the new job!",
 			CreatedAt: time.Now().Add(-29 * time.Hour),
@@ -573,16 +535,14 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 	}
 
-	// Insert replies
 	result = db.Create(&replies)
 	if result.Error != nil {
 		log.Printf("Error seeding replies: %v", result.Error)
 		return result.Error
 	}
 
-	// Create likes for trending calculations
 	likes := []model.Like{
-		// Likes for Admin threads
+
 		{
 			UserID:    johnID,
 			ThreadID:  &threads[0].ThreadID,
@@ -599,7 +559,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: time.Now().Add(-44 * time.Hour),
 		},
 
-		// Likes for John's threads
 		{
 			UserID:    adminID,
 			ThreadID:  &threads[2].ThreadID,
@@ -621,7 +580,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: time.Now().Add(-10 * time.Hour),
 		},
 
-		// Likes for Jane's threads
 		{
 			UserID:    johnID,
 			ThreadID:  &threads[4].ThreadID,
@@ -638,7 +596,6 @@ func SeedDatabase(db *gorm.DB) error {
 			CreatedAt: time.Now().Add(-5 * time.Hour),
 		},
 
-		// Likes for Sam's threads
 		{
 			UserID:    janeID,
 			ThreadID:  &threads[6].ThreadID,
@@ -651,9 +608,8 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 	}
 
-	// Add likes for additional threads
 	for i := 8; i < len(threads); i++ {
-		// Add several likes to each thread to make them trending
+
 		likes = append(likes,
 			model.Like{
 				UserID:    adminID,
@@ -673,7 +629,6 @@ func SeedDatabase(db *gorm.DB) error {
 		)
 	}
 
-	// Insert likes
 	result = db.Create(&likes)
 	if result.Error != nil {
 		log.Printf("Error seeding likes: %v", result.Error)
@@ -685,7 +640,6 @@ func SeedDatabase(db *gorm.DB) error {
 	return nil
 }
 
-// Function to seed categories
 func seedCategories(db *gorm.DB) error {
 	var count int64
 	db.Model(&model.Category{}).Count(&count)

@@ -7,19 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ErrorResponse represents the standard error response structure
 type ErrorResponse struct {
 	Success bool         `json:"success"`
 	Error   ErrorDetails `json:"error"`
 }
 
-// ErrorDetails contains specific error information
 type ErrorDetails struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// SendErrorResponse sends a standardized error response
 func SendErrorResponse(c *gin.Context, status int, code, message string) {
 	c.JSON(status, ErrorResponse{
 		Success: false,
@@ -30,7 +27,6 @@ func SendErrorResponse(c *gin.Context, status int, code, message string) {
 	})
 }
 
-// SendValidationErrorResponse sends a validation error response with field-specific errors
 func SendValidationErrorResponse(c *gin.Context, fieldErrors map[string]string) {
 	response := gin.H{
 		"success": false,
@@ -43,7 +39,6 @@ func SendValidationErrorResponse(c *gin.Context, fieldErrors map[string]string) 
 	c.JSON(http.StatusBadRequest, response)
 }
 
-// SendSuccessResponse sends a standardized success response
 func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
 	c.JSON(status, gin.H{
 		"success": true,
@@ -51,7 +46,6 @@ func SendSuccessResponse(c *gin.Context, status int, data interface{}) {
 	})
 }
 
-// PaginationData represents standardized pagination metadata
 type PaginationData struct {
 	TotalCount  int64 `json:"total_count"`
 	CurrentPage int   `json:"current_page"`
@@ -60,7 +54,6 @@ type PaginationData struct {
 	TotalPages  int   `json:"total_pages"`
 }
 
-// CreatePaginationData creates standardized pagination metadata
 func CreatePaginationData(totalCount int64, currentPage, perPage int) PaginationData {
 	totalPages := int(math.Ceil(float64(totalCount) / float64(perPage)))
 	hasMore := currentPage < totalPages
@@ -74,7 +67,6 @@ func CreatePaginationData(totalCount int64, currentPage, perPage int) Pagination
 	}
 }
 
-// SendPaginatedResponse sends a success response with standardized pagination metadata
 func SendPaginatedResponse(c *gin.Context, status int, items interface{}, pagination PaginationData) {
 	c.JSON(status, gin.H{
 		"success":    true,

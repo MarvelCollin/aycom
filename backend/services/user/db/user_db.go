@@ -30,17 +30,14 @@ type UserRepository interface {
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
 	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 
-	// Transaction support
 	ExecuteInTransaction(fn func(repo UserRepository) error) error
 
-	// Counter management
 	IncrementFollowerCount(userID string) error
 	DecrementFollowerCount(userID string) error
 	IncrementFollowingCount(userID string) error
 	DecrementFollowingCount(userID string) error
 	UserExists(userID string) (bool, error)
 
-	// Block and Report operations
 	BlockUser(blockerID, blockedID string) error
 	UnblockUser(unblockerID, unblockedID string) error
 	IsUserBlocked(userID, blockedByID string) (bool, error)
@@ -254,18 +251,16 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error) {
 	var users []*model.User
 
-	// Check if follows table exists
 	var hasFollowsTable bool
 	err := r.db.Raw("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'follows')").Scan(&hasFollowsTable).Error
 	if err != nil {
 		log.Printf("Error checking if follows table exists: %v", err)
-		// Continue with a fallback approach
+
 		hasFollowsTable = false
 	}
 
 	query := r.db.Model(&model.User{})
 
-	// If follows table exists, use it to rank users by follower count
 	if hasFollowsTable {
 		query = r.db.Table("users").
 			Joins("LEFT JOIN follows ON users.id = follows.followed_id").
@@ -273,30 +268,26 @@ func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID st
 			Select("users.*, COUNT(follows.follower_id) as follower_count").
 			Order("follower_count DESC, users.created_at DESC")
 	} else {
-		// Fallback to sorting by creation date if follows table doesn't exist
+
 		query = query.Order("created_at DESC")
 	}
 
-	// Exclude the current user if ID is provided
 	if excludeUserID != "" {
 		if _, err := uuid.Parse(excludeUserID); err == nil {
 			query = query.Where("users.id != ?", excludeUserID)
 		}
 	}
 
-	// Apply limit
 	err = query.Limit(limit).Find(&users).Error
 	if err != nil {
 		log.Printf("Error retrieving recommended users: %v", err)
 		return nil, err
 	}
 
-	// If we didn't get any users and follows table exists, try the fallback method
 	if len(users) == 0 && hasFollowsTable {
 		log.Printf("No users found with joins method, trying fallback")
 		fallbackQuery := r.db.Model(&model.User{})
 
-		// Apply exclude filter if we have a valid UUID
 		if excludeUserID != "" {
 			if _, err := uuid.Parse(excludeUserID); err == nil {
 				fallbackQuery = fallbackQuery.Where("id != ?", excludeUserID)
@@ -322,17 +313,14 @@ func (r *PostgresUserRepository) GetAllUsers(page, limit int, sortBy string, asc
 
 	offset := (page - 1) * limit
 
-	// Count total users
 	if err := r.db.Model(&model.User{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Build the query with sorting
 	query := r.db.Model(&model.User{})
 
-	// Sort by specified field or default to created_at descending
 	if sortBy != "" {
-		// Make sure the sort field exists to prevent SQL injection
+
 		validSortFields := map[string]bool{
 			"username": true, "created_at": true, "name": true, "id": true,
 		}
@@ -344,15 +332,14 @@ func (r *PostgresUserRepository) GetAllUsers(page, limit int, sortBy string, asc
 				query = query.Order(sortBy + " DESC")
 			}
 		} else {
-			// Default sorting if invalid field provided
+
 			query = query.Order("created_at DESC")
 		}
 	} else {
-		// Default sorting if no sort field provided
+
 		query = query.Order("created_at DESC")
 	}
 
-	// Execute the query with pagination
 	if err := query.Offset(offset).Limit(limit).Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
@@ -487,7 +474,6 @@ func (r *PostgresUserAuthRepository) UpdateUserVerification(userID string, isVer
 	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("is_verified", isVerified).Error
 }
 
-// Block and Report operations
 func (r *PostgresUserRepository) BlockUser(blockerID, blockedID string) error {
 	blockerUUID, err := uuid.Parse(blockerID)
 	if err != nil {
@@ -499,14 +485,12 @@ func (r *PostgresUserRepository) BlockUser(blockerID, blockedID string) error {
 		return fmt.Errorf("invalid blocked ID: %w", err)
 	}
 
-	// Check if already blocked
 	var existingBlock model.UserBlock
 	if err := r.db.Where("blocker_id = ? AND blocked_id = ?", blockerUUID, blockedUUID).First(&existingBlock).Error; err == nil {
-		// Already blocked
+
 		return nil
 	}
 
-	// Create new block
 	block := model.UserBlock{
 		BlockerID: blockerUUID,
 		BlockedID: blockedUUID,
@@ -560,14 +544,12 @@ func (r *PostgresUserRepository) ReportUser(reporterID, reportedID, reason strin
 		return fmt.Errorf("invalid reported ID: %w", err)
 	}
 
-	// Check if already reported
 	var existingReport model.UserReport
 	if err := r.db.Where("reporter_id = ? AND reported_id = ? AND status = ?", reporterUUID, reportedUUID, "pending").First(&existingReport).Error; err == nil {
-		// Already reported and pending
+
 		return nil
 	}
 
-	// Create new report
 	report := model.UserReport{
 		ReporterID: reporterUUID,
 		ReportedID: reportedUUID,
@@ -589,7 +571,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 	var blockedUsers []map[string]interface{}
 	var total int64
 
-	// Count total blocked users
 	err = r.db.Model(&model.UserBlock{}).
 		Where("blocker_id = ?", userUUID).
 		Count(&total).
@@ -598,7 +579,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 		return nil, 0, err
 	}
 
-	// Get blocked users with pagination
 	err = r.db.Table("user_blocks").
 		Select("users.id, users.username, users.display_name, users.profile_picture_url, user_blocks.created_at as blocked_at").
 		Joins("JOIN users ON users.id = user_blocks.blocked_id").
@@ -611,7 +591,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 	return blockedUsers, total, err
 }
 
-// Transaction support
 func (r *PostgresUserRepository) ExecuteInTransaction(fn func(repo UserRepository) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := &PostgresUserRepository{db: tx}
@@ -619,7 +598,6 @@ func (r *PostgresUserRepository) ExecuteInTransaction(fn func(repo UserRepositor
 	})
 }
 
-// Counter management
 func (r *PostgresUserRepository) IncrementFollowerCount(userID string) error {
 	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("follower_count", gorm.Expr("follower_count + 1")).Error
 }
@@ -642,10 +620,9 @@ func (r *PostgresUserRepository) UserExists(userID string) (bool, error) {
 	return count > 0, err
 }
 
-// Additional methods for PostgresUserAuthRepository
 func (r *PostgresUserAuthRepository) ExecuteInTransaction(fn func(repo UserRepository) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Create a new repository with the transaction
+
 		txRepo := &PostgresUserAuthRepository{
 			PostgresUserRepository: PostgresUserRepository{db: tx},
 			db:                     tx,

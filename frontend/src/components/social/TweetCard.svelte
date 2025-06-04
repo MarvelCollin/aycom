@@ -5,9 +5,11 @@
   import { tweetInteractionStore } from '../../stores/tweetInteractionStore';
   import { notificationStore } from '../../stores/notificationStore';
   import { toastStore } from '../../stores/toastStore';
-  import type { ITweet, IMedia } from '../../interfaces/ISocialMedia';
+  import { formatStorageUrl } from '../../utils/common';
+  import type { ITweet } from '../../interfaces/ISocialMedia';
+  import type { IMedia } from '../../interfaces/IMedia';
   import Linkify from '../common/Linkify.svelte';
-    import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
+  import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
   import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
   import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
   import BookmarkIcon from 'svelte-feather-icons/src/icons/BookmarkIcon.svelte';
@@ -317,16 +319,8 @@
       
     if (!picUrl) return 'https://secure.gravatar.com/avatar/0?d=mp';
     
-    // If already a full URL, return as is
-    if (picUrl.startsWith('http')) return picUrl;
-    
-    // Try to construct a proper URL
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-supabase-url.supabase.co';
-      return `${supabaseUrl}/storage/v1/object/public/tpaweb/${picUrl}`;
-    } catch (e) {
-      return 'https://secure.gravatar.com/avatar/0?d=mp';
-    }
+    // Use the formatStorageUrl utility function to handle all URL formatting
+    return formatStorageUrl(picUrl);
   }
   
   // Helper function to safely parse numbers
@@ -355,13 +349,13 @@
       }
     }
     
-    // Filter out invalid media items
+    // Filter out invalid media items and format URLs
     return media.filter(item => item && item.url).map(item => ({
       id: item.id || `media-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      url: item.url,
+      url: formatStorageUrl(item.url),
       type: item.type || 'image',
-      thumbnail: item.thumbnail || item.url,
-      alt: item.alt || 'Media attachment'
+      thumbnail: item.thumbnail ? formatStorageUrl(item.thumbnail) : formatStorageUrl(item.url),
+      alt_text: item.alt_text || item.alt || 'Media attachment'
     }));
   }
   
@@ -470,6 +464,7 @@
   // Handle like/unlike
   async function handleLikeClick() {
     if (!checkAuth()) {
+      toastStore.showToast('Please log in to like posts', 'info');
       dispatch('like');
       return;
     }
@@ -480,50 +475,175 @@
     
     // Create a unique request ID to track this request
     const requestId = ++currentLikeRequestId;
-    let isLikeRequestPending = true;
     
     try {
-      // Optimistically update UI first
-      const newStatus = !effectiveIsLiked;
-      const newCount = newStatus ? effectiveLikes + 1 : effectiveLikes - 1;
+      // Determine current like status from the store or the processed tweet
+      const currentLikeStatus = storeInteraction?.is_liked ?? processedTweet.is_liked ?? false;
+      
+      // Calculate new like state and count
+      const newLikeStatus = !currentLikeStatus;
+      const newLikeCount = newLikeStatus 
+        ? (storeInteraction?.likes ?? parseCount(processedTweet.likes_count)) + 1 
+        : Math.max(0, (storeInteraction?.likes ?? parseCount(processedTweet.likes_count)) - 1);
+      
+      // Provide haptic feedback on mobile devices
+      if (window.navigator && window.navigator.vibrate) {
+        try {
+          window.navigator.vibrate(newLikeStatus ? 40 : 20); // stronger for like, lighter for unlike
+        } catch (e) {
+          // Ignore vibration API errors
+        }
+      }
+      
+      console.log(`${newLikeStatus ? 'Liking' : 'Unliking'} tweet ${tweetId}, current UI count: ${effectiveLikes}, new count will be: ${newLikeCount}`);
       
       // Optimistically update the store
       tweetInteractionStore.updateTweetInteraction(tweetId, {
-        is_liked: newStatus,
-        likes: newCount,
-        pending_like: true
+        is_liked: newLikeStatus,
+        likes: newLikeCount,
+        pending_like: !navigator.onLine // Mark as pending if offline
       });
       
-      // Make the API call
-      const apiCall = newStatus ? likeThread : unlikeThread;
-      await apiCall(tweetId);
+      // Trigger animation class for heart icon
+      heartAnimating = true;
+      setTimeout(() => {
+        heartAnimating = false;
+      }, 800); // Match animation duration
       
-      // Only update if this is still the current request
-      if (requestId === currentLikeRequestId) {
-        // Update the store with the final state
-        tweetInteractionStore.updateTweetInteraction(tweetId, {
-          is_liked: newStatus,
-          likes: newCount,
-          pending_like: false
-        });
+      // Only make the API call if online
+      if (navigator.onLine) {
+        try {
+          // Double-check server state first to avoid unnecessary calls
+          // This is commented out as it would require a new API endpoint to check status
+          // For now, we rely on error handling to fix mismatches
+
+          // Make the API call
+          const apiCall = newLikeStatus ? likeThread : unlikeThread;
+          await apiCall(tweetId);
+          
+          // Only update if this is still the current request
+          if (requestId === currentLikeRequestId) {
+            // Update the store with the final state and clear the pending flag
+            tweetInteractionStore.updateTweetInteraction(tweetId, {
+              is_liked: newLikeStatus,
+              likes: newLikeCount,
+              pending_like: false
+            });
+            
+            console.log(`Successfully ${newLikeStatus ? 'liked' : 'unliked'} tweet ${tweetId} on server`);
+            
+            // Update localStorage to remember the like state
+            try {
+              const likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '{}');
+              if (newLikeStatus) {
+                likedThreads[tweetId] = Date.now();
+              } else {
+                delete likedThreads[tweetId];
+              }
+              localStorage.setItem('likedThreads', JSON.stringify(likedThreads));
+            } catch (e) {
+              console.error('Failed to update likedThreads in localStorage', e);
+            }
+          }
+        } catch (error) {
+          // Handle API errors
+          const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+          const isAlreadyInState = 
+            (newLikeStatus && errorMsg.includes('already liked')) ||
+            (!newLikeStatus && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
+          
+          if (isAlreadyInState) {
+            // The server state already matches what we want, so this isn't really an error
+            console.log(`Tweet ${tweetId} is already in the ${newLikeStatus ? 'liked' : 'unliked'} state on server`);
+            
+            // Just clear the pending flag
+            tweetInteractionStore.updateTweetInteraction(tweetId, {
+              is_liked: newLikeStatus,
+              pending_like: false
+            });
+          } else {
+            // Real error, revert the optimistic update
+            console.error(`Error ${newLikeStatus ? 'liking' : 'unliking'} tweet:`, error);
+            
+            // Revert UI to previous state
+            tweetInteractionStore.updateTweetInteraction(tweetId, {
+              is_liked: currentLikeStatus,
+              likes: currentLikeStatus ? newLikeCount + 1 : Math.max(0, newLikeCount - 1),
+              pending_like: false
+            });
+            
+            toastStore.showToast(
+              `Failed to ${newLikeStatus ? 'like' : 'unlike'} post. Please try again.`,
+              'error',
+              3000
+            );
+          }
+        }
+      } else {
+        // We're offline, show a notification
+        toastStore.showToast(
+          newLikeStatus ? 'Liked! Will be synced when you\'re back online.' : 'Unliked! Will be synced when you\'re back online.',
+          'info',
+          3000
+        );
+        
+        // Save to localStorage for offline persistence
+        try {
+          const offlineLikes = JSON.parse(localStorage.getItem('offlineLikes') || '{}');
+          offlineLikes[tweetId] = { 
+            action: newLikeStatus ? 'like' : 'unlike', 
+            timestamp: Date.now() 
+          };
+          localStorage.setItem('offlineLikes', JSON.stringify(offlineLikes));
+        } catch (e) {
+          console.error('Failed to save offline like state', e);
+        }
       }
     } catch (error) {
       console.error('Error toggling like:', error);
       
       if (requestId === currentLikeRequestId) {
-        // Revert the optimistic update
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-          is_liked: !effectiveIsLiked,
-          likes: effectiveIsLiked ? effectiveLikes + 1 : effectiveLikes - 1,
-          pending_like: false
-        });
+        // Check for specific error messages
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isTweetLiked = errorMsg.includes('already liked');
+        const isTweetUnliked = errorMsg.includes('not liked') || errorMsg.includes('not found');
         
+        if (isTweetLiked) {
+          // Already liked - update UI to match actual state
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: true,
+            pending_like: false
+          });
+          toastStore.showToast('This post is already liked', 'info', 2000);
+        } else if (isTweetUnliked) {
+          // Already unliked - update UI to match actual state
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: false,
+            pending_like: false
+          });
+          toastStore.showToast('This post is not currently liked', 'info', 2000);
+        } else {
+          // Show a subtle toast notification for other errors
+          toastStore.showToast(
+            effectiveIsLiked ? 'Failed to unlike post. Please try again.' : 'Failed to like post. Please try again.',
+            'error',
+            3000
+          );
+          
+          // Revert the optimistic update based on the current store state
+          const revertToLiked = storeInteraction?.is_liked ?? processedTweet.is_liked ?? false;
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: revertToLiked,
+            likes: revertToLiked ? effectiveLikes + 1 : Math.max(0, effectiveLikes - 1),
+            pending_like: false
+          });
+          
           repliesErrorState = true;
+        }
       }
     } finally {
       if (requestId === currentLikeRequestId) {
         isLikeLoading = false;
-        isLikeRequestPending = false;
       }
     }
   }
@@ -783,38 +903,68 @@
       // Set loading state
       loadingState.like = true;
       replyActionsLoading.set(String(replyId), loadingState);
-      replyActionsLoading = new Map(replyActionsLoading);      // Optimistic UI update
+      replyActionsLoading = new Map(replyActionsLoading);
+      
+      // Add heart animation
+      replyHeartAnimations.set(String(replyId), true);
+      setTimeout(() => {
+        replyHeartAnimations.delete(String(replyId));
+      }, 800);
+      
+      // Optimistic UI update
       reply.is_liked = true;
       if (typeof reply.likes_count === 'number') {
         reply.likes_count += 1;
       }
       
-      // Call API
-      try {
-        await likeReply(String(replyId));
-      } catch (error) {
-        console.error('Error liking reply:', error);
-        
-        // Check for "already liked" error - don't revert UI
-        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
-        const isAlreadyLiked = errorMsg.includes('already liked');
-          if (!isAlreadyLiked) {
-          // Revert optimistic update
-          reply.is_liked = false;
-          if (typeof reply.likes_count === 'number' && reply.likes_count > 0) {
-            reply.likes_count -= 1;
-          }
-          toastStore.showToast('Failed to like reply. Please try again.', 'error');
+      // Provide haptic feedback on mobile devices
+      if (window.navigator && window.navigator.vibrate) {
+        try {
+          window.navigator.vibrate(30); // lighter vibration for reply likes
+        } catch (e) {
+          // Ignore vibration API errors
         }
-      } finally {
-        // Clear loading state
-        loadingState.like = false;
-        replyActionsLoading.set(String(replyId), loadingState);
-        replyActionsLoading = new Map(replyActionsLoading);
+      }
+      
+      // Call API only if online
+      if (navigator && navigator.onLine) {
+        try {
+          await likeReply(String(replyId));
+        } catch (error) {
+          console.error('Error liking reply:', error);
+          
+          // Check for "already liked" error - don't revert UI
+          const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+          const isAlreadyLiked = errorMsg.includes('already liked');
+          if (!isAlreadyLiked) {
+            // Revert optimistic update
+            reply.is_liked = false;
+            if (typeof reply.likes_count === 'number' && reply.likes_count > 0) {
+              reply.likes_count -= 1;
+            }
+            toastStore.showToast('Failed to like reply. Please try again.', 'error');
+          }
+        } 
+      } else {
+        // Store offline likes in localStorage for later syncing
+        try {
+          const offlineReplyLikes = JSON.parse(localStorage.getItem('offlineReplyLikes') || '{}');
+          offlineReplyLikes[replyId] = { action: 'like', timestamp: Date.now() };
+          localStorage.setItem('offlineReplyLikes', JSON.stringify(offlineReplyLikes));
+          toastStore.showToast('Liked! Will be synced when you\'re back online.', 'info', 2000);
+        } catch (e) {
+          console.error('Failed to save offline reply like', e);
+        }
       }
     } catch (error) {
       console.error('Unhandled error in handleLikeReply:', error);
       toastStore.showToast('An unexpected error occurred. Please try again later.', 'error');
+    } finally {
+      // Clear loading state
+      const loadingState = replyActionsLoading.get(String(replyId)) || {};
+      loadingState.like = false;
+      replyActionsLoading.set(String(replyId), loadingState);
+      replyActionsLoading = new Map(replyActionsLoading);
     }
   }
 
@@ -1193,6 +1343,104 @@
       });
     }
   }
+
+  // Inside the <script> section, add this:
+  let heartAnimating = false;
+  const replyHeartAnimations = new Map<string, boolean>();
+  
+  // Add an onMount to initialize from store
+  onMount(() => {
+    // Initialize tweet in interaction store
+    if (tweet) {
+      tweetInteractionStore.initTweet(tweet);
+      
+      // Check if we need to sync with server
+      syncInteractionWithServer();
+    }
+    
+    // Add visibility change listener to sync when returning to page
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  });
+  
+  onDestroy(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  });
+  
+  // Function to sync interactions when returning to the tab
+  function handleVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      syncInteractionWithServer();
+      syncOfflineLikes();
+    }
+  }
+  
+  // Function to sync with server
+  function syncInteractionWithServer() {
+    if (navigator && navigator.onLine) {
+      tweetInteractionStore.syncWithServer();
+    }
+  }
+  
+  // Function to sync offline likes
+  function syncOfflineLikes() {
+    if (navigator && navigator.onLine) {
+      try {
+        // Check for offline likes for threads
+        const offlineLikes = JSON.parse(localStorage.getItem('offlineLikes') || '{}');
+        if (Object.keys(offlineLikes).length > 0) {
+          console.log(`Found ${Object.keys(offlineLikes).length} offline likes to sync`);
+          
+          // Process each offline like
+          Object.entries(offlineLikes).forEach(async ([id, data]: [string, any]) => {
+            try {
+              const action = data.action;
+              const apiCall = action === 'like' ? likeThread : unlikeThread;
+              await apiCall(id);
+              
+              // Update the store
+              tweetInteractionStore.updateTweetInteraction(id, {
+                is_liked: action === 'like',
+                pending_like: false
+              });
+              
+              // Remove from localStorage after successful sync
+              delete offlineLikes[id];
+            } catch (error) {
+              console.error(`Failed to sync offline ${data.action} for tweet ${id}:`, error);
+            }
+          });
+          
+          // Save the updated offline likes
+          localStorage.setItem('offlineLikes', JSON.stringify(offlineLikes));
+        }
+        
+        // Check for offline likes for replies
+        const offlineReplyLikes = JSON.parse(localStorage.getItem('offlineReplyLikes') || '{}');
+        if (Object.keys(offlineReplyLikes).length > 0) {
+          console.log(`Found ${Object.keys(offlineReplyLikes).length} offline reply likes to sync`);
+          
+          // Process each offline reply like
+          Object.entries(offlineReplyLikes).forEach(async ([id, data]: [string, any]) => {
+            try {
+              const action = data.action;
+              const apiCall = action === 'like' ? likeReply : unlikeReply;
+              await apiCall(id);
+              
+              // Remove from localStorage after successful sync
+              delete offlineReplyLikes[id];
+            } catch (error) {
+              console.error(`Failed to sync offline ${data.action} for reply ${id}:`, error);
+            }
+          });
+          
+          // Save the updated offline reply likes
+          localStorage.setItem('offlineReplyLikes', JSON.stringify(offlineReplyLikes));
+        }
+      } catch (e) {
+        console.error('Error syncing offline likes:', e);
+      }
+    }
+  }
 </script>
 
 <div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}">
@@ -1203,8 +1451,8 @@
           class="tweet-avatar"
           on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
           on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
-          {#if typeof processedTweet.avatar === 'string' && processedTweet.avatar.startsWith('http')}
-            <img src={processedTweet.avatar} alt={processedTweet.username} class="tweet-avatar-image" />
+          {#if processedTweet.profile_picture_url}
+            <img src={processedTweet.profile_picture_url} alt={processedTweet.username} class="tweet-avatar-image" />
           {:else}
             <div class="tweet-avatar-placeholder">
               <div class="tweet-avatar-text">{processedTweet.username ? processedTweet.username[0].toUpperCase() : 'U'}</div>
@@ -1311,18 +1559,25 @@
             </div>
             <div class="tweet-action-item">
               <button 
-                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isLikeLoading ? 'loading' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isLikeLoading ? 'loading' : ''} {heartAnimating ? 'animating' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
                 on:click|stopPropagation={handleLikeClick}
-                aria-label="{effectiveIsLiked ? 'Unlike' : 'Like'}"
+                aria-label="{effectiveIsLiked ? 'Unlike this post' : 'Like this post'}"
+                aria-pressed={effectiveIsLiked}
                 disabled={isLikeLoading}
+                data-testid="like-button"
+                aria-live="polite"
+                role="button"
+                tabindex="0"
               >
-                {#if isLikeLoading}
-                  <div class="tweet-action-loading"></div>
-                  <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
-                {:else}
-                  <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon" />
-                {/if}
-                <span class="tweet-action-count">{effectiveLikes}</span>
+                <div class="tweet-like-icon-wrapper">
+                  {#if isLikeLoading}
+                    <div class="tweet-action-loading"></div>
+                    <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
+                  {:else}
+                    <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon {heartAnimating ? 'heart-animation' : ''}" />
+                  {/if}
+                </div>
+                <span class="tweet-action-count" aria-live="polite">{effectiveLikes}</span>
                 <span class="like-status-text">{effectiveIsLiked ? 'Liked' : 'Like'}</span>
               </button>
             </div>
@@ -1456,8 +1711,8 @@
                 on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
                 on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
               >
-                {#if typeof reply.avatar === 'string' && reply.avatar.startsWith('http')}
-                  <img src={reply.avatar} alt={reply.username} class="tweet-reply-avatar-img" />
+                {#if reply.profile_picture_url}
+                  <img src={reply.profile_picture_url} alt={reply.username} class="tweet-reply-avatar-img" />
                 {:else}
                   <div class="tweet-reply-avatar-placeholder">{reply.username ? reply.username.charAt(0).toUpperCase() : 'U'}</div>
                 {/if}
@@ -1494,15 +1749,18 @@
                     <span>Reply</span>
                   </button>
                   
-                  <button class="tweet-reply-action-btn tweet-reply-like-btn {reply.isLiked ? 'active' : ''} {(replyActionsLoading.get(String(reply.id))?.like) ? 'loading' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
+                  <button class="tweet-reply-action-btn tweet-reply-like-btn {reply.isLiked ? 'active' : ''} {(replyActionsLoading.get(String(reply.id))?.like) ? 'loading' : ''} {replyHeartAnimations.has(String(reply.id)) ? 'animating' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
                     on:click|stopPropagation={(e) => {
                       e.preventDefault();
                       reply.isLiked ? handleUnlikeReply(reply.id) : handleLikeReply(reply.id);
-                    }}>
+                    }}
+                    aria-label="{reply.isLiked ? 'Unlike this reply' : 'Like this reply'}"
+                    aria-pressed={reply.isLiked}
+                  >
                     {#if replyActionsLoading.get(String(reply.id))?.like}
                       <div class="tweet-reply-action-loading"></div>
                     {:else if reply.isLiked}
-                      <HeartIcon size="16" fill="currentColor" class="tweet-reply-action-icon" />
+                      <HeartIcon size="16" fill="currentColor" class="tweet-reply-action-icon {replyHeartAnimations.has(String(reply.id)) ? 'heart-pulse' : ''}" />
                     {:else}
                       <HeartIcon size="16" class="tweet-reply-action-icon" />
                     {/if}
@@ -1942,5 +2200,114 @@
     justify-content: center;
     font-weight: bold;
     font-size: 14px;
+  }
+
+  .tweet-like-icon-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .tweet-like-btn.animating .heart-animation {
+    animation: heartBeat 0.8s ease;
+    transform-origin: center;
+  }
+
+  @keyframes heartBeat {
+    0% {
+      transform: scale(1);
+    }
+    15% {
+      transform: scale(1.2);
+    }
+    30% {
+      transform: scale(0.95);
+    }
+    45% {
+      transform: scale(1.1);
+    }
+    60% {
+      transform: scale(1);
+    }
+  }
+
+  /* Update loading animation for smoother experience */
+  .tweet-action-loading {
+    position: absolute;
+    left: 0.5rem;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(var(--color-danger-rgb), 0.3);
+    border-radius: 50%;
+    border-top-color: var(--color-danger);
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* Improve the mobile touch target size */
+  @media (max-width: 768px) {
+    .tweet-action-btn {
+      padding: 0.75rem;
+      min-height: 40px;
+      min-width: 40px;
+    }
+
+    .like-status-text {
+      font-size: 0.75rem;
+      width: auto;
+      height: auto;
+      position: static;
+      margin-left: 0.25rem;
+      overflow: visible;
+      transition: opacity 0.2s ease;
+      opacity: 0;
+    }
+    
+    .tweet-like-btn.active .like-status-text {
+      display: inline;
+      color: var(--color-danger);
+      font-weight: 500;
+      opacity: 1;
+    }
+  }
+
+  /* Add focus styles for accessibility */
+  .tweet-action-btn:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  /* Add animation for reply heart */
+  .heart-pulse {
+    animation: heartPulse 0.8s ease;
+  }
+  
+  @keyframes heartPulse {
+    0% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.3);
+    }
+    50% {
+      transform: scale(0.9);
+    }
+    75% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  .tweet-reply-action-loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(var(--color-danger-rgb), 0.3);
+    border-radius: 50%;
+    border-top-color: var(--color-danger);
+    animation: spin 0.8s linear infinite;
+    margin-right: 4px;
   }
 </style>

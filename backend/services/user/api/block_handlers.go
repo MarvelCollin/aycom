@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// BlockUser handles a user blocking another user
 func (h *UserHandler) BlockUser(ctx context.Context, req *user.BlockUserRequest) (*user.BlockUserResponse, error) {
 	if req.UserId == "" || req.BlockedById == "" {
 		log.Printf("BlockUser: Missing required parameters, userId: %s, blockedById: %s", req.UserId, req.BlockedById)
@@ -35,7 +34,6 @@ func (h *UserHandler) BlockUser(ctx context.Context, req *user.BlockUserRequest)
 	}, nil
 }
 
-// UnblockUser handles a user unblocking another user
 func (h *UserHandler) UnblockUser(ctx context.Context, req *user.UnblockUserRequest) (*user.UnblockUserResponse, error) {
 	if req.UserId == "" || req.UnblockedById == "" {
 		log.Printf("UnblockUser: Missing required parameters, userId: %s, unblockedById: %s", req.UserId, req.UnblockedById)
@@ -60,7 +58,6 @@ func (h *UserHandler) UnblockUser(ctx context.Context, req *user.UnblockUserRequ
 	}, nil
 }
 
-// IsUserBlocked checks if a user is blocked by another user
 func (h *UserHandler) IsUserBlocked(ctx context.Context, req *user.IsUserBlockedRequest) (*user.IsUserBlockedResponse, error) {
 	if req.UserId == "" || req.BlockedById == "" {
 		log.Printf("IsUserBlocked: Missing required parameters, userId: %s, blockedById: %s", req.UserId, req.BlockedById)
@@ -79,7 +76,6 @@ func (h *UserHandler) IsUserBlocked(ctx context.Context, req *user.IsUserBlocked
 	}, nil
 }
 
-// ReportUser handles a user reporting another user
 func (h *UserHandler) ReportUser(ctx context.Context, req *user.ReportUserRequest) (*user.ReportUserResponse, error) {
 	if req.UserId == "" || req.ReportedById == "" || req.Reason == "" {
 		log.Printf("ReportUser: Missing required parameters, userId: %s, reportedById: %s, reason: %s", req.UserId, req.ReportedById, req.Reason)

@@ -2,14 +2,9 @@ import appConfig from '../config/appConfig';
 
 const AI_SERVICE_URL = appConfig.api.aiServiceUrl || 'http://localhost:5000';
 
-/**
- * Predicts the category of a thread based on its content
- * @param content - The text content of the thread
- * @returns A promise that resolves to the predicted category and confidence
- */
 export async function predictThreadCategory(content: string) {
   try {
-    // If content is empty or too short, don't make the request
+
     if (!content || content.trim().length < 10) {
       return { 
         category: 'general',
@@ -17,7 +12,7 @@ export async function predictThreadCategory(content: string) {
         all_categories: {}
       };
     }
-    
+
     const response = await fetch(`${AI_SERVICE_URL}/predict/category`, {
       method: 'POST',
       headers: {
@@ -25,7 +20,7 @@ export async function predictThreadCategory(content: string) {
       },
       body: JSON.stringify({ content })
     });
-    
+
     if (!response.ok) {
       console.warn("Category prediction failed:", response.status, response.statusText);
       return { 
@@ -34,9 +29,9 @@ export async function predictThreadCategory(content: string) {
         all_categories: {}
       };
     }
-    
+
     const data = await response.json();
-    
+
     return {
       category: data.category || 'general',
       confidence: data.confidence || 0,
@@ -52,21 +47,17 @@ export async function predictThreadCategory(content: string) {
   }
 }
 
-/**
- * Checks the health of the AI service
- * @returns A promise that resolves to the health status
- */
 export async function checkAIServiceHealth() {
   try {
     const response = await fetch(`${AI_SERVICE_URL}/health`);
-    
+
     if (!response.ok) {
       return { 
         status: 'unhealthy',
         model_loaded: false
       };
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error("Error checking AI service health:", error);

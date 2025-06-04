@@ -3,7 +3,7 @@
  */
 
 /**
- * Media object
+ * Media object - the primary interface for media across the application
  */
 export interface IMedia {
   id?: string;

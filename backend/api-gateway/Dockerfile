@@ -2,21 +2,16 @@ FROM golang:1.24-alpine
 
 WORKDIR /app
 
-# Install necessary tools, Air for hot reloading, and swag for Swagger docs
 RUN apk add --no-cache git && \
     go install github.com/air-verse/air@latest && \
     go install github.com/swaggo/swag/cmd/swag@latest
 
-# Copy Go module files for dependency caching
 COPY go.mod go.sum ./
 
-# Create api-gateway directory if needed
 RUN mkdir -p api-gateway
 
-# Set up for Air in development mode
 WORKDIR /app/api-gateway
 
-# Create default Air config
 RUN touch .air.toml && \
     echo 'root = "."' > .air.toml && \
     echo 'tmp_dir = "tmp"' >> .air.toml && \
@@ -32,15 +27,12 @@ RUN touch .air.toml && \
     echo '[screen]' >> .air.toml && \
     echo '  clear_on_rebuild = true' >> .air.toml
 
-# Set environment variables
 ENV GIN_MODE=debug
 ENV PORT=8081
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GO111MODULE=on
 
-# Expose port
 EXPOSE 8081
 
-# Use Air for hot reloading in development
 CMD ["air", "-c", ".air.toml"]

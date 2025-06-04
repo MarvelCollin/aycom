@@ -16,7 +16,6 @@ var DB *gorm.DB
 func InitDB() *gorm.DB {
 	var err error
 
-	// Set up database connection parameters
 	host := getEnv("DATABASE_HOST", "thread_db")
 	port := getEnv("DATABASE_PORT", "5432")
 	user := getEnv("DATABASE_USER", "kolin")
@@ -27,7 +26,6 @@ func InitDB() *gorm.DB {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslMode)
 
-	// Configure gorm logger
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
@@ -39,7 +37,6 @@ func InitDB() *gorm.DB {
 		},
 	)
 
-	// Connect to the database
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: newLogger,
 	})
@@ -51,12 +48,10 @@ func InitDB() *gorm.DB {
 	return DB
 }
 
-// GetDB returns the database connection instance
 func GetDB() *gorm.DB {
 	return DB
 }
 
-// CloseDB closes the database connection
 func CloseDB() error {
 	if DB == nil {
 		return nil
@@ -69,7 +64,6 @@ func CloseDB() error {
 	return sqlDB.Close()
 }
 
-// Helper function to get environment variable with fallback
 func getEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value

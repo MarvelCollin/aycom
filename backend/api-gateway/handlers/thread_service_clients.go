@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"aycom/backend/api-gateway/config"
-
-
 )
 
 type ThreadServiceClient interface {
@@ -95,15 +95,34 @@ func InitThreadServiceClient(cfg *config.Config) {
 	}
 	log.Printf("Attempting to connect to Thread service at %s", cfg.Services.ThreadService)
 
-	// Update to use the recommended non-deprecated approach
-	conn, err := grpc.NewClient(
-		cfg.Services.ThreadService,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)), // Replacement for WithBlock
-	)
+	// Add retry logic for more robust connection
+	var conn *grpc.ClientConn
+	var err error
+	maxRetries := 5
+	retryDelay := 3 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		conn, err = grpc.NewClient(
+			cfg.Services.ThreadService,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
+		)
+
+		if err == nil {
+			break
+		}
+
+		log.Printf("Attempt %d: Failed to connect to Thread service: %v. Retrying in %v...",
+			i+1, err, retryDelay)
+
+		if i < maxRetries-1 {
+			time.Sleep(retryDelay)
+		}
+	}
 
 	if err != nil {
-		log.Fatalf("ERROR: Failed to connect to Thread service at %s: %v", cfg.Services.ThreadService, err)
+		log.Fatalf("ERROR: Failed to connect to Thread service at %s after %d attempts: %v",
+			cfg.Services.ThreadService, maxRetries, err)
 		return
 	}
 
@@ -114,6 +133,7 @@ func InitThreadServiceClient(cfg *config.Config) {
 		conn:   conn,
 	}
 
+	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -130,8 +150,6 @@ func InitThreadServiceClient(cfg *config.Config) {
 func GetThreadServiceClient() ThreadServiceClient {
 	return threadServiceClient
 }
-
-
 
 func (c *GRPCThreadServiceClient) CreateThread(userID, content string, mediaIDs []string) (string, error) {
 	if c.client == nil {
@@ -383,31 +401,21 @@ func (c *GRPCThreadServiceClient) UnlikeThread(threadID, userID string) error {
 
 		if err == nil {
 			log.Printf("Successfully unliked thread %s for user %s", threadID, userID)
-
-			verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer verifyCancel()
-
-			verifyCtx = metadata.AppendToOutgoingContext(verifyCtx, "user_id", userID)
-
-			resp, verifyErr := c.client.GetThreadById(verifyCtx, &threadProto.GetThreadRequest{
-				ThreadId: threadID,
-			})
-
-			if verifyErr != nil {
-				log.Printf("Warning: Verification check error after unliking thread: %v", verifyErr)
-			} else if resp != nil && !resp.LikedByUser {
-				log.Printf("Verified thread %s is not liked by user %s", threadID, userID)
-			} else {
-				log.Printf("Warning: Thread %s still shows as liked after unlike operation", threadID)
-			}
-
 			return nil
+		}
+
+		// Check for rate limiting error
+		if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
+			log.Printf("Rate limiting detected when unliking thread: %v", err)
+			return err // Don't retry rate limiting errors
 		}
 
 		lastErr = err
 		log.Printf("Error unliking thread (attempt %d): %v", attempt, err)
 
-		time.Sleep(time.Duration(attempt*500) * time.Millisecond)
+		// Use exponential backoff for retries
+		backoffTime := time.Duration(attempt*attempt*250) * time.Millisecond
+		time.Sleep(backoffTime)
 	}
 
 	log.Printf("Failed to unlike thread after %d attempts: %v", maxRetries, lastErr)

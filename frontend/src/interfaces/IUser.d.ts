@@ -1,3 +1,6 @@
+import type { IMediaUpdateRequest } from './IMedia';
+import type { IPagination } from './ICommon';
+
 export interface IUser {
   id: string;
   name: string;
@@ -87,13 +90,7 @@ export interface IUsersResponse {
   success: boolean;
   data: {
     users: IUser[];
-    pagination: {
-      total_count: number;
-      current_page: number;
-      per_page: number;
-      total_pages: number;
-      has_more?: boolean;
-    };
+    pagination: IPagination;
   };
 }
 
@@ -106,10 +103,6 @@ export interface IUsernameCheckResponse {
 
 export interface IMediaUploadRequest {
   file: File;
-}
-
-export interface IMediaUpdateRequest {
-  url: string;
 }
 
 export interface IMediaUpdateResponse {
@@ -158,11 +151,7 @@ export interface IBlockedUsersResponse {
   success: boolean;
   data: {
     blocked_users: IUser[];
-    pagination: {
-      total_count: number;
-      current_page: number;
-      per_page: number;
-    };
+    pagination: IPagination;
   };
 }
 

@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// HashtagRepository defines the methods for hashtag-related database operations
 type HashtagRepository interface {
 	CreateHashtag(hashtag *model.Hashtag) error
 	FindHashtagByText(text string) (*model.Hashtag, error)
@@ -20,17 +19,14 @@ type HashtagRepository interface {
 	CountThreadsWithHashtag(hashtagID string) (int, error)
 }
 
-// PostgresHashtagRepository is the PostgreSQL implementation of HashtagRepository
 type PostgresHashtagRepository struct {
 	db *gorm.DB
 }
 
-// NewHashtagRepository creates a new PostgreSQL hashtag repository
 func NewHashtagRepository(db *gorm.DB) HashtagRepository {
 	return &PostgresHashtagRepository{db: db}
 }
 
-// CreateHashtag creates a new hashtag if it doesn't exist
 func (r *PostgresHashtagRepository) CreateHashtag(hashtag *model.Hashtag) error {
 	if hashtag.HashtagID == uuid.Nil {
 		hashtag.HashtagID = uuid.New()
@@ -41,18 +37,16 @@ func (r *PostgresHashtagRepository) CreateHashtag(hashtag *model.Hashtag) error 
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Create new hashtag
+
 			return r.db.Create(hashtag).Error
 		}
 		return err
 	}
 
-	// Hashtag already exists, return the existing one
 	*hashtag = existingHashtag
 	return nil
 }
 
-// FindHashtagByText finds a hashtag by its text
 func (r *PostgresHashtagRepository) FindHashtagByText(text string) (*model.Hashtag, error) {
 	var hashtag model.Hashtag
 	result := r.db.Where("text = ?", text).First(&hashtag)
@@ -65,7 +59,6 @@ func (r *PostgresHashtagRepository) FindHashtagByText(text string) (*model.Hasht
 	return &hashtag, nil
 }
 
-// FindHashtagsByThreadID finds all hashtags for a specific thread
 func (r *PostgresHashtagRepository) FindHashtagsByThreadID(threadID string) ([]*model.Hashtag, error) {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -84,7 +77,6 @@ func (r *PostgresHashtagRepository) FindHashtagsByThreadID(threadID string) ([]*
 	return hashtags, nil
 }
 
-// AddHashtagToThread adds a hashtag to a thread
 func (r *PostgresHashtagRepository) AddHashtagToThread(threadID string, hashtagID string) error {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -104,7 +96,6 @@ func (r *PostgresHashtagRepository) AddHashtagToThread(threadID string, hashtagI
 	return r.db.Create(&threadHashtag).Error
 }
 
-// RemoveHashtagFromThread removes a hashtag from a thread
 func (r *PostgresHashtagRepository) RemoveHashtagFromThread(threadID string, hashtagID string) error {
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
@@ -119,7 +110,6 @@ func (r *PostgresHashtagRepository) RemoveHashtagFromThread(threadID string, has
 	return r.db.Where("thread_id = ? AND hashtag_id = ?", threadUUID, hashtagUUID).Delete(&model.ThreadHashtag{}).Error
 }
 
-// GetTrendingHashtags gets the most used hashtags
 func (r *PostgresHashtagRepository) GetTrendingHashtags(limit int) ([]*model.Hashtag, error) {
 	var hashtags []*model.Hashtag
 
@@ -138,7 +128,6 @@ func (r *PostgresHashtagRepository) GetTrendingHashtags(limit int) ([]*model.Has
 	return hashtags, nil
 }
 
-// CountThreadsWithHashtag returns the number of threads that use this hashtag
 func (r *PostgresHashtagRepository) CountThreadsWithHashtag(hashtagID string) (int, error) {
 	hashtagUUID, err := uuid.Parse(hashtagID)
 	if err != nil {

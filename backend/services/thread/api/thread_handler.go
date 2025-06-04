@@ -15,7 +15,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ThreadHandler handles gRPC requests for the Thread service
 type ThreadHandler struct {
 	thread.UnimplementedThreadServiceServer
 	threadService      service.ThreadService
@@ -27,7 +26,6 @@ type ThreadHandler struct {
 	hashtagRepo        repository.HashtagRepository
 }
 
-// NewThreadHandler creates a new ThreadHandler instance
 func NewThreadHandler(
 	threadService service.ThreadService,
 	replyService service.ReplyService,
@@ -48,14 +46,12 @@ func NewThreadHandler(
 	}
 }
 
-// CreateThread creates a new thread
 func (h *ThreadHandler) CreateThread(ctx context.Context, req *thread.CreateThreadRequest) (*thread.ThreadResponse, error) {
 	t, err := h.threadService.CreateThread(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert thread to response
 	response, err := h.convertThreadToResponse(ctx, t)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to convert thread to response: %v", err)
@@ -64,11 +60,9 @@ func (h *ThreadHandler) CreateThread(ctx context.Context, req *thread.CreateThre
 	return response, nil
 }
 
-// GetThreadById retrieves a thread by its ID
 func (h *ThreadHandler) GetThreadById(ctx context.Context, req *thread.GetThreadRequest) (*thread.ThreadResponse, error) {
 	threadID := req.ThreadId
 
-	// Get thread from service
 	threadModel, err := h.threadService.GetThreadByID(ctx, threadID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to get thread: %v", err)
@@ -78,13 +72,11 @@ func (h *ThreadHandler) GetThreadById(ctx context.Context, req *thread.GetThread
 		return nil, status.Error(codes.NotFound, "Thread not found")
 	}
 
-	// Convert to response
 	response, err := h.convertThreadToResponse(ctx, threadModel)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to convert thread: %v", err)
 	}
 
-	// Extract user ID from metadata if present, for checking interactions
 	var userID string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		userIDs := md.Get("user_id")
@@ -92,7 +84,6 @@ func (h *ThreadHandler) GetThreadById(ctx context.Context, req *thread.GetThread
 			userID = userIDs[0]
 			log.Printf("User ID from context metadata: %s", userID)
 
-			// Explicitly check bookmark status again to ensure it's accurate
 			if userID != "" {
 				hasBookmarked, err := h.interactionService.HasUserBookmarked(ctx, userID, threadID)
 				if err != nil {
@@ -108,15 +99,13 @@ func (h *ThreadHandler) GetThreadById(ctx context.Context, req *thread.GetThread
 	return response, nil
 }
 
-// GetThreadsByUser retrieves threads by a user with pagination
 func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThreadsByUserRequest) (*thread.ThreadsResponse, error) {
-	// Get threads
+
 	threads, err := h.threadService.GetThreadsByUserID(ctx, req.UserId, int(req.Page), int(req.Limit))
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert threads to response
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threads))
 	for _, t := range threads {
 		response, err := h.convertThreadToResponse(ctx, t)
@@ -132,38 +121,50 @@ func (h *ThreadHandler) GetThreadsByUser(ctx context.Context, req *thread.GetThr
 	}, nil
 }
 
-// GetAllThreads retrieves all threads with pagination
 func (h *ThreadHandler) GetAllThreads(ctx context.Context, req *thread.GetAllThreadsRequest) (*thread.ThreadsResponse, error) {
-	// Get threads using the service layer method
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Limit <= 0 || req.Limit > 100 {
+		req.Limit = 20
+	}
+
 	threads, err := h.threadService.GetAllThreads(ctx, int(req.Page), int(req.Limit))
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve threads: %v", err)
 	}
 
-	// Convert threads to response
+	// Get total count for pagination
+	totalCount, err := h.threadService.GetTotalThreadCount(ctx)
+	if err != nil {
+		// Log the error but continue with the threads we have
+		log.Printf("WARNING: Failed to get total thread count: %v", err)
+		totalCount = int64(len(threads))
+	}
+
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threads))
 	for _, t := range threads {
 		response, err := h.convertThreadToResponse(ctx, t)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to convert thread to response: %v", err)
+			// Log the error but continue with other threads
+			log.Printf("Error converting thread %s: %v", t.ThreadID.String(), err)
+			continue
 		}
 		threadResponses = append(threadResponses, response)
 	}
 
 	return &thread.ThreadsResponse{
 		Threads: threadResponses,
-		Total:   int32(len(threads)),
+		Total:   int32(totalCount),
 	}, nil
 }
 
-// UpdateThread updates a thread
 func (h *ThreadHandler) UpdateThread(ctx context.Context, req *thread.UpdateThreadRequest) (*thread.ThreadResponse, error) {
 	t, err := h.threadService.UpdateThread(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert thread to response
 	response, err := h.convertThreadToResponse(ctx, t)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to convert thread to response: %v", err)
@@ -172,7 +173,6 @@ func (h *ThreadHandler) UpdateThread(ctx context.Context, req *thread.UpdateThre
 	return response, nil
 }
 
-// DeleteThread deletes a thread
 func (h *ThreadHandler) DeleteThread(ctx context.Context, req *thread.DeleteThreadRequest) (*emptypb.Empty, error) {
 	err := h.threadService.DeleteThread(ctx, req.ThreadId, req.UserId)
 	if err != nil {
@@ -182,15 +182,13 @@ func (h *ThreadHandler) DeleteThread(ctx context.Context, req *thread.DeleteThre
 	return &emptypb.Empty{}, nil
 }
 
-// CreateReply creates a new reply to a thread or another reply
 func (h *ThreadHandler) CreateReply(ctx context.Context, req *thread.CreateReplyRequest) (*thread.ReplyResponse, error) {
-	// Call the reply service to create a reply
+
 	reply, err := h.replyService.CreateReply(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert reply to response
 	response, err := h.convertReplyToResponse(ctx, reply)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
@@ -199,15 +197,13 @@ func (h *ThreadHandler) CreateReply(ctx context.Context, req *thread.CreateReply
 	return response, nil
 }
 
-// GetRepliesByThread retrieves replies to a thread with pagination
 func (h *ThreadHandler) GetRepliesByThread(ctx context.Context, req *thread.GetRepliesByThreadRequest) (*thread.RepliesResponse, error) {
-	// Get replies using the reply service
+
 	replies, err := h.replyService.GetRepliesByThreadID(ctx, req.ThreadId, int(req.Page), int(req.Limit))
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert replies to response format
 	replyResponses := make([]*thread.ReplyResponse, 0, len(replies))
 	for _, reply := range replies {
 		response, err := h.convertReplyToResponse(ctx, reply)
@@ -217,7 +213,6 @@ func (h *ThreadHandler) GetRepliesByThread(ctx context.Context, req *thread.GetR
 		replyResponses = append(replyResponses, response)
 	}
 
-	// Calculate total count (could be optimized with a separate count query)
 	totalCount := len(replies)
 
 	return &thread.RepliesResponse{
@@ -226,15 +221,13 @@ func (h *ThreadHandler) GetRepliesByThread(ctx context.Context, req *thread.GetR
 	}, nil
 }
 
-// UpdateReply updates a reply
 func (h *ThreadHandler) UpdateReply(ctx context.Context, req *thread.UpdateReplyRequest) (*thread.ReplyResponse, error) {
-	// Call the reply service to update the reply
+
 	reply, err := h.replyService.UpdateReply(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert reply to response
 	response, err := h.convertReplyToResponse(ctx, reply)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to convert reply to response: %v", err)
@@ -243,9 +236,8 @@ func (h *ThreadHandler) UpdateReply(ctx context.Context, req *thread.UpdateReply
 	return response, nil
 }
 
-// DeleteReply deletes a reply
 func (h *ThreadHandler) DeleteReply(ctx context.Context, req *thread.DeleteReplyRequest) (*emptypb.Empty, error) {
-	// Call the reply service to delete the reply
+
 	err := h.replyService.DeleteReply(ctx, req.ReplyId, req.UserId)
 	if err != nil {
 		return nil, err
@@ -254,9 +246,8 @@ func (h *ThreadHandler) DeleteReply(ctx context.Context, req *thread.DeleteReply
 	return &emptypb.Empty{}, nil
 }
 
-// LikeThread adds a like to a thread
 func (h *ThreadHandler) LikeThread(ctx context.Context, req *thread.LikeThreadRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to like the thread
+
 	err := h.interactionService.LikeThread(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		return nil, err
@@ -265,9 +256,8 @@ func (h *ThreadHandler) LikeThread(ctx context.Context, req *thread.LikeThreadRe
 	return &emptypb.Empty{}, nil
 }
 
-// UnlikeThread removes a like from a thread
 func (h *ThreadHandler) UnlikeThread(ctx context.Context, req *thread.UnlikeThreadRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to unlike the thread
+
 	err := h.interactionService.UnlikeThread(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		return nil, err
@@ -276,9 +266,8 @@ func (h *ThreadHandler) UnlikeThread(ctx context.Context, req *thread.UnlikeThre
 	return &emptypb.Empty{}, nil
 }
 
-// LikeReply adds a like to a reply
 func (h *ThreadHandler) LikeReply(ctx context.Context, req *thread.LikeReplyRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to like the reply
+
 	err := h.interactionService.LikeReply(ctx, req.UserId, req.ReplyId)
 	if err != nil {
 		return nil, err
@@ -287,9 +276,8 @@ func (h *ThreadHandler) LikeReply(ctx context.Context, req *thread.LikeReplyRequ
 	return &emptypb.Empty{}, nil
 }
 
-// UnlikeReply removes a like from a reply
 func (h *ThreadHandler) UnlikeReply(ctx context.Context, req *thread.UnlikeReplyRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to unlike the reply
+
 	err := h.interactionService.UnlikeReply(ctx, req.UserId, req.ReplyId)
 	if err != nil {
 		return nil, err
@@ -298,9 +286,8 @@ func (h *ThreadHandler) UnlikeReply(ctx context.Context, req *thread.UnlikeReply
 	return &emptypb.Empty{}, nil
 }
 
-// RepostThread reposts a thread
 func (h *ThreadHandler) RepostThread(ctx context.Context, req *thread.RepostThreadRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to repost the thread
+
 	var content *string
 	if req.AddedContent != nil {
 		content = req.AddedContent
@@ -314,9 +301,8 @@ func (h *ThreadHandler) RepostThread(ctx context.Context, req *thread.RepostThre
 	return &emptypb.Empty{}, nil
 }
 
-// RemoveRepost removes a repost
 func (h *ThreadHandler) RemoveRepost(ctx context.Context, req *thread.RemoveRepostRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to remove the repost
+
 	err := h.interactionService.RemoveRepost(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		return nil, err
@@ -325,11 +311,9 @@ func (h *ThreadHandler) RemoveRepost(ctx context.Context, req *thread.RemoveRepo
 	return &emptypb.Empty{}, nil
 }
 
-// BookmarkThread bookmarks a thread
 func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *thread.BookmarkThreadRequest) (*emptypb.Empty, error) {
 	log.Printf("API Handler: BookmarkThread called with userID=%s, threadID=%s", req.UserId, req.ThreadId)
 
-	// Validate request
 	if req.UserId == "" {
 		log.Printf("ERROR: BookmarkThread - Missing userID")
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
@@ -340,21 +324,18 @@ func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *thread.Bookmark
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
 	}
 
-	// Log metadata from context
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		for key, values := range md {
 			log.Printf("Context metadata: %s=%v", key, values)
 		}
 	}
 
-	// Call the interaction service to bookmark the thread
 	err := h.interactionService.BookmarkThread(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		log.Printf("ERROR: Failed to bookmark thread: %v", err)
 		return nil, err
 	}
 
-	// Verify the bookmark was created successfully
 	isBookmarked, err := h.interactionService.HasUserBookmarked(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		log.Printf("WARNING: Error verifying bookmark status: %v", err)
@@ -368,9 +349,8 @@ func (h *ThreadHandler) BookmarkThread(ctx context.Context, req *thread.Bookmark
 	return &emptypb.Empty{}, nil
 }
 
-// RemoveBookmark removes a bookmark
 func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *thread.RemoveBookmarkRequest) (*emptypb.Empty, error) {
-	// Call the interaction service to remove the bookmark from the thread
+
 	err := h.interactionService.RemoveBookmark(ctx, req.UserId, req.ThreadId)
 	if err != nil {
 		return nil, err
@@ -379,45 +359,39 @@ func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *thread.RemoveBo
 	return &emptypb.Empty{}, nil
 }
 
-// CreatePoll creates a poll for a thread
 func (h *ThreadHandler) CreatePoll(ctx context.Context, req *thread.CreatePollRequest) (*thread.PollResponse, error) {
-	// Implementation will be added when PollService is created
+
 	return nil, status.Error(codes.Unimplemented, "Method not implemented")
 }
 
-// VotePoll adds a vote to a poll option
 func (h *ThreadHandler) VotePoll(ctx context.Context, req *thread.VotePollRequest) (*emptypb.Empty, error) {
-	// Implementation will be added when PollService is created
+
 	return nil, status.Error(codes.Unimplemented, "Method not implemented")
 }
 
-// GetPollResults gets the results of a poll
 func (h *ThreadHandler) GetPollResults(ctx context.Context, req *thread.GetPollResultsRequest) (*thread.PollResultsResponse, error) {
-	// Implementation will be added when PollService is created
+
 	return nil, status.Error(codes.Unimplemented, "Method not implemented")
 }
 
-// GetTrendingHashtags returns a list of trending hashtags
 func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.GetTrendingHashtagsRequest) (*thread.GetTrendingHashtagsResponse, error) {
-	// Get limit from request, default to 10 if not specified
+
 	limit := int(req.Limit)
 	if limit <= 0 {
-		limit = 10 // Default limit
+		limit = 10
 	}
 
-	// Get trending hashtags from repository
 	hashtags, err := h.hashtagRepo.GetTrendingHashtags(limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve trending hashtags: %v", err)
 	}
 
-	// Convert to response format
 	hashtagResponses := make([]*thread.HashtagResponse, 0, len(hashtags))
 	for _, hashtag := range hashtags {
-		// Get thread count for this hashtag
+
 		count, err := h.hashtagRepo.CountThreadsWithHashtag(hashtag.HashtagID.String())
 		if err != nil {
-			// Continue with count 0 rather than failing the whole request
+
 			count = 0
 		}
 
@@ -432,7 +406,6 @@ func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.Get
 	}, nil
 }
 
-// PinThread implements the PinThread gRPC method
 func (h *ThreadHandler) PinThread(ctx context.Context, req *thread.PinThreadRequest) (*emptypb.Empty, error) {
 	if req.ThreadId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -442,7 +415,6 @@ func (h *ThreadHandler) PinThread(ctx context.Context, req *thread.PinThreadRequ
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Call the thread service to pin the thread
 	err := h.threadService.PinThread(ctx, req.ThreadId, req.UserId)
 	if err != nil {
 		return nil, err
@@ -451,7 +423,6 @@ func (h *ThreadHandler) PinThread(ctx context.Context, req *thread.PinThreadRequ
 	return &emptypb.Empty{}, nil
 }
 
-// UnpinThread implements the UnpinThread gRPC method
 func (h *ThreadHandler) UnpinThread(ctx context.Context, req *thread.UnpinThreadRequest) (*emptypb.Empty, error) {
 	if req.ThreadId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
@@ -461,7 +432,6 @@ func (h *ThreadHandler) UnpinThread(ctx context.Context, req *thread.UnpinThread
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Call the thread service to unpin the thread
 	err := h.threadService.UnpinThread(ctx, req.ThreadId, req.UserId)
 	if err != nil {
 		return nil, err
@@ -470,7 +440,6 @@ func (h *ThreadHandler) UnpinThread(ctx context.Context, req *thread.UnpinThread
 	return &emptypb.Empty{}, nil
 }
 
-// PinReply implements the PinReply gRPC method
 func (h *ThreadHandler) PinReply(ctx context.Context, req *thread.PinReplyRequest) (*emptypb.Empty, error) {
 	if req.ReplyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
@@ -480,7 +449,6 @@ func (h *ThreadHandler) PinReply(ctx context.Context, req *thread.PinReplyReques
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Call the thread service to pin the reply
 	err := h.threadService.PinReply(ctx, req.ReplyId, req.UserId)
 	if err != nil {
 		return nil, err
@@ -489,7 +457,6 @@ func (h *ThreadHandler) PinReply(ctx context.Context, req *thread.PinReplyReques
 	return &emptypb.Empty{}, nil
 }
 
-// UnpinReply implements the UnpinReply gRPC method
 func (h *ThreadHandler) UnpinReply(ctx context.Context, req *thread.UnpinReplyRequest) (*emptypb.Empty, error) {
 	if req.ReplyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
@@ -499,7 +466,6 @@ func (h *ThreadHandler) UnpinReply(ctx context.Context, req *thread.UnpinReplyRe
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Call the thread service to unpin the reply
 	err := h.threadService.UnpinReply(ctx, req.ReplyId, req.UserId)
 	if err != nil {
 		return nil, err
@@ -508,7 +474,6 @@ func (h *ThreadHandler) UnpinReply(ctx context.Context, req *thread.UnpinReplyRe
 	return &emptypb.Empty{}, nil
 }
 
-// BookmarkReply implements the BookmarkReply gRPC method
 func (h *ThreadHandler) BookmarkReply(ctx context.Context, req *thread.BookmarkReplyRequest) (*emptypb.Empty, error) {
 	if req.ReplyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
@@ -518,7 +483,6 @@ func (h *ThreadHandler) BookmarkReply(ctx context.Context, req *thread.BookmarkR
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Call the interaction service to bookmark the reply
 	err := h.interactionService.BookmarkReply(ctx, req.UserId, req.ReplyId)
 	if err != nil {
 		return nil, err
@@ -527,7 +491,6 @@ func (h *ThreadHandler) BookmarkReply(ctx context.Context, req *thread.BookmarkR
 	return &emptypb.Empty{}, nil
 }
 
-// RemoveReplyBookmark implements the RemoveReplyBookmark gRPC method
 func (h *ThreadHandler) RemoveReplyBookmark(ctx context.Context, req *thread.RemoveReplyBookmarkRequest) (*emptypb.Empty, error) {
 	if req.ReplyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Reply ID is required")
@@ -537,7 +500,6 @@ func (h *ThreadHandler) RemoveReplyBookmark(ctx context.Context, req *thread.Rem
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Call the interaction service to remove the reply bookmark
 	err := h.interactionService.RemoveReplyBookmark(ctx, req.UserId, req.ReplyId)
 	if err != nil {
 		return nil, err
@@ -546,13 +508,11 @@ func (h *ThreadHandler) RemoveReplyBookmark(ctx context.Context, req *thread.Rem
 	return &emptypb.Empty{}, nil
 }
 
-// GetRepliesByParentReply retrieves replies to a parent reply with pagination
 func (h *ThreadHandler) GetRepliesByParentReply(ctx context.Context, req *thread.GetRepliesByParentReplyRequest) (*thread.RepliesResponse, error) {
 	if req.ParentReplyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "Parent reply ID is required")
 	}
 
-	// Default pagination values if not provided
 	page := int(req.Page)
 	if page <= 0 {
 		page = 1
@@ -563,13 +523,11 @@ func (h *ThreadHandler) GetRepliesByParentReply(ctx context.Context, req *thread
 		limit = 10
 	}
 
-	// Call the repository to get replies to this parent reply
 	replies, err := h.replyService.FindRepliesByParentID(ctx, req.ParentReplyId, page, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve replies: %v", err)
 	}
 
-	// Convert replies to response format
 	replyResponses := make([]*thread.ReplyResponse, 0, len(replies))
 	for _, reply := range replies {
 		response, err := h.convertReplyToResponse(ctx, reply)
@@ -579,7 +537,6 @@ func (h *ThreadHandler) GetRepliesByParentReply(ctx context.Context, req *thread
 		replyResponses = append(replyResponses, response)
 	}
 
-	// Calculate total count (could be optimized with a separate count query)
 	totalCount := len(replies)
 
 	return &thread.RepliesResponse{
@@ -588,14 +545,12 @@ func (h *ThreadHandler) GetRepliesByParentReply(ctx context.Context, req *thread
 	}, nil
 }
 
-// GetRepliesByUser retrieves replies created by a user with pagination
 func (h *ThreadHandler) GetRepliesByUser(ctx context.Context, req *thread.GetRepliesByUserRequest) (*thread.RepliesResponse, error) {
-	// Validate required fields
+
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 	if req.Page > 0 {
@@ -605,13 +560,11 @@ func (h *ThreadHandler) GetRepliesByUser(ctx context.Context, req *thread.GetRep
 		limit = int(req.Limit)
 	}
 
-	// Get replies by user from service
 	replies, err := h.replyService.GetRepliesByUserID(ctx, req.UserId, page, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert replies to response format
 	replyResponses := make([]*thread.ReplyResponse, 0, len(replies))
 	for _, reply := range replies {
 		response, err := h.convertReplyToResponse(ctx, reply)
@@ -627,14 +580,12 @@ func (h *ThreadHandler) GetRepliesByUser(ctx context.Context, req *thread.GetRep
 	}, nil
 }
 
-// GetLikedThreadsByUser retrieves threads liked by a user with pagination
 func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.GetLikedThreadsByUserRequest) (*thread.ThreadsResponse, error) {
-	// Validate required fields
+
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 	if req.Page > 0 {
@@ -644,30 +595,26 @@ func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.G
 		limit = int(req.Limit)
 	}
 
-	// Get liked thread IDs from the interaction service
 	threadIDs, err := h.interactionService.GetLikedThreadsByUserID(ctx, req.UserId, page, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	// Fetch the actual threads using the IDs
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threadIDs))
 	for _, id := range threadIDs {
-		// Get full thread details
+
 		t, err := h.threadService.GetThreadByID(ctx, id)
 		if err != nil {
 			log.Printf("Failed to get thread %s: %v", id, err)
-			continue // Skip this thread if there's an error
+			continue
 		}
 
-		// Convert to response
 		response, err := h.convertThreadToResponse(ctx, t)
 		if err != nil {
 			log.Printf("Failed to convert thread %s to response: %v", id, err)
 			continue
 		}
 
-		// Mark as liked since we know the user liked it
 		response.LikedByUser = true
 		threadResponses = append(threadResponses, response)
 	}
@@ -678,14 +625,12 @@ func (h *ThreadHandler) GetLikedThreadsByUser(ctx context.Context, req *thread.G
 	}, nil
 }
 
-// GetMediaByUser retrieves media from a user's threads and replies with pagination
 func (h *ThreadHandler) GetMediaByUser(ctx context.Context, req *thread.GetMediaByUserRequest) (*thread.GetMediaByUserResponse, error) {
-	// Validate required fields
+
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 	if req.Page > 0 {
@@ -695,13 +640,11 @@ func (h *ThreadHandler) GetMediaByUser(ctx context.Context, req *thread.GetMedia
 		limit = int(req.Limit)
 	}
 
-	// Get media from the thread service
 	mediaItems, err := h.threadService.GetMediaByUserID(ctx, req.UserId, page, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to response format
 	mediaResponses := make([]*thread.MediaItem, 0, len(mediaItems))
 	for _, m := range mediaItems {
 		threadID := ""
@@ -724,9 +667,8 @@ func (h *ThreadHandler) GetMediaByUser(ctx context.Context, req *thread.GetMedia
 	}, nil
 }
 
-// Helper function to convert a Thread model to a ThreadResponse proto
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {
-	// Create the nested Thread structure
+
 	protoThread := &thread.Thread{
 		Id:        threadModel.ThreadID.String(),
 		UserId:    threadModel.UserID.String(),
@@ -735,7 +677,6 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		UpdatedAt: timestamppb.New(threadModel.UpdatedAt),
 	}
 
-	// Set optional fields
 	if threadModel.IsPinned {
 		protoThread.IsPinned = &threadModel.IsPinned
 	}
@@ -757,56 +698,47 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		protoThread.IsAdvertisement = &threadModel.IsAdvertisement
 	}
 
-	// Create the full response with the thread and its stats
 	response := &thread.ThreadResponse{
 		Thread: protoThread,
 	}
 
-	// Get thread stats
 	if h.interactionRepo != nil {
 		threadID := threadModel.ThreadID.String()
 
-		// Calculate like count
 		likeCount, err := h.interactionRepo.CountThreadLikes(threadID)
 		if err == nil {
 			response.LikesCount = likeCount
 		}
 
-		// Calculate repost count
 		repostCount, err := h.interactionRepo.CountThreadReposts(threadID)
 		if err == nil {
 			response.RepostsCount = repostCount
 		}
 
-		// Calculate bookmark count
 		bookmarkCount, err := h.interactionRepo.CountThreadBookmarks(threadID)
 		if err == nil {
 			response.BookmarkCount = bookmarkCount
-			// Also set ViewCount for backward compatibility
+
 			protoThread.ViewCount = bookmarkCount
 		}
 
-		// Get metadata from context if available
 		md, ok := metadata.FromIncomingContext(ctx)
 		if ok {
-			// Check if user ID is in metadata
+
 			userIDs := md.Get("user_id")
 			if len(userIDs) > 0 {
 				userID := userIDs[0]
 
-				// Check if user has liked this thread
 				hasLiked, err := h.interactionService.HasUserLikedThread(ctx, userID, threadID)
 				if err == nil {
 					response.LikedByUser = hasLiked
 				}
 
-				// Check if user has reposted this thread
 				hasReposted, err := h.interactionService.HasUserReposted(ctx, userID, threadID)
 				if err == nil {
 					response.RepostedByUser = hasReposted
 				}
 
-				// Check if user has bookmarked this thread
 				hasBookmarked, err := h.interactionService.HasUserBookmarked(ctx, userID, threadID)
 				if err == nil {
 					response.BookmarkedByUser = hasBookmarked
@@ -815,11 +747,10 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		}
 	}
 
-	// Fetch user information if available
 	if h.userClient != nil {
 		userInfo, err := h.userClient.GetUserById(ctx, threadModel.UserID.String())
 		if err == nil && userInfo != nil {
-			// Create User object for the thread
+
 			response.User = &thread.User{
 				Id:                userInfo.Id,
 				Name:              userInfo.DisplayName,
@@ -857,33 +788,28 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 	if h.interactionRepo != nil {
 		replyID := reply.ReplyID.String()
 
-		// Calculate like count
 		likeCount, err := h.interactionRepo.CountReplyLikes(replyID)
 		if err == nil {
 			response.LikesCount = likeCount
 		}
 
-		// Calculate bookmark count
 		bookmarkCount, err := h.interactionRepo.CountReplyBookmarks(replyID)
 		if err == nil {
 			response.BookmarkCount = bookmarkCount
 		}
 
-		// Get metadata from context if available
 		md, ok := metadata.FromIncomingContext(ctx)
 		if ok {
-			// Check if user ID is in metadata
+
 			userIDs := md.Get("user_id")
 			if len(userIDs) > 0 {
 				userID := userIDs[0]
 
-				// Check if user has liked this reply
 				hasLiked, err := h.interactionService.HasUserLikedReply(ctx, userID, replyID)
 				if err == nil {
 					response.LikedByUser = hasLiked
 				}
 
-				// Check if user has bookmarked this reply
 				hasBookmarked, err := h.interactionService.HasUserBookmarkedReply(ctx, userID, replyID)
 				if err == nil {
 					response.BookmarkedByUser = hasBookmarked
@@ -892,14 +818,12 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 		}
 	}
 
-	// Fetch user information if available
 	if h.userClient != nil {
 		userInfo, err := h.userClient.GetUserById(ctx, reply.UserID.String())
 		if err == nil && userInfo != nil {
 			log.Printf("User info retrieved for reply %s by user %s (username: %s)",
 				reply.ReplyID.String(), userInfo.Id, userInfo.Username)
 
-			// Create User object for the reply
 			response.User = &thread.User{
 				Id:                userInfo.Id,
 				Name:              userInfo.DisplayName,

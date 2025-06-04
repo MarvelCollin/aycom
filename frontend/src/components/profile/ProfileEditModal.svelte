@@ -121,11 +121,11 @@
       // Upload profile picture if selected
       if (profilePictureFile) {
         console.log('Uploading profile picture:', profilePictureFile.name);
-        const profileResult = await uploadProfilePicture(profilePictureFile);
-        if (profileResult && profileResult.success) {
+        const profilePictureUrl = await uploadProfilePicture(profilePictureFile);
+        if (profilePictureUrl) {
           toastStore.showToast('Profile picture updated successfully', 'success');
-          console.log('Profile picture updated successfully:', profileResult.url);
-          dispatch('profilePictureUpdated', { url: profileResult.url });
+          console.log('Profile picture updated successfully:', profilePictureUrl);
+          dispatch('profilePictureUpdated', { url: profilePictureUrl });
         } else {
           throw new Error('Failed to upload profile picture');
         }
@@ -134,11 +134,11 @@
       // Upload banner if selected
       if (bannerFile) {
         console.log('Uploading banner:', bannerFile.name);
-        const bannerResult = await uploadBanner(bannerFile);
-        if (bannerResult && bannerResult.success) {
+        const bannerUrl = await uploadBanner(bannerFile);
+        if (bannerUrl) {
           toastStore.showToast('Banner updated successfully', 'success');
-          console.log('Banner updated successfully:', bannerResult.url);
-          dispatch('bannerUpdated', { url: bannerResult.url });
+          console.log('Banner updated successfully:', bannerUrl);
+          dispatch('bannerUpdated', { url: bannerUrl });
         } else {
           throw new Error('Failed to upload banner');
         }

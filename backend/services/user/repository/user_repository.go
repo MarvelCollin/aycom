@@ -9,9 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRepository defines methods for user data access
 type UserRepository interface {
-	// User CRUD operations
 	CreateUser(user *model.User) error
 	FindUserByID(id string) (*model.User, error)
 	FindUserByUsername(username string) (*model.User, error)
@@ -20,31 +18,25 @@ type UserRepository interface {
 	DeleteUser(id string) error
 	UpdateUserVerification(userID string, isVerified bool) error
 
-	// Check if user exists by ID
 	UserExists(userID string) (bool, error)
 
-	// Follow-related operations
 	CreateFollow(follow *model.Follow) error
 	DeleteFollow(followerID, followedID uuid.UUID) error
 	CheckFollowExists(followerID, followedID uuid.UUID) (bool, error)
 	GetFollowers(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
 	GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error)
 
-	// Follower count operations
 	IncrementFollowerCount(userID string) error
 	DecrementFollowerCount(userID string) error
 	IncrementFollowingCount(userID string) error
 	DecrementFollowingCount(userID string) error
 
-	// Transaction management
 	ExecuteInTransaction(fn func(tx UserRepository) error) error
 
-	// User search and listing
 	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
 	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
 
-	// Block and Report operations
 	BlockUser(blockerID, blockedID string) error
 	UnblockUser(unblockerID, unblockedID string) error
 	IsUserBlocked(userID, blockedByID string) (bool, error)
@@ -52,22 +44,18 @@ type UserRepository interface {
 	GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error)
 }
 
-// PostgresUserRepository implements UserRepository with PostgreSQL
 type PostgresUserRepository struct {
 	db *gorm.DB
 }
 
-// NewPostgresUserRepository creates a new PostgreSQL user repository
 func NewPostgresUserRepository(db *gorm.DB) UserRepository {
 	return &PostgresUserRepository{db: db}
 }
 
-// CreateUser creates a new user in the database
 func (r *PostgresUserRepository) CreateUser(user *model.User) error {
 	return r.db.Create(user).Error
 }
 
-// FindUserByID finds a user by ID
 func (r *PostgresUserRepository) FindUserByID(id string) (*model.User, error) {
 	userUUID, err := uuid.Parse(id)
 	if err != nil {
@@ -81,7 +69,6 @@ func (r *PostgresUserRepository) FindUserByID(id string) (*model.User, error) {
 	return &user, nil
 }
 
-// FindUserByUsername finds a user by username
 func (r *PostgresUserRepository) FindUserByUsername(username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.Where("username = ?", username).First(&user).Error; err != nil {
@@ -90,7 +77,6 @@ func (r *PostgresUserRepository) FindUserByUsername(username string) (*model.Use
 	return &user, nil
 }
 
-// FindUserByEmail finds a user by email
 func (r *PostgresUserRepository) FindUserByEmail(email string) (*model.User, error) {
 	var user model.User
 	if err := r.db.Where("email = ?", email).First(&user).Error; err != nil {
@@ -99,12 +85,10 @@ func (r *PostgresUserRepository) FindUserByEmail(email string) (*model.User, err
 	return &user, nil
 }
 
-// UpdateUser updates an existing user
 func (r *PostgresUserRepository) UpdateUser(user *model.User) error {
 	return r.db.Save(user).Error
 }
 
-// DeleteUser deletes a user by ID
 func (r *PostgresUserRepository) DeleteUser(id string) error {
 	userUUID, err := uuid.Parse(id)
 	if err != nil {
@@ -113,7 +97,6 @@ func (r *PostgresUserRepository) DeleteUser(id string) error {
 	return r.db.Delete(&model.User{}, "id = ?", userUUID).Error
 }
 
-// UpdateUserVerification updates a user's verification status
 func (r *PostgresUserRepository) UpdateUserVerification(userID string, isVerified bool) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -126,7 +109,6 @@ func (r *PostgresUserRepository) UpdateUserVerification(userID string, isVerifie
 		Error
 }
 
-// UserExists checks if a user exists by ID
 func (r *PostgresUserRepository) UserExists(userID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -145,19 +127,16 @@ func (r *PostgresUserRepository) UserExists(userID string) (bool, error) {
 	return count > 0, nil
 }
 
-// CreateFollow creates a new follow relationship
 func (r *PostgresUserRepository) CreateFollow(follow *model.Follow) error {
 	return r.db.Create(follow).Error
 }
 
-// DeleteFollow removes a follow relationship
 func (r *PostgresUserRepository) DeleteFollow(followerID, followedID uuid.UUID) error {
 	return r.db.Where("follower_id = ? AND followed_id = ?", followerID, followedID).
 		Delete(&model.Follow{}).
 		Error
 }
 
-// CheckFollowExists checks if a follow relationship exists
 func (r *PostgresUserRepository) CheckFollowExists(followerID, followedID uuid.UUID) (bool, error) {
 	var count int64
 	err := r.db.Model(&model.Follow{}).
@@ -167,7 +146,6 @@ func (r *PostgresUserRepository) CheckFollowExists(followerID, followedID uuid.U
 	return count > 0, err
 }
 
-// GetFollowers gets users who follow a specific user
 func (r *PostgresUserRepository) GetFollowers(userID uuid.UUID, page, limit int) ([]*model.User, int, error) {
 	offset := (page - 1) * limit
 
@@ -176,7 +154,6 @@ func (r *PostgresUserRepository) GetFollowers(userID uuid.UUID, page, limit int)
 
 	fmt.Printf("DEBUG GetFollowers: Checking followers for userID %s, page %d, limit %d\n", userID.String(), page, limit)
 
-	// Count total followers
 	err := r.db.Model(&model.Follow{}).
 		Where("followed_id = ?", userID).
 		Count(&total).
@@ -189,18 +166,16 @@ func (r *PostgresUserRepository) GetFollowers(userID uuid.UUID, page, limit int)
 	fmt.Printf("DEBUG GetFollowers: Found %d total followers for user %s\n", total, userID.String())
 
 	if total == 0 {
-		// No followers, return empty result
+
 		return []*model.User{}, 0, nil
 	}
 
-	// Get followers with pagination
 	query := r.db.Model(&model.User{}).
 		Joins("JOIN follows ON users.id = follows.follower_id").
 		Where("follows.followed_id = ?", userID).
 		Offset(offset).
 		Limit(limit)
 
-	// Debug the SQL query
 	sqlDB := r.db.ToSQL(func(tx *gorm.DB) *gorm.DB {
 		return query
 	})
@@ -218,7 +193,6 @@ func (r *PostgresUserRepository) GetFollowers(userID uuid.UUID, page, limit int)
 	return followers, int(total), err
 }
 
-// GetFollowing gets users that a specific user follows
 func (r *PostgresUserRepository) GetFollowing(userID uuid.UUID, page, limit int) ([]*model.User, int, error) {
 	offset := (page - 1) * limit
 
@@ -227,7 +201,6 @@ func (r *PostgresUserRepository) GetFollowing(userID uuid.UUID, page, limit int)
 
 	fmt.Printf("DEBUG GetFollowing: Checking following for userID %s, page %d, limit %d\n", userID.String(), page, limit)
 
-	// Count total following
 	err := r.db.Model(&model.Follow{}).
 		Where("follower_id = ?", userID).
 		Count(&total).
@@ -240,18 +213,16 @@ func (r *PostgresUserRepository) GetFollowing(userID uuid.UUID, page, limit int)
 	fmt.Printf("DEBUG GetFollowing: Found %d total following for user %s\n", total, userID.String())
 
 	if total == 0 {
-		// No following, return empty result
+
 		return []*model.User{}, 0, nil
 	}
 
-	// Get following with pagination
 	query := r.db.Model(&model.User{}).
 		Joins("JOIN follows ON users.id = follows.followed_id").
 		Where("follows.follower_id = ?", userID).
 		Offset(offset).
 		Limit(limit)
 
-	// Debug the SQL query
 	sqlDB := r.db.ToSQL(func(tx *gorm.DB) *gorm.DB {
 		return query
 	})
@@ -269,7 +240,6 @@ func (r *PostgresUserRepository) GetFollowing(userID uuid.UUID, page, limit int)
 	return following, int(total), err
 }
 
-// SearchUsers searches for users based on a query
 func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error) {
 	offset := (page - 1) * limit
 
@@ -279,30 +249,25 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 	db := r.db.Model(&model.User{}).
 		Where("username ILIKE ? OR name ILIKE ?", "%"+query+"%", "%"+query+"%")
 
-	// Apply filters if provided
 	if filter == "verified" {
 		db = db.Where("is_verified = ?", true)
 	}
 
-	// Get total count
 	err := db.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get users with pagination
 	err = db.Offset(offset).Limit(limit).Find(&users).Error
 
 	return users, int(total), err
 }
 
-// GetRecommendedUsers gets recommended users (e.g., users with most followers)
 func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error) {
 	var users []*model.User
 
 	query := r.db.Model(&model.User{})
 
-	// Exclude the current user if ID is provided
 	if excludeUserID != "" {
 		userUUID, err := uuid.Parse(excludeUserID)
 		if err == nil {
@@ -319,31 +284,26 @@ func (r *PostgresUserRepository) GetRecommendedUsers(limit int, excludeUserID st
 	return users, err
 }
 
-// GetAllUsers gets all users with pagination and sorting
 func (r *PostgresUserRepository) GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error) {
 	offset := (page - 1) * limit
 
 	var users []*model.User
 	var total int64
 
-	// Count total users
 	err := r.db.Model(&model.User{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Set default sort field if not provided
 	if sortBy == "" {
 		sortBy = "created_at"
 	}
 
-	// Determine sort direction
 	sortDirection := "DESC"
 	if ascending {
 		sortDirection = "ASC"
 	}
 
-	// Get users with pagination and sorting
 	err = r.db.Model(&model.User{}).
 		Order(fmt.Sprintf("%s %s", sortBy, sortDirection)).
 		Offset(offset).
@@ -354,9 +314,6 @@ func (r *PostgresUserRepository) GetAllUsers(page, limit int, sortBy string, asc
 	return users, int(total), err
 }
 
-// Block and Report operations implementation
-
-// BlockUser creates a block relationship between two users
 func (r *PostgresUserRepository) BlockUser(blockerID, blockedID string) error {
 	blockerUUID, err := uuid.Parse(blockerID)
 	if err != nil {
@@ -368,14 +325,12 @@ func (r *PostgresUserRepository) BlockUser(blockerID, blockedID string) error {
 		return fmt.Errorf("invalid blocked ID: %w", err)
 	}
 
-	// Check if already blocked
 	var existingBlock model.UserBlock
 	if err := r.db.Where("blocker_id = ? AND blocked_id = ?", blockerUUID, blockedUUID).First(&existingBlock).Error; err == nil {
-		// Already blocked
+
 		return nil
 	}
 
-	// Create new block
 	block := model.UserBlock{
 		BlockerID: blockerUUID,
 		BlockedID: blockedUUID,
@@ -384,7 +339,6 @@ func (r *PostgresUserRepository) BlockUser(blockerID, blockedID string) error {
 	return r.db.Create(&block).Error
 }
 
-// UnblockUser removes a block relationship between two users
 func (r *PostgresUserRepository) UnblockUser(unblockerID, unblockedID string) error {
 	unblockerUUID, err := uuid.Parse(unblockerID)
 	if err != nil {
@@ -399,7 +353,6 @@ func (r *PostgresUserRepository) UnblockUser(unblockerID, unblockedID string) er
 	return r.db.Where("blocker_id = ? AND blocked_id = ?", unblockerUUID, unblockedUUID).Delete(&model.UserBlock{}).Error
 }
 
-// IsUserBlocked checks if userID is blocked by blockedByID
 func (r *PostgresUserRepository) IsUserBlocked(userID, blockedByID string) (bool, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -419,7 +372,6 @@ func (r *PostgresUserRepository) IsUserBlocked(userID, blockedByID string) (bool
 	return count > 0, err
 }
 
-// ReportUser creates a new user report
 func (r *PostgresUserRepository) ReportUser(reporterID, reportedID, reason string) error {
 	reporterUUID, err := uuid.Parse(reporterID)
 	if err != nil {
@@ -431,14 +383,12 @@ func (r *PostgresUserRepository) ReportUser(reporterID, reportedID, reason strin
 		return fmt.Errorf("invalid reported ID: %w", err)
 	}
 
-	// Check if already reported
 	var existingReport model.UserReport
 	if err := r.db.Where("reporter_id = ? AND reported_id = ? AND status = ?", reporterUUID, reportedUUID, "pending").First(&existingReport).Error; err == nil {
-		// Already reported and pending
+
 		return nil
 	}
 
-	// Create new report
 	report := model.UserReport{
 		ReporterID: reporterUUID,
 		ReportedID: reportedUUID,
@@ -449,7 +399,6 @@ func (r *PostgresUserRepository) ReportUser(reporterID, reportedID, reason strin
 	return r.db.Create(&report).Error
 }
 
-// GetBlockedUsers returns a list of users blocked by the given user
 func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
@@ -459,7 +408,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 	var total int64
 	var blockedUsers []model.User
 
-	// First get the count
 	err = r.db.Model(&model.UserBlock{}).
 		Where("blocker_id = ?", userUUID).
 		Count(&total).Error
@@ -467,7 +415,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 		return nil, 0, err
 	}
 
-	// Get the blocked users with pagination
 	offset := (page - 1) * limit
 	err = r.db.Table("users").
 		Select("users.*").
@@ -480,7 +427,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 		return nil, 0, err
 	}
 
-	// Convert to map format
 	result := make([]map[string]interface{}, len(blockedUsers))
 	for i, user := range blockedUsers {
 		result[i] = map[string]interface{}{
@@ -494,7 +440,6 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 	return result, total, nil
 }
 
-// IncrementFollowerCount increments a user's follower count
 func (r *PostgresUserRepository) IncrementFollowerCount(userID string) error {
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
@@ -502,7 +447,6 @@ func (r *PostgresUserRepository) IncrementFollowerCount(userID string) error {
 		Error
 }
 
-// DecrementFollowerCount decrements a user's follower count
 func (r *PostgresUserRepository) DecrementFollowerCount(userID string) error {
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
@@ -510,7 +454,6 @@ func (r *PostgresUserRepository) DecrementFollowerCount(userID string) error {
 		Error
 }
 
-// IncrementFollowingCount increments a user's following count
 func (r *PostgresUserRepository) IncrementFollowingCount(userID string) error {
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
@@ -518,7 +461,6 @@ func (r *PostgresUserRepository) IncrementFollowingCount(userID string) error {
 		Error
 }
 
-// DecrementFollowingCount decrements a user's following count
 func (r *PostgresUserRepository) DecrementFollowingCount(userID string) error {
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
@@ -526,7 +468,6 @@ func (r *PostgresUserRepository) DecrementFollowingCount(userID string) error {
 		Error
 }
 
-// ExecuteInTransaction executes the provided function within a transaction
 func (r *PostgresUserRepository) ExecuteInTransaction(fn func(tx UserRepository) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := &PostgresUserRepository{db: tx}

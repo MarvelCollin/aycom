@@ -327,7 +327,6 @@ func (c *GRPCUserServiceClient) IsFollowing(followerId, followeeId string) (bool
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use the proper IsFollowing gRPC method instead of GetFollowing
 	resp, err := c.client.IsFollowing(ctx, &userProto.IsFollowingRequest{
 		FollowerId: followerId,
 		FollowedId: followeeId,
@@ -506,7 +505,7 @@ func (c *GRPCUserServiceClient) GetFollowing(userID string, page int, limit int)
 	for _, protoUser := range resp.GetFollowing() {
 		user := convertProtoToUser(protoUser)
 		if user != nil {
-			user.IsFollowing = true // We're getting users we already follow
+			user.IsFollowing = true
 			following = append(following, user)
 		}
 	}
@@ -705,10 +704,8 @@ func (c *GRPCUserServiceClient) GetBlockedUsers(userID string, page, limit int) 
 		return nil, fmt.Errorf("user ID is required")
 	}
 
-	// Since GetBlockedUsers is not defined in the proto file, we implement a mock
 	log.Printf("Getting blocked users for user %s (page: %d, limit: %d)", userID, page, limit)
 
-	// Return mock data for now
 	return []*User{}, nil
 }
 
