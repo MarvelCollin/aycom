@@ -234,3 +234,7 @@ func (r *AdminRepository) UpdateCommunityCategory(id string, name, description s
 func (r *AdminRepository) DeleteCommunityCategory(id string) error {
 	return r.db.Delete(&model.CommunityCategory{}, "id = ?", id).Error
 }
+
+func (r *AdminRepository) CreateCommunityRequest(request *model.CommunityRequest) error {
+	return r.db.Create(request).Error
+}

@@ -5125,6 +5125,134 @@ func (x *DeleteCommunityCategoryResponse) GetMessage() string {
 	return ""
 }
 
+type CreateCommunityRequestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CommunityId   string                 `protobuf:"bytes,1,opt,name=community_id,json=communityId,proto3" json:"community_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCommunityRequestRequest) Reset() {
+	*x = CreateCommunityRequestRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommunityRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommunityRequestRequest) ProtoMessage() {}
+
+func (x *CreateCommunityRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommunityRequestRequest.ProtoReflect.Descriptor instead.
+func (*CreateCommunityRequestRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *CreateCommunityRequestRequest) GetCommunityId() string {
+	if x != nil {
+		return x.CommunityId
+	}
+	return ""
+}
+
+func (x *CreateCommunityRequestRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateCommunityRequestRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateCommunityRequestRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type CreateCommunityRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Request       *CommunityRequest      `protobuf:"bytes,3,opt,name=request,proto3" json:"request,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCommunityRequestResponse) Reset() {
+	*x = CreateCommunityRequestResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommunityRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommunityRequestResponse) ProtoMessage() {}
+
+func (x *CreateCommunityRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommunityRequestResponse.ProtoReflect.Descriptor instead.
+func (*CreateCommunityRequestResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *CreateCommunityRequestResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreateCommunityRequestResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CreateCommunityRequestResponse) GetRequest() *CommunityRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -5525,7 +5653,16 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\badmin_id\x18\x02 \x01(\tR\aadminId\"U\n" +
 	"\x1fDeleteCommunityCategoryResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xa8\x1a\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x91\x01\n" +
+	"\x1dCreateCommunityRequestRequest\x12!\n" +
+	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\"\x86\x01\n" +
+	"\x1eCreateCommunityRequestResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x120\n" +
+	"\arequest\x18\x03 \x01(\v2\x16.user.CommunityRequestR\arequest2\x8f\x1b\n" +
 	"\vUserService\x128\n" +
 	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
 	"\n" +
@@ -5559,7 +5696,8 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\aBanUser\x12\x14.user.BanUserRequest\x1a\x15.user.BanUserResponse\"\x00\x12M\n" +
 	"\x0eSendNewsletter\x12\x1b.user.SendNewsletterRequest\x1a\x1c.user.SendNewsletterResponse\"\x00\x12_\n" +
 	"\x14GetCommunityRequests\x12!.user.GetCommunityRequestsRequest\x1a\".user.GetCommunityRequestsResponse\"\x00\x12h\n" +
-	"\x17ProcessCommunityRequest\x12$.user.ProcessCommunityRequestRequest\x1a%.user.ProcessCommunityRequestResponse\"\x00\x12Y\n" +
+	"\x17ProcessCommunityRequest\x12$.user.ProcessCommunityRequestRequest\x1a%.user.ProcessCommunityRequestResponse\"\x00\x12e\n" +
+	"\x16CreateCommunityRequest\x12#.user.CreateCommunityRequestRequest\x1a$.user.CreateCommunityRequestResponse\"\x00\x12Y\n" +
 	"\x12GetPremiumRequests\x12\x1f.user.GetPremiumRequestsRequest\x1a .user.GetPremiumRequestsResponse\"\x00\x12b\n" +
 	"\x15ProcessPremiumRequest\x12\".user.ProcessPremiumRequestRequest\x1a#.user.ProcessPremiumRequestResponse\"\x00\x12V\n" +
 	"\x11GetReportRequests\x12\x1e.user.GetReportRequestsRequest\x1a\x1f.user.GetReportRequestsResponse\"\x00\x12_\n" +
@@ -5585,7 +5723,7 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
 var file_proto_user_user_proto_goTypes = []any{
 	(*User)(nil),                                 // 0: user.User
 	(*GetUserRequest)(nil),                       // 1: user.GetUserRequest
@@ -5673,6 +5811,8 @@ var file_proto_user_user_proto_goTypes = []any{
 	(*UpdateCommunityCategoryResponse)(nil),      // 83: user.UpdateCommunityCategoryResponse
 	(*DeleteCommunityCategoryRequest)(nil),       // 84: user.DeleteCommunityCategoryRequest
 	(*DeleteCommunityCategoryResponse)(nil),      // 85: user.DeleteCommunityCategoryResponse
+	(*CreateCommunityRequestRequest)(nil),        // 86: user.CreateCommunityRequestRequest
+	(*CreateCommunityRequestResponse)(nil),       // 87: user.CreateCommunityRequestResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 0: user.GetUserResponse.user:type_name -> user.User
@@ -5701,91 +5841,94 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	77, // 23: user.GetCommunityCategoriesResponse.categories:type_name -> user.CommunityCategory
 	77, // 24: user.CreateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
 	77, // 25: user.UpdateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
-	1,  // 26: user.UserService.GetUser:input_type -> user.GetUserRequest
-	3,  // 27: user.UserService.CreateUser:input_type -> user.CreateUserRequest
-	5,  // 28: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
-	7,  // 29: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
-	9,  // 30: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
-	11, // 31: user.UserService.LoginUser:input_type -> user.LoginUserRequest
-	13, // 32: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
-	15, // 33: user.UserService.GetUserByUsername:input_type -> user.GetUserByUsernameRequest
-	17, // 34: user.UserService.IsUserBlocked:input_type -> user.IsUserBlockedRequest
-	19, // 35: user.UserService.BlockUser:input_type -> user.BlockUserRequest
-	21, // 36: user.UserService.UnblockUser:input_type -> user.UnblockUserRequest
-	23, // 37: user.UserService.ReportUser:input_type -> user.ReportUserRequest
-	25, // 38: user.UserService.IsFollowing:input_type -> user.IsFollowingRequest
-	27, // 39: user.UserService.FollowUser:input_type -> user.FollowUserRequest
-	29, // 40: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
-	31, // 41: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
-	33, // 42: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
-	35, // 43: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
-	37, // 44: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
-	47, // 45: user.UserService.GetAllUsers:input_type -> user.GetAllUsersRequest
-	39, // 46: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
-	41, // 47: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
-	45, // 48: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
-	43, // 49: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
-	49, // 50: user.UserService.BanUser:input_type -> user.BanUserRequest
-	51, // 51: user.UserService.SendNewsletter:input_type -> user.SendNewsletterRequest
-	54, // 52: user.UserService.GetCommunityRequests:input_type -> user.GetCommunityRequestsRequest
-	56, // 53: user.UserService.ProcessCommunityRequest:input_type -> user.ProcessCommunityRequestRequest
-	59, // 54: user.UserService.GetPremiumRequests:input_type -> user.GetPremiumRequestsRequest
-	61, // 55: user.UserService.ProcessPremiumRequest:input_type -> user.ProcessPremiumRequestRequest
-	64, // 56: user.UserService.GetReportRequests:input_type -> user.GetReportRequestsRequest
-	66, // 57: user.UserService.ProcessReportRequest:input_type -> user.ProcessReportRequestRequest
-	69, // 58: user.UserService.GetThreadCategories:input_type -> user.GetThreadCategoriesRequest
-	71, // 59: user.UserService.CreateThreadCategory:input_type -> user.CreateThreadCategoryRequest
-	73, // 60: user.UserService.UpdateThreadCategory:input_type -> user.UpdateThreadCategoryRequest
-	75, // 61: user.UserService.DeleteThreadCategory:input_type -> user.DeleteThreadCategoryRequest
-	78, // 62: user.UserService.GetCommunityCategories:input_type -> user.GetCommunityCategoriesRequest
-	80, // 63: user.UserService.CreateCommunityCategory:input_type -> user.CreateCommunityCategoryRequest
-	82, // 64: user.UserService.UpdateCommunityCategory:input_type -> user.UpdateCommunityCategoryRequest
-	84, // 65: user.UserService.DeleteCommunityCategory:input_type -> user.DeleteCommunityCategoryRequest
-	2,  // 66: user.UserService.GetUser:output_type -> user.GetUserResponse
-	4,  // 67: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 68: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	8,  // 69: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	10, // 70: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
-	12, // 71: user.UserService.LoginUser:output_type -> user.LoginUserResponse
-	14, // 72: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
-	16, // 73: user.UserService.GetUserByUsername:output_type -> user.GetUserByUsernameResponse
-	18, // 74: user.UserService.IsUserBlocked:output_type -> user.IsUserBlockedResponse
-	20, // 75: user.UserService.BlockUser:output_type -> user.BlockUserResponse
-	22, // 76: user.UserService.UnblockUser:output_type -> user.UnblockUserResponse
-	24, // 77: user.UserService.ReportUser:output_type -> user.ReportUserResponse
-	26, // 78: user.UserService.IsFollowing:output_type -> user.IsFollowingResponse
-	28, // 79: user.UserService.FollowUser:output_type -> user.FollowUserResponse
-	30, // 80: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
-	32, // 81: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
-	34, // 82: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
-	36, // 83: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
-	38, // 84: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
-	48, // 85: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
-	40, // 86: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
-	42, // 87: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
-	46, // 88: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
-	44, // 89: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
-	50, // 90: user.UserService.BanUser:output_type -> user.BanUserResponse
-	52, // 91: user.UserService.SendNewsletter:output_type -> user.SendNewsletterResponse
-	55, // 92: user.UserService.GetCommunityRequests:output_type -> user.GetCommunityRequestsResponse
-	57, // 93: user.UserService.ProcessCommunityRequest:output_type -> user.ProcessCommunityRequestResponse
-	60, // 94: user.UserService.GetPremiumRequests:output_type -> user.GetPremiumRequestsResponse
-	62, // 95: user.UserService.ProcessPremiumRequest:output_type -> user.ProcessPremiumRequestResponse
-	65, // 96: user.UserService.GetReportRequests:output_type -> user.GetReportRequestsResponse
-	67, // 97: user.UserService.ProcessReportRequest:output_type -> user.ProcessReportRequestResponse
-	70, // 98: user.UserService.GetThreadCategories:output_type -> user.GetThreadCategoriesResponse
-	72, // 99: user.UserService.CreateThreadCategory:output_type -> user.CreateThreadCategoryResponse
-	74, // 100: user.UserService.UpdateThreadCategory:output_type -> user.UpdateThreadCategoryResponse
-	76, // 101: user.UserService.DeleteThreadCategory:output_type -> user.DeleteThreadCategoryResponse
-	79, // 102: user.UserService.GetCommunityCategories:output_type -> user.GetCommunityCategoriesResponse
-	81, // 103: user.UserService.CreateCommunityCategory:output_type -> user.CreateCommunityCategoryResponse
-	83, // 104: user.UserService.UpdateCommunityCategory:output_type -> user.UpdateCommunityCategoryResponse
-	85, // 105: user.UserService.DeleteCommunityCategory:output_type -> user.DeleteCommunityCategoryResponse
-	66, // [66:106] is the sub-list for method output_type
-	26, // [26:66] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	53, // 26: user.CreateCommunityRequestResponse.request:type_name -> user.CommunityRequest
+	1,  // 27: user.UserService.GetUser:input_type -> user.GetUserRequest
+	3,  // 28: user.UserService.CreateUser:input_type -> user.CreateUserRequest
+	5,  // 29: user.UserService.UpdateUser:input_type -> user.UpdateUserRequest
+	7,  // 30: user.UserService.DeleteUser:input_type -> user.DeleteUserRequest
+	9,  // 31: user.UserService.UpdateUserVerificationStatus:input_type -> user.UpdateUserVerificationStatusRequest
+	11, // 32: user.UserService.LoginUser:input_type -> user.LoginUserRequest
+	13, // 33: user.UserService.GetUserByEmail:input_type -> user.GetUserByEmailRequest
+	15, // 34: user.UserService.GetUserByUsername:input_type -> user.GetUserByUsernameRequest
+	17, // 35: user.UserService.IsUserBlocked:input_type -> user.IsUserBlockedRequest
+	19, // 36: user.UserService.BlockUser:input_type -> user.BlockUserRequest
+	21, // 37: user.UserService.UnblockUser:input_type -> user.UnblockUserRequest
+	23, // 38: user.UserService.ReportUser:input_type -> user.ReportUserRequest
+	25, // 39: user.UserService.IsFollowing:input_type -> user.IsFollowingRequest
+	27, // 40: user.UserService.FollowUser:input_type -> user.FollowUserRequest
+	29, // 41: user.UserService.UnfollowUser:input_type -> user.UnfollowUserRequest
+	31, // 42: user.UserService.GetFollowers:input_type -> user.GetFollowersRequest
+	33, // 43: user.UserService.GetFollowing:input_type -> user.GetFollowingRequest
+	35, // 44: user.UserService.SearchUsers:input_type -> user.SearchUsersRequest
+	37, // 45: user.UserService.GetRecommendedUsers:input_type -> user.GetRecommendedUsersRequest
+	47, // 46: user.UserService.GetAllUsers:input_type -> user.GetAllUsersRequest
+	39, // 47: user.UserService.RequestPasswordReset:input_type -> user.RequestPasswordResetRequest
+	41, // 48: user.UserService.VerifyResetToken:input_type -> user.VerifyResetTokenRequest
+	45, // 49: user.UserService.ResetPassword:input_type -> user.ResetPasswordRequest
+	43, // 50: user.UserService.VerifySecurityAnswer:input_type -> user.VerifySecurityAnswerRequest
+	49, // 51: user.UserService.BanUser:input_type -> user.BanUserRequest
+	51, // 52: user.UserService.SendNewsletter:input_type -> user.SendNewsletterRequest
+	54, // 53: user.UserService.GetCommunityRequests:input_type -> user.GetCommunityRequestsRequest
+	56, // 54: user.UserService.ProcessCommunityRequest:input_type -> user.ProcessCommunityRequestRequest
+	86, // 55: user.UserService.CreateCommunityRequest:input_type -> user.CreateCommunityRequestRequest
+	59, // 56: user.UserService.GetPremiumRequests:input_type -> user.GetPremiumRequestsRequest
+	61, // 57: user.UserService.ProcessPremiumRequest:input_type -> user.ProcessPremiumRequestRequest
+	64, // 58: user.UserService.GetReportRequests:input_type -> user.GetReportRequestsRequest
+	66, // 59: user.UserService.ProcessReportRequest:input_type -> user.ProcessReportRequestRequest
+	69, // 60: user.UserService.GetThreadCategories:input_type -> user.GetThreadCategoriesRequest
+	71, // 61: user.UserService.CreateThreadCategory:input_type -> user.CreateThreadCategoryRequest
+	73, // 62: user.UserService.UpdateThreadCategory:input_type -> user.UpdateThreadCategoryRequest
+	75, // 63: user.UserService.DeleteThreadCategory:input_type -> user.DeleteThreadCategoryRequest
+	78, // 64: user.UserService.GetCommunityCategories:input_type -> user.GetCommunityCategoriesRequest
+	80, // 65: user.UserService.CreateCommunityCategory:input_type -> user.CreateCommunityCategoryRequest
+	82, // 66: user.UserService.UpdateCommunityCategory:input_type -> user.UpdateCommunityCategoryRequest
+	84, // 67: user.UserService.DeleteCommunityCategory:input_type -> user.DeleteCommunityCategoryRequest
+	2,  // 68: user.UserService.GetUser:output_type -> user.GetUserResponse
+	4,  // 69: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	6,  // 70: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
+	8,  // 71: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	10, // 72: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
+	12, // 73: user.UserService.LoginUser:output_type -> user.LoginUserResponse
+	14, // 74: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
+	16, // 75: user.UserService.GetUserByUsername:output_type -> user.GetUserByUsernameResponse
+	18, // 76: user.UserService.IsUserBlocked:output_type -> user.IsUserBlockedResponse
+	20, // 77: user.UserService.BlockUser:output_type -> user.BlockUserResponse
+	22, // 78: user.UserService.UnblockUser:output_type -> user.UnblockUserResponse
+	24, // 79: user.UserService.ReportUser:output_type -> user.ReportUserResponse
+	26, // 80: user.UserService.IsFollowing:output_type -> user.IsFollowingResponse
+	28, // 81: user.UserService.FollowUser:output_type -> user.FollowUserResponse
+	30, // 82: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
+	32, // 83: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
+	34, // 84: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
+	36, // 85: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
+	38, // 86: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
+	48, // 87: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
+	40, // 88: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
+	42, // 89: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
+	46, // 90: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
+	44, // 91: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
+	50, // 92: user.UserService.BanUser:output_type -> user.BanUserResponse
+	52, // 93: user.UserService.SendNewsletter:output_type -> user.SendNewsletterResponse
+	55, // 94: user.UserService.GetCommunityRequests:output_type -> user.GetCommunityRequestsResponse
+	57, // 95: user.UserService.ProcessCommunityRequest:output_type -> user.ProcessCommunityRequestResponse
+	87, // 96: user.UserService.CreateCommunityRequest:output_type -> user.CreateCommunityRequestResponse
+	60, // 97: user.UserService.GetPremiumRequests:output_type -> user.GetPremiumRequestsResponse
+	62, // 98: user.UserService.ProcessPremiumRequest:output_type -> user.ProcessPremiumRequestResponse
+	65, // 99: user.UserService.GetReportRequests:output_type -> user.GetReportRequestsResponse
+	67, // 100: user.UserService.ProcessReportRequest:output_type -> user.ProcessReportRequestResponse
+	70, // 101: user.UserService.GetThreadCategories:output_type -> user.GetThreadCategoriesResponse
+	72, // 102: user.UserService.CreateThreadCategory:output_type -> user.CreateThreadCategoryResponse
+	74, // 103: user.UserService.UpdateThreadCategory:output_type -> user.UpdateThreadCategoryResponse
+	76, // 104: user.UserService.DeleteThreadCategory:output_type -> user.DeleteThreadCategoryResponse
+	79, // 105: user.UserService.GetCommunityCategories:output_type -> user.GetCommunityCategoriesResponse
+	81, // 106: user.UserService.CreateCommunityCategory:output_type -> user.CreateCommunityCategoryResponse
+	83, // 107: user.UserService.UpdateCommunityCategory:output_type -> user.UpdateCommunityCategoryResponse
+	85, // 108: user.UserService.DeleteCommunityCategory:output_type -> user.DeleteCommunityCategoryResponse
+	68, // [68:109] is the sub-list for method output_type
+	27, // [27:68] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_proto_user_user_proto_init() }
@@ -5799,7 +5942,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   86,
+			NumMessages:   88,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

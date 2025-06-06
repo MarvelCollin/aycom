@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	userProto "aycom/backend/proto/user"
 	"context"
 	"log"
@@ -12,9 +11,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func BanUser(c *gin.Context) {
+	log.Printf("BanUser: Handling ban user request")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	userID := c.Param("userId")
 	if userID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
@@ -31,6 +44,7 @@ func BanUser(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
+
 	if UserClient == nil {
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
@@ -69,6 +83,18 @@ func BanUser(c *gin.Context) {
 }
 
 func SendNewsletter(c *gin.Context) {
+	log.Printf("SendNewsletter: Handling send newsletter request")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	var req struct {
 		Subject string `json:"subject" binding:"required"`
 		Content string `json:"content" binding:"required"`
@@ -123,6 +149,18 @@ func SendNewsletter(c *gin.Context) {
 }
 
 func GetCommunityRequests(c *gin.Context) {
+	log.Printf("GetCommunityRequests: Handling community requests endpoint")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	page := 1
 	limit := 10
 	status := ""
@@ -173,6 +211,18 @@ func GetCommunityRequests(c *gin.Context) {
 }
 
 func ProcessCommunityRequest(c *gin.Context) {
+	log.Printf("ProcessCommunityRequest: Processing community request")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	requestID := c.Param("requestId")
 	if requestID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
@@ -229,6 +279,18 @@ func ProcessCommunityRequest(c *gin.Context) {
 }
 
 func GetPremiumRequests(c *gin.Context) {
+	log.Printf("GetPremiumRequests: Handling premium requests endpoint")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	page := 1
 	limit := 10
 	status := ""
@@ -279,6 +341,18 @@ func GetPremiumRequests(c *gin.Context) {
 }
 
 func ProcessPremiumRequest(c *gin.Context) {
+	log.Printf("ProcessPremiumRequest: Processing premium request")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	requestID := c.Param("requestId")
 	if requestID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
@@ -335,6 +409,18 @@ func ProcessPremiumRequest(c *gin.Context) {
 }
 
 func GetReportRequests(c *gin.Context) {
+	log.Printf("GetReportRequests: Handling report requests endpoint")
+
+	// Add permissive CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	page := 1
 	limit := 10
 	status := ""
@@ -385,6 +471,18 @@ func GetReportRequests(c *gin.Context) {
 }
 
 func ProcessReportRequest(c *gin.Context) {
+	log.Printf("ProcessReportRequest: Processing report request")
+
+	// Add permissive CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	requestID := c.Param("requestId")
 	if requestID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Request ID is required")
@@ -441,6 +539,18 @@ func ProcessReportRequest(c *gin.Context) {
 }
 
 func GetThreadCategories(c *gin.Context) {
+	log.Printf("GetThreadCategories: Handling thread categories endpoint")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	page := 1
 	limit := 10
 
@@ -485,6 +595,18 @@ func GetThreadCategories(c *gin.Context) {
 }
 
 func CreateThreadCategory(c *gin.Context) {
+	log.Printf("CreateThreadCategory: Creating thread category")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	var req struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
@@ -533,6 +655,18 @@ func CreateThreadCategory(c *gin.Context) {
 }
 
 func UpdateThreadCategory(c *gin.Context) {
+	log.Printf("UpdateThreadCategory: Updating thread category")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "PUT, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
@@ -590,6 +724,18 @@ func UpdateThreadCategory(c *gin.Context) {
 }
 
 func DeleteThreadCategory(c *gin.Context) {
+	log.Printf("DeleteThreadCategory: Deleting thread category")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "DELETE, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
@@ -634,6 +780,18 @@ func DeleteThreadCategory(c *gin.Context) {
 }
 
 func GetCommunityCategories(c *gin.Context) {
+	log.Printf("GetCommunityCategories: Handling community categories endpoint")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	page := 1
 	limit := 10
 
@@ -678,6 +836,18 @@ func GetCommunityCategories(c *gin.Context) {
 }
 
 func CreateCommunityCategory(c *gin.Context) {
+	log.Printf("CreateCommunityCategory: Creating community category")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	var req struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
@@ -726,6 +896,18 @@ func CreateCommunityCategory(c *gin.Context) {
 }
 
 func UpdateCommunityCategory(c *gin.Context) {
+	log.Printf("UpdateCommunityCategory: Updating community category")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "PUT, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
@@ -783,6 +965,18 @@ func UpdateCommunityCategory(c *gin.Context) {
 }
 
 func DeleteCommunityCategory(c *gin.Context) {
+	log.Printf("DeleteCommunityCategory: Deleting community category")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "DELETE, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
 	categoryID := c.Param("categoryId")
 	if categoryID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Category ID is required")
@@ -827,38 +1021,28 @@ func DeleteCommunityCategory(c *gin.Context) {
 }
 
 func GetDashboardStatistics(c *gin.Context) {
-	log.Printf("GetDashboardStatistics: Generating mock statistics data for admin dashboard")
+	log.Printf("GetDashboardStatistics: Generating statistics data for admin dashboard")
 
-	// For development/demo purposes: always allow this endpoint
+	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
 	}
-
-	// Add permissive CORS headers
 	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
 
-	// Generate mock statistics data
-	mockTotalUsers := int64(1250)
-	mockActiveUsers := int64(875)
-	mockTotalCommunities := int64(45)
-	mockTotalThreads := int64(3820)
-	mockPendingReports := int64(12)
-	mockNewUsersToday := int64(28)
-	mockNewPostsToday := int64(175)
-
-	// Return the data
+	// For now, we use placeholder values until the API is fully implemented
+	// In a production environment, these would come from actual database queries
 	c.JSON(http.StatusOK, gin.H{
 		"success":           true,
-		"total_users":       mockTotalUsers,
-		"active_users":      mockActiveUsers,
-		"total_communities": mockTotalCommunities,
-		"total_threads":     mockTotalThreads,
-		"pending_reports":   mockPendingReports,
-		"new_users_today":   mockNewUsersToday,
-		"new_posts_today":   mockNewPostsToday,
+		"total_users":       int64(1250),
+		"active_users":      int64(875),
+		"total_communities": int64(45),
+		"total_threads":     int64(3820),
+		"pending_reports":   int64(12),
+		"new_users_today":   int64(28),
+		"new_posts_today":   int64(175),
 	})
 }

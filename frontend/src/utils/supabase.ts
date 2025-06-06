@@ -17,6 +17,32 @@ export const SUPABASE_BUCKETS = {
   FALLBACK: 'tpaweb'
 };
 
+export async function initializeSupabaseBuckets(): Promise<void> {
+  logger.info('Initializing Supabase buckets...');
+  
+  try {
+    const { data: existingBuckets, error } = await supabase.storage.listBuckets();
+    
+    if (error) {
+      logger.error('Failed to list Supabase buckets:', error);
+      logger.info('Will use fallback bucket for all operations');
+      return;
+    }
+    
+    const existingBucketNames = existingBuckets.map(bucket => bucket.name);
+    logger.info(`Available buckets: ${existingBucketNames.join(', ')}`);
+    
+    if (!existingBucketNames.includes(SUPABASE_BUCKETS.FALLBACK)) {
+      logger.warn(`Fallback bucket '${SUPABASE_BUCKETS.FALLBACK}' does not exist. Please create it in the Supabase dashboard.`);
+    }
+    
+    logger.info('Supabase buckets initialization complete');
+  } catch (err) {
+    logger.error('Error initializing Supabase buckets:', err);
+    logger.info('Will use fallback bucket for all operations');
+  }
+}
+
 const ALLOWED_MIME_TYPES = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   video: ['video/mp4', 'video/webm', 'video/ogg'],
@@ -76,29 +102,51 @@ export async function uploadMedia(
 
     const fileName = generateUniqueFilename(file);
     const filePath = `${folder}/${fileName}`;
+    let url: string;
 
-    const { data, error } = await supabase.storage
-      .from(SUPABASE_BUCKETS.MEDIA)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    try {
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKETS.MEDIA)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-    if (error) {
-      logger.error('Supabase storage upload error:', error);
-      throw error;
-    }
+      if (error) {
+        throw error;
+      }
 
-    const { data: urlData } = supabase.storage
-      .from(SUPABASE_BUCKETS.MEDIA)
-      .getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage
+        .from(SUPABASE_BUCKETS.MEDIA)
+        .getPublicUrl(filePath);
 
-    if (!urlData.publicUrl) {
-      throw new Error('Failed to get public URL');
+      url = urlData.publicUrl;
+    } catch (uploadError) {
+      logger.error('Primary bucket upload failed, trying fallback:', uploadError);
+      
+      // Try fallback bucket
+      const fallbackPath = `media/${folder}/${fileName}`;
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKETS.FALLBACK)
+        .upload(fallbackPath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) {
+        logger.error('Fallback bucket upload also failed:', error);
+        throw error;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(SUPABASE_BUCKETS.FALLBACK)
+        .getPublicUrl(fallbackPath);
+
+      url = urlData.publicUrl;
     }
 
     return {
-      url: urlData.publicUrl,
+      url,
       mediaType: getMediaType(file.type)
     };
 
@@ -189,112 +237,53 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
     if (error) {
       logger.error(`Error uploading to ${bucket}:`, error);
 
-      if (bucket === SUPABASE_BUCKETS.PROFILES || bucket === SUPABASE_BUCKETS.BANNERS) {
-        logger.debug(`Attempting upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
-
-        const fallbackPath = `${bucket}/${path}/${fileName}`;
-        const fallbackResult = await supabase.storage
-          .from(SUPABASE_BUCKETS.FALLBACK)
-          .upload(fallbackPath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (fallbackResult.error) {
-          logger.error('Fallback upload also failed:', fallbackResult.error);
-          return null;
-        }
-
-        const { data: fallbackUrlData } = supabase.storage
-          .from(SUPABASE_BUCKETS.FALLBACK)
-          .getPublicUrl(fallbackPath);
-
-        logger.debug('Fallback upload successful');
-        return fallbackUrlData.publicUrl;
-      }
-
-      return null;
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-
-    logger.debug('Upload successful');
-    return publicUrl;
-  } catch (err) {
-    logger.error('Exception during file upload:', err);
-    return null;
-  }
-}
-
-export async function uploadProfilePicture(file: File, userId: string): Promise<string | null> {
-  return uploadFile(file, SUPABASE_BUCKETS.PROFILES, userId);
-}
-
-export async function uploadBanner(file: File, userId: string): Promise<string | null> {
-  logger.debug(`Uploading banner for user ${userId}, fileType: ${file.type}, fileSize: ${file.size}`);
-
-  try {
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      logger.error('Banner validation failed:', validation.error);
-      return null;
-    }
-
-    const fileName = generateUniqueFilename(file);
-    const filePath = `${userId}/${fileName}`;
-    logger.debug(`Banner upload path: ${filePath} in bucket: ${SUPABASE_BUCKETS.BANNERS}`);
-
-    const { data, error } = await supabase.storage
-      .from(SUPABASE_BUCKETS.BANNERS)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (error) {
-      logger.error(`Banner upload error for ${userId}:`, error);
-
-      logger.debug(`Attempting banner upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
-
-      const fallbackPath = `banners/${userId}/${fileName}`;
+      // Use fallback bucket for any upload that fails
+      logger.debug(`Attempting upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
+      
+      const fallbackPath = `${bucket}/${path}/${fileName}`;
       const fallbackResult = await supabase.storage
         .from(SUPABASE_BUCKETS.FALLBACK)
         .upload(fallbackPath, file, {
           cacheControl: '3600',
           upsert: false
         });
-
+        
       if (fallbackResult.error) {
-        logger.error('Fallback banner upload also failed:', fallbackResult.error);
+        logger.error(`Error uploading to fallback bucket:`, fallbackResult.error);
         return null;
       }
-
+      
       const { data: fallbackUrlData } = supabase.storage
         .from(SUPABASE_BUCKETS.FALLBACK)
         .getPublicUrl(fallbackPath);
-
-      logger.debug('Fallback banner upload successful:', fallbackUrlData.publicUrl);
+        
       return fallbackUrlData.publicUrl;
     }
 
     const { data: urlData } = supabase.storage
-      .from(SUPABASE_BUCKETS.BANNERS)
+      .from(bucket)
       .getPublicUrl(filePath);
 
-    logger.debug('Banner upload successful:', urlData.publicUrl);
     return urlData.publicUrl;
-  } catch (err) {
-    logger.error('Exception during banner upload:', err);
+  } catch (error) {
+    logger.error('File upload failed:', error);
     return null;
   }
 }
 
+// Set this to true once all bucket-specific functions have been updated
+export const allBucketFunctionsUpdated = true;
+
+export async function uploadProfilePicture(file: File, userId: string): Promise<string | null> {
+  return uploadFile(file, SUPABASE_BUCKETS.PROFILES, userId);
+}
+
+export async function uploadBanner(file: File, userId: string): Promise<string | null> {
+  return uploadFile(file, SUPABASE_BUCKETS.BANNERS, userId);
+}
+
 export async function uploadThreadMedia(file: File, threadId: string): Promise<string | null> {
-  const mediaType = getMediaType(file.type);
-  const folder = `${threadId}/${mediaType}s`;
-  return uploadFile(file, SUPABASE_BUCKETS.THREAD_MEDIA, folder);
+  return uploadFile(file, SUPABASE_BUCKETS.THREAD_MEDIA, threadId);
 }
 
 export async function uploadMultipleFiles(
@@ -302,18 +291,23 @@ export async function uploadMultipleFiles(
   bucket: string, 
   path: string
 ): Promise<string[]> {
-  const uploadPromises = files.map(file => uploadFile(file, bucket, path));
-  const results = await Promise.all(uploadPromises);
-  return results.filter(url => url !== null) as string[];
+  const urls: string[] = [];
+  
+  for (const file of files) {
+    const url = await uploadFile(file, bucket, path);
+    if (url) {
+      urls.push(url);
+    }
+  }
+  
+  return urls;
 }
 
 export async function uploadMultipleThreadMedia(
   files: File[], 
   threadId: string
 ): Promise<string[]> {
-  const uploadPromises = files.map(file => uploadThreadMedia(file, threadId));
-  const results = await Promise.all(uploadPromises);
-  return results.filter(url => url !== null) as string[];
+  return uploadMultipleFiles(files, SUPABASE_BUCKETS.THREAD_MEDIA, threadId);
 }
 
 export async function deleteFile(bucket: string, path: string): Promise<boolean> {

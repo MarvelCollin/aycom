@@ -16,15 +16,32 @@ import (
 func SetupRouter(cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
-	// Add debug middleware
-	r.Use(middleware.CORSDebug())
-
-	// Enable CORS for all origins
+	// Enable CORS for all origins - must be first middleware
 	r.Use(middleware.CORS())
 
-	// Add OPTIONS handler for all routes to handle preflight requests
-	r.OPTIONS("/*path", func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
+	// Add debug middleware after CORS
+	r.Use(middleware.CORSDebug())
+
+	// Add global OPTIONS handler to handle preflight requests that don't match specific routes
+	r.NoRoute(func(c *gin.Context) {
+		if c.Request.Method == "OPTIONS" {
+			origin := c.Request.Header.Get("Origin")
+			if origin == "" {
+				origin = "http://localhost:3000"
+			}
+
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token, Pragma, Expires, Connection, User-Agent, Host, Referer, Cookie, Set-Cookie, *")
+			c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+			c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Powered-By")
+
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.JSON(http.StatusNotFound, gin.H{"message": "Not Found"})
 	})
 
 	docs.SwaggerInfo.Host = "localhost:8083"

@@ -54,10 +54,11 @@
   const { theme } = useTheme();
   
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { 
-    userId: null, 
-    isAuthenticated: false, 
-    accessToken: null, 
-    refreshToken: null 
+    user_id: null, 
+    is_authenticated: false, 
+    access_token: null, 
+    refresh_token: null,
+    is_admin: false
   };
   $: isDarkMode = $theme === 'dark';
   
@@ -268,13 +269,13 @@
       const response = await adminAPI.getDashboardStatistics();
       if (response.success) {
         statistics = {
-          totalUsers: response.total_users || 0,
-          activeUsers: response.active_users || 0,
-          totalCommunities: response.total_communities || 0,
-          totalThreads: response.total_threads || 0,
-          pendingReports: response.pending_reports || 0,
-          newUsersToday: response.new_users_today || 0,
-          newPostsToday: response.new_posts_today || 0
+          totalUsers: response.data?.total_users || 0,
+          activeUsers: response.data?.active_users || 0,
+          totalCommunities: response.data?.total_communities || 0,
+          totalThreads: response.data?.total_threads || 0,
+          pendingReports: response.data?.pending_reports || 0,
+          newUsersToday: response.data?.new_users_today || 0,
+          newPostsToday: response.data?.new_posts_today || 0
         };
         logger.info('Dashboard statistics loaded successfully');
       } else {
@@ -333,8 +334,8 @@
         const communityResponse = await adminAPI.getCommunityRequests(currentPage, limit);
         if (communityResponse.success) {
           communityRequests = communityResponse.requests || [];
-          if (communityResponse.total_count) {
-            totalCount = communityResponse.total_count;
+          if (communityResponse.pagination && communityResponse.pagination.total_count) {
+            totalCount = communityResponse.pagination.total_count;
           }
         }
       } catch (error) {
@@ -389,8 +390,8 @@
         const threadResponse = await adminAPI.getThreadCategories(currentPage, limit);
         if (threadResponse.success) {
           threadCategories = threadResponse.categories || [];
-          if (threadResponse.total_count) {
-            totalCount = threadResponse.total_count;
+          if (threadResponse.pagination && threadResponse.pagination.total_count) {
+            totalCount = threadResponse.pagination.total_count;
           }
         }
       } catch (error) {
@@ -443,7 +444,7 @@
         toastStore.showToast(`User ${isBanned ? 'unbanned' : 'banned'} successfully`, 'success');
         await loadUsers(); // Reload users
       } else {
-        throw new Error(response.message || 'Failed to update user status');
+        throw new Error((response as any).message || 'Failed to update user status');
       }
     } catch (error) {
       logger.error('Error updating user ban status:', error);
@@ -492,7 +493,7 @@
         toastStore.showToast(`Community request ${approve ? 'approved' : 'rejected'}`, 'success');
         await loadRequests();
       } else {
-        throw new Error(response.message || 'Failed to process request');
+        throw new Error((response as any).message || 'Failed to process request');
       }
     } catch (error) {
       logger.error('Error processing community request:', error);
@@ -510,7 +511,7 @@
         toastStore.showToast(`Premium request ${approve ? 'approved' : 'rejected'}`, 'success');
         await loadRequests();
       } else {
-        throw new Error(response.message || 'Failed to process request');
+        throw new Error((response as any).message || 'Failed to process request');
       }
     } catch (error) {
       logger.error('Error processing premium request:', error);
@@ -529,7 +530,7 @@
         await loadRequests();
         await loadUsers(); // Refresh users as someone might have been banned
       } else {
-        throw new Error(response.message || 'Failed to process request');
+        throw new Error((response as any).message || 'Failed to process request');
       }
     } catch (error) {
       logger.error('Error processing report request:', error);
@@ -561,7 +562,7 @@
         showNewCategoryModal = false;
         await loadCategories();
       } else {
-        throw new Error(response.message || 'Failed to create category');
+        throw new Error((response as any).message || 'Failed to create category');
       }
     } catch (error) {
       logger.error('Error creating category:', error);
@@ -583,7 +584,7 @@
         editingCategory = null;
         await loadCategories();
       } else {
-        throw new Error(response.message || 'Failed to update category');
+        throw new Error((response as any).message || 'Failed to update category');
       }
     } catch (error) {
       logger.error('Error updating category:', error);
@@ -608,7 +609,7 @@
         toastStore.showToast('Category deleted successfully', 'success');
         await loadCategories();
       } else {
-        throw new Error(response.message || 'Failed to delete category');
+        throw new Error((response as any).message || 'Failed to delete category');
       }
     } catch (error) {
       logger.error('Error deleting category:', error);

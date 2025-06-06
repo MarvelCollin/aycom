@@ -20,6 +20,12 @@ import (
 	"aycom/backend/api-gateway/utils"
 )
 
+// Define the authRequest struct for login requests
+type authRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
 func AuthHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -128,10 +134,18 @@ func Login(c *gin.Context) {
 		log.Println("Login: User service client initialized successfully")
 	}
 
-	user, err := userServiceClient.Login(req.Email, req.Password)
+	userAuthResp, err := userServiceClient.Login(req.Email, req.Password)
 	if err != nil {
 		log.Printf("Login: Failed to authenticate user: %v", err)
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid email or password")
+		return
+	}
+
+	// Get the User object from the response
+	user := userAuthResp.User
+	if user == nil {
+		log.Printf("Login: User is nil in authentication response")
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "AUTH_ERROR", "User data not available")
 		return
 	}
 
@@ -184,8 +198,6 @@ func Login(c *gin.Context) {
 			"username":            user.Username,
 			"email":               user.Email,
 			"profile_picture_url": user.ProfilePictureURL,
-			"gender":              user.Gender,
-			"date_of_birth":       user.DateOfBirth,
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,

@@ -47,6 +47,7 @@ const (
 	UserService_SendNewsletter_FullMethodName               = "/user.UserService/SendNewsletter"
 	UserService_GetCommunityRequests_FullMethodName         = "/user.UserService/GetCommunityRequests"
 	UserService_ProcessCommunityRequest_FullMethodName      = "/user.UserService/ProcessCommunityRequest"
+	UserService_CreateCommunityRequest_FullMethodName       = "/user.UserService/CreateCommunityRequest"
 	UserService_GetPremiumRequests_FullMethodName           = "/user.UserService/GetPremiumRequests"
 	UserService_ProcessPremiumRequest_FullMethodName        = "/user.UserService/ProcessPremiumRequest"
 	UserService_GetReportRequests_FullMethodName            = "/user.UserService/GetReportRequests"
@@ -93,6 +94,7 @@ type UserServiceClient interface {
 	SendNewsletter(ctx context.Context, in *SendNewsletterRequest, opts ...grpc.CallOption) (*SendNewsletterResponse, error)
 	GetCommunityRequests(ctx context.Context, in *GetCommunityRequestsRequest, opts ...grpc.CallOption) (*GetCommunityRequestsResponse, error)
 	ProcessCommunityRequest(ctx context.Context, in *ProcessCommunityRequestRequest, opts ...grpc.CallOption) (*ProcessCommunityRequestResponse, error)
+	CreateCommunityRequest(ctx context.Context, in *CreateCommunityRequestRequest, opts ...grpc.CallOption) (*CreateCommunityRequestResponse, error)
 	GetPremiumRequests(ctx context.Context, in *GetPremiumRequestsRequest, opts ...grpc.CallOption) (*GetPremiumRequestsResponse, error)
 	ProcessPremiumRequest(ctx context.Context, in *ProcessPremiumRequestRequest, opts ...grpc.CallOption) (*ProcessPremiumRequestResponse, error)
 	GetReportRequests(ctx context.Context, in *GetReportRequestsRequest, opts ...grpc.CallOption) (*GetReportRequestsResponse, error)
@@ -395,6 +397,16 @@ func (c *userServiceClient) ProcessCommunityRequest(ctx context.Context, in *Pro
 	return out, nil
 }
 
+func (c *userServiceClient) CreateCommunityRequest(ctx context.Context, in *CreateCommunityRequestRequest, opts ...grpc.CallOption) (*CreateCommunityRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCommunityRequestResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateCommunityRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) GetPremiumRequests(ctx context.Context, in *GetPremiumRequestsRequest, opts ...grpc.CallOption) (*GetPremiumRequestsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPremiumRequestsResponse)
@@ -547,6 +559,7 @@ type UserServiceServer interface {
 	SendNewsletter(context.Context, *SendNewsletterRequest) (*SendNewsletterResponse, error)
 	GetCommunityRequests(context.Context, *GetCommunityRequestsRequest) (*GetCommunityRequestsResponse, error)
 	ProcessCommunityRequest(context.Context, *ProcessCommunityRequestRequest) (*ProcessCommunityRequestResponse, error)
+	CreateCommunityRequest(context.Context, *CreateCommunityRequestRequest) (*CreateCommunityRequestResponse, error)
 	GetPremiumRequests(context.Context, *GetPremiumRequestsRequest) (*GetPremiumRequestsResponse, error)
 	ProcessPremiumRequest(context.Context, *ProcessPremiumRequestRequest) (*ProcessPremiumRequestResponse, error)
 	GetReportRequests(context.Context, *GetReportRequestsRequest) (*GetReportRequestsResponse, error)
@@ -652,6 +665,9 @@ func (UnimplementedUserServiceServer) GetCommunityRequests(context.Context, *Get
 }
 func (UnimplementedUserServiceServer) ProcessCommunityRequest(context.Context, *ProcessCommunityRequestRequest) (*ProcessCommunityRequestResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessCommunityRequest not implemented")
+}
+func (UnimplementedUserServiceServer) CreateCommunityRequest(context.Context, *CreateCommunityRequestRequest) (*CreateCommunityRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateCommunityRequest not implemented")
 }
 func (UnimplementedUserServiceServer) GetPremiumRequests(context.Context, *GetPremiumRequestsRequest) (*GetPremiumRequestsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPremiumRequests not implemented")
@@ -1214,6 +1230,24 @@ func _UserService_ProcessCommunityRequest_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CreateCommunityRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCommunityRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateCommunityRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateCommunityRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateCommunityRequest(ctx, req.(*CreateCommunityRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_GetPremiumRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetPremiumRequestsRequest)
 	if err := dec(in); err != nil {
@@ -1548,6 +1582,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ProcessCommunityRequest",
 			Handler:    _UserService_ProcessCommunityRequest_Handler,
+		},
+		{
+			MethodName: "CreateCommunityRequest",
+			Handler:    _UserService_CreateCommunityRequest_Handler,
 		},
 		{
 			MethodName: "GetPremiumRequests",

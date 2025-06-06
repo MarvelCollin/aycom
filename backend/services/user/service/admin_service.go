@@ -601,3 +601,57 @@ func (s *AdminService) DeleteCommunityCategory(ctx context.Context, req *user.De
 		Message: "Community category deleted successfully",
 	}, nil
 }
+
+func (s *AdminService) CreateCommunityRequest(ctx context.Context, req *user.CreateCommunityRequestRequest) (*user.CreateCommunityRequestResponse, error) {
+	if req.CommunityId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Community ID is required")
+	}
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "Community name is required")
+	}
+
+	communityID, err := uuid.Parse(req.CommunityId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid community ID")
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid user ID")
+	}
+
+	request := &model.CommunityRequest{
+		ID:          communityID, // Use the community ID as the request ID
+		UserID:      userID,
+		Name:        req.Name,
+		Description: req.Description,
+		Status:      "pending",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	err = s.adminRepo.CreateCommunityRequest(request)
+	if err != nil {
+		log.Printf("Error creating community request: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to create community request")
+	}
+
+	protoRequest := &user.CommunityRequest{
+		Id:          request.ID.String(),
+		UserId:      request.UserID.String(),
+		Name:        request.Name,
+		Description: request.Description,
+		Status:      request.Status,
+		CreatedAt:   request.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   request.UpdatedAt.Format(time.RFC3339),
+	}
+
+	return &user.CreateCommunityRequestResponse{
+		Success: true,
+		Message: "Community request created successfully",
+		Request: protoRequest,
+	}, nil
+}

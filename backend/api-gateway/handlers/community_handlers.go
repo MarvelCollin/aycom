@@ -3,6 +3,7 @@ package handlers
 import (
 	"aycom/backend/api-gateway/utils"
 	communityProto "aycom/backend/proto/community"
+	userProto "aycom/backend/proto/user"
 	"context"
 	"encoding/json"
 	"log"
@@ -189,6 +190,28 @@ func CreateCommunity(c *gin.Context) {
 		if err != nil {
 			log.Printf("Error adding creator as member: %v", err)
 			// Don't fail the entire request if just adding member failed
+		}
+
+		// Also create a community request in the user service
+		if UserClient != nil {
+			userCtx, userCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer userCancel()
+
+			_, err = UserClient.CreateCommunityRequest(userCtx, &userProto.CreateCommunityRequestRequest{
+				CommunityId: resp.Community.Id,
+				UserId:      userID.(string),
+				Name:        name,
+				Description: description,
+			})
+
+			if err != nil {
+				log.Printf("Error creating community request in user service: %v", err)
+				// Don't fail the entire request if just the request creation failed
+			} else {
+				log.Printf("Successfully created community request in user service for community ID: %s", resp.Community.Id)
+			}
+		} else {
+			log.Printf("WARNING: UserClient is nil! Could not create community request in user service")
 		}
 	}
 
