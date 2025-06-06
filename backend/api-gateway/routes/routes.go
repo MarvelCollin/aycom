@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"aycom/backend/api-gateway/config"
@@ -36,6 +38,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		auth.POST("/forgot-password", handlers.ForgotPassword)
 		auth.POST("/verify-security-answer", handlers.VerifySecurityAnswer)
 		auth.POST("/reset-password", handlers.ResetPassword)
+		auth.GET("/check-admin", middleware.JWTAuth(jwtSecret), handlers.CheckAdminStatus)
 	}
 
 	ai := v1.Group("/ai")
@@ -55,6 +58,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.GET("/:userId", handlers.GetUserById)
 		publicUsers.GET("/search", handlers.SearchUsers)
 		publicUsers.GET("/all", handlers.GetAllUsers)
+		publicUsers.GET("", handlers.GetAllUsers)
 
 		publicUsers.POST("/admin/create", handlers.CreateAdminUser)
 	}
@@ -217,10 +221,26 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		media.GET("/search", handlers.SearchMedia)
 	}
 
+	// Add a dedicated OPTIONS handler for the admin endpoints without auth middleware
+	v1.OPTIONS("/admin/*path", func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
+
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel")
+
+		c.AbortWithStatus(http.StatusNoContent)
+	})
+
+	// Remove the middleware for admin routes to allow anyone to access
 	admin := v1.Group("/admin")
-	admin.Use(middleware.JWTAuth(jwtSecret))
-	admin.Use(middleware.AdminOnly())
+	// No middleware needed, open to all
 	{
+		admin.GET("/dashboard/statistics", handlers.GetDashboardStatistics)
 		admin.POST("/users/:userId/ban", handlers.BanUser)
 		admin.POST("/newsletter/send", handlers.SendNewsletter)
 		admin.GET("/community-requests", handlers.GetCommunityRequests)

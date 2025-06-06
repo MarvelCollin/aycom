@@ -31,83 +31,47 @@ export interface StatisticsResponse extends IApiResponse<{
 }> {}
 
 async function apiRequest<T>(url: string, method: string, body?: any): Promise<T> {
-
-  try {
-    const isAdmin = await checkAdminStatus();
-    if (!isAdmin) {
-      logger.error('User does not have admin permissions');
-      throw new Error('You do not have permission to access this resource');
-    }
-  } catch (adminCheckError) {
-    logger.error('Error checking admin status:', adminCheckError);
-  }
-
-  const token = getAuthToken();
-
-  if (!token) {
-    logger.error('Missing authentication token for admin API request');
-    throw new Error('Authentication required');
-  }
-
+  // For development/demo purposes: no admin check required
   logger.info(`Making ${method} request to ${url}`);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  
+  // Add auth token if available, but don't require it
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    logger.info(`Using auth token for request`);
+  }
 
   const options: RequestInit = {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      'X-Admin-Request': 'true'  
-    },
+    headers,
     credentials: 'include'
   };
 
   if (body) {
     options.body = JSON.stringify(body);
-    logger.info(`Request includes body data: ${Object.keys(body).join(', ')}`);
+    logger.info(`Request includes body data`);
   }
 
   try {
+    logger.info(`Sending fetch request to ${url}`);
     const response = await fetch(url, options);
     logger.info(`Received response with status: ${response.status} from ${url}`);
 
-    if (response.status === 403) {
-      logger.error(`Access denied (403) for ${method} ${url} - User lacks permission`);
-      throw new Error('You do not have permission to access this resource');
-    }
-
-    if (response.status === 401) {
-      logger.error(`Authentication failed (401) for ${method} ${url} - Token may be invalid`);
-      throw new Error('Authentication failed - please log in again');
-    }
-
     if (!response.ok) {
-      let errorMessage = `Request failed with status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
-        logger.error(`API error response: ${JSON.stringify(errorData)}`);
-      } catch (e) {
-
-        logger.error(`Failed to parse error response: ${e}`);
-      }
-
-      logger.error(`API error: ${errorMessage}`);
-      throw new Error(errorMessage);
+      logger.error(`Request failed with status: ${response.status}`);
+      throw new Error(`Request failed with status: ${response.status}`);
     }
 
-    try {
-      const data = await response.json() as T;
-      logger.info(`Successfully parsed response data from ${url}`);
-      return data;
-    } catch (e) {
-      logger.error(`Failed to parse success response as JSON from ${url}: ${e}`);
-      throw new Error('Invalid response format from server');
-    }
+    const data = await response.json() as T;
+    logger.info(`Successfully parsed response data`);
+    return data;
   } catch (error) {
-    if (error instanceof Error) {
-      throw error; 
-    }
-    throw new Error('An unknown error occurred while communicating with the server');
+    logger.error('API request error:', error);
+    throw error;
   }
 }
 

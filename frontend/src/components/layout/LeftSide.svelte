@@ -72,20 +72,46 @@
     console.log("Navigation items:", navigationItems);
   }
   
-  function debugAdminStatus() {
-    console.log('DEBUG: Checking admin status directly from localStorage');
+  async function debugAdminStatus() {
     try {
-      const authData = localStorage.getItem('auth');
-      if (authData) {
-        const auth = JSON.parse(authData);
-        console.log('AUTH DATA:', auth);
-        if (auth.is_admin === true) {
-          console.log('DEBUG: User is admin according to localStorage');
-          isAdmin = true;
-        }
+      // Get the auth store update function
+      const { useAuth } = await import('../../hooks/useAuth');
+      const { updateAdminStatus } = useAuth();
+      
+      // First check the auth state
+      const authState = getAuthState();
+      if (authState && authState.is_admin === true) {
+        console.log('User already has admin status in auth store');
+        isAdmin = true;
+        return;
       }
-    } catch (e) {
-      console.error('DEBUG: Error checking admin status:', e);
+      
+      // Verify with the backend
+      const { checkAdminStatus } = await import('../../api/user');
+      const adminStatusFromAPI = await checkAdminStatus();
+      
+      if (adminStatusFromAPI) {
+        console.log('API confirmed user is admin, updating auth store');
+        isAdmin = true;
+        updateAdminStatus(true);
+        
+        // Also update localStorage directly as a fallback
+        try {
+          const authData = localStorage.getItem('auth');
+          if (authData) {
+            const auth = JSON.parse(authData);
+            auth.is_admin = true;
+            localStorage.setItem('auth', JSON.stringify(auth));
+            console.log('Updated localStorage with admin status');
+          }
+        } catch (e) {
+          console.error('Error updating localStorage auth data:', e);
+        }
+      } else {
+        console.log('API confirmed user is NOT admin');
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
     }
   }
   

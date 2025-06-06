@@ -143,6 +143,13 @@ const createAuthStore = () => {
     }
   };
   
+  // Add a function to update admin status
+  const updateAdminStatus = (isAdmin: boolean) => {
+    auth.update((state) => {
+      return { ...state, is_admin: isAdmin };
+    });
+  };
+  
   return {
     subscribe: auth.subscribe,
     set: (value: AuthState) => {
@@ -158,7 +165,8 @@ const createAuthStore = () => {
     },
     init: initAuth,
     logout: () => clearAuth(),
-    refreshToken: refreshExpiredToken
+    refreshToken: refreshExpiredToken,
+    updateAdminStatus
   };
 };
 

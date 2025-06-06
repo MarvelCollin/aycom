@@ -2,6 +2,7 @@ import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
 import type { ICategory } from '../interfaces/ICategory';
+import { uploadFile, SUPABASE_BUCKETS } from '../utils/supabase';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
@@ -171,32 +172,43 @@ export async function createCommunity(data: Record<string, any>) {
     
     // Check if we need to handle file uploads
     if (data.icon instanceof File || data.banner instanceof File) {
-      // We have files to upload, use FormData instead of JSON
-      const formData = new FormData();
+      let logoURL: string | null = null;
+      let bannerURL: string | null = null;
       
-      // Add all properties to the FormData
-      Object.keys(data).forEach(key => {
-        if (data[key] instanceof File) {
-          formData.append(key, data[key]);
-        } else if (key === 'categories' && Array.isArray(data[key])) {
-          // Handle categories array specially
-          formData.append('categories', JSON.stringify(data[key]));
-        } else {
-          formData.append(key, String(data[key]));
+      // Upload files directly to Supabase
+      if (data.icon instanceof File) {
+        logger.debug('Uploading icon to Supabase');
+        logoURL = await uploadFile(data.icon, SUPABASE_BUCKETS.MEDIA, 'communities/logos');
+        if (!logoURL) {
+          throw new Error('Failed to upload community icon');
         }
-      });
+      }
       
-      // For debugging
-      logger.debug('Sending FormData with entries:', 
-        Array.from(formData.entries()).map(e => `${e[0]}: ${typeof e[1]}`).join(', '));
+      if (data.banner instanceof File) {
+        logger.debug('Uploading banner to Supabase');
+        bannerURL = await uploadFile(data.banner, SUPABASE_BUCKETS.MEDIA, 'communities/banners');
+        if (!bannerURL) {
+          throw new Error('Failed to upload community banner');
+        }
+      }
+      
+      // Send JSON with the uploaded URLs
+      const communityData = {
+        name: data.name,
+        description: data.description,
+        logo_url: logoURL,
+        banner_url: bannerURL,
+        rules: data.rules,
+        categories: data.categories
+      };
       
       const response = await fetch(`${API_BASE_URL}/communities`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
-          // Note: Don't set content-type header when sending FormData
         },
-        body: formData,
+        body: JSON.stringify(communityData),
         credentials: 'include'
       });
       

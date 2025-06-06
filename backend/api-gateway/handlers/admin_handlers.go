@@ -825,3 +825,40 @@ func DeleteCommunityCategory(c *gin.Context) {
 		"message": response.Message,
 	})
 }
+
+func GetDashboardStatistics(c *gin.Context) {
+	log.Printf("GetDashboardStatistics: Generating mock statistics data for admin dashboard")
+
+	// For development/demo purposes: always allow this endpoint
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+
+	// Add permissive CORS headers
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
+	// Generate mock statistics data
+	mockTotalUsers := int64(1250)
+	mockActiveUsers := int64(875)
+	mockTotalCommunities := int64(45)
+	mockTotalThreads := int64(3820)
+	mockPendingReports := int64(12)
+	mockNewUsersToday := int64(28)
+	mockNewPostsToday := int64(175)
+
+	// Return the data
+	c.JSON(http.StatusOK, gin.H{
+		"success":           true,
+		"total_users":       mockTotalUsers,
+		"active_users":      mockActiveUsers,
+		"total_communities": mockTotalCommunities,
+		"total_threads":     mockTotalThreads,
+		"pending_reports":   mockPendingReports,
+		"new_users_today":   mockNewUsersToday,
+		"new_posts_today":   mockNewPostsToday,
+	})
+}

@@ -5,10 +5,8 @@ import (
 	communityProto "aycom/backend/proto/community"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -47,7 +45,7 @@ func CreateCommunity(c *gin.Context) {
 			}
 		}
 
-		// Handle file uploads
+		// Handle file uploads using Supabase
 		// Get logo file
 		logoFile, err := c.FormFile("icon")
 		if err != nil {
@@ -64,35 +62,39 @@ func CreateCommunity(c *gin.Context) {
 			return
 		}
 
-		// Save the logo file
-		logoFilename := fmt.Sprintf("community_logo_%s_%d%s",
-			strings.ReplaceAll(userID.(string), "-", ""),
-			time.Now().Unix(),
-			filepath.Ext(logoFile.Filename))
-		logoPath := filepath.Join("uploads", "community", logoFilename)
+		// Open logo file
+		logoFileOpen, err := logoFile.Open()
+		if err != nil {
+			log.Printf("CreateCommunity: Failed to open logo file: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to process logo file")
+			return
+		}
+		defer logoFileOpen.Close()
 
-		if err := c.SaveUploadedFile(logoFile, logoPath); err != nil {
-			log.Printf("CreateCommunity: Failed to save logo file: %v", err)
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to save logo file")
+		// Open banner file
+		bannerFileOpen, err := bannerFile.Open()
+		if err != nil {
+			log.Printf("CreateCommunity: Failed to open banner file: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to process banner file")
+			return
+		}
+		defer bannerFileOpen.Close()
+
+		// Upload logo to Supabase
+		logoURL, err = utils.UploadFile(logoFileOpen, logoFile.Filename, "media", "communities/logos")
+		if err != nil {
+			log.Printf("CreateCommunity: Failed to upload logo to Supabase: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to upload logo")
 			return
 		}
 
-		// Save the banner file
-		bannerFilename := fmt.Sprintf("community_banner_%s_%d%s",
-			strings.ReplaceAll(userID.(string), "-", ""),
-			time.Now().Unix(),
-			filepath.Ext(bannerFile.Filename))
-		bannerPath := filepath.Join("uploads", "community", bannerFilename)
-
-		if err := c.SaveUploadedFile(bannerFile, bannerPath); err != nil {
-			log.Printf("CreateCommunity: Failed to save banner file: %v", err)
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to save banner file")
+		// Upload banner to Supabase
+		bannerURL, err = utils.UploadFile(bannerFileOpen, bannerFile.Filename, "media", "communities/banners")
+		if err != nil {
+			log.Printf("CreateCommunity: Failed to upload banner to Supabase: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to upload banner")
 			return
 		}
-
-		// Use URLs based on the saved file paths
-		logoURL = "/" + logoPath
-		bannerURL = "/" + bannerPath
 
 		// Validate required fields
 		if name == "" || description == "" || rules == "" || len(categories) == 0 {

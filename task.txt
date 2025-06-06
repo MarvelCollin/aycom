@@ -20,8 +20,6 @@ Page.
 • This page is accessible to authorized users only (logged-in-users).
 • Display the community’s name, description, logo, categories and banner.
 Figure 20. Community Detail Page
-Halaman : 23 dari 32
-Page 23 of 32
 • Contains a "Request to Join" button to allow users to send a join request to communities.
 • Show the member count with a clickable link to open a modal displaying the list of 
 members. The modal has two tabs: Members and Moderators. Includes a search feature 

@@ -9,30 +9,22 @@ import (
 
 	"aycom/backend/api-gateway/config"
 	"aycom/backend/api-gateway/docs"
+	"aycom/backend/api-gateway/middleware"
 	"aycom/backend/api-gateway/routes"
 )
 
 func SetupRouter(cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
-	r.Use(func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-		if origin == "" {
-			origin = "http://localhost:3000"
-		}
+	// Add debug middleware
+	r.Use(middleware.CORSDebug())
 
-		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Allow-Headers, X-Debug-Panel")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+	// Enable CORS for all origins
+	r.Use(middleware.CORS())
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
+	// Add OPTIONS handler for all routes to handle preflight requests
+	r.OPTIONS("/*path", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
 	})
 
 	docs.SwaggerInfo.Host = "localhost:8083"

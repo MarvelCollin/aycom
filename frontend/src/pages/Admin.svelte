@@ -9,8 +9,7 @@
   
   // Import admin API functions
   import * as adminAPI from '../api/admin';
-  import type { BaseResponse, RequestsResponse, CategoriesResponse } from '../api/admin';
-  import { getAllUsers } from '../api/user';
+  import { getAllUsers, checkAdminStatus } from '../api/user';
   
   // Import icons
   import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
@@ -175,7 +174,7 @@
       logger.info("Auth state:", authState);
       
       // Check if user is admin
-      checkAdmin();
+      isAdmin = await checkAdmin();
       
       // Load admin dashboard data
       if (isAdmin) {
@@ -191,18 +190,48 @@
     }
   });
   
-  function checkAdmin() {
-    // Check if user is logged in and has admin role
-    logger.info('Checking admin status:', authState);
-    isAdmin = authState.isAuthenticated && authState.is_admin === true;
-    
-    if (!isAdmin) {
-      logger.error('Non-admin user attempted to access admin page:', 
-        { isAuthenticated: authState.isAuthenticated, is_admin: authState.is_admin });
+  async function checkAdmin() {
+    try {
+      // First check the auth state
+      logger.info('Checking admin status from auth state:', authState);
+      if (authState.is_authenticated && authState.is_admin === true) {
+        logger.info('Admin access granted based on auth state');
+        return true;
+      }
+      
+      // If not admin in auth state, try the API
+      logger.info('Auth state admin check failed, calling check-admin API endpoint');
+      const adminCheckResult = await checkAdminStatus();
+      
+      if (adminCheckResult) {
+        logger.info('Admin access granted based on API check');
+        
+        // Update auth state in memory and localStorage
+        try {
+          const authData = localStorage.getItem('auth');
+          if (authData) {
+            const auth = JSON.parse(authData);
+            auth.is_admin = true;
+            localStorage.setItem('auth', JSON.stringify(auth));
+            logger.info('Updated localStorage with admin status');
+          }
+        } catch (e) {
+          logger.error('Error updating auth state:', e);
+        }
+        
+        return true;
+      }
+      
+      // Not an admin
+      logger.error('Non-admin user attempted to access admin page');
       toastStore.showToast('You do not have permission to access this page', 'error');
       window.location.href = '/feed';
-    } else {
-      logger.info('Admin access granted');
+      return false;
+    } catch (error) {
+      logger.error('Admin check failed with error:', error);
+      toastStore.showToast('Failed to verify admin access', 'error');
+      window.location.href = '/feed';
+      return false;
     }
   }
   
@@ -239,13 +268,13 @@
       const response = await adminAPI.getDashboardStatistics();
       if (response.success) {
         statistics = {
-          totalUsers: response.totalUsers || 0,
-          activeUsers: response.activeUsers || 0,
-          totalCommunities: response.totalCommunities || 0,
-          totalThreads: response.totalThreads || 0,
-          pendingReports: response.pendingReports || 0,
-          newUsersToday: response.newUsersToday || 0,
-          newPostsToday: response.newPostsToday || 0
+          totalUsers: response.total_users || 0,
+          activeUsers: response.active_users || 0,
+          totalCommunities: response.total_communities || 0,
+          totalThreads: response.total_threads || 0,
+          pendingReports: response.pending_reports || 0,
+          newUsersToday: response.new_users_today || 0,
+          newPostsToday: response.new_posts_today || 0
         };
         logger.info('Dashboard statistics loaded successfully');
       } else {

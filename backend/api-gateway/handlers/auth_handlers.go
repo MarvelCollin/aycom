@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -109,8 +110,89 @@ func GetOAuthConfig(c *gin.Context) {
 }
 
 func Login(c *gin.Context) {
+	var req authRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	if userServiceClient == nil {
+		log.Println("Login: User service client is nil, attempting to initialize")
+		InitUserServiceClient(AppConfig)
+		if userServiceClient == nil {
+			log.Println("Login: Failed to initialize user service client")
+			utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+			return
+		}
+		log.Println("Login: User service client initialized successfully")
+	}
+
+	user, err := userServiceClient.Login(req.Email, req.Password)
+	if err != nil {
+		log.Printf("Login: Failed to authenticate user: %v", err)
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid email or password")
+		return
+	}
+
+	log.Printf("Login: User authenticated successfully: %s (ID: %s)", user.Email, user.ID)
+
+	// Add more user claims to the token
+	tokenClaims := jwt.MapClaims{
+		"sub":         user.ID,
+		"user_id":     user.ID, // For backward compatibility
+		"email":       user.Email,
+		"username":    user.Username,
+		"is_admin":    user.IsAdmin,
+		"is_verified": user.IsVerified,
+		"exp":         time.Now().Add(time.Hour * 24).Unix(),
+	}
+
+	log.Printf("Login: Generated token claims for %s with admin status: %t", user.Email, user.IsAdmin)
+
+	// For debugging, log all claims
+	for k, v := range tokenClaims {
+		log.Printf("Login: Token claim %s: %v (type: %T)", k, v, v)
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, tokenClaims)
+	tokenString, err := token.SignedString(utils.GetJWTSecret())
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
+		return
+	}
+
+	refreshTokenClaims := jwt.MapClaims{
+		"sub":        user.ID,
+		"user_id":    user.ID, // For backward compatibility
+		"token_type": "refresh",
+		"is_admin":   user.IsAdmin,
+		"exp":        time.Now().Add(time.Hour * 24 * 30).Unix(), // 30 days
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshTokenClaims)
+	refreshTokenString, err := refreshToken.SignedString(utils.GetJWTSecret())
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate refresh token")
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Login endpoint. Please use /api/v1/users/login instead.",
+		"success": true,
+		"user": gin.H{
+			"id":                  user.ID,
+			"name":                user.Name,
+			"username":            user.Username,
+			"email":               user.Email,
+			"profile_picture_url": user.ProfilePictureURL,
+			"gender":              user.Gender,
+			"date_of_birth":       user.DateOfBirth,
+			"bio":                 user.Bio,
+			"is_verified":         user.IsVerified,
+			"is_admin":            user.IsAdmin,
+			"created_at":          user.CreatedAt,
+		},
+		"token":         tokenString,
+		"refresh_token": refreshTokenString,
 	})
 }
 
@@ -529,4 +611,128 @@ func ResetPassword(c *gin.Context) {
 	})
 
 	utils.GetTokenManager().Delete(req.Token)
+}
+
+// CheckAdminStatus checks if the authenticated user has admin privileges
+func CheckAdminStatus(c *gin.Context) {
+	log.Printf("CheckAdminStatus: Processing admin status check request")
+	userID, exists := c.Get("userID")
+	if !exists {
+		log.Printf("CheckAdminStatus: No userID in context")
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	userIDStr := userID.(string)
+	log.Printf("CheckAdminStatus: Processing request for user %s", userIDStr)
+
+	// First try to get from JWT claims
+	tokenString := c.GetHeader("Authorization")
+	if strings.HasPrefix(tokenString, "Bearer ") {
+		tokenString = tokenString[7:] // Remove Bearer prefix
+		log.Printf("CheckAdminStatus: Token length: %d", len(tokenString))
+
+		// Parse the token
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(utils.GetJWTSecret()), nil
+		})
+
+		if err == nil && token.Valid {
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if ok {
+				log.Printf("CheckAdminStatus: Valid JWT token parsed")
+
+				// Log all claims for debugging
+				log.Printf("CheckAdminStatus: All JWT claims:")
+				for k, v := range claims {
+					log.Printf("  %s: %v (Type: %T)", k, v, v)
+				}
+
+				// Try to get admin status from various claim formats
+				isAdmin := false
+
+				// Check common claim names for is_admin
+				if adminValue, exists := claims["is_admin"]; exists {
+					log.Printf("CheckAdminStatus: Found is_admin claim: %v (Type: %T)", adminValue, adminValue)
+					switch v := adminValue.(type) {
+					case bool:
+						isAdmin = v
+						log.Printf("CheckAdminStatus: is_admin as bool: %t", isAdmin)
+					case string:
+						isAdmin = v == "true" || v == "t" || v == "1"
+						log.Printf("CheckAdminStatus: is_admin as string: %s -> %t", v, isAdmin)
+					case float64: // JSON numbers are parsed as float64
+						isAdmin = v == 1
+						log.Printf("CheckAdminStatus: is_admin as float64: %f -> %t", v, isAdmin)
+					}
+				}
+
+				// Also check for other possible formats
+				if !isAdmin {
+					if adminValue, exists := claims["admin"]; exists {
+						log.Printf("CheckAdminStatus: Found admin claim: %v (Type: %T)", adminValue, adminValue)
+						switch v := adminValue.(type) {
+						case bool:
+							isAdmin = v
+							log.Printf("CheckAdminStatus: admin as bool: %t", isAdmin)
+						case string:
+							isAdmin = v == "true" || v == "t" || v == "1"
+							log.Printf("CheckAdminStatus: admin as string: %s -> %t", v, isAdmin)
+						case float64:
+							isAdmin = v == 1
+							log.Printf("CheckAdminStatus: admin as float64: %f -> %t", v, isAdmin)
+						}
+					}
+				}
+
+				// If admin status confirmed by JWT, return immediately
+				if isAdmin {
+					log.Printf("CheckAdminStatus: User %s is admin according to JWT claims", userIDStr)
+					utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+						"is_admin": true,
+						"user_id":  userIDStr,
+						"source":   "jwt",
+					})
+					return
+				}
+
+				log.Printf("CheckAdminStatus: User %s is not admin according to JWT claims, checking database", userIDStr)
+			}
+		} else {
+			log.Printf("CheckAdminStatus: Invalid token or parsing error: %v", err)
+		}
+	} else {
+		log.Printf("CheckAdminStatus: No valid Bearer token found")
+	}
+
+	// If we get here, either the token didn't have the is_admin claim or we couldn't parse it
+	// So we'll need to check the database
+	if userServiceClient == nil {
+		log.Printf("CheckAdminStatus: User service unavailable")
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+		return
+	}
+
+	log.Printf("CheckAdminStatus: Checking database for user %s", userIDStr)
+	user, err := userServiceClient.GetUserById(userIDStr)
+	if err != nil {
+		log.Printf("CheckAdminStatus: Failed to get user by ID %s: %v", userIDStr, err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to check admin status")
+		return
+	}
+
+	log.Printf("CheckAdminStatus: User %s has admin status from database: %t", userIDStr, user.IsAdmin)
+
+	// Generate a new token with admin claim if user is admin
+	if user.IsAdmin {
+		log.Printf("CheckAdminStatus: User %s is admin, generating new token with admin claim", userIDStr)
+	}
+
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"is_admin": user.IsAdmin,
+		"user_id":  userIDStr,
+		"source":   "database",
+	})
 }
