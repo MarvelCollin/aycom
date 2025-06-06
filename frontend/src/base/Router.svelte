@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page, updatePageStore } from '../stores/routeStore';
+  import { isAuthenticated as checkAuthentication } from '../utils/auth';
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
   import Feed from '../pages/Feed.svelte';
@@ -21,7 +22,7 @@
   import Setting from '../pages/Setting.svelte';
 
   let route = '/';
-  let isAuthenticated = false;
+  let authStatus = false;
   let userProfileId = '';
   let communityId = '';
 
@@ -53,14 +54,14 @@
 
     updatePageStore();
 
-    isAuthenticated = localStorage.getItem('aycom_authenticated') === 'true';
-    console.log(`Authentication status: ${isAuthenticated}`);
+    authStatus = checkAuthentication();
+    console.log(`Authentication status: ${authStatus}`);
 
     if (!appConfig.auth.enabled) {
       return;
     }
 
-    if (!isAuthenticated && 
+    if (!authStatus && 
         (route === '/feed' ||
          route === '/explore' || 
          route === '/notifications' || 
@@ -78,7 +79,7 @@
       route = '/login';
     }
 
-    if (isAuthenticated && 
+    if (authStatus && 
         (route === '/login' || 
          route === '/register')) {
       console.log('Authenticated access to auth route, redirecting to feed');
@@ -87,16 +88,7 @@
     }
   }
 
-  function setAuthenticated(value: boolean): void {
-    localStorage.setItem('aycom_authenticated', value.toString());
-    isAuthenticated = value;
-    handleNavigation();
-  }
-
   onMount(() => {
-    (window as any).login = () => setAuthenticated(true);
-    (window as any).logout = () => setAuthenticated(false);
-
     window.addEventListener('popstate', handleNavigation);
     handleNavigation();
 
@@ -122,7 +114,7 @@
 
 <main>
   {#if route === '/'}
-    {#if isAuthenticated}
+    {#if authStatus}
       <Feed />
     {:else}
       <Landing />

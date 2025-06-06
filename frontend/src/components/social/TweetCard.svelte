@@ -98,18 +98,18 @@
   export let isAuth: boolean = false;
   
   // Set up local authentication state - make this writable
-  let authState = getAuthState();
-  let isAuthenticated = authState?.is_authenticated || isAuth;
+  let authState: any = getAuthState();
+  let isAuthenticated = Boolean(authState?.is_authenticated || isAuth);
   
   // Store auth update function for later use
   const updateAuthState = () => {
     authState = getAuthState();
-    isAuthenticated = authState?.is_authenticated || isAuth;
+    isAuthenticated = Boolean(authState?.is_authenticated || isAuth);
   };
   
   $: {
     // Keep isAuthenticated up to date with props and auth state
-    isAuthenticated = authState?.is_authenticated || isAuth || false;
+    isAuthenticated = Boolean(authState?.is_authenticated || isAuth);
   }
   
   // Reactive tweet store setup
@@ -486,8 +486,7 @@
   // Handle like/unlike
   async function handleLikeClick() {
     // Check authentication status first
-    const authState = getAuthState();
-    isAuthenticated = authState?.is_authenticated || isAuth;
+    updateAuthState();
     
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to like posts', 'info');
@@ -502,26 +501,21 @@
     const requestId = ++currentLikeRequestId;
     
     try {
-      // Try to refresh the token before making the request
-      await checkAndRefreshTokenIfNeeded();
+      // Try to refresh the token if needed
+      try {
+        if (typeof checkAndRefreshTokenIfNeeded === 'function') {
+          await checkAndRefreshTokenIfNeeded();
+        }
+      } catch (refreshError) {
+        console.error('Error refreshing token:', refreshError);
+      }
       
       // Determine current like status from the store or the processed tweet
       const currentLikeStatus = storeInteraction?.is_liked ?? processedTweet.is_liked ?? false;
       
       // Calculate new like state and count
       const newLikeStatus = !currentLikeStatus;
-      const newLikeCount = newLikeStatus 
-        ? (storeInteraction?.likes ?? parseCount(processedTweet.likes_count)) + 1 
-        : Math.max(0, (storeInteraction?.likes ?? parseCount(processedTweet.likes_count)) - 1);
-      
-      // Provide haptic feedback on mobile devices
-      if (window.navigator && window.navigator.vibrate) {
-        try {
-          window.navigator.vibrate(newLikeStatus ? 40 : 20); // stronger for like, lighter for unlike
-        } catch (e) {
-          // Ignore vibration API errors
-        }
-      }
+      const newLikeCount = newLikeStatus ? effectiveLikes + 1 : Math.max(0, effectiveLikes - 1);
       
       console.log(`${newLikeStatus ? 'Liking' : 'Unliking'} tweet ${tweetId}, current UI count: ${effectiveLikes}, new count will be: ${newLikeCount}`);
       
@@ -529,7 +523,7 @@
       tweetInteractionStore.updateTweetInteraction(tweetId, {
         is_liked: newLikeStatus,
         likes: newLikeCount,
-        pending_like: !navigator.onLine // Mark as pending if offline
+        pending_like: true // Always mark as pending until confirmed
       });
       
       // Trigger animation class for heart icon
@@ -538,143 +532,90 @@
         heartAnimating = false;
       }, 800); // Match animation duration
       
-      // Only make the API call if online
-      if (navigator.onLine) {
-        try {
-          // Make the API call
-          const apiCall = newLikeStatus ? likeThread : unlikeThread;
-          await apiCall(tweetId);
-          
-          // Only update if this is still the current request
-          if (requestId === currentLikeRequestId) {
-            // Update the store with the final state and clear the pending flag
-            tweetInteractionStore.updateTweetInteraction(tweetId, {
-              is_liked: newLikeStatus,
-              likes: newLikeCount,
-              pending_like: false
-            });
-            
-            console.log(`Successfully ${newLikeStatus ? 'liked' : 'unliked'} tweet ${tweetId} on server`);
-            
-            // Update localStorage to remember the like state
-            try {
-              const likedThreads = JSON.parse(localStorage.getItem('likedThreads') || '{}');
-              if (newLikeStatus) {
-                likedThreads[tweetId] = Date.now();
-              } else {
-                delete likedThreads[tweetId];
-              }
-              localStorage.setItem('likedThreads', JSON.stringify(likedThreads));
-            } catch (e) {
-              console.error('Failed to update likedThreads in localStorage', e);
-            }
-          }
-        } catch (error) {
-          // Handle API errors
-          const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
-          const isAlreadyInState = 
-            (newLikeStatus && errorMsg.includes('already liked')) ||
-            (!newLikeStatus && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
-          
-          // Handle 401 errors specifically
-          if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
-            isAuthenticated = false;
-            toastStore.showToast('Your session has expired. Please log in again.', 'error');
-            
-            // Update auth state
-            updateAuthState();
-            if (!authState?.is_authenticated) {
-              // Redirect to login page
-              window.location.href = '/login';
-            }
-          } else if (isAlreadyInState) {
-            // The server state already matches what we want, so this isn't really an error
-            console.log(`Tweet ${tweetId} is already in the ${newLikeStatus ? 'liked' : 'unliked'} state on server`);
-            
-            // Just clear the pending flag
-            tweetInteractionStore.updateTweetInteraction(tweetId, {
-              is_liked: newLikeStatus,
-              pending_like: false
-            });
-          } else {
-            // Real error, revert the optimistic update
-            console.error(`Error ${newLikeStatus ? 'liking' : 'unliking'} tweet:`, error);
-            
-            // Revert UI to previous state
-            tweetInteractionStore.updateTweetInteraction(tweetId, {
-              is_liked: currentLikeStatus,
-              likes: currentLikeStatus ? newLikeCount + 1 : Math.max(0, newLikeCount - 1),
-              pending_like: false
-            });
-            
-            toastStore.showToast(
-              `Failed to ${newLikeStatus ? 'like' : 'unlike'} post. Please try again.`,
-              'error',
-              3000
-            );
-          }
-        }
-      } else {
-        // We're offline, show a notification
-        toastStore.showToast(
-          newLikeStatus ? 'Liked! Will be synced when you\'re back online.' : 'Unliked! Will be synced when you\'re back online.',
-          'info',
-          3000
-        );
+      // Make the API call
+      try {
+        // Make the API call
+        const apiCall = newLikeStatus ? likeThread : unlikeThread;
+        const response = await apiCall(tweetId);
         
-        // Save to localStorage for offline persistence
-        try {
-          const offlineLikes = JSON.parse(localStorage.getItem('offlineLikes') || '{}');
-          offlineLikes[tweetId] = { 
-            action: newLikeStatus ? 'like' : 'unlike', 
-            timestamp: Date.now() 
-          };
-          localStorage.setItem('offlineLikes', JSON.stringify(offlineLikes));
-        } catch (e) {
-          console.error('Failed to save offline like state', e);
+        // Only update if this is still the current request
+        if (requestId === currentLikeRequestId) {
+          // Update the store with the final state and clear the pending flag
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: newLikeStatus,
+            likes: newLikeCount,
+            pending_like: false
+          });
+          
+          console.log(`Successfully ${newLikeStatus ? 'liked' : 'unliked'} tweet ${tweetId} on server`);
+        }
+      } catch (error) {
+        // Handle API errors
+        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+        const isAlreadyInState = 
+          (newLikeStatus && errorMsg.includes('already liked')) ||
+          (!newLikeStatus && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
+        
+        // Handle 401 errors or session expiration specifically
+        if (errorMsg.includes('401') || errorMsg.includes('unauthorized') || 
+            errorMsg.includes('session') || errorMsg.includes('expired')) {
+          // Try to handle authentication issue
+          toastStore.showToast('Your session has expired. Please log in again', 'info');
+          
+          // Redirect to login page after a short delay
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+          
+          // Revert the optimistic update
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: currentLikeStatus,
+            likes: currentLikeStatus ? newLikeCount + 1 : Math.max(0, newLikeCount - 1),
+            pending_like: false
+          });
+        } else if (isAlreadyInState) {
+          // The server state already matches what we want, so this isn't really an error
+          console.log(`Tweet ${tweetId} is already in the ${newLikeStatus ? 'liked' : 'unliked'} state on server`);
+          
+          // Just clear the pending flag
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: newLikeStatus,
+            pending_like: false
+          });
+        } else {
+          // Real error, revert the optimistic update
+          console.error(`Error ${newLikeStatus ? 'liking' : 'unliking'} tweet:`, error);
+          
+          // Revert UI to previous state
+          tweetInteractionStore.updateTweetInteraction(tweetId, {
+            is_liked: currentLikeStatus,
+            likes: currentLikeStatus ? newLikeCount + 1 : Math.max(0, newLikeCount - 1),
+            pending_like: false
+          });
+          
+          toastStore.showToast(
+            `Failed to ${newLikeStatus ? 'like' : 'unlike'} post. Please try again.`,
+            'error',
+            3000
+          );
         }
       }
     } catch (error) {
       console.error('Error toggling like:', error);
       
       if (requestId === currentLikeRequestId) {
-        // Check for specific error messages
-        const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
-        const isTweetLiked = errorMsg.includes('already liked');
-        const isTweetUnliked = errorMsg.includes('not liked') || errorMsg.includes('not found');
-        
-        if (isTweetLiked) {
-          // Already liked - update UI to match actual state
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            is_liked: true,
-            pending_like: false
-          });
-          toastStore.showToast('This post is already liked', 'info', 2000);
-        } else if (isTweetUnliked) {
-          // Already unliked - update UI to match actual state
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            is_liked: false,
-            pending_like: false
-          });
-          toastStore.showToast('This post is not currently liked', 'info', 2000);
-        } else {
-          // Show a subtle toast notification for other errors
-          toastStore.showToast(
-            effectiveIsLiked ? 'Failed to unlike post. Please try again.' : 'Failed to like post. Please try again.',
-            'error',
-            3000
-          );
+        // Show a user-friendly error message
+        toastStore.showToast('Could not update like status. Please try again.', 'error', 3000);
           
-          // Revert the optimistic update based on the current store state
-          const revertToLiked = storeInteraction?.is_liked ?? processedTweet.is_liked ?? false;
-          tweetInteractionStore.updateTweetInteraction(tweetId, {
-            is_liked: revertToLiked,
-            likes: revertToLiked ? effectiveLikes + 1 : Math.max(0, effectiveLikes - 1),
-            pending_like: false
-          });
+        // Revert the optimistic update based on the current store state
+        const revertToLiked = storeInteraction?.is_liked ?? processedTweet.is_liked ?? false;
+        tweetInteractionStore.updateTweetInteraction(tweetId, {
+          is_liked: revertToLiked,
+          likes: revertToLiked ? effectiveLikes + 1 : Math.max(0, effectiveLikes - 1),
+          pending_like: false
+        });
           
-          repliesErrorState = true;
-        }
+        repliesErrorState = true;
       }
     } finally {
       if (requestId === currentLikeRequestId) {
@@ -688,8 +629,7 @@
     event.stopPropagation();
     
     // Check authentication status first
-    const authState = getAuthState();
-    isAuthenticated = authState?.is_authenticated || isAuth;
+    updateAuthState();
     
     if (!isAuthenticated) {
       toastStore.showToast('Please log in to bookmark tweets', 'info');
@@ -711,9 +651,16 @@
     });
     
     try {
-      // Try to refresh the token before making the request
-      await checkAndRefreshTokenIfNeeded();
+      // Try to refresh token if needed
+      try {
+        if (typeof checkAndRefreshTokenIfNeeded === 'function') {
+          await checkAndRefreshTokenIfNeeded();
+        }
+      } catch (refreshError) {
+        console.error('Error refreshing token:', refreshError);
+      }
       
+      // Make the API call
       if (!status) {
         await bookmarkThread(processedTweet.id);
         toastStore.showToast('Tweet bookmarked', 'success');
@@ -732,16 +679,15 @@
       // Handle error based on type
       const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
       
-      if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
-        isAuthenticated = false;
-        toastStore.showToast('Your session has expired. Please log in again.', 'error');
+      if (errorMsg.includes('401') || errorMsg.includes('unauthorized') || 
+          errorMsg.includes('session') || errorMsg.includes('expired')) {
+        // Handle session expiration
+        toastStore.showToast('Your session has expired. Please log in again', 'info');
         
-        // Update auth state
-        updateAuthState();
-        if (!authState?.is_authenticated) {
-          // Redirect to login page
+        // Redirect to login page after a short delay
+        setTimeout(() => {
           window.location.href = '/login';
-        }
+        }, 2000);
       } else {
         toastStore.showToast('Failed to update bookmark', 'error');
       }

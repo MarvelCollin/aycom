@@ -14,6 +14,10 @@ export function getAuthToken(): string {
     if (authData) {
       const auth = JSON.parse(authData);
       if (auth.access_token) {
+        if (auth.expires_at && Date.now() >= auth.expires_at) {
+          logger.warn("Token exists but is expired");
+          return '';
+        }
         return auth.access_token;
       }
     }
@@ -32,7 +36,7 @@ export function isAuthenticated(): boolean {
         if (auth.expires_at) {
           return Date.now() < auth.expires_at;
         }
-        return true;
+        return false;
       }
     }
   } catch (err) {
@@ -46,7 +50,11 @@ export function getUserId(): string | null {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
-      if (auth.user_id) {
+      if (auth.user_id && auth.access_token) {
+        if (auth.expires_at && Date.now() >= auth.expires_at) {
+          logger.warn("Token exists but is expired when retrieving user ID");
+          return null;
+        }
         return auth.user_id;
       }
     }
@@ -125,7 +133,12 @@ export function getAuthData() {
   try {
     const authData = localStorage.getItem('auth');
     if (authData) {
-      return JSON.parse(authData);
+      const auth = JSON.parse(authData);
+      if (auth.expires_at && Date.now() >= auth.expires_at) {
+        logger.warn("Token exists but is expired when retrieving auth data");
+        return null;
+      }
+      return auth;
     }
   } catch (err) {
     logger.error("Error getting auth data:", err);

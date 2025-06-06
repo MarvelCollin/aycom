@@ -58,7 +58,6 @@
     try {
       console.log(`Submitting login form for email: ${email}`);
       
-      // Trim whitespace from email to avoid common issues
       const trimmedEmail = email.trim();
       
       const result = await login(trimmedEmail, password);

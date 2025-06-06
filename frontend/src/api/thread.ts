@@ -357,15 +357,40 @@ export async function likeThread(threadId: string) {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
-    const url = `${API_BASE_URL}/threads/${threadId}/like`;
-    logger.debug(`Making like request to ${url}`);
+    const token = getAuthToken();
+    
+    // Check if token exists - this is critical
+    if (!token) {
+      logger.error(`Cannot like thread ${threadId}: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
 
-    return await makeApiRequest(
-      url, 
-      'POST', 
-      null, 
-      'Failed to like thread'
-    );
+    logger.debug(`Sending like request for thread ${threadId} with token length: ${token.length}`);
+    
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error(`Authentication failed when liking thread ${threadId} - token may be invalid`);
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
+      const errorData = await response.json();
+      logger.error(`Error liking thread ${threadId}:`, errorData);
+      throw new Error(errorData.message || 'Failed to like thread');
+    }
+
+    const data = await response.json();
+    logger.debug(`Successfully liked thread ${threadId}`);
+    return { ...data, success: true };
   } catch (error: any) {
     logger.error(`Like thread ${threadId} failed:`, error);
     throw error;
@@ -393,12 +418,40 @@ export async function unlikeThread(threadId: string) {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
-    return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/like`, 
-      'DELETE', 
-      null, 
-      'Failed to unlike thread'
-    );
+    const token = getAuthToken();
+    
+    // Check if token exists - this is critical
+    if (!token) {
+      logger.error(`Cannot unlike thread ${threadId}: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    logger.debug(`Sending unlike request for thread ${threadId} with token length: ${token.length}`);
+
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error(`Authentication failed when unliking thread ${threadId} - token may be invalid`);
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
+      const errorData = await response.json();
+      logger.error(`Error unliking thread ${threadId}:`, errorData);
+      throw new Error(errorData.message || 'Failed to unlike thread');
+    }
+
+    const data = await response.json();
+    logger.debug(`Successfully unliked thread ${threadId}`);
+    return { ...data, success: true };
   } catch (error) {
     logger.error(`Unlike thread ${threadId} failed:`, error);
     throw error;
@@ -490,16 +543,41 @@ export async function bookmarkThread(threadId: string) {
       bookmarkDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
-    const url = `${API_BASE_URL}/threads/${threadId}/bookmark`;
-    logger.debug(`Making bookmark request to ${url}`);
+    const token = getAuthToken();
+    
+    // Check if token exists - this is critical
+    if (!token) {
+      logger.error(`Cannot bookmark thread ${threadId}: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    logger.debug(`Sending bookmark request for thread ${threadId} with token length: ${token.length}`);
 
-    return await makeApiRequest(
-      url, 
-      'POST', 
-      null, 
-      'Failed to bookmark thread'
-    );
-  } catch (error: any) {
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error(`Authentication failed when bookmarking thread ${threadId} - token may be invalid`);
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
+      const errorData = await response.json();
+      logger.error(`Error bookmarking thread ${threadId}:`, errorData);
+      throw new Error(errorData.message || 'Failed to bookmark thread');
+    }
+
+    const data = await response.json();
+    logger.debug(`Successfully bookmarked thread ${threadId}`);
+    return { ...data, success: true };
+  } catch (error) {
     logger.error(`Bookmark thread ${threadId} failed:`, error);
     throw error;
   } finally {
@@ -526,16 +604,41 @@ export async function removeBookmark(threadId: string) {
       bookmarkDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
-    const url = `${API_BASE_URL}/threads/${threadId}/bookmark`;
-    logger.debug(`Removing bookmark request to ${url}`);
+    const token = getAuthToken();
     
-    return await makeApiRequest(
-      url, 
-      'DELETE', 
-      null, 
-      'Failed to remove bookmark'
-    );
-  } catch (error: any) {
+    // Check if token exists - this is critical
+    if (!token) {
+      logger.error(`Cannot remove bookmark for thread ${threadId}: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    logger.debug(`Sending remove bookmark request for thread ${threadId} with token length: ${token.length}`);
+
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error(`Authentication failed when removing bookmark for thread ${threadId} - token may be invalid`);
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
+      const errorData = await response.json();
+      logger.error(`Error removing bookmark for thread ${threadId}:`, errorData);
+      throw new Error(errorData.message || 'Failed to remove bookmark');
+    }
+
+    const data = await response.json();
+    logger.debug(`Successfully removed bookmark for thread ${threadId}`);
+    return { ...data, success: true };
+  } catch (error) {
     logger.error(`Remove bookmark for thread ${threadId} failed:`, error);
     throw error;
   } finally {
@@ -748,16 +851,28 @@ export async function likeReply(replyId: string) {
   try {
     const token = getAuthToken();
 
+    // Check if token exists
+    if (!token) {
+      logger.error(`Cannot like reply ${replyId}: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+
     const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
+        "Authorization": `Bearer ${token}`
       },
       credentials: "include"
     });
 
     if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error(`Authentication failed when liking reply ${replyId} - token may be invalid`);
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
       const errorData = await response.json();
       console.error(`Error liking reply ${replyId}:`, errorData);
       return { success: false, error: errorData.message || 'Failed to like reply' };
@@ -776,16 +891,28 @@ export async function unlikeReply(replyId: string) {
   try {
     const token = getAuthToken();
 
+    // Check if token exists
+    if (!token) {
+      logger.error(`Cannot unlike reply ${replyId}: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+
     const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
+        "Authorization": `Bearer ${token}`
       },
       credentials: "include"
     });
 
     if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error(`Authentication failed when unliking reply ${replyId} - token may be invalid`);
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
       const errorData = await response.json();
       console.error(`Error unliking reply ${replyId}:`, errorData);
       return { success: false, error: errorData.message || 'Failed to unlike reply' };
@@ -842,7 +969,7 @@ async function resolveUserIdIfNeeded(userId: string): Promise<string> {
 export const getUserThreads = async (userId: string, page = 1, limit = 10): Promise<any> => {
   try {
     const resolvedUserId = await resolveUserIdIfNeeded(userId);
-    console.log(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+    logger.debug(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`, {
       method: 'GET',
@@ -876,7 +1003,7 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
 export const getUserReplies = async (userId: string, page = 1, limit = 10): Promise<any> => {
   try {
     const resolvedUserId = await resolveUserIdIfNeeded(userId);
-    console.log(`Fetching replies for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+    logger.debug(`Fetching replies for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/replies?page=${page}&limit=${limit}`, {
       method: 'GET',
@@ -917,7 +1044,7 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
     }
 
     const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/likes?page=${page}&limit=${limit}`;
-    console.log(`Making request to: ${endpoint}`);
+    logger.debug(`Making request to: ${endpoint}`);
 
     const response = await fetch(endpoint, {
       method: 'GET',
@@ -934,9 +1061,9 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
-          console.error("API error response:", errorData);
+          logger.error("API error response:", errorData);
         } catch (parseError) {
-          console.error("Could not parse error response:", parseError);
+          logger.error("Could not parse error response:", parseError);
         }
         throw new Error(errorMessage);
       }
@@ -946,7 +1073,7 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
     const responseData = await response.json();
     return responseData;
   } catch (err) {
-    console.error('Error getting user liked threads:', err);
+    logger.error('Error getting user liked threads:', err);
     throw err;
   }
 };
@@ -954,7 +1081,7 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
 export const getUserMedia = async (userId: string, page = 1, limit = 10): Promise<any> => {
   try {
     const resolvedUserId = await resolveUserIdIfNeeded(userId);
-    console.log(`Fetching media for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+    logger.debug(`Fetching media for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/media?page=${page}&limit=${limit}`, {
       method: 'GET',
@@ -988,32 +1115,45 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
 export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Promise<any> => {
   try {
     const token = getAuthToken();
+    
+    // Check if token exists - this is critical
+    if (!token) {
+      logger.error(`Cannot get user bookmarks: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
     const actualUserId = userId === 'me' ? getUserId() : userId;
 
     if (!actualUserId) {
-      console.error('No user ID available, cannot fetch bookmarks');
+      logger.error('No user ID available, cannot fetch bookmarks');
       throw new Error('User ID is required');
     }
 
     const url = `${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`;
-    console.log(`Attempting to fetch bookmarks from: ${url}`);
+    logger.debug(`Fetching bookmarks from: ${url}`);
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       },
       credentials: "include"
     });
 
     if (!response.ok) {
-      console.error(`Failed to get bookmarks: ${response.status}`);
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error('Authentication failed when getting bookmarks - token may be invalid');
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
+      logger.error(`Failed to get bookmarks: ${response.status}`);
       throw new Error(`Failed to get bookmarks: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Bookmarks API returned data:', data);
+    logger.debug('Bookmarks API returned data:', data);
 
     return {
       success: true,
@@ -1022,7 +1162,7 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
       pagination: data.pagination || null
     };
   } catch (err) {
-    console.error('Error getting user bookmarks:', err);
+    logger.error('Error getting user bookmarks:', err);
     throw err;
   }
 }

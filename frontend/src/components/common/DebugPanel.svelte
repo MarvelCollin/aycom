@@ -244,29 +244,27 @@
   if (authState && authState.userId === "sample-user-id") {
     console.warn("Still showing sample user ID. Checking for alternative auth sources.");
     
-    // Try to get auth from another source
+    // Try to get auth from another source using only JWT token
     try {
-      const authStatusFromLocalStorage = localStorage.getItem('aycom_authenticated');
-      if (authStatusFromLocalStorage === 'true') {
-        // We know user is authenticated, try to get real data
-        const jwtToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
-        if (jwtToken) {
-          // Decode JWT to get user information
-          try {
-            const base64Url = jwtToken.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
-            
-            const tokenData = JSON.parse(jsonPayload);
-            if (tokenData.sub) {
-              // Use real user ID from token
-              authState.userId = tokenData.sub;
-            }
-          } catch (tokenError) {
-            console.error('Failed to decode JWT token:', tokenError);
+      const jwtToken = localStorage.getItem('auth') ? 
+        JSON.parse(localStorage.getItem('auth')).access_token : null;
+        
+      if (jwtToken) {
+        // Decode JWT to get user information
+        try {
+          const base64Url = jwtToken.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          
+          const tokenData = JSON.parse(jsonPayload);
+          if (tokenData.sub) {
+            // Use real user ID from token
+            authState.userId = tokenData.sub;
           }
+        } catch (tokenError) {
+          console.error('Failed to decode JWT token:', tokenError);
         }
       }
     } catch (alternativeAuthError) {

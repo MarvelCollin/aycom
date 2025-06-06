@@ -3,7 +3,6 @@
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import type { IAuthStore } from '../interfaces/IAuth';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getCommunities, getCategories, requestToJoin } from '../api/community';
@@ -27,7 +26,26 @@
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
   
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  function getAuthFromStorage() {
+    try {
+      const authData = localStorage.getItem('auth');
+      if (authData) {
+        const auth = JSON.parse(authData);
+        return {
+          userId: auth.user_id,
+          isAuthenticated: auth.is_authenticated && auth.access_token && 
+            (!auth.expires_at || Date.now() < auth.expires_at),
+          accessToken: auth.access_token,
+          refreshToken: auth.refresh_token
+        };
+      }
+    } catch (err) {
+      logger.error("Error getting auth from storage:", err);
+    }
+    return { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  }
+  
+  $: authState = getAuthFromStorage();
   $: isDarkMode = $theme === 'dark';
   
   // Pagination settings
@@ -74,12 +92,12 @@
           availableCommunities = response.communities;
         }
         
-        totalItems = response.pagination.total;
-        totalPages = response.pagination.totalPages;
+        totalItems = response.pagination.total_count;
+        totalPages = response.pagination.total_pages;
         
         // Update limit options if the API returns them
-        if (response.limitOptions && response.limitOptions.length > 0) {
-          limitOptions = response.limitOptions;
+        if (response.limit_options && response.limit_options.length > 0) {
+          limitOptions = response.limit_options;
         }
       } else {
         toastStore.showToast('Failed to fetch communities', 'error');
@@ -96,7 +114,10 @@
   async function fetchCategories() {
     try {
       const response = await getCategories();
-      if (response.success) {
+      // Handle both array response and object with categories property
+      if (Array.isArray(response)) {
+        availableCategories = response.map(cat => cat.name);
+      } else if (response && response.categories) {
         availableCategories = response.categories.map(cat => cat.name);
       }
     } catch (error) {
@@ -173,11 +194,20 @@
   
   // Initial data loading
   onMount(() => {
-    if (authState.isAuthenticated) {
-      fetchCategories();
-      fetchCommunities();
-    } else {
-      window.location.href = '/login';
+    try {
+      const authData = localStorage.getItem('auth');
+      if (authData) {
+        const auth = JSON.parse(authData);
+        if (auth.access_token && (!auth.expires_at || Date.now() < auth.expires_at)) {
+          fetchCategories();
+          fetchCommunities();
+          return;
+        }
+      }
+      // Only log the authentication issue, don't redirect
+      logger.warn('User not authenticated or token expired');
+    } catch (error) {
+      logger.error('Error checking authentication:', error);
     }
   });
 </script>
