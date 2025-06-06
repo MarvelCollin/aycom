@@ -2,6 +2,7 @@ package main
 
 import (
 	"aycom/backend/proto/community"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -64,8 +65,11 @@ func main() {
 		ruleRepo,
 	)
 
+	// Get port from environment variable or use default
+	port := getEnv("COMMUNITY_SERVICE_PORT", "9093")
+
 	// Start gRPC server
-	lis, err := net.Listen("tcp", ":50052")
+	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
@@ -73,20 +77,33 @@ func main() {
 	grpcServer := grpc.NewServer()
 	community.RegisterCommunityServiceServer(grpcServer, communityHandler)
 
-	log.Println("Community service running on :50052")
+	log.Printf("Community service started on port %s", port)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
 }
 
 func initDatabase() (*gorm.DB, error) {
-	dsn := "host=localhost user=postgres password=postgres dbname=aycom port=5432 sslmode=disable"
+	// Get database connection parameters from environment variables
+	dbHost := getEnv("DATABASE_HOST", "community_db")
+	dbPort := getEnv("DATABASE_PORT", "5432")
+	dbUser := getEnv("DATABASE_USER", "kolin")
+	dbPassword := getEnv("DATABASE_PASSWORD", "kolin")
+	dbName := getEnv("DATABASE_NAME", "community_db")
+
+	// Format the database connection string
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+
+	log.Printf("Connecting to database: %s:%s/%s", dbHost, dbPort, dbName)
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
 
 	// Auto-migrate models
+	log.Println("Community service database migrations started")
 	err = db.AutoMigrate(
 		&model.Community{},
 		&model.Category{},
@@ -97,10 +114,12 @@ func initDatabase() (*gorm.DB, error) {
 		&model.Chat{},
 		&model.ChatParticipant{},
 		&model.Message{},
+		&model.DeletedChat{},
 	)
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Community service database migrations completed successfully")
 
 	return db, nil
 }

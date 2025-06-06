@@ -13,13 +13,26 @@ export function getAuthToken(): string {
     const authData = localStorage.getItem('auth');
     if (authData) {
       const auth = JSON.parse(authData);
+      logger.debug(`Auth data found in localStorage: ${JSON.stringify({
+        has_token: !!auth.access_token,
+        expires_at: auth.expires_at ? new Date(auth.expires_at).toISOString() : null,
+        is_expired: auth.expires_at ? Date.now() >= auth.expires_at : false
+      })}`);
+
       if (auth.access_token) {
         if (auth.expires_at && Date.now() >= auth.expires_at) {
           logger.warn("Token exists but is expired");
           return '';
         }
+        
+        // Log partial token for debugging
+        const tokenPreview = auth.access_token.substring(0, 10) + '...' + auth.access_token.substring(auth.access_token.length - 5);
+        logger.debug(`Retrieved valid token: ${tokenPreview}`);
+        
         return auth.access_token;
       }
+    } else {
+      logger.debug("No auth data found in localStorage");
     }
   } catch (err) {
     logger.error("Error parsing auth data:", err);
@@ -93,6 +106,7 @@ export function setAuthData(userData: {
 } | null): void {
   try {
     if (userData === null) {
+      logger.debug("Clearing auth data (userData is null)");
       clearAuthData();
       return;
     }
@@ -108,6 +122,10 @@ export function setAuthData(userData: {
       is_admin: userData.is_admin || false
     };
 
+    // Log that we're saving the token
+    const tokenPreview = userData.accessToken.substring(0, 10) + '...' + userData.accessToken.substring(userData.accessToken.length - 5);
+    logger.info(`Saving auth data to localStorage: user_id=${userData.userId}, token=${tokenPreview}, expires_at=${new Date(expiresAt).toLocaleString()}`);
+    
     localStorage.setItem('auth', JSON.stringify(authData));
     
     setupTokenValidation();

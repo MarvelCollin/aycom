@@ -213,6 +213,12 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityPr
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities: %v", err))
 	}
 
+	// Get total count of communities
+	totalCount, err := h.communityService.CountCommunities(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to count communities: %v", err))
+	}
+
 	protoCommunities := make([]*communityProto.Community, len(communities))
 	for i, community := range communities {
 		protoCommunities[i] = h.mapCommunityToProto(community)
@@ -220,6 +226,7 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityPr
 
 	return &communityProto.ListCommunitiesResponse{
 		Communities: protoCommunities,
+		TotalCount:  int32(totalCount),
 	}, nil
 }
 
@@ -823,4 +830,60 @@ func (h *CommunityHandler) SearchMessages(ctx context.Context, req *communityPro
 func extractUserIDFromContext(ctx context.Context) (string, error) {
 
 	return "system-user", nil
+}
+
+func (h *CommunityHandler) ListCategories(ctx context.Context, req *communityProto.ListCategoriesRequest) (*communityProto.ListCategoriesResponse, error) {
+	categories, err := h.communityService.ListCategories(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list categories: %v", err))
+	}
+
+	protoCategories := make([]*communityProto.Category, len(categories))
+	for i, category := range categories {
+		protoCategories[i] = &communityProto.Category{
+			Id:   category.CategoryID.String(),
+			Name: category.Name,
+		}
+		if !category.CreatedAt.IsZero() {
+			protoCategories[i].CreatedAt = timestamppb.New(category.CreatedAt)
+		}
+	}
+
+	return &communityProto.ListCategoriesResponse{
+		Categories: protoCategories,
+	}, nil
+}
+
+func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *communityProto.SearchCommunitiesRequest) (*communityProto.ListCommunitiesResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	if req.Query == "" {
+		return nil, status.Error(codes.InvalidArgument, "query is required")
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := int(req.Offset)
+	if offset < 0 {
+		offset = 0
+	}
+
+	communities, totalCount, err := h.communityService.SearchCommunities(ctx, req.Query, req.Categories, offset, limit)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to search communities: %v", err))
+	}
+
+	protoCommunities := make([]*communityProto.Community, len(communities))
+	for i, community := range communities {
+		protoCommunities[i] = h.mapCommunityToProto(community)
+	}
+
+	return &communityProto.ListCommunitiesResponse{
+		Communities: protoCommunities,
+		TotalCount:  int32(totalCount),
+	}, nil
 }

@@ -58,8 +58,12 @@ func RefreshToken(c *gin.Context) {
 
 	userID, ok := claims["sub"].(string)
 	if !ok {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
-		return
+		// Try legacy format
+		userID, ok = claims["user_id"].(string)
+		if !ok {
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
+			return
+		}
 	}
 
 	accessToken, err := utils.GenerateJWT(userID, time.Hour)

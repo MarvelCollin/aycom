@@ -291,9 +291,28 @@ export function useAuth() {
   
   const login = async (email: string, password: string) => {
     try {
+      // Clear any existing auth data before login to prevent token issues
+      clearAuthData();
+      
       const data = await authApi.login(email, password);
       
+      logger.info(`Login response received with token: ${data.access_token ? 'yes' : 'no'}`);
+      
       if (data.access_token) {
+        // Simple JWT inspection to debug token issues
+        try {
+          const tokenParts = data.access_token.split('.');
+          if (tokenParts.length === 3) {
+            // Base64 decode the payload (middle part)
+            const payload = JSON.parse(atob(tokenParts[1]));
+            logger.info(`JWT payload inspection: sub=${payload.sub}, user_id=${payload.user_id}, exp=${payload.exp}`);
+          } else {
+            logger.warn(`JWT token has unexpected format (${tokenParts.length} parts instead of 3)`);
+          }
+        } catch (tokenError) {
+          logger.error('Error inspecting JWT token:', tokenError);
+        }
+        
         const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
         let isAdmin = false;
         
@@ -312,6 +331,7 @@ export function useAuth() {
           display_name: data.user?.name || data.user?.display_name
         };
         
+        logger.info(`Setting auth state with user_id=${data.user_id}, expires_at=${new Date(expiresAt).toISOString()}`);
         authStore.set(authState);
         
         try {

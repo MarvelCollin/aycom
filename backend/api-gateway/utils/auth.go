@@ -14,21 +14,30 @@ import (
 )
 
 func GenerateJWT(userID string, expiryDuration time.Duration) (string, error) {
-	secret := []byte(os.Getenv("JWT_SECRET"))
-	if len(secret) == 0 {
-		secret = []byte("wompwomp123")
-	}
+	secret := GetJWTSecret()
 
 	expiryTime := time.Now().Add(expiryDuration)
 
 	claims := jwt.MapClaims{
-		"sub": userID,
-		"exp": expiryTime.Unix(),
-		"iat": time.Now().Unix(),
+		"sub":     userID,
+		"user_id": userID,
+		"exp":     expiryTime.Unix(),
+		"iat":     time.Now().Unix(),
 	}
 
+	log.Printf("Generating JWT for user %s with claims: sub=%s, user_id=%s, exp=%d",
+		userID, userID, userID, expiryTime.Unix())
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(secret)
+	tokenString, err := token.SignedString(secret)
+
+	if err != nil {
+		log.Printf("Error generating JWT: %v", err)
+		return "", err
+	}
+
+	log.Printf("JWT generated successfully, length: %d chars", len(tokenString))
+	return tokenString, nil
 }
 
 func GetJWTSecret() []byte {

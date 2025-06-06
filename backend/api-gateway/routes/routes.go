@@ -104,6 +104,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1.Group("/categories").GET("", handlers.GetCategories)
 
+	// Make communities/categories and communities listing public (no auth required)
+	v1.GET("/communities/categories", handlers.ListCategories)
+	v1.GET("/communities", handlers.ListCommunities)
+
 	publicWebsockets := v1.Group("/chats")
 	{
 		publicWebsockets.GET("/:id/ws", handlers.HandleCommunityChat)
@@ -148,7 +152,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	communities.Use(middleware.JWTAuth(jwtSecret))
 	{
 		communities.POST("", handlers.CreateCommunity)
-		communities.GET("", handlers.ListCommunities)
 		communities.GET("/:id", handlers.GetCommunityByID)
 		communities.PUT("/:id", handlers.UpdateCommunity)
 		communities.DELETE("/:id", handlers.DeleteCommunity)

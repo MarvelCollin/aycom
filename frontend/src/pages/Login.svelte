@@ -6,7 +6,7 @@
   import { toastStore } from '../stores/toastStore';
   import appConfig from '../config/appConfig';
   import ReCaptchaWrapper from '../components/auth/ReCaptchaWrapper.svelte';
-  import { getAuthToken } from '../utils/auth';
+  import { getAuthToken, clearAuthData } from '../utils/auth';
   import DebugPanel from '../components/common/DebugPanel.svelte';
   import { onMount } from 'svelte';
   import Toast from '../components/common/Toast.svelte';
@@ -41,6 +41,8 @@
     const token = getAuthToken();
     console.log('Login page - Auth token exists:', !!token, 'Current path:', window.location.pathname);
     
+    // Clear any existing auth data to ensure we get fresh tokens
+    clearAuthData();
   });
   
   async function handleSubmit() {

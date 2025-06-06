@@ -1,29 +1,31 @@
 import appConfig from '../config/appConfig';
 import { getAuthToken } from '../utils/auth';
+import { createLoggerWithPrefix } from '../utils/logger';
 
 const API_BASE_URL = appConfig.api.baseUrl;
+const logger = createLoggerWithPrefix('AuthAPI');
 
 async function handleApiResponse(response: Response, errorMessage: string = 'Operation failed') {
-  console.log(`Response status: ${response.status}`);
+  logger.debug(`Response status: ${response.status}`);
 
   if (!response.ok) {
     try {
       const errorData = await response.json();
-      console.error('Error data:', errorData);
+      logger.error('Error data:', errorData);
       throw new Error(errorData.message || `${errorMessage} with status: ${response.status}`);
     } catch (parseError) {
-      console.error('Failed to parse error response:', parseError);
+      logger.error('Failed to parse error response:', parseError);
       throw new Error(`${errorMessage} with status: ${response.status}`);
     }
   }
 
   const data = await response.json();
-  console.log('Successful response with keys:', Object.keys(data));
+  logger.debug('Successful response with keys:', Object.keys(data));
   return data;
 }
 
 function standardizeUserResponse(data: any) {
-  return {
+  const standardized = {
     user: data.user ? {
       id: data.user.id,
       username: data.user.username,
@@ -39,10 +41,21 @@ function standardizeUserResponse(data: any) {
     token_type: data.token_type || data.tokenType || 'bearer',
     user_id: data.user_id || data.userId || (data.user ? data.user.id : null)
   };
+
+  // Log token status
+  if (standardized.access_token) {
+    const tokenPreview = standardized.access_token.substring(0, 10) + '...' + 
+      standardized.access_token.substring(standardized.access_token.length - 5);
+    logger.info(`Standardized response has token: ${tokenPreview}`);
+  } else {
+    logger.warn('Standardized response has no token');
+  }
+
+  return standardized;
 }
 
 export async function login(email: string, password: string) {
-  console.log(`Attempting to login with email: ${email.substring(0, 3)}...${email.split('@')[1]}`);
+  logger.info(`Attempting to login with email: ${email.substring(0, 3)}...${email.split('@')[1]}`);
 
   try {
     const response = await fetch(`${API_BASE_URL}/users/login`, {
@@ -52,10 +65,19 @@ export async function login(email: string, password: string) {
       credentials: "include",
     });
 
+    logger.info(`Login response status: ${response.status} ${response.statusText}`);
     const data = await handleApiResponse(response, 'Login failed');
+    logger.info(`Login successful, response has fields: ${Object.keys(data).join(', ')}`);
+    
+    if (data.access_token) {
+      const tokenPreview = data.access_token.substring(0, 10) + '...' + 
+        data.access_token.substring(data.access_token.length - 5);
+      logger.info(`Raw login response has token: ${tokenPreview}, user_id: ${data.user_id}`);
+    }
+    
     return standardizeUserResponse(data);
   } catch (error) {
-    console.error('Login exception:', error);
+    logger.error('Login exception:', error);
     throw error;
   }
 }

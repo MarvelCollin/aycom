@@ -110,21 +110,37 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		userIdClaim := claims["user_id"]
-		log.Printf("JWT Middleware: Extracted user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+		// First try to get user ID from the standard "sub" claim
+		userIdClaim := claims["sub"]
+		log.Printf("JWT Middleware: Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
 
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
-			log.Printf("JWT Middleware: user_id claim is not a string: %v", userIdClaim)
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Invalid token claims",
-				"code":    "UNAUTHORIZED",
-			})
-			c.Abort()
-			return
+			// Fallback to "user_id" for backward compatibility
+			userIdClaim = claims["user_id"]
+			log.Printf("JWT Middleware: No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+
+			userIdStr, ok = userIdClaim.(string)
+			if !ok {
+				log.Printf("JWT Middleware: No valid user identifier in token claims")
+
+				// Log all available claims for debugging
+				log.Printf("JWT Middleware: Available claims:")
+				for key, value := range claims {
+					log.Printf("  %s: %v (Type: %T)", key, value, value)
+				}
+
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"message": "Invalid token claims",
+					"code":    "UNAUTHORIZED",
+				})
+				c.Abort()
+				return
+			}
 		}
 
+		log.Printf("JWT Middleware: Successfully extracted user ID: %s from token", userIdStr)
 		c.Set("userId", userIdStr)
 		c.Set("userID", userIdStr)
 		log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
@@ -173,12 +189,18 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		userIdClaim := claims["user_id"]
+		// Try "sub" claim first (standard JWT approach)
+		userIdClaim := claims["sub"]
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
-			log.Printf("JWT Middleware: user_id claim is not a string: %v - continuing as anonymous", userIdClaim)
-			c.Next()
-			return
+			// Fallback to "user_id" for backward compatibility
+			userIdClaim = claims["user_id"]
+			userIdStr, ok = userIdClaim.(string)
+			if !ok {
+				log.Printf("JWT Middleware: No valid user identifier in token claims - continuing as anonymous")
+				c.Next()
+				return
+			}
 		}
 
 		c.Set("userId", userIdStr)
@@ -241,6 +263,21 @@ func AdminOnly() gin.HandlerFunc {
 				"code":    "UNAUTHORIZED",
 			})
 			return
+		}
+
+		// Make sure we have a valid user ID first
+		_, userOk := claims["sub"].(string)
+		if !userOk {
+			// Try legacy format
+			_, userOk = claims["user_id"].(string)
+			if !userOk {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"message": "Unauthorized, invalid token claims",
+					"code":    "UNAUTHORIZED",
+				})
+				return
+			}
 		}
 
 		// Check if user is admin in claims

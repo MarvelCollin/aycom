@@ -8,6 +8,8 @@ const logger = createLoggerWithPrefix('CommunityAPI');
 
 export async function getCommunities(params = {}) {
   try {
+    const token = getAuthToken();
+    console.log(`Getting communities with token: ${token ? 'present' : 'missing'}`);
 
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -17,8 +19,6 @@ export async function getCommunities(params = {}) {
         queryParams.append(key, value.toString());
       }
     });
-
-    const token = getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/communities?${queryParams.toString()}`, {
       method: 'GET',
@@ -30,6 +30,7 @@ export async function getCommunities(params = {}) {
     });
 
     if (!response.ok) {
+      logger.error(`Communities API responded with ${response.status}: ${response.statusText}`);
 
       const text = await response.text();
       if (!text) {
@@ -37,11 +38,11 @@ export async function getCommunities(params = {}) {
       }
 
       try {
-
         const errorData = JSON.parse(text);
+        logger.error('Communities API error details:', errorData);
         throw new Error(errorData.message || `Failed to list communities (${response.status})`);
       } catch (parseError) {
-
+        logger.error('Failed to parse error response:', parseError);
         throw new Error(`Failed to list communities (${response.status}): ${text.substring(0, 100)}`);
       }
     }

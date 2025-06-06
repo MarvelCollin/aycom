@@ -587,8 +587,7 @@ func ListCommunities(c *gin.Context) {
 	}
 
 	communities = resp.GetCommunities()
-
-	totalCount = 10
+	totalCount = resp.GetTotalCount()
 
 	formattedCommunities := make([]gin.H, 0, len(communities))
 	for _, comm := range communities {

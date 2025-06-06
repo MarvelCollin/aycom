@@ -4,6 +4,7 @@
   import { useAuth } from '../../hooks/useAuth';
   import { useTheme } from '../../hooks/useTheme';
   import type { IGoogleCredentialResponse } from '../../interfaces/IAuth';
+  import { clearAuthData } from '../../utils/auth';
 
   export let onAuthSuccess: (result: any) => void = () => {};
   export let onAuthError: (error: string) => void = () => {};
@@ -30,6 +31,9 @@
     loadError = false;
     
     try {
+      // Clear any existing auth data to ensure we get fresh tokens
+      clearAuthData();
+      
       if (!response || !response.credential) {
         console.error('Invalid Google credential response:', response);
         errorMessage = 'Invalid response from Google';
