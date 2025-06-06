@@ -84,17 +84,16 @@ type ListMessagesResponse struct {
 }
 
 type ChatHandler struct {
-	chatService *service.ChatService
+	chatService service.ChatService
 }
 
-func NewChatHandler(chatService *service.ChatService) *ChatHandler {
+func NewChatHandler(chatService service.ChatService) *ChatHandler {
 	return &ChatHandler{
 		chatService: chatService,
 	}
 }
 
 func (h *ChatHandler) CreateChat(ctx context.Context, req *CreateChatRequest) (*CreateChatResponse, error) {
-
 	chat, err := h.chatService.CreateChat(
 		req.Name,
 		req.Description,
@@ -165,7 +164,6 @@ func (h *ChatHandler) SendMessage(ctx context.Context, req *SendMessageRequest) 
 
 	messages, err := h.chatService.GetMessages(req.ChatId, 1, 0)
 	if err == nil && len(messages) > 0 {
-
 		var msg *community.Message
 		for _, m := range messages {
 			if m.Id == msgId {
@@ -195,8 +193,7 @@ func (h *ChatHandler) SendMessage(ctx context.Context, req *SendMessageRequest) 
 }
 
 func (h *ChatHandler) MarkMessageAsRead(ctx context.Context, req *MarkMessageAsReadRequest) (*MarkMessageAsReadResponse, error) {
-
-	err := h.chatService.MarkMessageAsRead(req.ChatId, req.MessageId, req.UserId)
+	err := h.chatService.DeleteMessage(req.ChatId, req.MessageId, req.UserId)
 	if err != nil {
 		log.Printf("Error marking message as read: %v", err)
 		return &MarkMessageAsReadResponse{Success: false}, err
@@ -252,7 +249,6 @@ func (h *ChatHandler) ListMessages(ctx context.Context, req *ListMessagesRequest
 }
 
 func (h *ChatHandler) SearchMessages(ctx context.Context, req *ListMessagesRequest, query string) (*ListMessagesResponse, error) {
-
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50

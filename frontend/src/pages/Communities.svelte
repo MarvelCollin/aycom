@@ -6,11 +6,13 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getCommunities, getCategories, requestToJoin } from '../api/community';
+  import type { ICategoriesResponse, ICategory } from '../interfaces/ICategory';
   
   // Import components
   import Pagination from '../components/common/Pagination.svelte';
   import CategoryFilter from '../components/common/CategoryFilter.svelte';
   import Spinner from '../components/common/Spinner.svelte';
+  import CreateCommunityModal from '../components/communities/CreateCommunityModal.svelte';
   
   // Import icons
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
@@ -47,6 +49,9 @@
   
   $: authState = getAuthFromStorage();
   $: isDarkMode = $theme === 'dark';
+  
+  // Community creation modal state
+  let isCreateModalOpen = false;
   
   // Pagination settings
   let limitOptions = [25, 30, 35];
@@ -114,11 +119,14 @@
   async function fetchCategories() {
     try {
       const response = await getCategories();
+      
       // Handle both array response and object with categories property
       if (Array.isArray(response)) {
         availableCategories = response.map(cat => cat.name);
-      } else if (response && response.categories) {
-        availableCategories = response.categories.map(cat => cat.name);
+      } else if (response && typeof response === 'object' && 'categories' in response) {
+        // Use type assertion to tell TypeScript this is a valid object with categories property
+        const typedResponse = response as { categories: ICategory[] };
+        availableCategories = typedResponse.categories.map(cat => cat.name);
       }
     } catch (error) {
       logger.error('Error fetching categories:', error);
@@ -192,6 +200,17 @@
     window.location.href = `/communities/${communityId}`;
   }
   
+  // Open community creation modal
+  function openCreateModal() {
+    isCreateModalOpen = true;
+  }
+  
+  // Handle successful community creation
+  function handleCommunityCreated() {
+    // Refresh communities list
+    fetchCommunities();
+  }
+  
   // Initial data loading
   onMount(() => {
     try {
@@ -216,10 +235,10 @@
   <div class="communities-container {isDarkMode ? 'dark' : ''}">
     <div class="communities-header">
       <h1>Communities</h1>
-      <a href="/communities/create" class="create-button">
+      <button class="create-button" on:click={openCreateModal}>
         <PlusIcon size="18" />
         <span>Create Community</span>
-      </a>
+      </button>
     </div>
       
       <div class="search-filter-container">
@@ -414,6 +433,11 @@
       {/if}
     {/if}
   </div>
+  
+  <CreateCommunityModal 
+    bind:isOpen={isCreateModalOpen}
+    on:success={handleCommunityCreated}
+  />
 </MainLayout>
 
 <style>
@@ -449,6 +473,9 @@
     border-radius: 9999px;
     text-decoration: none;
     transition: background-color 0.2s;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
   }
   
   .create-button:hover {
