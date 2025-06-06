@@ -4,9 +4,13 @@ import (
 	"aycom/backend/api-gateway/utils"
 	communityProto "aycom/backend/proto/community"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"math"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,19 +25,104 @@ func CreateCommunity(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Name        string   `json:"name" binding:"required"`
-		Description string   `json:"description" binding:"required"`
-		LogoURL     string   `json:"logo_url" binding:"required"`
-		BannerURL   string   `json:"banner_url" binding:"required"`
-		Rules       string   `json:"rules" binding:"required"`
-		Categories  []string `json:"categories" binding:"required"`
-	}
+	// Check content type to determine if it's JSON or multipart form
+	contentType := c.GetHeader("Content-Type")
+	var name, description, logoURL, bannerURL, rules string
+	var categories []string
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("CreateCommunity: Invalid request body: %v", err)
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
-		return
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		// Handle multipart form data
+		log.Printf("Handling multipart form data")
+		name = c.PostForm("name")
+		description = c.PostForm("description")
+		rules = c.PostForm("rules")
+
+		// Get the categories
+		categoriesJSON := c.PostForm("categories")
+		if categoriesJSON != "" {
+			if err := json.Unmarshal([]byte(categoriesJSON), &categories); err != nil {
+				log.Printf("CreateCommunity: Invalid categories format: %v", err)
+				utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid categories format")
+				return
+			}
+		}
+
+		// Handle file uploads
+		// Get logo file
+		logoFile, err := c.FormFile("icon")
+		if err != nil {
+			log.Printf("CreateCommunity: No logo file: %v", err)
+			utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Logo file is required")
+			return
+		}
+
+		// Get banner file
+		bannerFile, err := c.FormFile("banner")
+		if err != nil {
+			log.Printf("CreateCommunity: No banner file: %v", err)
+			utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Banner file is required")
+			return
+		}
+
+		// Save the logo file
+		logoFilename := fmt.Sprintf("community_logo_%s_%d%s",
+			strings.ReplaceAll(userID.(string), "-", ""),
+			time.Now().Unix(),
+			filepath.Ext(logoFile.Filename))
+		logoPath := filepath.Join("uploads", "community", logoFilename)
+
+		if err := c.SaveUploadedFile(logoFile, logoPath); err != nil {
+			log.Printf("CreateCommunity: Failed to save logo file: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to save logo file")
+			return
+		}
+
+		// Save the banner file
+		bannerFilename := fmt.Sprintf("community_banner_%s_%d%s",
+			strings.ReplaceAll(userID.(string), "-", ""),
+			time.Now().Unix(),
+			filepath.Ext(bannerFile.Filename))
+		bannerPath := filepath.Join("uploads", "community", bannerFilename)
+
+		if err := c.SaveUploadedFile(bannerFile, bannerPath); err != nil {
+			log.Printf("CreateCommunity: Failed to save banner file: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to save banner file")
+			return
+		}
+
+		// Use URLs based on the saved file paths
+		logoURL = "/" + logoPath
+		bannerURL = "/" + bannerPath
+
+		// Validate required fields
+		if name == "" || description == "" || rules == "" || len(categories) == 0 {
+			log.Printf("CreateCommunity: Missing required fields")
+			utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Missing required fields")
+			return
+		}
+	} else {
+		// Handle JSON
+		var req struct {
+			Name        string   `json:"name" binding:"required"`
+			Description string   `json:"description" binding:"required"`
+			LogoURL     string   `json:"logo_url" binding:"required"`
+			BannerURL   string   `json:"banner_url" binding:"required"`
+			Rules       string   `json:"rules" binding:"required"`
+			Categories  []string `json:"categories" binding:"required"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Printf("CreateCommunity: Invalid request body: %v", err)
+			utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
+			return
+		}
+
+		name = req.Name
+		description = req.Description
+		logoURL = req.LogoURL
+		bannerURL = req.BannerURL
+		rules = req.Rules
+		categories = req.Categories
 	}
 
 	if CommunityClient == nil {
@@ -46,22 +135,22 @@ func CreateCommunity(c *gin.Context) {
 	defer cancel()
 
 	// Create categories array for proto
-	categories := make([]*communityProto.Category, len(req.Categories))
-	for i, categoryName := range req.Categories {
-		categories[i] = &communityProto.Category{
+	protoCategories := make([]*communityProto.Category, len(categories))
+	for i, categoryName := range categories {
+		protoCategories[i] = &communityProto.Category{
 			Name: categoryName,
 		}
 	}
 
 	// Create the community
 	community := &communityProto.Community{
-		Name:        req.Name,
-		Description: req.Description,
-		LogoUrl:     req.LogoURL,
-		BannerUrl:   req.BannerURL,
+		Name:        name,
+		Description: description,
+		LogoUrl:     logoURL,
+		BannerUrl:   bannerURL,
 		CreatorId:   userID.(string),
 		IsApproved:  false, // New communities are not auto-approved
-		Categories:  categories,
+		Categories:  protoCategories,
 	}
 
 	resp, err := CommunityClient.CreateCommunity(ctx, &communityProto.CreateCommunityRequest{
@@ -78,7 +167,7 @@ func CreateCommunity(c *gin.Context) {
 	if resp != nil && resp.Community != nil {
 		_, err = CommunityClient.AddRule(ctx, &communityProto.AddRuleRequest{
 			CommunityId: resp.Community.Id,
-			RuleText:    req.Rules,
+			RuleText:    rules,
 		})
 
 		if err != nil {

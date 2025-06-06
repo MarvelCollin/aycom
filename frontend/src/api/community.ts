@@ -1,7 +1,7 @@
 import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
-import type { ICategory } from './categories';
+import type { ICategory } from '../interfaces/ICategory';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
@@ -162,22 +162,74 @@ export async function checkUserCommunityMembership(communityId) {
 export async function createCommunity(data: Record<string, any>) {
   try {
     const token = getAuthToken();
+    
+    logger.debug('Creating community with data:', JSON.stringify({
+      ...data,
+      icon: data.icon ? `[File: ${data.icon.name}]` : null,
+      banner: data.banner ? `[File: ${data.banner.name}]` : null
+    }));
+    
+    // Check if we need to handle file uploads
+    if (data.icon instanceof File || data.banner instanceof File) {
+      // We have files to upload, use FormData instead of JSON
+      const formData = new FormData();
+      
+      // Add all properties to the FormData
+      Object.keys(data).forEach(key => {
+        if (data[key] instanceof File) {
+          formData.append(key, data[key]);
+        } else if (key === 'categories' && Array.isArray(data[key])) {
+          // Handle categories array specially
+          formData.append('categories', JSON.stringify(data[key]));
+        } else {
+          formData.append(key, String(data[key]));
+        }
+      });
+      
+      // For debugging
+      logger.debug('Sending FormData with entries:', 
+        Array.from(formData.entries()).map(e => `${e[0]}: ${typeof e[1]}`).join(', '));
+      
+      const response = await fetch(`${API_BASE_URL}/communities`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+          // Note: Don't set content-type header when sending FormData
+        },
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = 'Failed to create community';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch(e) {
+          logger.error('Error parsing error response:', e, errorText);
+        }
+        throw new Error(errorMessage);
+      }
+      return response.json();
+    } else {
+      // No files, use JSON as usual
+      const response = await fetch(`${API_BASE_URL}/communities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
 
-    const response = await fetch(`${API_BASE_URL}/communities`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify(data),
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to create community');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create community');
+      }
+      return response.json();
     }
-    return response.json();
   } catch (error) {
     logger.error('Create community failed:', error);
     throw error;

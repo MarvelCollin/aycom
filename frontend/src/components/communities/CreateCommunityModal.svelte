@@ -197,15 +197,18 @@
     isSubmitting = true;
     
     try {
-      const formData = new FormData();
-      formData.append('name', communityName);
-      formData.append('description', description);
-      if (icon) formData.append('icon', icon);
-      if (banner) formData.append('banner', banner);
-      formData.append('categories', JSON.stringify(selectedCategories));
-      formData.append('rules', rules);
+      // Create an object with all the form data
+      const communityData = {
+        name: communityName,
+        description: description,
+        icon: icon,
+        banner: banner,
+        categories: selectedCategories,
+        rules: rules
+      };
       
-      await createCommunity(Object.fromEntries(formData));
+      // Pass the data to the API function which will handle the FormData creation
+      const result = await createCommunity(communityData);
       
       isSuccess = true;
       toastStore.showToast('Community creation request submitted for approval', 'success');
