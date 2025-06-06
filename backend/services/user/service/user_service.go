@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -57,15 +59,24 @@ type UserService interface {
 	IsUserBlocked(ctx context.Context, userID, blockedByID string) (bool, error)
 	ReportUser(ctx context.Context, reporterID, reportedID string, reason string) error
 	GetBlockedUsers(ctx context.Context, userID string, page, limit int) ([]map[string]interface{}, int64, error)
+	CreatePremiumRequest(ctx context.Context, req *userpb.CreatePremiumRequestRequest) (*userpb.CreatePremiumRequestResponse, error)
 }
 
 type userService struct {
 	repo repository.UserRepository
+	db   *gorm.DB
 }
 
 func NewUserService(repo repository.UserRepository) UserService {
+	// Get the DB instance from the repository
+	var db *gorm.DB
+	if repoWithDB, ok := repo.(*repository.PostgresUserRepository); ok {
+		db = repoWithDB.GetDB()
+	}
+
 	return &userService{
 		repo: repo,
+		db:   db,
 	}
 }
 
@@ -527,7 +538,7 @@ func (s *userService) GetAllUsers(ctx context.Context, page, limit int, sortBy s
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
-		limit = 10 
+		limit = 10
 	}
 
 	users, total, err := s.repo.GetAllUsers(page, limit, sortBy, ascending)
@@ -636,7 +647,7 @@ func (s *userService) GetBlockedUsers(ctx context.Context, userID string, page, 
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
-		limit = 10 
+		limit = 10
 	}
 
 	blockedUsers, total, err := s.repo.GetBlockedUsers(userID, page, limit)
@@ -670,4 +681,110 @@ func (s *userService) IsFollowing(ctx context.Context, followerID, followedID st
 	}
 
 	return exists, nil
+}
+
+func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.CreatePremiumRequestRequest) (*userpb.CreatePremiumRequestResponse, error) {
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "User ID is required")
+	}
+
+	if req.Reason == "" {
+		return nil, status.Error(codes.InvalidArgument, "Reason is required")
+	}
+
+	if req.IdentityCardNumber == "" {
+		return nil, status.Error(codes.InvalidArgument, "Identity card number is required")
+	}
+
+	if req.FacePhotoUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "Face photo URL is required")
+	}
+
+	// Check if there's already a pending or approved premium request for this user
+	userIdUUID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid user ID format")
+	}
+
+	// Check if user exists
+	_, err = s.repo.FindUserByID(req.UserId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Error(codes.NotFound, "User not found")
+		}
+		return nil, status.Error(codes.Internal, "Failed to verify user")
+	}
+
+	// Create admin repository instance to access admin methods
+	adminRepo := repository.NewAdminRepository(s.db)
+
+	// Check for existing requests
+	existingRequests, _, err := adminRepo.GetPremiumRequests(1, 1, "pending")
+	if err != nil {
+		log.Printf("Error checking for existing premium requests: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to check for existing requests")
+	}
+
+	// Check if user already has a pending request
+	for _, request := range existingRequests {
+		if request.UserID == userIdUUID {
+			return nil, status.Error(codes.AlreadyExists, "User already has a pending premium request")
+		}
+	}
+
+	// Check for approved requests
+	approvedRequests, _, err := adminRepo.GetPremiumRequests(1, 1, "approved")
+	if err != nil {
+		log.Printf("Error checking for approved premium requests: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to check for existing requests")
+	}
+
+	// Check if user already has an approved request
+	for _, request := range approvedRequests {
+		if request.UserID == userIdUUID {
+			return nil, status.Error(codes.AlreadyExists, "User already has an approved premium request")
+		}
+	}
+
+	// Encrypt identity card number for security
+	encryptedIDNumber, err := encryptSensitiveData(req.IdentityCardNumber)
+	if err != nil {
+		log.Printf("Error encrypting identity card number: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to secure sensitive data")
+	}
+
+	// Create the premium request
+	premiumRequest := &model.PremiumRequest{
+		UserID:             userIdUUID,
+		Reason:             req.Reason,
+		IdentityCardNumber: encryptedIDNumber,
+		FacePhotoURL:       req.FacePhotoUrl,
+		Status:             "pending",
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	// Use the admin repository to create the request
+	err = adminRepo.CreatePremiumRequest(premiumRequest)
+	if err != nil {
+		log.Printf("Error creating premium request: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to create premium request")
+	}
+
+	return &userpb.CreatePremiumRequestResponse{
+		Success: true,
+		Message: "Premium verification request submitted successfully",
+	}, nil
+}
+
+// Helper function to encrypt sensitive data
+func encryptSensitiveData(data string) (string, error) {
+	// In a production environment, use proper encryption with secure key management
+	// This is a simple placeholder for demonstration purposes
+
+	// Hash the data for storage
+	hashedBytes := sha256.Sum256([]byte(data))
+	hashedString := hex.EncodeToString(hashedBytes[:])
+
+	return hashedString, nil
 }

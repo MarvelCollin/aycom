@@ -3737,6 +3737,126 @@ func (x *ProcessPremiumRequestResponse) GetMessage() string {
 	return ""
 }
 
+type CreatePremiumRequestRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	UserId             string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Reason             string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	IdentityCardNumber string                 `protobuf:"bytes,3,opt,name=identity_card_number,json=identityCardNumber,proto3" json:"identity_card_number,omitempty"`
+	FacePhotoUrl       string                 `protobuf:"bytes,4,opt,name=face_photo_url,json=facePhotoUrl,proto3" json:"face_photo_url,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *CreatePremiumRequestRequest) Reset() {
+	*x = CreatePremiumRequestRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreatePremiumRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreatePremiumRequestRequest) ProtoMessage() {}
+
+func (x *CreatePremiumRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreatePremiumRequestRequest.ProtoReflect.Descriptor instead.
+func (*CreatePremiumRequestRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *CreatePremiumRequestRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreatePremiumRequestRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *CreatePremiumRequestRequest) GetIdentityCardNumber() string {
+	if x != nil {
+		return x.IdentityCardNumber
+	}
+	return ""
+}
+
+func (x *CreatePremiumRequestRequest) GetFacePhotoUrl() string {
+	if x != nil {
+		return x.FacePhotoUrl
+	}
+	return ""
+}
+
+type CreatePremiumRequestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreatePremiumRequestResponse) Reset() {
+	*x = CreatePremiumRequestResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreatePremiumRequestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreatePremiumRequestResponse) ProtoMessage() {}
+
+func (x *CreatePremiumRequestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreatePremiumRequestResponse.ProtoReflect.Descriptor instead.
+func (*CreatePremiumRequestResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *CreatePremiumRequestResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreatePremiumRequestResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 type ReportRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -3754,7 +3874,7 @@ type ReportRequest struct {
 
 func (x *ReportRequest) Reset() {
 	*x = ReportRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[63]
+	mi := &file_proto_user_user_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3766,7 +3886,7 @@ func (x *ReportRequest) String() string {
 func (*ReportRequest) ProtoMessage() {}
 
 func (x *ReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[63]
+	mi := &file_proto_user_user_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3779,7 +3899,7 @@ func (x *ReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportRequest.ProtoReflect.Descriptor instead.
 func (*ReportRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{63}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *ReportRequest) GetId() string {
@@ -3856,7 +3976,7 @@ type GetReportRequestsRequest struct {
 
 func (x *GetReportRequestsRequest) Reset() {
 	*x = GetReportRequestsRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[64]
+	mi := &file_proto_user_user_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3868,7 +3988,7 @@ func (x *GetReportRequestsRequest) String() string {
 func (*GetReportRequestsRequest) ProtoMessage() {}
 
 func (x *GetReportRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[64]
+	mi := &file_proto_user_user_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3881,7 +4001,7 @@ func (x *GetReportRequestsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReportRequestsRequest.ProtoReflect.Descriptor instead.
 func (*GetReportRequestsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{64}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *GetReportRequestsRequest) GetPage() int32 {
@@ -3917,7 +4037,7 @@ type GetReportRequestsResponse struct {
 
 func (x *GetReportRequestsResponse) Reset() {
 	*x = GetReportRequestsResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[65]
+	mi := &file_proto_user_user_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3929,7 +4049,7 @@ func (x *GetReportRequestsResponse) String() string {
 func (*GetReportRequestsResponse) ProtoMessage() {}
 
 func (x *GetReportRequestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[65]
+	mi := &file_proto_user_user_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3942,7 +4062,7 @@ func (x *GetReportRequestsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReportRequestsResponse.ProtoReflect.Descriptor instead.
 func (*GetReportRequestsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{65}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetReportRequestsResponse) GetRequests() []*ReportRequest {
@@ -3985,7 +4105,7 @@ type ProcessReportRequestRequest struct {
 
 func (x *ProcessReportRequestRequest) Reset() {
 	*x = ProcessReportRequestRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[66]
+	mi := &file_proto_user_user_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3997,7 +4117,7 @@ func (x *ProcessReportRequestRequest) String() string {
 func (*ProcessReportRequestRequest) ProtoMessage() {}
 
 func (x *ProcessReportRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[66]
+	mi := &file_proto_user_user_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4010,7 +4130,7 @@ func (x *ProcessReportRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessReportRequestRequest.ProtoReflect.Descriptor instead.
 func (*ProcessReportRequestRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{66}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ProcessReportRequestRequest) GetRequestId() string {
@@ -4051,7 +4171,7 @@ type ProcessReportRequestResponse struct {
 
 func (x *ProcessReportRequestResponse) Reset() {
 	*x = ProcessReportRequestResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[67]
+	mi := &file_proto_user_user_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4063,7 +4183,7 @@ func (x *ProcessReportRequestResponse) String() string {
 func (*ProcessReportRequestResponse) ProtoMessage() {}
 
 func (x *ProcessReportRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[67]
+	mi := &file_proto_user_user_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4076,7 +4196,7 @@ func (x *ProcessReportRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessReportRequestResponse.ProtoReflect.Descriptor instead.
 func (*ProcessReportRequestResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{67}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ProcessReportRequestResponse) GetSuccess() bool {
@@ -4106,7 +4226,7 @@ type ThreadCategory struct {
 
 func (x *ThreadCategory) Reset() {
 	*x = ThreadCategory{}
-	mi := &file_proto_user_user_proto_msgTypes[68]
+	mi := &file_proto_user_user_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4118,7 +4238,7 @@ func (x *ThreadCategory) String() string {
 func (*ThreadCategory) ProtoMessage() {}
 
 func (x *ThreadCategory) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[68]
+	mi := &file_proto_user_user_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4131,7 +4251,7 @@ func (x *ThreadCategory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadCategory.ProtoReflect.Descriptor instead.
 func (*ThreadCategory) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{68}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ThreadCategory) GetId() string {
@@ -4179,7 +4299,7 @@ type GetThreadCategoriesRequest struct {
 
 func (x *GetThreadCategoriesRequest) Reset() {
 	*x = GetThreadCategoriesRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[69]
+	mi := &file_proto_user_user_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4191,7 +4311,7 @@ func (x *GetThreadCategoriesRequest) String() string {
 func (*GetThreadCategoriesRequest) ProtoMessage() {}
 
 func (x *GetThreadCategoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[69]
+	mi := &file_proto_user_user_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4204,7 +4324,7 @@ func (x *GetThreadCategoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetThreadCategoriesRequest.ProtoReflect.Descriptor instead.
 func (*GetThreadCategoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{69}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *GetThreadCategoriesRequest) GetPage() int32 {
@@ -4233,7 +4353,7 @@ type GetThreadCategoriesResponse struct {
 
 func (x *GetThreadCategoriesResponse) Reset() {
 	*x = GetThreadCategoriesResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[70]
+	mi := &file_proto_user_user_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4245,7 +4365,7 @@ func (x *GetThreadCategoriesResponse) String() string {
 func (*GetThreadCategoriesResponse) ProtoMessage() {}
 
 func (x *GetThreadCategoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[70]
+	mi := &file_proto_user_user_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4258,7 +4378,7 @@ func (x *GetThreadCategoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetThreadCategoriesResponse.ProtoReflect.Descriptor instead.
 func (*GetThreadCategoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{70}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *GetThreadCategoriesResponse) GetCategories() []*ThreadCategory {
@@ -4300,7 +4420,7 @@ type CreateThreadCategoryRequest struct {
 
 func (x *CreateThreadCategoryRequest) Reset() {
 	*x = CreateThreadCategoryRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[71]
+	mi := &file_proto_user_user_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4312,7 +4432,7 @@ func (x *CreateThreadCategoryRequest) String() string {
 func (*CreateThreadCategoryRequest) ProtoMessage() {}
 
 func (x *CreateThreadCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[71]
+	mi := &file_proto_user_user_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4325,7 +4445,7 @@ func (x *CreateThreadCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateThreadCategoryRequest.ProtoReflect.Descriptor instead.
 func (*CreateThreadCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{71}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *CreateThreadCategoryRequest) GetName() string {
@@ -4358,7 +4478,7 @@ type CreateThreadCategoryResponse struct {
 
 func (x *CreateThreadCategoryResponse) Reset() {
 	*x = CreateThreadCategoryResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[72]
+	mi := &file_proto_user_user_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4370,7 +4490,7 @@ func (x *CreateThreadCategoryResponse) String() string {
 func (*CreateThreadCategoryResponse) ProtoMessage() {}
 
 func (x *CreateThreadCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[72]
+	mi := &file_proto_user_user_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4383,7 +4503,7 @@ func (x *CreateThreadCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateThreadCategoryResponse.ProtoReflect.Descriptor instead.
 func (*CreateThreadCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{72}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *CreateThreadCategoryResponse) GetCategory() *ThreadCategory {
@@ -4405,7 +4525,7 @@ type UpdateThreadCategoryRequest struct {
 
 func (x *UpdateThreadCategoryRequest) Reset() {
 	*x = UpdateThreadCategoryRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[73]
+	mi := &file_proto_user_user_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4417,7 +4537,7 @@ func (x *UpdateThreadCategoryRequest) String() string {
 func (*UpdateThreadCategoryRequest) ProtoMessage() {}
 
 func (x *UpdateThreadCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[73]
+	mi := &file_proto_user_user_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4430,7 +4550,7 @@ func (x *UpdateThreadCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateThreadCategoryRequest.ProtoReflect.Descriptor instead.
 func (*UpdateThreadCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{73}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *UpdateThreadCategoryRequest) GetId() string {
@@ -4470,7 +4590,7 @@ type UpdateThreadCategoryResponse struct {
 
 func (x *UpdateThreadCategoryResponse) Reset() {
 	*x = UpdateThreadCategoryResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[74]
+	mi := &file_proto_user_user_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4482,7 +4602,7 @@ func (x *UpdateThreadCategoryResponse) String() string {
 func (*UpdateThreadCategoryResponse) ProtoMessage() {}
 
 func (x *UpdateThreadCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[74]
+	mi := &file_proto_user_user_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4495,7 +4615,7 @@ func (x *UpdateThreadCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateThreadCategoryResponse.ProtoReflect.Descriptor instead.
 func (*UpdateThreadCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{74}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *UpdateThreadCategoryResponse) GetCategory() *ThreadCategory {
@@ -4515,7 +4635,7 @@ type DeleteThreadCategoryRequest struct {
 
 func (x *DeleteThreadCategoryRequest) Reset() {
 	*x = DeleteThreadCategoryRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[75]
+	mi := &file_proto_user_user_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4527,7 +4647,7 @@ func (x *DeleteThreadCategoryRequest) String() string {
 func (*DeleteThreadCategoryRequest) ProtoMessage() {}
 
 func (x *DeleteThreadCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[75]
+	mi := &file_proto_user_user_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4540,7 +4660,7 @@ func (x *DeleteThreadCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteThreadCategoryRequest.ProtoReflect.Descriptor instead.
 func (*DeleteThreadCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{75}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *DeleteThreadCategoryRequest) GetId() string {
@@ -4567,7 +4687,7 @@ type DeleteThreadCategoryResponse struct {
 
 func (x *DeleteThreadCategoryResponse) Reset() {
 	*x = DeleteThreadCategoryResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[76]
+	mi := &file_proto_user_user_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4579,7 +4699,7 @@ func (x *DeleteThreadCategoryResponse) String() string {
 func (*DeleteThreadCategoryResponse) ProtoMessage() {}
 
 func (x *DeleteThreadCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[76]
+	mi := &file_proto_user_user_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4592,7 +4712,7 @@ func (x *DeleteThreadCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteThreadCategoryResponse.ProtoReflect.Descriptor instead.
 func (*DeleteThreadCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{76}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *DeleteThreadCategoryResponse) GetSuccess() bool {
@@ -4622,7 +4742,7 @@ type CommunityCategory struct {
 
 func (x *CommunityCategory) Reset() {
 	*x = CommunityCategory{}
-	mi := &file_proto_user_user_proto_msgTypes[77]
+	mi := &file_proto_user_user_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4634,7 +4754,7 @@ func (x *CommunityCategory) String() string {
 func (*CommunityCategory) ProtoMessage() {}
 
 func (x *CommunityCategory) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[77]
+	mi := &file_proto_user_user_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4647,7 +4767,7 @@ func (x *CommunityCategory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommunityCategory.ProtoReflect.Descriptor instead.
 func (*CommunityCategory) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{77}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *CommunityCategory) GetId() string {
@@ -4695,7 +4815,7 @@ type GetCommunityCategoriesRequest struct {
 
 func (x *GetCommunityCategoriesRequest) Reset() {
 	*x = GetCommunityCategoriesRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[78]
+	mi := &file_proto_user_user_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4707,7 +4827,7 @@ func (x *GetCommunityCategoriesRequest) String() string {
 func (*GetCommunityCategoriesRequest) ProtoMessage() {}
 
 func (x *GetCommunityCategoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[78]
+	mi := &file_proto_user_user_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4720,7 +4840,7 @@ func (x *GetCommunityCategoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommunityCategoriesRequest.ProtoReflect.Descriptor instead.
 func (*GetCommunityCategoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{78}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *GetCommunityCategoriesRequest) GetPage() int32 {
@@ -4749,7 +4869,7 @@ type GetCommunityCategoriesResponse struct {
 
 func (x *GetCommunityCategoriesResponse) Reset() {
 	*x = GetCommunityCategoriesResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[79]
+	mi := &file_proto_user_user_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4761,7 +4881,7 @@ func (x *GetCommunityCategoriesResponse) String() string {
 func (*GetCommunityCategoriesResponse) ProtoMessage() {}
 
 func (x *GetCommunityCategoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[79]
+	mi := &file_proto_user_user_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4774,7 +4894,7 @@ func (x *GetCommunityCategoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommunityCategoriesResponse.ProtoReflect.Descriptor instead.
 func (*GetCommunityCategoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{79}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *GetCommunityCategoriesResponse) GetCategories() []*CommunityCategory {
@@ -4816,7 +4936,7 @@ type CreateCommunityCategoryRequest struct {
 
 func (x *CreateCommunityCategoryRequest) Reset() {
 	*x = CreateCommunityCategoryRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[80]
+	mi := &file_proto_user_user_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4828,7 +4948,7 @@ func (x *CreateCommunityCategoryRequest) String() string {
 func (*CreateCommunityCategoryRequest) ProtoMessage() {}
 
 func (x *CreateCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[80]
+	mi := &file_proto_user_user_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4841,7 +4961,7 @@ func (x *CreateCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCommunityCategoryRequest.ProtoReflect.Descriptor instead.
 func (*CreateCommunityCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{80}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *CreateCommunityCategoryRequest) GetName() string {
@@ -4874,7 +4994,7 @@ type CreateCommunityCategoryResponse struct {
 
 func (x *CreateCommunityCategoryResponse) Reset() {
 	*x = CreateCommunityCategoryResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[81]
+	mi := &file_proto_user_user_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4886,7 +5006,7 @@ func (x *CreateCommunityCategoryResponse) String() string {
 func (*CreateCommunityCategoryResponse) ProtoMessage() {}
 
 func (x *CreateCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[81]
+	mi := &file_proto_user_user_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4899,7 +5019,7 @@ func (x *CreateCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCommunityCategoryResponse.ProtoReflect.Descriptor instead.
 func (*CreateCommunityCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{81}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *CreateCommunityCategoryResponse) GetCategory() *CommunityCategory {
@@ -4921,7 +5041,7 @@ type UpdateCommunityCategoryRequest struct {
 
 func (x *UpdateCommunityCategoryRequest) Reset() {
 	*x = UpdateCommunityCategoryRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[82]
+	mi := &file_proto_user_user_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4933,7 +5053,7 @@ func (x *UpdateCommunityCategoryRequest) String() string {
 func (*UpdateCommunityCategoryRequest) ProtoMessage() {}
 
 func (x *UpdateCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[82]
+	mi := &file_proto_user_user_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4946,7 +5066,7 @@ func (x *UpdateCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCommunityCategoryRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCommunityCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{82}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *UpdateCommunityCategoryRequest) GetId() string {
@@ -4986,7 +5106,7 @@ type UpdateCommunityCategoryResponse struct {
 
 func (x *UpdateCommunityCategoryResponse) Reset() {
 	*x = UpdateCommunityCategoryResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[83]
+	mi := &file_proto_user_user_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4998,7 +5118,7 @@ func (x *UpdateCommunityCategoryResponse) String() string {
 func (*UpdateCommunityCategoryResponse) ProtoMessage() {}
 
 func (x *UpdateCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[83]
+	mi := &file_proto_user_user_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5011,7 +5131,7 @@ func (x *UpdateCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCommunityCategoryResponse.ProtoReflect.Descriptor instead.
 func (*UpdateCommunityCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{83}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *UpdateCommunityCategoryResponse) GetCategory() *CommunityCategory {
@@ -5031,7 +5151,7 @@ type DeleteCommunityCategoryRequest struct {
 
 func (x *DeleteCommunityCategoryRequest) Reset() {
 	*x = DeleteCommunityCategoryRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[84]
+	mi := &file_proto_user_user_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5043,7 +5163,7 @@ func (x *DeleteCommunityCategoryRequest) String() string {
 func (*DeleteCommunityCategoryRequest) ProtoMessage() {}
 
 func (x *DeleteCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[84]
+	mi := &file_proto_user_user_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5056,7 +5176,7 @@ func (x *DeleteCommunityCategoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCommunityCategoryRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCommunityCategoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{84}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *DeleteCommunityCategoryRequest) GetId() string {
@@ -5083,7 +5203,7 @@ type DeleteCommunityCategoryResponse struct {
 
 func (x *DeleteCommunityCategoryResponse) Reset() {
 	*x = DeleteCommunityCategoryResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[85]
+	mi := &file_proto_user_user_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5095,7 +5215,7 @@ func (x *DeleteCommunityCategoryResponse) String() string {
 func (*DeleteCommunityCategoryResponse) ProtoMessage() {}
 
 func (x *DeleteCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[85]
+	mi := &file_proto_user_user_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5108,7 +5228,7 @@ func (x *DeleteCommunityCategoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCommunityCategoryResponse.ProtoReflect.Descriptor instead.
 func (*DeleteCommunityCategoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{85}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *DeleteCommunityCategoryResponse) GetSuccess() bool {
@@ -5137,7 +5257,7 @@ type CreateCommunityRequestRequest struct {
 
 func (x *CreateCommunityRequestRequest) Reset() {
 	*x = CreateCommunityRequestRequest{}
-	mi := &file_proto_user_user_proto_msgTypes[86]
+	mi := &file_proto_user_user_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5149,7 +5269,7 @@ func (x *CreateCommunityRequestRequest) String() string {
 func (*CreateCommunityRequestRequest) ProtoMessage() {}
 
 func (x *CreateCommunityRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[86]
+	mi := &file_proto_user_user_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5162,7 +5282,7 @@ func (x *CreateCommunityRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCommunityRequestRequest.ProtoReflect.Descriptor instead.
 func (*CreateCommunityRequestRequest) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{86}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *CreateCommunityRequestRequest) GetCommunityId() string {
@@ -5204,7 +5324,7 @@ type CreateCommunityRequestResponse struct {
 
 func (x *CreateCommunityRequestResponse) Reset() {
 	*x = CreateCommunityRequestResponse{}
-	mi := &file_proto_user_user_proto_msgTypes[87]
+	mi := &file_proto_user_user_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5216,7 +5336,7 @@ func (x *CreateCommunityRequestResponse) String() string {
 func (*CreateCommunityRequestResponse) ProtoMessage() {}
 
 func (x *CreateCommunityRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_user_user_proto_msgTypes[87]
+	mi := &file_proto_user_user_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5229,7 +5349,7 @@ func (x *CreateCommunityRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCommunityRequestResponse.ProtoReflect.Descriptor instead.
 func (*CreateCommunityRequestResponse) Descriptor() ([]byte, []int) {
-	return file_proto_user_user_proto_rawDescGZIP(), []int{87}
+	return file_proto_user_user_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *CreateCommunityRequestResponse) GetSuccess() bool {
@@ -5543,6 +5663,14 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\badmin_id\x18\x04 \x01(\tR\aadminId\"S\n" +
 	"\x1dProcessPremiumRequestResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xa6\x01\n" +
+	"\x1bCreatePremiumRequestRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x120\n" +
+	"\x14identity_card_number\x18\x03 \x01(\tR\x12identityCardNumber\x12$\n" +
+	"\x0eface_photo_url\x18\x04 \x01(\tR\ffacePhotoUrl\"R\n" +
+	"\x1cCreatePremiumRequestResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\xb1\x02\n" +
 	"\rReportRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
@@ -5662,7 +5790,7 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x1eCreateCommunityRequestResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x120\n" +
-	"\arequest\x18\x03 \x01(\v2\x16.user.CommunityRequestR\arequest2\x8f\x1b\n" +
+	"\arequest\x18\x03 \x01(\v2\x16.user.CommunityRequestR\arequest2\xf0\x1b\n" +
 	"\vUserService\x128\n" +
 	"\aGetUser\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\"\x00\x12A\n" +
 	"\n" +
@@ -5709,7 +5837,8 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x16GetCommunityCategories\x12#.user.GetCommunityCategoriesRequest\x1a$.user.GetCommunityCategoriesResponse\"\x00\x12h\n" +
 	"\x17CreateCommunityCategory\x12$.user.CreateCommunityCategoryRequest\x1a%.user.CreateCommunityCategoryResponse\"\x00\x12h\n" +
 	"\x17UpdateCommunityCategory\x12$.user.UpdateCommunityCategoryRequest\x1a%.user.UpdateCommunityCategoryResponse\"\x00\x12h\n" +
-	"\x17DeleteCommunityCategory\x12$.user.DeleteCommunityCategoryRequest\x1a%.user.DeleteCommunityCategoryResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
+	"\x17DeleteCommunityCategory\x12$.user.DeleteCommunityCategoryRequest\x1a%.user.DeleteCommunityCategoryResponse\"\x00\x12_\n" +
+	"\x14CreatePremiumRequest\x12!.user.CreatePremiumRequestRequest\x1a\".user.CreatePremiumRequestResponse\"\x00B\x1aZ\x18aycom/backend/proto/userb\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -5723,7 +5852,7 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 88)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
 var file_proto_user_user_proto_goTypes = []any{
 	(*User)(nil),                                 // 0: user.User
 	(*GetUserRequest)(nil),                       // 1: user.GetUserRequest
@@ -5788,31 +5917,33 @@ var file_proto_user_user_proto_goTypes = []any{
 	(*GetPremiumRequestsResponse)(nil),           // 60: user.GetPremiumRequestsResponse
 	(*ProcessPremiumRequestRequest)(nil),         // 61: user.ProcessPremiumRequestRequest
 	(*ProcessPremiumRequestResponse)(nil),        // 62: user.ProcessPremiumRequestResponse
-	(*ReportRequest)(nil),                        // 63: user.ReportRequest
-	(*GetReportRequestsRequest)(nil),             // 64: user.GetReportRequestsRequest
-	(*GetReportRequestsResponse)(nil),            // 65: user.GetReportRequestsResponse
-	(*ProcessReportRequestRequest)(nil),          // 66: user.ProcessReportRequestRequest
-	(*ProcessReportRequestResponse)(nil),         // 67: user.ProcessReportRequestResponse
-	(*ThreadCategory)(nil),                       // 68: user.ThreadCategory
-	(*GetThreadCategoriesRequest)(nil),           // 69: user.GetThreadCategoriesRequest
-	(*GetThreadCategoriesResponse)(nil),          // 70: user.GetThreadCategoriesResponse
-	(*CreateThreadCategoryRequest)(nil),          // 71: user.CreateThreadCategoryRequest
-	(*CreateThreadCategoryResponse)(nil),         // 72: user.CreateThreadCategoryResponse
-	(*UpdateThreadCategoryRequest)(nil),          // 73: user.UpdateThreadCategoryRequest
-	(*UpdateThreadCategoryResponse)(nil),         // 74: user.UpdateThreadCategoryResponse
-	(*DeleteThreadCategoryRequest)(nil),          // 75: user.DeleteThreadCategoryRequest
-	(*DeleteThreadCategoryResponse)(nil),         // 76: user.DeleteThreadCategoryResponse
-	(*CommunityCategory)(nil),                    // 77: user.CommunityCategory
-	(*GetCommunityCategoriesRequest)(nil),        // 78: user.GetCommunityCategoriesRequest
-	(*GetCommunityCategoriesResponse)(nil),       // 79: user.GetCommunityCategoriesResponse
-	(*CreateCommunityCategoryRequest)(nil),       // 80: user.CreateCommunityCategoryRequest
-	(*CreateCommunityCategoryResponse)(nil),      // 81: user.CreateCommunityCategoryResponse
-	(*UpdateCommunityCategoryRequest)(nil),       // 82: user.UpdateCommunityCategoryRequest
-	(*UpdateCommunityCategoryResponse)(nil),      // 83: user.UpdateCommunityCategoryResponse
-	(*DeleteCommunityCategoryRequest)(nil),       // 84: user.DeleteCommunityCategoryRequest
-	(*DeleteCommunityCategoryResponse)(nil),      // 85: user.DeleteCommunityCategoryResponse
-	(*CreateCommunityRequestRequest)(nil),        // 86: user.CreateCommunityRequestRequest
-	(*CreateCommunityRequestResponse)(nil),       // 87: user.CreateCommunityRequestResponse
+	(*CreatePremiumRequestRequest)(nil),          // 63: user.CreatePremiumRequestRequest
+	(*CreatePremiumRequestResponse)(nil),         // 64: user.CreatePremiumRequestResponse
+	(*ReportRequest)(nil),                        // 65: user.ReportRequest
+	(*GetReportRequestsRequest)(nil),             // 66: user.GetReportRequestsRequest
+	(*GetReportRequestsResponse)(nil),            // 67: user.GetReportRequestsResponse
+	(*ProcessReportRequestRequest)(nil),          // 68: user.ProcessReportRequestRequest
+	(*ProcessReportRequestResponse)(nil),         // 69: user.ProcessReportRequestResponse
+	(*ThreadCategory)(nil),                       // 70: user.ThreadCategory
+	(*GetThreadCategoriesRequest)(nil),           // 71: user.GetThreadCategoriesRequest
+	(*GetThreadCategoriesResponse)(nil),          // 72: user.GetThreadCategoriesResponse
+	(*CreateThreadCategoryRequest)(nil),          // 73: user.CreateThreadCategoryRequest
+	(*CreateThreadCategoryResponse)(nil),         // 74: user.CreateThreadCategoryResponse
+	(*UpdateThreadCategoryRequest)(nil),          // 75: user.UpdateThreadCategoryRequest
+	(*UpdateThreadCategoryResponse)(nil),         // 76: user.UpdateThreadCategoryResponse
+	(*DeleteThreadCategoryRequest)(nil),          // 77: user.DeleteThreadCategoryRequest
+	(*DeleteThreadCategoryResponse)(nil),         // 78: user.DeleteThreadCategoryResponse
+	(*CommunityCategory)(nil),                    // 79: user.CommunityCategory
+	(*GetCommunityCategoriesRequest)(nil),        // 80: user.GetCommunityCategoriesRequest
+	(*GetCommunityCategoriesResponse)(nil),       // 81: user.GetCommunityCategoriesResponse
+	(*CreateCommunityCategoryRequest)(nil),       // 82: user.CreateCommunityCategoryRequest
+	(*CreateCommunityCategoryResponse)(nil),      // 83: user.CreateCommunityCategoryResponse
+	(*UpdateCommunityCategoryRequest)(nil),       // 84: user.UpdateCommunityCategoryRequest
+	(*UpdateCommunityCategoryResponse)(nil),      // 85: user.UpdateCommunityCategoryResponse
+	(*DeleteCommunityCategoryRequest)(nil),       // 86: user.DeleteCommunityCategoryRequest
+	(*DeleteCommunityCategoryResponse)(nil),      // 87: user.DeleteCommunityCategoryResponse
+	(*CreateCommunityRequestRequest)(nil),        // 88: user.CreateCommunityRequestRequest
+	(*CreateCommunityRequestResponse)(nil),       // 89: user.CreateCommunityRequestResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0,  // 0: user.GetUserResponse.user:type_name -> user.User
@@ -5834,13 +5965,13 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	58, // 16: user.GetPremiumRequestsResponse.requests:type_name -> user.PremiumRequest
 	0,  // 17: user.ReportRequest.reporter:type_name -> user.User
 	0,  // 18: user.ReportRequest.reported_user:type_name -> user.User
-	63, // 19: user.GetReportRequestsResponse.requests:type_name -> user.ReportRequest
-	68, // 20: user.GetThreadCategoriesResponse.categories:type_name -> user.ThreadCategory
-	68, // 21: user.CreateThreadCategoryResponse.category:type_name -> user.ThreadCategory
-	68, // 22: user.UpdateThreadCategoryResponse.category:type_name -> user.ThreadCategory
-	77, // 23: user.GetCommunityCategoriesResponse.categories:type_name -> user.CommunityCategory
-	77, // 24: user.CreateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
-	77, // 25: user.UpdateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
+	65, // 19: user.GetReportRequestsResponse.requests:type_name -> user.ReportRequest
+	70, // 20: user.GetThreadCategoriesResponse.categories:type_name -> user.ThreadCategory
+	70, // 21: user.CreateThreadCategoryResponse.category:type_name -> user.ThreadCategory
+	70, // 22: user.UpdateThreadCategoryResponse.category:type_name -> user.ThreadCategory
+	79, // 23: user.GetCommunityCategoriesResponse.categories:type_name -> user.CommunityCategory
+	79, // 24: user.CreateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
+	79, // 25: user.UpdateCommunityCategoryResponse.category:type_name -> user.CommunityCategory
 	53, // 26: user.CreateCommunityRequestResponse.request:type_name -> user.CommunityRequest
 	1,  // 27: user.UserService.GetUser:input_type -> user.GetUserRequest
 	3,  // 28: user.UserService.CreateUser:input_type -> user.CreateUserRequest
@@ -5870,62 +6001,64 @@ var file_proto_user_user_proto_depIdxs = []int32{
 	51, // 52: user.UserService.SendNewsletter:input_type -> user.SendNewsletterRequest
 	54, // 53: user.UserService.GetCommunityRequests:input_type -> user.GetCommunityRequestsRequest
 	56, // 54: user.UserService.ProcessCommunityRequest:input_type -> user.ProcessCommunityRequestRequest
-	86, // 55: user.UserService.CreateCommunityRequest:input_type -> user.CreateCommunityRequestRequest
+	88, // 55: user.UserService.CreateCommunityRequest:input_type -> user.CreateCommunityRequestRequest
 	59, // 56: user.UserService.GetPremiumRequests:input_type -> user.GetPremiumRequestsRequest
 	61, // 57: user.UserService.ProcessPremiumRequest:input_type -> user.ProcessPremiumRequestRequest
-	64, // 58: user.UserService.GetReportRequests:input_type -> user.GetReportRequestsRequest
-	66, // 59: user.UserService.ProcessReportRequest:input_type -> user.ProcessReportRequestRequest
-	69, // 60: user.UserService.GetThreadCategories:input_type -> user.GetThreadCategoriesRequest
-	71, // 61: user.UserService.CreateThreadCategory:input_type -> user.CreateThreadCategoryRequest
-	73, // 62: user.UserService.UpdateThreadCategory:input_type -> user.UpdateThreadCategoryRequest
-	75, // 63: user.UserService.DeleteThreadCategory:input_type -> user.DeleteThreadCategoryRequest
-	78, // 64: user.UserService.GetCommunityCategories:input_type -> user.GetCommunityCategoriesRequest
-	80, // 65: user.UserService.CreateCommunityCategory:input_type -> user.CreateCommunityCategoryRequest
-	82, // 66: user.UserService.UpdateCommunityCategory:input_type -> user.UpdateCommunityCategoryRequest
-	84, // 67: user.UserService.DeleteCommunityCategory:input_type -> user.DeleteCommunityCategoryRequest
-	2,  // 68: user.UserService.GetUser:output_type -> user.GetUserResponse
-	4,  // 69: user.UserService.CreateUser:output_type -> user.CreateUserResponse
-	6,  // 70: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
-	8,  // 71: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
-	10, // 72: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
-	12, // 73: user.UserService.LoginUser:output_type -> user.LoginUserResponse
-	14, // 74: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
-	16, // 75: user.UserService.GetUserByUsername:output_type -> user.GetUserByUsernameResponse
-	18, // 76: user.UserService.IsUserBlocked:output_type -> user.IsUserBlockedResponse
-	20, // 77: user.UserService.BlockUser:output_type -> user.BlockUserResponse
-	22, // 78: user.UserService.UnblockUser:output_type -> user.UnblockUserResponse
-	24, // 79: user.UserService.ReportUser:output_type -> user.ReportUserResponse
-	26, // 80: user.UserService.IsFollowing:output_type -> user.IsFollowingResponse
-	28, // 81: user.UserService.FollowUser:output_type -> user.FollowUserResponse
-	30, // 82: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
-	32, // 83: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
-	34, // 84: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
-	36, // 85: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
-	38, // 86: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
-	48, // 87: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
-	40, // 88: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
-	42, // 89: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
-	46, // 90: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
-	44, // 91: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
-	50, // 92: user.UserService.BanUser:output_type -> user.BanUserResponse
-	52, // 93: user.UserService.SendNewsletter:output_type -> user.SendNewsletterResponse
-	55, // 94: user.UserService.GetCommunityRequests:output_type -> user.GetCommunityRequestsResponse
-	57, // 95: user.UserService.ProcessCommunityRequest:output_type -> user.ProcessCommunityRequestResponse
-	87, // 96: user.UserService.CreateCommunityRequest:output_type -> user.CreateCommunityRequestResponse
-	60, // 97: user.UserService.GetPremiumRequests:output_type -> user.GetPremiumRequestsResponse
-	62, // 98: user.UserService.ProcessPremiumRequest:output_type -> user.ProcessPremiumRequestResponse
-	65, // 99: user.UserService.GetReportRequests:output_type -> user.GetReportRequestsResponse
-	67, // 100: user.UserService.ProcessReportRequest:output_type -> user.ProcessReportRequestResponse
-	70, // 101: user.UserService.GetThreadCategories:output_type -> user.GetThreadCategoriesResponse
-	72, // 102: user.UserService.CreateThreadCategory:output_type -> user.CreateThreadCategoryResponse
-	74, // 103: user.UserService.UpdateThreadCategory:output_type -> user.UpdateThreadCategoryResponse
-	76, // 104: user.UserService.DeleteThreadCategory:output_type -> user.DeleteThreadCategoryResponse
-	79, // 105: user.UserService.GetCommunityCategories:output_type -> user.GetCommunityCategoriesResponse
-	81, // 106: user.UserService.CreateCommunityCategory:output_type -> user.CreateCommunityCategoryResponse
-	83, // 107: user.UserService.UpdateCommunityCategory:output_type -> user.UpdateCommunityCategoryResponse
-	85, // 108: user.UserService.DeleteCommunityCategory:output_type -> user.DeleteCommunityCategoryResponse
-	68, // [68:109] is the sub-list for method output_type
-	27, // [27:68] is the sub-list for method input_type
+	66, // 58: user.UserService.GetReportRequests:input_type -> user.GetReportRequestsRequest
+	68, // 59: user.UserService.ProcessReportRequest:input_type -> user.ProcessReportRequestRequest
+	71, // 60: user.UserService.GetThreadCategories:input_type -> user.GetThreadCategoriesRequest
+	73, // 61: user.UserService.CreateThreadCategory:input_type -> user.CreateThreadCategoryRequest
+	75, // 62: user.UserService.UpdateThreadCategory:input_type -> user.UpdateThreadCategoryRequest
+	77, // 63: user.UserService.DeleteThreadCategory:input_type -> user.DeleteThreadCategoryRequest
+	80, // 64: user.UserService.GetCommunityCategories:input_type -> user.GetCommunityCategoriesRequest
+	82, // 65: user.UserService.CreateCommunityCategory:input_type -> user.CreateCommunityCategoryRequest
+	84, // 66: user.UserService.UpdateCommunityCategory:input_type -> user.UpdateCommunityCategoryRequest
+	86, // 67: user.UserService.DeleteCommunityCategory:input_type -> user.DeleteCommunityCategoryRequest
+	63, // 68: user.UserService.CreatePremiumRequest:input_type -> user.CreatePremiumRequestRequest
+	2,  // 69: user.UserService.GetUser:output_type -> user.GetUserResponse
+	4,  // 70: user.UserService.CreateUser:output_type -> user.CreateUserResponse
+	6,  // 71: user.UserService.UpdateUser:output_type -> user.UpdateUserResponse
+	8,  // 72: user.UserService.DeleteUser:output_type -> user.DeleteUserResponse
+	10, // 73: user.UserService.UpdateUserVerificationStatus:output_type -> user.UpdateUserVerificationStatusResponse
+	12, // 74: user.UserService.LoginUser:output_type -> user.LoginUserResponse
+	14, // 75: user.UserService.GetUserByEmail:output_type -> user.GetUserByEmailResponse
+	16, // 76: user.UserService.GetUserByUsername:output_type -> user.GetUserByUsernameResponse
+	18, // 77: user.UserService.IsUserBlocked:output_type -> user.IsUserBlockedResponse
+	20, // 78: user.UserService.BlockUser:output_type -> user.BlockUserResponse
+	22, // 79: user.UserService.UnblockUser:output_type -> user.UnblockUserResponse
+	24, // 80: user.UserService.ReportUser:output_type -> user.ReportUserResponse
+	26, // 81: user.UserService.IsFollowing:output_type -> user.IsFollowingResponse
+	28, // 82: user.UserService.FollowUser:output_type -> user.FollowUserResponse
+	30, // 83: user.UserService.UnfollowUser:output_type -> user.UnfollowUserResponse
+	32, // 84: user.UserService.GetFollowers:output_type -> user.GetFollowersResponse
+	34, // 85: user.UserService.GetFollowing:output_type -> user.GetFollowingResponse
+	36, // 86: user.UserService.SearchUsers:output_type -> user.SearchUsersResponse
+	38, // 87: user.UserService.GetRecommendedUsers:output_type -> user.GetRecommendedUsersResponse
+	48, // 88: user.UserService.GetAllUsers:output_type -> user.GetAllUsersResponse
+	40, // 89: user.UserService.RequestPasswordReset:output_type -> user.RequestPasswordResetResponse
+	42, // 90: user.UserService.VerifyResetToken:output_type -> user.VerifyResetTokenResponse
+	46, // 91: user.UserService.ResetPassword:output_type -> user.ResetPasswordResponse
+	44, // 92: user.UserService.VerifySecurityAnswer:output_type -> user.VerifySecurityAnswerResponse
+	50, // 93: user.UserService.BanUser:output_type -> user.BanUserResponse
+	52, // 94: user.UserService.SendNewsletter:output_type -> user.SendNewsletterResponse
+	55, // 95: user.UserService.GetCommunityRequests:output_type -> user.GetCommunityRequestsResponse
+	57, // 96: user.UserService.ProcessCommunityRequest:output_type -> user.ProcessCommunityRequestResponse
+	89, // 97: user.UserService.CreateCommunityRequest:output_type -> user.CreateCommunityRequestResponse
+	60, // 98: user.UserService.GetPremiumRequests:output_type -> user.GetPremiumRequestsResponse
+	62, // 99: user.UserService.ProcessPremiumRequest:output_type -> user.ProcessPremiumRequestResponse
+	67, // 100: user.UserService.GetReportRequests:output_type -> user.GetReportRequestsResponse
+	69, // 101: user.UserService.ProcessReportRequest:output_type -> user.ProcessReportRequestResponse
+	72, // 102: user.UserService.GetThreadCategories:output_type -> user.GetThreadCategoriesResponse
+	74, // 103: user.UserService.CreateThreadCategory:output_type -> user.CreateThreadCategoryResponse
+	76, // 104: user.UserService.UpdateThreadCategory:output_type -> user.UpdateThreadCategoryResponse
+	78, // 105: user.UserService.DeleteThreadCategory:output_type -> user.DeleteThreadCategoryResponse
+	81, // 106: user.UserService.GetCommunityCategories:output_type -> user.GetCommunityCategoriesResponse
+	83, // 107: user.UserService.CreateCommunityCategory:output_type -> user.CreateCommunityCategoryResponse
+	85, // 108: user.UserService.UpdateCommunityCategory:output_type -> user.UpdateCommunityCategoryResponse
+	87, // 109: user.UserService.DeleteCommunityCategory:output_type -> user.DeleteCommunityCategoryResponse
+	64, // 110: user.UserService.CreatePremiumRequest:output_type -> user.CreatePremiumRequestResponse
+	69, // [69:111] is the sub-list for method output_type
+	27, // [27:69] is the sub-list for method input_type
 	27, // [27:27] is the sub-list for extension type_name
 	27, // [27:27] is the sub-list for extension extendee
 	0,  // [0:27] is the sub-list for field type_name
@@ -5942,7 +6075,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   88,
+			NumMessages:   90,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

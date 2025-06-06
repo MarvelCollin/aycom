@@ -1,112 +1,315 @@
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useTheme } from '../hooks/useTheme';
+  import { useAuth } from '../hooks/useAuth';
+  import { onMount } from 'svelte';
   import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
-  import StarIcon from 'svelte-feather-icons/src/icons/StarIcon.svelte';
+  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
+  import UserCheckIcon from 'svelte-feather-icons/src/icons/UserCheckIcon.svelte';
+  import UploadIcon from 'svelte-feather-icons/src/icons/UploadIcon.svelte';
+  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
+  import { toastStore } from '../stores/toastStore';
+  import { submitPremiumRequest } from '../api/user';
+  import { isAuthenticated } from '../utils/auth';
   
   const { theme } = useTheme();
+  const { getAuthState } = useAuth();
   $: isDarkMode = $theme === 'dark';
   
-  const features = [
-    { id: 1, text: "Verified profile badge" },
-    { id: 2, text: "Priority in search results" },
-    { id: 3, text: "Extended character limit in posts" },
-    { id: 4, text: "Advanced analytics for your posts" },
-    { id: 5, text: "Ad-free experience" },
-    { id: 6, text: "Exclusive access to new features" },
-  ];
+  const authState = getAuthState();
+  let showVerificationForm = false;
+  let isSubmitting = false;
   
-  const plans = [
-    {
-      id: 'basic',
-      name: 'Premium Basic',
-      price: '$4.99',
-      period: 'monthly',
-      features: [1, 2, 3]
-    },
-    {
-      id: 'plus',
-      name: 'Premium Plus',
-      price: '$9.99',
-      period: 'monthly',
-      features: [1, 2, 3, 4, 5]
-    },
-    {
-      id: 'pro',
-      name: 'Premium Pro',
-      price: '$14.99',
-      period: 'monthly',
-      features: [1, 2, 3, 4, 5, 6]
+  // Check authentication on mount
+  onMount(() => {
+    if (!isAuthenticated()) {
+      toastStore.showToast('Please log in to access premium features', 'warning');
+      window.location.href = '/login';
+      return;
     }
-  ];
+  });
   
-  function subscribe(planId: string) {
-    alert(`Subscription to ${planId} plan - This feature is coming soon!`);
+  // Verification form data
+  let identityCardNumber = '';
+  let reason = '';
+  let facePhoto: File | null = null;
+  let facePhotoURL = '';
+  let formError = '';
+  
+  function handleFileChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+    
+    if (files && files[0]) {
+      facePhoto = files[0];
+      
+      // Create a URL for preview
+      if (facePhotoURL) {
+        URL.revokeObjectURL(facePhotoURL);
+      }
+      
+      facePhotoURL = URL.createObjectURL(facePhoto);
+    }
+  }
+  
+  async function handleSubmit() {
+    formError = '';
+    
+    // Validate form
+    if (!reason.trim()) {
+      formError = 'Please provide a reason for verification';
+      return;
+    }
+    
+    if (!identityCardNumber.trim()) {
+      formError = 'Please enter your national identity card number';
+      return;
+    }
+    
+    if (!facePhoto) {
+      formError = 'Please upload a photo of your face for verification';
+      return;
+    }
+    
+    isSubmitting = true;
+    
+    try {
+      // Convert the image to a data URL (in production, you would upload to secure storage)
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        const photoDataURL = e.target?.result as string;
+        
+        try {
+          // Submit the premium request
+          const success = await submitPremiumRequest(
+            reason,
+            identityCardNumber,
+            photoDataURL
+          );
+          
+          if (success) {
+            toastStore.showToast('Your verification request has been submitted', 'success');
+            // Reset form and hide it
+            showVerificationForm = false;
+            identityCardNumber = '';
+            reason = '';
+            facePhoto = null;
+            if (facePhotoURL) {
+              URL.revokeObjectURL(facePhotoURL);
+              facePhotoURL = '';
+            }
+          } else {
+            formError = 'Failed to submit verification request. Please try again.';
+          }
+        } catch (error) {
+          console.error('Error in premium request submission:', error);
+          formError = 'An error occurred while submitting your request';
+        }
+        
+        isSubmitting = false;
+      };
+      
+      reader.onerror = () => {
+        formError = 'Error processing image. Please try another photo.';
+        isSubmitting = false;
+      };
+      
+      reader.readAsDataURL(facePhoto);
+      
+    } catch (error) {
+      console.error('Error uploading face photo:', error);
+      formError = 'Error processing image. Please try again.';
+      isSubmitting = false;
+    }
   }
 </script>
 
 <MainLayout>
   <div class="page-header {isDarkMode ? 'page-header-dark' : ''}">
-    <h1 class="page-title">Premium</h1>
+    <h1 class="page-title">Get Verified</h1>
   </div>
   
   <div class="premium-container {isDarkMode ? 'premium-container-dark' : ''}">
     <div class="premium-header">
-      <div class="premium-icon">
-        <StarIcon size="24" />
+      <div class="main-benefit">
+        <div class="checkmark-badge">
+          <CheckIcon size="32" />
+        </div>
+        <h2>Get the blue checkmark</h2>
+        <p>Stand out in the community with a verified profile</p>
       </div>
-      <h2>AYCOM Premium</h2>
-      <p>Unlock enhanced features and stand out from the crowd</p>
+      
+      <div class="premium-info">
+        <p class="highlight-text">The blue checkmark badge increases your credibility and visibility across AYCOM</p>
+      </div>
     </div>
     
-    <div class="plans-container">
-      {#each plans as plan}
-        <div class="plan-card {isDarkMode ? 'plan-card-dark' : ''}">
-          <div class="plan-header">
-            <h3>{plan.name}</h3>
-            <div class="plan-price">
-              <span class="price">{plan.price}</span>
-              <span class="period">/{plan.period}</span>
-            </div>
+    {#if showVerificationForm}
+      <div class="verification-form {isDarkMode ? 'verification-form-dark' : ''}">
+        <h3>Verification Request</h3>
+        <p>Please complete this form to request account verification</p>
+        
+        <div class="verification-steps">
+          <div class="step">
+            <div class="step-icon"><UserCheckIcon size="20" /></div>
+            <div class="step-text">1. Submit your information</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step">
+            <div class="step-icon"><ShieldIcon size="20" /></div>
+            <div class="step-text">2. Admin review</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step">
+            <div class="step-icon"><CheckIcon size="20" /></div>
+            <div class="step-text">3. Get verified</div>
+          </div>
+        </div>
+        
+        {#if formError}
+          <div class="form-error">
+            <AlertCircleIcon size="18" />
+            <span>{formError}</span>
+          </div>
+        {/if}
+        
+        <form on:submit|preventDefault={handleSubmit}>
+          <div class="form-group">
+            <label for="identity-card">National Identity Card Number</label>
+            <input 
+              type="text" 
+              id="identity-card" 
+              bind:value={identityCardNumber} 
+              placeholder="Enter your ID number"
+              required
+              disabled={isSubmitting}
+            />
+            <small>Your ID number is securely encrypted using SHA-256 before storage</small>
           </div>
           
-          <ul class="plan-features">
-            {#each features as feature}
-              {#if plan.features.includes(feature.id)}
-                <li class="feature-included">
-                  <span class="feature-icon">
-                    <CheckIcon size="16" />
-                  </span>
-                  <span>{feature.text}</span>
-                </li>
-              {:else}
-                <li class="feature-excluded">
-                  <span>{feature.text}</span>
-                </li>
-              {/if}
-            {/each}
-          </ul>
+          <div class="form-group">
+            <label for="reason">Reason for Verification</label>
+            <textarea 
+              id="reason" 
+              bind:value={reason} 
+              placeholder="Why do you want to be verified?"
+              required
+              disabled={isSubmitting}
+            ></textarea>
+          </div>
           
-          <button 
-            class="subscribe-btn {isDarkMode ? 'subscribe-btn-dark' : ''}"
-            on:click={() => subscribe(plan.id)}
-          >
-            Subscribe
-          </button>
+          <div class="form-group">
+            <label for="face-photo">Photo for Verification</label>
+            <div class="photo-upload">
+              <input 
+                type="file" 
+                id="face-photo" 
+                accept="image/*"
+                on:change={handleFileChange}
+                disabled={isSubmitting}
+              />
+              <label for="face-photo" class="upload-button">
+                <UploadIcon size="16" />
+                {facePhoto ? 'Change Photo' : 'Upload Photo'}
+              </label>
+            </div>
+            
+            {#if facePhotoURL}
+              <div class="photo-preview">
+                <img src={facePhotoURL} alt="Face verification preview" />
+              </div>
+            {/if}
+          </div>
+          
+          <div class="security-notice">
+            <ShieldIcon size="16" />
+            <p>Your personal information is protected with enterprise-grade security and only used for verification purposes</p>
+          </div>
+          
+          <div class="form-actions">
+            <button 
+              type="button" 
+              class="cancel-btn"
+              on:click={() => { showVerificationForm = false; }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              class="submit-btn"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit for Verification'}
+            </button>
+          </div>
+        </form>
+      </div>
+    {:else}
+      <div class="benefits-container">
+        <div class="verification-card">
+          <div class="verification-card-content">
+            <h3>Get Verified Today</h3>
+            <div class="verify-badge-large">
+              <CheckIcon size="32" />
+            </div>
+            <ul class="benefits-list">
+              <li>
+                <CheckIcon size="16" />
+                <span>Blue checkmark verification badge</span>
+              </li>
+              <li>
+                <CheckIcon size="16" />
+                <span>Increased visibility and credibility</span>
+              </li>
+              <li>
+                <CheckIcon size="16" />
+                <span>Stand out in comments and posts</span>
+              </li>
+            </ul>
+            
+            <div class="verification-process">
+              <h4>How it works:</h4>
+              <ol>
+                <li>Submit your national identity card number</li>
+                <li>Provide a reason for verification</li>
+                <li>Upload a photo of your face</li>
+                <li>Admin team reviews your application</li>
+              </ol>
+            </div>
+            
+            <button 
+              class="verify-btn"
+              on:click={() => showVerificationForm = true}
+            >
+              Apply for Verification
+            </button>
+          </div>
         </div>
-      {/each}
-    </div>
-    
-    <div class="premium-footer">
-      <p>All plans include access to basic AYCOM Premium features.</p>
-      <p>Cancel anytime. Prorated refunds are available.</p>
-    </div>
+      </div>
+      
+      <div class="security-container">
+        <div class="security-header">
+          <ShieldIcon size="20" />
+          <h3>Your Security is Our Priority</h3>
+        </div>
+        <ul class="security-features">
+          <li>Your identity card number is encrypted using SHA-256</li>
+          <li>All verification information is stored securely</li>
+          <li>Your data is only used for verification purposes</li>
+          <li>Our admin team follows strict privacy protocols</li>
+        </ul>
+      </div>
+    {/if}
   </div>
 </MainLayout>
 
 <style>
   .premium-container {
     padding: var(--space-4);
+    max-width: 900px;
+    margin: 0 auto;
   }
   
   .premium-header {
@@ -114,16 +317,24 @@
     margin-bottom: var(--space-6);
   }
   
-  .premium-icon {
-    display: inline-flex;
+  .main-benefit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+  }
+  
+  .checkmark-badge {
+    display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
-    background-color: var(--color-primary);
+    width: 64px;
+    height: 64px;
+    background-color: #1DA1F2;
     color: white;
     border-radius: var(--radius-full);
-    margin-bottom: var(--space-3);
+    margin-bottom: var(--space-2);
   }
   
   .premium-header h2 {
@@ -132,122 +343,392 @@
     font-weight: var(--font-weight-bold);
   }
   
-  .premium-header p {
-    color: var(--text-secondary);
-    font-size: var(--font-size-lg);
+  .premium-info {
+    margin-top: var(--space-4);
   }
   
-  .plans-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--space-4);
+  .highlight-text {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    max-width: 600px;
+    margin: 0 auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .benefits-container {
+    display: flex;
+    justify-content: center;
     margin-bottom: var(--space-6);
   }
   
-  .plan-card {
+  .verification-card {
     background-color: var(--bg-secondary);
     border-radius: var(--radius-lg);
-    padding: var(--space-4);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    width: 100%;
+    max-width: 500px;
   }
   
-  .plan-card-dark {
-    background-color: var(--dark-bg-secondary);
-  }
-  
-  .plan-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  }
-  
-  .plan-header {
-    margin-bottom: var(--space-4);
+  .verification-card-content {
+    padding: var(--space-5);
     text-align: center;
   }
   
-  .plan-header h3 {
+  .verification-card h3 {
     font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-4);
+  }
+  
+  .verify-badge-large {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    background-color: #1DA1F2;
+    color: white;
+    border-radius: var(--radius-full);
+    margin: 0 auto var(--space-5);
+  }
+  
+  .benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-5) 0;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  
+  .benefits-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-md);
+  }
+  
+  .benefits-list li :global(svg) {
+    color: var(--color-success);
+    flex-shrink: 0;
+  }
+  
+  .verification-process {
+    text-align: left;
+    margin-bottom: var(--space-5);
+    padding: var(--space-3);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-md);
+  }
+  
+  .verification-process h4 {
     margin-bottom: var(--space-2);
   }
   
-  .plan-price {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
+  .verification-process ol {
+    padding-left: var(--space-4);
+    margin: 0;
   }
   
-  .price {
-    font-size: var(--font-size-2xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--text-primary);
+  .verification-process li {
+    margin-bottom: var(--space-2);
   }
   
-  .period {
-    font-size: var(--font-size-sm);
-    color: var(--text-tertiary);
-    margin-left: var(--space-1);
-    margin-bottom: 4px;
-  }
-  
-  .plan-features {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 var(--space-4) 0;
-  }
-  
-  .plan-features li {
-    padding: var(--space-2) 0;
-    display: flex;
-    align-items: center;
-  }
-  
-  .feature-included {
-    color: var(--text-primary);
-  }
-  
-  .feature-excluded {
-    color: var(--text-tertiary);
-    text-decoration: line-through;
-  }
-  
-  .feature-icon {
-    color: var(--color-success);
-    margin-right: var(--space-2);
-    display: flex;
-    align-items: center;
-  }
-  
-  .subscribe-btn {
+  .verify-btn {
     width: 100%;
     padding: var(--space-3);
-    background-color: var(--color-primary);
+    background-color: #1DA1F2;
     color: white;
     border: none;
     border-radius: var(--radius-full);
     font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-lg);
     cursor: pointer;
     transition: background-color 0.2s;
   }
   
-  .subscribe-btn:hover {
+  .verify-btn:hover {
+    background-color: #1A91DA;
+  }
+  
+  .verification-form {
+    max-width: 600px;
+    margin: 0 auto var(--space-6);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .verification-form-dark {
+    background-color: var(--dark-bg-secondary);
+  }
+  
+  .verification-form h3 {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-2);
+    text-align: center;
+  }
+  
+  .verification-form p {
+    text-align: center;
+    margin-bottom: var(--space-4);
+    color: var(--text-secondary);
+  }
+  
+  .verification-steps {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+    padding: var(--space-3);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-md);
+  }
+  
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    text-align: center;
+  }
+  
+  .step-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary);
+    color: white;
+  }
+  
+  .step-text {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .step-connector {
+    flex-grow: 1;
+    height: 2px;
+    background-color: var(--border-color);
+    margin: 0 var(--space-2);
+  }
+  
+  .form-error {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background-color: var(--color-error-bg);
+    color: var(--color-error);
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+  }
+  
+  .form-error :global(svg) {
+    flex-shrink: 0;
+  }
+  
+  .form-group {
+    margin-bottom: var(--space-4);
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .form-group small {
+    display: block;
+    color: var(--text-tertiary);
+    margin-top: var(--space-1);
+    font-size: var(--font-size-xs);
+  }
+  
+  .form-group input[type="text"],
+  .form-group textarea {
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+  
+  .form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+  
+  .photo-upload {
+    display: flex;
+    align-items: center;
+  }
+  
+  .photo-upload input[type="file"] {
+    display: none;
+  }
+  
+  .upload-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .upload-button:hover {
     background-color: var(--color-primary-hover);
   }
   
-  .premium-footer {
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
+  .photo-preview {
+    margin-top: var(--space-3);
+    max-width: 200px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
   }
   
-  .premium-footer p {
-    margin: var(--space-1) 0;
+  .photo-preview img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  
+  .security-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+  }
+  
+  .security-notice :global(svg) {
+    color: var(--color-primary);
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  
+  .security-notice p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    color: var(--text-primary);
+  }
+  
+  .form-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+  
+  .cancel-btn {
+    flex: 1;
+    padding: var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .cancel-btn:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .submit-btn {
+    flex: 2;
+    padding: var(--space-3);
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .submit-btn:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+  }
+  
+  .submit-btn:disabled,
+  .cancel-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  
+  .security-container {
+    margin-top: var(--space-6);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+  
+  .security-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  
+  .security-header :global(svg) {
+    color: var(--color-success);
+  }
+  
+  .security-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+  }
+  
+  .security-features {
+    margin: 0;
+    padding-left: var(--space-4);
+  }
+  
+  .security-features li {
+    margin-bottom: var(--space-2);
   }
   
   @media (max-width: 768px) {
-    .plans-container {
-      grid-template-columns: 1fr;
-      gap: var(--space-4);
+    .verification-steps {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    
+    .step-connector {
+      width: 2px;
+      height: 20px;
+      margin: 0;
+    }
+    
+    .security-container {
+      padding: var(--space-3);
+    }
+    
+    .form-actions {
+      flex-direction: column;
+    }
+    
+    .submit-btn, .cancel-btn {
+      width: 100%;
     }
   }
 </style> 

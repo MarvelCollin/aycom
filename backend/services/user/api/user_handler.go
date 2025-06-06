@@ -221,6 +221,10 @@ func (h *UserHandler) ProcessPremiumRequest(ctx context.Context, req *user.Proce
 	return h.adminSvc.ProcessPremiumRequest(ctx, req)
 }
 
+func (h *UserHandler) CreatePremiumRequest(ctx context.Context, req *user.CreatePremiumRequestRequest) (*user.CreatePremiumRequestResponse, error) {
+	return h.svc.CreatePremiumRequest(ctx, req)
+}
+
 func (h *UserHandler) GetReportRequests(ctx context.Context, req *user.GetReportRequestsRequest) (*user.GetReportRequestsResponse, error) {
 	return h.adminSvc.GetReportRequests(ctx, req)
 }

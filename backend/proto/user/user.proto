@@ -87,6 +87,8 @@ service UserService {
   rpc UpdateCommunityCategory(UpdateCommunityCategoryRequest) returns (UpdateCommunityCategoryResponse) {}
 
   rpc DeleteCommunityCategory(DeleteCommunityCategoryRequest) returns (DeleteCommunityCategoryResponse) {}
+
+  rpc CreatePremiumRequest(CreatePremiumRequestRequest) returns (CreatePremiumRequestResponse) {}
 }
 
 message User {
@@ -456,6 +458,18 @@ message ProcessPremiumRequestRequest {
 }
 
 message ProcessPremiumRequestResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CreatePremiumRequestRequest {
+  string user_id = 1;
+  string reason = 2;
+  string identity_card_number = 3;
+  string face_photo_url = 4;
+}
+
+message CreatePremiumRequestResponse {
   bool success = 1;
   string message = 2;
 }

@@ -30,6 +30,12 @@ export interface StatisticsResponse extends IApiResponse<{
   [key: string]: any;
 }> {}
 
+export interface AdminApiResponse {
+  success: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
 async function apiRequest<T>(url: string, method: string, body?: any): Promise<T> {
   // For development/demo purposes: no admin check required
   logger.info(`Making ${method} request to ${url}`);
@@ -82,11 +88,12 @@ export async function getDashboardStatistics(): Promise<StatisticsResponse> {
   );
 }
 
-export async function banUser(userId: string, ban: boolean, reason?: string): Promise<IApiResponse<void>> {
-  return apiRequest<IApiResponse<void>>(
+export async function banUser(userId: string, ban: boolean, reason?: string): Promise<AdminApiResponse> {
+  // Backend expects a boolean, not a "t" or "f" string
+  return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/users/${userId}/ban`, 
     'POST',
-    { ban, reason }
+    { ban: ban, reason }
   );
 }
 
@@ -114,11 +121,12 @@ export async function getCommunityRequests(page: number = 1, limit: number = 10,
   );
 }
 
-export async function processCommunityRequest(requestId: string, approve: boolean, reason?: string): Promise<IApiResponse<void>> {
-  return apiRequest<IApiResponse<void>>(
+export async function processCommunityRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
+  // Backend expects a boolean, not a "t" or "f" string
+  return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/community-requests/${requestId}/process`,
     'POST',
-    { approve, reason }
+    { approve: approve, reason }
   );
 }
 
@@ -138,11 +146,12 @@ export async function getPremiumRequests(page: number = 1, limit: number = 10, s
   );
 }
 
-export async function processPremiumRequest(requestId: string, approve: boolean, reason?: string): Promise<IApiResponse<void>> {
-  return apiRequest<IApiResponse<void>>(
+export async function processPremiumRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
+  // Backend expects a boolean, not a "t" or "f" string
+  return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/premium-requests/${requestId}/process`,
     'POST',
-    { approve, reason }
+    { approve: approve, reason }
   );
 }
 
@@ -162,11 +171,12 @@ export async function getReportRequests(page: number = 1, limit: number = 10, st
   );
 }
 
-export async function processReportRequest(requestId: string, approve: boolean, reason?: string): Promise<IApiResponse<void>> {
-  return apiRequest<IApiResponse<void>>(
+export async function processReportRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
+  // Backend expects a boolean, not a "t" or "f" string
+  return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/report-requests/${requestId}/process`,
     'POST',
-    { approve, reason }
+    { approve: approve, reason }
   );
 }
 

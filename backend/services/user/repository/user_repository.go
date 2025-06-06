@@ -42,6 +42,8 @@ type UserRepository interface {
 	IsUserBlocked(userID, blockedByID string) (bool, error)
 	ReportUser(reporterID, reportedID, reason string) error
 	GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error)
+	
+	GetDB() *gorm.DB
 }
 
 type PostgresUserRepository struct {
@@ -473,4 +475,8 @@ func (r *PostgresUserRepository) ExecuteInTransaction(fn func(tx UserRepository)
 		txRepo := &PostgresUserRepository{db: tx}
 		return fn(txRepo)
 	})
+}
+
+func (r *PostgresUserRepository) GetDB() *gorm.DB {
+	return r.db
 }

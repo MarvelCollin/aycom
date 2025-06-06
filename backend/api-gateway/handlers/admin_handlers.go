@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	communityProto "aycom/backend/proto/community"
 	userProto "aycom/backend/proto/user"
 	"context"
 	"log"
@@ -270,6 +271,59 @@ func ProcessCommunityRequest(c *gin.Context) {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
 		}
 		return
+	}
+
+	// If the community request was approved, also update the community's approved status
+	if req.Approve && CommunityClient != nil && response.Success {
+		// Get the community ID directly from the community service
+		// Since naming is consistent, the community ID should be the same as the Name in the request
+		communityRequestsResponse, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
+			Page:   1,
+			Limit:  100,
+			Status: "approved", // Look for the request we just approved
+		})
+
+		if err == nil && communityRequestsResponse.Requests != nil && len(communityRequestsResponse.Requests) > 0 {
+			// Find the request we just processed
+			var communityName string
+			for _, request := range communityRequestsResponse.Requests {
+				if request.Id == requestID {
+					communityName = request.Name
+					break
+				}
+			}
+
+			if communityName != "" {
+				// Search for the community by name in the community service
+				searchResponse, searchErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+					Query:  communityName,
+					Limit:  1,
+					Offset: 0,
+				})
+
+				if searchErr == nil && searchResponse.Communities != nil && len(searchResponse.Communities) > 0 {
+					communityID := searchResponse.Communities[0].Id
+
+					// Call the community service to approve the community
+					_, approveErr := CommunityClient.ApproveCommunity(ctx, &communityProto.ApproveCommunityRequest{
+						CommunityId: communityID,
+					})
+
+					if approveErr != nil {
+						// Log error but don't fail the request, as the request itself was processed successfully
+						log.Printf("Warning: Failed to approve community in community service: %v", approveErr)
+					} else {
+						log.Printf("Successfully approved community %s in community service", communityID)
+					}
+				} else {
+					log.Printf("Warning: Could not find community with name '%s' in community service: %v", communityName, searchErr)
+				}
+			} else {
+				log.Printf("Warning: Could not find community request details for ID %s", requestID)
+			}
+		} else {
+			log.Printf("Warning: Failed to retrieve community requests: %v", err)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

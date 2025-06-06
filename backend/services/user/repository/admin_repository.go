@@ -238,3 +238,7 @@ func (r *AdminRepository) DeleteCommunityCategory(id string) error {
 func (r *AdminRepository) CreateCommunityRequest(request *model.CommunityRequest) error {
 	return r.db.Create(request).Error
 }
+
+func (r *AdminRepository) CreatePremiumRequest(request *model.PremiumRequest) error {
+	return r.db.Create(request).Error
+}

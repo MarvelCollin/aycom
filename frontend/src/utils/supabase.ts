@@ -32,8 +32,22 @@ export async function initializeSupabaseBuckets(): Promise<void> {
     const existingBucketNames = existingBuckets.map(bucket => bucket.name);
     logger.info(`Available buckets: ${existingBucketNames.join(', ')}`);
     
+    // Check for required buckets
+    const missingBuckets: string[] = [];
+    for (const [key, bucketName] of Object.entries(SUPABASE_BUCKETS)) {
+      if (!existingBucketNames.includes(bucketName)) {
+        missingBuckets.push(bucketName);
+      }
+    }
+    
+    if (missingBuckets.length > 0) {
+      logger.warn(`The following buckets are missing and need to be created in Supabase dashboard: ${missingBuckets.join(', ')}`);
+      logger.warn('File uploads may fail until these buckets are created. Will attempt to use fallback bucket when possible.');
+    }
+    
+    // Make sure at least the fallback bucket exists
     if (!existingBucketNames.includes(SUPABASE_BUCKETS.FALLBACK)) {
-      logger.warn(`Fallback bucket '${SUPABASE_BUCKETS.FALLBACK}' does not exist. Please create it in the Supabase dashboard.`);
+      logger.error(`Critical fallback bucket '${SUPABASE_BUCKETS.FALLBACK}' does not exist. Please create it in the Supabase dashboard.`);
     }
     
     logger.info('Supabase buckets initialization complete');
@@ -226,47 +240,58 @@ export async function uploadFile(file: File, bucket: string, path: string): Prom
 
     const fileName = generateUniqueFilename(file);
     const filePath = `${path}/${fileName}`;
-
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (error) {
-      logger.error(`Error uploading to ${bucket}:`, error);
-
-      // Use fallback bucket for any upload that fails
-      logger.debug(`Attempting upload to fallback bucket: ${SUPABASE_BUCKETS.FALLBACK}`);
-      
-      const fallbackPath = `${bucket}/${path}/${fileName}`;
-      const fallbackResult = await supabase.storage
-        .from(SUPABASE_BUCKETS.FALLBACK)
-        .upload(fallbackPath, file, {
+    
+    // Always try the primary bucket first
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
         });
+
+      if (error) {
+        logger.warn(`Error uploading to ${bucket} bucket:`, error);
+        throw error; // Throw to trigger fallback
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch (primaryError) {
+      // If the primary bucket fails, always try the fallback bucket
+      logger.info(`Primary bucket upload failed. Trying fallback bucket '${SUPABASE_BUCKETS.FALLBACK}'...`);
+      
+      // Use a path that includes the original bucket name to avoid conflicts
+      const fallbackPath = `${bucket}/${path}/${fileName}`;
+      
+      try {
+        const { data, error } = await supabase.storage
+          .from(SUPABASE_BUCKETS.FALLBACK)
+          .upload(fallbackPath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+          
+        if (error) {
+          logger.error(`Fallback upload also failed:`, error);
+          return null;
+        }
         
-      if (fallbackResult.error) {
-        logger.error(`Error uploading to fallback bucket:`, fallbackResult.error);
+        const { data: urlData } = supabase.storage
+          .from(SUPABASE_BUCKETS.FALLBACK)
+          .getPublicUrl(fallbackPath);
+          
+        return urlData.publicUrl;
+      } catch (fallbackError) {
+        logger.error('All upload attempts failed:', fallbackError);
         return null;
       }
-      
-      const { data: fallbackUrlData } = supabase.storage
-        .from(SUPABASE_BUCKETS.FALLBACK)
-        .getPublicUrl(fallbackPath);
-        
-      return fallbackUrlData.publicUrl;
     }
-
-    const { data: urlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-
-    return urlData.publicUrl;
   } catch (error) {
-    logger.error('File upload failed:', error);
+    logger.error('File upload failed completely:', error);
     return null;
   }
 }

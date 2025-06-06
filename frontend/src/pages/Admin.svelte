@@ -331,12 +331,13 @@
       
       // Load community requests
       try {
-        const communityResponse = await adminAPI.getCommunityRequests(currentPage, limit);
+        const communityResponse = await adminAPI.getCommunityRequests(currentPage, limit, requestStatusFilter !== 'all' ? requestStatusFilter : undefined);
         if (communityResponse.success) {
           communityRequests = communityResponse.requests || [];
           if (communityResponse.pagination && communityResponse.pagination.total_count) {
             totalCount = communityResponse.pagination.total_count;
           }
+          logger.info(`Loaded ${communityRequests.length} community requests`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -346,9 +347,10 @@
       
       // Load premium requests
       try {
-        const premiumResponse = await adminAPI.getPremiumRequests(currentPage, limit);
+        const premiumResponse = await adminAPI.getPremiumRequests(currentPage, limit, requestStatusFilter !== 'all' ? requestStatusFilter : undefined);
         if (premiumResponse.success) {
           premiumRequests = premiumResponse.requests || [];
+          logger.info(`Loaded ${premiumRequests.length} premium requests`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -358,9 +360,10 @@
       
       // Load report requests
       try {
-        const reportResponse = await adminAPI.getReportRequests(currentPage, limit);
+        const reportResponse = await adminAPI.getReportRequests(currentPage, limit, requestStatusFilter !== 'all' ? requestStatusFilter : undefined);
         if (reportResponse.success) {
           reportRequests = reportResponse.requests || [];
+          logger.info(`Loaded ${reportRequests.length} report requests`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -439,12 +442,15 @@
   // User Management Functions
   async function handleBanUser(userId: string, isBanned: boolean) {
     try {
-      const response = await adminAPI.banUser(userId, !isBanned, isBanned ? undefined : 'Admin action');
+      const ban = !isBanned; // Toggle ban status
+      logger.info(`Processing ban for user ${userId} with ban=${ban}`);
+      
+      const response = await adminAPI.banUser(userId, ban, isBanned ? undefined : 'Admin action');
       if (response.success) {
         toastStore.showToast(`User ${isBanned ? 'unbanned' : 'banned'} successfully`, 'success');
         await loadUsers(); // Reload users
       } else {
-        throw new Error((response as any).message || 'Failed to update user status');
+        throw new Error(response.message || 'Failed to update user status');
       }
     } catch (error) {
       logger.error('Error updating user ban status:', error);
@@ -488,12 +494,14 @@
   async function handleProcessCommunityRequest(requestId: string, approve: boolean) {
     try {
       isProcessingRequest = true;
+      logger.info(`Processing community request ${requestId} with approve=${approve}`);
+      
       const response = await adminAPI.processCommunityRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
       if (response.success) {
         toastStore.showToast(`Community request ${approve ? 'approved' : 'rejected'}`, 'success');
         await loadRequests();
       } else {
-        throw new Error((response as any).message || 'Failed to process request');
+        throw new Error(response.message || 'Failed to process request');
       }
     } catch (error) {
       logger.error('Error processing community request:', error);
@@ -506,12 +514,14 @@
   async function handleProcessPremiumRequest(requestId: string, approve: boolean) {
     try {
       isProcessingRequest = true;
+      logger.info(`Processing premium request ${requestId} with approve=${approve}`);
+      
       const response = await adminAPI.processPremiumRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
       if (response.success) {
         toastStore.showToast(`Premium request ${approve ? 'approved' : 'rejected'}`, 'success');
         await loadRequests();
       } else {
-        throw new Error((response as any).message || 'Failed to process request');
+        throw new Error(response.message || 'Failed to process request');
       }
     } catch (error) {
       logger.error('Error processing premium request:', error);
@@ -524,13 +534,15 @@
   async function handleProcessReportRequest(requestId: string, approve: boolean) {
     try {
       isProcessingRequest = true;
+      logger.info(`Processing report request ${requestId} with approve=${approve}`);
+      
       const response = await adminAPI.processReportRequest(requestId, approve, approve ? 'Action taken by admin' : 'No action needed');
       if (response.success) {
         toastStore.showToast(`Report ${approve ? 'approved and user banned' : 'dismissed'}`, 'success');
         await loadRequests();
         await loadUsers(); // Refresh users as someone might have been banned
       } else {
-        throw new Error((response as any).message || 'Failed to process request');
+        throw new Error(response.message || 'Failed to process request');
       }
     } catch (error) {
       logger.error('Error processing report request:', error);

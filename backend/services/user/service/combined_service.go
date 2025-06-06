@@ -1,11 +1,10 @@
 package service
 
 import (
+	userpb "aycom/backend/proto/user"
 	"context"
-	"aycom/backend/proto/user"
 
 	"aycom/backend/services/user/model"
-
 )
 
 type CombinedService struct {
@@ -20,7 +19,7 @@ func NewCombinedService(userService UserService, blockService *UserBlockService)
 	}
 }
 
-func (s *CombinedService) CreateUserProfile(ctx context.Context, req *user.CreateUserRequest) (*model.User, error) {
+func (s *CombinedService) CreateUserProfile(ctx context.Context, req *userpb.CreateUserRequest) (*model.User, error) {
 	return s.userService.CreateUserProfile(ctx, req)
 }
 
@@ -32,11 +31,11 @@ func (s *CombinedService) GetUserByUsername(ctx context.Context, username string
 	return s.userService.GetUserByUsername(ctx, username)
 }
 
-func (s *CombinedService) UpdateUserProfile(ctx context.Context, req *user.UpdateUserRequest) (*model.User, error) {
+func (s *CombinedService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateUserRequest) (*model.User, error) {
 	return s.userService.UpdateUserProfile(ctx, req)
 }
 
-func (s *CombinedService) UpdateUserVerificationStatus(ctx context.Context, req *user.UpdateUserVerificationStatusRequest) error {
+func (s *CombinedService) UpdateUserVerificationStatus(ctx context.Context, req *userpb.UpdateUserVerificationStatusRequest) error {
 	return s.userService.UpdateUserVerificationStatus(ctx, req)
 }
 
@@ -44,7 +43,7 @@ func (s *CombinedService) DeleteUser(ctx context.Context, id string) error {
 	return s.userService.DeleteUser(ctx, id)
 }
 
-func (s *CombinedService) LoginUser(ctx context.Context, req *user.LoginUserRequest) (*model.User, error) {
+func (s *CombinedService) LoginUser(ctx context.Context, req *userpb.LoginUserRequest) (*model.User, error) {
 	return s.userService.LoginUser(ctx, req)
 }
 
@@ -102,4 +101,8 @@ func (s *CombinedService) ReportUser(ctx context.Context, reporterID, reportedID
 
 func (s *CombinedService) GetBlockedUsers(ctx context.Context, userID string, page, limit int) ([]map[string]interface{}, int64, error) {
 	return s.blockService.GetBlockedUsers(ctx, userID, page, limit)
+}
+
+func (s *CombinedService) CreatePremiumRequest(ctx context.Context, req *userpb.CreatePremiumRequestRequest) (*userpb.CreatePremiumRequestResponse, error) {
+	return s.userService.CreatePremiumRequest(ctx, req)
 }

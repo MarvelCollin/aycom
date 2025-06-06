@@ -1047,3 +1047,35 @@ export async function unpinReply(replyId: string): Promise<any> {
     throw err;
   }
 }
+
+export async function submitPremiumRequest(reason: string, identityCardNumber: string, facePhotoURL: string): Promise<boolean> {
+  try {
+    const token = getAuthToken();
+    if (!token) return false;
+
+    const response = await fetch(`${API_BASE_URL}/users/premium-request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        reason,
+        identity_card_number: identityCardNumber,
+        face_photo_url: facePhotoURL
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error submitting premium request:', errorData);
+      return false;
+    }
+
+    const data = await response.json();
+    return data.success;
+  } catch (error) {
+    console.error('Error submitting premium request:', error);
+    return false;
+  }
+}

@@ -60,6 +60,7 @@ const (
 	UserService_CreateCommunityCategory_FullMethodName      = "/user.UserService/CreateCommunityCategory"
 	UserService_UpdateCommunityCategory_FullMethodName      = "/user.UserService/UpdateCommunityCategory"
 	UserService_DeleteCommunityCategory_FullMethodName      = "/user.UserService/DeleteCommunityCategory"
+	UserService_CreatePremiumRequest_FullMethodName         = "/user.UserService/CreatePremiumRequest"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -107,6 +108,7 @@ type UserServiceClient interface {
 	CreateCommunityCategory(ctx context.Context, in *CreateCommunityCategoryRequest, opts ...grpc.CallOption) (*CreateCommunityCategoryResponse, error)
 	UpdateCommunityCategory(ctx context.Context, in *UpdateCommunityCategoryRequest, opts ...grpc.CallOption) (*UpdateCommunityCategoryResponse, error)
 	DeleteCommunityCategory(ctx context.Context, in *DeleteCommunityCategoryRequest, opts ...grpc.CallOption) (*DeleteCommunityCategoryResponse, error)
+	CreatePremiumRequest(ctx context.Context, in *CreatePremiumRequestRequest, opts ...grpc.CallOption) (*CreatePremiumRequestResponse, error)
 }
 
 type userServiceClient struct {
@@ -527,6 +529,16 @@ func (c *userServiceClient) DeleteCommunityCategory(ctx context.Context, in *Del
 	return out, nil
 }
 
+func (c *userServiceClient) CreatePremiumRequest(ctx context.Context, in *CreatePremiumRequestRequest, opts ...grpc.CallOption) (*CreatePremiumRequestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreatePremiumRequestResponse)
+	err := c.cc.Invoke(ctx, UserService_CreatePremiumRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -572,6 +584,7 @@ type UserServiceServer interface {
 	CreateCommunityCategory(context.Context, *CreateCommunityCategoryRequest) (*CreateCommunityCategoryResponse, error)
 	UpdateCommunityCategory(context.Context, *UpdateCommunityCategoryRequest) (*UpdateCommunityCategoryResponse, error)
 	DeleteCommunityCategory(context.Context, *DeleteCommunityCategoryRequest) (*DeleteCommunityCategoryResponse, error)
+	CreatePremiumRequest(context.Context, *CreatePremiumRequestRequest) (*CreatePremiumRequestResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -704,6 +717,9 @@ func (UnimplementedUserServiceServer) UpdateCommunityCategory(context.Context, *
 }
 func (UnimplementedUserServiceServer) DeleteCommunityCategory(context.Context, *DeleteCommunityCategoryRequest) (*DeleteCommunityCategoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteCommunityCategory not implemented")
+}
+func (UnimplementedUserServiceServer) CreatePremiumRequest(context.Context, *CreatePremiumRequestRequest) (*CreatePremiumRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePremiumRequest not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -1464,6 +1480,24 @@ func _UserService_DeleteCommunityCategory_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CreatePremiumRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePremiumRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreatePremiumRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreatePremiumRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreatePremiumRequest(ctx, req.(*CreatePremiumRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1634,6 +1668,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteCommunityCategory",
 			Handler:    _UserService_DeleteCommunityCategory_Handler,
+		},
+		{
+			MethodName: "CreatePremiumRequest",
+			Handler:    _UserService_CreatePremiumRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

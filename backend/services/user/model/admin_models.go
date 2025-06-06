@@ -12,18 +12,20 @@ type CommunityRequest struct {
 	Name        string    `gorm:"type:text;not null"`
 	Description string    `gorm:"type:text"`
 	CategoryID  uuid.UUID `gorm:"type:uuid;index"`
-	Status      string    `gorm:"type:varchar(20);not null;default:'pending'"` 
+	Status      string    `gorm:"type:varchar(20);not null;default:'pending'"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
 type PremiumRequest struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
-	Reason    string    `gorm:"type:text"`
-	Status    string    `gorm:"type:varchar(20);not null;default:'pending'"` 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                 uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID             uuid.UUID `gorm:"type:uuid;not null;index"`
+	Reason             string    `gorm:"type:text"`
+	IdentityCardNumber string    `gorm:"type:text"`
+	FacePhotoURL       string    `gorm:"type:text"`
+	Status             string    `gorm:"type:varchar(20);not null;default:'pending'"`
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type ReportRequest struct {
@@ -31,7 +33,7 @@ type ReportRequest struct {
 	ReporterID     uuid.UUID `gorm:"type:uuid;not null;index"`
 	ReportedUserID uuid.UUID `gorm:"type:uuid;not null;index"`
 	Reason         string    `gorm:"type:text;not null"`
-	Status         string    `gorm:"type:varchar(20);not null;default:'pending'"` 
+	Status         string    `gorm:"type:varchar(20);not null;default:'pending'"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

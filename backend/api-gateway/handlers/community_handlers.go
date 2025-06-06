@@ -26,47 +26,55 @@ func CreateCommunity(c *gin.Context) {
 
 	// Check content type to determine if it's JSON or multipart form
 	contentType := c.GetHeader("Content-Type")
+	log.Printf("DEBUG: Content-Type header: %s", contentType)
+
 	var name, description, logoURL, bannerURL, rules string
 	var categories []string
 
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		// Handle multipart form data
-		log.Printf("Handling multipart form data")
+		log.Printf("DEBUG: Handling multipart form data")
 		name = c.PostForm("name")
 		description = c.PostForm("description")
 		rules = c.PostForm("rules")
+		log.Printf("DEBUG: Received form values - name: %s, description: %s, rules: %s", name, description, rules)
 
 		// Get the categories
 		categoriesJSON := c.PostForm("categories")
+		log.Printf("DEBUG: Categories JSON: %s", categoriesJSON)
+
 		if categoriesJSON != "" {
 			if err := json.Unmarshal([]byte(categoriesJSON), &categories); err != nil {
-				log.Printf("CreateCommunity: Invalid categories format: %v", err)
+				log.Printf("ERROR: Invalid categories format: %v", err)
 				utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid categories format")
 				return
 			}
+			log.Printf("DEBUG: Parsed categories: %v", categories)
 		}
 
 		// Handle file uploads using Supabase
 		// Get logo file
 		logoFile, err := c.FormFile("icon")
 		if err != nil {
-			log.Printf("CreateCommunity: No logo file: %v", err)
+			log.Printf("ERROR: No logo file: %v", err)
 			utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Logo file is required")
 			return
 		}
+		log.Printf("DEBUG: Logo file received: %s, size: %d", logoFile.Filename, logoFile.Size)
 
 		// Get banner file
 		bannerFile, err := c.FormFile("banner")
 		if err != nil {
-			log.Printf("CreateCommunity: No banner file: %v", err)
+			log.Printf("ERROR: No banner file: %v", err)
 			utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Banner file is required")
 			return
 		}
+		log.Printf("DEBUG: Banner file received: %s, size: %d", bannerFile.Filename, bannerFile.Size)
 
 		// Open logo file
 		logoFileOpen, err := logoFile.Open()
 		if err != nil {
-			log.Printf("CreateCommunity: Failed to open logo file: %v", err)
+			log.Printf("ERROR: Failed to open logo file: %v", err)
 			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to process logo file")
 			return
 		}
@@ -75,27 +83,31 @@ func CreateCommunity(c *gin.Context) {
 		// Open banner file
 		bannerFileOpen, err := bannerFile.Open()
 		if err != nil {
-			log.Printf("CreateCommunity: Failed to open banner file: %v", err)
+			log.Printf("ERROR: Failed to open banner file: %v", err)
 			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to process banner file")
 			return
 		}
 		defer bannerFileOpen.Close()
 
 		// Upload logo to Supabase
+		log.Printf("DEBUG: Attempting to upload logo to Supabase bucket: media, folder: communities/logos")
 		logoURL, err = utils.UploadFile(logoFileOpen, logoFile.Filename, "media", "communities/logos")
 		if err != nil {
-			log.Printf("CreateCommunity: Failed to upload logo to Supabase: %v", err)
+			log.Printf("ERROR: Failed to upload logo to Supabase: %v", err)
 			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to upload logo")
 			return
 		}
+		log.Printf("DEBUG: Successfully uploaded logo, URL: %s", logoURL)
 
 		// Upload banner to Supabase
+		log.Printf("DEBUG: Attempting to upload banner to Supabase bucket: media, folder: communities/banners")
 		bannerURL, err = utils.UploadFile(bannerFileOpen, bannerFile.Filename, "media", "communities/banners")
 		if err != nil {
-			log.Printf("CreateCommunity: Failed to upload banner to Supabase: %v", err)
+			log.Printf("ERROR: Failed to upload banner to Supabase: %v", err)
 			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to upload banner")
 			return
 		}
+		log.Printf("DEBUG: Successfully uploaded banner, URL: %s", bannerURL)
 
 		// Validate required fields
 		if name == "" || description == "" || rules == "" || len(categories) == 0 {

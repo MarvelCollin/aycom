@@ -172,43 +172,44 @@ export async function createCommunity(data: Record<string, any>) {
     
     // Check if we need to handle file uploads
     if (data.icon instanceof File || data.banner instanceof File) {
-      let logoURL: string | null = null;
-      let bannerURL: string | null = null;
+      // Use FormData to send files directly to backend
+      const formData = new FormData();
       
-      // Upload files directly to Supabase
-      if (data.icon instanceof File) {
-        logger.debug('Uploading icon to Supabase');
-        logoURL = await uploadFile(data.icon, SUPABASE_BUCKETS.MEDIA, 'communities/logos');
-        if (!logoURL) {
-          throw new Error('Failed to upload community icon');
+      // Add text fields
+      formData.append('name', data.name);
+      formData.append('description', data.description || '');
+      
+      // Add rules
+      if (data.rules) {
+        formData.append('rules', data.rules.toString());
+      }
+      
+      if (data.categories) {
+        // Handle arrays properly for FormData
+        if (Array.isArray(data.categories)) {
+          formData.append('categories', JSON.stringify(data.categories));
+        } else {
+          formData.append('categories', JSON.stringify(data.categories));
         }
+      }
+      
+      // Add files if they exist
+      if (data.icon instanceof File) {
+        formData.append('icon', data.icon);
       }
       
       if (data.banner instanceof File) {
-        logger.debug('Uploading banner to Supabase');
-        bannerURL = await uploadFile(data.banner, SUPABASE_BUCKETS.MEDIA, 'communities/banners');
-        if (!bannerURL) {
-          throw new Error('Failed to upload community banner');
-        }
+        formData.append('banner', data.banner);
       }
       
-      // Send JSON with the uploaded URLs
-      const communityData = {
-        name: data.name,
-        description: data.description,
-        logo_url: logoURL,
-        banner_url: bannerURL,
-        rules: data.rules,
-        categories: data.categories
-      };
-      
+      // Send FormData to backend
       const response = await fetch(`${API_BASE_URL}/communities`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
+          // Note: Do not set Content-Type header when sending FormData
         },
-        body: JSON.stringify(communityData),
+        body: formData,
         credentials: 'include'
       });
       
@@ -219,7 +220,7 @@ export async function createCommunity(data: Record<string, any>) {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.message || errorMessage;
         } catch(e) {
-          logger.error('Error parsing error response:', e, errorText);
+          logger.error('Error parsing error response:', { error: e, text: errorText });
         }
         throw new Error(errorMessage);
       }

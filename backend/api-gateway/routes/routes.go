@@ -137,6 +137,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		users.POST("/:userId/unblock", handlers.UnblockUser)
 		users.GET("/blocked", handlers.GetBlockedUsers)
 		users.POST("/:userId/report", handlers.ReportUser)
+		users.POST("/premium-request", handlers.CreatePremiumRequest)
 	}
 
 	replies := v1.Group("/replies")

@@ -74,10 +74,6 @@
   
   async function debugAdminStatus() {
     try {
-      // Get the auth store update function
-      const { useAuth } = await import('../../hooks/useAuth');
-      const { updateAdminStatus } = useAuth();
-      
       // First check the auth state
       const authState = getAuthState();
       if (authState && authState.is_admin === true) {
@@ -87,13 +83,11 @@
       }
       
       // Verify with the backend
-      const { checkAdminStatus } = await import('../../api/user');
       const adminStatusFromAPI = await checkAdminStatus();
       
       if (adminStatusFromAPI) {
         console.log('API confirmed user is admin, updating auth store');
         isAdmin = true;
-        updateAdminStatus(true);
         
         // Also update localStorage directly as a fallback
         try {

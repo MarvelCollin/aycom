@@ -1135,3 +1135,73 @@ func GetPublicUserSuggestions(c *gin.Context) {
 		"users":   userResults,
 	})
 }
+
+func CreatePremiumRequest(c *gin.Context) {
+	log.Printf("CreatePremiumRequest: Processing premium request creation")
+
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+
+	var req struct {
+		Reason             string `json:"reason" binding:"required"`
+		IdentityCardNumber string `json:"identity_card_number" binding:"required"`
+		FacePhotoURL       string `json:"face_photo_url" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("CreatePremiumRequest Handler: Invalid request payload: %v", err)
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	if UserClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := UserClient.CreatePremiumRequest(ctx, &userProto.CreatePremiumRequestRequest{
+		UserId:             userID.(string),
+		Reason:             req.Reason,
+		IdentityCardNumber: req.IdentityCardNumber,
+		FacePhotoUrl:       req.FacePhotoURL,
+	})
+
+	if err != nil {
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.AlreadyExists:
+				utils.SendErrorResponse(c, http.StatusConflict, "ALREADY_EXISTS", "You already have a pending or approved premium request")
+			case codes.InvalidArgument:
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
+			default:
+				log.Printf("CreatePremiumRequest Handler: gRPC error: %v", err)
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create premium request")
+			}
+		} else {
+			log.Printf("CreatePremiumRequest Handler: Unknown error: %v", err)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create premium request")
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": response.Success,
+		"message": response.Message,
+	})
+}

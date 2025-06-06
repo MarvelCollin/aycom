@@ -321,3 +321,7 @@ func (a *userServiceAdapter) UpdateCommunityCategory(ctx context.Context, req *u
 func (a *userServiceAdapter) DeleteCommunityCategory(ctx context.Context, req *user.DeleteCommunityCategoryRequest) (*user.DeleteCommunityCategoryResponse, error) {
 	return a.h.DeleteCommunityCategory(ctx, req)
 }
+
+func (a *userServiceAdapter) CreatePremiumRequest(ctx context.Context, req *user.CreatePremiumRequestRequest) (*user.CreatePremiumRequestResponse, error) {
+	return a.h.CreatePremiumRequest(ctx, req)
+}

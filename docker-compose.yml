@@ -71,6 +71,9 @@ services:
       - AI_SERVICE_HOST=ai_service
       - AI_SERVICE_PORT=5000
       - CORS_ORIGIN=http://localhost:3000
+      # Supabase configuration
+      - SUPABASE_URL=https://sdhtnvlmuywinhcglfsu.supabase.co
+      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTkwMTg3NSwiZXhwIjoyMDYxNDc3ODc1fQ.KNuEFpwiuSIt3rgaJDSO-BOhYnqlRyR1uIcHAenIthw
     volumes:
       - ./backend:/app
       - api_gateway_go_mod_cache:/go/pkg/mod
