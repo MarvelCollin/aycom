@@ -71,7 +71,7 @@ func (r *PostgresInteractionRepository) LikeThread(userID, threadID string) erro
 	err = r.db.Exec(`
 		INSERT INTO likes (user_id, thread_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT ON CONSTRAINT likes_user_thread_idx DO NOTHING`,
+		ON CONFLICT (user_id, thread_id) WHERE thread_id IS NOT NULL AND reply_id IS NULL AND deleted_at IS NULL DO NOTHING`,
 		userUUID, threadUUID, time.Now(), nil).Error
 
 	if err != nil {
@@ -100,7 +100,7 @@ func (r *PostgresInteractionRepository) LikeReply(userID, replyID string) error 
 	err = r.db.Exec(`
 		INSERT INTO likes (user_id, reply_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4)
-				ON CONFLICT ON CONSTRAINT likes_user_reply_idx DO NOTHING`,
+		ON CONFLICT (user_id, reply_id) WHERE reply_id IS NOT NULL AND thread_id IS NULL AND deleted_at IS NULL DO NOTHING`,
 		userUUID, replyUUID, time.Now(), nil).Error
 
 	if err != nil {
@@ -359,7 +359,7 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 	err = r.db.Exec(`
 		INSERT INTO bookmarks (user_id, thread_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id, thread_id) DO NOTHING`,
+		ON CONFLICT (user_id, thread_id) WHERE thread_id IS NOT NULL AND reply_id IS NULL AND deleted_at IS NULL DO NOTHING`,
 		userUUID, threadUUID, time.Now(), nil).Error
 
 	if err != nil {
@@ -490,24 +490,11 @@ func (r *PostgresInteractionRepository) BookmarkReply(userID, replyID string) er
 		return errors.New("invalid UUID format for reply ID")
 	}
 
-	var count int64
-	if err := r.db.Model(&model.Bookmark{}).
-		Where("user_id = ? AND reply_id = ?", userUUID, replyUUID).
-		Count(&count).Error; err != nil {
-		return err
-	}
-
-	if count > 0 {
-
-		return nil
-	}
-
-	result := r.db.Exec(
-		"INSERT INTO bookmarks (user_id, thread_id, reply_id, created_at) VALUES ($1, NULL, $2, $3)",
-		userUUID,
-		replyUUID,
-		time.Now(),
-	)
+	result := r.db.Exec(`
+		INSERT INTO bookmarks (user_id, thread_id, reply_id, created_at, deleted_at)
+		VALUES ($1, NULL, $2, $3, NULL)
+		ON CONFLICT (user_id, reply_id) WHERE reply_id IS NOT NULL AND thread_id IS NULL AND deleted_at IS NULL DO NOTHING`,
+		userUUID, replyUUID, time.Now())
 
 	return result.Error
 }

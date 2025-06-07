@@ -553,7 +553,7 @@
         // Handle API errors
         const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
         const isAlreadyInState = 
-          (newLikeStatus && errorMsg.includes('already liked')) ||
+          (newLikeStatus && (errorMsg.includes('already liked') || errorMsg.includes('already exists'))) ||
           (!newLikeStatus && (errorMsg.includes('not liked') || errorMsg.includes('not found')));
         
         // Handle 401 errors or session expiration specifically
@@ -678,6 +678,16 @@
       
       // Handle error based on type
       const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
+      
+      // Handle already bookmarked/not bookmarked errors gracefully
+      if (errorMsg.includes('already bookmarked') || errorMsg.includes('already exists')) {
+        // If the error is just that it's already in that state, still consider it a success
+        tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+          is_bookmarked: !status, // Keep the optimistic update
+          pending_bookmark: false
+        });
+        return;
+      }
       
       if (errorMsg.includes('401') || errorMsg.includes('unauthorized') || 
           errorMsg.includes('session') || errorMsg.includes('expired')) {
@@ -1047,7 +1057,9 @@
       // Set loading state
       loadingState.bookmark = true;
       replyActionsLoading.set(String(replyId), loadingState);
-      replyActionsLoading = new Map(replyActionsLoading);      // Optimistic UI update
+      replyActionsLoading = new Map(replyActionsLoading);
+      
+      // Optimistic UI update
       reply.is_bookmarked = true;
       if (typeof reply.bookmark_count === 'number') {
         reply.bookmark_count += 1;
@@ -1055,20 +1067,26 @@
       
       // Call API
       try {
-        await likeReply(String(replyId));
+        // Using the correct API call for bookmarking
+        await bookmarkThread(String(replyId));
+        toastStore.showToast('Reply bookmarked', 'success');
       } catch (error) {
         console.error('Error bookmarking reply:', error);
         
         // Check for "already bookmarked" error - don't revert UI
         const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
-        const isAlreadyBookmarked = errorMsg.includes('already bookmarked');
-          if (!isAlreadyBookmarked) {
+        const isAlreadyBookmarked = errorMsg.includes('already bookmarked') || errorMsg.includes('already exists');
+        
+        if (!isAlreadyBookmarked) {
           // Revert optimistic update
           reply.is_bookmarked = false;
           if (typeof reply.bookmark_count === 'number' && reply.bookmark_count > 0) {
             reply.bookmark_count -= 1;
           }
           toastStore.showToast('Failed to bookmark reply. Please try again.', 'error');
+        } else {
+          // If it's already bookmarked, just confirm to the user
+          toastStore.showToast('Reply is already bookmarked', 'info');
         }
       } finally {
         // Clear loading state
@@ -1099,7 +1117,9 @@
       // Set loading state
       loadingState.bookmark = true;
       replyActionsLoading.set(String(replyId), loadingState);
-      replyActionsLoading = new Map(replyActionsLoading);      // Optimistic UI update
+      replyActionsLoading = new Map(replyActionsLoading);
+      
+      // Optimistic UI update
       reply.is_bookmarked = false;
       if (typeof reply.bookmark_count === 'number' && reply.bookmark_count > 0) {
         reply.bookmark_count -= 1;
@@ -1107,20 +1127,26 @@
       
       // Call API
       try {
-        await unlikeReply(String(replyId));
+        // Using the correct API call for unbookmarking
+        await removeBookmark(String(replyId));
+        toastStore.showToast('Bookmark removed', 'success');
       } catch (error) {
         console.error('Error unbookmarking reply:', error);
         
         // Check for "not bookmarked" or "not found" error - don't revert UI
         const errorMsg = error instanceof Error ? error.message.toLowerCase() : '';
         const isNotBookmarked = errorMsg.includes('not bookmarked') || errorMsg.includes('not found');
-          if (!isNotBookmarked) {
+        
+        if (!isNotBookmarked) {
           // Revert optimistic update
           reply.is_bookmarked = true;
           if (typeof reply.bookmark_count === 'number') {
             reply.bookmark_count += 1;
           }
           toastStore.showToast('Failed to remove bookmark from reply. Please try again.', 'error');
+        } else {
+          // If it's already not bookmarked, just confirm to the user
+          toastStore.showToast('Reply was not bookmarked', 'info');
         }
       } finally {
         // Clear loading state

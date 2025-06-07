@@ -7,6 +7,12 @@
   import { formatStorageUrl } from '../utils/common';
   import type { ITweet } from '../interfaces/ISocialMedia';
 
+  // Extended interface for our needs
+  interface ExtendedTweet extends ITweet {
+    thread_id?: string;
+    author_id?: string;
+  }
+
   interface Thread {
     id: string;
     content: string;
@@ -84,7 +90,7 @@
   }
 
   // Convert Thread to ITweet for compatibility with TweetCard
-  function threadToTweet(thread: Thread): ITweet {
+  function threadToTweet(thread: Thread): ExtendedTweet {
     // Map media items to ensure type is one of the allowed values
     // Also format media URLs through formatStorageUrl
     const mappedMedia = (thread.media || []).map(item => ({
@@ -97,13 +103,27 @@
     const formattedProfilePicture = formatStorageUrl(thread.profile_picture_url);
     
     return {
-      ...thread,
+      id: thread.id,
+      thread_id: thread.id,  // Add thread_id for better compatibility
+      content: thread.content,
+      created_at: thread.created_at,
+      updated_at: thread.updated_at,
+      username: thread.username,
       name: thread.name || thread.username,
+      user_id: thread.user_id,
+      author_id: thread.user_id,  // Add author_id for compatibility
       profile_picture_url: formattedProfilePicture,
+      likes_count: thread.likes_count,
+      replies_count: thread.replies_count,
+      reposts_count: thread.reposts_count,
       bookmark_count: 0,
+      views_count: 0,
+      is_liked: thread.is_liked,
+      is_reposted: thread.is_reposted,
+      is_bookmarked: thread.is_bookmarked,
+      is_pinned: thread.is_pinned,
       parent_id: null,
-      media: mappedMedia,
-      views_count: 0
+      media: mappedMedia
     };
   }
   

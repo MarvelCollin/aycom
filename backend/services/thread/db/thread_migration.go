@@ -89,6 +89,14 @@ func RunMigrations(db *gorm.DB) error {
 			log.Printf("Warning: Failed to create reply_id index on likes: %v", err)
 
 		}
+
+		if err := tx.Exec("ALTER TABLE likes ADD CONSTRAINT likes_user_thread_idx UNIQUE (user_id, thread_id) WHERE thread_id IS NOT NULL AND reply_id IS NULL AND deleted_at IS NULL").Error; err != nil {
+			log.Printf("Warning: Failed to add user-thread unique constraint on likes: %v", err)
+		}
+
+		if err := tx.Exec("ALTER TABLE likes ADD CONSTRAINT likes_user_reply_idx UNIQUE (user_id, reply_id) WHERE reply_id IS NOT NULL AND thread_id IS NULL AND deleted_at IS NULL").Error; err != nil {
+			log.Printf("Warning: Failed to add user-reply unique constraint on likes: %v", err)
+		}
 	}
 
 	log.Println("Checking if bookmarks table needs updates for reply support...")
@@ -126,12 +134,12 @@ func RunMigrations(db *gorm.DB) error {
 		}
 
 		log.Println("Adding proper unique constraints for bookmarks...")
-		if err := tx.Exec("ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_user_thread_unique UNIQUE (user_id, thread_id) WHERE thread_id IS NOT NULL").Error; err != nil {
+		if err := tx.Exec("ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_user_thread_unique UNIQUE (user_id, thread_id) WHERE thread_id IS NOT NULL AND reply_id IS NULL AND deleted_at IS NULL").Error; err != nil {
 			log.Printf("Warning: Failed to add thread unique constraint: %v", err)
 
 		}
 
-		if err := tx.Exec("ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_user_reply_unique UNIQUE (user_id, reply_id) WHERE reply_id IS NOT NULL").Error; err != nil {
+		if err := tx.Exec("ALTER TABLE bookmarks ADD CONSTRAINT bookmarks_user_reply_unique UNIQUE (user_id, reply_id) WHERE reply_id IS NOT NULL AND thread_id IS NULL AND deleted_at IS NULL").Error; err != nil {
 			log.Printf("Warning: Failed to add reply unique constraint: %v", err)
 
 		}
