@@ -80,12 +80,19 @@
       const filter = activeTab === 'joined' ? 'joined' : 
                     activeTab === 'pending' ? 'pending' : 'all';
       
+      // Set is_approved parameter based on the active tab
+      // For 'discover' tab, we want approved communities (is_approved=true)
+      // For 'pending' tab, we may want unapproved communities (is_approved=false)
+      const isApproved = activeTab === 'discover' ? true : 
+                       activeTab === 'pending' ? false : undefined;
+      
       const response = await getCommunities({
         page: currentPage,
         limit: limit,
         filter: filter,
         q: searchQuery,
-        category: selectedCategories
+        category: selectedCategories,
+        is_approved: isApproved
       });
       
       if (response.success) {

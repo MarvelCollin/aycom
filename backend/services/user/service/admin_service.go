@@ -173,6 +173,8 @@ func (s *AdminService) GetCommunityRequests(ctx context.Context, req *user.GetCo
 			CreatedAt:   r.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   r.UpdatedAt.Format(time.RFC3339),
 			Requester:   mapUserModelToProto(requester),
+			LogoUrl:     r.LogoURL,
+			BannerUrl:   r.BannerURL,
 		}
 		protoRequests = append(protoRequests, protoRequest)
 	}

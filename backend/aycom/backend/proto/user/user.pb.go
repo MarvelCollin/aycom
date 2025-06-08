@@ -46,7 +46,6 @@ type User struct {
 	IsFollowing           bool                   `protobuf:"varint,21,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"`
 	IsAdmin               bool                   `protobuf:"varint,22,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
 	IsBanned              bool                   `protobuf:"varint,23,opt,name=is_banned,json=isBanned,proto3" json:"is_banned,omitempty"`
-	IsPrivate             bool                   `protobuf:"varint,24,opt,name=is_private,json=isPrivate,proto3" json:"is_private,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -242,13 +241,6 @@ func (x *User) GetIsBanned() bool {
 	return false
 }
 
-func (x *User) GetIsPrivate() bool {
-	if x != nil {
-		return x.IsPrivate
-	}
-	return false
-}
-
 type GetUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -433,7 +425,6 @@ type UpdateUserRequest struct {
 	Email             string                 `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
 	ProfilePictureUrl string                 `protobuf:"bytes,5,opt,name=profile_picture_url,json=profilePictureUrl,proto3" json:"profile_picture_url,omitempty"`
 	BannerUrl         string                 `protobuf:"bytes,6,opt,name=banner_url,json=bannerUrl,proto3" json:"banner_url,omitempty"`
-	IsPrivate         bool                   `protobuf:"varint,7,opt,name=is_private,json=isPrivate,proto3" json:"is_private,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -508,13 +499,6 @@ func (x *UpdateUserRequest) GetBannerUrl() string {
 		return x.BannerUrl
 	}
 	return ""
-}
-
-func (x *UpdateUserRequest) GetIsPrivate() bool {
-	if x != nil {
-		return x.IsPrivate
-	}
-	return false
 }
 
 type UpdateUserResponse struct {
@@ -5409,7 +5393,7 @@ var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/user/user.proto\x12\x04user\"\x82\x06\n" +
+	"\x15proto/user/user.proto\x12\x04user\"\xe3\x05\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -5438,9 +5422,7 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x0ffollowing_count\x18\x14 \x01(\x05R\x0efollowingCount\x12!\n" +
 	"\fis_following\x18\x15 \x01(\bR\visFollowing\x12\x19\n" +
 	"\bis_admin\x18\x16 \x01(\bR\aisAdmin\x12\x1b\n" +
-	"\tis_banned\x18\x17 \x01(\bR\bisBanned\x12\x1d\n" +
-	"\n" +
-	"is_private\x18\x18 \x01(\bR\tisPrivate\")\n" +
+	"\tis_banned\x18\x17 \x01(\bR\bisBanned\")\n" +
 	"\x0eGetUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"1\n" +
 	"\x0fGetUserResponse\x12\x1e\n" +
@@ -5451,7 +5433,7 @@ const file_proto_user_user_proto_rawDesc = "" +
 	".user.UserR\x04user\"4\n" +
 	"\x12CreateUserResponse\x12\x1e\n" +
 	"\x04user\x18\x01 \x01(\v2\n" +
-	".user.UserR\x04user\"\xe4\x01\n" +
+	".user.UserR\x04user\"\xc5\x01\n" +
 	"\x11UpdateUserRequest\x12\x1e\n" +
 	"\x04user\x18\x01 \x01(\v2\n" +
 	".user.UserR\x04user\x12\x17\n" +
@@ -5460,9 +5442,7 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x05email\x18\x04 \x01(\tR\x05email\x12.\n" +
 	"\x13profile_picture_url\x18\x05 \x01(\tR\x11profilePictureUrl\x12\x1d\n" +
 	"\n" +
-	"banner_url\x18\x06 \x01(\tR\tbannerUrl\x12\x1d\n" +
-	"\n" +
-	"is_private\x18\a \x01(\bR\tisPrivate\"4\n" +
+	"banner_url\x18\x06 \x01(\tR\tbannerUrl\"4\n" +
 	"\x12UpdateUserResponse\x12\x1e\n" +
 	"\x04user\x18\x01 \x01(\v2\n" +
 	".user.UserR\x04user\",\n" +

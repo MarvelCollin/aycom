@@ -190,6 +190,7 @@ func GetCommunityRequests(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// First get community requests from the user service
 	response, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
 		Page:   int32(page),
 		Limit:  int32(limit),
@@ -200,6 +201,47 @@ func GetCommunityRequests(c *gin.Context) {
 		log.Printf("GetCommunityRequests Handler: gRPC error: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get community requests")
 		return
+	}
+
+	// Also get all communities with is_approved='f' from the community service
+	if CommunityClient != nil {
+		communitiesResponse, commErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+			Query:  "",
+			Limit:  int32(limit),
+			Offset: int32((page - 1) * limit),
+		})
+
+		if commErr == nil && communitiesResponse != nil && len(communitiesResponse.Communities) > 0 {
+			log.Printf("Found %d unapproved communities", len(communitiesResponse.Communities))
+
+			// Convert community objects to community requests
+			for _, community := range communitiesResponse.Communities {
+				// Check if this community is already in the requests list
+				exists := false
+				for _, req := range response.Requests {
+					if req.Name == community.Name {
+						exists = true
+						break
+					}
+				}
+
+				if !exists {
+					// Add it to the requests list
+					response.Requests = append(response.Requests, &userProto.CommunityRequest{
+						Id:          community.Id,
+						UserId:      community.CreatorId,
+						Name:        community.Name,
+						Description: community.Description,
+						Status:      "pending",
+						CreatedAt:   community.CreatedAt.AsTime().Format(time.RFC3339),
+						UpdatedAt:   community.UpdatedAt.AsTime().Format(time.RFC3339),
+					})
+					response.TotalCount++
+				}
+			}
+		} else if commErr != nil {
+			log.Printf("Warning: Failed to get unapproved communities: %v", commErr)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -14,7 +14,9 @@ export async function getCommunities(params = {}) {
 
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
+      if (key === 'is_approved' && value !== null && value !== undefined) {
+        queryParams.append(key, value.toString());
+      } else if (Array.isArray(value)) {
         value.forEach(v => queryParams.append(key, v));
       } else if (value !== null && value !== undefined) {
         queryParams.append(key, value.toString());
@@ -164,85 +166,70 @@ export async function createCommunity(data: Record<string, any>) {
   try {
     const token = getAuthToken();
     
-    logger.debug('Creating community with data:', JSON.stringify({
-      ...data,
+    logger.debug('Creating community with data:', {
+      name: data.name,
+      description: data.description,
       icon: data.icon ? `[File: ${data.icon.name}]` : null,
-      banner: data.banner ? `[File: ${data.banner.name}]` : null
-    }));
+      banner: data.banner ? `[File: ${data.banner.name}]` : null,
+      categories: data.categories
+    });
     
-    // Check if we need to handle file uploads
-    if (data.icon instanceof File || data.banner instanceof File) {
-      // Use FormData to send files directly to backend
-      const formData = new FormData();
-      
-      // Add text fields
-      formData.append('name', data.name);
-      formData.append('description', data.description || '');
-      
-      // Add rules
-      if (data.rules) {
-        formData.append('rules', data.rules.toString());
-      }
-      
-      if (data.categories) {
-        // Handle arrays properly for FormData
-        if (Array.isArray(data.categories)) {
-          formData.append('categories', JSON.stringify(data.categories));
-        } else {
-          formData.append('categories', JSON.stringify(data.categories));
+    const payload = {
+      name: data.name,
+      description: data.description || '',
+      logo_url: '',
+      banner_url: '',
+      rules: data.rules?.toString() || '',
+      categories: Array.isArray(data.categories) ? data.categories : []
+    };
+    
+    if (data.icon instanceof File) {
+      try {
+        const iconUrl = await uploadFile(data.icon, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+        if (iconUrl) {
+          payload.logo_url = iconUrl;
         }
+      } catch (uploadError) {
+        logger.error('Failed to upload community icon:', uploadError);
+        throw new Error('Failed to upload community icon. Please try again.');
       }
-      
-      // Add files if they exist
-      if (data.icon instanceof File) {
-        formData.append('icon', data.icon);
-      }
-      
-      if (data.banner instanceof File) {
-        formData.append('banner', data.banner);
-      }
-      
-      // Send FormData to backend
-      const response = await fetch(`${API_BASE_URL}/communities`, {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : ''
-          // Note: Do not set Content-Type header when sending FormData
-        },
-        body: formData,
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = 'Failed to create community';
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorMessage;
-        } catch(e) {
-          logger.error('Error parsing error response:', { error: e, text: errorText });
-        }
-        throw new Error(errorMessage);
-      }
-      return response.json();
-    } else {
-      // No files, use JSON as usual
-      const response = await fetch(`${API_BASE_URL}/communities`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create community');
-      }
-      return response.json();
     }
+    
+    if (data.banner instanceof File) {
+      try {
+        const bannerUrl = await uploadFile(data.banner, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+        if (bannerUrl) {
+          payload.banner_url = bannerUrl;
+        }
+      } catch (uploadError) {
+        logger.error('Failed to upload community banner:', uploadError);
+        throw new Error('Failed to upload community banner. Please try again.');
+      }
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/communities`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify(payload),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = 'Failed to create community';
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorMessage;
+      } catch(e) {
+        logger.error('Error parsing error response:', { error: e, text: errorText });
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return response.json();
   } catch (error) {
     logger.error('Create community failed:', error);
     throw error;

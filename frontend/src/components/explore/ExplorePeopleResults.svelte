@@ -15,12 +15,12 @@
   export let peopleResults: Array<{
     id: string;
     username: string;
-    displayName: string;
-    avatar: string | null;
+    name: string;
+    profile_picture_url: string | null;
     bio?: string;
-    isVerified: boolean;
-    followerCount: number;
-    isFollowing: boolean;
+    is_verified: boolean;
+    follower_count: number;
+    is_following: boolean;
   }> = [];
   export let isLoading = false;
   export let peoplePerPage = 25;
@@ -87,7 +87,9 @@
   {:else}
     <div class="space-y-4">
       {#each peopleResults as person}
-        <ProfileCard profile={person} on:follow={handleFollow} />
+        <div class="profile-result-card">
+          <ProfileCard profile={person} on:follow={handleFollow} />
+        </div>
       {/each}
       
       <!-- Pagination controls -->
@@ -150,5 +152,28 @@
   @keyframes pulse {
     0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
+  }
+
+  .profile-result-card {
+    background-color: var(--bg-secondary, #f8f9fa);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color, #e5e7eb);
+    padding: 0.25rem 0;
+  }
+  
+  .profile-result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  }
+  
+  :global(.dark) .profile-result-card {
+    background-color: var(--bg-secondary-dark, #1f2937);
+    border-color: var(--border-color-dark, #374151);
+  }
+  
+  :global(.dark) .profile-result-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   }
 </style> 

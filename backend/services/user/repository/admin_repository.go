@@ -42,6 +42,9 @@ func (r *AdminRepository) GetCommunityRequests(page, limit int, status string) (
 	query := r.db.Model(&model.CommunityRequest{})
 	if status != "" {
 		query = query.Where("status = ?", status)
+	} else {
+		// Default to showing pending requests if no status is specified
+		query = query.Where("status = ?", "pending")
 	}
 
 	err := query.Count(&total).Error

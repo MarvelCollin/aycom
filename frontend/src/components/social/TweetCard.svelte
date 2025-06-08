@@ -23,9 +23,7 @@
   import EyeIcon from 'svelte-feather-icons/src/icons/EyeIcon.svelte';
   import ChevronUpIcon from 'svelte-feather-icons/src/icons/ChevronUpIcon.svelte';
   import ChevronDownIcon from 'svelte-feather-icons/src/icons/ChevronDownIcon.svelte';
-  // Extended tweet interface for additional properties that might be in the data
   interface ExtendedTweet extends ITweet {
-    // Fields for retweets and bookmarks
     retweet_id?: string;
     threadId?: string;
     thread_id?: string;

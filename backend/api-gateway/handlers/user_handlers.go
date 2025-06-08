@@ -68,6 +68,7 @@ func GetUserProfile(c *gin.Context) {
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
+			"is_private":          user.IsPrivate,
 			"follower_count":      user.FollowerCount,
 			"following_count":     user.FollowingCount,
 			"created_at":          user.CreatedAt,
@@ -108,6 +109,7 @@ func UpdateUserProfile(c *gin.Context) {
 		BannerURL         string `json:"banner_url"`
 		Banner            string `json:"banner"`
 		BackgroundBanner  string `json:"background_banner"`
+		IsPrivate         bool   `json:"is_private"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -144,6 +146,7 @@ func UpdateUserProfile(c *gin.Context) {
 		Gender:            input.Gender,
 		ProfilePictureURL: profilePictureURL,
 		BannerURL:         bannerURL,
+		IsPrivate:         input.IsPrivate,
 	}
 
 	updatedUser, err := userServiceClient.UpdateUserProfile(userIDStr, profileUpdate)
@@ -176,6 +179,7 @@ func UpdateUserProfile(c *gin.Context) {
 			"bio":                 updatedUser.Bio,
 			"is_verified":         updatedUser.IsVerified,
 			"is_admin":            updatedUser.IsAdmin,
+			"is_private":          updatedUser.IsPrivate,
 			"follower_count":      updatedUser.FollowerCount,
 			"following_count":     updatedUser.FollowingCount,
 			"created_at":          updatedUser.CreatedAt,

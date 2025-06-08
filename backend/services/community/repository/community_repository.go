@@ -15,7 +15,7 @@ type CommunityRepository interface {
 	Delete(id uuid.UUID) error
 	List(offset, limit int) ([]*model.Community, error)
 	ListByCategories(categories []string, offset, limit int) ([]*model.Community, error)
-	Search(query string, categories []string, offset, limit int) ([]*model.Community, int64, error)
+	Search(query string, categories []string, isApproved *bool, offset, limit int) ([]*model.Community, int64, error)
 	ListByUserMembership(userID uuid.UUID, status string, offset, limit int) ([]*model.Community, int64, error)
 	CountAll() (int64, error)
 }
@@ -79,7 +79,7 @@ func (r *GormCommunityRepository) ListByCategories(categories []string, offset, 
 	return communities, err
 }
 
-func (r *GormCommunityRepository) Search(query string, categories []string, offset, limit int) ([]*model.Community, int64, error) {
+func (r *GormCommunityRepository) Search(query string, categories []string, isApproved *bool, offset, limit int) ([]*model.Community, int64, error) {
 	var communities []*model.Community
 	var count int64
 
@@ -96,6 +96,11 @@ func (r *GormCommunityRepository) Search(query string, categories []string, offs
 	if query != "" {
 		searchQuery := "%" + query + "%"
 		dbQuery = dbQuery.Where("communities.name ILIKE ? OR communities.description ILIKE ?", searchQuery, searchQuery)
+	}
+
+	// Apply is_approved filter if provided
+	if isApproved != nil {
+		dbQuery = dbQuery.Where("communities.is_approved = ?", *isApproved)
 	}
 
 	err := dbQuery.Count(&count).Error

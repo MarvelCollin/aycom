@@ -116,6 +116,7 @@ message User {
   bool is_following = 21; 
   bool is_admin = 22; 
   bool is_banned = 23; 
+  bool is_private = 24;
 }
 
 message GetUserRequest {
@@ -141,6 +142,7 @@ message UpdateUserRequest {
   string email = 4;
   string profile_picture_url = 5;
   string banner_url = 6;
+  bool is_private = 7;
 }
 
 message UpdateUserResponse {
@@ -399,7 +401,9 @@ message CommunityRequest {
   string status = 6; 
   string created_at = 7;
   string updated_at = 8;
-  User requester = 9; 
+  User requester = 9;
+  string logo_url = 10;
+  string banner_url = 11;
 }
 
 message GetCommunityRequestsRequest {

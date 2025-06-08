@@ -13,6 +13,8 @@ type CommunityRequest struct {
 	Description string    `gorm:"type:text"`
 	CategoryID  uuid.UUID `gorm:"type:uuid;index"`
 	Status      string    `gorm:"type:varchar(20);not null;default:'pending'"`
+	LogoURL     string    `gorm:"type:text"`
+	BannerURL   string    `gorm:"type:text"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

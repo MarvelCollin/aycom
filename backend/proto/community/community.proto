@@ -146,6 +146,7 @@ message SearchCommunitiesRequest {
   repeated string categories = 2;
   int32 offset = 3; 
   int32 limit = 4; 
+  bool is_approved = 5;
 }
 
 message ListUserCommunitiesRequest { 

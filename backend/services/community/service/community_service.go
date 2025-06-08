@@ -17,7 +17,7 @@ type CommunityService interface {
 	GetCommunityByID(ctx context.Context, communityID uuid.UUID) (*model.Community, error)
 	ListCommunities(ctx context.Context, offset, limit int) ([]*model.Community, error)
 	ListCommunitiesByCategories(ctx context.Context, categories []string, offset, limit int) ([]*model.Community, error)
-	SearchCommunities(ctx context.Context, query string, categories []string, offset, limit int) ([]*model.Community, int64, error)
+	SearchCommunities(ctx context.Context, query string, categories []string, isApproved *bool, offset, limit int) ([]*model.Community, int64, error)
 	ListUserCommunities(ctx context.Context, userID uuid.UUID, status string, offset, limit int) ([]*model.Community, int64, error)
 	CountCommunities(ctx context.Context) (int64, error)
 
@@ -89,8 +89,8 @@ func (s *communityService) ListCommunitiesByCategories(ctx context.Context, cate
 	return s.communityRepo.ListByCategories(categories, offset, limit)
 }
 
-func (s *communityService) SearchCommunities(ctx context.Context, query string, categories []string, offset, limit int) ([]*model.Community, int64, error) {
-	return s.communityRepo.Search(query, categories, offset, limit)
+func (s *communityService) SearchCommunities(ctx context.Context, query string, categories []string, isApproved *bool, offset, limit int) ([]*model.Community, int64, error) {
+	return s.communityRepo.Search(query, categories, isApproved, offset, limit)
 }
 
 func (s *communityService) ListUserCommunities(ctx context.Context, userID uuid.UUID, status string, offset, limit int) ([]*model.Community, int64, error) {

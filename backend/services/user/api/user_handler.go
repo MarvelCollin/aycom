@@ -50,6 +50,7 @@ func mapUserModelToProto(u *model.User) *user.User {
 		IsVerified:        u.IsVerified,
 		IsAdmin:           u.IsAdmin,
 		IsBanned:          u.IsBanned,
+		IsPrivate:         u.IsPrivate,
 	}
 
 	if u.DateOfBirth != nil {

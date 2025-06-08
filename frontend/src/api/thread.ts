@@ -867,7 +867,6 @@ export async function likeReply(replyId: string) {
     });
 
     if (!response.ok) {
-      // Check specifically for auth errors
       if (response.status === 401) {
         logger.error(`Authentication failed when liking reply ${replyId} - token may be invalid`);
         throw new Error('Your session has expired. Please log in again.');

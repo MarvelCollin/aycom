@@ -25,6 +25,7 @@ type User struct {
 	IsVerified            bool       `gorm:"default:false"`
 	IsAdmin               bool       `gorm:"default:false"`
 	IsBanned              bool       `gorm:"default:false"`
+	IsPrivate             bool       `gorm:"default:false"`
 	FollowerCount         int        `gorm:"default:0"`
 	FollowingCount        int        `gorm:"default:0"`
 	CreatedAt             time.Time

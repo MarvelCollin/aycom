@@ -3,12 +3,13 @@
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import type { ITweet, ITrend } from '../interfaces/ISocialMedia';
+  import type { ITweet } from '../interfaces/ISocialMedia';
+  import type { ITrend } from '../interfaces/ITrend';
   import type { IAuthStore } from '../interfaces/IAuth';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getTrends } from '../api/trends';
-  import { searchUsers } from '../api/user';
+  import { searchUsers, getAllUsers } from '../api/user';
   import { searchThreads, searchThreadsWithMedia, getThreadsByHashtag } from '../api/thread';
   import { searchCommunities } from '../api/community';
   import { debounce } from '../utils/helpers';
@@ -25,6 +26,7 @@
   import ExploreMediaResults from '../components/explore/ExploreMediaResults.svelte';
   import ExploreCommunityResults from '../components/explore/ExploreCommunityResults.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
+  import ProfileCard from '../components/explore/ProfileCard.svelte';
   import Toast from '../components/common/Toast.svelte';
 
   const logger = createLoggerWithPrefix('Explore');
@@ -34,16 +36,29 @@
   const { theme } = useTheme();
   
   // Reactive declarations
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  $: authState = getAuthState ? getAuthState() : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === 'dark';
-  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
+  $: sidebarUsername = authState?.user_id ? `User_${authState.user_id.substring(0, 4)}` : '';
+  $: sidebarDisplayName = authState?.user_id ? `User ${authState.user_id.substring(0, 4)}` : '';
   $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar with proper image URL
   
   // Trends data
   let trends: ITrend[] = [];
   let isTrendsLoading = true;
   let suggestedFollows = [];
+  
+  // All Users
+  let allUsers: Array<{
+    id: string;
+    username: string;
+    name: string;
+    profile_picture_url: string | null;
+    bio?: string;
+    is_verified: boolean;
+    follower_count: number;
+    is_following: boolean;
+  }> = [];
+  let isLoadingAllUsers = false;
   
   // Search state
   let searchQuery = '';
@@ -60,27 +75,27 @@
       profiles: Array<{
         id: string;
         username: string;
-        displayName: string;
-        avatar: string | null;
+        name: string;
+        profile_picture_url: string | null;
         bio?: string;
-        isVerified: boolean;
-        followerCount: number;
-        isFollowing: boolean;
+        is_verified: boolean;
+        follower_count: number;
+        is_following: boolean;
       }>;
       threads: Array<{
         id: string;
         content: string;
         username: string;
-        displayName: string;
-        timestamp: string;
-        likes: number;
-        replies: number;
-        reposts: number;
+        name: string;
+        created_at: string;
+        likes_count: number;
+        replies_count: number;
+        reposts_count: number;
         media?: Array<{
-          url: string;
           type: string;
+          url: string;
         }>;
-        avatar?: string;
+        profile_picture_url?: string;
       }>;
       isLoading: boolean;
     };
@@ -106,11 +121,12 @@
       users: Array<{
         id: string;
         username: string;
-        display_name?: string;
-        avatar?: string;
+        name: string;
+        profile_picture_url: string | null;
         bio?: string;
-        is_verified?: boolean;
-        is_following?: boolean;
+        is_verified: boolean;
+        follower_count: number;
+        is_following: boolean;
       }>;
       totalCount: number;
       isLoading: boolean;
@@ -167,6 +183,19 @@
   // Has user performed a search?
   let hasSearched = false;
   
+  // Store users fetched when the page loads
+  let usersToDisplay: Array<{
+    id: string;
+    username: string;
+    name: string;
+    profile_picture_url: string | null;
+    bio?: string;
+    is_verified: boolean;
+    follower_count: number;
+    is_following: boolean;
+  }> = [];
+  let isLoadingUsers = false;
+  
   // Thread categories
   const threadCategories = [
     { id: 'all', name: 'All Categories' },
@@ -187,14 +216,52 @@
   let communitiesCurrentPage = 1;
   let mediaPage = 1; // Media infinite scroll page
   
-  // Authentication check
+  // Authentication check - Updated to fix auth issue
   function checkAuth() {
-    if (!authState.isAuthenticated) {
+    if (!authState || !authState.is_authenticated) {
+      logger.error('User not authenticated, redirecting to login');
       toastStore.showToast('You need to log in to access explore', 'warning');
-      window.location.href = '/login';
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1000);
       return false;
     }
+    logger.info('Authentication check passed, user is authenticated');
     return true;
+  }
+  
+  // Fetch all users when "Everyone" filter is selected
+  async function fetchAllUsers() {
+    try {
+      isLoadingAllUsers = true;
+      
+      const { users, total } = await getAllUsers(1, 20, 'created_at', false);
+      
+      if (users && users.length > 0) {
+        // Map backend response to the format expected by the frontend components
+        allUsers = users.map(user => ({
+          id: user.id,
+          username: user.username,
+          name: user.name || user.display_name || user.username,
+          profile_picture_url: user.profile_picture_url || user.avatar || null,
+          bio: user.bio || '',
+          is_verified: user.is_verified || false,
+          follower_count: user.follower_count || 0,
+          is_following: user.is_following || false
+        }));
+        
+        logger.debug('Fetched users:', { count: allUsers.length });
+      } else {
+        allUsers = [];
+        logger.info('No users found');
+      }
+    } catch (error) {
+      logger.error('Error fetching all users:', error);
+      toastStore.showToast('Failed to load user recommendations', 'error');
+      allUsers = [];
+    } finally {
+      isLoadingAllUsers = false;
+    }
   }
   
   // Load recent searches from localStorage
@@ -261,12 +328,12 @@
       searchResults.top.profiles = users.map(user => ({
         id: user.id,
         username: user.username,
-        displayName: user.display_name || user.username,
-        avatar: user.avatar,
+        name: user.display_name || user.username,
+        profile_picture_url: user.avatar,
         bio: user.bio,
-        isVerified: user.is_verified || false,
-        followerCount: (user as any).follower_count || 0,
-        isFollowing: user.is_following || false
+        is_verified: user.is_verified || false,
+        follower_count: user.follower_count || 0,
+        is_following: user.is_following || false
       }));
     } catch (error) {
       console.error('Error searching profiles:', error);
@@ -322,14 +389,14 @@
         searchThreads(searchQuery, 1, 10, {
           filter: filterOption,
           category: categoryOption,
-          sortBy: 'popular'
+          sort_by: 'popular'
         }),
         
         // Latest threads
         searchThreads(searchQuery, 1, 20, {
           filter: filterOption,
           category: categoryOption,
-          sortBy: 'recent'
+          sort_by: 'recent'
         }),
         
         // Media tab data
@@ -344,7 +411,7 @@
       
       // Get top 3 profiles sorted by follower count for the Top tab
       const topProfiles = [...peopleData.users]
-        .sort((a, b) => ((b as any).follower_count || 0) - ((a as any).follower_count || 0))
+        .sort((a, b) => ((b.follower_count || 0) - (a.follower_count || 0)))
         .slice(0, 3);
       
       // Update search results
@@ -353,24 +420,24 @@
           profiles: topProfiles.map(user => ({
             id: user.id,
             username: user.username,
-            displayName: user.display_name || user.username,
-            avatar: user.avatar || null,
+            name: user.display_name || user.username,
+            profile_picture_url: user.avatar || null,
             bio: user.bio,
-            isVerified: user.is_verified || false,
-            followerCount: (user as any).follower_count || 0,
-            isFollowing: user.is_following || false
+            is_verified: user.is_verified || false,
+            follower_count: user.follower_count || 0,
+            is_following: user.is_following || false
           })),
           threads: topThreadsData.threads.map(thread => ({
             id: thread.id,
             content: thread.content,
             username: thread.author?.username || 'anonymous',
-            displayName: thread.author?.display_name || 'User',
-            timestamp: thread.created_at || new Date().toISOString(),
-            likes: thread.like_count || 0,
-            replies: thread.reply_count || 0,
-            reposts: thread.repost_count || 0,
+            name: thread.author?.display_name || 'User',
+            created_at: thread.created_at || new Date().toISOString(),
+            likes_count: thread.like_count || 0,
+            replies_count: thread.reply_count || 0,
+            reposts_count: thread.repost_count || 0,
             media: thread.media,
-            avatar: thread.author?.avatar
+            profile_picture_url: thread.author?.avatar
           })) || [],
           isLoading: false
         },
@@ -393,12 +460,12 @@
           users: peopleData.users.map(user => ({
             id: user.id,
             username: user.username,
-            displayName: user.display_name || user.username,
-            avatar: user.avatar || null,
+            name: user.display_name || user.username,
+            profile_picture_url: user.avatar || null,
             bio: user.bio,
-            isVerified: user.is_verified || false,
-            followerCount: (user as any).follower_count || 0,
-            isFollowing: user.is_following || false
+            is_verified: user.is_verified || false,
+            follower_count: user.follower_count || 0,
+            is_following: user.is_following || false
           })) || [],
           totalCount: peopleData.totalCount || 0,
           isLoading: false
@@ -453,7 +520,12 @@
   function handleFilterChange(event) {
     searchFilter = event.detail;
     logger.debug('Filter changed', { filter: searchFilter });
-    if (hasSearched) {
+    
+    if (searchFilter === 'all' && !hasSearched) {
+      // If changing to "Everyone" filter and not in search results view,
+      // fetch all users to display
+      fetchAllUsers();
+    } else if (hasSearched) {
       executeSearch();
     }
   }
@@ -596,11 +668,26 @@
     }
   }
   
-  onMount(() => {
+  onMount(async () => {
     logger.debug('Explore page mounted', { authState });
+    
+    // Check authentication state and initialize content if authenticated
     if (checkAuth()) {
-      loadRecentSearches();
-      fetchTrends();
+      try {
+        await Promise.all([
+          loadRecentSearches(),
+          fetchTrends(),
+          fetchAllUsers() // Load all users on initial page load
+        ]);
+        
+        // Set the default filter to "all" (Everyone)
+        searchFilter = 'all';
+        
+        logger.info('Explore page initialized successfully');
+      } catch (error) {
+        logger.error('Error initializing explore page:', error);
+        toastStore.showToast('Failed to load explore page content', 'error');
+      }
     }
   });
 </script>
@@ -672,16 +759,7 @@
             />
           {:else if activeTab === 'people'}
             <ExplorePeopleResults 
-              peopleResults={searchResults.people.users.map(user => ({
-                id: user.id,
-                username: user.username,
-                displayName: user.display_name || user.username,
-                avatar: user.avatar || null,
-                bio: user.bio,
-                isVerified: user.is_verified || false,
-                followerCount: (user as any).follower_count || 0,
-                isFollowing: user.is_following || false
-              }))}
+              peopleResults={searchResults.people.users}
               isLoading={searchResults.people.isLoading}
               peoplePerPage={peoplePerPage}
               on:pageChange={handlePeoplePageChange}
@@ -715,7 +793,7 @@
           {/if}
         {/if}
       {:else}
-        <!-- Show trending content when not searching -->
+        <!-- Show trending content and all users when not searching -->
         <div class="explore-trending-section">
           <div class="explore-section">
             <h2 class="explore-section-title">What's happening</h2>
@@ -749,6 +827,28 @@
               {/each}
             </div>
           </div>
+          
+          <!-- Added section to display all users -->
+          <div class="explore-section people-to-follow-section">
+            <h2 class="explore-section-title">People to follow</h2>
+            {#if isLoadingAllUsers}
+              <div class="explore-loading">
+                <LoadingSkeleton type="profile" count={5} />
+              </div>
+            {:else if allUsers.length === 0}
+              <div class="empty-state">
+                <p>No users found</p>
+              </div>
+            {:else}
+              <div class="users-grid">
+                {#each allUsers as person}
+                  <div class="user-card {isDarkMode ? 'user-card-dark' : ''}">
+                    <ProfileCard profile={person} />
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </div>
       {/if}
     </div>
@@ -773,11 +873,12 @@
     position: sticky;
     top: 0;
     z-index: var(--z-sticky);
-    padding: var(--space-2) var(--space-4);
+    padding: var(--space-4) var(--space-4) var(--space-2);
     background-color: var(--bg-primary);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
   }
   
   .explore-header-dark {
@@ -789,10 +890,23 @@
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
     margin-bottom: var(--space-3);
+    position: relative;
+    display: inline-block;
+  }
+  
+  .explore-title::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 30px;
+    height: 3px;
+    background-color: var(--color-primary);
+    border-radius: var(--radius-full);
   }
   
   .explore-content {
-    padding-bottom: var(--space-4);
+    padding: var(--space-4);
   }
   
   .explore-loading {
@@ -800,23 +914,58 @@
   }
   
   .explore-trending-section {
-    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
   }
   
   .explore-section {
-    margin-bottom: var(--space-6);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--space-4);
+  }
+  
+  .explore-section:last-child {
+    margin-bottom: 0;
+  }
+  
+  .explore-section-dark {
+    background-color: var(--bg-secondary-dark);
+    box-shadow: var(--shadow-sm-dark);
   }
   
   .explore-section-title {
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
-    margin-bottom: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+  }
+  
+  .explore-section-title::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: var(--space-4);
+    width: 40px;
+    height: 3px;
+    background: var(--color-primary);
+    border-radius: var(--radius-full);
+  }
+  
+  .empty-state {
+    padding: var(--space-8);
+    text-align: center;
+    color: var(--text-secondary);
   }
   
   .explore-topic-list {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+    padding: var(--space-4);
   }
   
   .explore-topic-chip {
@@ -824,10 +973,14 @@
     color: var(--text-primary);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-full);
-    border: none;
+    border: 1px solid transparent;
     font-size: var(--font-size-sm);
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: all var(--transition-normal);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    transform-origin: center;
   }
   
   .explore-topic-chip-dark {
@@ -836,106 +989,66 @@
   }
   
   .explore-topic-chip:hover {
-    background-color: var(--bg-hover);
+    background-color: var(--hover-bg);
+    transform: translateY(-2px) scale(1.03);
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
   }
   
-  .explore-topic-chip-dark:hover {
-    background-color: var(--bg-hover-dark);
+  .explore-topic-chip:active {
+    transform: translateY(0) scale(0.98);
   }
   
-  .explore-thread-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+  @media (max-width: 600px) {
+    .explore-trending-section {
+      padding: var(--space-2);
+    }
+    
+    .explore-section {
+      padding: var(--space-3);
+    }
   }
   
-  .explore-thread-card {
-    display: flex;
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
+  /* People to follow section styling */
+  .people-to-follow-section {
+    margin-top: var(--space-6);
+  }
+  
+  .users-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+  
+  @media (min-width: 640px) {
+    .users-grid {
+      grid-template-columns: repeat(1, 1fr);
+    }
+  }
+  
+  .user-card {
     background-color: var(--bg-secondary);
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: all 0.2s ease;
     border: 1px solid var(--border-color);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    padding: 0.5rem 0;
   }
   
-  .explore-thread-card-dark {
+  .user-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .user-card-dark {
     background-color: var(--bg-secondary-dark);
     border: 1px solid var(--border-color-dark);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   }
   
-  .explore-thread-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    overflow: hidden;
-    margin-right: var(--space-3);
-    flex-shrink: 0;
-  }
-  
-  .explore-avatar-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .explore-avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--bg-tertiary);
-    color: var(--text-secondary);
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-  }
-  
-  .explore-thread-content {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  .explore-thread-header {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: var(--space-1);
-  }
-  
-  .explore-thread-name {
-    font-weight: var(--font-weight-bold);
-    margin-right: var(--space-1);
-  }
-  
-  .explore-thread-username {
-    color: var(--text-secondary);
-    margin-right: var(--space-1);
-  }
-  
-  .explore-thread-date {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
-  
-  .explore-thread-text {
-    margin: var(--space-1) 0;
-    overflow-wrap: break-word;
-    word-break: break-word;
-  }
-  
-  .explore-thread-stats {
-    display: flex;
-    gap: var(--space-4);
-    margin-top: var(--space-2);
-  }
-  
-  .explore-thread-stat {
-    display: flex;
-    align-items: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
-  
-  .explore-stat-icon {
-    margin-right: var(--space-1);
+  .user-card-dark:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 </style>

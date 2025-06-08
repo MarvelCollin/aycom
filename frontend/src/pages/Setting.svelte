@@ -23,7 +23,8 @@
     allow_mentions: true,
     notification_emails: true,
     marketing_emails: false,
-    display_sensitive_content: false
+    display_sensitive_content: false,
+    is_private: false
   };
   
   // Load user data on mount
@@ -44,7 +45,8 @@
           allow_mentions: profile.allow_mentions !== false,
           notification_emails: profile.notification_emails !== false,
           marketing_emails: profile.marketing_emails === true,
-          display_sensitive_content: profile.display_sensitive_content === true
+          display_sensitive_content: profile.display_sensitive_content === true,
+          is_private: profile.is_private === true
         };
       }
     } catch (error) {
@@ -147,6 +149,17 @@
         <!-- Privacy Settings Section -->
         <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
           <h2 class="settings-section-title">Privacy Settings</h2>
+          
+          <div class="settings-toggle-group">
+            <div class="settings-toggle-label">
+              <span>Private Account</span>
+              <small>Only approved followers can see your content</small>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" bind:checked={userData.is_private}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           
           <div class="settings-toggle-group">
             <div class="settings-toggle-label">

@@ -34,6 +34,7 @@ func Migrate(db *gorm.DB) error {
 		{"00002_add_admin_fields", migrateAddAdminFields},
 		{"00003_add_admin_tables", migrateAddAdminTables},
 		{"00004_add_follower_counts", migrateAddFollowerCounts},
+		{"00005_add_account_privacy", migrateAddAccountPrivacy},
 	}
 
 	for _, migration := range migrations {
@@ -184,5 +185,15 @@ func migrateAddFollowerCounts(db *gorm.DB) error {
 		log.Printf("Warning: Failed to update following counts: %v", err)
 	}
 
+	return nil
+}
+
+func migrateAddAccountPrivacy(db *gorm.DB) error {
+	if !db.Migrator().HasColumn(&model.User{}, "is_private") {
+		if err := db.Exec("ALTER TABLE users ADD COLUMN is_private BOOLEAN DEFAULT FALSE").Error; err != nil {
+			return fmt.Errorf("failed to add is_private column: %w", err)
+		}
+		log.Println("Added is_private column to users table")
+	}
 	return nil
 }

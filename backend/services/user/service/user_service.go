@@ -242,6 +242,12 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 		updated = true
 	}
 
+	// Check if the is_private field is explicitly set in the request
+	if req.IsPrivate != user.IsPrivate {
+		user.IsPrivate = req.IsPrivate
+		updated = true
+	}
+
 	if req.User != nil {
 		if req.User.Bio != "" {
 			user.Bio = req.User.Bio
@@ -251,8 +257,20 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 			user.Gender = req.User.Gender
 			updated = true
 		}
+		if req.User.Location != "" {
+			user.Location = req.User.Location
+			updated = true
+		}
+		if req.User.Website != "" {
+			user.Website = req.User.Website
+			updated = true
+		}
+		if req.User.SecurityQuestion != "" && req.User.SecurityAnswer != "" {
+			user.SecurityQuestion = req.User.SecurityQuestion
+			user.SecurityAnswer = req.User.SecurityAnswer
+			updated = true
+		}
 		if req.User.DateOfBirth != "" {
-
 			if date, err := time.Parse("2006-01-02", req.User.DateOfBirth); err == nil {
 				user.DateOfBirth = &date
 				updated = true

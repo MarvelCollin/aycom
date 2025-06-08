@@ -22,7 +22,7 @@ type CommunityService interface {
 	GetCommunityByID(ctx context.Context, communityID uuid.UUID) (*model.Community, error)
 	ListCommunities(ctx context.Context, offset, limit int) ([]*model.Community, error)
 	ListCommunitiesByCategories(ctx context.Context, categories []string, offset, limit int) ([]*model.Community, error)
-	SearchCommunities(ctx context.Context, query string, categories []string, offset, limit int) ([]*model.Community, int64, error)
+	SearchCommunities(ctx context.Context, query string, categories []string, isApproved *bool, offset, limit int) ([]*model.Community, int64, error)
 	ListUserCommunities(ctx context.Context, userID uuid.UUID, status string, offset, limit int) ([]*model.Community, int64, error)
 	CountCommunities(ctx context.Context) (int64, error)
 
@@ -872,7 +872,11 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 		offset = 0
 	}
 
-	communities, totalCount, err := h.communityService.SearchCommunities(ctx, req.Query, req.Categories, offset, limit)
+	// For now, we're passing nil for isApproved to get all communities
+	// After the proto is regenerated, this can be updated to use the isApproved field
+	var isApproved *bool = nil
+
+	communities, totalCount, err := h.communityService.SearchCommunities(ctx, req.Query, req.Categories, isApproved, offset, limit)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to search communities: %v", err))
 	}

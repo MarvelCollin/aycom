@@ -30,49 +30,76 @@
 
 <div class="filter-container">
   <!-- People filter buttons -->
-  <div class="filter-button-group {isDarkMode ? 'filter-button-group-dark' : ''}">
-    <button 
-      class="filter-button {searchFilter === 'all' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
-      on:click={() => handleFilterChange('all')}
-    >
-      Everyone
-    </button>
-    <button 
-      class="filter-button {searchFilter === 'following' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
-      on:click={() => handleFilterChange('following')}
-    >
-      People you follow
-    </button>
-    <button 
-      class="filter-button {searchFilter === 'verified' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
-      on:click={() => handleFilterChange('verified')}
-    >
-      Verified only
-    </button>
+  <div class="filter-section">
+    <label class="filter-label">Show:</label>
+    <div class="filter-button-group {isDarkMode ? 'filter-button-group-dark' : ''}">
+      <button 
+        class="filter-button {searchFilter === 'all' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
+        on:click={() => handleFilterChange('all')}
+      >
+        <span class="filter-icon">👥</span>
+        Everyone
+      </button>
+      <button 
+        class="filter-button {searchFilter === 'following' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
+        on:click={() => handleFilterChange('following')}
+      >
+        <span class="filter-icon">👤</span>
+        Following
+      </button>
+      <button 
+        class="filter-button {searchFilter === 'verified' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
+        on:click={() => handleFilterChange('verified')}
+      >
+        <span class="filter-icon">✓</span>
+        Verified
+      </button>
+    </div>
   </div>
   
   <!-- Category dropdown -->
-  <div class="category-container">
-    <select 
-      class="category-select {isDarkMode ? 'category-select-dark' : ''}"
-      value={selectedCategory}
-      on:change={handleCategoryChange}
-    >
-      {#each threadCategories as category}
-        <option value={category.id}>{category.name}</option>
-      {/each}
-    </select>
+  <div class="filter-section">
+    <label class="filter-label">Category:</label>
+    <div class="category-container">
+      <select 
+        class="category-select {isDarkMode ? 'category-select-dark' : ''}"
+        value={selectedCategory}
+        on:change={handleCategoryChange}
+      >
+        {#each threadCategories as category}
+          <option value={category.id}>{category.name}</option>
+        {/each}
+      </select>
+      <span class="dropdown-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
+    </div>
   </div>
 </div>
 
 <style>
   .filter-container {
-    padding-top: var(--space-3);
+    padding: var(--space-3) 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-4);
     margin-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .filter-section {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  
+  .filter-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
   }
   
   .filter-button-group {
@@ -80,7 +107,7 @@
     background-color: var(--bg-tertiary);
     border-radius: var(--radius-full);
     padding: var(--space-1);
-    margin-right: var(--space-2);
+    box-shadow: var(--shadow-sm);
   }
   
   .filter-button-group-dark {
@@ -96,6 +123,16 @@
     color: var(--text-secondary);
     cursor: pointer;
     transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  
+  .filter-icon {
+    font-size: var(--font-size-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   
   .filter-button-dark {
@@ -104,6 +141,7 @@
   
   .filter-button:hover {
     color: var(--text-primary);
+    transform: translateY(-1px);
   }
   
   .filter-button-dark:hover {
@@ -112,34 +150,44 @@
   
   .filter-button.active {
     background-color: var(--bg-primary);
-    color: var(--text-primary);
+    color: var(--color-primary);
     box-shadow: var(--shadow-sm);
+    font-weight: var(--font-weight-medium);
   }
   
   .filter-button-dark.active {
     background-color: var(--bg-primary-dark);
-    color: var(--text-primary-dark);
+    color: var(--color-primary);
     box-shadow: var(--shadow-sm-dark);
   }
   
   .category-container {
+    position: relative;
     flex: 1;
+  }
+  
+  .dropdown-icon {
+    position: absolute;
+    right: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
   }
   
   .category-select {
     width: 100%;
     background-color: var(--bg-tertiary);
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--radius-full);
     font-size: var(--font-size-sm);
     padding: var(--space-2) var(--space-3);
+    padding-right: var(--space-8);
     color: var(--text-primary);
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right var(--space-2) center;
-    background-size: 16px;
     cursor: pointer;
+    transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
   }
   
   .category-select-dark {
@@ -150,11 +198,34 @@
   .category-select:focus {
     outline: none;
     border-color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  
+  .category-select:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+  }
+  
+  @media (max-width: 600px) {
+    .filter-container {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-3);
+    }
+    
+    .filter-section {
+      width: 100%;
+    }
+    
+    .category-select {
+      width: 100%;
+    }
   }
   
   @media (min-width: 768px) {
     .category-select {
-      width: auto;
+      min-width: 150px;
     }
   }
 </style> 

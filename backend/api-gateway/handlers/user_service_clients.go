@@ -69,6 +69,7 @@ type UserProfileUpdate struct {
 	Gender            string
 	ProfilePictureURL string
 	BannerURL         string
+	IsPrivate         bool
 }
 
 type UserAuthResponse struct {
@@ -187,6 +188,7 @@ func (c *GRPCUserServiceClient) UpdateUserProfile(userID string, profile *UserPr
 		Email:             profile.Email,
 		ProfilePictureUrl: profile.ProfilePictureURL,
 		BannerUrl:         profile.BannerURL,
+		IsPrivate:         profile.IsPrivate,
 	}
 
 	req.User = &userProto.User{
@@ -204,7 +206,6 @@ func (c *GRPCUserServiceClient) UpdateUserProfile(userID string, profile *UserPr
 }
 
 func (c *GRPCUserServiceClient) CheckUsernameAvailability(username string) (bool, error) {
-
 	if c.client == nil {
 		return false, fmt.Errorf("user service client not initialized")
 	}
@@ -217,7 +218,6 @@ func (c *GRPCUserServiceClient) CheckUsernameAvailability(username string) (bool
 	})
 
 	if err != nil {
-
 		return true, nil
 	}
 
@@ -537,7 +537,7 @@ func convertProtoToUser(u *userProto.User) *User {
 		Bio:               u.Bio,
 		IsVerified:        u.IsVerified,
 		IsAdmin:           u.IsAdmin,
-		IsPrivate:         false,
+		IsPrivate:         u.IsPrivate,
 		FollowerCount:     int(u.FollowerCount),
 		FollowingCount:    int(u.FollowingCount),
 		IsFollowing:       u.IsFollowing,

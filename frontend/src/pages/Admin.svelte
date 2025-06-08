@@ -96,6 +96,9 @@
     status: string;
     created_at: string;
     requester: User;
+    logo_url?: string;
+    banner_url?: string;
+    category_id?: string;
   }
 
   interface PremiumRequest {
@@ -338,6 +341,9 @@
             totalCount = communityResponse.pagination.total_count;
           }
           logger.info(`Loaded ${communityRequests.length} community requests`);
+          
+          // Log the requests to help debugging
+          console.log('Community requests:', communityRequests);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -866,6 +872,7 @@
                       <tr>
                         <th>Community Name</th>
                         <th>Description</th>
+                        <th>Images</th>
                         <th>Requester</th>
                         <th>Date</th>
                         <th>Status</th>
@@ -876,36 +883,35 @@
                       {#each communityRequests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter) as request}
                         <tr>
                           <td>{request.name}</td>
-                          <td class="description-cell">{request.description}</td>
-                          <td>{request.requester?.name || 'Unknown User'}</td>
-                          <td>{formatDate(request.created_at)}</td>
+                          <td>{request.description}</td>
                           <td>
-                            <span class="status-badge {request.status}">
-                              {request.status}
-                            </span>
-                          </td>
-                          <td>
-                            <div class="action-buttons">
-                              {#if request.status === 'pending'}
-                                <Button 
-                                  variant="primary" 
-                                  size="small"
-                                  disabled={isProcessingRequest}
-                                  on:click={() => handleProcessCommunityRequest(request.id, true)}
-                                >
-                                  Approve
-                                </Button>
-                                <Button 
-                                  variant="danger" 
-                                  size="small"
-                                  disabled={isProcessingRequest}
-                                  on:click={() => handleProcessCommunityRequest(request.id, false)}
-                                >
-                                  Reject
-                                </Button>
+                            <div class="community-images">
+                              {#if request.logo_url}
+                                <img src={request.logo_url} alt="Logo" class="community-image logo" />
+                              {:else}
+                                <div class="community-image logo placeholder">No Logo</div>
+                              {/if}
+                              
+                              {#if request.banner_url}
+                                <img src={request.banner_url} alt="Banner" class="community-image banner" />
+                              {:else}
+                                <div class="community-image banner placeholder">No Banner</div>
                               {/if}
                             </div>
                           </td>
+                          <td>{request.requester?.name || 'Unknown'}</td>
+                          <td>{formatDate(request.created_at)}</td>
+                          <td><span class="status {request.status}">{request.status}</span></td>
+                          <td>
+                            <div class="actions">
+                              <button class="btn approve" on:click={() => handleProcessCommunityRequest(request.id, true)}>Approve</button>
+                              <button class="btn reject" on:click={() => handleProcessCommunityRequest(request.id, false)}>Reject</button>
+                            </div>
+                          </td>
+                        </tr>
+                      {:else}
+                        <tr>
+                          <td colspan="7">No pending community requests</td>
                         </tr>
                       {/each}
                     </tbody>
@@ -1900,5 +1906,39 @@
     .communities-table {
       overflow-x: auto;
     }
+  }
+  
+  /* Community Images */
+  .community-images {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  
+  .community-image {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+  }
+  
+  .community-image.logo {
+    border-radius: 50%;
+  }
+  
+  .community-image.banner {
+    width: 80px;
+  }
+  
+  .community-image.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f0f0;
+    color: #888;
+    font-size: 0.7rem;
+    text-align: center;
+    padding: 4px;
   }
 </style>

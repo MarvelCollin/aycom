@@ -2239,3 +2239,96 @@ func CheckMembershipStatus(c *gin.Context) {
 		"status": status,
 	})
 }
+
+func SearchCommunities(c *gin.Context) {
+	query := c.Query("q")
+	page := 1
+	limit := 10
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
+	}
+
+	// Parse categories
+	var categories []string
+	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
+		categories = categoriesParam
+	}
+
+	// Parse is_approved parameter
+	var isApproved *bool
+	if isApprovedStr := c.Query("is_approved"); isApprovedStr != "" {
+		approved := isApprovedStr == "true"
+		isApproved = &approved
+	}
+
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Include is_approved in the request
+	searchReq := &communityProto.SearchCommunitiesRequest{
+		Query:      query,
+		Categories: categories,
+		Offset:     int32((page - 1) * limit),
+		Limit:      int32(limit),
+	}
+
+	if isApproved != nil {
+		searchReq.IsApproved = *isApproved
+	}
+
+	response, err := CommunityClient.SearchCommunities(ctx, searchReq)
+	if err != nil {
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to search communities: "+err.Error())
+		return
+	}
+
+	communities := make([]map[string]interface{}, 0)
+	for _, community := range response.Communities {
+		communityData := map[string]interface{}{
+			"id":           community.Id,
+			"name":         community.Name,
+			"description":  community.Description,
+			"logo_url":     community.LogoUrl,
+			"banner_url":   community.BannerUrl,
+			"creator_id":   community.CreatorId,
+			"is_approved":  community.IsApproved,
+			"created_at":   community.CreatedAt.AsTime(),
+			"member_count": 0,
+		}
+
+		if community.Categories != nil {
+			categories := make([]string, 0)
+			for _, category := range community.Categories {
+				categories = append(categories, category.Name)
+			}
+			communityData["categories"] = categories
+		}
+
+		communities = append(communities, communityData)
+	}
+
+	c.JSON(200, gin.H{
+		"success":     true,
+		"communities": communities,
+		"pagination": gin.H{
+			"total_count":  response.TotalCount,
+			"current_page": page,
+			"per_page":     limit,
+			"total_pages":  int(math.Ceil(float64(response.TotalCount) / float64(limit))),
+		},
+	})
+}
