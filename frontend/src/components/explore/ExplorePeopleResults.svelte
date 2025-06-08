@@ -61,6 +61,13 @@
     dispatch('follow', userId);
   }
   
+  // Handle profile click
+  function handleProfileClick(event) {
+    const userId = event.detail;
+    logger.debug('Profile click', { userId });
+    dispatch('profileClick', userId);
+  }
+  
   // Log when people results change
   $: {
     if (!isLoading) {
@@ -77,7 +84,16 @@
   {#if isLoading}
     <div class="animate-pulse space-y-4">
       {#each Array(3) as _}
-        <div class="bg-gray-200 dark:bg-gray-800 h-24 rounded-lg"></div>
+        <div class="flex space-x-4">
+          <div class="rounded-full bg-gray-200 dark:bg-gray-800 h-10 w-10"></div>
+          <div class="flex-1 space-y-2 py-1">
+            <div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4"></div>
+            <div class="space-y-2">
+              <div class="h-4 bg-gray-200 dark:bg-gray-800 rounded"></div>
+              <div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-5/6"></div>
+            </div>
+          </div>
+        </div>
       {/each}
     </div>
   {:else if peopleResults.length === 0}
@@ -88,7 +104,11 @@
     <div class="space-y-4">
       {#each peopleResults as person}
         <div class="profile-result-card">
-          <ProfileCard profile={person} on:follow={handleFollow} />
+          <ProfileCard 
+            profile={person} 
+            on:follow={handleFollow}
+            on:profileClick={handleProfileClick}
+          />
         </div>
       {/each}
       

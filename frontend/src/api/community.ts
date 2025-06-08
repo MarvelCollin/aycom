@@ -7,16 +7,32 @@ import { uploadFile, SUPABASE_BUCKETS } from '../utils/supabase';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
 
-export async function getCommunities(params = {}) {
+// Define the params interface for better type checking
+interface CommunitiesParams {
+  page?: number;
+  limit?: number;
+  filter?: string;
+  q?: string;
+  category?: string[];
+  is_approved?: boolean;
+  [key: string]: any;
+}
+
+export async function getCommunities(params: CommunitiesParams = {}) {
   try {
     const token = getAuthToken();
     console.log(`Getting communities with token: ${token ? 'present' : 'missing'}`);
 
+    // Only use pagination and search parameters for the backend query
+    // We'll filter by is_approved on the frontend
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (key === 'is_approved' && value !== null && value !== undefined) {
-        queryParams.append(key, value.toString());
-      } else if (Array.isArray(value)) {
+      // Skip is_approved parameter as we'll filter in the frontend
+      if (key === 'is_approved') {
+        return;
+      } 
+      
+      if (Array.isArray(value)) {
         value.forEach(v => queryParams.append(key, v));
       } else if (value !== null && value !== undefined) {
         queryParams.append(key, value.toString());
@@ -67,31 +83,117 @@ export async function getCommunities(params = {}) {
 
     try {
       const data = JSON.parse(text);
-
-      const normalizedCommunities = (data.communities || []).map(community => ({
-        id: community.id,
-        name: community.name,
-        description: community.description || '',
-        logo_url: community.logo_url || community.logoUrl || community.avatar || '',
-        banner_url: community.banner_url || community.bannerUrl || '',
-        creator_id: community.creator_id || community.creatorId || '',
-        is_approved: community.is_approved || community.isApproved || false,
-        member_count: community.member_count || community.memberCount || 0,
-        created_at: community.created_at || community.createdAt || ''
-      }));
-
-      const pagination = {
-        total_count: data.pagination?.total_count || data.pagination?.total || data.pagination?.totalCount || 0,
-        current_page: data.pagination?.current_page || data.pagination?.page || data.pagination?.currentPage || 1,
-        per_page: data.pagination?.per_page || data.pagination?.limit || data.pagination?.perPage || 25,
-        total_pages: data.pagination?.total_pages || data.pagination?.totalPages || 0
+      console.log('Raw API response data:', data);
+      
+      // Handle different response formats
+      let success = true;
+      let communities = [];
+      let pagination: any = {}; // Use any type for now to avoid TypeScript errors
+      let limitOptions = [25, 30, 35];
+      
+      if (data.data && data.data.communities) {
+        // Format: { data: { communities: [...], pagination: {...} } }
+        communities = data.data.communities;
+        pagination = data.data.pagination || {};
+        success = data.success !== false;
+        limitOptions = data.data.limit_options || limitOptions;
+      } else if (data.communities) {
+        // Format: { communities: [...], pagination: {...} }
+        communities = data.communities;
+        pagination = data.pagination || {};
+        success = data.success !== false;
+        limitOptions = data.limit_options || limitOptions;
+      } else {
+        console.error('Unexpected API response format:', data);
+        success = false;
+      }
+      
+      console.log('Extracted data:', { success, communities, pagination, limitOptions });
+      
+      // Ensure communities is always an array
+      const communitiesArray = Array.isArray(communities) ? communities : [];
+      console.log('Communities array to normalize:', communitiesArray);
+      
+      // Define a type for the community objects
+      interface ApiCommunity {
+        id?: string;
+        name?: string;
+        description?: string;
+        logo_url?: string;
+        logoUrl?: string;
+        avatar?: string;
+        banner_url?: string;
+        bannerUrl?: string;
+        creator_id?: string;
+        creatorId?: string;
+        is_approved?: boolean;
+        isApproved?: boolean;
+        member_count?: number;
+        memberCount?: number;
+        created_at?: string;
+        createdAt?: string;
+        is_private?: boolean;
+        isPrivate?: boolean;
+        [key: string]: any;
+      }
+      
+      const normalizedCommunities = communitiesArray.map((community: ApiCommunity) => {
+        console.log('Normalizing community:', community);
+        return {
+          id: community.id || '',
+          name: community.name || '',
+          description: community.description || '',
+          logo_url: community.logo_url || community.logoUrl || community.avatar || '',
+          banner_url: community.banner_url || community.bannerUrl || '',
+          creator_id: community.creator_id || community.creatorId || '',
+          is_approved: community.is_approved != null ? community.is_approved : (community.isApproved || false),
+          member_count: community.member_count || community.memberCount || 0,
+          created_at: community.created_at || community.createdAt || '',
+          isPrivate: community.is_private || community.isPrivate || false
+        };
+      });
+      
+      // Apply frontend filtering for is_approved if the parameter was provided
+      let filteredCommunities = normalizedCommunities;
+      console.log('is_approved parameter:', params.is_approved);
+      
+      if (params.is_approved !== undefined) {
+        filteredCommunities = normalizedCommunities.filter(
+          community => community.is_approved === params.is_approved
+        );
+        console.log('Filtered communities after is_approved check:', filteredCommunities);
+      }
+      
+      // Define a type for the pagination object
+      interface ApiPagination {
+        current_page?: number;
+        page?: number;
+        currentPage?: number;
+        per_page?: number;
+        limit?: number;
+        perPage?: number;
+        total_count?: number;
+        totalCount?: number;
+        total_pages?: number;
+        totalPages?: number;
+        [key: string]: any;
+      }
+      
+      // Cast pagination to the correct type
+      const paginationData = pagination as ApiPagination;
+      
+      const paginationResult = {
+        total_count: filteredCommunities.length,
+        current_page: paginationData.current_page || paginationData.page || paginationData.currentPage || 1,
+        per_page: paginationData.per_page || paginationData.limit || paginationData.perPage || 25,
+        total_pages: Math.ceil(filteredCommunities.length / (paginationData.per_page || 25))
       };
-
+      
       return {
-        success: data.success,
-        communities: normalizedCommunities,
-        pagination: pagination,
-        limit_options: data.limitOptions || data.limit_options || [25, 30, 35]
+        success: success,
+        communities: filteredCommunities,
+        pagination: paginationResult,
+        limit_options: limitOptions
       };
     } catch (parseError) {
       logger.error('Failed to parse JSON response:', parseError);

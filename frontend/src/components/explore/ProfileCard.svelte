@@ -29,8 +29,16 @@
   export let compact = false;
   
   // Handle follow user
-  function handleFollow() {
+  function handleFollow(event) {
+    event.stopPropagation(); // Prevent navigation when follow button is clicked
     dispatch('follow', profile.id);
+  }
+
+  // Handle card click to navigate to user profile
+  function handleCardClick() {
+    // Navigate to user profile
+    window.location.href = `/user/${profile.id}`;
+    dispatch('profileClick', profile.id);
   }
 
   // Get the correct name property based on what's available
@@ -45,8 +53,14 @@
   $: isFollowing = profile.is_following || profile.isFollowing || false;
 </script>
 
-<div class="profile-card {isDarkMode ? 'profile-card-dark' : ''} {compact ? 'py-3' : 'py-4'}">
-  <a href={`/profile/${profile.username}`} class="flex items-center flex-1 min-w-0">
+<div 
+  class="profile-card {isDarkMode ? 'profile-card-dark' : ''} {compact ? 'py-3' : 'py-4'}"
+  on:click={handleCardClick}
+  on:keydown={(e) => e.key === 'Enter' && handleCardClick()}
+  tabindex="0"
+  role="button"
+>
+  <div class="flex items-center flex-1 min-w-0">
     <div class="avatar-container {compact ? 'w-10 h-10' : 'w-14 h-14'} rounded-full overflow-hidden mr-4">
       {#if avatarUrl && typeof avatarUrl === 'string' && avatarUrl.startsWith('http')}
         <div class="image-wrapper">
@@ -79,7 +93,7 @@
         </p>
       {/if}
     </div>
-  </a>
+  </div>
   <button 
     class="follow-button ml-3 px-4 py-1.5 rounded-full font-medium text-sm transition-all duration-200 
     {isFollowing 
@@ -98,6 +112,16 @@
     justify-content: space-between;
     padding-left: 1rem;
     padding-right: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .profile-card:hover {
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+  }
+  
+  .profile-card-dark:hover {
+    background-color: var(--hover-bg-dark, rgba(255, 255, 255, 0.05));
   }
   
   .avatar-container {

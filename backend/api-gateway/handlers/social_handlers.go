@@ -49,7 +49,7 @@ func FollowUser(c *gin.Context) {
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
 		log.Printf("Error checking follow status: %v", err)
-
+		// Continue anyway - we'll handle this during the FollowUser call
 	}
 
 	if isFollowing {
@@ -69,14 +69,16 @@ func FollowUser(c *gin.Context) {
 		FollowerId: currentUserID,
 		FollowedId: resolvedUserID,
 	}
+
+	log.Printf("FollowUser: Sending request to follow - follower: %s, followed: %s", currentUserID, resolvedUserID)
 	followResp, err := UserClient.FollowUser(ctx, followRequest)
 	if err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to follow user: "+err.Error())
 		log.Printf("Error following user: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to follow user: "+err.Error())
 		return
 	}
 
-	log.Printf("User %s successfully followed user %s", currentUserID, resolvedUserID)
+	log.Printf("User %s successfully followed user %s. Response: %+v", currentUserID, resolvedUserID, followResp)
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"success":               true,
@@ -120,7 +122,7 @@ func UnfollowUser(c *gin.Context) {
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
 		log.Printf("Error checking follow status: %v", err)
-
+		// Continue anyway - we'll handle this during the UnfollowUser call
 	}
 
 	if !isFollowing {
@@ -140,22 +142,24 @@ func UnfollowUser(c *gin.Context) {
 		FollowerId: currentUserID,
 		FollowedId: resolvedUserID,
 	}
-	_, err = UserClient.UnfollowUser(ctx, unfollowRequest)
+
+	log.Printf("UnfollowUser: Sending request to unfollow - follower: %s, followed: %s", currentUserID, resolvedUserID)
+	unfollowResp, err := UserClient.UnfollowUser(ctx, unfollowRequest)
 	if err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unfollow user: "+err.Error())
 		log.Printf("Error unfollowing user: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unfollow user: "+err.Error())
 		return
 	}
 
-	log.Printf("User %s successfully unfollowed user %s", currentUserID, resolvedUserID)
+	log.Printf("User %s successfully unfollowed user %s. Response: %+v", currentUserID, resolvedUserID, unfollowResp)
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"success":          true,
-		"message":          "Successfully unfollowed user",
+		"message":          unfollowResp.Message,
 		"action":           "unfollowed",
 		"is_following":     false,
-		"was_following":    true,
-		"is_now_following": false,
+		"was_following":    unfollowResp.WasFollowing,
+		"is_now_following": unfollowResp.IsNowFollowing,
 	})
 }
 

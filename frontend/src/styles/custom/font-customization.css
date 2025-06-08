@@ -104,4 +104,73 @@ html[data-theme="dark"].text-purple {
   --text-primary: #dc8add;
   --text-secondary: #c061cb;
   --text-tertiary: #9141ac;
+}
+
+/* Direct selectors for the settings page - will override any conflicting styles */
+/* Blue text color */
+.text-blue .page-title,
+.text-blue .settings-section-title,
+.text-blue .settings-form-group label,
+.text-blue .settings-toggle-label span {
+  color: var(--text-primary) !important;
+}
+
+/* Green text color */
+.text-green .page-title,
+.text-green .settings-section-title,
+.text-green .settings-form-group label,
+.text-green .settings-toggle-label span {
+  color: var(--text-primary) !important;
+}
+
+/* Purple text color */
+.text-purple .page-title,
+.text-purple .settings-section-title,
+.text-purple .settings-form-group label,
+.text-purple .settings-toggle-label span {
+  color: var(--text-primary) !important;
+}
+
+/* Light theme specific direct overrides */
+html:not([data-theme="dark"]).text-blue .page-title,
+html:not([data-theme="dark"]).text-blue .settings-section-title,
+html:not([data-theme="dark"]).text-blue .settings-form-group label,
+html:not([data-theme="dark"]).text-blue .settings-toggle-label span {
+  color: #1a5fb4 !important;
+}
+
+html:not([data-theme="dark"]).text-green .page-title,
+html:not([data-theme="dark"]).text-green .settings-section-title,
+html:not([data-theme="dark"]).text-green .settings-form-group label,
+html:not([data-theme="dark"]).text-green .settings-toggle-label span {
+  color: #2a7a30 !important;
+}
+
+html:not([data-theme="dark"]).text-purple .page-title,
+html:not([data-theme="dark"]).text-purple .settings-section-title,
+html:not([data-theme="dark"]).text-purple .settings-form-group label,
+html:not([data-theme="dark"]).text-purple .settings-toggle-label span {
+  color: #613583 !important;
+}
+
+/* Dark theme specific direct overrides */
+html[data-theme="dark"].text-blue .page-title,
+html[data-theme="dark"].text-blue .settings-section-title,
+html[data-theme="dark"].text-blue .settings-form-group label,
+html[data-theme="dark"].text-blue .settings-toggle-label span {
+  color: #62a0ea !important;
+}
+
+html[data-theme="dark"].text-green .page-title,
+html[data-theme="dark"].text-green .settings-section-title,
+html[data-theme="dark"].text-green .settings-form-group label,
+html[data-theme="dark"].text-green .settings-toggle-label span {
+  color: #57e389 !important;
+}
+
+html[data-theme="dark"].text-purple .page-title,
+html[data-theme="dark"].text-purple .settings-section-title,
+html[data-theme="dark"].text-purple .settings-form-group label,
+html[data-theme="dark"].text-purple .settings-toggle-label span {
+  color: #dc8add !important;
 } 

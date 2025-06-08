@@ -6,7 +6,7 @@
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { toastStore } from '../stores/toastStore';
-  import { getUserById } from '../api/user';
+  import { getUserById, getUserByUsername } from '../api/user';
   import { getUserId, isAuthenticated } from '../utils/auth';
   import { createLoggerWithPrefix } from '../utils/logger';
 
@@ -92,7 +92,18 @@
     error = null;
     
     try {
-      const userData = await getUserById(id);
+      // Check if id is a UUID or a username
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      
+      let userData;
+      if (isUUID) {
+        // If it's a UUID, use getUserById
+        userData = await getUserById(id);
+      } else {
+        // If it's not a UUID, assume it's a username
+        userData = await getUserByUsername(id);
+      }
+      
       logger.debug('User data loaded:', userData);
       
       if (userData && userData.user) {

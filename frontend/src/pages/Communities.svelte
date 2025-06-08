@@ -61,7 +61,8 @@
   let totalPages = 0;
   
   // Filter settings
-  let activeTab = 'joined'; // 'joined', 'pending', 'discover'
+  let activeTab = 'discover'; // Default to 'discover' tab instead of 'joined'
+  console.log('Initial activeTab:', activeTab);
   let searchQuery = '';
   let selectedCategories: string[] = [];
   let availableCategories: string[] = [];
@@ -72,9 +73,18 @@
   let pendingCommunities: any[] = [];
   let availableCommunities: any[] = [];
   
+  console.log('Initial variable values:', { 
+    activeTab, 
+    isLoading, 
+    joinedCommunities, 
+    pendingCommunities, 
+    availableCommunities 
+  });
+  
   // Fetch communities based on active tab and filters
   async function fetchCommunities() {
     try {
+      console.log('fetchCommunities called with tab:', activeTab);
       isLoading = true;
       
       const filter = activeTab === 'joined' ? 'joined' : 
@@ -85,6 +95,15 @@
       const isApproved = activeTab === 'discover' ? true : 
                        activeTab === 'pending' ? false : undefined;
       
+      console.log('Fetching communities with params:', {
+        page: currentPage,
+        limit,
+        filter,
+        q: searchQuery,
+        category: selectedCategories,
+        is_approved: isApproved
+      });
+      
       const response = await getCommunities({
         page: currentPage,
         limit: limit,
@@ -94,30 +113,43 @@
         is_approved: isApproved
       });
       
+      console.log('Response from getCommunities:', response);
+      console.log('Current active tab:', activeTab);
+      
       if (response.success) {
         if (activeTab === 'joined') {
           joinedCommunities = response.communities;
+          console.log('Joined communities updated:', joinedCommunities);
         } else if (activeTab === 'pending') {
           pendingCommunities = response.communities;
-        } else {
-          availableCommunities = response.communities;
+          console.log('Pending communities updated:', pendingCommunities);
+        } else if (activeTab === 'discover') {
+          console.log('Setting available communities:', response.communities);
+          availableCommunities = [...response.communities]; // Create a new array
+          console.log('Available communities updated for discover tab:', availableCommunities, 'length:', availableCommunities.length);
         }
         
         totalItems = response.pagination.total_count;
         totalPages = response.pagination.total_pages;
         
+        console.log('Pagination updated:', { totalItems, totalPages });
+        
         // Update limit options if the API returns them
         if (response.limit_options && response.limit_options.length > 0) {
           limitOptions = response.limit_options;
+          console.log('Limit options updated:', limitOptions);
         }
       } else {
+        console.error('API response success flag is false:', response);
         toastStore.showToast('Failed to fetch communities', 'error');
       }
     } catch (error) {
+      console.error('Error in fetchCommunities:', error);
       logger.error('Error fetching communities:', error);
       toastStore.showToast('Failed to fetch communities', 'error');
     } finally {
       isLoading = false;
+      console.log('isLoading set to false, component should render communities now');
     }
   }
   
@@ -154,6 +186,7 @@
   
   // Handle tab change
   function setActiveTab(tabName) {
+    console.log(`Tab changing from ${activeTab} to ${tabName}`);
     activeTab = tabName;
     currentPage = 1; // Reset to first page when changing tabs
     fetchCommunities();
@@ -220,10 +253,12 @@
   // Initial data loading
   onMount(() => {
     try {
+      console.log('Component mounted, initializing...');
       const authData = localStorage.getItem('auth');
       if (authData) {
         const auth = JSON.parse(authData);
         if (auth.access_token && (!auth.expires_at || Date.now() < auth.expires_at)) {
+          console.log('User is authenticated, fetching data...');
           fetchCategories();
           fetchCommunities();
           return;
@@ -303,14 +338,14 @@
             {#each joinedCommunities as community (community.id)}
               <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
-                  {#if community.logo}
-                    <img src={community.logo} alt={community.name || 'Community'} />
+                  {#if community.logo_url}
+                    <img src={community.logo_url} alt={community.name || 'Community'} />
                   {:else}
                     <div class="logo-placeholder">
                       {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
                     </div>
-                      {/if}
-                    </div>
+                  {/if}
+                </div>
                 <div class="community-info">
                   <h3>{community.name || 'Unnamed Community'}</h3>
                   <p>{community.description || 'No description available'}</p>
@@ -335,14 +370,14 @@
             {#each pendingCommunities as community (community.id)}
               <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
-                  {#if community.logo}
-                    <img src={community.logo} alt={community.name || 'Community'} />
+                  {#if community.logo_url}
+                    <img src={community.logo_url} alt={community.name || 'Community'} />
                   {:else}
                     <div class="logo-placeholder">
                       {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
                     </div>
-                      {/if}
-                    </div>
+                  {/if}
+                </div>
                 <div class="community-info">
                   <h3>{community.name || 'Unnamed Community'}</h3>
                   <p>{community.description || 'No description available'}</p>
@@ -366,50 +401,51 @@
                   </div>
       {:else if activeTab === 'discover'}
         <div class="communities-list">
-          {#if availableCommunities.length > 0}
-            {#each availableCommunities as community (community.id)}
+          <!-- Debug output -->
+          <pre style="background: #eee; padding: 10px; margin-bottom: 10px; font-size: 12px;">
+            Debug: availableCommunities.length = {availableCommunities.length}
+            activeTab = {activeTab}
+            isLoading = {isLoading}
+          </pre>
+          
+          {#if availableCommunities && availableCommunities.length > 0}
+            {#each availableCommunities as community, i (community.id)}
               <div class="community-card">
-                <div 
-                  class="community-card-content" 
-                  on:click={() => handleCommunityClick(community.id)}
-                >
+                <div class="community-card-content" on:click={() => handleCommunityClick(community.id)}>
                   <div class="community-logo">
-                    {#if community.logo}
-                      <img src={community.logo} alt={community.name || 'Community'} />
+                    {#if community.logo_url}
+                      <img src={community.logo_url} alt={community.name || 'Community'} />
                     {:else}
                       <div class="logo-placeholder">
                         {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
-                </div>
+                      </div>
                     {/if}
                   </div>
                   <div class="community-info">
                     <h3>{community.name || 'Unnamed Community'}</h3>
                     <p>{community.description || 'No description available'}</p>
-                  <div class="community-meta">
+                    <div class="community-meta">
                       <div class="community-categories">
                         {#each community.categories || [] as category}
                           <span class="category-tag">{category}</span>
                         {/each}
                       </div>
-                    <div class="community-stats">
+                      <div class="community-stats">
                         <UsersIcon size="14" />
-                        <span>{community.memberCount || 0}</span>
+                        <span>{community.member_count || 0}</span>
                       </div>
                     </div>
                   </div>
                 </div>
-                  <div class="community-action">
-                    <button 
-                    class="join-button"
-                    on:click={(e) => joinCommunity(community.id, e)}
-                    >
+                <div class="community-action">
+                  <button class="join-button" on:click={(e) => joinCommunity(community.id, e)}>
                     {community.isPrivate ? 'Request to Join' : 'Join'}
-                    </button>
+                  </button>
                 </div>
               </div>
             {/each}
-        {:else}
-          <div class="empty-state">
+          {:else}
+            <div class="empty-state">
               <p>No communities found matching your search.</p>
               <button on:click={clearFilters}>Clear Filters</button>
             </div>

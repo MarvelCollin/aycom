@@ -381,35 +381,43 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		return status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
 	}
 
+	log.Printf("FollowUser: Processing request for follower: %s to follow: %s", req.FollowerID, req.FollowedID)
+
 	followerUUID, err := uuid.Parse(req.FollowerID)
 	if err != nil {
-		return status.Error(codes.InvalidArgument, "Invalid follower ID format")
+		log.Printf("FollowUser: Invalid follower ID format: %s - %v", req.FollowerID, err)
+		return status.Errorf(codes.InvalidArgument, "Invalid follower ID format: %v", err)
 	}
 
 	followedUUID, err := uuid.Parse(req.FollowedID)
 	if err != nil {
-		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
+		log.Printf("FollowUser: Invalid followed ID format: %s - %v", req.FollowedID, err)
+		return status.Errorf(codes.InvalidArgument, "Invalid followed ID format: %v", err)
 	}
 
-	_, err = s.repo.FindUserByID(req.FollowerID)
+	follower, err := s.repo.FindUserByID(req.FollowerID)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "Follower user with ID %s not found", req.FollowerID)
+		log.Printf("FollowUser: Follower user with ID %s not found: %v", req.FollowerID, err)
+		return status.Errorf(codes.NotFound, "Follower user with ID %s not found: %v", req.FollowerID, err)
 	}
 
-	_, err = s.repo.FindUserByID(req.FollowedID)
+	followed, err := s.repo.FindUserByID(req.FollowedID)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
+		log.Printf("FollowUser: Followed user with ID %s not found: %v", req.FollowedID, err)
+		return status.Errorf(codes.NotFound, "Followed user with ID %s not found: %v", req.FollowedID, err)
 	}
+
+	log.Printf("FollowUser: User %s (%s) is attempting to follow user %s (%s)",
+		follower.Username, req.FollowerID, followed.Username, req.FollowedID)
 
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
-		log.Printf("Error checking follow existence: %v", err)
-		return status.Error(codes.Internal, "Failed to check follow relationship")
+		log.Printf("FollowUser: Error checking follow existence: %v", err)
+		return status.Errorf(codes.Internal, "Failed to check follow relationship: %v", err)
 	}
 
 	if exists {
-
-		log.Printf("User %s is already following user %s", req.FollowerID, req.FollowedID)
+		log.Printf("FollowUser: User %s is already following user %s", req.FollowerID, req.FollowedID)
 		return nil
 	}
 
@@ -420,7 +428,6 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	}
 
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
-
 		if err := tx.CreateFollow(follow); err != nil {
 			return fmt.Errorf("failed to create follow relationship: %w", err)
 		}
@@ -437,10 +444,11 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	})
 
 	if err != nil {
-		log.Printf("Transaction failed for follow operation: %v", err)
-		return status.Error(codes.Internal, "Failed to follow user")
+		log.Printf("FollowUser: Transaction failed for follow operation: %v", err)
+		return status.Errorf(codes.Internal, "Failed to follow user: %v", err)
 	}
 
+	log.Printf("FollowUser: Successfully created follow relationship between %s and %s", req.FollowerID, req.FollowedID)
 	return nil
 }
 
@@ -449,29 +457,45 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Error(codes.InvalidArgument, "Follower ID and followed ID are required")
 	}
 
+	log.Printf("UnfollowUser: Processing request for follower: %s to unfollow: %s", req.FollowerID, req.FollowedID)
+
 	followerUUID, err := uuid.Parse(req.FollowerID)
 	if err != nil {
-		return status.Error(codes.InvalidArgument, "Invalid follower ID format")
+		log.Printf("UnfollowUser: Invalid follower ID format: %s - %v", req.FollowerID, err)
+		return status.Errorf(codes.InvalidArgument, "Invalid follower ID format: %v", err)
 	}
 
 	followedUUID, err := uuid.Parse(req.FollowedID)
 	if err != nil {
-		return status.Error(codes.InvalidArgument, "Invalid followed ID format")
+		log.Printf("UnfollowUser: Invalid followed ID format: %s - %v", req.FollowedID, err)
+		return status.Errorf(codes.InvalidArgument, "Invalid followed ID format: %v", err)
+	}
+
+	// Verify users exist (added check)
+	_, err = s.repo.FindUserByID(req.FollowerID)
+	if err != nil {
+		log.Printf("UnfollowUser: Follower user with ID %s not found: %v", req.FollowerID, err)
+		return status.Errorf(codes.NotFound, "Follower user with ID %s not found: %v", req.FollowerID, err)
+	}
+
+	_, err = s.repo.FindUserByID(req.FollowedID)
+	if err != nil {
+		log.Printf("UnfollowUser: Followed user with ID %s not found: %v", req.FollowedID, err)
+		return status.Errorf(codes.NotFound, "Followed user with ID %s not found: %v", req.FollowedID, err)
 	}
 
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
-		log.Printf("Error checking follow existence: %v", err)
-		return status.Error(codes.Internal, "Failed to check follow relationship")
+		log.Printf("UnfollowUser: Error checking follow existence: %v", err)
+		return status.Errorf(codes.Internal, "Failed to check follow relationship: %v", err)
 	}
-	if !exists {
 
-		log.Printf("User %s is not following user %s - treating as successful unfollow", req.FollowerID, req.FollowedID)
+	if !exists {
+		log.Printf("UnfollowUser: User %s is not following user %s - treating as successful unfollow", req.FollowerID, req.FollowedID)
 		return nil
 	}
 
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
-
 		if err := tx.DeleteFollow(followerUUID, followedUUID); err != nil {
 			return fmt.Errorf("failed to delete follow relationship: %w", err)
 		}
@@ -488,10 +512,11 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 	})
 
 	if err != nil {
-		log.Printf("Transaction failed for unfollow operation: %v", err)
-		return status.Error(codes.Internal, "Failed to unfollow user")
+		log.Printf("UnfollowUser: Transaction failed for unfollow operation: %v", err)
+		return status.Errorf(codes.Internal, "Failed to unfollow user: %v", err)
 	}
 
+	log.Printf("UnfollowUser: Successfully removed follow relationship between %s and %s", req.FollowerID, req.FollowedID)
 	return nil
 }
 

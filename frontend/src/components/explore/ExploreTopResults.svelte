@@ -2,22 +2,26 @@
   import { createEventDispatcher } from 'svelte';
   import ProfileCard from './ProfileCard.svelte';
   import ThreadCard from './ThreadCard.svelte';
-  import type { IMedia } from '../../interfaces/ISocialMedia';
   import { createLoggerWithPrefix } from '../../utils/logger';
   
   const logger = createLoggerWithPrefix('ExploreTopResults');
   const dispatch = createEventDispatcher();
   
-  // Props with proper type definitions
+  // Props with more flexible type definitions to handle different naming conventions
   export let topProfiles: Array<{
     id: string;
     username: string;
-    name: string;
-    profile_picture_url: string | null;
+    name?: string;
+    displayName?: string;
+    profile_picture_url?: string | null;
+    avatar?: string | null;
     bio?: string;
-    is_verified: boolean;
-    follower_count: number;
-    is_following: boolean;
+    is_verified?: boolean;
+    isVerified?: boolean;
+    follower_count?: number;
+    followerCount?: number;
+    is_following?: boolean;
+    isFollowing?: boolean;
   }> = [];
   
   export let topThreads: Array<{
@@ -43,6 +47,13 @@
     const userId = event.detail;
     logger.debug('Follow request initiated', { userId });
     dispatch('follow', userId);
+  }
+  
+  // Handle profile click
+  function handleProfileClick(event) {
+    const userId = event.detail;
+    logger.debug('Profile click', { userId });
+    dispatch('profileClick', userId);
   }
   
   // Handle view all
@@ -84,6 +95,7 @@
             <ProfileCard 
               {profile} 
               on:follow={handleFollow}
+              on:profileClick={handleProfileClick}
               compact={true}
             />
           {/each}

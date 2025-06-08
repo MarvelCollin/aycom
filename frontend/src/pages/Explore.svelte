@@ -668,6 +668,23 @@
     }
   }
   
+  // Handle follow user
+  function handleFollowUser(event) {
+    const userId = event.detail;
+    logger.debug('Follow user requested', { userId });
+    // Implement follow user logic here if needed
+    // For now, just log the action
+    toastStore.showToast('Follow feature will be implemented soon', 'info');
+  }
+  
+  // Handle profile click
+  function handleProfileClick(event) {
+    const userId = event.detail;
+    logger.debug('Profile clicked', { userId });
+    // Navigate to user profile
+    window.location.href = `/user/${userId}`;
+  }
+  
   onMount(async () => {
     logger.debug('Explore page mounted', { authState });
     
@@ -746,6 +763,8 @@
               topProfiles={searchResults.top.profiles}
               topThreads={searchResults.top.threads}
               isLoading={searchResults.top.isLoading}
+              on:profileClick={handleProfileClick}
+              on:follow={handleFollowUser}
               on:viewAll={(event) => {
                 if (event.detail === 'people') {
                   activeTab = 'people';
@@ -762,6 +781,8 @@
               peopleResults={searchResults.people.users}
               isLoading={searchResults.people.isLoading}
               peoplePerPage={peoplePerPage}
+              on:profileClick={handleProfileClick}
+              on:follow={handleFollowUser}
               on:pageChange={handlePeoplePageChange}
               on:peoplePerPageChange={handlePeoplePerPageChange}
               on:loadMore={() => handlePeoplePageChange({detail: peopleCurrentPage + 1})}
@@ -843,7 +864,11 @@
               <div class="users-grid">
                 {#each allUsers as person}
                   <div class="user-card {isDarkMode ? 'user-card-dark' : ''}">
-                    <ProfileCard profile={person} />
+                    <ProfileCard 
+                      profile={person} 
+                      on:follow={handleFollowUser}
+                      on:profileClick={() => window.location.href = `/user/${person.username}`}
+                    />
                   </div>
                 {/each}
               </div>

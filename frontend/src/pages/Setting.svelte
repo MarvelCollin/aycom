@@ -1,7 +1,7 @@
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import { useTheme } from '../hooks/useTheme';
-  import { getProfile, updateProfile } from '../api/user';
+  import { getProfile, updateProfile, getBlockedUsers, unblockUser } from '../api/user';
   import { onMount } from 'svelte';
   import { toastStore } from '../stores/toastStore';
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
@@ -11,6 +11,7 @@
   
   let isLoading = true;
   let isSaving = false;
+  let isLoadingBlockedUsers = true;
   
   // Font size options
   const fontSizeOptions = [
@@ -27,23 +28,62 @@
     { value: 'purple', label: 'Purple' }
   ];
   
+  // Notification types
+  const notificationTypes = [
+    { id: 'like', label: 'Like', description: 'Notify me when someone likes my post' },
+    { id: 'repost', label: 'Repost', description: 'Notify me when someone reposts my post' },
+    { id: 'follow', label: 'Follow', description: 'Notify me when someone follows me' },
+    { id: 'mentions', label: 'Mentions', description: 'Notify me when someone mentions me' },
+    { id: 'community', label: 'Community', description: 'Notify me about community activities' }
+  ];
+  
   // Display settings
   let fontSize = 'medium';
   let fontColor = 'default';
+  
+  // Get the current text color based on the selected font color
+  $: textColor = getTextColor(fontColor, isDarkMode);
+  
+  // Function to determine the text color based on font color selection and theme
+  function getTextColor(color, isDark) {
+    if (color === 'blue') {
+      return isDark ? '#62a0ea' : '#1a5fb4';
+    } else if (color === 'green') {
+      return isDark ? '#57e389' : '#2a7a30';
+    } else if (color === 'purple') {
+      return isDark ? '#dc8add' : '#613583';
+    }
+    return isDark ? 'var(--text-primary)' : 'var(--text-primary)';
+  }
+  
+  // Real blocked accounts data from API
+  interface BlockedUser {
+    id: string;
+    username: string;
+    display_name?: string;
+    name?: string;
+    profile_picture_url?: string;
+    is_verified?: boolean;
+    blocked_at?: string;
+  }
+  
+  let blockedAccounts: BlockedUser[] = [];
+  let blockedUsersPage = 1;
+  let blockedUsersLimit = 20;
   
   // User settings form data
   let userData = {
     name: '',
     username: '',
     email: '',
-    bio: '',
-    location: '',
-    website: '',
-    allow_mentions: true,
-    notification_emails: true,
-    marketing_emails: false,
-    display_sensitive_content: false,
-    is_private: false
+    is_private: false,
+    notifications: {
+      like: true,
+      repost: true,
+      follow: true,
+      mentions: true,
+      community: false
+    }
   };
   
   // Load user data and display preferences on mount
@@ -76,14 +116,14 @@
           name: profile.name || profile.display_name || '',
           username: profile.username || '',
           email: profile.email || '',
-          bio: profile.bio || '',
-          location: profile.location || '',
-          website: profile.website || '',
-          allow_mentions: profile.allow_mentions !== false,
-          notification_emails: profile.notification_emails !== false,
-          marketing_emails: profile.marketing_emails === true,
-          display_sensitive_content: profile.display_sensitive_content === true,
-          is_private: profile.is_private === true
+          is_private: profile.is_private === true,
+          notifications: {
+            like: profile.notifications?.like !== false,
+            repost: profile.notifications?.repost !== false,
+            follow: profile.notifications?.follow !== false,
+            mentions: profile.notifications?.mentions !== false,
+            community: profile.notifications?.community === true
+          }
         };
       }
     } catch (error) {
@@ -92,7 +132,23 @@
     } finally {
       isLoading = false;
     }
+    
+    // Load blocked users
+    await loadBlockedUsers();
   });
+  
+  // Function to load blocked users from API
+  async function loadBlockedUsers() {
+    isLoadingBlockedUsers = true;
+    try {
+      blockedAccounts = await getBlockedUsers(blockedUsersPage, blockedUsersLimit);
+    } catch (error) {
+      console.error('Error loading blocked users:', error);
+      toastStore.showToast('Failed to load blocked accounts', 'error');
+    } finally {
+      isLoadingBlockedUsers = false;
+    }
+  }
   
   // Apply font size to body
   function applyFontSize(size) {
@@ -114,6 +170,24 @@
         htmlElement.classList.remove('text-default', 'text-blue', 'text-green', 'text-purple');
         htmlElement.classList.add(`text-${color}`);
       }
+      
+      // Apply color directly to key elements
+      if (color !== 'default') {
+        setTimeout(() => {
+          const headings = document.querySelectorAll('.settings-section-title, .page-title');
+          const labels = document.querySelectorAll('.settings-form-group label, .settings-toggle-label span');
+          
+          const currentColor = getTextColor(color, isDarkMode);
+          
+          headings.forEach(heading => {
+            (heading as HTMLElement).style.color = currentColor;
+          });
+          
+          labels.forEach(label => {
+            (label as HTMLElement).style.color = currentColor;
+          });
+        }, 10);
+      }
     }
   }
   
@@ -131,6 +205,41 @@
     fontColor = newColor;
     localStorage.setItem('fontColor', newColor);
     applyFontColor(newColor);
+    
+    // Force a refresh to make sure the colors are applied immediately
+    setTimeout(() => {
+      if (typeof document !== 'undefined') {
+        // This will trigger style recalculation and apply the new colors
+        document.body.style.display = 'none';
+        // This forces a reflow
+        void document.body.offsetHeight;
+        document.body.style.display = '';
+      }
+    }, 0);
+  }
+  
+  // Handle unblock user - now uses the real API
+  async function handleUnblockUser(userId) {
+    try {
+      const success = await unblockUser(userId);
+      if (success) {
+        blockedAccounts = blockedAccounts.filter(account => account.id !== userId);
+        toastStore.showToast('User unblocked successfully', 'success');
+      } else {
+        toastStore.showToast('Failed to unblock user', 'error');
+      }
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      toastStore.showToast('Failed to unblock user', 'error');
+    }
+  }
+  
+  // Handle account deactivation
+  function handleDeactivateAccount() {
+    if (confirm('Are you sure you want to deactivate your account? This action can be reversed by logging in again within 30 days.')) {
+      // Would call API in real implementation
+      toastStore.showToast('Account deactivation initiated', 'info');
+    }
   }
   
   async function handleSaveSettings() {
@@ -149,86 +258,24 @@
 
 <MainLayout>
   <div class="page-header {isDarkMode ? 'page-header-dark' : ''}">
-    <h1 class="page-title">Settings</h1>
+    <h1 class="page-title" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Settings</h1>
   </div>
   
   <div class="settings-container {isDarkMode ? 'settings-container-dark' : ''}">
     {#if isLoading}
       <div class="settings-loading">
         <div class="settings-loading-spinner"></div>
-        <p>Loading settings...</p>
+        <p style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Loading settings...</p>
       </div>
     {:else}
       <div class="settings-sections">
-        <!-- Profile Settings Section -->
+        <!-- Security Section -->
         <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
-          <h2 class="settings-section-title">Profile Settings</h2>
-          
-          <div class="settings-form-group">
-            <label for="name">Display Name</label>
-            <input 
-              type="text" 
-              id="name" 
-              class="settings-input {isDarkMode ? 'settings-input-dark' : ''}"
-              bind:value={userData.name}
-              placeholder="Your display name"
-            />
-          </div>
-          
-          <div class="settings-form-group">
-            <label for="username">Username</label>
-            <input 
-              type="text" 
-              id="username" 
-              class="settings-input {isDarkMode ? 'settings-input-dark' : ''}"
-              bind:value={userData.username}
-              placeholder="username"
-              disabled
-            />
-            <small>Username cannot be changed</small>
-          </div>
-          
-          <div class="settings-form-group">
-            <label for="bio">Bio</label>
-            <textarea 
-              id="bio" 
-              class="settings-textarea {isDarkMode ? 'settings-textarea-dark' : ''}"
-              bind:value={userData.bio}
-              placeholder="Tell us about yourself"
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <div class="settings-form-group">
-            <label for="location">Location</label>
-            <input 
-              type="text" 
-              id="location" 
-              class="settings-input {isDarkMode ? 'settings-input-dark' : ''}"
-              bind:value={userData.location}
-              placeholder="Your location"
-            />
-          </div>
-          
-          <div class="settings-form-group">
-            <label for="website">Website</label>
-            <input 
-              type="url" 
-              id="website" 
-              class="settings-input {isDarkMode ? 'settings-input-dark' : ''}"
-              bind:value={userData.website}
-              placeholder="https://yourdomain.com"
-            />
-          </div>
-        </div>
-        
-        <!-- Privacy Settings Section -->
-        <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
-          <h2 class="settings-section-title">Privacy Settings</h2>
+          <h2 class="settings-section-title" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Security</h2>
           
           <div class="settings-toggle-group">
             <div class="settings-toggle-label">
-              <span>Private Account</span>
+              <span style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Private Account</span>
               <small>Only approved followers can see your content</small>
             </div>
             <label class="toggle">
@@ -236,71 +283,22 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-          
-          <div class="settings-toggle-group">
-            <div class="settings-toggle-label">
-              <span>Allow mentions</span>
-              <small>Let people mention you in their posts</small>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={userData.allow_mentions}>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          
-          <div class="settings-toggle-group">
-            <div class="settings-toggle-label">
-              <span>Display sensitive content</span>
-              <small>Show content that may be sensitive or inappropriate</small>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={userData.display_sensitive_content}>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
         </div>
         
-        <!-- Notification Settings Section -->
+        <!-- Display Settings Section -->
         <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
-          <h2 class="settings-section-title">Notification Settings</h2>
-          
-          <div class="settings-toggle-group">
-            <div class="settings-toggle-label">
-              <span>Email notifications</span>
-              <small>Receive notifications via email</small>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={userData.notification_emails}>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          
-          <div class="settings-toggle-group">
-            <div class="settings-toggle-label">
-              <span>Marketing emails</span>
-              <small>Receive promotional content and updates</small>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={userData.marketing_emails}>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-        
-        <!-- Theme Settings Section -->
-        <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
-          <h2 class="settings-section-title">Display Settings</h2>
+          <h2 class="settings-section-title" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Display</h2>
           
           <div class="settings-toggle-group theme-toggle-container">
             <div class="settings-toggle-label">
-              <span>Dark mode</span>
+              <span style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Dark mode</span>
               <small>Switch between light and dark theme</small>
             </div>
             <ThemeToggle size="md" />
           </div>
           
           <div class="settings-form-group">
-            <label for="fontSize">Font Size</label>
+            <label for="fontSize" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Font Size</label>
             <div class="settings-select-wrapper">
               <select 
                 id="fontSize" 
@@ -317,7 +315,7 @@
           </div>
           
           <div class="settings-form-group">
-            <label for="fontColor">Font Color</label>
+            <label for="fontColor" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Font Color</label>
             <div class="settings-select-wrapper">
               <select 
                 id="fontColor" 
@@ -332,6 +330,70 @@
             </div>
             <small>Customize the text color for your preference</small>
           </div>
+        </div>
+        
+        <!-- Your Account Section -->
+        <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
+          <h2 class="settings-section-title" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Your Account</h2>
+          
+          <div class="account-action-container">
+            <div class="account-action-info">
+              <h3 style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Deactivate Account</h3>
+              <p>Temporarily disable your account. You can reactivate it anytime within 30 days by logging in.</p>
+            </div>
+            <button class="danger-button" on:click={handleDeactivateAccount}>
+              Deactivate
+            </button>
+          </div>
+        </div>
+        
+        <!-- Blocked Accounts Section -->
+        <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
+          <h2 class="settings-section-title" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Blocked Accounts</h2>
+          
+          {#if isLoadingBlockedUsers}
+            <div class="settings-loading">
+              <div class="settings-loading-spinner"></div>
+              <p>Loading blocked accounts...</p>
+            </div>
+          {:else if blockedAccounts.length === 0}
+            <p class="empty-list-message">You haven't blocked any accounts.</p>
+          {:else}
+            <div class="blocked-accounts-list">
+              {#each blockedAccounts as account}
+                <div class="blocked-account-item">
+                  <div class="account-info">
+                    <span class="account-name" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>{account.display_name || account.name}</span>
+                    <small class="account-username">@{account.username}</small>
+                  </div>
+                  <button class="unblock-button" on:click={() => handleUnblockUser(account.id)}>
+                    Unblock
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        
+        <!-- Notification Preferences Section -->
+        <div class="settings-section {isDarkMode ? 'settings-section-dark' : ''}">
+          <h2 class="settings-section-title" style={fontColor !== 'default' ? `color: ${textColor}` : ''}>Notification Preferences</h2>
+          
+          {#each notificationTypes as notificationType}
+            <div class="settings-toggle-group">
+              <div class="settings-toggle-label">
+                <span style={fontColor !== 'default' ? `color: ${textColor}` : ''}>{notificationType.label}</span>
+                <small>{notificationType.description}</small>
+              </div>
+              <label class="toggle">
+                <input 
+                  type="checkbox" 
+                  bind:checked={userData.notifications[notificationType.id]}
+                >
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          {/each}
         </div>
         
         <div class="settings-actions">
@@ -453,9 +515,17 @@
     margin-bottom: var(--space-4);
   }
   
+  .settings-toggle-group:last-child {
+    margin-bottom: 0;
+  }
+  
   .settings-toggle-label {
     display: flex;
     flex-direction: column;
+  }
+  
+  .settings-toggle-label span {
+    font-weight: var(--font-weight-medium);
   }
   
   .settings-toggle-label small {
@@ -510,7 +580,7 @@
   }
   
   .theme-toggle-container {
-    margin-bottom: 0;
+    margin-bottom: var(--space-4);
   }
   
   .settings-actions {
@@ -537,14 +607,6 @@
   .settings-save-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
-  }
-  
-  @media (max-width: 768px) {
-    .settings-toggle-group {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-2);
-    }
   }
   
   .settings-select-wrapper {
@@ -584,5 +646,109 @@
     transform: translateY(-50%);
     pointer-events: none;
     color: var(--text-secondary);
+  }
+  
+  /* Account Deactivation */
+  .account-action-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) 0;
+  }
+  
+  .account-action-info h3 {
+    margin: 0 0 var(--space-1) 0;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .account-action-info p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+  
+  .danger-button {
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--color-danger);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .danger-button:hover {
+    background-color: var(--color-danger-dark);
+  }
+  
+  /* Blocked Accounts */
+  .blocked-accounts-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  
+  .blocked-account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+  }
+  
+  .account-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .account-name {
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-1);
+  }
+  
+  .account-username {
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+  }
+  
+  .unblock-button {
+    padding: var(--space-1) var(--space-3);
+    background-color: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .unblock-button:hover {
+    background-color: var(--color-primary);
+    color: white;
+  }
+  
+  .empty-list-message {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: var(--space-4);
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .account-action-container,
+    .settings-toggle-group {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+    }
+    
+    .settings-toggle-group .toggle,
+    .account-action-container .danger-button {
+      margin-top: var(--space-2);
+    }
   }
 </style>

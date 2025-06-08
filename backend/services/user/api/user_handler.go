@@ -303,10 +303,11 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserReques
 	}
 
 	if wasAlreadyFollowing {
-
 		return &user.FollowUserResponse{
-			Success: true,
-			Message: "Already following this user",
+			Success:             true,
+			Message:             "Already following this user",
+			WasAlreadyFollowing: true,
+			IsNowFollowing:      true,
 		}, nil
 	}
 
@@ -322,8 +323,10 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *user.FollowUserReques
 	}
 
 	return &user.FollowUserResponse{
-		Success: true,
-		Message: "User followed successfully",
+		Success:             true,
+		Message:             "User followed successfully",
+		WasAlreadyFollowing: false,
+		IsNowFollowing:      true,
 	}, nil
 }
 
@@ -339,10 +342,11 @@ func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRe
 	}
 
 	if !wasFollowing {
-
 		return &user.UnfollowUserResponse{
-			Success: true,
-			Message: "Not following this user",
+			Success:        true,
+			Message:        "Not following this user",
+			WasFollowing:   false,
+			IsNowFollowing: false,
 		}, nil
 	}
 
@@ -358,8 +362,10 @@ func (h *UserHandler) UnfollowUser(ctx context.Context, req *user.UnfollowUserRe
 	}
 
 	return &user.UnfollowUserResponse{
-		Success: true,
-		Message: "User unfollowed successfully",
+		Success:        true,
+		Message:        "User unfollowed successfully",
+		WasFollowing:   true,
+		IsNowFollowing: false,
 	}, nil
 }
 
