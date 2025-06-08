@@ -73,6 +73,7 @@
   let joinedCommunities: any[] = [];
   let pendingCommunities: any[] = [];
   let availableCommunities: any[] = [];
+  let error = null; // Define the error variable
   
   // Add a map to track membership status for each community
   let communityMembershipStatus = new Map();
@@ -87,49 +88,37 @@
   
   // Fetch communities based on active tab and filters
   async function fetchCommunities() {
+    isLoading = true;
+    error = null;
+
     try {
-      console.log('fetchCommunities called with tab:', activeTab);
-      isLoading = true;
-      
+      // Determine filter based on active tab
       const filter = activeTab === 'joined' ? 'joined' : 
-                    activeTab === 'pending' ? 'pending' : 'all';
-      
-      // Set is_approved parameter based on the active tab
-      // For 'discover' tab, we always want approved communities (is_approved=true)
-      const isApproved = activeTab === 'discover' ? true : 
-                       activeTab === 'pending' ? false : undefined;
-      
-      console.log('Fetching communities with params:', {
+                     activeTab === 'pending' ? 'pending' : 'all';
+                     
+      console.log('Fetching communities with filter:', filter);
+      const params = {
         page: currentPage,
-        limit,
+        limit: limit,
         filter,
         q: searchQuery,
         category: selectedCategories,
-        is_approved: isApproved
-      });
+        is_approved: activeTab === 'discover' ? true : undefined
+      };
       
-      const response = await getCommunities({
-        page: currentPage,
-        limit: limit,
-        filter: filter,
-        q: searchQuery,
-        category: selectedCategories,
-        is_approved: isApproved
-      });
+      const result = await getCommunities(params);
+      console.log('API response:', result);
       
-      console.log('Response from getCommunities:', response);
-      console.log('Current active tab:', activeTab);
-      
-      if (response.success) {
+      if (result.success) {
         if (activeTab === 'joined') {
-          joinedCommunities = response.communities;
+          joinedCommunities = result.communities;
           console.log('Joined communities updated:', joinedCommunities);
         } else if (activeTab === 'pending') {
-          pendingCommunities = response.communities;
+          pendingCommunities = result.communities;
           console.log('Pending communities updated:', pendingCommunities);
         } else if (activeTab === 'discover') {
-          console.log('Setting available communities:', response.communities);
-          availableCommunities = [...response.communities]; // Create a new array
+          console.log('Setting available communities:', result.communities);
+          availableCommunities = [...result.communities]; // Create a new array
           console.log('Available communities updated for discover tab:', availableCommunities, 'length:', availableCommunities.length);
           
           // Check membership status for each community in the discover tab
@@ -137,38 +126,63 @@
             // Clear previous membership status
             communityMembershipStatus = new Map();
             
-            // Check each community's membership status
+            // Only check membership status if user is logged in
             const authData = localStorage.getItem('auth');
             if (authData) {
-              const auth = JSON.parse(authData);
-              if (auth.access_token) {
-                for (const community of availableCommunities) {
-                  const status = await checkMembershipStatus(community.id);
-                  communityMembershipStatus.set(community.id, status);
+              try {
+                const auth = JSON.parse(authData);
+                if (auth.access_token && (!auth.expires_at || Date.now() < auth.expires_at)) {
+                  // Process communities in batches to avoid overwhelming the server
+                  const batchSize = 5;
+                  for (let i = 0; i < availableCommunities.length; i += batchSize) {
+                    const batch = availableCommunities.slice(i, i + batchSize);
+                    await Promise.all(
+                      batch.map(async (community) => {
+                        try {
+                          const status = await checkMembershipStatus(community.id);
+                          communityMembershipStatus.set(community.id, status);
+                        } catch (err) {
+                          console.warn(`Failed to check membership for ${community.id}`, err);
+                          communityMembershipStatus.set(community.id, 'none');
+                        }
+                      })
+                    );
+                  }
                 }
+              } catch (err) {
+                console.warn('Error processing auth data:', err);
               }
             }
           }
-        }
-        
-        totalItems = response.pagination.total_count;
-        totalPages = response.pagination.total_pages;
-        
-        console.log('Pagination updated:', { totalItems, totalPages });
-        
-        // Update limit options if the API returns them
-        if (response.limit_options && response.limit_options.length > 0) {
-          limitOptions = response.limit_options;
-          console.log('Limit options updated:', limitOptions);
+          
+          totalItems = result.pagination.total_count;
+          totalPages = result.pagination.total_pages;
+          
+          console.log('Pagination updated:', { totalItems, totalPages });
+          
+          // Update limit options if the API returns them
+          if (result.limit_options && result.limit_options.length > 0) {
+            limitOptions = result.limit_options;
+            console.log('Limit options updated:', limitOptions);
+          }
         }
       } else {
-        console.error('API response success flag is false:', response);
+        console.error('API response success flag is false:', result);
         toastStore.showToast('Failed to fetch communities', 'error');
       }
-    } catch (error) {
-      console.error('Error in fetchCommunities:', error);
-      logger.error('Error fetching communities:', error);
-      toastStore.showToast('Failed to fetch communities', 'error');
+    } catch (err) {
+      console.error('Error in fetchCommunities:', err);
+      logger.error('Error fetching communities:', err);
+      error = err.message || 'Failed to load communities';
+      
+      // Initialize appropriate community list based on active tab
+      if (activeTab === 'joined') {
+        joinedCommunities = [];
+      } else if (activeTab === 'pending') {
+        pendingCommunities = [];
+      } else {
+        availableCommunities = [];
+      }
     } finally {
       isLoading = false;
       console.log('isLoading set to false, component should render communities now');
@@ -259,8 +273,44 @@
   // Handle community click
   function handleCommunityClick(communityId) {
     console.log('Navigating to community:', communityId);
-    // Use window.location.href for proper page navigation
-    window.location.href = `/communities/${communityId}`;
+    
+    // Construct the URL for the community detail page
+    const href = `/communities/${communityId}`;
+    
+    // First validate that the community ID is not empty
+    if (!communityId) {
+      console.error('Invalid community ID');
+      toastStore.showToast('Invalid community ID', 'error');
+      return;
+    }
+    
+    // Use a more robust navigation approach
+    if (typeof window !== 'undefined') {
+      try {
+        // First try to use history API for SPA navigation
+        window.history.pushState({communityId}, '', href);
+        
+        // Dispatch a custom navigation event to trigger router update
+        const navEvent = new CustomEvent('navigate', { 
+          detail: { href, communityId } 
+        });
+        window.dispatchEvent(navEvent);
+        
+        // Trigger popstate as a fallback
+        window.dispatchEvent(new PopStateEvent('popstate', {}));
+        
+        // If nothing works, reload the page after a short delay
+        setTimeout(() => {
+          if (window.location.pathname !== href) {
+            console.warn('Navigation did not update the URL, forcing page reload');
+            window.location.href = href;
+          }
+        }, 300);
+      } catch (error) {
+        console.error('Error in navigation:', error);
+        window.location.href = href; // Direct navigation as fallback
+      }
+    }
   }
   
   // Open community creation modal
@@ -301,16 +351,23 @@
   // Function to check membership status for a community
   async function checkMembershipStatus(communityId) {
     try {
-      const membershipResponse = await checkUserCommunityMembership(communityId);
-      if (membershipResponse.success) {
-        communityMembershipStatus.set(communityId, membershipResponse.status);
-        console.log(`Membership status for ${communityId}:`, membershipResponse.status);
-        return membershipResponse.status;
+      // Skip membership check if no auth data is available
+      const authData = localStorage.getItem('auth');
+      if (!authData) {
+        return 'none';
       }
-      return 'none';
+      
+      const auth = JSON.parse(authData);
+      if (!auth.access_token || (auth.expires_at && Date.now() >= auth.expires_at)) {
+        return 'none'; // No valid token
+      }
+      
+      const membershipResponse = await checkUserCommunityMembership(communityId);
+      communityMembershipStatus.set(communityId, membershipResponse.status);
+      return membershipResponse.status;
     } catch (error) {
-      logger.error(`Error checking membership for community ${communityId}:`, error);
-      return 'none';
+      console.warn(`Error checking membership for community ${communityId}:`, error);
+      return 'none'; // Default to 'none' on error
     }
   }
   
@@ -405,28 +462,26 @@
                   {#if community.logo_url}
                     <img src={getLogoUrl(community)} alt={community.name || 'Community'} />
                   {:else}
-                    <div class="logo-placeholder">
-                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
+                    <div class="community-logo-placeholder">
+                      {community.name ? community.name.charAt(0).toUpperCase() : 'C'}
                     </div>
                   {/if}
                 </div>
                 <div class="community-info">
-                  <h3>{community.name || 'Unnamed Community'}</h3>
-                  <p>{community.description || 'No description available'}</p>
-                  <div class="community-categories">
-                    {#each community.categories || [] as category}
-                      <span class="category-tag">{category}</span>
-                    {/each}
+                  <h3 class="community-name">{community.name || 'Unnamed Community'}</h3>
+                  <p class="community-description">{community.description || 'No description available'}</p>
+                  <div class="community-meta">
+                    <span class="member-count">{community.member_count || 0} members</span>
                   </div>
                 </div>
               </div>
             {/each}
-        {:else}
-          <div class="empty-state">
-              <p>You haven't joined any communities yet.</p>
-              <button on:click={() => setActiveTab('discover')}>Discover Communities</button>
-          </div>
-        {/if}
+          {:else}
+            <EmptyState
+              message="You haven't joined any communities yet"
+              description="Join communities to see them here"
+            />
+          {/if}
         </div>
       {:else if activeTab === 'pending'}
         <div class="communities-list">

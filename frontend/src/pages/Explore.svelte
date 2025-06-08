@@ -232,14 +232,13 @@
   
   // Fetch all users when "Everyone" filter is selected
   async function fetchAllUsers() {
+    isLoadingUsers = true;
     try {
-      isLoadingAllUsers = true;
-      
       const { users, total } = await getAllUsers(1, 20, 'created_at', false);
       
       if (users && users.length > 0) {
         // Map backend response to the format expected by the frontend components
-        allUsers = users.map(user => ({
+        usersToDisplay = users.map(user => ({
           id: user.id,
           username: user.username,
           displayName: user.name || user.display_name || user.username,
@@ -250,17 +249,17 @@
           isFollowing: user.is_following || false
         }));
         
-        logger.debug('Fetched users:', { count: allUsers.length });
+        logger.debug('Fetched users:', { count: usersToDisplay.length });
       } else {
-        allUsers = [];
+        usersToDisplay = [];
         logger.info('No users found');
       }
     } catch (error) {
       logger.error('Error fetching all users:', error);
-      toastStore.showToast('Failed to load user recommendations', 'error');
-      allUsers = [];
+      toastStore.showToast('Failed to load users', 'error');
+      usersToDisplay = [];
     } finally {
-      isLoadingAllUsers = false;
+      isLoadingUsers = false;
     }
   }
   
@@ -372,9 +371,22 @@
       searchResults.media.isLoading = true;
       searchResults.communities.isLoading = true;
       
-      // Get filter options
+      // Ensure we're logged in for following filter
+      if (searchFilter === 'following' && !authState.is_authenticated) {
+        toastStore.showToast('You need to be logged in to use the Following filter', 'warning');
+        searchFilter = 'all'; // Fall back to all if not authenticated
+      }
+
+      // Get filter options - make sure these match the backend filter parameter names exactly
       const filterOption = searchFilter === 'following' ? 'following' : (searchFilter === 'verified' ? 'verified' : 'all');
       const categoryOption = selectedCategory !== 'all' ? selectedCategory : undefined;
+      
+      logger.debug('Executing search with filters', { 
+        query: searchQuery,
+        filter: filterOption, 
+        category: categoryOption,
+        sortBy: 'popular' 
+      });
       
       // Fetch data for all tabs in parallel
       const [peopleData, topThreadsData, latestThreadsData, mediaData, communitiesData] = await Promise.all([
@@ -483,6 +495,7 @@
       
       logger.debug('Search completed', {
         query: searchQuery,
+        filter: filterOption,
         peopleCount: peopleData.users.length,
         threadsCount: topThreadsData.threads.length,
         mediaCount: mediaData.threads.length
@@ -518,15 +531,82 @@
   
   // Handle filter change
   function handleFilterChange(event) {
-    searchFilter = event.detail;
-    logger.debug('Filter changed', { filter: searchFilter });
+    const newFilter = event.detail;
+    logger.debug('Filter changed', { from: searchFilter, to: newFilter });
     
-    if (searchFilter === 'all' && !hasSearched) {
-      // If changing to "Everyone" filter and not in search results view,
-      // fetch all users to display
-      fetchAllUsers();
-    } else if (hasSearched) {
+    // Update filter state
+    searchFilter = newFilter;
+    
+    // Handle based on current state
+    if (hasSearched && searchQuery.trim() !== '') {
+      // If user has already searched, immediately re-execute with new filter
       executeSearch();
+    } else {
+      // If not in search results view, fetch users based on selected filter
+      isLoadingUsers = true;
+      if (searchFilter === 'all') {
+        // Fetch all users if filter is set to "Everyone"
+        fetchAllUsers();
+      } else if (searchFilter === 'following') {
+        // Fetch followed users if filter is set to "Following"
+        fetchFollowedUsers();
+      } else if (searchFilter === 'verified') {
+        // Fetch verified users if filter is set to "Verified"
+        fetchVerifiedUsers();
+      }
+    }
+  }
+  
+  // Fetch followed users for the "following" filter when no search has been done
+  async function fetchFollowedUsers() {
+    if (!authState.is_authenticated) {
+      toastStore.showToast('You need to be logged in to view followed users', 'warning');
+      return;
+    }
+    
+    isLoadingUsers = true;
+    try {
+      const response = await searchUsers('', 1, 20, { filter: 'following' });
+      usersToDisplay = response.users.map(user => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name || user.username,
+        avatar: user.profile_picture_url || user.avatar || null,
+        bio: user.bio || '',
+        isVerified: user.is_verified || false,
+        followerCount: user.follower_count || 0,
+        isFollowing: true
+      }));
+    } catch (error) {
+      console.error('Error fetching followed users:', error);
+      toastStore.showToast('Failed to load followed users', 'error');
+      usersToDisplay = [];
+    } finally {
+      isLoadingUsers = false;
+    }
+  }
+  
+  // Fetch verified users for the "verified" filter when no search has been done
+  async function fetchVerifiedUsers() {
+    isLoadingUsers = true;
+    try {
+      const response = await searchUsers('', 1, 20, { filter: 'verified' });
+      usersToDisplay = response.users.map(user => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name || user.username,
+        avatar: user.profile_picture_url || user.avatar || null,
+        bio: user.bio || '',
+        isVerified: true,
+        followerCount: user.follower_count || 0,
+        isFollowing: user.is_following || false
+      }));
+    } catch (error) {
+      console.error('Error fetching verified users:', error);
+      toastStore.showToast('Failed to load verified users', 'error');
+      usersToDisplay = [];
+    } finally {
+      isLoadingUsers = false;
     }
   }
   
@@ -691,14 +771,11 @@
     // Check authentication state and initialize content if authenticated
     if (checkAuth()) {
       try {
-        await Promise.all([
-          loadRecentSearches(),
-          fetchTrends(),
-          fetchAllUsers() // Load all users on initial page load
-        ]);
-        
         // Set the default filter to "all" (Everyone)
         searchFilter = 'all';
+        
+        // Load initial user list using the "all" filter
+        await fetchAllUsers();
         
         logger.info('Explore page initialized successfully');
       } catch (error) {
@@ -816,53 +893,20 @@
       {:else}
         <!-- Show trending content and all users when not searching -->
         <div class="explore-trending-section">
-          <div class="explore-section">
-            <h2 class="explore-section-title">What's happening</h2>
-            <ExploreTrending 
-              {trends}
-              {isTrendsLoading}
-              on:viewThreads={(event) => {
-                // Handle viewing threads by hashtag
-                const hashtag = event.detail;
-                if (hashtag) {
-                  searchQuery = hashtag;
-                  executeSearch();
-                }
-              }}
-            />
-          </div>
-          
-          <div class="explore-section">
-            <h2 class="explore-section-title">Suggested topics to follow</h2>
-            <div class="explore-topic-list">
-              {#each ['technology', 'programming', 'design', 'svelte', 'webdev'] as topic}
-                <button 
-                  class="explore-topic-chip {isDarkMode ? 'explore-topic-chip-dark' : ''}" 
-                  on:click={() => {
-                    searchQuery = topic;
-                    executeSearch();
-                  }}
-                >
-                  #{topic}
-                </button>
-              {/each}
-            </div>
-          </div>
-          
-          <!-- Added section to display all users -->
+          <!-- People section - modified to display users based on current filter -->
           <div class="explore-section people-to-follow-section">
-            <h2 class="explore-section-title">People to follow</h2>
-            {#if isLoadingAllUsers}
+            <h2 class="explore-section-title">People</h2>
+            {#if isLoadingUsers}
               <div class="explore-loading">
                 <LoadingSkeleton type="profile" count={5} />
               </div>
-            {:else if allUsers.length === 0}
+            {:else if usersToDisplay.length === 0}
               <div class="empty-state">
                 <p>No users found</p>
               </div>
             {:else}
               <div class="users-grid">
-                {#each allUsers as person}
+                {#each usersToDisplay as person}
                   <div class="user-card {isDarkMode ? 'user-card-dark' : ''}">
                     <ProfileCard 
                       profile={person} 
@@ -1041,14 +1085,20 @@
   
   .users-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 1rem;
     padding: 1rem;
   }
   
   @media (min-width: 640px) {
     .users-grid {
-      grid-template-columns: repeat(1, 1fr);
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .users-grid {
+      grid-template-columns: repeat(3, 1fr);
     }
   }
   
@@ -1059,12 +1109,13 @@
     transition: all 0.2s ease;
     border: 1px solid var(--border-color);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    padding: 0.5rem 0;
+    padding: 0.75rem;
   }
   
   .user-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--color-primary);
   }
   
   .user-card-dark {
@@ -1075,5 +1126,6 @@
   
   .user-card-dark:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: var(--color-primary);
   }
 </style>

@@ -998,6 +998,7 @@ type ListCommunitiesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Offset        int32                  `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	IsApproved    bool                   `protobuf:"varint,3,opt,name=is_approved,json=isApproved,proto3" json:"is_approved,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1044,6 +1045,13 @@ func (x *ListCommunitiesRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListCommunitiesRequest) GetIsApproved() bool {
+	if x != nil {
+		return x.IsApproved
+	}
+	return false
 }
 
 type ListCommunitiesResponse struct {
@@ -3623,10 +3631,12 @@ const file_proto_community_community_proto_rawDesc = "" +
 	"\x16DeleteCommunityRequest\x12!\n" +
 	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\"<\n" +
 	"\x17GetCommunityByIDRequest\x12!\n" +
-	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\"F\n" +
+	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\"g\n" +
 	"\x16ListCommunitiesRequest\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"r\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1f\n" +
+	"\vis_approved\x18\x03 \x01(\bR\n" +
+	"isApproved\"r\n" +
 	"\x17ListCommunitiesResponse\x126\n" +
 	"\vcommunities\x18\x01 \x03(\v2\x14.community.CommunityR\vcommunities\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +

@@ -11,24 +11,36 @@ import (
 )
 
 func SearchUsers(c *gin.Context) {
-	query := c.Query("q")
+	// Log all query parameters for debugging
+	log.Printf("SearchUsers called with parameters: %v", c.Request.URL.Query())
+
+	query := c.Query("query")
 	if query == "" {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
-		return
+		// Try the "q" parameter as a fallback for backward compatibility
+		query = c.Query("q")
+		log.Printf("SearchUsers: query parameter empty, using 'q' parameter: %s", query)
 	}
 
-	// Validate query length
-	const MAX_QUERY_LENGTH = 50
-	if len(query) > MAX_QUERY_LENGTH {
-		log.Printf("Search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
-		query = query[:MAX_QUERY_LENGTH]
+	// No need to check if query is empty - we want to support empty queries
+	// for filter-only searches like verified users or following
+
+	// Validate query length only if provided
+	if query != "" {
+		const MAX_QUERY_LENGTH = 50
+		if len(query) > MAX_QUERY_LENGTH {
+			log.Printf("Search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
+			query = query[:MAX_QUERY_LENGTH]
+		}
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	filter := c.DefaultQuery("filter", "all")
 
+	log.Printf("SearchUsers: Processing with query='%s', filter='%s', page=%d, limit=%d", query, filter, page, limit)
+
 	if userServiceClient == nil {
+		log.Printf("SearchUsers: Error - userServiceClient is nil")
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
@@ -37,13 +49,18 @@ func SearchUsers(c *gin.Context) {
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok {
+			log.Printf("SearchUsers: gRPC error: %v, code: %v", err, st.Code())
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to search users: "+st.Message())
 		} else {
+			log.Printf("SearchUsers: Non-gRPC error: %v", err)
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while searching users")
 		}
 		log.Printf("Error searching users: %v", err)
 		return
 	}
+
+	log.Printf("SearchUsers: Success, found %d users (total count: %d)", len(users), totalCount)
+
 	var userResults []gin.H
 	for _, user := range users {
 		userResults = append(userResults, gin.H{
@@ -77,13 +94,131 @@ func SearchThreads(c *gin.Context) {
 		return
 	}
 
+	// Validate query length
+	const MAX_QUERY_LENGTH = 100
+	if len(query) > MAX_QUERY_LENGTH {
+		log.Printf("Search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
+		query = query[:MAX_QUERY_LENGTH]
+	}
+
+	// Extract parameters
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	filter := c.DefaultQuery("filter", "all")
+	category := c.DefaultQuery("category", "")
+	sortBy := c.DefaultQuery("sort_by", "recent")
+
+	// Get authenticated user ID if available
+	var userID string
+	userIDValue, exists := c.Get("userId")
+	if exists {
+		if userIDStr, ok := userIDValue.(string); ok {
+			userID = userIDStr
+			log.Printf("Authenticated user for search: %s", userID)
+		}
+	}
+
+	if threadServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
+		return
+	}
+
+	var threads []*Thread
+	var err error
+
+	log.Printf("Searching threads with query=%s, filter=%s, category=%s, sortBy=%s", query, filter, category, sortBy)
+
+	// For now, we'll use the basic SearchThreads method and handle filtering in the application layer
+	// In the future, consider expanding the proto definition to include these parameters
+	threads, err = threadServiceClient.SearchThreads(query, userID, page, limit)
+
+	// Apply filters on the application layer
+	if err == nil && filter != "" {
+		var filteredThreads []*Thread
+
+		switch filter {
+		case "following":
+			if userID != "" && userServiceClient != nil {
+				following, err := userServiceClient.GetFollowing(userID, 1, 1000)
+				if err == nil {
+					// Create a map of followed user IDs for fast lookups
+					followingMap := make(map[string]bool)
+					for _, user := range following {
+						followingMap[user.ID] = true
+					}
+
+					// Filter threads by users the current user follows
+					for _, thread := range threads {
+						if followingMap[thread.UserID] {
+							filteredThreads = append(filteredThreads, thread)
+						}
+					}
+					threads = filteredThreads
+				} else {
+					log.Printf("Error getting following users: %v", err)
+				}
+			}
+		case "verified":
+			// This would require additional user info - for now we'll skip implementing this filter
+			// but would need to be added in the future
+			threads = threads
+		}
+	}
+
+	if err != nil {
+		log.Printf("Error searching threads: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to search threads")
+		return
+	}
+
+	// Convert to response format
+	var threadResults []gin.H
+	for _, thread := range threads {
+		threadData := gin.H{
+			"id":            thread.ID,
+			"content":       thread.Content,
+			"created_at":    thread.CreatedAt,
+			"like_count":    thread.LikeCount,   // Fixed field name
+			"reply_count":   thread.ReplyCount,  // Fixed field name
+			"repost_count":  thread.RepostCount, // Fixed field name
+			"is_liked":      thread.IsLiked,
+			"is_reposted":   thread.IsReposted,
+			"is_bookmarked": thread.IsBookmarked,
+		}
+
+		// Add author information directly from the thread fields
+		// since Thread struct doesn't have a User field
+		threadData["author"] = gin.H{
+			"id":           thread.UserID,
+			"username":     thread.Username,
+			"display_name": thread.DisplayName,
+			"avatar":       thread.ProfilePicture,
+			"is_verified":  false, // This information is not in Thread struct
+		}
+
+		// Add media if available
+		if len(thread.Media) > 0 {
+			var mediaList []gin.H
+			for _, media := range thread.Media {
+				mediaList = append(mediaList, gin.H{
+					"id":   media.ID,
+					"url":  media.URL,
+					"type": media.Type,
+				})
+			}
+			threadData["media"] = mediaList
+		}
+
+		threadResults = append(threadResults, threadData)
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"threads": []gin.H{},
+		"threads": threadResults,
 		"pagination": gin.H{
-			"total_count":  0,
-			"current_page": 1,
-			"per_page":     10,
-			"has_more":     false,
+			"total_count":  len(threads),
+			"current_page": page,
+			"per_page":     limit,
+			"has_more":     len(threads) == limit,
 		},
 	})
 }

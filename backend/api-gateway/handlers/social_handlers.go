@@ -1043,17 +1043,22 @@ func RemoveReplyBookmark(c *gin.Context) {
 
 func SearchSocialUsers(c *gin.Context) {
 
-	query := c.Query("q")
+	query := c.Query("query")
 	if query == "" {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
-		return
+		// Try the "q" parameter as a fallback for backward compatibility
+		query = c.Query("q")
 	}
 
-	// Validate query length
-	const MAX_QUERY_LENGTH = 50
-	if len(query) > MAX_QUERY_LENGTH {
-		log.Printf("Social search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
-		query = query[:MAX_QUERY_LENGTH]
+	// No need to check if query is empty - we want to support empty queries
+	// for filter-only searches like verified users or following
+
+	// Validate query length only if provided
+	if query != "" {
+		const MAX_QUERY_LENGTH = 50
+		if len(query) > MAX_QUERY_LENGTH {
+			log.Printf("Social search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
+			query = query[:MAX_QUERY_LENGTH]
+		}
 	}
 
 	filter := c.DefaultQuery("filter", "")
@@ -1067,6 +1072,7 @@ func SearchSocialUsers(c *gin.Context) {
 		limit = 10
 	}
 
+	log.Printf("SearchSocialUsers: query=%s, filter=%s, page=%d, limit=%d", query, filter, page, limit)
 	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
 		log.Printf("Error searching users: %v", err)

@@ -678,9 +678,15 @@ export async function searchThreads(
       limit: limit.toString()
     });
 
-    if (options?.filter) params.append('filter', options.filter);
+    // Make sure all filters are properly appended to the request
+    if (options?.filter) {
+      params.append('filter', options.filter);
+      console.log(`Using filter: ${options.filter}`);
+    }
     if (options?.category) params.append('category', options.category);
     if (options?.sort_by) params.append('sort_by', options.sort_by);
+
+    console.log(`Searching threads with query: ${query}, filter: ${options?.filter || 'all'}, URL: ${API_BASE_URL}/threads/search?${params}`);
 
     return await makeApiRequest(
       `${API_BASE_URL}/threads/search?${params}`, 
@@ -707,8 +713,10 @@ export async function searchThreadsWithMedia(
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
 
+    // Make sure filter is always included if provided
     if (options?.filter) {
       url.searchParams.append('filter', options.filter);
+      console.log(`Using filter for media search: ${options.filter}`);
     }
 
     if (options?.category) {
@@ -716,6 +724,7 @@ export async function searchThreadsWithMedia(
     }
 
     const token = getAuthToken();
+    console.log(`Searching threads with media: ${url.toString()}`);
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -726,6 +735,7 @@ export async function searchThreadsWithMedia(
     });
 
     if (!response.ok) {
+      // Don't fall back to empty results, throw an error instead
       throw new Error(`Failed to search threads with media: ${response.status}`);
     }
 

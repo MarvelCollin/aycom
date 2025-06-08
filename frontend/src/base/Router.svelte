@@ -20,40 +20,42 @@
   import UserProfile from '../pages/UserProfile.svelte';
   import Premium from '../pages/Premium.svelte';
   import Setting from '../pages/Setting.svelte';
+  import WebSocketTest from '../pages/WebSocketTest.svelte';
 
   let route = '/';
   let authStatus = false;
   let userProfileId = '';
   let communityId = '';
 
-  function handleNavigation() {
+  function handleNavigation(event) {
     const fullPath = window.location.pathname;
     console.log('Handling navigation to:', fullPath);
 
+    // Extract user profile ID from URL
     const userProfileMatch = fullPath.match(/^\/user\/([^\/]+)$/);
     if (userProfileMatch) {
       userProfileId = userProfileMatch[1];
       route = '/user';
       console.log(`User profile route matched with userId: ${userProfileId}`);
-
       updatePageStore();
       return;
     }
 
+    // Extract community ID from URL 
     const communityDetailMatch = fullPath.match(/^\/communities\/([^\/]+)$/);
     if (communityDetailMatch) {
       communityId = communityDetailMatch[1];
       route = '/community-detail';
       console.log(`Community detail route matched with communityId: ${communityId}`);
-
       updatePageStore();
       return;
     }
 
+    // Handle normal routes
     route = fullPath;
-
     updatePageStore();
 
+    // Check authentication for protected routes
     authStatus = checkAuthentication();
     console.log(`Authentication status: ${authStatus}`);
 
@@ -73,7 +75,8 @@
          route === '/profile' ||
          route === '/settings' ||
          route === '/admin' ||
-         route === '/user')) {
+         route === '/user' ||
+         route === '/websocket-test')) {
       console.log('Unauthenticated access to protected route, redirecting to login');
       window.history.replaceState({}, '', '/login');
       route = '/login';
@@ -90,6 +93,19 @@
 
   onMount(() => {
     window.addEventListener('popstate', handleNavigation);
+    
+    // Add a custom event listener for navigation events
+    window.addEventListener('navigate', (event) => {
+      console.log('Custom navigation event received:', event.detail);
+      
+      // If the event includes a communityId, set it directly
+      if (event.detail && event.detail.communityId) {
+        communityId = event.detail.communityId;
+      }
+      
+      handleNavigation(event);
+    });
+    
     handleNavigation();
 
     document.body.addEventListener('click', (e) => {
@@ -100,6 +116,7 @@
         e.preventDefault();
         const href = anchor.getAttribute('href') || '/';
         if (href !== window.location.pathname) {
+          console.log(`Link click navigation to ${href}`);
           window.history.pushState({}, '', href);
           handleNavigation();
         }
@@ -108,6 +125,7 @@
 
     return () => {
       window.removeEventListener('popstate', handleNavigation);
+      window.removeEventListener('navigate', handleNavigation);
     };
   });
 </script>
@@ -144,13 +162,15 @@
   {:else if route === '/communities'}
     <Communities />
   {:else if route === '/community-detail'}
-    <CommunityDetail />
+    <CommunityDetail communityId={communityId} />
   {:else if route === '/premium'}
     <Premium />
   {:else if route === '/settings'}
     <Setting />
   {:else if route === '/admin'}
     <Admin />
+  {:else if route === '/websocket-test'}
+    <WebSocketTest />
   {:else}
     <div class="not-found">
       <h1>404 - Page Not Found</h1>

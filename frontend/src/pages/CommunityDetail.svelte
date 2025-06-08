@@ -108,14 +108,16 @@
   };
   $: isDarkMode = $theme === 'dark';
   
-  // Get community ID from URL
-  let communityId = '';
+  // Get community ID from URL or props
+  export let communityId = '';
+  
+  // If not provided directly, extract from URL
   $: {
-    if (typeof window !== 'undefined') {
+    if (!communityId && typeof window !== 'undefined') {
       const urlParts = window.location.pathname.split('/');
       if (urlParts.length > 2 && urlParts[1] === 'communities') {
         communityId = urlParts[2];
-        console.log(`Detected community ID from URL: ${communityId}`);
+        console.log(`Extracted community ID from URL: ${communityId}`);
       }
     }
   }
@@ -133,10 +135,13 @@
   
   onMount(async () => {
     if (!communityId) {
+      console.error('No community ID available');
       toastStore.showToast('Invalid community ID', 'error');
       window.location.href = '/communities';
       return;
     }
+    
+    console.log(`CommunityDetail component mounted with ID: ${communityId}`);
     
     try {
       console.log(`Loading data for community: ${communityId}`);
@@ -180,16 +185,34 @@
       
       // Get community details
       console.log(`Calling getCommunityById for community: ${communityId}`);
-      const communityResponse = await getCommunityById(communityId);
-      console.log('Community response:', communityResponse);
+      let communityResponse;
       
-      if (!communityResponse || !communityResponse.community) {
+      try {
+        // Try the main community API
+        communityResponse = await getCommunityById(communityId);
+        console.log('Community response from API:', communityResponse);
+        
+        if (!communityResponse || (!communityResponse.community && !communityResponse.data)) {
+          throw new Error('Invalid API response format');
+        }
+      } catch (err) {
+        console.warn('Primary API call failed:', err);
         errorMessage = 'Community not found';
-        throw new Error('Community not found');
+        throw new Error('Community not found or inaccessible');
+      }
+      
+      // Extract community data handling different response formats
+      let communityData;
+      if (communityResponse.community) {
+        communityData = communityResponse.community;
+      } else if (communityResponse.data) {
+        communityData = communityResponse.data;
+      } else {
+        errorMessage = 'Invalid community data format';
+        throw new Error('Invalid community data format');
       }
       
       // Normalize community data fields
-      const communityData = communityResponse.community;
       community = {
         id: communityData.id || communityId,
         name: communityData.name || 'Unnamed Community',
@@ -207,33 +230,57 @@
       console.log('Normalized community data:', community);
       
       // Check membership status
-      const membershipResponse = await checkUserCommunityMembership(communityId);
-      console.log('Membership response:', membershipResponse);
-      isMember = membershipResponse?.status === 'member';
-      isPending = membershipResponse?.status === 'pending';
+      try {
+        // Only check membership if user is logged in
+        const authData = localStorage.getItem('auth');
+        if (authData) {
+          const auth = JSON.parse(authData);
+          if (auth.access_token && (!auth.expires_at || new Date(auth.expires_at) > new Date())) {
+            const membershipResponse = await checkUserCommunityMembership(communityId);
+            console.log('Membership response:', membershipResponse);
+            isMember = membershipResponse?.status === 'member';
+            isPending = membershipResponse?.status === 'pending';
+          }
+        } else {
+          console.log('User not logged in, skipping membership check');
+          isMember = false;
+          isPending = false;
+        }
+      } catch (membershipError) {
+        console.warn('Error checking membership status:', membershipError);
+        // Default to non-member if check fails
+        isMember = false;
+        isPending = false;
+      }
       
       // Load posts, members, and rules in parallel
-      await Promise.all([
-        loadThreads(),
-        loadMembers(),
-        loadRules()
-      ]);
+      try {
+        await Promise.allSettled([
+          loadThreads(),
+          loadMembers(),
+          loadRules()
+        ]);
+      } catch (loadError) {
+        console.warn('Error loading related community data:', loadError);
+        // We can continue even if these fail
+      }
       
     } catch (error) {
-      // This will rarely happen now since getCommunityById returns default data instead of throwing
       logger.error('Error loading community data:', error);
       errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      if (error instanceof SyntaxError && error.message.includes('Unexpected end of JSON')) {
-        toastStore.showToast('Unable to load community data. The server returned an invalid response.', 'error');
-      } else if (error instanceof Error && error.message.includes('Empty response from server')) {
-        toastStore.showToast('Unable to load community data. The server returned an empty response.', 'error');
-      } else if (error instanceof Error && error.message.includes('Community not found')) {
-        toastStore.showToast('The community you are looking for does not exist or has been removed.', 'error');
-      } else {
-        toastStore.showToast('Failed to load community data: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+      if (!community) {
+        // Only show a toast if we couldn't load the community at all
+        if (error instanceof SyntaxError && error.message.includes('Unexpected end of JSON')) {
+          toastStore.showToast('Unable to load community data. The server returned an invalid response.', 'error');
+        } else if (error instanceof Error && error.message.includes('Empty response from server')) {
+          toastStore.showToast('Unable to load community data. The server returned an empty response.', 'error');
+        } else if (error instanceof Error && error.message.includes('Community not found')) {
+          toastStore.showToast('The community you are looking for does not exist or has been removed.', 'error');
+        } else {
+          toastStore.showToast('Failed to load community data', 'error');
+        }
       }
-      
     } finally {
       isLoading = false;
     }
@@ -242,12 +289,15 @@
   async function loadThreads() {
     try {
       // For community posts, we use the getUserThreads with community parameter
-      // This doesn't match the function signature, but the implementation accepts more params
       const threadsResponse = await getUserThreads(communityId, 1, 10);
-      // Alternatively use query string parameter:
-      // const threadsResponse = await getUserThreads(`${communityId}?communityId=${communityId}`);
       
-      threads = (threadsResponse?.threads || []) as Thread[];
+      if (threadsResponse && Array.isArray(threadsResponse.threads)) {
+        threads = threadsResponse.threads as Thread[];
+      } else if (threadsResponse && threadsResponse.data && Array.isArray(threadsResponse.data.threads)) {
+        threads = threadsResponse.data.threads as Thread[];
+      } else {
+        threads = [];
+      }
       
     } catch (error) {
       logger.error('Error loading community threads:', error);
@@ -258,7 +308,15 @@
   async function loadMembers() {
     try {
       const membersResponse = await listMembers(communityId);
-      members = membersResponse?.members || [];
+      
+      if (membersResponse && Array.isArray(membersResponse.members)) {
+        members = membersResponse.members;
+      } else if (membersResponse && membersResponse.data && Array.isArray(membersResponse.data.members)) {
+        members = membersResponse.data.members;
+      } else {
+        members = [];
+      }
+      
     } catch (error) {
       logger.error('Error loading community members:', error);
       members = [];
@@ -268,7 +326,15 @@
   async function loadRules() {
     try {
       const rulesResponse = await listRules(communityId);
-      rules = rulesResponse?.rules || [];
+      
+      if (rulesResponse && Array.isArray(rulesResponse.rules)) {
+        rules = rulesResponse.rules;
+      } else if (rulesResponse && rulesResponse.data && Array.isArray(rulesResponse.data.rules)) {
+        rules = rulesResponse.data.rules;
+      } else {
+        rules = [];
+      }
+      
     } catch (error) {
       logger.error('Error loading community rules:', error);
       rules = [];

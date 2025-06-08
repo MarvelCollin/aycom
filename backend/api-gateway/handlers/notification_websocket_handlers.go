@@ -21,17 +21,54 @@ type NotificationClient struct {
 }
 
 func HandleNotificationsWebSocket(c *gin.Context) {
+	log.Printf("WebSocket connection request received for notifications from IP: %s", c.ClientIP())
+
+	// Set CORS headers for WebSocket
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "*"
+	}
+
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+
+	// Handle preflight OPTIONS request
+	if c.Request.Method == "OPTIONS" {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
 	userID, exists := c.Get("userId")
 	if !exists {
+		log.Printf("WebSocket connection rejected - no userId in context")
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	log.Printf("Handling WebSocket connection for user ID: %s", userID)
+	log.Printf("Headers: %v", c.Request.Header)
+
+	// Enhanced upgrader configuration
+	upgraderConfig := websocket.Upgrader{
+		ReadBufferSize:  ReadBufferSize,
+		WriteBufferSize: WriteBufferSize,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			log.Printf("WebSocket connection attempt from origin: %s", origin)
+			// Accept all origins during development
+			return true
+		},
+	}
+
+	conn, err := upgraderConfig.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("Failed to set websocket upgrade: %v", err)
 		return
 	}
+
+	log.Printf("WebSocket connection successfully established for user ID: %s", userID)
 
 	client := &NotificationClient{
 		ID:         uuid.New().String(),
@@ -55,6 +92,22 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 
 	go client.notificationWritePump()
 	go client.notificationReadPump(wsClient)
+
+	// Send test ping message on connection
+	testMessage := map[string]interface{}{
+		"type":      "connection_established",
+		"timestamp": time.Now().Format(time.RFC3339),
+		"message":   "WebSocket connection established successfully",
+	}
+
+	if testMessageJSON, err := json.Marshal(testMessage); err == nil {
+		select {
+		case client.Send <- testMessageJSON:
+			log.Printf("Sent test connection message to user %s", userID)
+		default:
+			log.Printf("Failed to send test message to user %s", userID)
+		}
+	}
 
 	go sendUnreadNotifications(client)
 }

@@ -51,6 +51,22 @@ export async function getCommunities(params: CommunitiesParams = {}) {
     if (!response.ok) {
       logger.error(`Communities API responded with ${response.status}: ${response.statusText}`);
 
+      // Handle 401 Unauthorized gracefully
+      if (response.status === 401) {
+        logger.warn('Unauthorized access to communities API - returning empty results');
+        return { 
+          success: true,
+          communities: [],
+          pagination: {
+            total_count: 0,
+            current_page: params.page || 1,
+            per_page: params.limit || 25,
+            total_pages: 0
+          },
+          limit_options: [25, 30, 35]
+        };
+      }
+
       const text = await response.text();
       if (!text) {
         throw new Error(`HTTP error ${response.status}: Empty response`);
@@ -207,11 +223,11 @@ export async function getCommunities(params: CommunitiesParams = {}) {
 
 export async function getCommunityCategories(): Promise<ICategory[]> {
   try {
-    const token = getAuthToken();
     const response = await fetch(`${API_BASE_URL}/communities/categories`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
     if (!response.ok) {
@@ -231,33 +247,63 @@ export const getCategories = getCommunityCategories;
 export async function checkUserCommunityMembership(communityId) {
   try {
     const token = getAuthToken();
-
-    const response = await fetch(`${API_BASE_URL}/communities/${communityId}/membership`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-
-        return { success: true, status: 'none' };
-      }
-      throw new Error(`Failed to check membership (${response.status})`);
+    
+    if (!token) {
+      // If user is not logged in, they're definitely not a member
+      return {
+        success: true,
+        status: 'none',
+        is_member: false,
+        user_role: null
+      };
     }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/communities/${communityId}/membership`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include'
+      });
 
-    const data = await response.json();
-    return {
-      success: true,
-      status: data.status || 'none'
-    };
+      if (!response.ok) {
+        // Handle specific error codes
+        if (response.status === 404) {
+          return { success: true, status: 'none' };
+        } else if (response.status === 401 || response.status === 403) {
+          // Unauthorized or forbidden - user is not logged in or doesn't have access
+          return { success: true, status: 'none' };
+        } else if (response.status >= 500) {
+          // Server error - don't throw, just return a default value
+          console.warn(`Server error (${response.status}) checking membership for community ${communityId}`);
+          return { success: true, status: 'none' };
+        }
+        
+        // For other errors
+        throw new Error(`Failed to check membership (${response.status})`);
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        status: data.status || 'none'
+      };
+    } catch (fetchError) {
+      // Handle network errors or other fetch issues gracefully
+      console.warn(`Error fetching membership status: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+      return {
+        success: true,
+        status: 'none'
+      };
+    }
   } catch (error) {
+    // This catch block may not be needed anymore since we're already catching fetch errors,
+    // but we'll keep it for any other unexpected errors
     logger.error('Check membership failed:', error);
     return {
-      success: false,
+      success: true, // Return success true to prevent further error propagation
       status: 'none',
       error: error instanceof Error ? error.message : 'Unknown error'
     };
@@ -268,54 +314,35 @@ export async function createCommunity(data: Record<string, any>) {
   try {
     const token = getAuthToken();
     
-    logger.debug('Creating community with data:', {
-      name: data.name,
-      description: data.description,
-      icon: data.icon ? `[File: ${data.icon.name}]` : null,
-      banner: data.banner ? `[File: ${data.banner.name}]` : null,
-      categories: data.categories
-    });
-    
-    const payload = {
-      name: data.name,
-      description: data.description || '',
-      logo_url: '',
-      banner_url: '',
-      rules: data.rules?.toString() || '',
-      categories: Array.isArray(data.categories) ? data.categories : []
-    };
-    
-    if (data.icon instanceof File) {
-      try {
-        const iconUrl = await uploadFile(data.icon, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
-        if (iconUrl) {
-          payload.logo_url = iconUrl;
-        }
-      } catch (uploadError) {
-        logger.error('Failed to upload community icon:', uploadError);
-        throw new Error('Failed to upload community icon. Please try again.');
-      }
+    if (!token) {
+      throw new Error('Authentication required');
     }
     
-    if (data.banner instanceof File) {
-      try {
-        const bannerUrl = await uploadFile(data.banner, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
-        if (bannerUrl) {
-          payload.banner_url = bannerUrl;
-        }
-      } catch (uploadError) {
-        logger.error('Failed to upload community banner:', uploadError);
-        throw new Error('Failed to upload community banner. Please try again.');
+    // Upload media files first if provided
+    if (data.logo && data.logo instanceof File) {
+      const logoUrl = await uploadFile(data.logo, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+      if (logoUrl) {
+        data.logo_url = logoUrl;
       }
+      delete data.logo;
     }
     
+    if (data.banner && data.banner instanceof File) {
+      const bannerUrl = await uploadFile(data.banner, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+      if (bannerUrl) {
+        data.banner_url = bannerUrl;
+      }
+      delete data.banner;
+    }
+    
+    // Now create the community with the uploaded media URLs
     const response = await fetch(`${API_BASE_URL}/communities`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(data),
       credentials: 'include'
     });
     
@@ -340,13 +367,11 @@ export async function createCommunity(data: Record<string, any>) {
 
 export async function listCommunities() {
   try {
-    const token = getAuthToken();
-
     const response = await fetch(`${API_BASE_URL}/communities`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
       },
       credentials: 'include'
     });
@@ -402,6 +427,42 @@ export async function getCommunityById(id: string) {
     console.log(`API response status: ${response.status}`);
 
     if (!response.ok) {
+      // Handle unauthorized access gracefully
+      if (response.status === 401) {
+        console.warn(`Unauthorized access to community ${id} - trying to fetch as public resource`);
+        
+        // Try again without auth header as the endpoint should be public
+        const publicResponse = await fetch(`${API_BASE_URL}/communities/${id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!publicResponse.ok) {
+          const text = await publicResponse.text();
+          console.error(`Error response from public API: ${text}`);
+          let errorData;
+          try {
+            errorData = JSON.parse(text);
+            console.error('Parsed error data:', errorData);
+          } catch (e) {
+            throw new Error(`Failed to get community: HTTP ${publicResponse.status} ${publicResponse.statusText}`);
+          }
+          throw new Error(errorData.message || 'Failed to get community');
+        }
+        
+        const text = await publicResponse.text();
+        try {
+          const data = JSON.parse(text);
+          console.log(`Successfully parsed community data from public endpoint:`, data);
+          return data;
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          throw new Error('Failed to parse community data');
+        }
+      }
+      
       const text = await response.text();
       console.error(`Error response from API: ${text}`);
       let errorData;
@@ -583,25 +644,11 @@ export async function listMembers(communityId: string) {
 
         return { success: true, members: [] };
       }
-      logger.warn(`Failed to list members: ${errorData?.message || 'Unknown error'}`);
-      return { success: true, members: [] };
+      throw new Error(errorData.message || 'Failed to list members');
     }
-
-    const text = await response.text();
-    if (!text) {
-      logger.warn(`Empty response received when listing members for community: ${communityId}`);
-      return { success: true, members: [] };
-    }
-
-    try {
-      const data = JSON.parse(text);
-      return data;
-    } catch (parseError) {
-      logger.warn('JSON parse error when listing members:', parseError);
-      return { success: true, members: [] };
-    }
+    return response.json();
   } catch (error) {
-    logger.warn(`List members for community ${communityId} failed:`, error);
+    logger.error(`List members for community ${communityId} failed:`, error);
     return { success: true, members: [] };
   }
 }
@@ -686,28 +733,13 @@ export async function listRules(communityId: string) {
         errorData = JSON.parse(text);
       } catch (e) {
         logger.warn(`Failed to parse error response when listing rules: ${e}`);
-
         return { success: true, rules: [] };
       }
-      logger.warn(`Failed to list rules: ${errorData?.message || 'Unknown error'}`);
-      return { success: true, rules: [] };
+      throw new Error(errorData.message || 'Failed to list rules');
     }
-
-    const text = await response.text();
-    if (!text) {
-      logger.warn(`Empty response received when listing rules for community: ${communityId}`);
-      return { success: true, rules: [] };
-    }
-
-    try {
-      const data = JSON.parse(text);
-      return data;
-    } catch (parseError) {
-      logger.warn('JSON parse error when listing rules:', parseError);
-      return { success: true, rules: [] };
-    }
+    return response.json();
   } catch (error) {
-    logger.warn(`List rules for community ${communityId} failed:`, error);
+    logger.error(`List rules for community ${communityId} failed:`, error);
     return { success: true, rules: [] };
   }
 }
@@ -745,7 +777,7 @@ export async function requestToJoin(communityId: string, data: Record<string, an
     });
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to request to join');
+      throw new Error(errorData.message || 'Failed to request to join community');
     }
     return response.json();
   } catch (error) {
@@ -821,56 +853,27 @@ export async function searchCommunities(
 ) {
   try {
     const url = new URL(`${API_BASE_URL}/communities/search`);
-
     url.searchParams.append('q', query);
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
 
-    const token = getAuthToken();
-
-    logger.debug('Searching communities', { query, page, limit });
-
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
       },
       credentials: 'include'
     });
 
     if (!response.ok) {
-
-      if (response.status === 401) {
-        logger.warn('Unauthorized when searching communities - returning empty results');
-        return { communities: [], total_count: 0, page, limit };
-      }
-
-      if (response.status === 500) {
-        logger.error(`Server error (500) when searching communities - returning empty results`);
-        return { communities: [], total_count: 0, page, limit };
-      }
-
-      const errorMessage = `Failed to search communities: ${response.status}`;
-      logger.error(errorMessage);
-      throw new Error(errorMessage);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to search communities');
     }
 
     const data = await response.json();
-    logger.debug('Communities search results', { 
-      count: data.communities?.length || 0,
-      totalCount: data.total_count || 0
-    });
-
     return data;
   } catch (error) {
-    logger.error('Error searching communities:', error);
-
-    return {
-      communities: [],
-      total_count: 0,
-      page,
-      limit
-    };
+    logger.error('Search communities failed:', error);
+    throw error;
   }
 }

@@ -9,7 +9,6 @@ import (
 )
 
 const (
-
 	ReadBufferSize  = 1024
 	WriteBufferSize = 1024
 	SendBufferSize  = 256
@@ -55,13 +54,16 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  ReadBufferSize,
 	WriteBufferSize: WriteBufferSize,
 	CheckOrigin: func(r *http.Request) bool {
-		return true 
+		origin := r.Header.Get("Origin")
+		log.Printf("WebSocket connection attempt from origin: %s", origin)
+		// Allow all origins for now, but log them for debugging
+		return true
 	},
 }
 
 func InitWebsocketServices() {
 	log.Println("Initializing WebSocket service clients...")
-	GetWebSocketManager() 
+	GetWebSocketManager()
 	log.Println("WebSocket service clients initialized successfully")
 }
 

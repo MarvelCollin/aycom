@@ -852,23 +852,28 @@ export async function searchUsers(
 ): Promise<any> {
   try {
     const token = getAuthToken();
+    
+    console.log('searchUsers called with query:', query, 'page:', page, 'limit:', limit, 'options:', options);
 
     // Validate and truncate search query if too long
     const MAX_QUERY_LENGTH = 30;
-    let validatedQuery = query;
-    if (query.length > MAX_QUERY_LENGTH) {
-      console.warn(`Search query too long (${query.length} chars). Truncating to ${MAX_QUERY_LENGTH} characters.`);
-      validatedQuery = query.substring(0, MAX_QUERY_LENGTH);
+    let validatedQuery = query || '';
+    if (validatedQuery.length > MAX_QUERY_LENGTH) {
+      console.warn(`Search query too long (${validatedQuery.length} chars). Truncating to ${MAX_QUERY_LENGTH} characters.`);
+      validatedQuery = validatedQuery.substring(0, MAX_QUERY_LENGTH);
     }
 
     // Function to make a search request with or without auth
     const makeSearchRequest = async (withAuth: boolean) => {
-      const params = new URLSearchParams({
-        query: validatedQuery,
-        page: page.toString(),
-        limit: limit.toString()
-      });
+      // Set up query parameters
+      const params = new URLSearchParams();
+      
+      // Always set query parameter even if empty
+      params.append('query', validatedQuery);
+      params.append('page', page.toString());
+      params.append('limit', limit.toString());
   
+      // Add options as query parameters
       if (options) {
         Object.keys(options).forEach(key => {
           if (options[key] !== undefined) {
@@ -884,8 +889,11 @@ export async function searchUsers(
       if (withAuth && token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-  
-      return await fetch(`${API_BASE_URL}/users/search?${params.toString()}`, {
+      
+      const requestUrl = `${API_BASE_URL}/users/search?${params.toString()}`;
+      console.log(`Making search request: ${requestUrl}`);
+      
+      return await fetch(requestUrl, {
         method: 'GET',
         headers,
         credentials: 'include'
@@ -894,6 +902,7 @@ export async function searchUsers(
 
     // First try with authentication if we have a token
     let response = await makeSearchRequest(!!token);
+    console.log('Search response status:', response.status);
     
     // If we get a 401 error and tried with auth, retry without auth
     if (response.status === 401 && token) {
@@ -904,7 +913,8 @@ export async function searchUsers(
     if (!response.ok) {
       // For certain error codes, return empty results instead of throwing
       if (response.status === 401 || response.status === 403 || response.status === 400) {
-        console.warn(`Search users returned ${response.status}, returning empty results`);
+        const errorText = await response.text();
+        console.warn(`Search users returned ${response.status}: ${errorText}`);
         return {
           success: true,
           users: [],
@@ -915,6 +925,8 @@ export async function searchUsers(
     }
 
     const data = await response.json();
+    console.log('Search results:', data);
+    
     return {
       success: true,
       users: data.users || [],

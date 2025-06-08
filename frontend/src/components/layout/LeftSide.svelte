@@ -7,6 +7,7 @@
   import { toastStore } from '../../stores/toastStore';
   import { getProfile, checkAdminStatus } from '../../api/user';
   import { onMount } from 'svelte';
+  import { notificationStore } from '../../stores/notificationStore';
 
   import HomeIcon from 'svelte-feather-icons/src/icons/HomeIcon.svelte';
   import HashIcon from 'svelte-feather-icons/src/icons/HashIcon.svelte';
@@ -214,6 +215,12 @@
   
   let currentPath = '';
   
+  // Get unread notification count
+  let unreadNotificationCount;
+  notificationStore.unreadCount.subscribe(count => {
+    unreadNotificationCount = count;
+  });
+  
   onMount(() => {
     currentPath = window.location.pathname;
     
@@ -331,6 +338,11 @@
                 <HashIcon size={isCollapsed ? "24" : "20"} />
               {:else if item.icon === 'bell'}
                 <BellIcon size={isCollapsed ? "24" : "20"} />
+                {#if unreadNotificationCount > 0 && item.label === 'Notifications'}
+                  <div class="notification-badge">
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </div>
+                {/if}
               {:else if item.icon === 'mail'}
                 <MailIcon size={isCollapsed ? "24" : "20"} />
               {:else if item.icon === 'bookmark'}
@@ -559,6 +571,7 @@
     color: var(--text-primary);
     font-weight: var(--font-weight-medium);
     transition: background-color 0.2s ease;
+    position: relative;
   }
   
   .sidebar-nav-item:hover {
@@ -861,5 +874,30 @@
       width: calc(100% - var(--space-4));
       left: var(--space-2);
     }
+  }
+  
+  .notification-badge {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    background-color: var(--color-primary);
+    color: white;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    border-radius: 50%;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--space-1);
+  }
+  
+  .sidebar-inner-collapsed .notification-badge {
+    top: 4px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    font-size: calc(var(--font-size-xs) - 2px);
   }
 </style>

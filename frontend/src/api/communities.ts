@@ -67,12 +67,12 @@ export interface CreateCommunityRequest {
 
 // API methods
 export const createCommunity = async (communityData: CreateCommunityRequest): Promise<Community> => {
-  const response = await axios.post(`${API_URL}/communities`, communityData);
+  const response = await axios.post(`${API_URL}/v1/communities`, communityData);
   return response.data.data;
 };
 
 export const getCommunityById = async (id: string): Promise<Community> => {
-  const response = await axios.get(`${API_URL}/communities/${id}`);
+  const response = await axios.get(`${API_URL}/v1/communities/${id}`);
   return response.data.data;
 };
 
@@ -83,7 +83,7 @@ export const listCommunities = async (
   query?: string,
   categories?: string[]
 ): Promise<{ communities: Community[], pagination: PaginationData }> => {
-  let url = `${API_URL}/communities?page=${page}&limit=${limit}&filter=${filter}`;
+  let url = `${API_URL}/v1/communities?page=${page}&limit=${limit}&filter=${filter}`;
   
   if (query) {
     url += `&q=${query}`;
@@ -103,16 +103,16 @@ export const updateCommunity = async (
   id: string,
   communityData: Partial<CreateCommunityRequest>
 ): Promise<Community> => {
-  const response = await axios.put(`${API_URL}/communities/${id}`, communityData);
+  const response = await axios.put(`${API_URL}/v1/communities/${id}`, communityData);
   return response.data.data;
 };
 
 export const deleteCommunity = async (id: string): Promise<void> => {
-  await axios.delete(`${API_URL}/communities/${id}`);
+  await axios.delete(`${API_URL}/v1/communities/${id}`);
 };
 
 export const approveCommunity = async (id: string): Promise<Community> => {
-  const response = await axios.post(`${API_URL}/communities/${id}/approve`);
+  const response = await axios.post(`${API_URL}/v1/communities/${id}/approve`);
   return response.data.data;
 };
 
@@ -122,18 +122,18 @@ export const listCommunityMembers = async (
   limit: number = 20
 ): Promise<{ members: CommunityMember[], pagination: PaginationData }> => {
   const response = await axios.get(
-    `${API_URL}/communities/${communityId}/members?page=${page}&limit=${limit}`
+    `${API_URL}/v1/communities/${communityId}/members?page=${page}&limit=${limit}`
   );
   return response.data.data;
 };
 
 export const addMember = async (communityId: string, userId: string): Promise<CommunityMember> => {
-  const response = await axios.post(`${API_URL}/communities/${communityId}/members`, { user_id: userId });
+  const response = await axios.post(`${API_URL}/v1/communities/${communityId}/members`, { user_id: userId });
   return response.data.data;
 };
 
 export const removeMember = async (communityId: string, userId: string): Promise<void> => {
-  await axios.delete(`${API_URL}/communities/${communityId}/members/${userId}`);
+  await axios.delete(`${API_URL}/v1/communities/${communityId}/members/${userId}`);
 };
 
 export const updateMemberRole = async (
@@ -142,14 +142,14 @@ export const updateMemberRole = async (
   role: string
 ): Promise<CommunityMember> => {
   const response = await axios.put(
-    `${API_URL}/communities/${communityId}/members/${userId}`,
+    `${API_URL}/v1/communities/${communityId}/members/${userId}`,
     { role }
   );
   return response.data.data;
 };
 
 export const listRules = async (communityId: string): Promise<CommunityRule[]> => {
-  const response = await axios.get(`${API_URL}/communities/${communityId}/rules`);
+  const response = await axios.get(`${API_URL}/v1/communities/${communityId}/rules`);
   return response.data.data.rules;
 };
 
@@ -157,18 +157,18 @@ export const addRule = async (
   communityId: string,
   ruleText: string
 ): Promise<CommunityRule> => {
-  const response = await axios.post(`${API_URL}/communities/${communityId}/rules`, {
+  const response = await axios.post(`${API_URL}/v1/communities/${communityId}/rules`, {
     rule_text: ruleText
   });
   return response.data.data;
 };
 
 export const removeRule = async (communityId: string, ruleId: string): Promise<void> => {
-  await axios.delete(`${API_URL}/communities/${communityId}/rules/${ruleId}`);
+  await axios.delete(`${API_URL}/v1/communities/${communityId}/rules/${ruleId}`);
 };
 
 export const requestToJoin = async (communityId: string): Promise<JoinRequest> => {
-  const response = await axios.post(`${API_URL}/communities/${communityId}/join-requests`);
+  const response = await axios.post(`${API_URL}/v1/communities/${communityId}/join-requests`);
   return response.data.data.join_request;
 };
 
@@ -178,7 +178,7 @@ export const listJoinRequests = async (
   limit: number = 20
 ): Promise<{ join_requests: JoinRequest[], pagination: PaginationData }> => {
   const response = await axios.get(
-    `${API_URL}/communities/${communityId}/join-requests?page=${page}&limit=${limit}`
+    `${API_URL}/v1/communities/${communityId}/join-requests?page=${page}&limit=${limit}`
   );
   return response.data.data;
 };
@@ -188,7 +188,7 @@ export const approveJoinRequest = async (
   requestId: string
 ): Promise<JoinRequest> => {
   const response = await axios.post(
-    `${API_URL}/communities/${communityId}/join-requests/${requestId}/approve`
+    `${API_URL}/v1/communities/${communityId}/join-requests/${requestId}/approve`
   );
   return response.data.data.join_request;
 };
@@ -198,18 +198,18 @@ export const rejectJoinRequest = async (
   requestId: string
 ): Promise<JoinRequest> => {
   const response = await axios.post(
-    `${API_URL}/communities/${communityId}/join-requests/${requestId}/reject`
+    `${API_URL}/v1/communities/${communityId}/join-requests/${requestId}/reject`
   );
   return response.data.data.join_request;
 };
 
 export const checkMembershipStatus = async (communityId: string): Promise<MembershipStatus> => {
-  const response = await axios.get(`${API_URL}/communities/${communityId}/membership`);
+  const response = await axios.get(`${API_URL}/v1/communities/${communityId}/membership`);
   return response.data.data;
 };
 
 export const listCategories = async (): Promise<Category[]> => {
-  const response = await axios.get(`${API_URL}/admin/community-categories`);
+  const response = await axios.get(`${API_URL}/v1/admin/community-categories`);
   return response.data.data.categories;
 };
 

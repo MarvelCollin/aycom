@@ -284,14 +284,19 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 	var users []*model.User
 	var total int64
 
-	// Sanitize the query by escaping special characters in LIKE patterns
-	sanitizedQuery := strings.ReplaceAll(query, "%", "\\%")
-	sanitizedQuery = strings.ReplaceAll(sanitizedQuery, "_", "\\_")
+	// Build the base query
+	db := r.db.Model(&model.User{})
 
-	// Build the search query
-	db := r.db.Model(&model.User{}).
-		Where("username ILIKE ? OR name ILIKE ?", "%"+sanitizedQuery+"%", "%"+sanitizedQuery+"%")
+	// Only add search conditions if query is not empty
+	if query != "" {
+		// Sanitize the query by escaping special characters in LIKE patterns
+		sanitizedQuery := strings.ReplaceAll(query, "%", "\\%")
+		sanitizedQuery = strings.ReplaceAll(sanitizedQuery, "_", "\\_")
 
+		db = db.Where("username ILIKE ? OR name ILIKE ?", "%"+sanitizedQuery+"%", "%"+sanitizedQuery+"%")
+	}
+
+	// Apply filter if provided
 	if filter == "verified" {
 		db = db.Where("is_verified = ?", true)
 	}
@@ -302,8 +307,8 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 		return nil, 0, err
 	}
 
-	// Then fetch paginated results
-	err = db.Offset(offset).Limit(limit).Find(&users).Error
+	// Then fetch paginated results with appropriate ordering
+	err = db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&users).Error
 
 	return users, int(total), err
 }

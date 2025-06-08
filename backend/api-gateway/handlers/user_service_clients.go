@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"aycom/backend/api-gateway/config"
+
+	"google.golang.org/grpc/metadata"
 )
 
 type UserServiceClient interface {
@@ -344,8 +346,15 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 		return nil, 0, fmt.Errorf("user service client not initialized")
 	}
 
+	log.Printf("SearchUsers called with query=%s, filter=%s, page=%d, limit=%d", query, filter, page, limit)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Add the filter to the context metadata since it's not in the protobuf definition
+	if filter != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
+	}
 
 	req := &userProto.SearchUsersRequest{
 		Query: query,
@@ -363,11 +372,20 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 	for _, protoUser := range resp.GetUsers() {
 		user := convertProtoToUser(protoUser)
 		if user != nil {
+			// Apply client-side filtering if needed
+			if filter == "verified" && !user.IsVerified {
+				continue
+			}
+
+			// For "following" filter, the server should handle this
+			// as it requires knowledge of the current user's relationships
+
 			users = append(users, user)
 		}
 	}
 
 	totalCount := int(resp.GetTotalCount())
+	log.Printf("SearchUsers found %d users (total count: %d) with filter %s", len(users), totalCount, filter)
 
 	return users, totalCount, nil
 }

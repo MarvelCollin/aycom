@@ -7,7 +7,14 @@
   import { useTheme } from '../../hooks/useTheme';
   import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
   import { createEventDispatcher } from 'svelte';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { notificationWebsocketStore } from '../../stores/notificationWebsocketStore';
+  import { isAuthenticated } from '../../utils/auth';
+  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { notificationStore } from '../../stores/notificationStore';
+  import { page } from '../../stores/routeStore';
+  
+  const logger = createLoggerWithPrefix('MainLayout');
   
   // Icons for mobile navigation
   import HomeIcon from 'svelte-feather-icons/src/icons/HomeIcon.svelte';
@@ -40,6 +47,40 @@
   let showSearchBar = false;
   let searchQuery = '';
 
+  // Get unread notification count
+  let unreadNotificationCount = 0;
+  notificationStore.unreadCount.subscribe(count => {
+    unreadNotificationCount = count;
+  });
+
+  // Track if notification WebSocket is connected
+  let notificationWsConnected = false;
+
+  // List of paths where notification WebSocket should be active
+  const notificationEnabledPaths = ['/feed', '/notifications'];
+
+  // Handle WebSocket connections based on current path
+  function handleWebSocketConnection(path) {
+    const shouldConnect = isAuthenticated() && notificationEnabledPaths.includes(path);
+    
+    if (shouldConnect && !notificationWsConnected) {
+      logger.info(`Connecting to notification WebSocket on path: ${path}`);
+      notificationWebsocketStore.connect();
+      notificationWsConnected = true;
+    } else if (!shouldConnect && notificationWsConnected) {
+      logger.info(`Disconnecting notification WebSocket on path: ${path}`);
+      notificationWebsocketStore.disconnect();
+      notificationWsConnected = false;
+    }
+  }
+
+  // Subscribe to page changes
+  const unsubscribePageStore = page.subscribe(pageInfo => {
+    if (pageInfo && pageInfo.path) {
+      handleWebSocketConnection(pageInfo.path);
+    }
+  });
+
   onMount(() => {
     // Check viewport size on mount and on resize
     const checkViewport = () => {
@@ -52,9 +93,27 @@
     checkViewport();
     window.addEventListener('resize', checkViewport);
     
+    // Check if we should initialize notification WebSocket on the current path
+    const currentPath = window.location.pathname;
+    handleWebSocketConnection(currentPath);
+    
     return () => {
       window.removeEventListener('resize', checkViewport);
     };
+  });
+  
+  // Clean up subscriptions when component is destroyed
+  onDestroy(() => {
+    // Unsubscribe from page store
+    if (unsubscribePageStore) {
+      unsubscribePageStore();
+    }
+    
+    // Disconnect WebSocket if connected
+    if (notificationWsConnected) {
+      notificationWebsocketStore.disconnect();
+      notificationWsConnected = false;
+    }
   });
 
   const { theme } = useTheme();
@@ -235,6 +294,11 @@
       <a href="/notifications" class="mobile-nav-item {currentPath === '/notifications' ? 'active' : ''}">
         <div class="mobile-nav-icon">
           <BellIcon size="20" />
+          {#if unreadNotificationCount > 0}
+            <div class="mobile-notification-badge">
+              {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+            </div>
+          {/if}
         </div>
         <span class="mobile-nav-label">Alerts</span>
       </a>
@@ -402,5 +466,26 @@
     .mobile-menu-overlay {
       display: none;
     }
+  }
+  
+  .mobile-notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: var(--color-primary);
+    color: white;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    border-radius: 50%;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--space-1);
+  }
+  
+  .mobile-nav-icon {
+    position: relative;
   }
 </style>
