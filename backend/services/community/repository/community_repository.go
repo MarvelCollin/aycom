@@ -66,16 +66,37 @@ func (r *GormCommunityRepository) List(offset, limit int) ([]*model.Community, e
 
 func (r *GormCommunityRepository) ListByCategories(categories []string, offset, limit int) ([]*model.Community, error) {
 	var communities []*model.Community
-	query := r.db.Preload("Categories")
 
-	if len(categories) > 0 {
-		query = query.Joins("JOIN community_categories cc ON cc.community_id = communities.community_id").
-			Joins("JOIN categories cat ON cat.category_id = cc.category_id").
-			Where("cat.name IN ?", categories).
-			Group("communities.community_id")
+	// If no categories specified, just return all communities
+	if len(categories) == 0 {
+		err := r.db.Preload("Categories").Offset(offset).Limit(limit).Find(&communities).Error
+		return communities, err
 	}
 
-	err := query.Offset(offset).Limit(limit).Find(&communities).Error
+	// Use a subquery approach to avoid join issues
+	// Get community IDs that match the category filter
+	var communityIDs []uuid.UUID
+	categoryQuery := r.db.Table("community_categories").
+		Select("community_id").
+		Joins("JOIN categories ON categories.category_id = community_categories.category_id").
+		Where("categories.name IN ?", categories).
+		Group("community_id")
+
+	if err := categoryQuery.Pluck("community_id", &communityIDs).Error; err != nil {
+		return nil, err
+	}
+
+	// No matches found
+	if len(communityIDs) == 0 {
+		return []*model.Community{}, nil
+	}
+
+	// Get communities by IDs with pagination
+	err := r.db.Preload("Categories").
+		Where("community_id IN ?", communityIDs).
+		Offset(offset).Limit(limit).
+		Find(&communities).Error
+
 	return communities, err
 }
 
@@ -83,32 +104,51 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 	var communities []*model.Community
 	var count int64
 
-	dbQuery := r.db.Model(&model.Community{}).
-		Preload("Categories")
+	// First build a GORM query that doesn't use joins to avoid the SQL issue
+	dbQuery := r.db.Model(&model.Community{})
 
-	if len(categories) > 0 {
-		dbQuery = dbQuery.Joins("JOIN community_categories cc ON cc.community_id = communities.community_id").
-			Joins("JOIN categories cat ON cat.category_id = cc.category_id").
-			Where("cat.name IN ?", categories).
-			Group("communities.community_id")
-	}
-
+	// Apply basic filters
 	if query != "" {
 		searchQuery := "%" + query + "%"
-		dbQuery = dbQuery.Where("communities.name ILIKE ? OR communities.description ILIKE ?", searchQuery, searchQuery)
+		dbQuery = dbQuery.Where("name ILIKE ? OR description ILIKE ?", searchQuery, searchQuery)
 	}
 
 	// Apply is_approved filter if provided
 	if isApproved != nil {
-		dbQuery = dbQuery.Where("communities.is_approved = ?", *isApproved)
+		dbQuery = dbQuery.Where("is_approved = ?", *isApproved)
 	}
 
+	// If categories are specified, use a subquery approach to avoid join issues
+	if len(categories) > 0 {
+		// Get community IDs that match the category filter
+		var communityIDs []uuid.UUID
+		categoryQuery := r.db.Table("community_categories").
+			Select("community_id").
+			Joins("JOIN categories ON categories.category_id = community_categories.category_id").
+			Where("categories.name IN ?", categories).
+			Group("community_id")
+
+		if err := categoryQuery.Pluck("community_id", &communityIDs).Error; err != nil {
+			return nil, 0, err
+		}
+
+		// Apply the community IDs filter
+		if len(communityIDs) > 0 {
+			dbQuery = dbQuery.Where("community_id IN ?", communityIDs)
+		} else {
+			// No matching communities found
+			return []*model.Community{}, 0, nil
+		}
+	}
+
+	// Count total matching records
 	err := dbQuery.Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = dbQuery.Offset(offset).Limit(limit).Find(&communities).Error
+	// Execute the query with pagination and eager loading of Categories
+	err = dbQuery.Preload("Categories").Offset(offset).Limit(limit).Find(&communities).Error
 	if err != nil {
 		return nil, 0, err
 	}

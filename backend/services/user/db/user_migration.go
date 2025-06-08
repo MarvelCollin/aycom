@@ -35,6 +35,7 @@ func Migrate(db *gorm.DB) error {
 		{"00003_add_admin_tables", migrateAddAdminTables},
 		{"00004_add_follower_counts", migrateAddFollowerCounts},
 		{"00005_add_account_privacy", migrateAddAccountPrivacy},
+		{"00006_fix_premium_requests", migrateFixPremiumRequests},
 	}
 
 	for _, migration := range migrations {
@@ -50,6 +51,13 @@ func Migrate(db *gorm.DB) error {
 			tx.Commit()
 			log.Printf("Migration applied: %s", migration.version)
 		}
+	}
+
+	// Also run the premium requests fix regardless of migration version
+	// to ensure the columns are properly added
+	log.Printf("Running premium requests fix...")
+	if err := UpdatePremiumRequestsTable(db); err != nil {
+		log.Printf("Error fixing premium requests: %v", err)
 	}
 
 	return nil
@@ -196,4 +204,8 @@ func migrateAddAccountPrivacy(db *gorm.DB) error {
 		log.Println("Added is_private column to users table")
 	}
 	return nil
+}
+
+func migrateFixPremiumRequests(db *gorm.DB) error {
+	return UpdatePremiumRequestsTable(db)
 }

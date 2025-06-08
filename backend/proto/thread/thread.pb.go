@@ -2082,6 +2082,7 @@ type ReplyResponse struct {
 	ParentContent    *string                `protobuf:"bytes,7,opt,name=parent_content,json=parentContent,proto3,oneof" json:"parent_content,omitempty"`
 	BookmarkCount    int64                  `protobuf:"varint,8,opt,name=bookmark_count,json=bookmarkCount,proto3" json:"bookmark_count,omitempty"`
 	BookmarkedByUser bool                   `protobuf:"varint,9,opt,name=bookmarked_by_user,json=bookmarkedByUser,proto3" json:"bookmarked_by_user,omitempty"`
+	RepliesCount     int64                  `protobuf:"varint,10,opt,name=replies_count,json=repliesCount,proto3" json:"replies_count,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -2177,6 +2178,13 @@ func (x *ReplyResponse) GetBookmarkedByUser() bool {
 		return x.BookmarkedByUser
 	}
 	return false
+}
+
+func (x *ReplyResponse) GetRepliesCount() int64 {
+	if x != nil {
+		return x.RepliesCount
+	}
+	return 0
 }
 
 type RepliesResponse struct {
@@ -3466,7 +3474,7 @@ const file_proto_thread_thread_proto_rawDesc = "" +
 	"\x1eGetRepliesByParentReplyRequest\x12&\n" +
 	"\x0fparent_reply_id\x18\x01 \x01(\tR\rparentReplyId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x8c\x03\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\xb1\x03\n" +
 	"\rReplyResponse\x12#\n" +
 	"\x05reply\x18\x01 \x01(\v2\r.thread.ReplyR\x05reply\x12 \n" +
 	"\x04user\x18\x02 \x01(\v2\f.thread.UserR\x04user\x12\x1f\n" +
@@ -3478,7 +3486,9 @@ const file_proto_thread_thread_proto_rawDesc = "" +
 	"parentUser\x12*\n" +
 	"\x0eparent_content\x18\a \x01(\tH\x00R\rparentContent\x88\x01\x01\x12%\n" +
 	"\x0ebookmark_count\x18\b \x01(\x03R\rbookmarkCount\x12,\n" +
-	"\x12bookmarked_by_user\x18\t \x01(\bR\x10bookmarkedByUserB\x11\n" +
+	"\x12bookmarked_by_user\x18\t \x01(\bR\x10bookmarkedByUser\x12#\n" +
+	"\rreplies_count\x18\n" +
+	" \x01(\x03R\frepliesCountB\x11\n" +
 	"\x0f_parent_content\"X\n" +
 	"\x0fRepliesResponse\x12/\n" +
 	"\areplies\x18\x01 \x03(\v2\x15.thread.ReplyResponseR\areplies\x12\x14\n" +

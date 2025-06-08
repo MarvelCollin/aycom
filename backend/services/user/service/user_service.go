@@ -802,6 +802,8 @@ func (s *userService) IsFollowing(ctx context.Context, followerID, followedID st
 }
 
 func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.CreatePremiumRequestRequest) (*userpb.CreatePremiumRequestResponse, error) {
+	log.Printf("CreatePremiumRequest: Starting to process request for user: %s", req.UserId)
+
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
@@ -818,77 +820,94 @@ func (s *userService) CreatePremiumRequest(ctx context.Context, req *userpb.Crea
 		return nil, status.Error(codes.InvalidArgument, "Face photo URL is required")
 	}
 
+	// Log the length of the face photo URL for debugging
+	log.Printf("CreatePremiumRequest: FacePhotoURL length: %d", len(req.FacePhotoUrl))
+
 	// Check if there's already a pending or approved premium request for this user
 	userIdUUID, err := uuid.Parse(req.UserId)
 	if err != nil {
+		log.Printf("CreatePremiumRequest: Invalid user ID format: %v", err)
 		return nil, status.Error(codes.InvalidArgument, "Invalid user ID format")
 	}
 
 	// Check if user exists
-	_, err = s.repo.FindUserByID(req.UserId)
+	user, err := s.repo.FindUserByID(req.UserId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("CreatePremiumRequest: User not found: %s", req.UserId)
 			return nil, status.Error(codes.NotFound, "User not found")
 		}
+		log.Printf("CreatePremiumRequest: Failed to verify user: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to verify user")
 	}
 
-	// Create admin repository instance to access admin methods
-	adminRepo := repository.NewAdminRepository(s.db)
+	log.Printf("CreatePremiumRequest: Found user with ID %s and username %s", user.ID, user.Username)
 
-	// Check for existing requests
-	existingRequests, _, err := adminRepo.GetPremiumRequests(1, 1, "pending")
+	// Check directly with a more efficient query in the database
+	var existingRequestCount int64
+	err = s.db.Model(&model.PremiumRequest{}).
+		Where("user_id = ? AND (status = 'pending' OR status = 'approved')", userIdUUID).
+		Count(&existingRequestCount).Error
+
 	if err != nil {
-		log.Printf("Error checking for existing premium requests: %v", err)
+		log.Printf("CreatePremiumRequest: Error checking for existing premium requests: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to check for existing requests")
 	}
 
-	// Check if user already has a pending request
-	for _, request := range existingRequests {
-		if request.UserID == userIdUUID {
-			return nil, status.Error(codes.AlreadyExists, "User already has a pending premium request")
-		}
-	}
-
-	// Check for approved requests
-	approvedRequests, _, err := adminRepo.GetPremiumRequests(1, 1, "approved")
-	if err != nil {
-		log.Printf("Error checking for approved premium requests: %v", err)
-		return nil, status.Error(codes.Internal, "Failed to check for existing requests")
-	}
-
-	// Check if user already has an approved request
-	for _, request := range approvedRequests {
-		if request.UserID == userIdUUID {
-			return nil, status.Error(codes.AlreadyExists, "User already has an approved premium request")
-		}
+	if existingRequestCount > 0 {
+		log.Printf("CreatePremiumRequest: User already has a pending or approved premium request")
+		return nil, status.Error(codes.AlreadyExists, "User already has a pending or approved premium request")
 	}
 
 	// Encrypt identity card number for security
 	encryptedIDNumber, err := encryptSensitiveData(req.IdentityCardNumber)
 	if err != nil {
-		log.Printf("Error encrypting identity card number: %v", err)
+		log.Printf("CreatePremiumRequest: Error encrypting identity card number: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to secure sensitive data")
 	}
 
-	// Create the premium request
+	// For base64 image, we need to handle it carefully
+	// If the string is too long, we might want to truncate or process it
+	facePhotoURL := req.FacePhotoUrl
+	if len(facePhotoURL) > 1000000 { // If larger than ~1MB
+		log.Printf("CreatePremiumRequest: Warning - face photo URL is very large (%d bytes), this might cause DB issues", len(facePhotoURL))
+	}
+
+	// Create the premium request with explicit ID
+	premiumRequestID := uuid.New()
 	premiumRequest := &model.PremiumRequest{
+		ID:                 premiumRequestID,
 		UserID:             userIdUUID,
 		Reason:             req.Reason,
 		IdentityCardNumber: encryptedIDNumber,
-		FacePhotoURL:       req.FacePhotoUrl,
+		FacePhotoURL:       facePhotoURL,
 		Status:             "pending",
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 
-	// Use the admin repository to create the request
-	err = adminRepo.CreatePremiumRequest(premiumRequest)
-	if err != nil {
-		log.Printf("Error creating premium request: %v", err)
-		return nil, status.Error(codes.Internal, "Failed to create premium request")
+	// Use a transaction to create the request
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		log.Printf("CreatePremiumRequest: Failed to begin transaction: %v", tx.Error)
+		return nil, status.Error(codes.Internal, "Database error")
 	}
 
+	// Execute within transaction
+	err = tx.Create(premiumRequest).Error
+	if err != nil {
+		tx.Rollback()
+		log.Printf("CreatePremiumRequest: Error creating premium request: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to create premium request: "+err.Error())
+	}
+
+	// Commit transaction
+	if err = tx.Commit().Error; err != nil {
+		log.Printf("CreatePremiumRequest: Error committing transaction: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to commit premium request")
+	}
+
+	log.Printf("CreatePremiumRequest: Successfully created premium request with ID %s", premiumRequest.ID)
 	return &userpb.CreatePremiumRequestResponse{
 		Success: true,
 		Message: "Premium verification request submitted successfully",

@@ -270,6 +270,7 @@ message ReplyResponse {
   optional string parent_content = 7;
   int64 bookmark_count = 8;
   bool bookmarked_by_user = 9;
+  int64 replies_count = 10;
 }
 
 message RepliesResponse {

@@ -798,6 +798,12 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 			response.BookmarkCount = bookmarkCount
 		}
 
+		// Count replies to this reply
+		repliesCount, err := h.replyService.CountRepliesByParentID(ctx, replyID)
+		if err == nil {
+			response.RepliesCount = repliesCount
+		}
+
 		md, ok := metadata.FromIncomingContext(ctx)
 		if ok {
 

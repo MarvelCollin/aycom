@@ -476,7 +476,6 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 	replies := make([]*Thread, len(resp.Replies))
 	for i, replyResp := range resp.Replies {
 		if replyResp.Reply == nil {
-
 			continue
 		}
 
@@ -499,6 +498,9 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 			}
 		}
 
+		// Default reply count to 0
+		repliesCount := 0
+
 		replies[i] = &Thread{
 			ID:             reply.Id,
 			Content:        reply.Content,
@@ -509,7 +511,7 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 			CreatedAt:      reply.CreatedAt.AsTime(),
 			UpdatedAt:      reply.UpdatedAt.AsTime(),
 			LikeCount:      int(replyResp.LikesCount),
-			ReplyCount:     int(0),
+			ReplyCount:     repliesCount,
 			IsLiked:        replyResp.LikedByUser,
 			IsBookmarked:   replyResp.BookmarkedByUser,
 			ParentID:       threadID,
@@ -999,7 +1001,7 @@ func (c *GRPCThreadServiceClient) GetRepliesByUser(userID string, page, limit in
 			CreatedAt:      replyVal.FieldByName("CreatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
 			UpdatedAt:      replyVal.FieldByName("UpdatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
 			LikeCount:      int(rVal.FieldByName("LikesCount").Int()),
-			ReplyCount:     int(0),
+			ReplyCount:     0, // Default to 0 for now
 			IsLiked:        rVal.FieldByName("LikedByUser").Bool(),
 			IsBookmarked:   rVal.FieldByName("BookmarkedByUser").Bool(),
 			ParentID:       replyVal.FieldByName("ThreadId").String(),
@@ -1176,17 +1178,17 @@ func convertProtoToThread(t any) *Thread {
 		}
 
 		likesCountField := v.FieldByName("LikesCount")
-		if likesCountField.IsValid() {
+		if likesCountField.IsValid() && likesCountField.Kind() == reflect.Int64 {
 			thread.LikeCount = int(likesCountField.Int())
 		}
 
 		repliesCountField := v.FieldByName("RepliesCount")
-		if repliesCountField.IsValid() {
+		if repliesCountField.IsValid() && repliesCountField.Kind() == reflect.Int64 {
 			thread.ReplyCount = int(repliesCountField.Int())
 		}
 
 		repostsCountField := v.FieldByName("RepostsCount")
-		if repostsCountField.IsValid() {
+		if repostsCountField.IsValid() && repostsCountField.Kind() == reflect.Int64 {
 			thread.RepostCount = int(repostsCountField.Int())
 		}
 

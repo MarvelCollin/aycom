@@ -110,6 +110,15 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	// Make communities/categories and communities listing public (no auth required)
 	v1.GET("/communities/categories", handlers.ListCategories)
+
+	// Public search endpoint must come before /:id to avoid route conflicts
+	v1.GET("/communities/search", handlers.OldSearchCommunities)
+
+	// Alternative search endpoint that avoids category joins
+	// Temporarily disabled due to persistent 500 errors
+	// v1.GET("/communities/name-search", handlers.SearchCommunityByName) 
+
+	// Other community public endpoints
 	v1.GET("/communities", handlers.ListCommunities)
 	v1.GET("/communities/:id", handlers.GetCommunityByID) // Make individual community details public
 
@@ -161,7 +170,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.PUT("/:id", handlers.UpdateCommunity)
 		communities.DELETE("/:id", handlers.DeleteCommunity)
 		communities.POST("/:id/approve", handlers.ApproveCommunity)
-		communities.GET("/search", handlers.OldSearchCommunities)
 
 		communities.POST("/:id/members", handlers.AddMember)
 		communities.GET("/:id/members", handlers.ListMembers)

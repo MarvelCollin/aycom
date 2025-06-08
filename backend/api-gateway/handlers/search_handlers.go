@@ -107,6 +107,7 @@ func SearchThreads(c *gin.Context) {
 	filter := c.DefaultQuery("filter", "all")
 	category := c.DefaultQuery("category", "")
 	sortBy := c.DefaultQuery("sort_by", "recent")
+	mediaOnly := c.Query("media_only") == "true" // Check if we should only return threads with media
 
 	// Get authenticated user ID if available
 	var userID string
@@ -126,42 +127,48 @@ func SearchThreads(c *gin.Context) {
 	var threads []*Thread
 	var err error
 
-	log.Printf("Searching threads with query=%s, filter=%s, category=%s, sortBy=%s", query, filter, category, sortBy)
+	log.Printf("Searching threads with query=%s, filter=%s, category=%s, sortBy=%s, mediaOnly=%v",
+		query, filter, category, sortBy, mediaOnly)
 
 	// For now, we'll use the basic SearchThreads method and handle filtering in the application layer
 	// In the future, consider expanding the proto definition to include these parameters
 	threads, err = threadServiceClient.SearchThreads(query, userID, page, limit)
 
 	// Apply filters on the application layer
-	if err == nil && filter != "" {
+	if err == nil {
 		var filteredThreads []*Thread
 
-		switch filter {
-		case "following":
-			if userID != "" && userServiceClient != nil {
-				following, err := userServiceClient.GetFollowing(userID, 1, 1000)
-				if err == nil {
-					// Create a map of followed user IDs for fast lookups
-					followingMap := make(map[string]bool)
-					for _, user := range following {
-						followingMap[user.ID] = true
-					}
+		// Apply following filter if needed
+		if filter == "following" && userID != "" && userServiceClient != nil {
+			following, err := userServiceClient.GetFollowing(userID, 1, 1000)
+			if err == nil {
+				// Create a map of followed user IDs for fast lookups
+				followingMap := make(map[string]bool)
+				for _, user := range following {
+					followingMap[user.ID] = true
+				}
 
-					// Filter threads by users the current user follows
-					for _, thread := range threads {
-						if followingMap[thread.UserID] {
-							filteredThreads = append(filteredThreads, thread)
-						}
+				// Filter threads by users the current user follows
+				for _, thread := range threads {
+					if followingMap[thread.UserID] {
+						filteredThreads = append(filteredThreads, thread)
 					}
-					threads = filteredThreads
-				} else {
-					log.Printf("Error getting following users: %v", err)
+				}
+				threads = filteredThreads
+			} else {
+				log.Printf("Error getting following users: %v", err)
+			}
+		}
+
+		// Filter threads with media if mediaOnly parameter is true
+		if mediaOnly {
+			filteredThreads = []*Thread{}
+			for _, thread := range threads {
+				if len(thread.Media) > 0 {
+					filteredThreads = append(filteredThreads, thread)
 				}
 			}
-		case "verified":
-			// This would require additional user info - for now we'll skip implementing this filter
-			// but would need to be added in the future
-			threads = threads
+			threads = filteredThreads
 		}
 	}
 
