@@ -306,14 +306,21 @@
   async function loadUsers() {
     try {
       logger.info(`Loading users with search: ${searchQuery}, page: ${currentPage}, limit: ${limit}`);
-      const response = await getAllUsers(limit, currentPage, 'created_at', false, searchQuery);
+      const response = await getAllUsers(currentPage, limit, 'created_at', false, searchQuery);
+      
+      logger.info("Response from getAllUsers:", response);
       
       if (response && response.success) {
         users = response.users || [];
         totalCount = response.totalCount || 0;
         logger.info(`Loaded ${users.length} users (total: ${totalCount})`);
+        
+        // Log the first user for debugging
+        if (users.length > 0) {
+          logger.info(`First user data:`, users[0]);
+        }
       } else {
-        logger.warn('User response missing expected data structure or failed');
+        logger.warn('User response missing expected data structure or failed:', response.error);
         users = [];
         totalCount = 0;
       }
@@ -322,6 +329,7 @@
       logger.error('Error loading users:', error);
       toastStore.showToast(`Failed to load users: ${message}`, 'error');
       users = [];
+      totalCount = 0;
     }
   }
   
@@ -443,6 +451,21 @@
     activeTab = event.detail;
     currentPage = 1; // Reset pagination when changing tabs
     loadDashboardData();
+  }
+  
+  // Pagination functions
+  function handlePrevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      loadDashboardData();
+    }
+  }
+  
+  function handleNextPage() {
+    if (currentPage < Math.ceil(totalCount / limit)) {
+      currentPage++;
+      loadDashboardData();
+    }
   }
   
   // User Management Functions
@@ -635,22 +658,6 @@
     }
   }
   
-  // Pagination Functions
-  function handlePrevPage() {
-    if (currentPage > 1) {
-      currentPage--;
-      loadDashboardData();
-    }
-  }
-  
-  function handleNextPage() {
-    const totalPages = Math.ceil(totalCount / limit);
-    if (currentPage < totalPages) {
-      currentPage++;
-      loadDashboardData();
-    }
-  }
-  
   function formatDate(dateString) {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -755,90 +762,86 @@
             </div>
             
             <div class="users-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Email</th>
-                    <th>Joined</th>
-                    <th>Status</th>
-                    <th>Followers</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each users as user}
+              {#if users.length === 0}
+                <div class="no-results">
+                  <p>No users found. {searchQuery ? 'Try a different search term.' : ''}</p>
+                </div>
+              {:else}
+                <table>
+                  <thead>
                     <tr>
-                      <td class="user-cell">
-                        {#if user.profile_picture_url}
-                          <img src={user.profile_picture_url} alt={user.name || 'User'} class="user-avatar" />
-                        {:else}
-                          <div class="user-avatar-placeholder">
-                            {(user.name || user.username || 'U').charAt(0).toUpperCase()}
-                          </div>
-                        {/if}
-                        <div>
-                          <div>{user.name || user.username || 'Unknown User'}</div>
-                          <div class="username">@{user.username || 'unknown'}</div>
-                        </div>
-                      </td>
-                      <td>{user.email}</td>
-                      <td>{formatDate(user.created_at)}</td>
-                      <td>
-                        <span class="status-badge {user.is_banned ? 'suspended' : 'active'}">
-                          {user.is_banned ? 'Banned' : 'Active'}
-                        </span>
-                        {#if user.is_admin}
-                          <span class="status-badge admin">Admin</span>
-                        {/if}
-                      </td>
-                      <td>{user.follower_count}</td>
-                      <td>
-                        <div class="action-buttons">
-                          {#if !user.is_banned}
-                            <Button 
-                              variant="danger" 
-                              size="small"
-                              on:click={() => handleBanUser(user.id, user.is_banned)}
-                            >
-                              <UserXIcon size="14" />
-                              <span>Ban</span>
-                            </Button>
-                          {:else}
-                            <Button 
-                              variant="secondary" 
-                              size="small"
-                              on:click={() => handleBanUser(user.id, user.is_banned)}
-                            >
-                              Unban
-                            </Button>
-                          {/if}
-                        </div>
-                      </td>
+                      <th>User</th>
+                      <th>Email</th>
+                      <th>Joined</th>
+                      <th>Status</th>
+                      <th>Followers</th>
+                      <th>Actions</th>
                     </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-            
-            <div class="pagination">
-              <Button 
-                variant="outlined" 
-                size="small" 
-                disabled={currentPage === 1}
-                on:click={handlePrevPage}
-              >
-                Previous
-              </Button>
-              <span class="page-info">Page {currentPage} of {Math.ceil(totalCount / limit) || 1}</span>
-              <Button 
-                variant="outlined" 
-                size="small"
-                disabled={currentPage >= Math.ceil(totalCount / limit)}
-                on:click={handleNextPage}
-              >
-                Next
-              </Button>
+                  </thead>
+                  <tbody>
+                    {#each users as user}
+                      <tr>
+                        <td class="user-cell">
+                          <div class="user-info">
+                            <div class="avatar">
+                              {#if user.profile_picture_url}
+                                <img src={user.profile_picture_url} alt={user.name} />
+                              {:else}
+                                <div class="avatar-placeholder">
+                                  {user.name?.charAt(0) || user.username?.charAt(0) || '?'}
+                                </div>
+                              {/if}
+                            </div>
+                            <div class="user-details">
+                              <span class="name">{user.name || 'Unknown'}</span>
+                              <span class="username">@{user.username || 'unknown'}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{user.email || 'No email'}</td>
+                        <td>{formatDate(user.created_at)}</td>
+                        <td>
+                          {#if user.is_banned}
+                            <span class="status-badge banned">Banned</span>
+                          {:else if user.is_admin}
+                            <span class="status-badge admin">Admin</span>
+                          {:else}
+                            <span class="status-badge active">Active</span>
+                          {/if}
+                        </td>
+                        <td>{user.follower_count || 0}</td>
+                        <td class="actions-cell">
+                          <button 
+                            class="action-btn {user.is_banned ? 'unban' : 'ban'}" 
+                            on:click={() => handleBanUser(user.id, user.is_banned)}
+                          >
+                            {user.is_banned ? 'Unban' : 'Ban'}
+                          </button>
+                          <a href="/profile/{user.username}" class="view-link" target="_blank">View</a>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+                
+                <div class="pagination">
+                  <button 
+                    class="pagination-btn" 
+                    disabled={currentPage <= 1}
+                    on:click={handlePrevPage}
+                  >
+                    Previous
+                  </button>
+                  <span class="page-info">Page {currentPage} of {Math.ceil(totalCount / limit)}</span>
+                  <button 
+                    class="pagination-btn" 
+                    disabled={currentPage >= Math.ceil(totalCount / limit)}
+                    on:click={handleNextPage}
+                  >
+                    Next
+                  </button>
+                </div>
+              {/if}
             </div>
           </div>
           
@@ -1940,5 +1943,211 @@
     font-size: 0.7rem;
     text-align: center;
     padding: 4px;
+  }
+  
+  /* Users table styles */
+  .users-table {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: var(--space-4);
+  }
+  
+  .no-results {
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
+  }
+  
+  .users-table table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  
+  .users-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    background-color: var(--bg-tertiary);
+  }
+  
+  .users-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+  
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    font-weight: var(--font-weight-bold);
+  }
+  
+  .user-details {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .user-details .name {
+    font-weight: var(--font-weight-medium);
+  }
+  
+  .user-details .username {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    text-align: center;
+  }
+  
+  .status-badge.active {
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+  }
+  
+  .status-badge.admin {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+  
+  .status-badge.banned {
+    background-color: var(--color-error-light);
+    color: var(--color-error);
+  }
+  
+  .actions-cell {
+    display: flex;
+    gap: var(--space-2);
+  }
+  
+  .action-btn {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+  }
+  
+  .action-btn.ban {
+    background-color: var(--color-error-light);
+    color: var(--color-error);
+  }
+  
+  .action-btn.ban:hover {
+    background-color: var(--color-error);
+    color: white;
+  }
+  
+  .action-btn.unban {
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+  }
+  
+  .action-btn.unban:hover {
+    background-color: var(--color-success);
+    color: white;
+  }
+  
+  .view-link {
+    padding: var(--space-1) var(--space-3);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    transition: all 0.2s ease;
+  }
+  
+  .view-link:hover {
+    background-color: var(--bg-accent);
+  }
+  
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+  }
+  
+  .pagination-btn {
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .pagination-btn:not(:disabled):hover {
+    background-color: var(--bg-accent);
+  }
+  
+  .page-info {
+    color: var(--text-secondary);
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 768px) {
+    .users-table {
+      font-size: var(--font-size-sm);
+    }
+    
+    .actions-cell {
+      flex-direction: column;
+    }
+    
+    .user-info {
+      gap: var(--space-2);
+    }
+    
+    .avatar {
+      width: 30px;
+      height: 30px;
+    }
   }
 </style>

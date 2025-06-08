@@ -87,7 +87,7 @@
       windowWidth = window.innerWidth;
       isMobile = windowWidth < 768;
       isTablet = windowWidth >= 768 && windowWidth < 992;
-      isSmallDesktop = windowWidth >= 992 && windowWidth < 1080;
+      isSmallDesktop = windowWidth >= 992 && windowWidth < 1200;
     };
     
     checkViewport();
@@ -174,7 +174,7 @@
         on:click={toggleMobileMenu}
         aria-label="Toggle menu"
       >
-        <MenuIcon size="24" />
+        <MenuIcon size="22" />
       </button>
       
       <div class="page-header-mobile-title">
@@ -196,7 +196,7 @@
         on:click={toggleSearchBar}
         aria-label="Search"
       >
-        <SearchIcon size="24" />
+        <SearchIcon size="22" />
       </button>
     </div>
     
@@ -204,7 +204,7 @@
       <div class="mobile-search-container {isDarkMode ? 'mobile-search-container-dark' : ''}">
         <div class="mobile-search-form">
           <div class="mobile-search-input-wrapper">
-            <SearchIcon size="18" />
+            <SearchIcon size="16" />
             <input 
               type="text" 
               id="mobile-search-input"
@@ -215,7 +215,7 @@
             />
             {#if searchQuery}
               <button class="mobile-search-clear" on:click={clearSearch}>
-                <XIcon size="16" />
+                <XIcon size="14" />
               </button>
             {/if}
           </div>
@@ -226,7 +226,7 @@
   
   <div class="app-layout">
     {#if showLeftSidebar}
-      <aside class="sidebar {isDarkMode ? 'sidebar-dark' : ''}">
+      <aside class="sidebar {isDarkMode ? 'sidebar-dark' : ''} {isMobile && showMobileMenu ? 'visible' : ''}">
         {#if !isMobile || (isMobile && showMobileMenu)}
           <LeftSide 
             {username}
@@ -350,25 +350,25 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-3);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: var(--z-header);
-    background-color: var(--bg-primary);
+    background-color: rgba(var(--bg-primary-rgb, 255, 255, 255), 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
   
   .page-header-mobile-dark {
-    background-color: var(--dark-bg-primary);
+    background-color: rgba(var(--dark-bg-primary-rgb, 25, 25, 25), 0.95);
     border-bottom: 1px solid var(--border-color-dark);
   }
   
   .page-header-mobile-menu,
   .page-header-mobile-search {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -394,8 +394,8 @@
   }
   
   .mobile-logo-img {
-    height: 32px;
-    width: 32px;
+    height: 28px;
+    width: 28px;
     object-fit: contain;
   }
   
@@ -412,7 +412,7 @@
   }
   
   .mobile-search-container {
-    padding: var(--space-2) var(--space-4);
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border-color);
     background-color: var(--bg-primary);
   }
@@ -468,6 +468,53 @@
     }
   }
   
+  /* Mobile navigation styling */
+  .mobile-nav {
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1);
+    flex: 1;
+  }
+  
+  .mobile-nav-item.active {
+    color: var(--color-primary);
+  }
+  
+  .mobile-nav-icon {
+    position: relative;
+    margin-bottom: var(--space-1);
+  }
+  
+  .mobile-nav-label {
+    font-size: var(--font-size-xs);
+    margin-top: 2px;
+  }
+  
+  .mobile-compose-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    box-shadow: var(--shadow-md);
+    margin-top: -15px;
+    margin-bottom: var(--space-1);
+    cursor: pointer;
+  }
+  
   .mobile-notification-badge {
     position: absolute;
     top: -5px;
@@ -485,7 +532,94 @@
     padding: 0 var(--space-1);
   }
   
-  .mobile-nav-icon {
-    position: relative;
+  .app-container {
+    min-height: 100vh;
+    max-width: 100vw;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+  
+  .app-container-dark {
+    background-color: var(--dark-bg-primary);
+    color: var(--dark-text-primary);
+  }
+  
+  .app-layout {
+    display: grid;
+    grid-template-columns: minmax(60px, 250px) minmax(0, 1fr) 320px;
+    grid-template-areas: "sidebar main widgets";
+    min-height: 100vh;
+    width: 100%;
+    margin: 0 auto;
+    max-width: 100%;
+  }
+  
+  /* Adjust sidebar width */
+  @media (min-width: 1281px) {
+    .app-layout {
+      grid-template-columns: minmax(60px, 250px) minmax(0, 1fr) 320px;
+    }
+  }
+  
+  @media (max-width: 1280px) {
+    .app-layout {
+      grid-template-columns: minmax(60px, 160px) minmax(0, 1fr) 320px;
+    }
+  }
+  
+  @media (max-width: 992px) {
+    .app-layout {
+      grid-template-columns: 70px minmax(0, 1fr);
+      grid-template-areas: "sidebar main";
+    }
+    
+    .widgets-container {
+      display: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .app-layout {
+      grid-template-columns: 1fr;
+      grid-template-areas: "main";
+      padding-bottom: 60px; /* Make room for mobile nav */
+    }
+    
+    .sidebar {
+      display: none;
+    }
+    
+    .sidebar.visible {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 80%;
+      max-width: 280px;
+      z-index: var(--z-sidebar);
+      transform: translateX(0);
+    }
+  }
+  
+  .sidebar {
+    grid-area: sidebar;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-color);
+    z-index: var(--z-sidebar);
+    background-color: var(--bg-primary);
+    padding-left: var(--space-2);
+    padding-right: var(--space-1);
+  }
+  
+  .sidebar-dark {
+    background-color: var(--dark-bg-primary);
+    border-right: 1px solid var(--border-color-dark);
   }
 </style>

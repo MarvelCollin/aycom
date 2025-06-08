@@ -832,13 +832,25 @@ export async function getAllUsers(
       throw new Error(`Failed to get users (${response.status})`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    
+    // Process the response to ensure consistent structure
+    return {
+      success: true,
+      users: data.users || [],
+      totalCount: data.total_count || data.page?.total_count || 0,
+      page: data.page || 1,
+      totalPages: data.total_pages || Math.ceil((data.total_count || 0) / limit),
+      error: null
+    };
   } catch (error) {
     console.error('Get all users failed:', error);
     return {
       success: false,
       users: [],
-      total: 0,
+      totalCount: 0,
+      page: 1,
+      totalPages: 0,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
@@ -862,21 +874,35 @@ export async function searchUsers(
       console.warn(`Search query too long (${validatedQuery.length} chars). Truncating to ${MAX_QUERY_LENGTH} characters.`);
       validatedQuery = validatedQuery.substring(0, MAX_QUERY_LENGTH);
     }
+    
+    // If query is empty but we need to search, use a single space character
+    // This works around backend validation requiring a query
+    if (!validatedQuery || validatedQuery.trim() === '') {
+      validatedQuery = " ";
+      console.log('Using space character as query placeholder for empty search');
+    }
 
     // Function to make a search request with or without auth
     const makeSearchRequest = async (withAuth: boolean) => {
       // Set up query parameters
       const params = new URLSearchParams();
       
-      // Always set query parameter even if empty
+      // Always set query and filter parameters
       params.append('query', validatedQuery);
       params.append('page', page.toString());
       params.append('limit', limit.toString());
   
-      // Add options as query parameters
+      // Extract filter from options or use default
+      let filter = 'all';
+      if (options && options.filter) {
+        filter = options.filter;
+      }
+      params.append('filter', filter);
+      
+      // Add remaining options as query parameters
       if (options) {
         Object.keys(options).forEach(key => {
-          if (options[key] !== undefined) {
+          if (key !== 'filter' && options[key] !== undefined) {
             params.append(key, options[key].toString());
           }
         });
@@ -924,13 +950,49 @@ export async function searchUsers(
       throw new Error(`Search users failed (${response.status})`);
     }
 
-    const data = await response.json();
-    console.log('Search results:', data);
+    // Parse the response JSON
+    const responseText = await response.text(); // Get raw text first for inspection
+    console.log('Search results raw text:', responseText);
+    
+    // Try to parse the JSON
+    let responseJson;
+    try {
+      responseJson = JSON.parse(responseText);
+      console.log('Search results parsed JSON:', responseJson);
+    } catch (e) {
+      console.error('Failed to parse JSON response:', e);
+      return {
+        success: false,
+        users: [],
+        total: 0,
+        error: 'Invalid JSON response from server'
+      };
+    }
+    
+    // The API wraps results in a 'data' object
+    const data = responseJson.data || responseJson;
+    console.log('Search results unwrapped data:', data);
+    
+    // Extract users array and pagination info
+    const users = data.users || [];
+    const pagination = data.pagination || {};
+    const totalCount = pagination.total_count || 0;
+    
+    console.log('Parsed users:', users);
+    console.log('Parsed pagination:', pagination);
+    console.log('User count:', users.length);
+    
+    // If we got users, log the first one to see its structure
+    if (users.length > 0) {
+      console.log('First user structure:', users[0]);
+    }
     
     return {
       success: true,
-      users: data.users || [],
-      total: data.total || (data.users ? data.users.length : 0)
+      users: users,
+      total: totalCount,
+      totalCount: totalCount,
+      pagination: pagination
     };
   } catch (error) {
     console.error('Search users failed:', error);
@@ -1237,6 +1299,8 @@ export async function submitPremiumRequest(reason: string, identityCardNumber: s
     const token = getAuthToken();
     if (!token) return false;
 
+    console.log(`Submitting premium request with reason length: ${reason.length}, ID card length: ${identityCardNumber.length}, photo URL length: ${facePhotoURL.length}`);
+
     const response = await fetch(`${API_BASE_URL}/users/premium-request`, {
       method: 'POST',
       headers: {
@@ -1250,14 +1314,15 @@ export async function submitPremiumRequest(reason: string, identityCardNumber: s
       })
     });
 
+    const responseData = await response.json();
+    console.log("Premium request response:", responseData);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error submitting premium request:', errorData);
-      return false;
+      console.error('Error submitting premium request:', responseData);
+      throw new Error(responseData?.error?.message || responseData?.message || `Server error: ${response.status}`);
     }
 
-    const data = await response.json();
-    return data.success;
+    return responseData.success;
   } catch (error) {
     console.error('Error submitting premium request:', error);
     return false;

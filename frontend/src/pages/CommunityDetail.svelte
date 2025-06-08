@@ -238,8 +238,23 @@
           if (auth.access_token && (!auth.expires_at || new Date(auth.expires_at) > new Date())) {
             const membershipResponse = await checkUserCommunityMembership(communityId);
             console.log('Membership response:', membershipResponse);
-            isMember = membershipResponse?.status === 'member';
-            isPending = membershipResponse?.status === 'pending';
+            
+            // Check various response formats for membership status
+            if (membershipResponse?.status === 'member' || 
+                membershipResponse?.is_member === true || 
+                membershipResponse?.data?.is_member === true ||
+                membershipResponse?.data?.status === 'member') {
+              isMember = true;
+              console.log('User is a member of this community');
+            } else if (membershipResponse?.status === 'pending' || 
+                      membershipResponse?.data?.status === 'pending') {
+              isPending = true;
+              console.log('User has a pending join request for this community');
+            } else {
+              isMember = false;
+              isPending = false;
+              console.log('User is not a member of this community');
+            }
           }
         } else {
           console.log('User not logged in, skipping membership check');
@@ -310,9 +325,9 @@
       const membersResponse = await listMembers(communityId);
       
       if (membersResponse && Array.isArray(membersResponse.members)) {
-        members = membersResponse.members;
+        members = processMembersAvatars(membersResponse.members);
       } else if (membersResponse && membersResponse.data && Array.isArray(membersResponse.data.members)) {
-        members = membersResponse.data.members;
+        members = processMembersAvatars(membersResponse.data.members);
       } else {
         members = [];
       }
@@ -321,6 +336,47 @@
       logger.error('Error loading community members:', error);
       members = [];
     }
+  }
+  
+  // Process member avatars to use Supabase URLs
+  function processMembersAvatars(membersList) {
+    return membersList.map(member => {
+      const processedMember = { ...member };
+      
+      // Handle different avatar field names
+      const avatarUrl = member.avatar_url || member.profile_picture_url || member.avatar || '';
+      
+      if (avatarUrl) {
+        // Process the avatar URL to use Supabase
+        processedMember.avatar_url = getProfileImageUrl(avatarUrl);
+      }
+      
+      return processedMember;
+    });
+  }
+  
+  // Helper function to get Supabase URL for profile pictures
+  function getProfileImageUrl(url) {
+    if (!url) return null;
+    
+    // Check if the URL is already a Supabase URL
+    if (url.includes('supabase')) {
+      return url;
+    }
+    
+    // If it's just a path, construct the Supabase URL
+    if (url.startsWith('/')) {
+      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles${url}`);
+    }
+    
+    // Try to extract the filename if it's in a special format
+    const parts = url.split('/');
+    if (parts.length > 0) {
+      const filename = parts[parts.length - 1];
+      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles/${filename}`);
+    }
+    
+    return url;
   }
   
   async function loadRules() {

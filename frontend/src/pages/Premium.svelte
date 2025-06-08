@@ -1,68 +1,109 @@
 <script lang="ts">
-  import MainLayout from '../components/layout/MainLayout.svelte';
-  import { useTheme } from '../hooks/useTheme';
-  import { useAuth } from '../hooks/useAuth';
   import { onMount } from 'svelte';
-  import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
-  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
-  import UserCheckIcon from 'svelte-feather-icons/src/icons/UserCheckIcon.svelte';
-  import UploadIcon from 'svelte-feather-icons/src/icons/UploadIcon.svelte';
-  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
-  import { toastStore } from '../stores/toastStore';
   import { submitPremiumRequest } from '../api/user';
-  import { isAuthenticated } from '../utils/auth';
+  import { toastStore } from '../stores/toastStore';
+  import { useTheme } from '../hooks/useTheme';
+  import MainLayout from '../components/layout/MainLayout.svelte';
+  import Button from '../components/common/Button.svelte';
+  import { 
+    CheckIcon, 
+    UserCheckIcon, 
+    ShieldIcon, 
+    UploadIcon,
+    AlertCircleIcon 
+  } from 'svelte-feather-icons';
   
+  // Get theme from the useTheme hook
   const { theme } = useTheme();
-  const { getAuthState } = useAuth();
+  
+  // Reactive declaration for dark mode
   $: isDarkMode = $theme === 'dark';
   
-  const authState = getAuthState();
   let showVerificationForm = false;
-  let isSubmitting = false;
-  
-  // Check authentication on mount
-  onMount(() => {
-    if (!isAuthenticated()) {
-      toastStore.showToast('Please log in to access premium features', 'warning');
-      window.location.href = '/login';
-      return;
-    }
-  });
-  
-  // Verification form data
   let identityCardNumber = '';
   let reason = '';
   let facePhoto: File | null = null;
   let facePhotoURL = '';
   let formError = '';
-  
+  let isSubmitting = false;
+
+  // Function to handle image changes
   function handleFileChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const files = input.files;
+    const target = event.target as HTMLInputElement;
+    const files = target.files;
     
-    if (files && files[0]) {
+    if (files && files.length > 0) {
       facePhoto = files[0];
-      
-      // Create a URL for preview
-      if (facePhotoURL) {
-        URL.revokeObjectURL(facePhotoURL);
-      }
-      
       facePhotoURL = URL.createObjectURL(facePhoto);
     }
+  }
+
+  // Function to resize image
+  async function resizeImage(file: File, maxWidth = 800, maxHeight = 600, quality = 0.8): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        
+        img.onload = () => {
+          // Calculate new dimensions while maintaining aspect ratio
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round(height * maxWidth / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round(width * maxHeight / height);
+              height = maxHeight;
+            }
+          }
+          
+          // Create canvas and resize
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convert to data URL
+          const resizedDataURL = canvas.toDataURL('image/jpeg', quality);
+          resolve(resizedDataURL);
+        };
+        
+        img.onerror = () => {
+          reject(new Error('Failed to load image'));
+        };
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'));
+      };
+    });
   }
   
   async function handleSubmit() {
     formError = '';
     
-    // Validate form
-    if (!reason.trim()) {
+    if (!reason) {
       formError = 'Please provide a reason for verification';
       return;
     }
     
-    if (!identityCardNumber.trim()) {
-      formError = 'Please enter your national identity card number';
+    if (!identityCardNumber) {
+      formError = 'Please enter your identity card number';
       return;
     }
     
@@ -74,48 +115,43 @@
     isSubmitting = true;
     
     try {
-      // Convert the image to a data URL (in production, you would upload to secure storage)
-      const reader = new FileReader();
+      // Log the file details
+      console.log(`Processing face photo: ${facePhoto.name}, size: ${facePhoto.size}B, type: ${facePhoto.type}`);
       
-      reader.onload = async (e) => {
-        const photoDataURL = e.target?.result as string;
+      // Always resize the image to reduce its size (max 800x600px, quality 0.7)
+      console.log('Resizing image to ensure it fits within size limits...');
+      try {
+        // Resize the image to reduce its size
+        const resizedPhotoDataURL = await resizeImage(facePhoto, 600, 400, 0.7);
+        console.log(`Resized photo to data URL of length: ${resizedPhotoDataURL.length}`);
         
-        try {
-          // Submit the premium request
-          const success = await submitPremiumRequest(
-            reason,
-            identityCardNumber,
-            photoDataURL
-          );
-          
-          if (success) {
-            toastStore.showToast('Your verification request has been submitted', 'success');
-            // Reset form and hide it
-            showVerificationForm = false;
-            identityCardNumber = '';
-            reason = '';
-            facePhoto = null;
-            if (facePhotoURL) {
-              URL.revokeObjectURL(facePhotoURL);
-              facePhotoURL = '';
-            }
-          } else {
-            formError = 'Failed to submit verification request. Please try again.';
+        // Submit with the resized image
+        const success = await submitPremiumRequest(
+          reason,
+          identityCardNumber,
+          resizedPhotoDataURL
+        );
+        
+        if (success) {
+          toastStore.showToast('Your verification request has been submitted', 'success');
+          // Reset form and hide it
+          showVerificationForm = false;
+          identityCardNumber = '';
+          reason = '';
+          facePhoto = null;
+          if (facePhotoURL) {
+            URL.revokeObjectURL(facePhotoURL);
+            facePhotoURL = '';
           }
-        } catch (error) {
-          console.error('Error in premium request submission:', error);
-          formError = 'An error occurred while submitting your request';
+        } else {
+          formError = 'Failed to submit verification request. Please try again.';
         }
-        
-        isSubmitting = false;
-      };
+      } catch (resizeError) {
+        console.error('Error resizing image:', resizeError);
+        formError = 'Error processing image. Please try with a smaller photo.';
+      }
       
-      reader.onerror = () => {
-        formError = 'Error processing image. Please try another photo.';
-        isSubmitting = false;
-      };
-      
-      reader.readAsDataURL(facePhoto);
+      isSubmitting = false;
       
     } catch (error) {
       console.error('Error uploading face photo:', error);

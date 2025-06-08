@@ -7,6 +7,23 @@ import { uploadFile, SUPABASE_BUCKETS } from '../utils/supabase';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
 
+/**
+ * Wrapper function for API calls to handle errors consistently
+ */
+async function safeApiCall<T>(
+  apiFunction: (...args: any[]) => Promise<T>, 
+  defaultValue: T, 
+  ...args: any[]
+): Promise<T> {
+  try {
+    const result = await apiFunction(...args);
+    return result || defaultValue;
+  } catch (error) {
+    logger.error(`API call failed: ${error instanceof Error ? error.message : String(error)}`);
+    return defaultValue;
+  }
+}
+
 // Define the params interface for better type checking
 interface CommunitiesParams {
   page?: number;
@@ -259,6 +276,8 @@ export async function checkUserCommunityMembership(communityId) {
     }
     
     try {
+      console.log(`Checking membership for community ${communityId}`);
+      
       const response = await fetch(`${API_BASE_URL}/communities/${communityId}/membership`, {
         method: 'GET',
         headers: {
@@ -267,35 +286,101 @@ export async function checkUserCommunityMembership(communityId) {
         },
         credentials: 'include'
       });
+      
+      console.log(`Membership API response status: ${response.status}`);
 
       if (!response.ok) {
         // Handle specific error codes
         if (response.status === 404) {
-          return { success: true, status: 'none' };
+          return { success: true, status: 'none', is_member: false };
         } else if (response.status === 401 || response.status === 403) {
           // Unauthorized or forbidden - user is not logged in or doesn't have access
-          return { success: true, status: 'none' };
+          return { success: true, status: 'none', is_member: false };
         } else if (response.status >= 500) {
           // Server error - don't throw, just return a default value
           console.warn(`Server error (${response.status}) checking membership for community ${communityId}`);
-          return { success: true, status: 'none' };
+          return { success: true, status: 'none', is_member: false };
         }
         
         // For other errors
         throw new Error(`Failed to check membership (${response.status})`);
       }
 
-      const data = await response.json();
-      return {
-        success: true,
-        status: data.status || 'none'
-      };
+      const text = await response.text();
+      
+      // Handle empty response
+      if (!text || text.trim() === "") {
+        return { success: true, status: 'none', is_member: false };
+      }
+      
+      try {
+        const data = JSON.parse(text);
+        console.log('Parsed membership data:', data);
+        
+        // Handle different response formats
+        if (data.data) {
+          // Format: { data: { status: '...', is_member: true|false } }
+          const membershipData = data.data;
+          
+          if (membershipData.is_member === true || membershipData.status === 'member') {
+            return {
+              success: true,
+              status: 'member',
+              is_member: true,
+              user_role: membershipData.role || membershipData.user_role || 'member'
+            };
+          } else if (membershipData.status === 'pending') {
+            return {
+              success: true,
+              status: 'pending',
+              is_member: false
+            };
+          } else {
+            return {
+              success: true,
+              status: 'none',
+              is_member: false
+            };
+          }
+        } else {
+          // Direct format: { status: '...', is_member: true|false }
+          if (data.is_member === true || data.status === 'member') {
+            return {
+              success: true,
+              status: 'member',
+              is_member: true,
+              user_role: data.role || data.user_role || 'member'
+            };
+          } else if (data.status === 'pending') {
+            return {
+              success: true,
+              status: 'pending',
+              is_member: false
+            };
+          }
+        }
+        
+        // Default to not a member
+        return {
+          success: true,
+          status: 'none',
+          is_member: false
+        };
+      } catch (parseError) {
+        console.error('Error parsing membership response:', parseError);
+        return {
+          success: true,
+          status: 'none',
+          is_member: false
+        };
+      }
     } catch (fetchError) {
       // Handle network errors or other fetch issues gracefully
       console.warn(`Error fetching membership status: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
       return {
         success: true,
-        status: 'none'
+        status: 'none',
+        is_member: false
       };
     }
   } catch (error) {
@@ -305,6 +390,7 @@ export async function checkUserCommunityMembership(communityId) {
     return {
       success: true, // Return success true to prevent further error propagation
       status: 'none',
+      is_member: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
@@ -852,28 +938,132 @@ export async function searchCommunities(
   limit: number = 10
 ) {
   try {
-    const url = new URL(`${API_BASE_URL}/communities/search`);
-    url.searchParams.append('q', query);
-    url.searchParams.append('page', page.toString());
-    url.searchParams.append('limit', limit.toString());
-
-    const response = await fetch(url.toString(), {
+    logger.info(`Searching communities with query: ${query}, page: ${page}, limit: ${limit}`);
+    
+    // Clean up the query string
+    const cleanQuery = query ? query.trim() : '';
+    
+    // Simple params setup
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    
+    // Always use the base communities endpoint
+    const response = await fetch(`${API_BASE_URL}/communities?${params.toString()}`, {
       method: 'GET',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
       },
       credentials: 'include'
     });
-
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to search communities');
+      logger.error(`Communities API error (${response.status})`);
+      return getEmptyCommunityResult(page, limit);
     }
-
+    
+    // Parse the response
     const data = await response.json();
-    return data;
+    
+    // Get communities from response
+    let communities = [];
+    let totalCount = 0;
+    
+    if (data.data && data.data.communities) {
+      communities = data.data.communities || [];
+      totalCount = data.data.pagination?.total_count || 0;
+    } else if (data.communities) {
+      communities = data.communities || [];
+      totalCount = data.total_count || 0;
+    }
+    
+    // If there's a search query, filter communities client-side
+    if (cleanQuery) {
+      const lowerQuery = cleanQuery.toLowerCase();
+      communities = communities.filter((community: any) => {
+        if (!community) return false;
+        
+        const name = (community.name || '').toLowerCase();
+        const description = (community.description || '').toLowerCase();
+        
+        return name.includes(lowerQuery) || description.includes(lowerQuery);
+      });
+      
+      totalCount = communities.length;
+    }
+    
+    logger.debug(`Found ${communities.length} communities${cleanQuery ? ' matching search' : ''}`);
+    
+    return {
+      communities,
+      total_count: totalCount,
+      pagination: {
+        total_count: totalCount,
+        current_page: page,
+        per_page: limit,
+        total_pages: Math.ceil(totalCount / limit) || 1
+      }
+    };
   } catch (error) {
     logger.error('Search communities failed:', error);
-    throw error;
+    return getEmptyCommunityResult(page, limit);
   }
+}
+
+// Helper function to handle community response 
+async function handleCommunityResponse(response: Response, page: number, limit: number) {
+  try {
+    // Handle empty response gracefully
+    const text = await response.text();
+    if (!text || text.trim() === "") {
+      logger.warn("Communities endpoint returned empty response");
+      return getEmptyCommunityResult(page, limit);
+    }
+    
+    // Parse the response data
+    const data = JSON.parse(text);
+    
+    // Extract communities from API response
+    let communities = [];
+    let totalCount = 0;
+    
+    // Handle different response formats
+    if (data.data && data.data.communities) {
+      communities = data.data.communities || [];
+      totalCount = data.data.pagination?.total_count || 0;
+    } else if (data.communities) {
+      communities = data.communities || [];
+      totalCount = data.total_count || 0;
+    }
+    
+    // Format response to match expected structure
+    return {
+      communities: communities,
+      total_count: totalCount,
+      pagination: {
+        total_count: totalCount,
+        current_page: page,
+        per_page: limit,
+        total_pages: Math.ceil(totalCount / limit) || 1
+      }
+    };
+  } catch (parseError) {
+    logger.error(`Failed to parse communities response:`, parseError);
+    return getEmptyCommunityResult(page, limit);
+  }
+}
+
+// Helper function to get an empty community search result
+function getEmptyCommunityResult(page: number, limit: number) {
+  return {
+    communities: [],
+    total_count: 0,
+    pagination: {
+      total_count: 0,
+      current_page: page,
+      per_page: limit,
+      total_pages: 0
+    }
+  };
 }

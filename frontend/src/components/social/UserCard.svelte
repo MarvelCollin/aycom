@@ -5,6 +5,7 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import Button from '../common/Button.svelte';
   import { formatStorageUrl } from '../../utils/common';
+  import { getPublicUrl, SUPABASE_BUCKETS } from '../../utils/supabase';
   import type { IUser } from '../../interfaces/IUser';
   
   // Icons
@@ -26,6 +27,7 @@
     name?: string;
     username?: string;
     avatar?: string;
+    avatar_url?: string;
     profile_picture_url?: string;
     bio?: string;
     isVerified?: boolean;
@@ -44,11 +46,35 @@
   $: username = user.username || `user_${user.id.substring(0, 4)}`;
   $: isFollowing = 'isFollowing' in user ? user.isFollowing : ('is_following' in user ? user.is_following : false);
   $: isVerified = 'isVerified' in user ? user.isVerified : ('is_verified' in user ? user.is_verified : false);
-  $: avatarUrl = ('avatar' in user && user.avatar) 
-    ? formatStorageUrl(user.avatar) 
-    : (('profile_picture_url' in user && user.profile_picture_url) 
-        ? formatStorageUrl(user.profile_picture_url) 
-        : '');
+  $: avatarUrl = getProfilePictureUrl(user);
+  
+  // Function to get profile picture URL using Supabase
+  function getProfilePictureUrl(user) {
+    // Check all possible avatar field names
+    const rawUrl = user.avatar_url || user.profile_picture_url || user.avatar || '';
+    
+    if (!rawUrl) return '';
+    
+    // If URL already contains supabase, it's already formatted
+    if (rawUrl.includes('supabase')) {
+      return rawUrl;
+    }
+    
+    // If it's a path starting with /, use it directly
+    if (rawUrl.startsWith('/')) {
+      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles${rawUrl}`);
+    }
+    
+    // Extract filename and use it for Supabase path
+    const parts = rawUrl.split('/');
+    if (parts.length > 0) {
+      const filename = parts[parts.length - 1];
+      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles/${filename}`);
+    }
+    
+    // Fallback to original URL
+    return rawUrl;
+  }
   
   // Handle click on user card
   function handleCardClick() {

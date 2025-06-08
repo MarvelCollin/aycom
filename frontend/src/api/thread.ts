@@ -484,12 +484,25 @@ export async function replyToThread(threadId: string, data: {
 
 export async function getThreadReplies(threadId: string) {
   try {
-    return await makeApiRequest(
+    const response = await makeApiRequest(
       `${API_BASE_URL}/threads/${threadId}/replies`, 
       'GET', 
       null, 
       'Failed to get thread replies'
     );
+    
+    // Process replies to ensure they have replies_count set
+    if (response && response.replies && Array.isArray(response.replies)) {
+      response.replies = response.replies.map(reply => {
+        // Make sure replies_count is set to 0 if not present
+        if (reply.replies_count === undefined && reply.repliesCount === undefined) {
+          reply.replies_count = 0;
+        }
+        return reply;
+      });
+    }
+    
+    return response;
   } catch (error) {
     logger.error(`Get replies for thread ${threadId} failed:`, error);
     throw error;
@@ -707,11 +720,13 @@ export async function searchThreadsWithMedia(
   options?: { filter?: string; category?: string }
 ) {
   try {
-    const url = new URL(`${API_BASE_URL}/threads/search/media`);
+    // Use the regular thread search endpoint instead, but filter for threads with media
+    const url = new URL(`${API_BASE_URL}/threads/search`);
 
     url.searchParams.append('q', query);
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
+    url.searchParams.append('media_only', 'true'); // This will be a hint to the backend
 
     // Make sure filter is always included if provided
     if (options?.filter) {
@@ -739,7 +754,14 @@ export async function searchThreadsWithMedia(
       throw new Error(`Failed to search threads with media: ${response.status}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    
+    // Filter the results to only include threads with media (just in case backend doesn't filter)
+    if (data.threads) {
+      data.threads = data.threads.filter(thread => thread.media && thread.media.length > 0);
+    }
+
+    return data;
   } catch (error: any) {
     console.error('Error searching threads with media:', error);
     throw error;
@@ -758,6 +780,8 @@ export async function getThreadsByHashtag(
 
     url.searchParams.append('page', page.toString());
     url.searchParams.append('limit', limit.toString());
+    url.searchParams.append('sort_by', 'likes');
+    url.searchParams.append('sort_order', 'desc');
 
     const token = getAuthToken();
 
@@ -806,6 +830,18 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
     }
 
     const data = await response.json();
+    
+    // Process replies to ensure they have replies_count set
+    if (data.replies && Array.isArray(data.replies)) {
+      data.replies = data.replies.map(reply => {
+        // Make sure replies_count is set to 0 if not present
+        if (reply.replies_count === undefined && reply.repliesCount === undefined) {
+          reply.replies_count = 0;
+        }
+        return reply;
+      });
+    }
+    
     console.log(`Successfully fetched ${data.replies?.length || 0} replies for reply ${replyId}`);
     return data;
   } catch (error) {
@@ -1174,4 +1210,52 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     logger.error('Error getting user bookmarks:', err);
     throw err;
   }
-}
+};
+
+export const searchBookmarks = async (query: string, page = 1, limit = 10): Promise<any> => {
+  try {
+    const token = getAuthToken();
+    
+    // Check if token exists - this is critical
+    if (!token) {
+      logger.error(`Cannot search bookmarks: No auth token available`);
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    const url = `${API_BASE_URL}/bookmarks/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`;
+    logger.debug(`Searching bookmarks from: ${url}`);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      // Check specifically for auth errors
+      if (response.status === 401) {
+        logger.error('Authentication failed when searching bookmarks - token may be invalid');
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      
+      logger.error(`Failed to search bookmarks: ${response.status}`);
+      throw new Error(`Failed to search bookmarks: ${response.status}`);
+    }
+
+    const data = await response.json();
+    logger.debug('Search bookmarks API returned data:', data);
+
+    return {
+      success: true,
+      threads: data.bookmarks || [],
+      total: data.total || 0,
+      pagination: data.pagination || null
+    };
+  } catch (err) {
+    logger.error('Error searching bookmarks:', err);
+    throw err;
+  }
+};

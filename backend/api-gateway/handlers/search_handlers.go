@@ -45,6 +45,15 @@ func SearchUsers(c *gin.Context) {
 		return
 	}
 
+	// Ensure we always have either a query or filter parameter
+	// If query is empty, make sure we at least have a non-empty filter
+	if query == "" && (filter == "" || filter == "all") {
+		// Default to a space character for empty queries with generic filters
+		query = " "
+		log.Printf("SearchUsers: Empty query with generic filter, using space as query placeholder")
+	}
+
+	// Ensure we always send a filter parameter, even if it's "all"
 	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
 		st, ok := status.FromError(err)
@@ -63,7 +72,7 @@ func SearchUsers(c *gin.Context) {
 
 	var userResults []gin.H
 	for _, user := range users {
-		userResults = append(userResults, gin.H{
+		userResult := gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
 			"name":                user.Name,
@@ -73,18 +82,32 @@ func SearchUsers(c *gin.Context) {
 			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
 			"is_following":        user.IsFollowing,
-		})
+		}
+		userResults = append(userResults, userResult)
 	}
 
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+	// Calculate total pages
+	totalPages := (totalCount + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	// Prepare response data
+	responseData := gin.H{
 		"users": userResults,
 		"pagination": gin.H{
 			"total_count":  totalCount,
 			"current_page": page,
 			"per_page":     limit,
+			"total_pages":  totalPages,
 			"has_more":     len(users) == limit && (page*limit) < totalCount,
 		},
-	})
+	}
+
+	// Log the response data structure for debugging
+	log.Printf("SearchUsers: Sending response data: %+v", responseData)
+
+	utils.SendSuccessResponse(c, http.StatusOK, responseData)
 }
 
 func SearchThreads(c *gin.Context) {

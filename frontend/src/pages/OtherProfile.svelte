@@ -25,7 +25,8 @@
   import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
   import ArrowLeftIcon from 'svelte-feather-icons/src/icons/ArrowLeftIcon.svelte';
   import LinkIcon from 'svelte-feather-icons/src/icons/LinkIcon.svelte';
-  import MapPinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';  // Use the extended interface instead of defining custom ones
+  import MapPinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';
+  import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';  // Use the extended interface instead of defining custom ones
   type Thread = ExtendedTweet;
   type Reply = ExtendedTweet;
     interface ThreadMedia {
@@ -699,7 +700,14 @@
       </div>
       
       <div class="profile-name-container">
-        <h1 class="profile-name">{profileData.name}</h1>
+        <h1 class="profile-name">
+          {profileData.name}
+          {#if profileData.is_verified}
+            <span class="user-verified-badge">
+              <CheckCircleIcon size="18" />
+            </span>
+          {/if}
+        </h1>
         <div class="profile-username">@{profileData.username}</div>
       </div>
       
@@ -1204,6 +1212,16 @@
     line-height: 24px;
     margin: 0;
     color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .user-verified-badge {
+    color: #1DA1F2 !important;
+    display: inline-flex;
+    align-items: center;
+    filter: drop-shadow(0 0 1px rgba(29, 161, 242, 0.3));
   }
 
   .profile-username {

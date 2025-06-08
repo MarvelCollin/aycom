@@ -18,6 +18,7 @@
   import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import PinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';
+  import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
     // Define interfaces for our data structures
   interface Thread {
     id: string;
@@ -485,6 +486,7 @@
       
       if (response && response.user) {
         console.log('Raw profile data received:', response.user);
+        console.log('is_verified in API response:', response.user.is_verified);
         console.log('Follower count in API response:', response.user.follower_count);
         console.log('Following count in API response:', response.user.following_count);
         
@@ -503,9 +505,11 @@
           joinedDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
           email: isOwnProfile ? (userData.email || '') : '',
           dateOfBirth: isOwnProfile ? (userData.date_of_birth || '') : '',
-          gender: isOwnProfile ? (userData.gender || '') : ''
+          gender: isOwnProfile ? (userData.gender || '') : '',
+          isVerified: userData.is_verified || false
         };
         
+        console.log('Profile loaded with isVerified:', profileData.isVerified);
         console.log('Profile loaded with follower count:', profileData.followerCount);
         console.log('Profile loaded with following count:', profileData.followingCount);
         console.log('Profile loaded with avatar URL:', profileData.profilePicture);
@@ -1172,10 +1176,20 @@
       
       <div class="profile-details">
         <div class="profile-name-container">
+          {#if profileData}
           <h1 class="profile-name">
             {profileData.displayName}
             <!-- Add verified badge if applicable -->
+            {#if profileData.isVerified}
+              <span class="user-verified-badge">
+                <CheckCircleIcon size="18" />
+              </span>
+            {:else}
+              <!-- Log when verification badge is not shown -->
+              {console.log('Verification badge not shown, isVerified is:', profileData.isVerified)}
+            {/if}
           </h1>
+          {/if}
           <p class="profile-username">@{profileData.username}</p>
         </div>
         
@@ -1743,6 +1757,16 @@
     font-weight: 700;
     margin: 0;
     color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .user-verified-badge {
+    color: #1DA1F2 !important;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 5px;
   }
 
   .profile-username {

@@ -351,10 +351,13 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Add the filter to the context metadata since it's not in the protobuf definition
-	if filter != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
+	// Ensure filter is always set and not empty
+	if filter == "" {
+		filter = "all"
 	}
+
+	// Add the filter to the context metadata since it's not in the protobuf definition
+	ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
 
 	req := &userProto.SearchUsersRequest{
 		Query: query,

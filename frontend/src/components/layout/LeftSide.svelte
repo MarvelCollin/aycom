@@ -388,7 +388,14 @@
     </div>
     {#if !isCollapsed}
       <div class="sidebar-profile-info">
-        <div class="sidebar-profile-name">{userDetails.displayName}</div>
+        <div class="sidebar-profile-name">
+          {userDetails.displayName}
+          {#if userDetails.isVerified}
+            <span class="sidebar-verified-badge">
+              <CheckCircleIcon size="12" />
+            </span>
+          {/if}
+        </div>
         <div class="sidebar-profile-username">@{userDetails.username}</div>
       </div>
       <div class="sidebar-profile-more">
@@ -724,6 +731,16 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .sidebar-verified-badge {
+    color: #1DA1F2 !important;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
   }
   
   .sidebar-profile-username {
@@ -771,8 +788,7 @@
     border-bottom: 1px solid var(--border-color-dark);
   }
   
-  .sidebar-user-verified,
-  .sidebar-user-join,
+    .sidebar-user-join,
   .sidebar-user-email {
     display: flex;
     align-items: center;
@@ -781,12 +797,27 @@
     color: var(--text-secondary);
   }
   
-  .sidebar-user-verified-icon,
+  .sidebar-user-verified {
+    display: flex;
+    align-items: center;
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: #1DA1F2;
+  }
+
   .sidebar-user-join-icon {
     margin-right: var(--space-1);
     display: flex;
     align-items: center;
     color: var(--color-primary);
+  }
+  
+  .sidebar-user-verified-icon {
+    margin-right: var(--space-1);
+    display: flex;
+    align-items: center;
+    color: #1DA1F2;
+    filter: drop-shadow(0 0 1px rgba(29, 161, 242, 0.3));
   }
   
   .sidebar-user-menu-item {

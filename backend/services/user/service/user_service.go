@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 )
@@ -624,9 +625,23 @@ func (s *userService) GetFollowing(ctx context.Context, req *model.GetFollowingR
 }
 
 func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error) {
-	// Allow empty queries if a filter is specified
+	// Extract filter from metadata if it exists
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok && len(md["filter"]) > 0 {
+		req.Filter = md["filter"][0]
+		log.Printf("Got filter from metadata: %s", req.Filter)
+	}
+
+	// If query is empty string (not nil) and filter is provided, that's valid
 	if req.Query == "" && req.Filter == "" {
+		log.Printf("SearchUsers error: Both query and filter are empty")
 		return nil, 0, status.Error(codes.InvalidArgument, "Search query or filter is required")
+	}
+
+	// Set a default filter if not provided
+	if req.Filter == "" {
+		req.Filter = "all"
+		log.Printf("Using default filter: %s", req.Filter)
 	}
 
 	// Validate query length to prevent performance issues with extremely long search terms
@@ -638,12 +653,17 @@ func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersReq
 		}
 	}
 
+	// Log the search request for debugging
+	log.Printf("Searching users with query: '%s', filter: '%s', page: %d, limit: %d",
+		req.Query, req.Filter, req.Page, req.Limit)
+
 	users, count, err := s.repo.SearchUsers(req.Query, req.Filter, req.Page, req.Limit)
 	if err != nil {
 		log.Printf("Error searching users: %v", err)
 		return nil, 0, status.Error(codes.Internal, "Failed to search users")
 	}
 
+	log.Printf("Search found %d users (total count: %d)", len(users), count)
 	return users, count, nil
 }
 

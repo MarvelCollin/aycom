@@ -23,6 +23,7 @@
   import EyeIcon from 'svelte-feather-icons/src/icons/EyeIcon.svelte';
   import ChevronUpIcon from 'svelte-feather-icons/src/icons/ChevronUpIcon.svelte';
   import ChevronDownIcon from 'svelte-feather-icons/src/icons/ChevronDownIcon.svelte';
+  import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
   interface ExtendedTweet extends ITweet {
     retweet_id?: string;
     threadId?: string;
@@ -219,11 +220,20 @@
     }
     
     try {
+      // Log verification fields from the API response
+      console.debug('TWEET VERIFICATION CHECK:', {
+        id: rawTweet.id || 'unknown',
+        username: rawTweet.username,
+        isVerifiedDirect: rawTweet.is_verified,
+        userIsVerified: rawTweet.user?.is_verified,
+        authorIsVerified: rawTweet.author?.is_verified
+      });
+      
       // Make a deep copy to avoid modifying the original
       const processed: ExtendedTweet = {
         ...rawTweet,
         // Ensure all required ITweet fields exist with fallbacks
-        id: rawTweet.id || rawTweet.thread_id || rawTweet.threadId || `unknown-${Date.now()}`,
+        id: rawTweet.id || rawTweet.thread_id || rawTweet.threadId || `unknown-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         content: rawTweet.content || rawTweet.Content || '',
         created_at: rawTweet.created_at || rawTweet.CreatedAt || new Date().toISOString(),
         updated_at: rawTweet.updated_at || rawTweet.UpdatedAt,
@@ -236,7 +246,7 @@
         
         // Interaction metrics with fallbacks
         likes_count: safeParseNumber(rawTweet.likes_count || rawTweet.LikesCount || rawTweet.LikeCount || rawTweet.like_count || rawTweet.metrics?.likes),
-        replies_count: safeParseNumber(rawTweet.replies_count || rawTweet.RepliesCount || rawTweet.ReplyCount || rawTweet.reply_count || rawTweet.metrics?.replies),
+        replies_count: safeParseNumber(rawTweet.replies_count || rawTweet.RepliesCount || rawTweet.ReplyCount || rawTweet.reply_count || rawTweet.repliesCount || rawTweet.replyCount || rawTweet.replies || rawTweet.metrics?.replies || 0),
         reposts_count: safeParseNumber(rawTweet.reposts_count || rawTweet.RepostsCount || rawTweet.RepostCount || rawTweet.repost_count || rawTweet.metrics?.reposts),
         bookmark_count: safeParseNumber(rawTweet.bookmark_count || rawTweet.BookmarkCount || rawTweet.bookmarks_count || rawTweet.metrics?.bookmarks),
         
@@ -245,16 +255,13 @@
         is_reposted: Boolean(rawTweet.is_reposted || rawTweet.IsReposted || rawTweet.reposted_by_user || rawTweet.RepostedByUser || rawTweet.is_repost || false),
         is_bookmarked: Boolean(rawTweet.is_bookmarked || rawTweet.IsBookmarked || rawTweet.bookmarked_by_user || rawTweet.BookmarkedByUser || false),
         is_pinned: Boolean(rawTweet.is_pinned || rawTweet.IsPinned || rawTweet.pinned || false),
+        is_verified: isVerified(rawTweet),
         
         // Media with validation
         media: validateMedia(rawTweet.media || rawTweet.Media || []),
-        
-        // Other fields with fallbacks
-        parent_id: rawTweet.parent_id || rawTweet.ParentID || rawTweet.parent_thread_id || null,
-        community_id: rawTweet.community_id || rawTweet.CommunityID || null,
-        community_name: rawTweet.community_name || rawTweet.CommunityName || null
       };
       
+      console.log(`Tweet processed - verified status: ${processed.is_verified} (${processed.name || processed.displayName})`);
       return processed;
     } catch (error) {
       console.error('Error processing tweet content:', error, rawTweet);
@@ -265,7 +272,7 @@
   // Helper function to create a placeholder tweet when data is invalid
   function createPlaceholderTweet(): ExtendedTweet {
     return {
-      id: `error-${Date.now()}`,
+      id: `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       content: 'Error loading content',
       created_at: new Date().toISOString(),
       user_id: '',
@@ -280,6 +287,7 @@
       is_reposted: false,
       is_bookmarked: false,
       is_pinned: false,
+      is_verified: false,
       parent_id: null,
       media: []
     };
@@ -371,7 +379,7 @@
     
     // Filter out invalid media items and format URLs
     return media.filter(item => item && item.url).map(item => ({
-      id: item.id || `media-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: item.id || `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
       url: formatStorageUrl(item.url),
       type: item.type || 'image',
       thumbnail: item.thumbnail ? formatStorageUrl(item.thumbnail) : formatStorageUrl(item.url),
@@ -727,16 +735,34 @@
       dispatch('loadReplies', safeToString(processedTweet.id));
         // Auto-load nested replies for all first-level replies when expanding
       if (replies && replies.length > 0 && nestingLevel === 0) {
-        replies.forEach(async (reply) => {
+        console.log('DEBUG: Found replies to process:', replies.length);
+        replies.forEach((reply, index) => {
+          console.log(`DEBUG: Reply ${index} structure:`, {
+            id: reply.id,
+            content: reply.content || '(empty)',
+            nested_replies: reply.replies_count || reply.repliesCount || 0,
+            has_reply_property: typeof reply.reply !== 'undefined',
+            reply_property: reply.reply ? 
+              { 
+                id: reply.reply.id,
+                content: reply.reply.content || '(empty)',
+                user: reply.reply.user ? reply.reply.user.username : 'no user' 
+              } : 'no reply property'
+          });
+
           if (reply && reply.replies_count > 0) {
             try {
               // Ensure we have a string ID
               const replyId = safeToString(reply.id);
-              const nestedRepliesData = await getReplyReplies(replyId);
-              if (nestedRepliesData && nestedRepliesData.replies) {
-                nestedRepliesMap.set(replyId, nestedRepliesData.replies.map(r => processTweetContent(r)));
-                nestedRepliesMap = new Map(nestedRepliesMap);
-              }
+              getReplyReplies(replyId).then(nestedRepliesData => {
+                if (nestedRepliesData && nestedRepliesData.replies) {
+                  console.log(`DEBUG: Loaded ${nestedRepliesData.replies.length} nested replies for ${reply.id}`);
+                  nestedRepliesMap.set(replyId, nestedRepliesData.replies.map(r => processTweetContent(r)));
+                  nestedRepliesMap = new Map(nestedRepliesMap);
+                }
+              }).catch(error => {
+                console.error(`Error pre-loading nested replies for ${reply.id}:`, error);
+              });
             } catch (error) {
               console.error(`Error pre-loading nested replies for ${reply.id}:`, error);
             }
@@ -771,94 +797,62 @@
       return;
     }
     
-    try {
-      // Check if this is a reply ID - if so, we need to load replies to a reply
-      if (nestedRepliesMap) {
-        console.log(`Loading nested replies for reply: ${replyId}`);
-        
-        // Add loading state to the specific reply
-        const replyContainer = document.querySelector(`#reply-${replyId}-container`);
-        if (replyContainer) {
-          replyContainer.classList.add('loading-nested-replies');
-        }
+    console.log(`Loading nested replies for reply: ${replyId}`);
+    
+    // Add loading state to the specific reply
+    const replyContainer = document.querySelector(`#reply-${replyId}-container`);
+    if (replyContainer) {
+      replyContainer.classList.add('loading-nested-replies');
+    }
 
-        // Keep track of loading state
-        const loadingKey = `loading_${replyId}`;
-        // Fix the comparison by checking for the object's loading property instead of direct comparison
-        const isLoading = nestedRepliesMap.get(loadingKey) && 
-                         (nestedRepliesMap.get(loadingKey) as any)?.loading === true;
+    // Keep track of loading state
+    const loadingKey = `loading_${replyId}`;
+    // Fix the comparison by checking for the object's loading property instead of direct comparison
+    const isLoading = nestedRepliesMap.get(loadingKey) && 
+                     (nestedRepliesMap.get(loadingKey) as any)?.loading === true;
+    
+    // Only attempt to load if not already loading
+    if (!isLoading) {
+      // Use a temporary object for loading state to avoid type errors
+      const loadingState = { loading: true };
+      nestedRepliesMap.set(loadingKey, loadingState as any);
+      nestedRepliesMap = new Map(nestedRepliesMap);
+    
+      try {
+        // Fetch replies to the reply with a page limit
+        const response = await getReplyReplies(replyId, 1, 20);
         
-        // Only attempt to load if not already loading
-        if (!isLoading) {
-          // Use a temporary object for loading state to avoid type errors
-          const loadingState = { loading: true };
-          nestedRepliesMap.set(loadingKey, loadingState as any);
-          nestedRepliesMap = new Map(nestedRepliesMap);
-        
-          try {
-            // Fetch replies to the reply with a page limit
-            const response = await getReplyReplies(replyId, 1, 20);
-            
-            if (response && response.replies && response.replies.length > 0) {
-              console.log(`Received ${response.replies.length} nested replies for reply ${replyId}`);
-              
-              // Process replies for display
-              const processedReplies = response.replies.map(reply => {
-                return processTweetContent(reply);
-              });
-              
-              // Update the nested replies map
-              nestedRepliesMap.set(replyId, processedReplies);
-              
-              // Update total count for pagination
-              const countKey = `total_count_${replyId}`;
-              const countObject = { count: response.total_count || processedReplies.length };
-              nestedRepliesMap.set(countKey, countObject as any);
-            } else {
-              console.warn(`No nested replies returned for reply ${replyId}`);
-              nestedRepliesMap.set(replyId, []);
-            }
-          } catch (error) {
-            console.error(`Error loading nested replies for reply ${replyId}:`, error);
-            // Add a retry flag as an object to avoid type errors
-            const retryKey = `retry_${replyId}`;
-            const retryObject = { retry: true };
-            nestedRepliesMap.set(retryKey, retryObject as any);
-            // Set empty array as a fallback
-            nestedRepliesMap.set(replyId, []);
-            
-            // Show user error message
-            toastStore.showToast('Failed to load replies. Please try again.', 'error');
-          } finally {
-            // Remove loading state
-            nestedRepliesMap.delete(loadingKey);
-            // Force reactivity update
-            nestedRepliesMap = new Map(nestedRepliesMap);
-            
-            // Remove loading class from reply container
-            if (replyContainer) {
-              replyContainer.classList.remove('loading-nested-replies');
-            }
-          }
+        if (response && response.replies && response.replies.length > 0) {
+          console.log(`Received ${response.replies.length} nested replies for reply ${replyId}`);
+          
+          // Process replies for display
+          const processedReplies = response.replies.map(reply => {
+            return processTweetContent(reply);
+          });
+          
+          // Update the nested replies map
+          nestedRepliesMap.set(replyId, processedReplies);
+          
+          // Update total count for pagination
+          const countKey = `total_count_${replyId}`;
+          const countObject = { count: response.total_count || processedReplies.length };
+          nestedRepliesMap.set(countKey, countObject as any);
         } else {
-          console.log(`Already loading replies for ${replyId}, ignoring duplicate request`);
+          console.warn(`No nested replies returned for reply ${replyId}`);
+          nestedRepliesMap.set(replyId, []);
         }
-      } else {
-        // Just pass the event up to parent for thread replies
-        dispatch('loadReplies', replyId);
-      }
-    } catch (error) {
-      console.error(`Error in handleLoadNestedReplies for reply ${replyId}:`, error);
-      toastStore.showToast('Failed to load replies. Please try again.', 'error');
-      
-      if (replyId && nestedRepliesMap) {
+        
         // Remove loading state
-        const loadingKey = `loading_${replyId}`;
         nestedRepliesMap.delete(loadingKey);
+        // Force reactivity update
+        nestedRepliesMap = new Map(nestedRepliesMap);
         
-        // Set empty array for this reply's replies
-        nestedRepliesMap.set(replyId, []);
-        
+        // Remove loading class from reply container
+        if (replyContainer) {
+          replyContainer.classList.remove('loading-nested-replies');
+        }
+      } catch (error) {
+        console.error(`Error loading nested replies for reply ${replyId}:`, error);
         // Add a retry flag as an object to avoid type errors
         const retryKey = `retry_${replyId}`;
         const retryObject = { retry: true };
@@ -1492,6 +1486,31 @@
       }
     }
   }
+
+  // Helper function to extract verified status with robust fallbacks
+  function isVerified(rawTweet: any): boolean {
+    // Direct verification field
+    if (rawTweet.is_verified === true) return true;
+    if (rawTweet.IsVerified === true) return true;
+    if (rawTweet.verified === true) return true;
+    
+    // Check user object if available
+    if (rawTweet.user?.is_verified === true) return true;
+    if (rawTweet.user?.verified === true) return true;
+    if (rawTweet.author?.is_verified === true) return true;
+    if (rawTweet.author?.verified === true) return true;
+    
+    // Check thread author if available
+    if (rawTweet.thread?.author?.is_verified === true) return true;
+    if (rawTweet.thread?.author?.verified === true) return true;
+    
+    // Check user_data if available
+    if (rawTweet.user_data?.is_verified === true) return true;
+    if (rawTweet.user_data?.verified === true) return true;
+    
+    // Not verified
+    return false;
+  }
 </script>
 
 <div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}">
@@ -1516,11 +1535,16 @@
               class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
               on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
               on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
-              {#if processedTweet.displayName === 'User'}
+              {#if !processedTweet.name && !processedTweet.displayName}
                 {console.warn('❌ MISSING DISPLAY NAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, username: processedTweet.username})}
                 <span class="tweet-error-text">User</span>
               {:else}
-                {processedTweet.displayName}
+                <span class="display-name-text">{processedTweet.name || processedTweet.displayName}</span>
+                {#if processedTweet.is_verified}
+                  <span class="user-verified-badge">
+                    <CheckCircleIcon size="14" />
+                  </span>
+                {/if}
               {/if}
             </a>
             <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
@@ -1702,142 +1726,59 @@
         </button>
       </div>
     {:else}
-      {#if replies.length > 0 && nestingLevel < MAX_NESTING_LEVEL}
-        {#each processedReplies as reply (reply.id || reply.tweetId)}
-          <div id="reply-{reply.id}-container" class="nested-reply-container">
-            <svelte:self 
-              tweet={reply}
-              {isDarkMode}
-              {isAuthenticated}
-              isLiked={reply.isLiked || reply.is_liked || false}
-              isReposted={reply.isReposted || false}
-              isBookmarked={reply.isBookmarked || false}
-              inReplyToTweet={null}
-              replies={nestedRepliesMap.get(String(reply.id)) || []} 
-              showReplies={false}
-              nestingLevel={nestingLevel + 1}
-              {nestedRepliesMap}
-              on:reply={handleNestedReply}
-              on:like={handleNestedLike}
-              on:unlike={handleNestedLike}
-              on:repost={handleNestedRepost}
-              on:bookmark={handleNestedBookmark}
-              on:removeBookmark={handleNestedBookmark}
-              on:loadReplies={handleLoadNestedReplies}
-            />
-              {#if (reply.replies_count || 0) > 0}
-              {#if nestedRepliesMap.has(`retry_${reply.id}`)}
-                <!-- Show retry button when loading failed -->
-                <div class="nested-replies-retry-container">
-                  <button 
-                    class="nested-replies-retry-btn" 
-                    on:click|stopPropagation={() => retryLoadNestedReplies(reply.id)}
-                  >
-                    <RefreshCwIcon size="14" />
-                    Failed to load replies. Retry?
-                  </button>
-                </div>
-              {:else if !nestedRepliesMap.has(String(reply.id)) && (reply.replies_count || 0) > 0}
-                <!-- Show view replies button when not loaded yet -->
-                <div class="nested-replies-view-container">
-                  <button 
-                    class="nested-replies-view-btn" 
-                    on:click|stopPropagation={() => handleLoadNestedReplies({ detail: String(reply.id) })}
-                  >
-                    <ChevronDownIcon size="14" />
-                    View {reply.replies_count || 0} {(reply.replies_count || 0) === 1 ? 'reply' : 'replies'}
-                  </button>
-                </div>
-              {/if}
-            {/if}
-          </div>
-        {/each}
-      {:else if replies.length > 0}
-        {#each processedReplies as reply, index (reply.id || reply.tweetId || `reply-${reply.timestamp}-${reply.username}-${index}`)}
-          <div class="tweet-reply-item {isDarkMode ? 'tweet-reply-item-dark' : ''}">
-            <div class="tweet-reply-content">
-              <a 
-                href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
-                class="tweet-reply-avatar"
-                on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
-                on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
-              >
-                {#if reply.profile_picture_url}
-                  <img src={reply.profile_picture_url} alt={reply.username} class="tweet-reply-avatar-img" />
-                {:else}
-                  <div class="tweet-reply-avatar-placeholder">{reply.username ? reply.username.charAt(0).toUpperCase() : 'U'}</div>
-                {/if}
-              </a>
-              <div class="tweet-reply-body">
-                <div class="tweet-reply-author">
-                  <a 
-                    href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
-                    class="tweet-reply-author-name {isDarkMode ? 'tweet-reply-author-name-dark' : ''}"
-                    on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
-                    on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
-                  >{reply.displayName || 'User'}</a>
-                  <a 
-                    href={`/user/${reply.userId || reply.authorId || reply.author_id || reply.user_id || reply.username}`}
-                    class="tweet-reply-author-username {isDarkMode ? 'tweet-reply-author-username-dark' : ''}"
-                    on:click|preventDefault={(e) => navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
-                    on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, reply.username, reply.userId || reply.authorId || reply.author_id || reply.user_id)}
-                  >@{reply.username || 'user'}</a>
-                  <span class="tweet-reply-dot-separator {isDarkMode ? 'tweet-reply-dot-separator-dark' : ''}">·</span>
-                  <span class="tweet-reply-timestamp {isDarkMode ? 'tweet-reply-timestamp-dark' : ''}">{formatTimeAgo(reply.timestamp)}</span>
-                </div>
-                <div class="tweet-reply-text {isDarkMode ? 'tweet-reply-text-dark' : ''}">
-                  <p>{reply.content || 'No content available'}</p>
-                  
-                  {#if reply.media && reply.media.length > 0}
-                    <div class="tweet-reply-media">
-                      <img src={reply.media[0].url} alt="Media" class="tweet-reply-media-img" />
-                    </div>
-                  {/if}
-                </div>
-                <div class="tweet-reply-actions {isDarkMode ? 'tweet-reply-actions-dark' : ''}">
-                  <button class="tweet-reply-action-btn tweet-reply-reply-btn {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" on:click|stopPropagation={() => dispatch('reply', reply.id)}>
-                    <MessageCircleIcon size="16" class="tweet-reply-action-icon" />
-                    <span>Reply</span>
-                  </button>
-                  
-                  <button class="tweet-reply-action-btn tweet-reply-like-btn {reply.isLiked ? 'active' : ''} {(replyActionsLoading.get(String(reply.id))?.like) ? 'loading' : ''} {replyHeartAnimations.has(String(reply.id)) ? 'animating' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
-                    on:click|stopPropagation={(e) => {
-                      e.preventDefault();
-                      reply.isLiked ? handleUnlikeReply(reply.id) : handleLikeReply(reply.id);
-                    }}
-                    aria-label="{reply.isLiked ? 'Unlike this reply' : 'Like this reply'}"
-                    aria-pressed={reply.isLiked}
-                  >
-                    {#if replyActionsLoading.get(String(reply.id))?.like}
-                      <div class="tweet-reply-action-loading"></div>
-                    {:else if reply.isLiked}
-                      <HeartIcon size="16" fill="currentColor" class="tweet-reply-action-icon {replyHeartAnimations.has(String(reply.id)) ? 'heart-pulse' : ''}" />
-                    {:else}
-                      <HeartIcon size="16" class="tweet-reply-action-icon" />
-                    {/if}
-                    <span>Like</span>
-                  </button>
-                  
-                  <button class="tweet-reply-action-btn tweet-reply-bookmark-btn {reply.isBookmarked ? 'active' : ''} {(replyActionsLoading.get(String(reply.id))?.bookmark) ? 'loading' : ''} {isDarkMode ? 'tweet-reply-action-btn-dark' : ''}" 
-                    on:click|stopPropagation={(e) => {
-                      e.preventDefault();
-                      reply.isBookmarked ? handleUnbookmarkReply(reply.id) : handleBookmarkReply(reply.id);
-                    }}>
-                    {#if replyActionsLoading.get(String(reply.id))?.bookmark}
-                      <div class="tweet-reply-action-loading"></div>
-                    {:else if reply.isBookmarked}
-                      <BookmarkIcon size="16" fill="currentColor" class="tweet-reply-action-icon" />
-                    {:else}
-                      <BookmarkIcon size="16" class="tweet-reply-action-icon" />
-                    {/if}
-                    <span>Save</span>
-                  </button>
-                </div>
+      {#each processedReplies as reply (reply.id || reply.tweetId)}
+        {#if !reply.content && typeof reply.content !== 'undefined'}
+          {console.error('⚠️ EMPTY REPLY CONTENT:', reply)}
+        {/if}
+        <div id="reply-{reply.id}-container" class="nested-reply-container">
+          <svelte:self 
+            tweet={reply}
+            {isDarkMode}
+            {isAuthenticated}
+            isLiked={reply.isLiked || reply.is_liked || false}
+            isReposted={reply.isReposted || false}
+            isBookmarked={reply.isBookmarked || false}
+            inReplyToTweet={null}
+            replies={nestedRepliesMap.get(String(reply.id)) || []} 
+            showReplies={false}
+            nestingLevel={nestingLevel + 1}
+            {nestedRepliesMap}
+            on:reply={handleNestedReply}
+            on:like={handleNestedLike}
+            on:unlike={handleNestedLike}
+            on:repost={handleNestedRepost}
+            on:bookmark={handleNestedBookmark}
+            on:removeBookmark={handleNestedBookmark}
+            on:loadReplies={handleLoadNestedReplies}
+          />
+          
+          {#if (Number(reply.replies_count) > 0 || Number(reply.repliesCount) > 0)}
+            {#if nestedRepliesMap.has(`retry_${reply.id}`)}
+              <!-- Show retry button when loading failed -->
+              <div class="nested-replies-retry-container">
+                <button 
+                  class="nested-replies-retry-btn" 
+                  on:click|stopPropagation={() => retryLoadNestedReplies(reply.id)}
+                >
+                  <RefreshCwIcon size="14" />
+                  Failed to load replies. Retry?
+                </button>
               </div>
-            </div>
-          </div>
-        {/each}
-      {/if}
+            {:else if !nestedRepliesMap.has(String(reply.id))}
+              <!-- Show view replies button when not loaded yet -->
+              <div class="nested-replies-view-container">
+                <button 
+                  class="nested-replies-view-btn" 
+                  on:click|stopPropagation={() => handleLoadNestedReplies({ detail: String(reply.id) })}
+                >
+                  <ChevronDownIcon size="14" />
+                  View {Number(reply.replies_count) || Number(reply.repliesCount) || 0} {(Number(reply.replies_count) || Number(reply.repliesCount) || 0) === 1 ? 'reply' : 'replies'}
+                </button>
+              </div>
+            {/if}
+          {/if}
+        </div>
+      {/each}
     {/if}
   </div>
 {/if}
@@ -2360,5 +2301,30 @@
     border-top-color: var(--color-danger);
     animation: spin 0.8s linear infinite;
     margin-right: 4px;
+  }
+
+  /* Verification badge styles */
+  .user-verified-badge {
+    color: #1DA1F2 !important;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    filter: drop-shadow(0 0 1px rgba(29, 161, 242, 0.3));
+  }
+
+  .user-verified-badge :global(svg) {
+    stroke-width: 2.5px;
+    background-color: rgba(29, 161, 242, 0.1);
+    border-radius: 50%;
+  }
+
+  .tweet-author-name {
+    display: flex;
+    align-items: center;
+  }
+
+  .display-name-text {
+    margin-right: 2px;
+    font-weight: 600;
   }
 </style>

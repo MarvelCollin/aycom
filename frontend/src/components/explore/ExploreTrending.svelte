@@ -82,7 +82,7 @@
             <div>
               <button 
                 class="trending-hashtag"
-                on:click={() => viewThreadsByHashtag(trend.title || trend.name || '')}
+                on:click={() => handleHashtagClick(trend.title || trend.name || '')}
               >
                 #{trend.title || trend.name || ''}
               </button>
@@ -117,7 +117,7 @@
             {#each sampleTrends as trend}
               <button 
                 class="sample-trend-chip"
-                on:click={() => viewThreadsByHashtag(trend.title)}
+                on:click={() => handleHashtagClick(trend.title)}
               >
                 #{trend.title}
               </button>

@@ -9,10 +9,10 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getTrends } from '../api/trends';
-  import { searchUsers, getAllUsers } from '../api/user';
+  import { searchUsers, getAllUsers, getFollowing } from '../api/user';
   import { searchThreads, searchThreadsWithMedia, getThreadsByHashtag } from '../api/thread';
   import { searchCommunities } from '../api/community';
-  import { debounce } from '../utils/helpers';
+  import { debounce, stringSimilarity } from '../utils/helpers';
   import { formatTimeAgo } from '../utils/common';
   
   // Import newly created components
@@ -129,6 +129,11 @@
         isFollowing: boolean;
       }>;
       totalCount: number;
+      pagination: {
+        total_count: number;
+        current_page: number;
+        total_pages: number;
+      };
       isLoading: boolean;
     };
     media: {
@@ -167,6 +172,11 @@
     people: {
       users: [],
       totalCount: 0,
+      pagination: {
+        total_count: 0,
+        current_page: 1,
+        total_pages: 0
+      },
       isLoading: false
     },
     media: {
@@ -234,7 +244,10 @@
   async function fetchAllUsers() {
     isLoadingUsers = true;
     try {
-      const { users, total } = await getAllUsers(1, 20, 'created_at', false);
+      const response = await getAllUsers(1, 20, 'created_at', false);
+      
+      console.log('fetchAllUsers response:', response);
+      const users = response.users || [];
       
       if (users && users.length > 0) {
         // Map backend response to the format expected by the frontend components
@@ -249,6 +262,7 @@
           isFollowing: user.is_following || false
         }));
         
+        console.log('Mapped users for display:', usersToDisplay);
         logger.debug('Fetched users:', { count: usersToDisplay.length });
       } else {
         usersToDisplay = [];
@@ -299,7 +313,7 @@
   async function fetchTrends() {
     isTrendsLoading = true;
     try {
-      const trendData = await getTrends(10);
+      const trendData = await getTrends(10); // Explicitly get top 10 trending hashtags
       trends = trendData;
       logger.debug('Trends loaded', { trendsCount: trends.length });
     } catch (error) {
@@ -320,20 +334,49 @@
     
     isLoadingRecommendations = true;
     try {
-      const { users } = await searchUsers(query, 1, 3, {
+      const { users } = await searchUsers(query.trim(), 1, 10, {
         clientFuzzy: true, // Enable client-side fuzzy matching
         sort: 'follower_count' // Sort by follower count
       });
-      searchResults.top.profiles = users.map(user => ({
-        id: user.id,
-        username: user.username,
-        displayName: user.display_name || user.username,
-        avatar: user.avatar,
-        bio: user.bio,
-        isVerified: user.is_verified || false,
-        followerCount: user.follower_count || 0,
-        isFollowing: user.is_following || false
+      
+      // Apply Damerau-Levenshtein distance for fuzzy matching
+      // Filter and sort users based on relevance
+      const relevantUsers = users
+        .map(user => {
+          // Calculate similarity based on username and display name
+          const usernameSimilarity = stringSimilarity(
+            query.toLowerCase(),
+            user.username.toLowerCase()
+          );
+          
+          const displayNameSimilarity = stringSimilarity(
+            query.toLowerCase(),
+            (user.display_name || '').toLowerCase()
+          );
+          
+          // Use the better match of the two
+          const similarity = Math.max(usernameSimilarity, displayNameSimilarity);
+          
+          return {
+            user,
+            similarity
+          };
+        })
+        .filter(item => item.similarity > 0.3) // Only include relevant matches
+        .sort((a, b) => b.similarity - a.similarity) // Sort by similarity (highest first)
+        .slice(0, 3); // Take top 3 matches
+      
+      searchResults.top.profiles = relevantUsers.map(item => ({
+        id: item.user.id,
+        username: item.user.username,
+        displayName: item.user.display_name || item.user.username,
+        avatar: item.user.avatar,
+        bio: item.user.bio,
+        isVerified: item.user.is_verified || false,
+        followerCount: item.user.follower_count || 0,
+        isFollowing: item.user.is_following || false
       }));
+      
     } catch (error) {
       console.error('Error searching profiles:', error);
       searchResults.top.profiles = [];
@@ -349,112 +392,205 @@
     logger.debug('Search input updated', { searchQuery });
   }
   
-  // Execute search
-  async function executeSearch() {
-    if (!searchQuery.trim()) return;
-    
-    // Save to recent searches
-    saveToRecentSearches(searchQuery);
-    
-    // Hide recent searches dropdown
+  // Handle search from search component
+  function handleSearch(event) {
+    executeSearch();
+  }
+  
+  // Handle clear search input
+  function handleClearSearch() {
+    searchQuery = '';
+    hasSearched = false;
     showRecentSearches = false;
+  }
+  
+  // Handle toggle follow for a user
+  function handleToggleFollow(userId) {
+    // Find the user in usersToDisplay
+    const userIndex = usersToDisplay.findIndex(user => user.id === userId);
+    if (userIndex !== -1) {
+      // Toggle the following state
+      const user = usersToDisplay[userIndex];
+      const updatedUser = {...user, isFollowing: !user.isFollowing};
+      
+      // Update the array
+      usersToDisplay = [
+        ...usersToDisplay.slice(0, userIndex),
+        updatedUser,
+        ...usersToDisplay.slice(userIndex + 1)
+      ];
+      
+      // Call the API in the background
+      handleFollowUser({ detail: userId });
+    }
+  }
+  
+  // Main search function
+  async function executeSearch() {
+    // Handle empty search query - still perform search to show all items
+    if (!searchQuery || searchQuery.trim() === '') {
+      logger.debug('Empty search query, showing all items');
+    } else {
+      // Add to recent searches if not already there
+      if (!recentSearches.includes(searchQuery)) {
+        recentSearches = [searchQuery, ...recentSearches.slice(0, 2)];
+        localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+      }
+    }
     
-    // Mark as searching
     isSearching = true;
     hasSearched = true;
+    showRecentSearches = false;
     
     try {
-      // Set loading state for all tabs
-      searchResults.top.isLoading = true;
-      searchResults.latest.isLoading = true;
-      searchResults.people.isLoading = true;
-      searchResults.media.isLoading = true;
-      searchResults.communities.isLoading = true;
-      
-      // Ensure we're logged in for following filter
-      if (searchFilter === 'following' && !authState.is_authenticated) {
-        toastStore.showToast('You need to be logged in to use the Following filter', 'warning');
-        searchFilter = 'all'; // Fall back to all if not authenticated
-      }
-
-      // Get filter options - make sure these match the backend filter parameter names exactly
       const filterOption = searchFilter === 'following' ? 'following' : (searchFilter === 'verified' ? 'verified' : 'all');
       const categoryOption = selectedCategory !== 'all' ? selectedCategory : undefined;
       
-      logger.debug('Executing search with filters', { 
-        query: searchQuery,
-        filter: filterOption, 
+      logger.debug('Starting search', {
+        query: searchQuery || '(empty - showing all)',
+        filter: filterOption,
         category: categoryOption,
         sortBy: 'popular' 
       });
       
-      // Fetch data for all tabs in parallel
+      // Safely execute each API call with error handling
+      const safeApiCall = async (apiFunction, ...args) => {
+        try {
+          const result = await apiFunction(...args);
+          
+          // Check if the result is null or undefined
+          if (result === null || result === undefined) {
+            logger.warn(`API call ${apiFunction.name} returned null or undefined`);
+            return getDefaultResultForFunction(apiFunction.name);
+          }
+          
+          return result;
+        } catch (error) {
+          logger.error(`Error in API call ${apiFunction.name}:`, error);
+          // Return a safe default value based on expected structure
+          return getDefaultResultForFunction(apiFunction.name);
+        }
+      };
+      
+      // Helper function to get default results for different API functions
+      function getDefaultResultForFunction(functionName) {
+        switch(functionName) {
+          case 'searchUsers':
+            return { users: [], totalCount: 0 };
+          case 'searchThreads':
+          case 'searchThreadsWithMedia':  
+            return { threads: [] };
+          case 'searchCommunities':
+            return { 
+              communities: [], 
+              total_count: 0,
+              pagination: {
+                total_count: 0,
+                current_page: 1,
+                per_page: communitiesPerPage,
+                total_pages: 0
+              }
+            };
+          default:
+            return {};
+        }
+      }
+      
+      // Fetch data for all tabs in parallel with error handling
       const [peopleData, topThreadsData, latestThreadsData, mediaData, communitiesData] = await Promise.all([
         // People tab data (also used for top profiles)
-        searchUsers(searchQuery, 1, peoplePerPage, { 
+        safeApiCall(searchUsers, searchQuery, 1, peoplePerPage, { 
           filter: filterOption,
           clientFuzzy: true,
           sort: 'follower_count'
         }),
         
         // Top threads
-        searchThreads(searchQuery, 1, 10, {
+        safeApiCall(searchThreads, searchQuery, 1, 10, {
           filter: filterOption,
           category: categoryOption,
           sort_by: 'popular'
         }),
         
         // Latest threads
-        searchThreads(searchQuery, 1, 20, {
+        safeApiCall(searchThreads, searchQuery, 1, 20, {
           filter: filterOption,
           category: categoryOption,
           sort_by: 'recent'
         }),
         
         // Media tab data
-        searchThreadsWithMedia(searchQuery, 1, 12, {
+        safeApiCall(searchThreadsWithMedia, searchQuery, 1, 12, {
           filter: filterOption,
           category: categoryOption
         }),
         
         // Communities tab data
-        searchCommunities(searchQuery, 1, communitiesPerPage)
+        safeApiCall(searchCommunities, searchQuery, 1, communitiesPerPage)
+          .catch(error => {
+            logger.error('Failed to search communities:', error);
+            return {
+              communities: [],
+              total_count: 0,
+              pagination: {
+                total_count: 0,
+                current_page: 1,
+                per_page: communitiesPerPage,
+                total_pages: 0
+              }
+            };
+          })
       ]);
       
+      // Process people results
+      console.log("Raw people data:", peopleData);
+      
+      const peopleUsers = (peopleData.users || []).map(user => {
+        // Log each user for debugging
+        console.log("Processing user:", user);
+        
+        return {
+          id: user.id,
+          username: user.username || "",
+          displayName: user.name || user.display_name || user.username || "",
+          avatar: user.profile_picture_url || user.avatar || null,
+          bio: user.bio || '',
+          isVerified: user.is_verified || false,
+          followerCount: user.follower_count || 0,
+          isFollowing: user.is_following || false
+        };
+      });
+      
+      console.log("Mapped people users:", peopleUsers);
+      
+      // Process top threads results
+      const topThreads = (topThreadsData.threads || []).map(thread => ({
+        id: thread.id,
+        content: thread.content,
+        username: thread.author?.username || 'anonymous',
+        name: thread.author?.display_name || 'User',
+        created_at: thread.created_at || new Date().toISOString(),
+        likes_count: thread.like_count || 0,
+        replies_count: thread.reply_count || 0,
+        reposts_count: thread.repost_count || 0,
+        media: thread.media,
+        profile_picture_url: thread.author?.avatar
+      }));
+      
       // Get top 3 profiles sorted by follower count for the Top tab
-      const topProfiles = [...peopleData.users]
+      const topProfiles = [...peopleUsers]
         .sort((a, b) => ((b.follower_count || 0) - (a.follower_count || 0)))
         .slice(0, 3);
       
       // Update search results
       searchResults = {
         top: {
-          profiles: topProfiles.map(user => ({
-            id: user.id,
-            username: user.username,
-            displayName: user.display_name || user.username,
-            avatar: user.avatar || null,
-            bio: user.bio,
-            isVerified: user.is_verified || false,
-            followerCount: user.follower_count || 0,
-            isFollowing: user.is_following || false
-          })),
-          threads: topThreadsData.threads.map(thread => ({
-            id: thread.id,
-            content: thread.content,
-            username: thread.author?.username || 'anonymous',
-            name: thread.author?.display_name || 'User',
-            created_at: thread.created_at || new Date().toISOString(),
-            likes_count: thread.like_count || 0,
-            replies_count: thread.reply_count || 0,
-            reposts_count: thread.repost_count || 0,
-            media: thread.media,
-            profile_picture_url: thread.author?.avatar
-          })) || [],
+          profiles: topProfiles,
+          threads: topThreads,
           isLoading: false
         },
         latest: {
-          threads: latestThreadsData.threads.map(thread => ({
+          threads: (latestThreadsData?.threads || []).map(thread => ({
             id: thread.id,
             content: thread.content,
             username: thread.author?.username || 'anonymous',
@@ -465,40 +601,40 @@
             reposts: thread.repost_count || 0,
             media: thread.media,
             avatar: thread.author?.avatar
-          })) || [],
+          })),
           isLoading: false
         },
         people: {
-          users: peopleData.users.map(user => ({
-            id: user.id,
-            username: user.username,
-            displayName: user.display_name || user.username,
-            avatar: user.avatar || null,
-            bio: user.bio,
-            isVerified: user.is_verified || false,
-            followerCount: user.follower_count || 0,
-            isFollowing: user.is_following || false
-          })),
-          totalCount: peopleData.totalCount || 0,
+          users: peopleUsers,
+          totalCount: peopleData?.totalCount || peopleData?.total || 0,
+          pagination: peopleData?.pagination || { 
+            total_count: peopleData?.totalCount || peopleData?.total || 0,
+            current_page: peopleData?.currentPage || 1,
+            total_pages: Math.ceil((peopleData?.totalCount || peopleData?.total || 0) / peoplePerPage)
+          },
           isLoading: false
         },
         media: {
-          threads: mediaData.threads || [],
+          threads: mediaData?.threads || [],
           isLoading: false
         },
         communities: {
-          communities: communitiesData.communities || [],
-          totalCount: communitiesData.total_count || 0,
+          communities: communitiesData?.communities || [],
+          totalCount: communitiesData?.total_count || communitiesData?.total || 0,
           isLoading: false
         }
       };
       
+      // Update the usersToDisplay for the People tab
+      usersToDisplay = peopleUsers;
+      
       logger.debug('Search completed', {
         query: searchQuery,
         filter: filterOption,
-        peopleCount: peopleData.users.length,
-        threadsCount: topThreadsData.threads.length,
-        mediaCount: mediaData.threads.length
+        peopleCount: peopleData?.users?.length || 0,
+        threadsCount: topThreadsData?.threads?.length || 0,
+        mediaCount: mediaData?.threads?.length || 0,
+        totalPeopleCount: peopleData?.totalCount || peopleData?.total || 0
       });
       
     } catch (error) {
@@ -566,11 +702,29 @@
     
     isLoadingUsers = true;
     try {
-      const response = await searchUsers('', 1, 20, { filter: 'following' });
-      usersToDisplay = response.users.map(user => ({
+      // Get the current user's ID
+      const userId = authState.user_id;
+      console.log("Fetching following users for:", userId);
+      
+      // Use getFollowing API instead of searchUsers for the following filter
+      const response = await getFollowing(userId, 1, 20);
+      console.log("Following API response:", response);
+      
+      let followingUsers = [];
+      
+      // Handle different response structures
+      if (response.data && response.data.following) {
+        followingUsers = response.data.following;
+      } else if (response.following) {
+        followingUsers = response.following;
+      }
+      
+      console.log("Found following users:", followingUsers);
+      
+      usersToDisplay = followingUsers.map(user => ({
         id: user.id,
         username: user.username,
-        displayName: user.display_name || user.username,
+        displayName: user.name || user.display_name || user.username,
         avatar: user.profile_picture_url || user.avatar || null,
         bio: user.bio || '',
         isVerified: user.is_verified || false,
@@ -626,11 +780,46 @@
     logger.debug('Tab changed', { tab: activeTab });
   }
   
-  // Handle hashtag click from trends
-  function handleHashtagClick(event) {
+  // Handle clicking on a trending hashtag
+  async function handleHashtagClick(event) {
     const hashtag = event.detail;
-    searchQuery = hashtag;
-    executeSearch();
+    logger.debug('Hashtag clicked', { hashtag });
+    
+    try {
+      // Show loading state
+      hasSearched = true;
+      isSearching = true;
+      searchQuery = hashtag;
+      
+      // Get threads for this hashtag sorted by likes
+      const hashtagThreadsData = await getThreadsByHashtag(hashtag, 1, 20);
+      
+      // Update the latest tab with these results
+      searchResults.latest.threads = (hashtagThreadsData?.threads || []).map(thread => ({
+        id: thread.id,
+        content: thread.content,
+        username: thread.username || thread.author?.username || 'anonymous',
+        displayName: thread.name || thread.author?.display_name || 'User',
+        timestamp: thread.created_at || new Date().toISOString(),
+        likes: thread.likes_count || thread.like_count || 0,
+        replies: thread.replies_count || thread.reply_count || 0,
+        reposts: thread.reposts_count || thread.repost_count || 0,
+        media: thread.media,
+        avatar: thread.profile_picture_url || thread.author?.avatar
+      }));
+      
+      // Also update the top results
+      searchResults.top.threads = [...searchResults.latest.threads].slice(0, 5);
+      
+      // Set active tab to latest to show the results
+      activeTab = 'latest';
+      
+    } catch (error) {
+      console.error('Error fetching hashtag threads:', error);
+      toastStore.showToast('Failed to load hashtag threads', 'error');
+    } finally {
+      isSearching = false;
+    }
   }
   
   // Pagination for people tab
@@ -641,7 +830,10 @@
     
     try {
       const filterOption = searchFilter === 'following' ? 'following' : (searchFilter === 'verified' ? 'verified' : 'all');
-      const { users, totalCount } = await searchUsers(
+      
+      console.log(`Fetching people page ${page} with filter ${filterOption}, query: '${searchQuery}'`);
+      
+      const response = await searchUsers(
         searchQuery, 
         page, 
         peoplePerPage, 
@@ -651,11 +843,49 @@
         }
       );
       
+      console.log('People pagination response:', response);
+      
+      // Safety check for users array
+      if (!response || !response.users) {
+        console.error('Invalid response format from searchUsers:', response);
+        toastStore.showToast('Error loading user data', 'error');
+        searchResults.people.isLoading = false;
+        return;
+      }
+      
+      // Map the API response to the format expected by the component
+      const mappedUsers = response.users.map(user => {
+        console.log('Mapping user:', user);
+        return {
+          id: user.id || '',
+          username: user.username || '',
+          displayName: user.name || user.display_name || user.username || '',
+          avatar: user.profile_picture_url || user.avatar || null,
+          bio: user.bio || '',
+          isVerified: user.is_verified || false,
+          followerCount: user.follower_count || 0,
+          isFollowing: user.is_following || false
+        };
+      });
+      
+      console.log('Mapped users:', mappedUsers);
+      
+      // Update the displayed users
       searchResults.people = {
-        users: users || [],
-        totalCount: totalCount || 0,
+        users: mappedUsers,
+        totalCount: response.totalCount || response.total || 0,
+        pagination: response.pagination || {
+          total_count: response.totalCount || response.total || 0,
+          current_page: page,
+          total_pages: Math.ceil((response.totalCount || response.total || 0) / peoplePerPage)
+        },
         isLoading: false
       };
+      
+      // Also update the main users display array
+      usersToDisplay = mappedUsers;
+      
+      console.log(`Updated people results: ${mappedUsers.length} users, total: ${response.totalCount || response.total || 0}`);
     } catch (error) {
       console.error('Error loading people page:', error);
       toastStore.showToast('Failed to load more profiles', 'error');
@@ -728,26 +958,6 @@
     }
   }
   
-  // Get threads by hashtag (for trending section)
-  async function getThreadsByHashtagName(hashtag: string) {
-    try {
-      // Remove # if it exists
-      const cleanHashtag = hashtag.startsWith('#') ? hashtag.substring(1) : hashtag;
-      
-      // Set search query to hashtag
-      searchQuery = `#${cleanHashtag}`;
-      
-      // Switch to latest tab
-      activeTab = 'latest';
-      
-      // Execute search
-      executeSearch();
-    } catch (error) {
-      console.error('Error getting threads by hashtag:', error);
-      toastStore.showToast('Failed to load hashtag results', 'error');
-    }
-  }
-  
   // Handle follow user
   function handleFollowUser(event) {
     const userId = event.detail;
@@ -786,346 +996,358 @@
   });
 </script>
 
-<MainLayout
+<!-- Enhanced page layout using full width -->
+<MainLayout 
   username={sidebarUsername}
   displayName={sidebarDisplayName}
   avatar={sidebarAvatar}
-  {trends}
-  {suggestedFollows}
+  trends={trends}
+  suggestedFollows={suggestedFollows}
+  pageTitle="Explore"
 >
-  <div class="explore-page {isDarkMode ? 'explore-page-dark' : ''}">
-    <!-- Header -->
-    <div class="explore-header {isDarkMode ? 'explore-header-dark' : ''}">
-      <h1 class="explore-title">Explore</h1>
+  <div class="explore-page-content {isDarkMode ? 'explore-page-content-dark' : ''}">
+    <!-- Page header with search -->
+    <div class="page-header {isDarkMode ? 'page-header-dark' : ''}">
+      <h1 class="page-title {isDarkMode ? 'page-title-dark' : ''}">Explore</h1>
+      <p class="page-subtitle {isDarkMode ? 'page-subtitle-dark' : ''}">Discover people, communities, and conversations</p>
       
-      <!-- Search component -->
-      <ExploreSearch 
-        {searchQuery}
-        {recentSearches}
-        recommendedProfiles={searchResults.top.profiles}
-        {showRecentSearches}
-        {isSearching}
-        {isLoadingRecommendations}
-        on:input={handleSearchInput}
-        on:search={executeSearch}
-        on:focus={handleSearchFocus}
-        on:selectRecentSearch={handleRecentSearchSelect}
-        on:clearRecentSearches={clearRecentSearches}
-      />
-      
-      <!-- Filters component -->
+      <!-- Search bar -->
+      <div class="search-container">
+        <ExploreSearch 
+          bind:searchQuery={searchQuery}
+          bind:showRecentSearches={showRecentSearches}
+          recentSearches={recentSearches}
+          on:search={handleSearch}
+          on:input={handleSearchInput}
+          on:focus={handleSearchFocus}
+          on:selectRecentSearch={handleRecentSearchSelect}
+          on:clearRecentSearches={clearRecentSearches}
+          on:clearSearch={handleClearSearch}
+        />
+      </div>
+    </div>
+    
+    <!-- Filters in a dedicated container -->
+    <div class="filter-container {isDarkMode ? 'filter-container-dark' : ''}">
       <ExploreFilters 
-        {searchFilter}
-        {selectedCategory}
-        {threadCategories}
+        bind:searchFilter={searchFilter}
+        bind:selectedCategory={selectedCategory}
+        threadCategories={threadCategories}
         on:filterChange={handleFilterChange}
         on:categoryChange={handleCategoryChange}
       />
     </div>
     
-    <!-- Content Area -->
-    <div class="explore-content">
-      {#if hasSearched}
-        <!-- Tabs for search results -->
-        <ExploreTabs {activeTab} on:tabChange={handleTabChange} />
-        
-        <!-- Tab content -->
-        {#if isSearching}
-          <div class="explore-loading">
-            <LoadingSkeleton type="search-results" />
-          </div>
-        {:else}
-          {#if activeTab === 'top'}
-            <ExploreTopResults 
-              topProfiles={searchResults.top.profiles}
-              topThreads={searchResults.top.threads}
-              isLoading={searchResults.top.isLoading}
-              on:profileClick={handleProfileClick}
-              on:follow={handleFollowUser}
-              on:viewAll={(event) => {
-                if (event.detail === 'people') {
-                  activeTab = 'people';
-                }
-              }}
-            />
-          {:else if activeTab === 'latest'}
-            <ExploreLatestResults 
-              latestThreads={searchResults.latest.threads}
-              isLoading={searchResults.latest.isLoading}
-            />
-          {:else if activeTab === 'people'}
-            <ExplorePeopleResults 
-              peopleResults={searchResults.people.users}
-              isLoading={searchResults.people.isLoading}
-              peoplePerPage={peoplePerPage}
-              on:profileClick={handleProfileClick}
-              on:follow={handleFollowUser}
-              on:pageChange={handlePeoplePageChange}
-              on:peoplePerPageChange={handlePeoplePerPageChange}
-              on:loadMore={() => handlePeoplePageChange({detail: peopleCurrentPage + 1})}
-            />
-          {:else if activeTab === 'media'}
-            <ExploreMediaResults 
-              media={searchResults.media.threads}
-              isLoading={searchResults.media.isLoading}
-              hasMore={searchResults.media.threads.length >= 12}
-              on:loadMore={loadMoreMedia}
-            />
-          {:else if activeTab === 'communities'}
-            <ExploreCommunityResults 
-              communityResults={searchResults.communities.communities.map(community => ({
-                id: community.id,
-                name: community.name,
-                description: community.description || '',
-                logo: community.logo || null,
-                memberCount: community.member_count || 0,
-                isJoined: community.is_joined || false,
-                isPending: community.is_pending || false
-              }))}
-              isLoading={searchResults.communities.isLoading}
-              communitiesPerPage={communitiesPerPage}
-              on:pageChange={handleCommunitiesPageChange}
-              on:communitiesPerPageChange={handleCommunitiesPerPageChange}
-              on:loadMore={() => handleCommunitiesPageChange({detail: communitiesCurrentPage + 1})}
-            />
-          {/if}
-        {/if}
-      {:else}
-        <!-- Show trending content and all users when not searching -->
-        <div class="explore-trending-section">
-          <!-- People section - modified to display users based on current filter -->
-          <div class="explore-section people-to-follow-section">
-            <h2 class="explore-section-title">People</h2>
-            {#if isLoadingUsers}
-              <div class="explore-loading">
-                <LoadingSkeleton type="profile" count={5} />
+    <!-- Tab navigation for search results -->
+    {#if hasSearched}
+      <div class="tabs-container {isDarkMode ? 'tabs-container-dark' : ''}">
+        <ExploreTabs 
+          activeTab={activeTab}
+          on:tabChange={handleTabChange}
+        />
+      </div>
+      
+      <!-- Search results based on active tab -->
+      <div class="search-results-container {isDarkMode ? 'search-results-container-dark' : ''}">
+        {#if activeTab === 'top'}
+          <ExploreTopResults 
+            usersResults={searchResults.top.profiles}
+            threadsResults={searchResults.top.threads}
+            isLoading={searchResults.top.isLoading}
+            on:profileClick={handleProfileClick}
+            on:follow={handleFollowUser}
+          />
+        {:else if activeTab === 'latest'}
+          <ExploreLatestResults 
+            threadsResults={searchResults.latest.threads}
+            isLoading={searchResults.latest.isLoading}
+          />
+        {:else if activeTab === 'people'}
+          <ExplorePeopleResults 
+            peopleResults={searchResults.people.users}
+            isLoading={searchResults.people.isLoading}
+            totalCount={searchResults.people.totalCount}
+            peoplePerPage={peoplePerPage}
+            currentPage={peopleCurrentPage}
+            on:pageChange={handlePeoplePageChange}
+            on:peoplePerPageChange={handlePeoplePerPageChange}
+            on:follow={handleFollowUser}
+            on:profileClick={handleProfileClick}
+          />
+        {:else if activeTab === 'media'}
+          <!-- Media results with updated layout -->
+          <div class="section-container">
+            <h2 class="section-title">Media</h2>
+            
+            {#if searchResults.media.isLoading}
+              <div class="loading-container">
+                <LoadingSkeleton type="media" count={9} />
               </div>
-            {:else if usersToDisplay.length === 0}
-              <div class="empty-state">
-                <p>No users found</p>
-              </div>
-            {:else}
-              <div class="users-grid">
-                {#each usersToDisplay as person}
-                  <div class="user-card {isDarkMode ? 'user-card-dark' : ''}">
-                    <ProfileCard 
-                      profile={person} 
-                      on:follow={handleFollowUser}
-                      on:profileClick={() => window.location.href = `/user/${person.username}`}
-                    />
+            {:else if searchResults.media.threads.length > 0}
+              <div class="media-grid">
+                {#each searchResults.media.threads as thread (thread.id)}
+                  <!-- Media item -->
+                  <div class="media-item">
+                    <!-- Media content goes here -->
                   </div>
                 {/each}
               </div>
+            {:else}
+              <div class="empty-state">
+                <p class="empty-state-message">No media found matching your search criteria.</p>
+              </div>
             {/if}
           </div>
-        </div>
-      {/if}
-    </div>
+        {:else if activeTab === 'communities'}
+          <!-- Communities results with updated layout -->
+          <div class="section-container">
+            <h2 class="section-title">Communities</h2>
+            
+            {#if searchResults.communities.isLoading}
+              <div class="loading-container">
+                <LoadingSkeleton type="community" count={6} />
+              </div>
+            {:else if searchResults.communities.communities.length > 0}
+              <div class="grid-container">
+                {#each searchResults.communities.communities as community (community.id)}
+                  <div class="card {isDarkMode ? 'card-dark' : ''}">
+                    <!-- Community card content -->
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="empty-state">
+                <p class="empty-state-message">No communities found matching your search criteria.</p>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <!-- When not searching, show people based on filter -->
+      <div class="section-container {isDarkMode ? 'section-container-dark' : ''}">
+        <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">People</h2>
+        
+        {#if isLoadingUsers}
+          <div class="loading-container">
+            <LoadingSkeleton type="profile" count={6} />
+          </div>
+        {:else if usersToDisplay.length > 0}
+          <div class="grid-container">
+            {#each usersToDisplay as user (user.id)}
+              <div class="card {isDarkMode ? 'card-dark' : ''}">
+                <ProfileCard
+                  id={user.id}
+                  username={user.username}
+                  displayName={user.displayName}
+                  avatar={user.avatar}
+                  bio={user.bio}
+                  isVerified={user.isVerified}
+                  followerCount={user.followerCount}
+                  isFollowing={user.isFollowing}
+                  onToggleFollow={() => handleToggleFollow(user.id)}
+                />
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="empty-state {isDarkMode ? 'empty-state-dark' : ''}">
+            <p class="empty-state-message">No users found. Try a different filter.</p>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 </MainLayout>
 
 <Toast />
 
 <style>
-  .explore-page {
-    min-height: 100vh;
+  /* Explore page styles */
+  .explore-page-content {
+    width: 100%;
     background-color: var(--bg-primary);
     color: var(--text-primary);
   }
   
-  .explore-page-dark {
-    background-color: var(--bg-primary-dark);
-    color: var(--text-primary-dark);
+  .explore-page-content-dark {
+    background-color: var(--dark-bg-primary);
+    color: var(--dark-text-primary);
   }
   
-  .explore-header {
-    position: sticky;
-    top: 0;
-    z-index: var(--z-sticky);
-    padding: var(--space-4) var(--space-4) var(--space-2);
+  /* Page header styles */
+  .page-header {
+    padding: var(--space-5) var(--space-4);
     background-color: var(--bg-primary);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
-    box-shadow: var(--shadow-sm);
+    position: relative;
   }
   
-  .explore-header-dark {
-    background-color: var(--bg-primary-dark);
+  .page-header-dark {
+    background-color: var(--dark-bg-primary);
     border-bottom: 1px solid var(--border-color-dark);
   }
   
-  .explore-title {
+  .page-title {
+    font-size: var(--font-size-xxl);
+    font-weight: var(--font-weight-bold);
+    margin: 0 0 var(--space-2);
+    color: var(--text-primary);
+  }
+  
+  .page-title-dark {
+    color: var(--dark-text-primary);
+  }
+  
+  .page-subtitle {
+    font-size: var(--font-size-md);
+    margin: 0 0 var(--space-4);
+    color: var(--text-secondary);
+    max-width: 600px;
+  }
+  
+  .page-subtitle-dark {
+    color: var(--dark-text-secondary);
+  }
+  
+  .search-container {
+    width: 100%;
+    max-width: 600px;
+  }
+
+  /* Filter container */
+  .filter-container {
+    background-color: var(--bg-primary);
+  }
+  
+  .filter-container-dark {
+    background-color: var(--dark-bg-primary);
+  }
+  
+  /* Tabs container */
+  .tabs-container {
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .tabs-container-dark {
+    background-color: var(--dark-bg-primary);
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  /* Section layout */
+  .section-container {
+    padding: var(--space-4);
+    background-color: var(--bg-primary);
+  }
+  
+  .section-container-dark {
+    background-color: var(--dark-bg-primary);
+  }
+  
+  .section-title {
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
-    margin-bottom: var(--space-3);
-    position: relative;
-    display: inline-block;
+    margin-bottom: var(--space-4);
+    color: var(--text-primary);
   }
   
-  .explore-title::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -5px;
-    width: 30px;
-    height: 3px;
-    background-color: var(--color-primary);
-    border-radius: var(--radius-full);
+  .section-title-dark {
+    color: var(--dark-text-primary);
   }
   
-  .explore-content {
+  /* Grid layout */
+  .grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-3);
+    width: 100%;
+  }
+  
+  /* Loading state */
+  .loading-container {
     padding: var(--space-4);
   }
   
-  .explore-loading {
-    padding: var(--space-4);
+  /* Card styling */
+  .card {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid var(--border-color);
+    padding: var(--space-1);
   }
   
-  .explore-trending-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
   }
   
-  .explore-section {
+  .card-dark {
+    background-color: var(--dark-bg-secondary);
+    border: 1px solid var(--border-color-dark);
+  }
+  
+  /* Empty state */
+  .empty-state {
+    padding: var(--space-8) var(--space-4);
+    text-align: center;
     background-color: var(--bg-secondary);
     border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
     margin-bottom: var(--space-4);
   }
   
-  .explore-section:last-child {
-    margin-bottom: 0;
+  .empty-state-dark {
+    background-color: var(--dark-bg-secondary);
+    border-color: var(--border-color-dark);
   }
   
-  .explore-section-dark {
-    background-color: var(--bg-secondary-dark);
-    box-shadow: var(--shadow-sm-dark);
-  }
-  
-  .explore-section-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    padding: var(--space-4);
-    border-bottom: 1px solid var(--border-color);
-    position: relative;
-  }
-  
-  .explore-section-title::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: var(--space-4);
-    width: 40px;
-    height: 3px;
-    background: var(--color-primary);
-    border-radius: var(--radius-full);
-  }
-  
-  .empty-state {
-    padding: var(--space-8);
-    text-align: center;
+  .empty-state-message {
     color: var(--text-secondary);
+    font-size: var(--font-size-lg);
+    margin: 0;
   }
   
-  .explore-topic-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-4);
+  /* Search results container */
+  .search-results-container {
+    padding-bottom: var(--space-8);
+    background-color: var(--bg-primary);
   }
   
-  .explore-topic-chip {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-full);
-    border: 1px solid transparent;
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-    transition: all var(--transition-normal);
-    box-shadow: var(--shadow-sm);
-    display: flex;
-    align-items: center;
-    transform-origin: center;
+  .search-results-container-dark {
+    background-color: var(--dark-bg-primary);
   }
   
-  .explore-topic-chip-dark {
-    background-color: var(--bg-tertiary-dark);
-    color: var(--text-primary-dark);
-  }
-  
-  .explore-topic-chip:hover {
-    background-color: var(--hover-bg);
-    transform: translateY(-2px) scale(1.03);
-    border-color: var(--color-primary);
-    box-shadow: var(--shadow-md);
-  }
-  
-  .explore-topic-chip:active {
-    transform: translateY(0) scale(0.98);
-  }
-  
-  @media (max-width: 600px) {
-    .explore-trending-section {
-      padding: var(--space-2);
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: var(--font-size-xl);
     }
     
-    .explore-section {
+    .page-header {
+      padding: var(--space-4) var(--space-3);
+    }
+    
+    .section-container {
       padding: var(--space-3);
     }
+    
+    .grid-container {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: var(--space-2);
+    }
   }
   
-  /* People to follow section styling */
-  .people-to-follow-section {
-    margin-top: var(--space-6);
-  }
-  
-  .users-grid {
-    display: grid;
-    grid-template-columns: repeat(1, 1fr);
-    gap: 1rem;
-    padding: 1rem;
-  }
-  
-  @media (min-width: 640px) {
-    .users-grid {
+  @media (max-width: 576px) {
+    .grid-container {
       grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-2);
     }
-  }
-  
-  @media (min-width: 1024px) {
-    .users-grid {
-      grid-template-columns: repeat(3, 1fr);
+    
+    .page-subtitle {
+      font-size: var(--font-size-sm);
     }
-  }
-  
-  .user-card {
-    background-color: var(--bg-secondary);
-    border-radius: 1rem;
-    overflow: hidden;
-    transition: all 0.2s ease;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    padding: 0.75rem;
-  }
-  
-  .user-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border-color: var(--color-primary);
-  }
-  
-  .user-card-dark {
-    background-color: var(--bg-secondary-dark);
-    border: 1px solid var(--border-color-dark);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  }
-  
-  .user-card-dark:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    border-color: var(--color-primary);
   }
 </style>
