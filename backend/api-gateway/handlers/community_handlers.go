@@ -685,9 +685,15 @@ func ListCommunities(c *gin.Context) {
 	}
 	offset := (page - 1) * limit
 
-	_ = c.DefaultQuery("filter", "all")
-	_ = c.Query("q")
-	_ = c.QueryArray("category")
+	query := c.Query("q")
+	categories := c.QueryArray("category")
+
+	// Parse is_approved parameter
+	var isApproved *bool
+	if isApprovedStr := c.Query("is_approved"); isApprovedStr != "" {
+		approved := isApprovedStr == "true"
+		isApproved = &approved
+	}
 
 	var communities []*communityProto.Community
 	var totalCount int32 = 0
@@ -701,19 +707,44 @@ func ListCommunities(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resp, err := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
-		Offset: int32(offset),
-		Limit:  int32(limit),
-	})
+	// If there's a search query or categories filter, use SearchCommunities instead
+	if query != "" || len(categories) > 0 || isApproved != nil {
+		searchReq := &communityProto.SearchCommunitiesRequest{
+			Query:      query,
+			Categories: categories,
+			Offset:     int32(offset),
+			Limit:      int32(limit),
+		}
 
-	if err != nil {
-		log.Printf("Error calling ListCommunities: %v", err)
-		utils.SendErrorResponse(c, 500, "server_error", "Failed to list communities: "+err.Error())
-		return
+		if isApproved != nil {
+			searchReq.IsApproved = *isApproved
+		}
+
+		resp, err := CommunityClient.SearchCommunities(ctx, searchReq)
+		if err != nil {
+			log.Printf("Error calling SearchCommunities: %v", err)
+			utils.SendErrorResponse(c, 500, "server_error", "Failed to search communities: "+err.Error())
+			return
+		}
+
+		communities = resp.GetCommunities()
+		totalCount = resp.GetTotalCount()
+	} else {
+		// Use ListCommunities for basic listing without filters
+		resp, err := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
+			Offset: int32(offset),
+			Limit:  int32(limit),
+		})
+
+		if err != nil {
+			log.Printf("Error calling ListCommunities: %v", err)
+			utils.SendErrorResponse(c, 500, "server_error", "Failed to list communities: "+err.Error())
+			return
+		}
+
+		communities = resp.GetCommunities()
+		totalCount = resp.GetTotalCount()
 	}
-
-	communities = resp.GetCommunities()
-	totalCount = resp.GetTotalCount()
 
 	formattedCommunities := make([]gin.H, 0, len(communities))
 	for _, comm := range communities {
@@ -2240,7 +2271,7 @@ func CheckMembershipStatus(c *gin.Context) {
 	})
 }
 
-func SearchCommunities(c *gin.Context) {
+func OldSearchCommunities(c *gin.Context) {
 	query := c.Query("q")
 	page := 1
 	limit := 10

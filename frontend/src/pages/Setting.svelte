@@ -12,6 +12,25 @@
   let isLoading = true;
   let isSaving = false;
   
+  // Font size options
+  const fontSizeOptions = [
+    { value: 'small', label: 'Small' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'large', label: 'Large' }
+  ];
+  
+  // Font color options
+  const fontColorOptions = [
+    { value: 'default', label: 'Default' },
+    { value: 'blue', label: 'Blue' },
+    { value: 'green', label: 'Green' },
+    { value: 'purple', label: 'Purple' }
+  ];
+  
+  // Display settings
+  let fontSize = 'medium';
+  let fontColor = 'default';
+  
   // User settings form data
   let userData = {
     name: '',
@@ -27,9 +46,27 @@
     is_private: false
   };
   
-  // Load user data on mount
+  // Load user data and display preferences on mount
   onMount(async () => {
     isLoading = true;
+    
+    // Load font preferences from localStorage
+    try {
+      const storedFontSize = localStorage.getItem('fontSize');
+      if (storedFontSize) {
+        fontSize = storedFontSize;
+        applyFontSize(fontSize);
+      }
+      
+      const storedFontColor = localStorage.getItem('fontColor');
+      if (storedFontColor) {
+        fontColor = storedFontColor;
+        applyFontColor(fontColor);
+      }
+    } catch (error) {
+      console.error('Error loading font preferences:', error);
+    }
+    
     try {
       const response = await getProfile();
       const profile = response.user || (response.data && response.data.user);
@@ -56,6 +93,45 @@
       isLoading = false;
     }
   });
+  
+  // Apply font size to body
+  function applyFontSize(size) {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.remove('font-small', 'font-medium', 'font-large');
+      document.documentElement.classList.add(`font-${size}`);
+    }
+  }
+  
+  // Apply font color to body
+  function applyFontColor(color) {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.remove('text-default', 'text-blue', 'text-green', 'text-purple');
+      document.documentElement.classList.add(`text-${color}`);
+      
+      // Apply to HTML element as well for better specificity
+      const htmlElement = document.querySelector('html');
+      if (htmlElement) {
+        htmlElement.classList.remove('text-default', 'text-blue', 'text-green', 'text-purple');
+        htmlElement.classList.add(`text-${color}`);
+      }
+    }
+  }
+  
+  // Handle font size change
+  function handleFontSizeChange(event) {
+    const newSize = event.target.value;
+    fontSize = newSize;
+    localStorage.setItem('fontSize', newSize);
+    applyFontSize(newSize);
+  }
+  
+  // Handle font color change
+  function handleFontColorChange(event) {
+    const newColor = event.target.value;
+    fontColor = newColor;
+    localStorage.setItem('fontColor', newColor);
+    applyFontColor(newColor);
+  }
   
   async function handleSaveSettings() {
     isSaving = true;
@@ -221,6 +297,40 @@
               <small>Switch between light and dark theme</small>
             </div>
             <ThemeToggle size="md" />
+          </div>
+          
+          <div class="settings-form-group">
+            <label for="fontSize">Font Size</label>
+            <div class="settings-select-wrapper">
+              <select 
+                id="fontSize" 
+                class="settings-select {isDarkMode ? 'settings-select-dark' : ''}"
+                value={fontSize}
+                on:change={handleFontSizeChange}
+              >
+                {#each fontSizeOptions as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </div>
+            <small>Adjust the text size for better readability</small>
+          </div>
+          
+          <div class="settings-form-group">
+            <label for="fontColor">Font Color</label>
+            <div class="settings-select-wrapper">
+              <select 
+                id="fontColor" 
+                class="settings-select {isDarkMode ? 'settings-select-dark' : ''}"
+                value={fontColor}
+                on:change={handleFontColorChange}
+              >
+                {#each fontColorOptions as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </div>
+            <small>Customize the text color for your preference</small>
           </div>
         </div>
         
@@ -435,5 +545,44 @@
       align-items: flex-start;
       gap: var(--space-2);
     }
+  }
+  
+  .settings-select-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  
+  .settings-select {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    appearance: none;
+    cursor: pointer;
+  }
+  
+  .settings-select-dark {
+    border-color: var(--border-color-dark);
+    background-color: var(--bg-primary-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .settings-select:focus {
+    border-color: var(--color-primary);
+    outline: none;
+  }
+  
+  .settings-select-wrapper::after {
+    content: "▼";
+    font-size: 0.8em;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
   }
 </style>

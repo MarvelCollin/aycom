@@ -17,6 +17,13 @@ func SearchUsers(c *gin.Context) {
 		return
 	}
 
+	// Validate query length
+	const MAX_QUERY_LENGTH = 50
+	if len(query) > MAX_QUERY_LENGTH {
+		log.Printf("Search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
+		query = query[:MAX_QUERY_LENGTH]
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	filter := c.DefaultQuery("filter", "all")
@@ -28,7 +35,6 @@ func SearchUsers(c *gin.Context) {
 
 	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
 	if err != nil {
-
 		st, ok := status.FromError(err)
 		if ok {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to search users: "+st.Message())
@@ -43,8 +49,8 @@ func SearchUsers(c *gin.Context) {
 		userResults = append(userResults, gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
-			"name":                user.Name,              // Use consistent 'name' field
-			"profile_picture_url": user.ProfilePictureURL, // Use consistent field name
+			"name":                user.Name,
+			"profile_picture_url": user.ProfilePictureURL,
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
@@ -82,26 +88,9 @@ func SearchThreads(c *gin.Context) {
 	})
 }
 
-func SearchCommunities(c *gin.Context) {
-	query := c.Query("q")
-	if query == "" {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Search query is required")
-		return
-	}
-
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"communities": []gin.H{},
-		"pagination": gin.H{
-			"total_count":  0,
-			"current_page": 1,
-			"per_page":     10,
-			"has_more":     false,
-		},
-	})
-}
+// SearchCommunities is implemented in community_handlers.go as SearchCommunitiesHandler
 
 func GetUserRecommendations(c *gin.Context) {
-
 	userID, exists := c.Get("userID")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
@@ -118,7 +107,6 @@ func GetUserRecommendations(c *gin.Context) {
 
 	users, err := userServiceClient.GetUserRecommendations(userIDStr, limit)
 	if err != nil {
-
 		st, ok := status.FromError(err)
 		if ok {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user recommendations: "+st.Message())
@@ -134,8 +122,8 @@ func GetUserRecommendations(c *gin.Context) {
 		userResults = append(userResults, gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
-			"name":                user.Name,              // Use consistent 'name' field
-			"profile_picture_url": user.ProfilePictureURL, // Use consistent field name
+			"name":                user.Name,
+			"profile_picture_url": user.ProfilePictureURL,
 			"bio":                 user.Bio,
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,

@@ -208,7 +208,12 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityPr
 		limit = 10
 	}
 
-	communities, err := h.communityService.ListCommunities(ctx, offset, limit)
+	var communities []*model.Community
+	var err error
+
+	// Standard listing without additional filters
+	communities, err = h.communityService.ListCommunities(ctx, offset, limit)
+
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities: %v", err))
 	}
@@ -859,9 +864,8 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	if req.Query == "" {
-		return nil, status.Error(codes.InvalidArgument, "query is required")
-	}
+	// No longer require query to be non-empty - allow filtering by categories or is_approved only
+	// This is needed for the discover tab that filters by is_approved=true
 
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -872,9 +876,12 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 		offset = 0
 	}
 
-	// For now, we're passing nil for isApproved to get all communities
-	// After the proto is regenerated, this can be updated to use the isApproved field
+	// Use the is_approved value from the request
 	var isApproved *bool = nil
+	if req.IsApproved {
+		approved := req.IsApproved
+		isApproved = &approved
+	}
 
 	communities, totalCount, err := h.communityService.SearchCommunities(ctx, req.Query, req.Categories, isApproved, offset, limit)
 	if err != nil {

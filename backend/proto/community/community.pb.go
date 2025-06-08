@@ -1104,6 +1104,7 @@ type SearchCommunitiesRequest struct {
 	Categories    []string               `protobuf:"bytes,2,rep,name=categories,proto3" json:"categories,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
 	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	IsApproved    bool                   `protobuf:"varint,5,opt,name=is_approved,json=isApproved,proto3" json:"is_approved,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1164,6 +1165,13 @@ func (x *SearchCommunitiesRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SearchCommunitiesRequest) GetIsApproved() bool {
+	if x != nil {
+		return x.IsApproved
+	}
+	return false
 }
 
 type ListUserCommunitiesRequest struct {
@@ -3622,14 +3630,16 @@ const file_proto_community_community_proto_rawDesc = "" +
 	"\x17ListCommunitiesResponse\x126\n" +
 	"\vcommunities\x18\x01 \x03(\v2\x14.community.CommunityR\vcommunities\x12\x1f\n" +
 	"\vtotal_count\x18\x02 \x01(\x05R\n" +
-	"totalCount\"~\n" +
+	"totalCount\"\x9f\x01\n" +
 	"\x18SearchCommunitiesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1e\n" +
 	"\n" +
 	"categories\x18\x02 \x03(\tR\n" +
 	"categories\x12\x16\n" +
 	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xb1\x01\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x1f\n" +
+	"\vis_approved\x18\x05 \x01(\bR\n" +
+	"isApproved\"\xb1\x01\n" +
 	"\x1aListUserCommunitiesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x14\n" +

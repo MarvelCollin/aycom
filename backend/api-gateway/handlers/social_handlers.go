@@ -1016,6 +1016,13 @@ func SearchSocialUsers(c *gin.Context) {
 		return
 	}
 
+	// Validate query length
+	const MAX_QUERY_LENGTH = 50
+	if len(query) > MAX_QUERY_LENGTH {
+		log.Printf("Social search query too long (%d chars), truncating to %d characters", len(query), MAX_QUERY_LENGTH)
+		query = query[:MAX_QUERY_LENGTH]
+	}
+
 	filter := c.DefaultQuery("filter", "")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))

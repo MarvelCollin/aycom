@@ -161,7 +161,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.PUT("/:id", handlers.UpdateCommunity)
 		communities.DELETE("/:id", handlers.DeleteCommunity)
 		communities.POST("/:id/approve", handlers.ApproveCommunity)
-		communities.GET("/search", handlers.SearchCommunities)
+		communities.GET("/search", handlers.OldSearchCommunities)
 
 		communities.POST("/:id/members", handlers.AddMember)
 		communities.GET("/:id/members", handlers.ListMembers)

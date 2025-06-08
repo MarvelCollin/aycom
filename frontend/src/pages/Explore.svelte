@@ -51,12 +51,12 @@
   let allUsers: Array<{
     id: string;
     username: string;
-    name: string;
-    profile_picture_url: string | null;
+    displayName: string;
+    avatar: string | null;
     bio?: string;
-    is_verified: boolean;
-    follower_count: number;
-    is_following: boolean;
+    isVerified: boolean;
+    followerCount: number;
+    isFollowing: boolean;
   }> = [];
   let isLoadingAllUsers = false;
   
@@ -75,12 +75,12 @@
       profiles: Array<{
         id: string;
         username: string;
-        name: string;
-        profile_picture_url: string | null;
+        displayName: string;
+        avatar: string | null;
         bio?: string;
-        is_verified: boolean;
-        follower_count: number;
-        is_following: boolean;
+        isVerified: boolean;
+        followerCount: number;
+        isFollowing: boolean;
       }>;
       threads: Array<{
         id: string;
@@ -121,12 +121,12 @@
       users: Array<{
         id: string;
         username: string;
-        name: string;
-        profile_picture_url: string | null;
+        displayName: string;
+        avatar: string | null;
         bio?: string;
-        is_verified: boolean;
-        follower_count: number;
-        is_following: boolean;
+        isVerified: boolean;
+        followerCount: number;
+        isFollowing: boolean;
       }>;
       totalCount: number;
       isLoading: boolean;
@@ -187,12 +187,12 @@
   let usersToDisplay: Array<{
     id: string;
     username: string;
-    name: string;
-    profile_picture_url: string | null;
+    displayName: string;
+    avatar: string | null;
     bio?: string;
-    is_verified: boolean;
-    follower_count: number;
-    is_following: boolean;
+    isVerified: boolean;
+    followerCount: number;
+    isFollowing: boolean;
   }> = [];
   let isLoadingUsers = false;
   
@@ -242,12 +242,12 @@
         allUsers = users.map(user => ({
           id: user.id,
           username: user.username,
-          name: user.name || user.display_name || user.username,
-          profile_picture_url: user.profile_picture_url || user.avatar || null,
+          displayName: user.name || user.display_name || user.username,
+          avatar: user.profile_picture_url || user.avatar || null,
           bio: user.bio || '',
-          is_verified: user.is_verified || false,
-          follower_count: user.follower_count || 0,
-          is_following: user.is_following || false
+          isVerified: user.is_verified || false,
+          followerCount: user.follower_count || 0,
+          isFollowing: user.is_following || false
         }));
         
         logger.debug('Fetched users:', { count: allUsers.length });
@@ -328,12 +328,12 @@
       searchResults.top.profiles = users.map(user => ({
         id: user.id,
         username: user.username,
-        name: user.display_name || user.username,
-        profile_picture_url: user.avatar,
+        displayName: user.display_name || user.username,
+        avatar: user.avatar,
         bio: user.bio,
-        is_verified: user.is_verified || false,
-        follower_count: user.follower_count || 0,
-        is_following: user.is_following || false
+        isVerified: user.is_verified || false,
+        followerCount: user.follower_count || 0,
+        isFollowing: user.is_following || false
       }));
     } catch (error) {
       console.error('Error searching profiles:', error);
@@ -420,12 +420,12 @@
           profiles: topProfiles.map(user => ({
             id: user.id,
             username: user.username,
-            name: user.display_name || user.username,
-            profile_picture_url: user.avatar || null,
+            displayName: user.display_name || user.username,
+            avatar: user.avatar || null,
             bio: user.bio,
-            is_verified: user.is_verified || false,
-            follower_count: user.follower_count || 0,
-            is_following: user.is_following || false
+            isVerified: user.is_verified || false,
+            followerCount: user.follower_count || 0,
+            isFollowing: user.is_following || false
           })),
           threads: topThreadsData.threads.map(thread => ({
             id: thread.id,
@@ -460,13 +460,13 @@
           users: peopleData.users.map(user => ({
             id: user.id,
             username: user.username,
-            name: user.display_name || user.username,
-            profile_picture_url: user.avatar || null,
+            displayName: user.display_name || user.username,
+            avatar: user.avatar || null,
             bio: user.bio,
-            is_verified: user.is_verified || false,
-            follower_count: user.follower_count || 0,
-            is_following: user.is_following || false
-          })) || [],
+            isVerified: user.is_verified || false,
+            followerCount: user.follower_count || 0,
+            isFollowing: user.is_following || false
+          })),
           totalCount: peopleData.totalCount || 0,
           isLoading: false
         },

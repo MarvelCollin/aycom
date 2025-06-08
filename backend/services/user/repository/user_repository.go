@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 
 	"aycom/backend/services/user/model"
 
@@ -248,18 +249,25 @@ func (r *PostgresUserRepository) SearchUsers(query, filter string, page, limit i
 	var users []*model.User
 	var total int64
 
+	// Sanitize the query by escaping special characters in LIKE patterns
+	sanitizedQuery := strings.ReplaceAll(query, "%", "\\%")
+	sanitizedQuery = strings.ReplaceAll(sanitizedQuery, "_", "\\_")
+
+	// Build the search query
 	db := r.db.Model(&model.User{}).
-		Where("username ILIKE ? OR name ILIKE ?", "%"+query+"%", "%"+query+"%")
+		Where("username ILIKE ? OR name ILIKE ?", "%"+sanitizedQuery+"%", "%"+sanitizedQuery+"%")
 
 	if filter == "verified" {
 		db = db.Where("is_verified = ?", true)
 	}
 
+	// First count total results
 	err := db.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
+	// Then fetch paginated results
 	err = db.Offset(offset).Limit(limit).Find(&users).Error
 
 	return users, int(total), err

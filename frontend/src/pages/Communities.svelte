@@ -81,8 +81,7 @@
                     activeTab === 'pending' ? 'pending' : 'all';
       
       // Set is_approved parameter based on the active tab
-      // For 'discover' tab, we want approved communities (is_approved=true)
-      // For 'pending' tab, we may want unapproved communities (is_approved=false)
+      // For 'discover' tab, we always want approved communities (is_approved=true)
       const isApproved = activeTab === 'discover' ? true : 
                        activeTab === 'pending' ? false : undefined;
       

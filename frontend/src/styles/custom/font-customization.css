@@ -1,0 +1,107 @@
+/* Font Size Customization */
+:root.font-small {
+  --font-size-xs: 0.7rem;     /* 11.2px */
+  --font-size-sm: 0.8125rem;  /* 13px */
+  --font-size-base: 0.9375rem; /* 15px */
+  --font-size-lg: 1.0625rem;  /* 17px */
+  --font-size-xl: 1.1875rem;  /* 19px */
+  --font-size-2xl: 1.4375rem; /* 23px */
+}
+
+:root.font-medium {
+  /* Default font sizes, defined in base/variables.css */
+}
+
+:root.font-large {
+  --font-size-xs: 0.8125rem;  /* 13px */
+  --font-size-sm: 0.9375rem;  /* 15px */
+  --font-size-base: 1.0625rem; /* 17px */
+  --font-size-lg: 1.1875rem;  /* 19px */
+  --font-size-xl: 1.3125rem;  /* 21px */
+  --font-size-2xl: 1.5625rem; /* 25px */
+}
+
+/* Font Color Customization - Light Theme */
+html.text-default {
+  /* Default text colors defined in the theme */
+}
+
+html.text-blue {
+  --text-primary: #1a5fb4;
+  --text-secondary: #3584e4;
+  --text-tertiary: #62a0ea;
+}
+
+html.text-green {
+  --text-primary: #2a7a30;
+  --text-secondary: #33a03c;
+  --text-tertiary: #57e389;
+}
+
+html.text-purple {
+  --text-primary: #613583;
+  --text-secondary: #9141ac;
+  --text-tertiary: #c061cb;
+}
+
+/* Font Color Customization - Dark Theme */
+html[data-theme="dark"].text-blue {
+  --text-primary: #62a0ea;
+  --text-secondary: #3584e4;
+  --text-tertiary: #1c71d8;
+}
+
+html[data-theme="dark"].text-green {
+  --text-primary: #57e389;
+  --text-secondary: #33d17a;
+  --text-tertiary: #2ec27e;
+}
+
+html[data-theme="dark"].text-purple {
+  --text-primary: #dc8add;
+  --text-secondary: #c061cb;
+  --text-tertiary: #9141ac;
+}
+
+/* Additional selectors to ensure compatibility with different theme implementations */
+:root.text-blue, 
+.light-theme.text-blue,
+.text-blue {
+  --text-primary: #1a5fb4;
+  --text-secondary: #3584e4;
+  --text-tertiary: #62a0ea;
+}
+
+:root.text-green,
+.light-theme.text-green,
+.text-green {
+  --text-primary: #2a7a30;
+  --text-secondary: #33a03c;
+  --text-tertiary: #57e389;
+}
+
+:root.text-purple,
+.light-theme.text-purple,
+.text-purple {
+  --text-primary: #613583;
+  --text-secondary: #9141ac;
+  --text-tertiary: #c061cb;
+}
+
+.dark-theme.text-blue {
+  --text-primary: #62a0ea;
+  --text-secondary: #3584e4;
+  --text-tertiary: #1c71d8;
+}
+
+.dark-theme.text-green {
+  --text-primary: #57e389;
+  --text-secondary: #33d17a;
+  --text-tertiary: #2ec27e;
+}
+
+.dark-theme.text-purple {
+  --text-primary: #dc8add;
+  --text-secondary: #c061cb;
+  --text-tertiary: #9141ac;
+} 

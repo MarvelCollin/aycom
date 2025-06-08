@@ -31,7 +31,7 @@
   function handleSearchInput(event) {
     const value = event.target.value;
     logger.debug('Search input changed', { value });
-    dispatch('input', event);
+    dispatch('input', value);
   }
   
   // Handle search execution

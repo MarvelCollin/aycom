@@ -15,12 +15,12 @@
   export let peopleResults: Array<{
     id: string;
     username: string;
-    name: string;
-    profile_picture_url: string | null;
+    displayName: string;
+    avatar: string | null;
     bio?: string;
-    is_verified: boolean;
-    follower_count: number;
-    is_following: boolean;
+    isVerified: boolean;
+    followerCount: number;
+    isFollowing: boolean;
   }> = [];
   export let isLoading = false;
   export let peoplePerPage = 25;

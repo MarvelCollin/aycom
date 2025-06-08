@@ -689,10 +689,18 @@ export async function searchUsers(
   try {
     const token = getAuthToken();
 
+    // Validate and truncate search query if too long
+    const MAX_QUERY_LENGTH = 30;
+    let validatedQuery = query;
+    if (query.length > MAX_QUERY_LENGTH) {
+      console.warn(`Search query too long (${query.length} chars). Truncating to ${MAX_QUERY_LENGTH} characters.`);
+      validatedQuery = query.substring(0, MAX_QUERY_LENGTH);
+    }
+
     // Function to make a search request with or without auth
     const makeSearchRequest = async (withAuth: boolean) => {
       const params = new URLSearchParams({
-        query: query,
+        query: validatedQuery,
         page: page.toString(),
         limit: limit.toString()
       });
@@ -731,7 +739,7 @@ export async function searchUsers(
 
     if (!response.ok) {
       // For certain error codes, return empty results instead of throwing
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401 || response.status === 403 || response.status === 400) {
         console.warn(`Search users returned ${response.status}, returning empty results`);
         return {
           success: true,

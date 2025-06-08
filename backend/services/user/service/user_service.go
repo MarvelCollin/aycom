@@ -243,8 +243,8 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 	}
 
 	// Check if the is_private field is explicitly set in the request
-	if req.IsPrivate != user.IsPrivate {
-		user.IsPrivate = req.IsPrivate
+	if req.GetIsPrivate() != user.IsPrivate {
+		user.IsPrivate = req.GetIsPrivate()
 		updated = true
 	}
 
@@ -536,6 +536,13 @@ func (s *userService) GetFollowing(ctx context.Context, req *model.GetFollowingR
 func (s *userService) SearchUsers(ctx context.Context, req *model.SearchUsersRequest) ([]*model.User, int, error) {
 	if req.Query == "" {
 		return nil, 0, status.Error(codes.InvalidArgument, "Search query is required")
+	}
+
+	// Validate query length to prevent performance issues with extremely long search terms
+	const MAX_QUERY_LENGTH = 50
+	if len(req.Query) > MAX_QUERY_LENGTH {
+		log.Printf("Search query in user service too long (%d chars), truncating to %d characters", len(req.Query), MAX_QUERY_LENGTH)
+		req.Query = req.Query[:MAX_QUERY_LENGTH]
 	}
 
 	users, count, err := s.repo.SearchUsers(req.Query, req.Filter, req.Page, req.Limit)

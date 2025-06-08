@@ -22,3 +22,6 @@
 @import './pages/explore.css';
 @import './pages/messages.css';
 @import './pages/communities.css';
+
+/* Custom styles */
+@import './custom/font-customization.css';

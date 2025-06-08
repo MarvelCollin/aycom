@@ -135,7 +135,7 @@ message UpdateCommunityRequest { Community community = 1; }
 message ApproveCommunityRequest { string community_id = 1; }
 message DeleteCommunityRequest { string community_id = 1; }
 message GetCommunityByIDRequest { string community_id = 1; }
-message ListCommunitiesRequest { int32 offset = 1; int32 limit = 2; }
+message ListCommunitiesRequest { int32 offset = 1; int32 limit = 2; bool is_approved = 3; }
 message ListCommunitiesResponse { 
   repeated Community communities = 1; 
   int32 total_count = 2;
