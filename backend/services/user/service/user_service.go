@@ -395,6 +395,7 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		return status.Errorf(codes.InvalidArgument, "Invalid followed ID format: %v", err)
 	}
 
+	// Verify users exist
 	follower, err := s.repo.FindUserByID(req.FollowerID)
 	if err != nil {
 		log.Printf("FollowUser: Follower user with ID %s not found: %v", req.FollowerID, err)
@@ -410,6 +411,7 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 	log.Printf("FollowUser: User %s (%s) is attempting to follow user %s (%s)",
 		follower.Username, req.FollowerID, followed.Username, req.FollowedID)
 
+	// Check if already following
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("FollowUser: Error checking follow existence: %v", err)
@@ -425,18 +427,48 @@ func (s *userService) FollowUser(ctx context.Context, req *model.FollowUserReque
 		FollowerID: followerUUID,
 		FollowedID: followedUUID,
 		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
+	// Validate users exist before starting transaction to avoid errors
+	var userExists bool
+	userExists, err = s.repo.UserExists(req.FollowerID)
+	if err != nil {
+		log.Printf("FollowUser: Error checking follower existence: %v", err)
+		return status.Errorf(codes.Internal, "Failed to verify follower existence: %v", err)
+	}
+	if !userExists {
+		log.Printf("FollowUser: Follower user with ID %s does not exist", req.FollowerID)
+		return status.Errorf(codes.NotFound, "Follower user with ID %s not found", req.FollowerID)
+	}
+
+	userExists, err = s.repo.UserExists(req.FollowedID)
+	if err != nil {
+		log.Printf("FollowUser: Error checking followed user existence: %v", err)
+		return status.Errorf(codes.Internal, "Failed to verify followed user existence: %v", err)
+	}
+	if !userExists {
+		log.Printf("FollowUser: Followed user with ID %s does not exist", req.FollowedID)
+		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
+	}
+
+	// Handle the transaction with proper error handling - each operation is critical
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
+		// Step 1: Create the follow relationship
 		if err := tx.CreateFollow(follow); err != nil {
+			log.Printf("FollowUser: Failed to create follow relationship: %v", err)
 			return fmt.Errorf("failed to create follow relationship: %w", err)
 		}
 
+		// Step 2: Increment followed user's follower count
 		if err := tx.IncrementFollowerCount(req.FollowedID); err != nil {
+			log.Printf("FollowUser: Failed to increment follower count: %v", err)
 			return fmt.Errorf("failed to increment follower count: %w", err)
 		}
 
+		// Step 3: Increment follower's following count
 		if err := tx.IncrementFollowingCount(req.FollowerID); err != nil {
+			log.Printf("FollowUser: Failed to increment following count: %v", err)
 			return fmt.Errorf("failed to increment following count: %w", err)
 		}
 
@@ -471,19 +503,23 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return status.Errorf(codes.InvalidArgument, "Invalid followed ID format: %v", err)
 	}
 
-	// Verify users exist (added check)
-	_, err = s.repo.FindUserByID(req.FollowerID)
+	// Verify users exist
+	follower, err := s.repo.FindUserByID(req.FollowerID)
 	if err != nil {
 		log.Printf("UnfollowUser: Follower user with ID %s not found: %v", req.FollowerID, err)
 		return status.Errorf(codes.NotFound, "Follower user with ID %s not found: %v", req.FollowerID, err)
 	}
 
-	_, err = s.repo.FindUserByID(req.FollowedID)
+	followed, err := s.repo.FindUserByID(req.FollowedID)
 	if err != nil {
 		log.Printf("UnfollowUser: Followed user with ID %s not found: %v", req.FollowedID, err)
 		return status.Errorf(codes.NotFound, "Followed user with ID %s not found: %v", req.FollowedID, err)
 	}
 
+	log.Printf("UnfollowUser: User %s (%s) is attempting to unfollow user %s (%s)",
+		follower.Username, req.FollowerID, followed.Username, req.FollowedID)
+
+	// Check if follow relationship exists
 	exists, err := s.repo.CheckFollowExists(followerUUID, followedUUID)
 	if err != nil {
 		log.Printf("UnfollowUser: Error checking follow existence: %v", err)
@@ -495,16 +531,45 @@ func (s *userService) UnfollowUser(ctx context.Context, req *model.UnfollowUserR
 		return nil
 	}
 
+	// Validate users exist before starting transaction to avoid errors
+	var userExists bool
+	userExists, err = s.repo.UserExists(req.FollowerID)
+	if err != nil {
+		log.Printf("UnfollowUser: Error checking follower existence: %v", err)
+		return status.Errorf(codes.Internal, "Failed to verify follower existence: %v", err)
+	}
+	if !userExists {
+		log.Printf("UnfollowUser: Follower user with ID %s does not exist", req.FollowerID)
+		return status.Errorf(codes.NotFound, "Follower user with ID %s not found", req.FollowerID)
+	}
+
+	userExists, err = s.repo.UserExists(req.FollowedID)
+	if err != nil {
+		log.Printf("UnfollowUser: Error checking followed user existence: %v", err)
+		return status.Errorf(codes.Internal, "Failed to verify followed user existence: %v", err)
+	}
+	if !userExists {
+		log.Printf("UnfollowUser: Followed user with ID %s does not exist", req.FollowedID)
+		return status.Errorf(codes.NotFound, "Followed user with ID %s not found", req.FollowedID)
+	}
+
+	// Handle the transaction with proper error handling - each operation is critical
 	err = s.repo.ExecuteInTransaction(func(tx repository.UserRepository) error {
+		// Step 1: Delete the follow relationship
 		if err := tx.DeleteFollow(followerUUID, followedUUID); err != nil {
+			log.Printf("UnfollowUser: Failed to delete follow relationship: %v", err)
 			return fmt.Errorf("failed to delete follow relationship: %w", err)
 		}
 
+		// Step 2: Decrement followed user's follower count
 		if err := tx.DecrementFollowerCount(req.FollowedID); err != nil {
+			log.Printf("UnfollowUser: Failed to decrement follower count: %v", err)
 			return fmt.Errorf("failed to decrement follower count: %w", err)
 		}
 
+		// Step 3: Decrement follower's following count
 		if err := tx.DecrementFollowingCount(req.FollowerID); err != nil {
+			log.Printf("UnfollowUser: Failed to decrement following count: %v", err)
 			return fmt.Errorf("failed to decrement following count: %w", err)
 		}
 

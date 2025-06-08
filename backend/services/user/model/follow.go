@@ -8,8 +8,8 @@ import (
 
 type Follow struct {
 	ID         uuid.UUID `gorm:"type:uuid;primaryKey"`
-	FollowerID uuid.UUID `gorm:"type:uuid;not null;index:idx_follower_followed"`
-	FollowedID uuid.UUID `gorm:"type:uuid;not null;index:idx_follower_followed"`
+	FollowerID uuid.UUID `gorm:"type:uuid;not null;index:idx_follower_followed,priority:1,unique"`
+	FollowedID uuid.UUID `gorm:"type:uuid;not null;index:idx_follower_followed,priority:2,unique"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

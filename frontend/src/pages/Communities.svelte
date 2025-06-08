@@ -5,8 +5,9 @@
   import { useTheme } from '../hooks/useTheme';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import { getCommunities, getCategories, requestToJoin } from '../api/community';
+  import { getCommunities, getCategories, requestToJoin, checkUserCommunityMembership } from '../api/community';
   import type { ICategoriesResponse, ICategory } from '../interfaces/ICategory';
+  import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
   
   // Import components
   import Pagination from '../components/common/Pagination.svelte';
@@ -73,6 +74,9 @@
   let pendingCommunities: any[] = [];
   let availableCommunities: any[] = [];
   
+  // Add a map to track membership status for each community
+  let communityMembershipStatus = new Map();
+  
   console.log('Initial variable values:', { 
     activeTab, 
     isLoading, 
@@ -127,6 +131,24 @@
           console.log('Setting available communities:', response.communities);
           availableCommunities = [...response.communities]; // Create a new array
           console.log('Available communities updated for discover tab:', availableCommunities, 'length:', availableCommunities.length);
+          
+          // Check membership status for each community in the discover tab
+          if (availableCommunities.length > 0) {
+            // Clear previous membership status
+            communityMembershipStatus = new Map();
+            
+            // Check each community's membership status
+            const authData = localStorage.getItem('auth');
+            if (authData) {
+              const auth = JSON.parse(authData);
+              if (auth.access_token) {
+                for (const community of availableCommunities) {
+                  const status = await checkMembershipStatus(community.id);
+                  communityMembershipStatus.set(community.id, status);
+                }
+              }
+            }
+          }
         }
         
         totalItems = response.pagination.total_count;
@@ -236,6 +258,8 @@
   
   // Handle community click
   function handleCommunityClick(communityId) {
+    console.log('Navigating to community:', communityId);
+    // Use window.location.href for proper page navigation
     window.location.href = `/communities/${communityId}`;
   }
   
@@ -248,6 +272,46 @@
   function handleCommunityCreated() {
     // Refresh communities list
     fetchCommunities();
+  }
+  
+  // Helper function to get the Supabase URL for community logos
+  function getLogoUrl(community) {
+    if (!community.logo_url) return null;
+    
+    // Check if the URL is already a Supabase URL
+    if (community.logo_url.includes('supabase')) {
+      return community.logo_url;
+    }
+    
+    // If it's just a path, construct the Supabase URL
+    if (community.logo_url.startsWith('/')) {
+      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `communities${community.logo_url}`);
+    }
+    
+    // Try to extract the path if it's in a special format
+    const parts = community.logo_url.split('/');
+    if (parts.length > 0) {
+      const filename = parts[parts.length - 1];
+      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `communities/${filename}`);
+    }
+    
+    return community.logo_url;
+  }
+  
+  // Function to check membership status for a community
+  async function checkMembershipStatus(communityId) {
+    try {
+      const membershipResponse = await checkUserCommunityMembership(communityId);
+      if (membershipResponse.success) {
+        communityMembershipStatus.set(communityId, membershipResponse.status);
+        console.log(`Membership status for ${communityId}:`, membershipResponse.status);
+        return membershipResponse.status;
+      }
+      return 'none';
+    } catch (error) {
+      logger.error(`Error checking membership for community ${communityId}:`, error);
+      return 'none';
+    }
   }
   
   // Initial data loading
@@ -339,7 +403,7 @@
               <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
                   {#if community.logo_url}
-                    <img src={community.logo_url} alt={community.name || 'Community'} />
+                    <img src={getLogoUrl(community)} alt={community.name || 'Community'} />
                   {:else}
                     <div class="logo-placeholder">
                       {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
@@ -371,7 +435,7 @@
               <div class="community-card" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
                   {#if community.logo_url}
-                    <img src={community.logo_url} alt={community.name || 'Community'} />
+                    <img src={getLogoUrl(community)} alt={community.name || 'Community'} />
                   {:else}
                     <div class="logo-placeholder">
                       {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
@@ -401,20 +465,13 @@
                   </div>
       {:else if activeTab === 'discover'}
         <div class="communities-list">
-          <!-- Debug output -->
-          <pre style="background: #eee; padding: 10px; margin-bottom: 10px; font-size: 12px;">
-            Debug: availableCommunities.length = {availableCommunities.length}
-            activeTab = {activeTab}
-            isLoading = {isLoading}
-          </pre>
-          
           {#if availableCommunities && availableCommunities.length > 0}
             {#each availableCommunities as community, i (community.id)}
               <div class="community-card">
                 <div class="community-card-content" on:click={() => handleCommunityClick(community.id)}>
                   <div class="community-logo">
                     {#if community.logo_url}
-                      <img src={community.logo_url} alt={community.name || 'Community'} />
+                      <img src={getLogoUrl(community)} alt={community.name || 'Community'} />
                     {:else}
                       <div class="logo-placeholder">
                         {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
@@ -438,9 +495,24 @@
                   </div>
                 </div>
                 <div class="community-action">
-                  <button class="join-button" on:click={(e) => joinCommunity(community.id, e)}>
-                    {community.isPrivate ? 'Request to Join' : 'Join'}
-                  </button>
+                  {#if communityMembershipStatus.get(community.id) === 'member'}
+                    <div class="membership-status joined">
+                      <CheckIcon size="14" />
+                      <span>Joined</span>
+                    </div>
+                  {:else if communityMembershipStatus.get(community.id) === 'pending'}
+                    <div class="membership-status pending">
+                      <AlertCircleIcon size="14" />
+                      <span>Pending</span>
+                    </div>
+                  {:else}
+                    <button 
+                      class="join-button"
+                      on:click={(e) => joinCommunity(community.id, e)}
+                    >
+                      {community.isPrivate ? 'Request to Join' : 'Join'}
+                    </button>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -849,5 +921,50 @@
     background-color: #2d3748;
     color: #e2e8f0;
     border-color: #4a5568;
+  }
+  
+  .membership-status {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
+  .membership-status.joined {
+    background-color: var(--color-success, #48bb78);
+    color: white;
+  }
+  
+  .membership-status.pending {
+    background-color: var(--color-warning, #ed8936);
+    color: white;
+  }
+  
+  .community-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+  }
+  
+  .join-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    border: none;
+    border-radius: 9999px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .join-button:hover {
+    background-color: var(--primary-dark, #2c5282);
   }
 </style>

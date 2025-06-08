@@ -268,16 +268,46 @@ func (s *AdminService) ProcessPremiumRequest(ctx context.Context, req *user.Proc
 		return nil, status.Error(codes.InvalidArgument, "Request ID is required")
 	}
 
-	_, err := s.adminRepo.GetPremiumRequestByID(req.RequestId)
+	// First, get the premium request to retrieve the user ID
+	premiumRequest, err := s.adminRepo.GetPremiumRequestByID(req.RequestId)
 	if err != nil {
 		log.Printf("Error finding premium request by ID %s: %v", req.RequestId, err)
 		return nil, status.Error(codes.NotFound, "Premium request not found")
 	}
 
-	err = s.adminRepo.ProcessPremiumRequest(req.RequestId, req.Approve)
-	if err != nil {
-		log.Printf("Error processing premium request %s: %v", req.RequestId, err)
-		return nil, status.Error(codes.Internal, "Failed to process premium request")
+	// If approving, we need to update both the request status and the user's verification status
+	if req.Approve {
+		// Use a transaction to ensure both operations succeed or fail together
+		err = s.userRepo.ExecuteInTransaction(func(tx repository.UserRepository) error {
+			// 1. Update the premium request status
+			err := s.adminRepo.ProcessPremiumRequest(req.RequestId, true)
+			if err != nil {
+				log.Printf("Error updating premium request status: %v", err)
+				return err
+			}
+
+			// 2. Update the user's verification status
+			userID := premiumRequest.UserID.String()
+			err = tx.UpdateUserVerification(userID, true)
+			if err != nil {
+				log.Printf("Error updating user verification status for user %s: %v", userID, err)
+				return err
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			log.Printf("Transaction failed when processing premium request %s: %v", req.RequestId, err)
+			return nil, status.Error(codes.Internal, "Failed to process premium request")
+		}
+	} else {
+		// Just reject the request without changing user verification status
+		err = s.adminRepo.ProcessPremiumRequest(req.RequestId, false)
+		if err != nil {
+			log.Printf("Error processing premium request %s: %v", req.RequestId, err)
+			return nil, status.Error(codes.Internal, "Failed to process premium request")
+		}
 	}
 
 	action := "rejected"

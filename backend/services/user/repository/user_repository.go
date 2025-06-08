@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"aycom/backend/services/user/model"
@@ -43,7 +44,7 @@ type UserRepository interface {
 	IsUserBlocked(userID, blockedByID string) (bool, error)
 	ReportUser(reporterID, reportedID, reason string) error
 	GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error)
-	
+
 	GetDB() *gorm.DB
 }
 
@@ -131,7 +132,41 @@ func (r *PostgresUserRepository) UserExists(userID string) (bool, error) {
 }
 
 func (r *PostgresUserRepository) CreateFollow(follow *model.Follow) error {
-	return r.db.Create(follow).Error
+	// First check if the follow relationship already exists
+	var count int64
+	err := r.db.Model(&model.Follow{}).
+		Where("follower_id = ? AND followed_id = ?", follow.FollowerID, follow.FollowedID).
+		Count(&count).Error
+
+	if err != nil {
+		return fmt.Errorf("error checking for existing follow: %w", err)
+	}
+
+	if count > 0 {
+		// Relationship already exists, return success (idempotent operation)
+		return nil
+	}
+
+	// Generate ID if not already set
+	if follow.ID == uuid.Nil {
+		follow.ID = uuid.New()
+	}
+
+	// Create the new follow relationship with error handling for unique constraint violations
+	err = r.db.Create(follow).Error
+	if err != nil {
+		// Handle unique constraint violations - this handles race conditions
+		// where the follow might have been created between our check and insert
+		if strings.Contains(err.Error(), "duplicate key") ||
+			strings.Contains(err.Error(), "unique constraint") ||
+			strings.Contains(err.Error(), "Duplicate entry") {
+			// Already exists - this is fine, return success
+			return nil
+		}
+		return fmt.Errorf("failed to create follow relationship: %w", err)
+	}
+
+	return nil
 }
 
 func (r *PostgresUserRepository) DeleteFollow(followerID, followedID uuid.UUID) error {
@@ -451,37 +486,152 @@ func (r *PostgresUserRepository) GetBlockedUsers(userID string, page, limit int)
 }
 
 func (r *PostgresUserRepository) IncrementFollowerCount(userID string) error {
-	return r.db.Model(&model.User{}).
-		Where("id = ?", userID).
-		UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).
-		Error
+	// First verify the user exists to avoid transaction errors
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format for follower count increment: %w", err)
+	}
+
+	// Use a simpler approach with direct SQL - Update follower_count only if the user exists
+	// This avoids potential transaction issues with multiple queries
+	result := r.db.Exec("UPDATE users SET follower_count = follower_count + 1 WHERE id = ?", userUUID)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to increment follower count: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		// No rows were affected - check if the user actually exists
+		var exists bool
+		err = r.db.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", userUUID).Scan(&exists).Error
+		if err != nil {
+			return fmt.Errorf("error checking user existence after failed update: %w", err)
+		}
+
+		if !exists {
+			return fmt.Errorf("user with ID %s not found for follower count increment", userID)
+		}
+
+		// User exists but count wasn't updated (strange case)
+		return fmt.Errorf("user exists but follower count wasn't incremented for user ID %s", userID)
+	}
+
+	return nil
 }
 
 func (r *PostgresUserRepository) DecrementFollowerCount(userID string) error {
-	return r.db.Model(&model.User{}).
-		Where("id = ?", userID).
-		UpdateColumn("follower_count", gorm.Expr("GREATEST(follower_count - 1, 0)")).
-		Error
+	// First verify the user exists to avoid transaction errors
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format for follower count decrement: %w", err)
+	}
+
+	// Use a simpler approach with direct SQL - Update follower_count only if the user exists
+	// Ensure count doesn't go below zero
+	result := r.db.Exec("UPDATE users SET follower_count = GREATEST(follower_count - 1, 0) WHERE id = ?", userUUID)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to decrement follower count: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		// No rows were affected - check if the user actually exists
+		var exists bool
+		err = r.db.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", userUUID).Scan(&exists).Error
+		if err != nil {
+			return fmt.Errorf("error checking user existence after failed update: %w", err)
+		}
+
+		if !exists {
+			return fmt.Errorf("user with ID %s not found for follower count decrement", userID)
+		}
+
+		// User exists but count wasn't updated (strange case)
+		return fmt.Errorf("user exists but follower count wasn't decremented for user ID %s", userID)
+	}
+
+	return nil
 }
 
 func (r *PostgresUserRepository) IncrementFollowingCount(userID string) error {
-	return r.db.Model(&model.User{}).
-		Where("id = ?", userID).
-		UpdateColumn("following_count", gorm.Expr("following_count + 1")).
-		Error
+	// First verify the user exists to avoid transaction errors
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format for following count increment: %w", err)
+	}
+
+	// Use a simpler approach with direct SQL - Update following_count only if the user exists
+	// This avoids potential transaction issues with multiple queries
+	result := r.db.Exec("UPDATE users SET following_count = following_count + 1 WHERE id = ?", userUUID)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to increment following count: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		// No rows were affected - check if the user actually exists
+		var exists bool
+		err = r.db.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", userUUID).Scan(&exists).Error
+		if err != nil {
+			return fmt.Errorf("error checking user existence after failed update: %w", err)
+		}
+
+		if !exists {
+			return fmt.Errorf("user with ID %s not found for following count increment", userID)
+		}
+
+		// User exists but count wasn't updated (strange case)
+		return fmt.Errorf("user exists but following count wasn't incremented for user ID %s", userID)
+	}
+
+	return nil
 }
 
 func (r *PostgresUserRepository) DecrementFollowingCount(userID string) error {
-	return r.db.Model(&model.User{}).
-		Where("id = ?", userID).
-		UpdateColumn("following_count", gorm.Expr("GREATEST(following_count - 1, 0)")).
-		Error
+	// First verify the user exists to avoid transaction errors
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format for following count decrement: %w", err)
+	}
+
+	// Use a simpler approach with direct SQL - Update following_count only if the user exists
+	// Ensure count doesn't go below zero
+	result := r.db.Exec("UPDATE users SET following_count = GREATEST(following_count - 1, 0) WHERE id = ?", userUUID)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to decrement following count: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		// No rows were affected - check if the user actually exists
+		var exists bool
+		err = r.db.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", userUUID).Scan(&exists).Error
+		if err != nil {
+			return fmt.Errorf("error checking user existence after failed update: %w", err)
+		}
+
+		if !exists {
+			return fmt.Errorf("user with ID %s not found for following count decrement", userID)
+		}
+
+		// User exists but count wasn't updated (strange case)
+		return fmt.Errorf("user exists but following count wasn't decremented for user ID %s", userID)
+	}
+
+	return nil
 }
 
 func (r *PostgresUserRepository) ExecuteInTransaction(fn func(tx UserRepository) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := &PostgresUserRepository{db: tx}
-		return fn(txRepo)
+		err := fn(txRepo)
+		if err != nil {
+			// Log the error before returning it to ensure the transaction is rolled back
+			log.Printf("Transaction error: %v - rolling back", err)
+			// No need to explicitly call tx.Rollback() as GORM will handle this
+			return err
+		}
+		return nil
 	})
 }
 

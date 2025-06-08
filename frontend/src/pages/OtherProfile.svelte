@@ -194,37 +194,43 @@
       
       logger.debug('Profile data processed:', profileData);
       
-      // If we have a user ID and we're logged in, double-check follow status using direct API
-      if (profileData.id && currentUserId && !initialFollowState) {
+      // If we have a user ID and we're logged in, double-check follow status using dedicated API
+      if (profileData.id && currentUserId && currentUserId !== profileData.id) {
         try {
-          logger.debug('Double-checking follow status with dedicated API...');
-          const isFollowing = await checkFollowStatus(profileData.id);
+          logger.debug(`Double-checking follow status with dedicated API for current user ${currentUserId} following ${profileData.id}...`);
+          isLoadingFollowState = true;
           
-          if (isFollowing !== profileData.is_following) {
-            logger.debug(`Follow status mismatch! API says: ${isFollowing}, profile data says: ${profileData.is_following}`);
-            profileData.is_following = isFollowing;
-            // Force UI update
-            profileData = { ...profileData };
-          }
-        } catch (err) {
-          logger.error('Error verifying follow status:', err);
-          // Continue with the profile load even if this verification fails
+          // Make a direct API call to check follow status
+          const followStatus = await checkFollowStatus(profileData.id);
+          logger.debug(`Follow status from dedicated API: ${followStatus}`);
+          
+          // Update the follow status based on the dedicated API response
+          profileData.is_following = followStatus === true;
+          
+          // Force refresh UI by creating a new object
+          profileData = { ...profileData };
+          
+          logger.debug(`Final follow state after API check: ${profileData.is_following}`);
+        } catch (error) {
+          logger.error('Error checking follow status:', error);
+          // Keep the initial follow state if the check fails
+        } finally {
+          isLoadingFollowState = false;
         }
+      } else {
+        logger.debug('Skipping follow status check - no user ID or same user');
       }
       
-      // Load the active tab content
+      // Load initial tab content
       await loadTabContent(activeTab);
     } catch (error: any) {
-      logger.error('Error in profile:', error);
-      errorMessage = error.message || 'Failed to load profile';
+      logger.error('Error loading profile data:', error);
+      errorMessage = error.message || 'Failed to load profile data';
+      retryCount++;
       
-      // Retry logic
       if (retryCount < MAX_RETRIES) {
-        retryCount++;
-        logger.debug(`Retrying profile load (${retryCount}/${MAX_RETRIES})...`);
-        setTimeout(loadProfileData, 2000); // Retry after 2 seconds
-      } else {
-        toastStore.showToast('Failed to load profile. Please try again later.', 'error');
+        logger.debug(`Retrying profile load (attempt ${retryCount + 1} of ${MAX_RETRIES})...`);
+        setTimeout(loadProfileData, 1000); // Retry after 1 second
       }
     } finally {
       isLoading = false;
@@ -260,25 +266,53 @@
     isFollowRequestPending = true;
     
     try {
+      logger.debug(`Beginning toggleFollow for user ${profileData.id}, current state: is_following=${profileData.is_following}`);
+
       if (profileData.is_following) {
         // Unfollow
+        logger.debug(`Attempting to unfollow user ${profileData.id}`);
         const response = await unfollowUser(profileData.id);
+        logger.debug(`Unfollow API response:`, response);
+        
         if (response.success) {
           profileData.is_following = false;
           profileData.follower_count = Math.max(0, profileData.follower_count - 1);
           toastStore.showToast(`Unfollowed @${profileData.username}`, 'success');
+          logger.debug(`Successfully unfollowed user ${profileData.id}, new follower count: ${profileData.follower_count}`);
         } else {
-          throw new Error(response.message || 'Failed to unfollow user');
+          // Handle error but check if the unfollow was actually successful despite error message
+          if (response.is_now_following === false) {
+            // API indicates successful unfollow despite error
+            profileData.is_following = false;
+            profileData.follower_count = Math.max(0, profileData.follower_count - 1);
+            toastStore.showToast(`Unfollowed @${profileData.username}`, 'success');
+            logger.debug(`Successfully unfollowed user ${profileData.id} (despite error), new follower count: ${profileData.follower_count}`);
+          } else {
+            throw new Error(response.message || 'Failed to unfollow user');
+          }
         }
       } else {
         // Follow
+        logger.debug(`Attempting to follow user ${profileData.id}`);
         const response = await followUser(profileData.id);
+        logger.debug(`Follow API response:`, response);
+        
         if (response.success) {
           profileData.is_following = true;
           profileData.follower_count += 1;
           toastStore.showToast(`Now following @${profileData.username}`, 'success');
+          logger.debug(`Successfully followed user ${profileData.id}, new follower count: ${profileData.follower_count}`);
         } else {
-          throw new Error(response.message || 'Failed to follow user');
+          // Handle error but check if the follow was actually successful despite error message
+          if (response.is_now_following === true) {
+            // API indicates successful follow despite error
+            profileData.is_following = true;
+            profileData.follower_count += 1;
+            toastStore.showToast(`Now following @${profileData.username}`, 'success');
+            logger.debug(`Successfully followed user ${profileData.id} (despite error), new follower count: ${profileData.follower_count}`);
+          } else {
+            throw new Error(response.message || 'Failed to follow user');
+          }
         }
       }
       
@@ -287,6 +321,19 @@
     } catch (error: any) {
       logger.error('Error toggling follow state:', error);
       toastStore.showToast(error.message || 'Failed to update follow status', 'error');
+      
+      // Double-check the actual follow status after error to ensure UI is in sync
+      try {
+        const actualFollowStatus = await checkFollowStatus(profileData.id);
+        if (actualFollowStatus !== profileData.is_following) {
+          logger.debug(`Follow status mismatch after error! API: ${actualFollowStatus}, UI: ${profileData.is_following}. Correcting UI.`);
+          profileData.is_following = actualFollowStatus;
+          // Force UI refresh
+          profileData = { ...profileData };
+        }
+      } catch (followCheckError) {
+        logger.error('Failed to verify follow status after error:', followCheckError);
+      }
     } finally {
       isFollowRequestPending = false;
     }

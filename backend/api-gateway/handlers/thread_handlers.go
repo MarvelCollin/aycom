@@ -192,6 +192,8 @@ func GetThreadsByUser(c *gin.Context) {
 
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
+		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
+
 		if userServiceClient == nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
@@ -1183,6 +1185,53 @@ func BookmarkThreadHandler(c *gin.Context) {
 	if err == nil && thread != nil {
 		log.Printf("BookmarkThreadHandler: Verification - Thread %s for user %s: bookmark status is now %v",
 			threadID, userIDStr, thread.IsBookmarked)
+
+		// Don't send notification if user bookmarks their own thread
+		if thread.UserID != userIDStr {
+			// Get user info for a more personalized notification
+			var username string
+			var profilePic string
+			var displayName string
+
+			if userServiceClient != nil {
+				userInfo, err := userServiceClient.GetUserById(userIDStr)
+				if err == nil && userInfo != nil {
+					username = userInfo.Username
+					displayName = userInfo.DisplayName
+					profilePic = userInfo.ProfilePictureURL
+				}
+			}
+
+			// Create notification data
+			notificationData := map[string]interface{}{
+				"thread_id":      threadID,
+				"user_id":        userIDStr,
+				"username":       username,
+				"display_name":   displayName,
+				"avatar":         profilePic,
+				"thread_content": thread.Content,
+				"timestamp":      time.Now().Format(time.RFC3339),
+				"is_read":        false,
+			}
+
+			// Generate notification content
+			content := "bookmarked your post"
+			if displayName != "" {
+				content = displayName + " " + content
+			} else {
+				content = "Someone " + content
+			}
+
+			// Send notification to thread owner - using like type since there's no specific bookmark type
+			notificationID, err := SendNotification(thread.UserID, NotificationTypeLike, content, notificationData)
+			if err != nil {
+				log.Printf("BookmarkThreadHandler: Error creating notification: %v", err)
+			} else {
+				log.Printf("BookmarkThreadHandler: Created notification %s for user %s", notificationID, thread.UserID)
+			}
+		} else {
+			log.Printf("BookmarkThreadHandler: Skipping notification for self-bookmark")
+		}
 	} else if err != nil {
 		log.Printf("BookmarkThreadHandler: Error verifying bookmark: %v", err)
 	} else {
@@ -1258,10 +1307,58 @@ func LikeThreadHandler(c *gin.Context) {
 
 	log.Printf("LikeThreadHandler: Successfully liked thread %s for user %s", threadID, userIDStr)
 
+	// Get thread details to retrieve owner information
 	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
 	if err == nil && thread != nil {
 		log.Printf("LikeThreadHandler: Verification - Thread %s for user %s: like status is now %v",
 			threadID, userIDStr, thread.IsLiked)
+
+		// Don't send notification if user likes their own thread
+		if thread.UserID != userIDStr {
+			// Get user info for a more personalized notification
+			var username string
+			var profilePic string
+			var displayName string
+
+			if userServiceClient != nil {
+				userInfo, err := userServiceClient.GetUserById(userIDStr)
+				if err == nil && userInfo != nil {
+					username = userInfo.Username
+					displayName = userInfo.DisplayName
+					profilePic = userInfo.ProfilePictureURL
+				}
+			}
+
+			// Create notification data
+			notificationData := map[string]interface{}{
+				"thread_id":      threadID,
+				"user_id":        userIDStr,
+				"username":       username,
+				"display_name":   displayName,
+				"avatar":         profilePic,
+				"thread_content": thread.Content,
+				"timestamp":      time.Now().Format(time.RFC3339),
+				"is_read":        false,
+			}
+
+			// Generate notification content
+			content := "liked your post"
+			if displayName != "" {
+				content = displayName + " " + content
+			} else {
+				content = "Someone " + content
+			}
+
+			// Send notification to thread owner
+			notificationID, err := SendNotification(thread.UserID, NotificationTypeLike, content, notificationData)
+			if err != nil {
+				log.Printf("LikeThreadHandler: Error creating notification: %v", err)
+			} else {
+				log.Printf("LikeThreadHandler: Created notification %s for user %s", notificationID, thread.UserID)
+			}
+		} else {
+			log.Printf("LikeThreadHandler: Skipping notification for self-like")
+		}
 	} else if err != nil {
 		log.Printf("LikeThreadHandler: Error verifying like: %v", err)
 	} else {

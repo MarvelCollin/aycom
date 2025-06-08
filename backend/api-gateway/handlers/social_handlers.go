@@ -41,14 +41,15 @@ func FollowUser(c *gin.Context) {
 
 	resolvedUserID, err := utils.ResolveUserIdentifier(ctx, UserClient, targetUserID)
 	if err != nil {
-		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
 		log.Printf("FollowUser: Failed to resolve user identifier: %v", err)
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Target user not found: %v", err))
 		return
 	}
 
+	// Check if already following before making the request
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
-		log.Printf("Error checking follow status: %v", err)
+		log.Printf("FollowUser: Error checking follow status: %v", err)
 		// Continue anyway - we'll handle this during the FollowUser call
 	}
 
@@ -71,10 +72,38 @@ func FollowUser(c *gin.Context) {
 	}
 
 	log.Printf("FollowUser: Sending request to follow - follower: %s, followed: %s", currentUserID, resolvedUserID)
+
 	followResp, err := UserClient.FollowUser(ctx, followRequest)
 	if err != nil {
-		log.Printf("Error following user: %v", err)
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to follow user: "+err.Error())
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.InvalidArgument:
+				log.Printf("FollowUser: Invalid argument: %v", err)
+				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", fmt.Sprintf("Invalid request: %v", err))
+			case codes.NotFound:
+				log.Printf("FollowUser: User not found: %v", err)
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User not found: %v", err))
+			case codes.AlreadyExists:
+				// Handle case where user is already following
+				log.Printf("FollowUser: Already following (from error): %v", err)
+				utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+					"success":               true,
+					"action":                "already_following",
+					"is_following":          true,
+					"message":               "Already following this user",
+					"was_already_following": true,
+					"is_now_following":      true,
+				})
+				return
+			default:
+				log.Printf("FollowUser: Error following user: %v", err)
+				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Failed to follow user: %v", err))
+			}
+		} else {
+			log.Printf("FollowUser: Error following user (non-status error): %v", err)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Sprintf("Failed to follow user: %v", err))
+		}
 		return
 	}
 

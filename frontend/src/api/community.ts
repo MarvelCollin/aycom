@@ -388,6 +388,7 @@ export async function listCommunities() {
 export async function getCommunityById(id: string) {
   try {
     const token = getAuthToken();
+    console.log(`Fetching community with ID: ${id}`);
 
     const response = await fetch(`${API_BASE_URL}/communities/${id}`, {
       method: 'GET',
@@ -398,11 +399,15 @@ export async function getCommunityById(id: string) {
       credentials: 'include'
     });
 
+    console.log(`API response status: ${response.status}`);
+
     if (!response.ok) {
       const text = await response.text();
+      console.error(`Error response from API: ${text}`);
       let errorData;
       try {
         errorData = JSON.parse(text);
+        console.error('Parsed error data:', errorData);
       } catch (e) {
         throw new Error(`Failed to get community: HTTP ${response.status} ${response.statusText}`);
       }
@@ -410,8 +415,9 @@ export async function getCommunityById(id: string) {
     }
 
     const text = await response.text();
+    console.log(`API response text length: ${text?.length || 0}`);
+    
     if (!text) {
-
       logger.warn(`Empty response received from server for community ID: ${id}`);
       return {
         success: true,
@@ -432,6 +438,7 @@ export async function getCommunityById(id: string) {
 
     try {
       const data = JSON.parse(text);
+      console.log(`Successfully parsed community data:`, data);
       return data;
     } catch (parseError) {
       logger.error('JSON parse error:', parseError);
@@ -453,7 +460,6 @@ export async function getCommunityById(id: string) {
       };
     }
   } catch (error) {
-
     logger.warn(`Error fetching community ${id}:`, error);
 
     return {
