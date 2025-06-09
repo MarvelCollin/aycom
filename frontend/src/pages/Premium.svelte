@@ -13,10 +13,8 @@
   import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
   import UploadIcon from 'svelte-feather-icons/src/icons/UploadIcon.svelte';
   
-  // Get theme from the useTheme hook
   const { theme } = useTheme();
   
-  // Reactive declaration for dark mode
   $: isDarkMode = $theme === 'dark';
   
   let showVerificationForm = false;
@@ -27,7 +25,6 @@
   let formError = '';
   let isSubmitting = false;
 
-  // Function to handle image changes
   function handleFileChange(event: Event) {
     const target = event.target as HTMLInputElement;
     const files = target.files;

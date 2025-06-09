@@ -467,7 +467,7 @@ func (h *ThreadHandler) VotePoll(ctx context.Context, req *thread.VotePollReques
 	log.Printf("VotePoll called for poll ID: %s, option ID: %s, user ID: %s",
 		req.PollId, req.OptionId, req.UserId)
 
-	if err := h.pollService.VotePoll(ctx, req.PollId, req.OptionId, req.UserId); err != nil {
+	if err := h.pollService.AddVoteToPoll(ctx, req.PollId, req.OptionId, req.UserId); err != nil {
 		log.Printf("Error voting in poll: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to vote in poll: %v", err)
 	}

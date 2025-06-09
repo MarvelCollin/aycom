@@ -441,205 +441,24 @@
   
   async function loadTabContent(tab: string) {
     isLoading = true;
+    
     try {
-      // Get liked threads from localStorage for client-side verification
-      let likedThreadIds: string[] = [];
-      try {
-        likedThreadIds = JSON.parse(localStorage.getItem('likedThreads') || '[]');
-        console.log('Liked threads from localStorage:', likedThreadIds);
-      } catch (err) {
-        console.error('Error parsing liked threads from localStorage:', err);
-      }
-      
       if (tab === 'posts') {
-        // Load user's threads
         const postsData = await getUserThreads(profileUserId);
-        
-        // Check if the request was successful
-        if (!postsData.success) {
-          console.error('Failed to load posts:', postsData.error);
-          toastStore.showToast(`Failed to load posts: ${postsData.error}`, 'error');
-          posts = [];
-          isLoading = false;
-          return;
-        }
-        
-        // Debug: Log the raw thread data
-        console.log('Raw thread data from API:', postsData.threads);
-        
-        // Convert threads and ensure proper format
-        let allPosts = (postsData.threads || []).map(thread => {
-          // Check if this thread is in our liked threads
-          if (likedThreadIds.includes(thread.id)) {
-            thread.is_liked = true;
-          }
-          return ensureTweetFormat(thread);
-        });
-        
-        // Sort: pinned posts first, then by creation date
-        allPosts.sort((a, b) => {
-          // First sort by pinned status
-          if (a.is_pinned && !b.is_pinned) return -1;
-          if (!a.is_pinned && b.is_pinned) return 1;
-          
-          // Then sort by creation date (newest first)
-          const dateA = new Date(a.created_at);
-          const dateB = new Date(b.created_at);
-          return dateB.getTime() - dateA.getTime();
-        });
-        
-        posts = allPosts;
-        
-        console.log('Posts processed:', posts.length);
-        console.log('Pinned posts:', posts.filter(p => p.is_pinned).length);
-        
+        posts = postsData.threads || [];
+        console.log(`Loaded ${posts.length} posts`);
       } else if (tab === 'replies') {
-        // Load user's replies
         const repliesData = await getUserReplies(profileUserId);
-        console.log('Raw replies data from API:', repliesData);
-        
-        // Check if the request was successful
-        if (!repliesData.success) {
-          console.error('Failed to load replies:', repliesData.error);
-          toastStore.showToast(`Failed to load replies: ${repliesData.error}`, 'error');
-          replies = [];
-          isLoading = false;
-          return;
-        }
-        
-        // Ensure we have an array of replies and they match expected format
-        replies = ((repliesData.replies || []).map(reply => {
-          // Check if this reply is in our liked threads
-          if (reply.id && likedThreadIds.includes(reply.id)) {
-            reply.is_liked = true;
-          }
-          
-          // Normalize fields for consistency with other tab data
-          const normalizedReply = {
-            ...reply,
-            // Ensure these properties exist for consistency with other tabs
-            username: reply.username || reply.author_username || '',
-            name: reply.name || reply.author_name || reply.display_name || '',
-            profile_picture_url: reply.profile_picture_url || reply.author_avatar || '',
-            likes_count: reply.likes_count || 0,
-            replies_count: reply.replies_count || 0,
-            is_liked: reply.is_liked || false,
-            is_bookmarked: reply.is_bookmarked || false
-          };
-          
-          return ensureTweetFormat(normalizedReply);
-        }));
-        
+        replies = repliesData.replies || [];
+        console.log(`Loaded ${replies.length} replies`);
       } else if (tab === 'likes') {
-        // Load user's liked threads
         const likesData = await getUserLikedThreads(profileUserId);
-        console.log('Raw likes data from API:', likesData);
-        
-        // Check if the request was successful
-        if (!likesData.success) {
-          console.error('Failed to load likes:', likesData.error);
-          toastStore.showToast(`Failed to load likes: ${likesData.error}`, 'error');
-          likes = [];
-          isLoading = false;
-          return;
-        }
-        
-        // Ensure we have an array of likes
-        likes = ((likesData.threads || []).map(thread => {
-          const normalizedThread = {
-            ...thread,
-            is_liked: true, // These are liked by definition
-            // Ensure these properties exist for consistency with other tabs
-            likes_count: thread.likes_count || 0,
-            replies_count: thread.replies_count || 0,
-            is_bookmarked: thread.is_bookmarked || false
-          };
-          
-          return ensureTweetFormat(normalizedThread);
-        }));
-        
-        // Log the processed likes for debugging
-        console.log('Likes processed:', likes.length);
-        
-      } else if (tab === 'media') {
-        // Load user's media
-        const mediaData = await getUserMedia(profileUserId);
-        console.log('Raw media data from API:', mediaData);
-        
-        if (!mediaData.success && mediaData.error) {
-          console.error('Failed to load media:', mediaData.error);
-          toastStore.showToast(`Failed to load media: ${mediaData.error}`, 'error');
-          media = [];
-          isLoading = false;
-          return;
-        }
-        
-        // Process media data
-        media = (mediaData.media || []).map(item => {
-          // Ensure all media items have consistent field names
-          return {
-            id: item.id || `media-${Math.random().toString(36).substr(2, 9)}`,
-            url: item.url || item.media_url || '',
-            type: item.type || item.media_type || 'image',
-            thread_id: item.thread_id || '',
-            created_at: item.created_at || new Date().toISOString()
-          };
-        });
-      } else if (tab === 'bookmarks') {
-        // Load user's bookmarked threads
-        const bookmarksData = await getUserBookmarks(profileUserId);
-        console.log('Raw bookmarks data from API:', bookmarksData);
-        
-        // Check if the request was successful
-        if (!bookmarksData.success) {
-          console.error('Failed to load bookmarks:', bookmarksData.error);
-          toastStore.showToast(`Failed to load bookmarks: ${bookmarksData.error}`, 'error');
-          bookmarks = [];
-          isLoading = false;
-          return;
-        }
-        
-        // Ensure we have an array of bookmarks
-        bookmarks = ((bookmarksData.bookmarks || []).map(thread => {
-          const normalizedThread = {
-            ...thread,
-            is_bookmarked: true, // These are bookmarked by definition
-            // Ensure these properties exist for consistency with other tabs
-            likes_count: thread.likes_count || 0,
-            replies_count: thread.replies_count || 0,
-            is_liked: thread.is_liked || false
-          };
-          
-          return ensureTweetFormat(normalizedThread);
-        }));
-        
-        // Log the processed bookmarks for debugging
-        console.log('Bookmarks processed:', bookmarks.length);
+        likes = likesData.threads || [];
+        console.log(`Loaded ${likes.length} likes`);
       }
-      
-      // Update the active tab
-      activeTab = tab;
-      
-      // Debug: log content counts
-      console.log(`Loaded ${tab} content:`, {
-        posts: tab === 'posts' ? posts.length : '(not loaded)',
-        replies: tab === 'replies' ? replies.length : '(not loaded)',
-        likes: tab === 'likes' ? likes.length : '(not loaded)',
-        media: tab === 'media' ? media.length : '(not loaded)',
-        bookmarks: tab === 'bookmarks' ? bookmarks.length : '(not loaded)'
-      });
-      
-    } catch (error: any) {
-      console.error(`Error loading ${tab} content:`, error);
-      toastStore.showToast(`Failed to load ${tab}. ${error.message || ''}`, 'error');
-      
-      // Clear the tab data to prevent showing stale data
-      if (tab === 'posts') posts = [];
-      if (tab === 'replies') replies = [];
-      if (tab === 'likes') likes = [];
-      if (tab === 'media') media = [];
-      if (tab === 'bookmarks') bookmarks = [];
-      
+    } catch (error) {
+      console.error(`Error loading tab content for ${tab}:`, error);
+      toastStore.showToast(`Failed to load ${tab}. Please try again.`, 'error');
     } finally {
       isLoading = false;
     }
@@ -687,7 +506,7 @@
         console.log('Profile loaded with following count:', profileData.followingCount);
         console.log('Profile loaded with avatar URL:', profileData.profilePicture);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading profile:', error);
       errorMessage = 'Failed to load profile. Please try again later.';
       toastStore.showToast('Failed to load profile. Please try again.', 'error');
@@ -719,7 +538,7 @@
       } else {
         throw new Error(response.message || 'Failed to update profile');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
       toastStore.showToast('Failed to update profile. Please try again.', 'error');
     } finally {
@@ -774,7 +593,7 @@
       });
       
       toastStore.showToast('Post liked', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error liking thread:', error);
       toastStore.showToast('Failed to like post. Please try again.', 'error');
     }
@@ -812,7 +631,7 @@
       });
       
       toastStore.showToast('Post unliked', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error unliking thread:', error);
       toastStore.showToast('Failed to unlike post. Please try again.', 'error');
     }
@@ -863,7 +682,7 @@
       });
       
       toastStore.showToast('Post bookmarked', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error bookmarking thread:', error);
       toastStore.showToast('Failed to bookmark post. Please try again.', 'error');
     }
@@ -914,7 +733,7 @@
       });
       
       toastStore.showToast('Post removed from bookmarks', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error removing bookmark:', error);
       toastStore.showToast('Failed to remove bookmark. Please try again.', 'error');
     }
@@ -951,7 +770,7 @@
       
       // Show success toast
       toastStore.showToast(isPinned ? 'Thread unpinned' : 'Thread pinned', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error pinning/unpinning thread:', error);
       toastStore.showToast('Failed to pin/unpin thread', 'error');
       
@@ -989,7 +808,7 @@
       
       // Show success toast
       toastStore.showToast(isPinned ? 'Reply unpinned' : 'Reply pinned', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error pinning/unpinning reply:', error);
       toastStore.showToast('Failed to pin/unpin reply', 'error');
       
@@ -1095,7 +914,7 @@
         };
         console.log('Updated profile data:', profileData);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch user profile:', err);
       toastStore.showToast('Failed to load user profile. Please try again.', 'error');
     }
@@ -1144,7 +963,7 @@
       }
       
       console.log(`Loaded ${followersList.length} followers`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading followers:', error);
       followersError = 'Failed to load followers';
     } finally {
@@ -1195,7 +1014,7 @@
       }
       
       console.log(`Loaded ${followingList.length} following`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading following:', error);
       followingError = 'Failed to load following';
     } finally {
@@ -1238,35 +1057,40 @@
   
   onMount(async () => {
     try {
-      isLoading = true;
-      
-      // Load profile data - use the more comprehensive function
-      await loadProfileData();
-      
-      // Load tab content
-      await loadTabContent(activeTab);
-      
-      // Handle pinned posts if needed
-      if (isOwnProfile) {
-        await troubleshootPinnedThreads();
-      }
+      // Load profile data
+      const profileResponse = await getUserById(profileUserId);
+      profileData = {
+        id: profileResponse.id || '',
+        username: profileResponse.username || '',
+        displayName: profileResponse.name || profileResponse.display_name || '',
+        bio: profileResponse.bio || '',
+        profilePicture: profileResponse.profile_picture_url || DEFAULT_AVATAR,
+        backgroundBanner: profileResponse.banner_url || '',
+        followerCount: profileResponse.follower_count || 0,
+        followingCount: profileResponse.following_count || 0,
+        joinedDate: profileResponse.created_at || '',
+        email: profileResponse.email || '',
+        dateOfBirth: profileResponse.date_of_birth || '',
+        gender: profileResponse.gender || '',
+        isVerified: profileResponse.is_verified || false
+      };
 
-      // Pre-fetch the other tabs' data for better user experience
+      // Load initial tab content
+      await loadTabContent(activeTab);
+
+      // Preload other tabs in the background
       if (activeTab !== 'posts') {
         setTimeout(() => loadTabContent('posts'), 1000);
       }
-      
+      if (activeTab !== 'replies') {
+        setTimeout(() => loadTabContent('replies'), 1500);
+      }
       if (activeTab !== 'likes') {
         setTimeout(() => loadTabContent('likes'), 2000);
       }
-      
-      if (activeTab !== 'bookmarks') {
-        setTimeout(() => loadTabContent('bookmarks'), 3000);
-      }
-      
     } catch (error) {
-      console.error('Failed to load user profile:', error);
-      errorMessage = 'Failed to load profile. Please try again later.';
+      console.error('Error loading profile data:', error);
+      errorMessage = 'Failed to load profile data. Please try again later.';
     } finally {
       isLoading = false;
     }
@@ -1426,220 +1250,52 @@
         >
           Likes
         </button>
-        <button 
-          class="profile-tab {activeTab === 'bookmarks' ? 'active' : ''}"
-          on:click={() => setActiveTab('bookmarks')}
-        >
-          Bookmarks
-        </button>
-        <button 
-          class="profile-tab {activeTab === 'media' ? 'active' : ''}"
-          on:click={() => setActiveTab('media')}
-        >
-          Media
-        </button>
       </div>
       
       <div class="profile-content">
         {#if isLoading}
-          <LoadingSkeleton type="threads" count={3} />
+          <div class="loading-container">
+            <LoadingSkeleton type="threads" count={3} />
+          </div>
         {:else if activeTab === 'posts'}
-          {#if posts.length === 0}
-            <div class="profile-content-empty">
-              <div class="profile-content-empty-icon">📝</div>
-              <h3 class="profile-content-empty-title">No posts yet</h3>
-              <p class="profile-content-empty-text">When you post, your posts will show up here.</p>
-            </div>
-          {:else}
-            {#each posts as post (post.id)}
-              <div class="tweet-card-container {post.is_pinned ? 'pinned' : ''}">
-                {#if post.is_pinned}
-                  <div class="pinned-indicator">
-                    <PinIcon size="14" />
-                    <span>Pinned post</span>
-                  </div>
-                {/if}
-                <TweetCard 
-                  tweet={ensureTweetFormat(post)} 
-                  isDarkMode={isDarkMode}
-                  isAuth={isAuthenticated()}
-                  isLiked={post.isLiked || post.is_liked}
-                  isReposted={post.isReposted || post.is_repost}
-                  isBookmarked={post.isBookmarked || post.is_bookmarked}
-                  on:like={handleLike}
-                  on:unlike={handleUnlike}
-                  on:bookmark={handleBookmark}
-                  on:removeBookmark={handleRemoveBookmark}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
-                  on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  replies={repliesMap.get(post.id) || []}
-                  showReplies={false}
-                  nestedRepliesMap={nestedRepliesMap}
-                />
-                {#if isOwnProfile}
-                  <button 
-                    class="pin-action-button"
-                    on:click={() => handlePinThread(post.id, post.is_pinned)}
-                  >
-                    {post.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
-                  </button>
-                {/if}
+          <!-- Posts tab content -->
+          <div class="tab-content">
+            {#if posts.length === 0}
+              <div class="empty-state">
+                <p>No posts yet</p>
               </div>
-            {/each}
-          {/if}
-        {:else if activeTab === 'replies'}
-          {#if replies.length === 0}
-            <div class="profile-content-empty">
-              <div class="profile-content-empty-icon">💬</div>
-              <h3 class="profile-content-empty-title">No replies yet</h3>
-              <p class="profile-content-empty-text">When you reply to someone else's post, it will show up here.</p>
-            </div>
-          {:else}
-            {#each replies as reply (reply.id)}
-              <div class="tweet-card-container {reply.is_pinned ? 'pinned' : ''}">
-                {#if reply.is_pinned}
-                  <div class="pinned-indicator">
-                    <PinIcon size="14" />
-                    <span>Pinned reply</span>
-                  </div>
-                {/if}
-                <div class="reply-indicator">
-                  Replying to <a href={`/thread/${reply.thread_id}`}>thread</a>
-                </div>
-                <TweetCard 
-                  tweet={ensureTweetFormat(reply)} 
-                  isDarkMode={isDarkMode}
-                  isAuth={isAuthenticated()}
-                  isLiked={reply.isLiked || reply.is_liked}
-                  isReposted={reply.isReposted || reply.is_repost}
-                  isBookmarked={reply.isBookmarked || reply.is_bookmarked}
-                  on:like={handleLike}
-                  on:unlike={handleUnlike}
-                  on:bookmark={handleBookmark}
-                  on:removeBookmark={handleRemoveBookmark}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
-                  on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  replies={repliesMap.get(reply.id) || []}
-                  showReplies={false}
-                  nestedRepliesMap={nestedRepliesMap}
-                />
-                {#if isOwnProfile}
-                  <button 
-                    class="pin-action-button"
-                    on:click={() => handlePinReply(reply.id, reply.is_pinned)}
-                  >
-                    {reply.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
-                  </button>
-                {/if}
-              </div>
-            {/each}
-          {/if}
-        {:else if activeTab === 'likes'}
-          {#if likes.length === 0}
-            <div class="profile-content-empty">
-              <div class="profile-content-empty-icon">❤️</div>
-              <h3 class="profile-content-empty-title">No likes yet</h3>
-              <p class="profile-content-empty-text">When you like a post, it will show up here.</p>
-            </div>
-          {:else}
-            {#each likes as like (like.id)}
-              <div class="tweet-card-container">
-                <TweetCard 
-                  tweet={ensureTweetFormat(like)} 
-                  isDarkMode={isDarkMode}
-                  isAuth={isAuthenticated()}
-                  isLiked={like.isLiked || like.is_liked || true}
-                  isReposted={like.isReposted || like.is_repost}
-                  isBookmarked={like.isBookmarked || like.is_bookmarked}
-                  on:like={handleLike}
-                  on:unlike={handleUnlike}
-                  on:bookmark={handleBookmark}
-                  on:removeBookmark={handleRemoveBookmark}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
-                  on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  replies={repliesMap.get(like.id) || []}
-                  showReplies={false}
-                  nestedRepliesMap={nestedRepliesMap}
-                  on:click={handleThreadClick}
-                />
-              </div>
-            {/each}
-          {/if}
-        {:else if activeTab === 'bookmarks'}
-          {#if bookmarks.length === 0}
-            <div class="profile-content-empty">
-              <div class="profile-content-empty-icon">🔖</div>
-              <h3 class="profile-content-empty-title">No bookmarks yet</h3>
-              <p class="profile-content-empty-text">When you bookmark a post, it will show up here.</p>
-            </div>
-          {:else}
-            {#each bookmarks as bookmark (bookmark.id)}
-              <div class="tweet-card-container">
-                <TweetCard 
-                  tweet={ensureTweetFormat(bookmark)} 
-                  isDarkMode={isDarkMode}
-                  isAuth={isAuthenticated()}
-                  isLiked={bookmark.isLiked || bookmark.is_liked}
-                  isReposted={bookmark.isReposted || bookmark.is_repost}
-                  isBookmarked={bookmark.isBookmarked || bookmark.is_bookmarked || true}
-                  on:like={handleLike}
-                  on:unlike={handleUnlike}
-                  on:bookmark={handleBookmark}
-                  on:removeBookmark={handleRemoveBookmark}
-                  on:repost={handleRepost}
-                  on:unrepost={handleUnrepost}
-                  on:reply={handleReply}
-                  on:loadReplies={handleLoadReplies}
-                  replies={repliesMap.get(bookmark.id) || []}
-                  showReplies={false}
-                  nestedRepliesMap={nestedRepliesMap}
-                  on:click={handleThreadClick}
-                />
-              </div>
-            {/each}
-          {/if}
-        {:else if activeTab === 'media'}
-          {#if media.length === 0}
-            <div class="profile-content-empty">
-              <div class="profile-content-empty-icon">📷</div>
-              <h3 class="profile-content-empty-title">No media yet</h3>
-              <p class="profile-content-empty-text">When you post photos or videos, they will show up here.</p>
-            </div>
-          {:else}
-            <div class="media-grid">
-              {#each media as item (item.id)}
-                <a href={`/thread/${item.thread_id}`} class="media-grid-item">
-                  {#if item.type === 'image'}
-                    <img src={item.url} alt="Media content" class="media-image" loading="lazy" />
-                  {:else if item.type === 'video'}
-                    <div class="media-video-container">
-                      <video src={item.url} class="media-video">
-                        <track kind="captions" label="English" src="" default />
-                      </video>
-                      <div class="media-video-play-button">
-                        <svg class="media-video-play-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M8 5.14L19 12L8 18.86V5.14Z" fill="currentColor"/>
-                        </svg>
-                      </div>
-                    </div>
-                  {:else if item.type === 'gif'}
-                    <div class="media-gif-container">
-                      <img src={item.url} alt="GIF content" class="media-image" loading="lazy" />
-                      <div class="media-gif-indicator">
-                        GIF
-                      </div>
-                    </div>
-                  {/if}
-                </a>
+            {:else}
+              {#each posts as thread (thread.id)}
+                <TweetCard tweet={ensureTweetFormat(thread)} />
               {/each}
-            </div>
-          {/if}
+            {/if}
+          </div>
+        {:else if activeTab === 'replies'}
+          <!-- Replies tab content -->
+          <div class="tab-content">
+            {#if replies.length === 0}
+              <div class="empty-state">
+                <p>No replies yet</p>
+              </div>
+            {:else}
+              {#each replies as reply (reply.id)}
+                <TweetCard tweet={ensureTweetFormat(reply)} />
+              {/each}
+            {/if}
+          </div>
+        {:else if activeTab === 'likes'}
+          <!-- Likes tab content -->
+          <div class="tab-content">
+            {#if likes.length === 0}
+              <div class="empty-state">
+                <p>No liked posts yet</p>
+              </div>
+            {:else}
+              {#each likes as thread (thread.id)}
+                <TweetCard tweet={ensureTweetFormat(thread)} />
+              {/each}
+            {/if}
+          </div>
         {/if}
       </div>
     {/if}
@@ -2434,5 +2090,25 @@
     -webkit-line-clamp: 3;
     line-clamp: 3;
     overflow: hidden;
+  }
+
+  .loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 150px;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #536471;
+    font-size: 16px;
+  }
+
+  .tab-content {
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--bg-secondary);
   }
 </style>
