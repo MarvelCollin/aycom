@@ -5,7 +5,7 @@
   import { useTheme } from '../hooks/useTheme';
   import { isAuthenticated, getUserId } from '../utils/auth';
   import { getProfile, updateProfile, pinThread, unpinThread, pinReply, unpinReply, getUserById, getUserFollowers, getUserFollowing } from '../api/user';
-  import { getUserThreads, getUserReplies, getUserLikedThreads, getUserMedia, getThreadReplies, likeThread, unlikeThread, bookmarkThread, removeBookmark } from '../api/thread';
+  import { getUserThreads, getUserReplies, getUserLikedThreads, getUserMedia, getThreadReplies, likeThread, unlikeThread, bookmarkThread, removeBookmark, getUserBookmarks } from '../api/thread';
   import { toastStore } from '../stores/toastStore';
   import ThreadCard from '../components/explore/ThreadCard.svelte';
   import TweetCard from '../components/social/TweetCard.svelte';
@@ -26,6 +26,7 @@
     profile_picture_url?: string;
     is_following?: boolean;
     is_followed_by?: boolean;
+    bio?: string;
   }
   
   // Define interfaces for our data structures
@@ -50,6 +51,7 @@
     is_reposted?: boolean;
     is_bookmarked?: boolean;
     is_pinned?: boolean;
+    IsPinned?: boolean; // Added to match API property
     parent_id?: string | null;
     author_id?: string;
     author_username?: string;
@@ -123,7 +125,8 @@
     joinedDate: '',
     email: '',
     dateOfBirth: '',
-    gender: ''
+    gender: '',
+    isVerified: false
   };
   
   // Content data with types
@@ -131,6 +134,7 @@
   let replies: Reply[] = [];
   let likes: Thread[] = [];
   let media: ThreadMedia[] = [];
+  let bookmarks: Thread[] = [];
   
   // UI state
   let activeTab = 'posts';
@@ -239,13 +243,13 @@
     try {
       // Step 1: Fetch recent threads to check if any should be pinned
       let postsData;
-      let threads = [];
+      let threads: any[] = [];
       
       try {
         postsData = await getUserThreads(profileUserId);
         threads = postsData.threads || [];
         console.log("Threads from API:", threads.length);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching threads for troubleshooting:", error);
         // Continue with empty threads array rather than failing completely
         toastStore.showToast('Unable to check pinned threads - will try later', 'warning');
@@ -341,7 +345,7 @@
           toastStore.showToast("Could not repair pinned thread status. Please try again later.", "error");
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error troubleshooting pinned threads:", error);
       // Show error but don't crash the profile page
       toastStore.showToast('Error checking pinned threads: ' + error.message, 'warning');
@@ -402,7 +406,7 @@
         repliesMap.set(threadId, []);
         repliesMap = repliesMap;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error fetching replies for thread ${threadId}:`, error);
       toastStore.showToast('Failed to load replies. Please try again.', 'error');
       repliesMap.set(threadId, []);
@@ -581,6 +585,36 @@
             created_at: item.created_at || new Date().toISOString()
           };
         });
+      } else if (tab === 'bookmarks') {
+        // Load user's bookmarked threads
+        const bookmarksData = await getUserBookmarks(profileUserId);
+        console.log('Raw bookmarks data from API:', bookmarksData);
+        
+        // Check if the request was successful
+        if (!bookmarksData.success) {
+          console.error('Failed to load bookmarks:', bookmarksData.error);
+          toastStore.showToast(`Failed to load bookmarks: ${bookmarksData.error}`, 'error');
+          bookmarks = [];
+          isLoading = false;
+          return;
+        }
+        
+        // Ensure we have an array of bookmarks
+        bookmarks = ((bookmarksData.bookmarks || []).map(thread => {
+          const normalizedThread = {
+            ...thread,
+            is_bookmarked: true, // These are bookmarked by definition
+            // Ensure these properties exist for consistency with other tabs
+            likes_count: thread.likes_count || 0,
+            replies_count: thread.replies_count || 0,
+            is_liked: thread.is_liked || false
+          };
+          
+          return ensureTweetFormat(normalizedThread);
+        }));
+        
+        // Log the processed bookmarks for debugging
+        console.log('Bookmarks processed:', bookmarks.length);
       }
       
       // Update the active tab
@@ -591,7 +625,8 @@
         posts: tab === 'posts' ? posts.length : '(not loaded)',
         replies: tab === 'replies' ? replies.length : '(not loaded)',
         likes: tab === 'likes' ? likes.length : '(not loaded)',
-        media: tab === 'media' ? media.length : '(not loaded)'
+        media: tab === 'media' ? media.length : '(not loaded)',
+        bookmarks: tab === 'bookmarks' ? bookmarks.length : '(not loaded)'
       });
       
     } catch (error: any) {
@@ -603,6 +638,7 @@
       if (tab === 'replies') replies = [];
       if (tab === 'likes') likes = [];
       if (tab === 'media') media = [];
+      if (tab === 'bookmarks') bookmarks = [];
       
     } finally {
       isLoading = false;
@@ -1224,6 +1260,10 @@
         setTimeout(() => loadTabContent('likes'), 2000);
       }
       
+      if (activeTab !== 'bookmarks') {
+        setTimeout(() => loadTabContent('bookmarks'), 3000);
+      }
+      
     } catch (error) {
       console.error('Failed to load user profile:', error);
       errorMessage = 'Failed to load profile. Please try again later.';
@@ -1387,6 +1427,12 @@
           Likes
         </button>
         <button 
+          class="profile-tab {activeTab === 'bookmarks' ? 'active' : ''}"
+          on:click={() => setActiveTab('bookmarks')}
+        >
+          Bookmarks
+        </button>
+        <button 
           class="profile-tab {activeTab === 'media' ? 'active' : ''}"
           on:click={() => setActiveTab('media')}
         >
@@ -1518,6 +1564,39 @@
                   on:reply={handleReply}
                   on:loadReplies={handleLoadReplies}
                   replies={repliesMap.get(like.id) || []}
+                  showReplies={false}
+                  nestedRepliesMap={nestedRepliesMap}
+                  on:click={handleThreadClick}
+                />
+              </div>
+            {/each}
+          {/if}
+        {:else if activeTab === 'bookmarks'}
+          {#if bookmarks.length === 0}
+            <div class="profile-content-empty">
+              <div class="profile-content-empty-icon">🔖</div>
+              <h3 class="profile-content-empty-title">No bookmarks yet</h3>
+              <p class="profile-content-empty-text">When you bookmark a post, it will show up here.</p>
+            </div>
+          {:else}
+            {#each bookmarks as bookmark (bookmark.id)}
+              <div class="tweet-card-container">
+                <TweetCard 
+                  tweet={ensureTweetFormat(bookmark)} 
+                  isDarkMode={isDarkMode}
+                  isAuth={isAuthenticated()}
+                  isLiked={bookmark.isLiked || bookmark.is_liked}
+                  isReposted={bookmark.isReposted || bookmark.is_repost}
+                  isBookmarked={bookmark.isBookmarked || bookmark.is_bookmarked || true}
+                  on:like={handleLike}
+                  on:unlike={handleUnlike}
+                  on:bookmark={handleBookmark}
+                  on:removeBookmark={handleRemoveBookmark}
+                  on:repost={handleRepost}
+                  on:unrepost={handleUnrepost}
+                  on:reply={handleReply}
+                  on:loadReplies={handleLoadReplies}
+                  replies={repliesMap.get(bookmark.id) || []}
                   showReplies={false}
                   nestedRepliesMap={nestedRepliesMap}
                   on:click={handleThreadClick}

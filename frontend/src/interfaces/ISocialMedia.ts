@@ -29,6 +29,7 @@ export interface ITweet {
   
   // Relations
   parent_id: string | null;
+  reply_to?: string | { id: string } | null;
   
   // Media
   media: IMedia[];

@@ -52,6 +52,7 @@
     isReposted?: boolean;
     isBookmarked?: boolean;
     isPinned?: boolean;
+    is_verified?: boolean; // Add is_verified property to match ITweet
     
     // Nested data
     bookmarked_thread?: any;
@@ -66,6 +67,8 @@
       username?: string;
       name?: string;
       profile_picture_url?: string;
+      is_verified?: boolean;
+      verified?: boolean;
     };
     thread?: {
       author?: {
@@ -262,6 +265,10 @@
       };
       
       console.log(`Tweet processed - verified status: ${processed.is_verified} (${processed.name || processed.displayName})`);
+      
+      // Before the return statement, make sure is_verified is set
+      processed.is_verified = isVerified(rawTweet);
+      
       return processed;
     } catch (error) {
       console.error('Error processing tweet content:', error, rawTweet);
@@ -740,14 +747,11 @@
           console.log(`DEBUG: Reply ${index} structure:`, {
             id: reply.id,
             content: reply.content || '(empty)',
-            nested_replies: reply.replies_count || reply.repliesCount || 0,
-            has_reply_property: typeof reply.reply !== 'undefined',
-            reply_property: reply.reply ? 
-              { 
-                id: reply.reply.id,
-                content: reply.reply.content || '(empty)',
-                user: reply.reply.user ? reply.reply.user.username : 'no user' 
-              } : 'no reply property'
+            nested_replies: reply.replies_count || 0,
+            // Use type assertion to handle interfaces properly
+            user_data: ((reply as ExtendedTweet).user) ? {
+              username: ((reply as ExtendedTweet).user)?.username || 'no username'
+            } : 'no user data'
           });
 
           if (reply && reply.replies_count > 0) {
@@ -1489,27 +1493,7 @@
 
   // Helper function to extract verified status with robust fallbacks
   function isVerified(rawTweet: any): boolean {
-    // Direct verification field
-    if (rawTweet.is_verified === true) return true;
-    if (rawTweet.IsVerified === true) return true;
-    if (rawTweet.verified === true) return true;
-    
-    // Check user object if available
-    if (rawTweet.user?.is_verified === true) return true;
-    if (rawTweet.user?.verified === true) return true;
-    if (rawTweet.author?.is_verified === true) return true;
-    if (rawTweet.author?.verified === true) return true;
-    
-    // Check thread author if available
-    if (rawTweet.thread?.author?.is_verified === true) return true;
-    if (rawTweet.thread?.author?.verified === true) return true;
-    
-    // Check user_data if available
-    if (rawTweet.user_data?.is_verified === true) return true;
-    if (rawTweet.user_data?.verified === true) return true;
-    
-    // Not verified
-    return false;
+    return Boolean(rawTweet.is_verified || rawTweet.verified || rawTweet.user?.is_verified || rawTweet.user?.verified || false);
   }
 </script>
 
@@ -1641,7 +1625,6 @@
                 disabled={isLikeLoading}
                 data-testid="like-button"
                 aria-live="polite"
-                role="button"
                 tabindex="0"
               >
                 <div class="tweet-like-icon-wrapper">
@@ -1752,7 +1735,7 @@
             on:loadReplies={handleLoadNestedReplies}
           />
           
-          {#if (Number(reply.replies_count) > 0 || Number(reply.repliesCount) > 0)}
+          {#if (Number(reply.replies_count) > 0)}
             {#if nestedRepliesMap.has(`retry_${reply.id}`)}
               <!-- Show retry button when loading failed -->
               <div class="nested-replies-retry-container">
@@ -1772,7 +1755,7 @@
                   on:click|stopPropagation={() => handleLoadNestedReplies({ detail: String(reply.id) })}
                 >
                   <ChevronDownIcon size="14" />
-                  View {Number(reply.replies_count) || Number(reply.repliesCount) || 0} {(Number(reply.replies_count) || Number(reply.repliesCount) || 0) === 1 ? 'reply' : 'replies'}
+                  View {Number(reply.replies_count) || 0} {(Number(reply.replies_count) || 0) === 1 ? 'reply' : 'replies'}
                 </button>
               </div>
             {/if}

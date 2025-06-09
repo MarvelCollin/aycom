@@ -476,24 +476,9 @@
   }
   
   // Handle tweet reply
-  function handleTweetReply(event: CustomEvent) {
-    const tweetId = event.detail;
-    if (!authState.is_authenticated) {
-      toastStore.showToast('You need to log in to reply to posts', 'warning');
-      return;
-    }
-    logger.info('Reply to tweet action', { tweetId });
-    
-    // Find the tweet in the array
-    const tweetToReply = bookmarkedTweets.find(t => t.id === tweetId);
-    
-    if (!tweetToReply) {
-      toastStore.showToast('Cannot find the tweet to reply to', 'error');
-      return;
-    }
-    
-    // Store the tweet to reply to and navigate to the thread page
-    window.location.href = `/thread/${tweetId}`;
+  async function handleTweetReply(event: CustomEvent) {
+    console.log('Reply to tweet:', event.detail);
+    // Implement reply functionality
   }
   
   // Handle tweet repost
@@ -594,9 +579,8 @@
   
   // Load replies for a specific thread
   async function handleLoadReplies(event: CustomEvent) {
-    const threadId = event.detail;
-    logger.debug(`Loading replies for thread: ${threadId}`);
-    await fetchRepliesForThread(threadId);
+    console.log('Load replies for tweet:', event.detail);
+    // Implement load replies functionality
   }
 
   // Function to fetch replies for a given thread
@@ -727,6 +711,47 @@
       }
     }
   }
+
+  // Handle thread click - navigate to thread detail
+  function handleThreadClick(event) {
+    const tweet = event.detail;
+    if (!tweet || !tweet.id) {
+      console.error('Invalid tweet data for navigation', tweet);
+      return;
+    }
+    
+    const threadId = tweet.id;
+    console.log(`Navigating to thread detail: ${threadId}`);
+    
+    // Construct the URL for thread detail
+    const href = `/thread/${threadId}`;
+    
+    // Use navigation approach
+    try {
+      // First try to use history API for SPA navigation
+      window.history.pushState({threadId}, '', href);
+      
+      // Dispatch a custom navigation event to trigger router update
+      const navEvent = new CustomEvent('navigate', { 
+        detail: { href, threadId } 
+      });
+      window.dispatchEvent(navEvent);
+      
+      // Trigger popstate as a fallback
+      window.dispatchEvent(new PopStateEvent('popstate', {}));
+      
+      // If nothing works, reload the page after a short delay
+      setTimeout(() => {
+        if (window.location.pathname !== href) {
+          console.warn('Navigation did not update the URL, forcing page reload');
+          window.location.href = href;
+        }
+      }, 300);
+    } catch (error) {
+      console.error('Error in navigation:', error);
+      window.location.href = href; // Direct navigation as fallback
+    }
+  }
 </script>
 
 <MainLayout
@@ -812,6 +837,7 @@
                 on:reply={async (e) => handleTweetReply(e)}
                 on:viewReplies={async (e) => handleLoadReplies(e)}
                 on:showProfile={(e) => openThreadModal(e.detail)}
+                on:click={handleThreadClick}
               />
             </div>
           {/each}

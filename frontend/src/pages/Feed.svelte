@@ -153,9 +153,10 @@
         // Force reactivity
         repliesMap = new Map(repliesMap);
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error(`Error loading replies for thread ${threadId}:`, err);
-      toastStore.showToast(`Failed to load replies: ${err.message || 'Unknown error'}`, 'error');
+      toastStore.showToast(`Failed to load replies: ${errorMessage}`, 'error');
     } finally {
       // Force reactivity update
       showRepliesMap = new Map(showRepliesMap);
@@ -192,6 +193,17 @@
     // Implement remove bookmark functionality here
   }
 
+  // Handle thread click - navigate to thread detail page
+  function handleThreadClick(event) {
+    const tweet = event.detail as ExtendedTweet;
+    if (!tweet || !tweet.id) {
+      console.error('Invalid tweet data for navigation', tweet);
+      return;
+    }
+    
+    window.location.href = `/thread/${tweet.id}`;
+  }
+
   // Handle reply to thread
   async function handleReply(event) {
     const threadId = event.detail;
@@ -212,7 +224,12 @@
   
   // Handle reply submission from the modal
   async function submitReply() {
-    if (!replyToTweet || !replyToTweet.id || !replyText.trim()) return;
+    // Proper null check before accessing properties
+    if (!replyToTweet || !replyText.trim()) return;
+    
+    // Type assertion for replyToTweet after the null check
+    const typedReplyToTweet = replyToTweet as ExtendedTweet;
+    if (!typedReplyToTweet.id) return;
     
     try {
       // Set submitting state
@@ -220,7 +237,7 @@
       toastStore.showToast('Posting reply...', 'info');
       
       // Debug info
-      console.log("Attempting to post reply to thread:", replyToTweet.id);
+      console.log("Attempting to post reply to thread:", typedReplyToTweet.id);
       console.log("Reply content:", replyText);
       
       if (!authStore.isAuthenticated()) {
@@ -228,7 +245,7 @@
       }
       
       // Use the imported replyToThread function instead of direct fetch
-      const response = await replyToThread(replyToTweet.id, {
+      const response = await replyToThread(typedReplyToTweet.id, {
         content: replyText.trim()
       });
       
@@ -245,29 +262,34 @@
       
       // Refresh data
       try {
-        const updatedReplies = await getThreadReplies(replyToTweet.id);
-        
-        if (updatedReplies && updatedReplies.replies) {
-          // Update the replies in our state
-          repliesMap.set(replyToTweet.id, updatedReplies.replies);
-          showRepliesMap.set(replyToTweet.id, true);
-          repliesMap = new Map(repliesMap);
-          showRepliesMap = new Map(showRepliesMap);
+        // Store the ID before nulling out replyToTweet
+        const replyId = typedReplyToTweet.id;
+        if (replyId) {
+          const updatedReplies = await getThreadReplies(replyId);
           
-          // Update the thread's reply count in the UI
-          const targetThread = threads.find(t => t.id === replyToTweet.id);
-          if (targetThread) {
-            targetThread.replies_count += 1;
-            threads = [...threads]; // Trigger reactivity
+          if (updatedReplies && updatedReplies.replies) {
+            // Update the replies in our state
+            repliesMap.set(replyId, updatedReplies.replies);
+            showRepliesMap.set(replyId, true);
+            repliesMap = new Map(repliesMap);
+            showRepliesMap = new Map(showRepliesMap);
+            
+            // Update the thread's reply count in the UI
+            const targetThread = threads.find(t => t.id === replyId);
+            if (targetThread) {
+              targetThread.replies_count += 1;
+              threads = [...threads]; // Trigger reactivity
+            }
           }
         }
       } catch (refreshErr) {
         console.warn("Error refreshing replies after posting:", refreshErr);
         // Don't fail the whole operation if just the refresh failed
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('Error posting reply:', error);
-      toastStore.showToast(`Failed to post reply: ${error.message}`, 'error');
+      toastStore.showToast(`Failed to post reply: ${errorMessage}`, 'error');
       isSubmitting = false;
     }
   }
@@ -291,26 +313,26 @@
       console.log('Thread API response:', response);
       
       if (response && response.success && Array.isArray(response.threads)) {
-        threads = response.threads;
+        threads = response.threads as ExtendedTweet[];
         console.log('Loaded threads:', threads.length);
       } else if (response && Array.isArray(response)) {
         // Handle case where API returns threads directly as array
-        threads = response;
+        threads = response as ExtendedTweet[];
         console.log('Loaded threads directly:', threads.length);
       } else {
         console.error('Invalid API response format:', response);
         threads = [];
-        error = 'No threads available right now. Try again later.';
+        error = 'No threads available right now. Try again later.' as any;
       }
     } catch (err) {
       console.error('Error loading threads:', err);
       if (err instanceof Error && err.message.includes('401')) {
         // If it's an auth error, don't show it to the user, just show empty state
         threads = [];
-        error = 'No threads available right now. Try again later.';
+        error = 'No threads available right now. Try again later.' as any;
       } else {
         // For other errors, show a helpful message
-        error = 'Unable to load threads. Please check your connection and try again.';
+        error = 'Unable to load threads. Please check your connection and try again.' as any;
       }
     } finally {
       loading = false;
@@ -399,6 +421,7 @@
             on:bookmark={() => handleBookmark(thread.id)}
             on:removeBookmark={() => handleRemoveBookmark(thread.id)}
             on:reply={handleReply}
+            on:click={handleThreadClick}
           />
         {/each}
       </div>
@@ -407,36 +430,54 @@
 </MainLayout>
 
 {#if showReplyModal && replyToTweet}
-  <div class="aycom-reply-overlay" on:click={handleReplyModalClose}>
-    <div class="aycom-reply-modal aycom-dark-theme" on:click|stopPropagation>
+  <div 
+    class="aycom-reply-overlay" 
+    on:click={handleReplyModalClose}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="reply-modal-title"
+    on:keydown={(e) => e.key === 'Escape' && handleReplyModalClose()}
+    tabindex="-1"
+  >
+    <div 
+      class="aycom-reply-modal aycom-dark-theme" 
+      on:click|stopPropagation
+      role="document"
+    >
       <div class="aycom-reply-header">
-        <h3 class="aycom-reply-title">Reply to @{replyToTweet.username}</h3>
-        <button class="aycom-reply-close-btn" on:click={handleReplyModalClose}>×</button>
+        <h3 id="reply-modal-title" class="aycom-reply-title">
+          Reply to @{replyToTweet ? (replyToTweet as ExtendedTweet).username : ''}
+        </h3>
+        <button 
+          class="aycom-reply-close-btn" 
+          on:click={handleReplyModalClose}
+          aria-label="Close reply dialog"
+        >×</button>
       </div>
       
       <div class="aycom-reply-body">
         <div class="aycom-original-tweet">
           <div class="aycom-tweet-user">
             <img 
-              src={replyToTweet.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"} 
-              alt={replyToTweet.name || replyToTweet.username}
+              src={(replyToTweet as ExtendedTweet).profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"} 
+              alt={(replyToTweet as ExtendedTweet).name || (replyToTweet as ExtendedTweet).username}
               class="aycom-profile-pic"
             />
             <div class="aycom-user-info">
-              <div class="aycom-display-name">{replyToTweet.name || replyToTweet.username}</div>
-              <div class="aycom-username">@{replyToTweet.username}</div>
+              <div class="aycom-display-name">{(replyToTweet as ExtendedTweet).name || (replyToTweet as ExtendedTweet).username}</div>
+              <div class="aycom-username">@{(replyToTweet as ExtendedTweet).username}</div>
             </div>
           </div>
-          <div class="aycom-tweet-content">{replyToTweet.content}</div>
+          <div class="aycom-tweet-content">{(replyToTweet as ExtendedTweet).content}</div>
           
           <!-- Reply line connector -->
-          <div class="aycom-reply-connector"></div>
+          <div class="aycom-reply-connector" aria-hidden="true"></div>
         </div>
         
         <div class="aycom-reply-form">
           <div class="aycom-form-user">
             <img 
-              src={replyToTweet.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"} 
+              src={(replyToTweet as ExtendedTweet).profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"} 
               alt="Your profile" 
               class="aycom-profile-pic"
             />
@@ -452,15 +493,15 @@
           
           <div class="aycom-reply-actions">
             <div class="aycom-reply-tools">
-              <button class="aycom-tool-btn" title="Add media">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button class="aycom-tool-btn" title="Add media" aria-label="Add media">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                   <circle cx="8.5" cy="8.5" r="1.5"/>
                   <polyline points="21 15 16 10 5 21"/>
                 </svg>
               </button>
-              <button class="aycom-tool-btn" title="Add emoji">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button class="aycom-tool-btn" title="Add emoji" aria-label="Add emoji">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
                   <line x1="9" y1="9" x2="9.01" y2="9"/>

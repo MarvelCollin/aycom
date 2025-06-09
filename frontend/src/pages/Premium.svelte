@@ -6,12 +6,12 @@
   import MainLayout from '../components/layout/MainLayout.svelte';
   import Button from '../components/common/Button.svelte';
   import { 
-    CheckIcon, 
-    UserCheckIcon, 
-    ShieldIcon, 
-    UploadIcon,
     AlertCircleIcon 
   } from 'svelte-feather-icons';
+  import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
+  import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
+  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
+  import UploadIcon from 'svelte-feather-icons/src/icons/UploadIcon.svelte';
   
   // Get theme from the useTheme hook
   const { theme } = useTheme();
@@ -188,7 +188,9 @@
         
         <div class="verification-steps">
           <div class="step">
-            <div class="step-icon"><UserCheckIcon size="20" /></div>
+            <div class="step-icon user-check-icon">
+              <UserIcon size="20" />
+            </div>
             <div class="step-text">1. Submit your information</div>
           </div>
           <div class="step-connector"></div>
@@ -766,5 +768,37 @@
     .submit-btn, .cancel-btn {
       width: 100%;
     }
+  }
+  
+  .premium-container-dark .security-container {
+    background-color: var(--bg-dark-secondary);
+    border: 1px solid var(--border-dark);
+  }
+  
+  .premium-container-dark .security-header,
+  .premium-container-dark .security-features li {
+    color: var(--text-dark-primary);
+  }
+  
+  /* Custom user-check-icon style to replace UserCheckIcon */
+  .user-check-icon {
+    position: relative;
+  }
+  
+  .user-check-icon::after {
+    content: '✓';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    background-color: #1DA1F2;
+    color: white;
+    border-radius: 50%;
+    width: 12px;
+    height: 12px;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 </style> 

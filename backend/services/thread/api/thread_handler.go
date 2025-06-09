@@ -830,31 +830,113 @@ func (h *ThreadHandler) GetMediaByUser(ctx context.Context, req *thread.GetMedia
 func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetBookmarksByUserRequest) (*thread.ThreadsResponse, error) {
 	log.Printf("GetBookmarksByUser called with user_id=%s, page=%d, limit=%d", req.UserId, req.Page, req.Limit)
 
+	var finalError error
+
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC RECOVERED in GetBookmarksByUser: %v", r)
+			finalError = status.Error(codes.Internal, "Internal server error occurred")
+		}
+	}()
+
 	if req.UserId == "" {
 		log.Printf("ERROR: GetBookmarksByUser - Missing userID")
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
+	// Extract the requesting user ID from context metadata if available
+	var requestingUserID string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		userIDs := md.Get("user_id")
+		if len(userIDs) > 0 {
+			requestingUserID = userIDs[0]
+			log.Printf("GetBookmarksByUser: Request from authenticated user: %s", requestingUserID)
+		}
+	}
+
+	// Set default pagination values if not provided
+	page := int(req.Page)
+	limit := int(req.Limit)
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
 	// Get bookmarks using the interaction service
-	threads, count, err := h.interactionService.GetUserBookmarks(ctx, req.UserId, int(req.Page), int(req.Limit))
+	threads, count, err := h.interactionService.GetUserBookmarks(ctx, req.UserId, page, limit)
 	if err != nil {
 		log.Printf("ERROR: Failed to get user bookmarks: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to get bookmarks: %v", err)
 	}
 
+	// If no bookmarks found, return empty response instead of error
+	if len(threads) == 0 {
+		log.Printf("GetBookmarksByUser: No bookmarks found for user %s", req.UserId)
+		return &thread.ThreadsResponse{
+			Threads: []*thread.ThreadResponse{},
+			Total:   0,
+		}, nil
+	}
+
 	// Convert thread models to thread responses
 	threadResponses := make([]*thread.ThreadResponse, 0, len(threads))
 	for _, t := range threads {
-		threadResp, err := h.convertThreadToResponse(ctx, t)
-		if err != nil {
-			log.Printf("WARNING: Failed to convert thread %s to response: %v", t.ThreadID.String(), err)
+		// Skip any null threads
+		if t == nil {
 			continue
 		}
 
-		// Always set the bookmark status to true since these are from bookmarks
-		threadResp.BookmarkedByUser = true
+		// Wrap conversion in try-catch to prevent individual thread errors from breaking the entire response
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("PANIC in thread conversion for thread %v: %v", t.ThreadID, r)
+				}
+			}()
 
-		threadResponses = append(threadResponses, threadResp)
+			threadResp, err := h.convertThreadToResponse(ctx, t)
+			if err != nil {
+				log.Printf("WARNING: Failed to convert thread %s to response: %v", t.ThreadID.String(), err)
+				return
+			}
+
+			// Always set the bookmark status to true since these are from bookmarks
+			threadResp.BookmarkedByUser = true
+
+			// Check if user liked the thread
+			if requestingUserID != "" && h.interactionService != nil {
+				// Use a separate context with timeout for this operation
+				interactionCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+
+				// Check if user liked the thread
+				hasLiked, err := h.interactionService.HasUserLikedThread(interactionCtx, requestingUserID, t.ThreadID.String())
+				if err != nil {
+					log.Printf("WARNING: Failed to check if user %s liked thread %s: %v",
+						requestingUserID, t.ThreadID.String(), err)
+				} else {
+					threadResp.LikedByUser = hasLiked
+					log.Printf("Thread %s like status for user %s: %v",
+						t.ThreadID.String(), requestingUserID, hasLiked)
+				}
+
+				// Check if user reposted the thread
+				hasReposted, err := h.interactionService.HasUserReposted(interactionCtx, requestingUserID, t.ThreadID.String())
+				if err != nil {
+					log.Printf("WARNING: Failed to check if user %s reposted thread %s: %v",
+						requestingUserID, t.ThreadID.String(), err)
+				} else {
+					threadResp.RepostedByUser = hasReposted
+					log.Printf("Thread %s repost status for user %s: %v",
+						t.ThreadID.String(), requestingUserID, hasReposted)
+				}
+			}
+
+			threadResponses = append(threadResponses, threadResp)
+		}()
 	}
 
 	log.Printf("Successfully retrieved %d bookmarks for user %s", len(threadResponses), req.UserId)
@@ -864,7 +946,7 @@ func (h *ThreadHandler) GetBookmarksByUser(ctx context.Context, req *thread.GetB
 		Total:   int32(count),
 	}
 
-	return response, nil
+	return response, finalError
 }
 
 func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel *model.Thread) (*thread.ThreadResponse, error) {

@@ -342,7 +342,7 @@
         <TweetCard 
           tweet={thread} 
           {isDarkMode}
-          isAuthenticated={$isAuthenticated}
+          isAuth={$isAuthenticated}
           isLiked={thread.isLiked || thread.is_liked || false}
           isBookmarked={thread.isBookmarked || thread.is_bookmarked || false}
           showReplies={true}

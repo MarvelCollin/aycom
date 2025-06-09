@@ -8,7 +8,8 @@
     checkUserCommunityMembership, 
     requestToJoin,
     listMembers,
-    listRules
+    listRules,
+    removeMember
   } from '../api/community';
   import { getUserThreads } from '../api/thread';
   import { useAuth } from '../hooks/useAuth';
@@ -432,6 +433,66 @@
     { id: 'rules', label: 'Rules', icon: AlertCircleIcon },
     { id: 'about', label: 'About', icon: InfoIcon }
   ];
+  
+  // Function to handle join/leave community toggle
+  function toggleJoinCommunity() {
+    if (isMember) {
+      // Use removeMember function from API instead of leaveCommunity
+      removeMember(communityId, authState.user_id || '')
+        .then(() => {
+          isMember = false;
+          toastStore.showToast('Left community successfully', 'success');
+        })
+        .catch(error => {
+          logger.error('Error leaving community:', error);
+          toastStore.showToast('Failed to leave community', 'error');
+        });
+    } else {
+      // Use requestToJoin function instead of joinCommunity
+      handleJoinRequest();
+    }
+  }
+  
+  // Handle thread click - navigate to thread detail
+  function handleThreadClick(event) {
+    const tweet = event.detail;
+    if (!tweet || !tweet.id) {
+      console.error('Invalid tweet data for navigation', tweet);
+      return;
+    }
+    
+    const threadId = tweet.id;
+    console.log(`Navigating to thread detail: ${threadId}`);
+    
+    // Construct the URL for thread detail
+    const href = `/thread/${threadId}`;
+    
+    // Use navigation approach
+    try {
+      // First try to use history API for SPA navigation
+      window.history.pushState({threadId}, '', href);
+      
+      // Dispatch a custom navigation event to trigger router update
+      const navEvent = new CustomEvent('navigate', { 
+        detail: { href, threadId } 
+      });
+      window.dispatchEvent(navEvent);
+      
+      // Trigger popstate as a fallback
+      window.dispatchEvent(new PopStateEvent('popstate', {}));
+      
+      // If nothing works, reload the page after a short delay
+      setTimeout(() => {
+        if (window.location.pathname !== href) {
+          console.warn('Navigation did not update the URL, forcing page reload');
+          window.location.href = href;
+        }
+      }, 300);
+    } catch (error) {
+      console.error('Error in navigation:', error);
+      window.location.href = href; // Direct navigation as fallback
+    }
+  }
 </script>
 
 <MainLayout>
@@ -507,7 +568,10 @@
           {#if threads.length > 0}
             <div class="threads-container">
               {#each threads as thread (thread.id)}
-                <TweetCard tweet={thread as any} />
+                <TweetCard 
+                  tweet={thread as any} 
+                  on:click={handleThreadClick}
+                />
               {/each}
             </div>
           {:else}
@@ -604,7 +668,7 @@
   .community-detail {
     width: 100%;
     max-width: 100%;
-    min-height: 100vh;
+    min-height: 100vh;  
   }
   
   .loading-container,
