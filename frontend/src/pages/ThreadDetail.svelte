@@ -1,17 +1,37 @@
-<script>
-  import { onMount } from 'svelte';
-  import { getThread, getThreadReplies, getReplyReplies } from '../api/thread';
+<script lang="ts">
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { fade, slide } from 'svelte/transition';
+  import { getThread, getThreadReplies, getReplyReplies, replyToThread } from '../api/thread';
+  import { uploadMedia } from '../api/media';
   import TweetCard from '../components/social/TweetCard.svelte';
+  import ComposeTweetModal from '../components/social/ComposeTweetModal.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
+  import MediaOverlay from '../components/media/MediaOverlay.svelte';
+  import MainLayout from '../components/layout/MainLayout.svelte';
+  import Spinner from '../components/common/Spinner.svelte';
   import { toastStore } from '../stores/toastStore';
-  import { fade } from 'svelte/transition';
-  
-  // Use writable stores if the specific ones don't exist
-  import { writable } from 'svelte/store';
-  
-  // Create placeholder stores if they don't exist yet
-  const isAuthenticated = writable(true);
-  const userPreferences = writable({ darkMode: false });
+  import { tweetInteractionStore } from '../stores/tweetInteractionStore';
+  import { authStore } from '../stores/authStore';
+  import { useTheme } from '../hooks/useTheme';
+  import { generateFilePreview } from '../utils/common';
+  import { createLoggerWithPrefix } from '../utils/logger';
+  import type { ITweet } from '../interfaces/ISocialMedia';
+  import type { IReply } from '../interfaces/ISocialMedia';
+  import type { IMedia } from '../interfaces/IMedia';
+  import ArrowLeftIcon from 'svelte-feather-icons/src/icons/ArrowLeftIcon.svelte';
+  import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
+  import BookmarkIcon from 'svelte-feather-icons/src/icons/BookmarkIcon.svelte';
+  import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
+  import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
+  import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
+  import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
+  import VideoIcon from 'svelte-feather-icons/src/icons/VideoIcon.svelte';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
+  import SmileIcon from 'svelte-feather-icons/src/icons/SmileIcon.svelte';
+
+  const logger = createLoggerWithPrefix('ThreadDetail');
+  const dispatch = createEventDispatcher();
+  const { theme } = useTheme();
   
   export let threadId;
   let thread = null;
@@ -23,9 +43,7 @@
   let isLoadingReplies = false;
   let isDarkMode = false;
   
-  userPreferences.subscribe((prefs) => {
-    isDarkMode = prefs.darkMode;
-  });
+  $: isDarkMode = $theme === 'dark';
 
   // Function to load all replies and nested replies
   async function loadThreadWithReplies() {
@@ -101,7 +119,7 @@
   
   // Handle the reply action
   function handleReply(event) {
-    if (!$isAuthenticated) {
+    if (!authStore.isAuthenticated()) {
       toastStore.showToast('Please log in to reply', 'info');
       return;
     }
@@ -109,7 +127,7 @@
     const targetId = event.detail;
     
     // If replying to the main thread
-    if (targetId === thread.id) {
+    if (targetId === thread?.id) {
       replyTo = {
         id: thread.id,
         content: thread.content,
@@ -342,7 +360,7 @@
         <TweetCard 
           tweet={thread} 
           {isDarkMode}
-          isAuth={$isAuthenticated}
+          isAuth={authStore.isAuthenticated()}
           isLiked={thread.isLiked || thread.is_liked || false}
           isBookmarked={thread.isBookmarked || thread.is_bookmarked || false}
           showReplies={true}

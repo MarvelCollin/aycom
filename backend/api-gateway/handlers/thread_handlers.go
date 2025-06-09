@@ -705,6 +705,7 @@ func GetAllThreads(c *gin.Context) {
 			"likes_count":         thread.LikeCount,
 			"replies_count":       thread.ReplyCount,
 			"reposts_count":       thread.RepostCount,
+			"bookmark_count":      thread.BookmarkCount,
 			"is_liked":            thread.IsLiked,
 			"is_reposted":         thread.IsReposted,
 			"is_bookmarked":       thread.IsBookmarked,

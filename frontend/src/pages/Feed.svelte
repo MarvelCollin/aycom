@@ -44,23 +44,18 @@
   let loading = true;
   let error = null;
   
-  // Map to store replies for each thread
   let repliesMap = new Map<string, ExtendedTweet[]>();
-  // Map to track which threads have their replies showing
   let showRepliesMap = new Map<string, boolean>();
 
-  // Reply modal state
   let showReplyModal = false;
   let replyToTweet: ITweet | null = null;
   let replyText = '';
   let isSubmitting = false;
 
-  // Function to normalize reply structure - some APIs return nested 'reply' object
   function normalizeReplyStructure(replies) {
     if (!Array.isArray(replies)) return [];
     
     return replies.map(replyItem => {
-      // If the item has a 'reply' property containing the actual reply data
       if (replyItem.reply && typeof replyItem.reply === 'object') {
         console.log('DEBUG: Normalizing nested reply structure', {
           before: {

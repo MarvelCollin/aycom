@@ -64,6 +64,7 @@ type Thread struct {
 	LikeCount      int
 	ReplyCount     int
 	RepostCount    int
+	BookmarkCount  int
 	IsLiked        bool
 	IsReposted     bool
 	IsBookmarked   bool
@@ -704,8 +705,7 @@ func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit in
 		if !results[1].IsNil() {
 			err := results[1].Interface().(error)
 			log.Printf("GetUserBookmarks: Error from GetBookmarksByUser: %v", err)
-			log.Printf("GetUserBookmarks: Returning empty bookmarks list due to error")
-			return []*Thread{}, nil
+			return nil, fmt.Errorf("failed to get bookmarks: %w", err)
 		}
 
 		resp := results[0].Interface()
@@ -1061,6 +1061,7 @@ func convertProtoToThread(t any) *Thread {
 			thread.LikeCount = int(tr.LikesCount)
 			thread.ReplyCount = int(tr.RepliesCount)
 			thread.RepostCount = int(tr.RepostsCount)
+			thread.BookmarkCount = int(tr.BookmarkCount)
 			thread.IsLiked = tr.LikedByUser
 			thread.IsReposted = tr.RepostedByUser
 			thread.IsBookmarked = tr.BookmarkedByUser
@@ -1195,6 +1196,11 @@ func convertProtoToThread(t any) *Thread {
 		repostsCountField := v.FieldByName("RepostsCount")
 		if repostsCountField.IsValid() && repostsCountField.Kind() == reflect.Int64 {
 			thread.RepostCount = int(repostsCountField.Int())
+		}
+
+		bookmarkCountField := v.FieldByName("BookmarkCount")
+		if bookmarkCountField.IsValid() && bookmarkCountField.Kind() == reflect.Int64 {
+			thread.BookmarkCount = int(bookmarkCountField.Int())
 		}
 
 		likedByUserField := v.FieldByName("LikedByUser")

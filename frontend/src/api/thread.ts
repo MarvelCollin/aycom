@@ -1469,14 +1469,19 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
 
     const data = await response.json();
     logger.debug('Bookmarks API returned data:', data);
-    logger.debug(`Bookmarks count: ${data.bookmarks?.length || 0}`);
+    
+    // HANDLE BOTH RESPONSE FORMATS:
+    // 1. {data: {bookmarks: [...]}}
+    // 2. {bookmarks: [...]}
+    const bookmarks = data.data?.bookmarks || data.bookmarks || [];
+    logger.debug(`Bookmarks count: ${bookmarks.length}`);
 
     // Return data structure that matches what the frontend expects
     return {
       success: true,
-      bookmarks: data.bookmarks || [],
-      total: data.total || 0,
-      pagination: data.pagination || null
+      bookmarks: bookmarks,
+      total: data.data?.total || data.total || bookmarks.length,
+      pagination: data.data?.pagination || data.pagination || null
     };
   } catch (err) {
     logger.error('Error getting user bookmarks:', err);

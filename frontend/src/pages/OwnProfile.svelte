@@ -1057,23 +1057,37 @@
   
   onMount(async () => {
     try {
-      // Load profile data
-      const profileResponse = await getUserById(profileUserId);
+      // Load profile data - use different methods for own vs other profiles
+      let profileResponse;
+      if (isOwnProfile) {
+        profileResponse = await getProfile();
+        console.log('getProfile API response:', profileResponse);
+      } else {
+        profileResponse = await getUserById(profileUserId);
+        console.log('getUserById API response:', profileResponse);
+      }
+      
+      // Extract user data from response
+      const userData = profileResponse.user || profileResponse;
+      
       profileData = {
-        id: profileResponse.id || '',
-        username: profileResponse.username || '',
-        displayName: profileResponse.name || profileResponse.display_name || '',
-        bio: profileResponse.bio || '',
-        profilePicture: profileResponse.profile_picture_url || DEFAULT_AVATAR,
-        backgroundBanner: profileResponse.banner_url || '',
-        followerCount: profileResponse.follower_count || 0,
-        followingCount: profileResponse.following_count || 0,
-        joinedDate: profileResponse.created_at || '',
-        email: profileResponse.email || '',
-        dateOfBirth: profileResponse.date_of_birth || '',
-        gender: profileResponse.gender || '',
-        isVerified: profileResponse.is_verified || false
+        id: userData.id || '',
+        username: userData.username || '',
+        displayName: userData.name || userData.display_name || '',
+        bio: userData.bio || '',
+        profilePicture: userData.profile_picture_url || DEFAULT_AVATAR,
+        backgroundBanner: userData.banner_url || userData.background_banner_url || '',
+        followerCount: userData.follower_count || 0,
+        followingCount: userData.following_count || 0,
+        joinedDate: userData.created_at ? new Date(userData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '',
+        email: isOwnProfile ? (userData.email || '') : '',
+        dateOfBirth: isOwnProfile ? (userData.date_of_birth || '') : '',
+        gender: isOwnProfile ? (userData.gender || '') : '',
+        isVerified: userData.is_verified || false
       };
+      
+      console.log('Profile loaded with username:', profileData.username);
+      console.log('Profile loaded with displayName:', profileData.displayName);
 
       // Load initial tab content
       await loadTabContent(activeTab);
