@@ -1,33 +1,40 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page, updatePageStore } from '../stores/routeStore';
-  import { isAuthenticated as checkAuthentication } from '../utils/auth';
+  import appConfig from '../config/appConfig';
+  import { isAuthenticated } from '../utils/auth';
+  import { writable } from 'svelte/store';
+
+  // Create page store
+  export const currentPage = writable({ route: '/', userProfileId: '', communityId: '', threadId: '' });
+
+  // Import pages
+  import Landing from '../pages/Landing.svelte';
   import Login from '../pages/Login.svelte';
   import Register from '../pages/Register.svelte';
+  import ForgotPassword from '../pages/ForgotPassword.svelte';
   import Feed from '../pages/Feed.svelte';
-  import Landing from '../pages/Landing.svelte';
   import GoogleCallback from '../pages/GoogleCallback.svelte';
   import Explore from '../pages/Explore.svelte';
-  import Message from '../pages/Message.svelte';
   import Notification from '../pages/Notification.svelte';
+  import Message from '../pages/Message.svelte';
+  import OwnProfile from '../pages/OwnProfile.svelte';
   import Bookmarks from '../pages/Bookmarks.svelte';
   import Communities from '../pages/Communities.svelte';
-  import CommunityDetail from '../pages/CommunityDetail.svelte';
   import Admin from '../pages/Admin.svelte';
-  import ForgotPassword from '../pages/ForgotPassword.svelte';
-  import appConfig from '../config/appConfig';
-  import OwnProfile from '../pages/OwnProfile.svelte';
+  import CommunityDetail from '../pages/CommunityDetail.svelte';
   import UserProfile from '../pages/UserProfile.svelte';
   import Premium from '../pages/Premium.svelte';
   import Setting from '../pages/Setting.svelte';
   import WebSocketTest from '../pages/WebSocketTest.svelte';
+  import ThreadDetail from '../pages/ThreadDetail.svelte';
 
   let route = '/';
   let authStatus = false;
   let userProfileId = '';
   let communityId = '';
+  let threadId = '';
 
-  function handleNavigation(event) {
+  function handleNavigation() {
     const fullPath = window.location.pathname;
     console.log('Handling navigation to:', fullPath);
 
@@ -51,12 +58,22 @@
       return;
     }
 
+    // Extract thread ID from URL
+    const threadDetailMatch = fullPath.match(/^\/thread\/([^\/]+)$/);
+    if (threadDetailMatch) {
+      threadId = threadDetailMatch[1];
+      route = '/thread-detail';
+      console.log(`Thread detail route matched with threadId: ${threadId}`);
+      updatePageStore();
+      return;
+    }
+
     // Handle normal routes
     route = fullPath;
     updatePageStore();
 
     // Check authentication for protected routes
-    authStatus = checkAuthentication();
+    authStatus = isAuthenticated();
     console.log(`Authentication status: ${authStatus}`);
 
     if (!appConfig.auth.enabled) {
@@ -71,6 +88,7 @@
          route === '/bookmarks' ||
          route === '/communities' ||
          route === '/community-detail' ||
+         route === '/thread-detail' ||
          route === '/premium' ||
          route === '/profile' ||
          route === '/settings' ||
@@ -91,11 +109,24 @@
     }
   }
 
+  // Update the page store
+  function updatePageStore() {
+    currentPage.set({ route, userProfileId, communityId, threadId });
+  }
+
+  // Type definition for the custom navigation event
+  interface NavigateEvent {
+    communityId?: string;
+    threadId?: string;
+    [key: string]: any;
+  }
+
   onMount(() => {
     window.addEventListener('popstate', handleNavigation);
     
-    // Add a custom event listener for navigation events
-    window.addEventListener('navigate', (event) => {
+    // Define type-safe event handler for 'navigate' custom event
+    function handleNavigateEvent(e: Event) {
+      const event = e as CustomEvent<NavigateEvent>;
       console.log('Custom navigation event received:', event.detail);
       
       // If the event includes a communityId, set it directly
@@ -103,8 +134,16 @@
         communityId = event.detail.communityId;
       }
       
-      handleNavigation(event);
-    });
+      // If the event includes a threadId, set it directly
+      if (event.detail && event.detail.threadId) {
+        threadId = event.detail.threadId;
+      }
+      
+      handleNavigation();
+    }
+    
+    // Add the event listener
+    window.addEventListener('navigate', handleNavigateEvent as EventListener);
     
     handleNavigation();
 
@@ -125,7 +164,7 @@
 
     return () => {
       window.removeEventListener('popstate', handleNavigation);
-      window.removeEventListener('navigate', handleNavigation);
+      window.removeEventListener('navigate', handleNavigateEvent as EventListener);
     };
   });
 </script>
@@ -163,6 +202,8 @@
     <Communities />
   {:else if route === '/community-detail'}
     <CommunityDetail communityId={communityId} />
+  {:else if route === '/thread-detail'}
+    <ThreadDetail threadId={threadId} />
   {:else if route === '/premium'}
     <Premium />
   {:else if route === '/settings'}

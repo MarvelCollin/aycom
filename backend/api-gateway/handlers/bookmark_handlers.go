@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"aycom/backend/api-gateway/utils"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,17 +11,23 @@ import (
 )
 
 func GetUserBookmarks(c *gin.Context) {
+	log.Printf("GetUserBookmarks: Processing request from IP %s", c.ClientIP())
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
+		log.Printf("GetUserBookmarks: No userId in context - unauthorized")
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 		return
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
+		log.Printf("GetUserBookmarks: userID is not a string: %v (type: %T)", userIDAny, userIDAny)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID format")
 		return
 	}
+
+	log.Printf("GetUserBookmarks: Processing bookmarks for user: %s", userID)
 
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
@@ -35,17 +42,24 @@ func GetUserBookmarks(c *gin.Context) {
 		limit = 10
 	}
 
+	log.Printf("GetUserBookmarks: Fetching page %d with limit %d", page, limit)
+
 	threadClient := GetThreadServiceClient()
 	if threadClient == nil {
+		log.Printf("GetUserBookmarks: Thread service client is nil (unavailable)")
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service unavailable")
 		return
 	}
 
+	log.Printf("GetUserBookmarks: Calling threadClient.GetUserBookmarks for user %s", userID)
 	bookmarkedThreads, err := threadClient.GetUserBookmarks(userID, page, limit)
 	if err != nil {
+		log.Printf("GetUserBookmarks: Error fetching bookmarks: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch bookmarks: "+err.Error())
 		return
 	}
+
+	log.Printf("GetUserBookmarks: Retrieved %d bookmarked threads for user %s", len(bookmarkedThreads), userID)
 
 	bookmarks := make([]gin.H, len(bookmarkedThreads))
 	for i, thread := range bookmarkedThreads {
@@ -57,9 +71,10 @@ func GetUserBookmarks(c *gin.Context) {
 			"likes_count":         thread.LikeCount,
 			"replies_count":       thread.ReplyCount,
 			"reposts_count":       thread.RepostCount,
+			"bookmark_count":      0, // Default value since we don't track this specifically
 			"is_liked":            thread.IsLiked,
 			"is_reposted":         thread.IsReposted,
-			"is_bookmarked":       thread.IsBookmarked,
+			"is_bookmarked":       true,
 			"is_pinned":           thread.IsPinned,
 			"user_id":             thread.UserID,
 			"username":            thread.Username,
@@ -83,6 +98,8 @@ func GetUserBookmarks(c *gin.Context) {
 
 		bookmarks[i] = threadData
 	}
+
+	log.Printf("GetUserBookmarks: Successfully processed and returning %d bookmarks", len(bookmarks))
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"bookmarks": bookmarks,

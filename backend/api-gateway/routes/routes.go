@@ -116,7 +116,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	// Alternative search endpoint that avoids category joins
 	// Temporarily disabled due to persistent 500 errors
-	// v1.GET("/communities/name-search", handlers.SearchCommunityByName) 
+	// v1.GET("/communities/name-search", handlers.SearchCommunityByName)
 
 	// Other community public endpoints
 	v1.GET("/communities", handlers.ListCommunities)
@@ -220,8 +220,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	bookmarks.Use(middleware.JWTAuth(jwtSecret))
 	{
 		bookmarks.GET("", handlers.GetUserBookmarks)
-		bookmarks.GET("/search", handlers.SearchBookmarks)
-		bookmarks.DELETE("/:id", handlers.DeleteBookmarkById)
 	}
 	media := v1.Group("/media")
 	media.Use(middleware.JWTAuth(jwtSecret))

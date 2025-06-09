@@ -15,7 +15,6 @@
   import { useTheme } from '../hooks/useTheme';
   import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
   import type { IAuthStore } from '../interfaces/IAuth';
-    // Import ITweet interface or create Thread interface that extends it
   interface ITweet {
     id: string;
     content?: string;
@@ -239,15 +238,29 @@
             const membershipResponse = await checkUserCommunityMembership(communityId);
             console.log('Membership response:', membershipResponse);
             
+            interface MembershipData {
+              is_member?: boolean;
+              status?: string;
+            }
+            
+            interface MembershipResponse {
+              status?: string;
+              is_member?: boolean;
+              data?: MembershipData;
+            }
+            
+            // Cast the response to the proper type
+            const typedResponse = membershipResponse as MembershipResponse;
+            
             // Check various response formats for membership status
-            if (membershipResponse?.status === 'member' || 
-                membershipResponse?.is_member === true || 
-                membershipResponse?.data?.is_member === true ||
-                membershipResponse?.data?.status === 'member') {
+            if (typedResponse?.status === 'member' || 
+                typedResponse?.is_member === true || 
+                typedResponse?.data?.is_member === true ||
+                typedResponse?.data?.status === 'member') {
               isMember = true;
               console.log('User is a member of this community');
-            } else if (membershipResponse?.status === 'pending' || 
-                      membershipResponse?.data?.status === 'pending') {
+            } else if (typedResponse?.status === 'pending' || 
+                       typedResponse?.data?.status === 'pending') {
               isPending = true;
               console.log('User has a pending join request for this community');
             } else {

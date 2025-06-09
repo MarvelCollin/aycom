@@ -11,14 +11,22 @@
   // Reactive declarations
   $: isDarkMode = $theme === 'dark';
   
-  // Props
-  export let media: Array<{
+  // Define raw thread types to handle different API response formats
+  type MediaItem = {
+    url: string;
+    type: string;
+  };
+  
+  type ThreadWithMedia = {
     id: string;
-    media?: Array<{
-      url: string;
-      type: string;
-    }>;
-  }> = [];
+    media?: MediaItem[];
+    attachments?: MediaItem[];
+    images?: string[];
+    videos?: string[];
+  };
+  
+  // Props
+  export let media: ThreadWithMedia[] = [];
   export let isLoading = false;
   export let hasMore = true;
   
@@ -60,17 +68,24 @@
   }
   
   // Get appropriate media element based on type
-  function getMediaElement(mediaItem: { url: string; type: string }) {
+  function getMediaElement(mediaItem: { url: string; type?: string }) {
     if (!mediaItem || !mediaItem.url) {
       return null;
     }
     
-    if (mediaItem.type && mediaItem.type.includes('video')) {
+    // Extract file extension for type inference if not provided
+    const url = mediaItem.url;
+    const fileExt = url.split('.').pop()?.toLowerCase() || '';
+    
+    // Determine media type from explicit type or file extension
+    const type = mediaItem.type || '';
+    
+    if (type.includes('video') || ['mp4', 'webm', 'mov'].includes(fileExt)) {
       return {
         type: 'video',
         url: mediaItem.url
       };
-    } else if (mediaItem.type && mediaItem.type.includes('gif')) {
+    } else if (type.includes('gif') || fileExt === 'gif') {
       return {
         type: 'gif',
         url: mediaItem.url
@@ -88,16 +103,63 @@
     window.location.href = `/thread/${threadId}`;
   }
   
+  // Process media with proper error handling and format normalization
+  function processThreadMedia(threads: ThreadWithMedia[]) {
+    if (!threads || !Array.isArray(threads)) {
+      logger.warn('Invalid threads data:', threads);
+      return [];
+    }
+    
+    logger.debug(`Processing ${threads.length} threads for media`);
+    
+    return threads
+      .filter(thread => thread && typeof thread === 'object')
+      .flatMap(thread => {
+        // Check for various media properties
+        let threadMedia: MediaItem[] = [];
+        
+        // Handle standard media array
+        if (thread.media && Array.isArray(thread.media)) {
+          threadMedia = thread.media;
+        }
+        // Handle attachments array
+        else if (thread.attachments && Array.isArray(thread.attachments)) {
+          threadMedia = thread.attachments;
+        }
+        // Handle separate images/videos arrays
+        else {
+          // Handle images array
+          if (thread.images && Array.isArray(thread.images)) {
+            threadMedia = [
+              ...threadMedia,
+              ...thread.images.map(url => ({ url, type: 'image' }))
+            ];
+          }
+          
+          // Handle videos array
+          if (thread.videos && Array.isArray(thread.videos)) {
+            threadMedia = [
+              ...threadMedia,
+              ...thread.videos.map(url => ({ url, type: 'video' }))
+            ];
+          }
+        }
+        
+        // Map each media to a standardized format with thread reference
+        return threadMedia
+          .map(mediaItem => ({
+            threadId: thread.id,
+            media: getMediaElement(mediaItem)
+          }))
+          .filter(item => item.media !== null);
+      });
+  }
+  
   // Get all media items flattened
-  $: flattenedMedia = media
-    .filter(item => item.media && item.media.length > 0)
-    .flatMap(item => item.media.map(mediaItem => ({
-      threadId: item.id,
-      media: getMediaElement(mediaItem)
-    })))
-    .filter(item => item.media !== null);
+  $: flattenedMedia = processThreadMedia(media);
   
   onMount(() => {
+    logger.debug('ExploreMediaResults component mounted');
     setupIntersectionObserver();
   });
   
@@ -111,7 +173,7 @@
 <div class="p-4">
   <h2 class="font-bold text-xl mb-4">Media</h2>
   
-  {#if isLoading && media.length === 0}
+  {#if isLoading && flattenedMedia.length === 0}
     <div class="animate-pulse grid grid-cols-3 gap-2">
       {#each Array(9) as _}
         <div class="aspect-square bg-gray-200 dark:bg-gray-800 rounded-md"></div>
@@ -128,13 +190,13 @@
           class="aspect-square bg-gray-100 dark:bg-gray-900 flex items-center justify-center overflow-hidden rounded-md hover:opacity-90 transition-opacity"
           on:click={() => navigateToThread(item.threadId)}
         >
-          {#if item.media.type === 'video'}
+          {#if item.media && item.media.type === 'video'}
             <video src={item.media.url} class="w-full h-full object-cover" />
-          {:else if item.media.type === 'gif'}
+          {:else if item.media && item.media.type === 'gif'}
             <img src={item.media.url} alt="GIF" class="w-full h-full object-cover" />
-          {:else}
+          {:else if item.media}
             <img src={item.media.url} alt="Image" class="w-full h-full object-cover" />
-            {/if}
+          {/if}
         </button>
       {/each}
     </div>

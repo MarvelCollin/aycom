@@ -969,7 +969,8 @@ export async function searchUsers(
       };
     }
     
-    // The API wraps results in a 'data' object
+    // The API response structure is { "data": { "users": [...], "pagination": {...} }, "success": true }
+    // We need to properly unwrap this structure
     const data = responseJson.data || responseJson;
     console.log('Search results unwrapped data:', data);
     

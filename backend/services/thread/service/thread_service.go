@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"aycom/backend/proto/thread"
@@ -171,14 +172,37 @@ func (s *threadService) GetThreadsByUserID(ctx context.Context, userID string, p
 	}
 
 	if userID == "" {
+		log.Printf("Empty userID provided, falling back to GetAllThreads")
 		return s.GetAllThreads(ctx, page, limit)
 	}
 
-	threads, err := s.threadRepo.FindThreadsByUserID(userID, page, limit)
+	log.Printf("Getting threads for user ID: %s, page: %d, limit: %d", userID, page, limit)
+
+	// Validate UUID
+	_, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("Invalid UUID format for user ID %s: %v", userID, err)
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid user ID format: %v", err)
+	}
+
+	// Database query with panic recovery
+	var threads []*model.Thread
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC in GetThreadsByUserID: %v", r)
+				err = status.Errorf(codes.Internal, "Internal server error occurred")
+			}
+		}()
+		threads, err = s.threadRepo.FindThreadsByUserID(userID, page, limit)
+	}()
+
+	if err != nil {
+		log.Printf("Error getting threads for user %s: %v", userID, err)
 		return nil, status.Errorf(codes.Internal, "Failed to retrieve threads: %v", err)
 	}
 
+	log.Printf("Successfully retrieved %d threads for user %s", len(threads), userID)
 	return threads, nil
 }
 

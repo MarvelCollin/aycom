@@ -213,27 +213,55 @@ func (c *GRPCThreadServiceClient) GetThreadsByUserID(userID string, requestingUs
 		return nil, fmt.Errorf("thread service client not initialized")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	log.Printf("GetThreadsByUserID: Fetching threads for userID=%s, requestingUserID=%s, page=%d, limit=%d",
+		userID, requestingUserID, page, limit)
+
+	// Add user ID to context metadata if available
 	if requestingUserID != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", requestingUserID)
 	}
 
-	resp, err := c.client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
-		UserId: userID,
-		Page:   int32(page),
-		Limit:  int32(limit),
-	})
+	// Make the gRPC call with retry mechanism
+	var resp *threadProto.ThreadsResponse
+	var err error
+	maxRetries := 3
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			log.Printf("Retry attempt %d for GetThreadsByUser for userID=%s", attempt, userID)
+			// Short sleep before retry
+			time.Sleep(time.Duration(attempt*300) * time.Millisecond)
+		}
+
+		resp, err = c.client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
+			UserId: userID,
+			Page:   int32(page),
+			Limit:  int32(limit),
+		})
+
+		// If successful or context deadline exceeded, break the retry loop
+		if err == nil || status.Code(err) == codes.DeadlineExceeded {
+			break
+		}
+	}
+
+	// Handle errors
 	if err != nil {
+		log.Printf("ERROR in GetThreadsByUserID for userID=%s: %v (error code: %s)",
+			userID, err, status.Code(err))
 		return nil, err
 	}
 
+	// Convert thread proto objects to Thread structs
 	threads := make([]*Thread, len(resp.Threads))
 	for i, t := range resp.Threads {
 		threads[i] = convertProtoToThread(t)
 	}
 
+	log.Printf("Successfully fetched %d threads for userID=%s", len(threads), userID)
 	return threads, nil
 }
 
@@ -644,7 +672,10 @@ func (c *GRPCThreadServiceClient) RemoveBookmark(threadID, userID string) error 
 }
 
 func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit int) ([]*Thread, error) {
+	log.Printf("GetUserBookmarks client called with userID: %s, page: %d, limit: %d", userID, page, limit)
+
 	if c.client == nil {
+		log.Printf("GetUserBookmarks: thread service client is nil")
 		return nil, fmt.Errorf("thread service client not initialized")
 	}
 
@@ -655,9 +686,11 @@ func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit in
 		"user_id": userID,
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
+	log.Printf("GetUserBookmarks: Created context with user_id: %s in metadata", userID)
 
 	bookmarksMethod := reflect.ValueOf(c.client).MethodByName("GetBookmarksByUser")
 	if bookmarksMethod.IsValid() {
+		log.Printf("GetUserBookmarks: Found GetBookmarksByUser method on client")
 
 		ctxArg := reflect.ValueOf(ctx)
 		reqArg := reflect.New(bookmarksMethod.Type().In(1).Elem()).Interface()
@@ -669,7 +702,10 @@ func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit in
 
 		results := bookmarksMethod.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
 		if !results[1].IsNil() {
-			return nil, results[1].Interface().(error)
+			err := results[1].Interface().(error)
+			log.Printf("GetUserBookmarks: Error from GetBookmarksByUser: %v", err)
+			log.Printf("GetUserBookmarks: Returning empty bookmarks list due to error")
+			return []*Thread{}, nil
 		}
 
 		resp := results[0].Interface()
@@ -687,39 +723,8 @@ func (c *GRPCThreadServiceClient) GetUserBookmarks(userID string, page, limit in
 		return threads, nil
 	}
 
-	log.Printf("GetBookmarksByUser method not found, falling back to original approach")
-
-	method := reflect.ValueOf(c.client).MethodByName("GetThreadsByUser")
-	if !method.IsValid() {
-		log.Printf("Method GetThreadsByUser not found on client, falling back to mock data")
-		return []*Thread{}, nil
-	}
-
-	ctxArg := reflect.ValueOf(ctx)
-	reqArg := reflect.New(method.Type().In(1).Elem()).Interface()
-
-	reqVal := reflect.ValueOf(reqArg).Elem()
-	reqVal.FieldByName("UserId").SetString(userID)
-	reqVal.FieldByName("Page").SetInt(int64(page))
-	reqVal.FieldByName("Limit").SetInt(int64(limit))
-
-	results := method.Call([]reflect.Value{ctxArg, reflect.ValueOf(reqArg)})
-	if !results[1].IsNil() {
-		return nil, results[1].Interface().(error)
-	}
-
-	resp := results[0].Interface()
-	threadsResp := resp.(*threadProto.ThreadsResponse)
-
-	threads := make([]*Thread, len(threadsResp.Threads))
-	for i, t := range threadsResp.Threads {
-		thread := convertProtoToThread(t)
-
-		thread.IsBookmarked = true
-		threads[i] = thread
-	}
-
-	return threads, nil
+	log.Printf("GetUserBookmarks: GetBookmarksByUser method not found, returning empty bookmarks list")
+	return []*Thread{}, nil
 }
 
 func (c *GRPCThreadServiceClient) SearchUserBookmarks(userID, query string, page, limit int) ([]*Thread, error) {

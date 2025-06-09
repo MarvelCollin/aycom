@@ -943,13 +943,18 @@ export async function searchCommunities(
     // Clean up the query string
     const cleanQuery = query ? query.trim() : '';
     
-    // Simple params setup
+    // Set up params for API call
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
     
-    // Always use the base communities endpoint
-    const response = await fetch(`${API_BASE_URL}/communities?${params.toString()}`, {
+    // Add search query if provided
+    if (cleanQuery) {
+      params.append('q', cleanQuery);
+    }
+    
+    // Use the communities search endpoint
+    const response = await fetch(`${API_BASE_URL}/communities/search?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -965,6 +970,7 @@ export async function searchCommunities(
     
     // Parse the response
     const data = await response.json();
+    logger.debug('Communities search API response:', data);
     
     // Get communities from response
     let communities = [];
@@ -978,8 +984,8 @@ export async function searchCommunities(
       totalCount = data.total_count || 0;
     }
     
-    // If there's a search query, filter communities client-side
-    if (cleanQuery) {
+    // If there's no search endpoint and we're doing client-side filtering
+    if (cleanQuery && !response.url.includes('/search')) {
       const lowerQuery = cleanQuery.toLowerCase();
       communities = communities.filter((community: any) => {
         if (!community) return false;

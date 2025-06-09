@@ -11,20 +11,44 @@
   // Reactive declarations
   $: isDarkMode = $theme === 'dark';
   
-  // Props
-  export let communityResults: Array<{
+  // Define a more flexible community type to handle different API response formats
+  type RawCommunity = {
     id: string;
     name: string;
     description?: string;
     logo?: string | null;
+    logo_url?: string | null;
+    avatar?: string | null;
     memberCount?: number;
+    member_count?: number;
     isJoined?: boolean;
+    is_joined?: boolean;
     isPending?: boolean;
-  }> = [];
+    is_pending?: boolean;
+  };
+  
+  // Props
+  export let communityResults: RawCommunity[] = [];
   export let isLoading = false;
   export let communitiesPerPage = 25;
   export let currentPage = 1;
   export let totalCount = 0;
+  
+  // Process community results to ensure consistent data format
+  $: processedCommunities = communityResults
+    .filter(community => community && typeof community === 'object')
+    .map(community => {
+      // Map keys to the expected format that CommunityCard requires
+      return {
+        id: community.id || '',
+        name: community.name || '',
+        description: community.description || '',
+        logo: community.logo || community.logo_url || community.avatar || null,
+        memberCount: community.memberCount || community.member_count || 0,
+        isJoined: community.isJoined || community.is_joined || false,
+        isPending: community.isPending || community.is_pending || false
+      };
+    });
   
   // Calculate total pages
   $: totalPages = Math.ceil(totalCount / communitiesPerPage);
@@ -67,8 +91,8 @@
   // Log when community results change
   $: {
     if (!isLoading) {
-      if (communityResults.length > 0) {
-        logger.debug('Community results loaded', { count: communityResults.length });
+      if (processedCommunities.length > 0) {
+        logger.debug('Community results loaded', { count: processedCommunities.length });
       } else {
         logger.debug('No community results found');
       }
@@ -117,13 +141,13 @@
         <div class="bg-gray-200 dark:bg-gray-800 h-24 rounded-lg"></div>
       {/each}
     </div>
-  {:else if communityResults.length === 0}
+  {:else if processedCommunities.length === 0}
     <div class="text-center py-8">
       <p class="text-gray-500 dark:text-gray-400">No communities found matching your search.</p>
     </div>
   {:else}
     <div class="space-y-4">
-      {#each communityResults as community}
+      {#each processedCommunities as community}
           <CommunityCard {community} on:joinRequest={handleJoinRequest} />
       {/each}
       

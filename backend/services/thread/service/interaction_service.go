@@ -21,6 +21,7 @@ type InteractionService interface {
 	UnlikeReply(ctx context.Context, userID, replyID string) error
 	HasUserLikedThread(ctx context.Context, userID, threadID string) (bool, error)
 	HasUserLikedReply(ctx context.Context, userID, replyID string) (bool, error)
+	GetThreadLikeCount(ctx context.Context, threadID string) (int64, error)
 
 	RepostThread(ctx context.Context, userID, threadID string, repostText *string) error
 	RemoveRepost(ctx context.Context, userID, threadID string) error
@@ -173,6 +174,19 @@ func (s *interactionService) HasUserLikedReply(ctx context.Context, userID, repl
 	}
 
 	return s.interactionRepo.IsReplyLikedByUser(userID, replyID)
+}
+
+func (s *interactionService) GetThreadLikeCount(ctx context.Context, threadID string) (int64, error) {
+	if threadID == "" {
+		return 0, status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
+
+	count, err := s.interactionRepo.CountThreadLikes(threadID)
+	if err != nil {
+		return 0, status.Errorf(codes.Internal, "Failed to count thread likes: %v", err)
+	}
+
+	return count, nil
 }
 
 func (s *interactionService) RepostThread(ctx context.Context, userID, threadID string, repostText *string) error {

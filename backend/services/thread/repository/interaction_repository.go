@@ -356,13 +356,14 @@ func (r *PostgresInteractionRepository) BookmarkThread(userID, threadID string) 
 		log.Printf("Invalid UUID format for thread ID: %s - %v", threadID, err)
 		return errors.New("invalid UUID format for thread ID")
 	}
-	err = r.db.Exec(`
-		INSERT INTO bookmarks (user_id, thread_id, created_at, deleted_at)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id, thread_id) WHERE thread_id IS NOT NULL AND reply_id IS NULL AND deleted_at IS NULL DO NOTHING`,
-		userUUID, threadUUID, time.Now(), nil).Error
 
-	if err != nil {
+	bookmark := &model.Bookmark{
+		UserID:    userUUID,
+		ThreadID:  threadUUID,
+		CreatedAt: time.Now(),
+	}
+
+	if err := r.CreateBookmark(bookmark); err != nil {
 		log.Printf("Error creating bookmark: %v", err)
 		return fmt.Errorf("failed to create bookmark: %w", err)
 	}
@@ -445,13 +446,18 @@ func (r *PostgresInteractionRepository) IsThreadBookmarkedByUser(userID, threadI
 }
 
 func (r *PostgresInteractionRepository) GetUserBookmarks(userID string, page, limit int) ([]*model.Thread, error) {
+	log.Printf("GetUserBookmarks called with userID: %s, page: %d, limit: %d", userID, page, limit)
+
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
+		log.Printf("ERROR: Invalid UUID format for user ID: %s - %v", userID, err)
 		return nil, errors.New("invalid UUID format for user ID")
 	}
 
 	var threads []*model.Thread
 	offset := (page - 1) * limit
+
+	log.Printf("Executing query to get bookmarks for user %s with offset %d and limit %d", userID, offset, limit)
 
 	result := r.db.Table("threads").
 		Joins("JOIN bookmarks ON threads.thread_id = bookmarks.thread_id").
@@ -462,8 +468,11 @@ func (r *PostgresInteractionRepository) GetUserBookmarks(userID string, page, li
 		Find(&threads)
 
 	if result.Error != nil {
+		log.Printf("ERROR: Failed to get bookmarks: %v", result.Error)
 		return nil, result.Error
 	}
+
+	log.Printf("Successfully retrieved %d bookmarks for user %s", len(threads), userID)
 
 	return threads, nil
 }
@@ -618,7 +627,6 @@ func (r *PostgresInteractionRepository) BookmarkExists(userID, threadID string) 
 }
 
 func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark) error {
-
 	var count int64
 	if err := r.db.Model(&model.Bookmark{}).
 		Where("user_id = ? AND thread_id = ? AND deleted_at IS NULL", bookmark.UserID, bookmark.ThreadID).
@@ -627,7 +635,6 @@ func (r *PostgresInteractionRepository) CreateBookmark(bookmark *model.Bookmark)
 	}
 
 	if count > 0 {
-
 		return nil
 	}
 

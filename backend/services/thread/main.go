@@ -86,6 +86,8 @@ func initThreadService() {
 		interactionRepo,
 		userClient,
 		hashtagRepo,
+		threadRepo,
+		mediaRepo,
 	)
 
 	var opts []grpc.ServerOption

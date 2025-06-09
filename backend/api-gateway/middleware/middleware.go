@@ -65,7 +65,14 @@ func CORS() gin.HandlerFunc {
 
 func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Printf("Processing JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
+		path := c.Request.URL.Path
+		isBookmarksEndpoint := strings.Contains(path, "/bookmarks")
+
+		if isBookmarksEndpoint {
+			log.Printf("JWTAuth: Processing auth for bookmarks endpoint: %s %s", c.Request.Method, path)
+		} else {
+			log.Printf("Processing JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
+		}
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -79,7 +86,11 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		log.Printf("Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
+		if isBookmarksEndpoint {
+			log.Printf("JWTAuth (bookmarks): Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
+		} else {
+			log.Printf("Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
+		}
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
@@ -94,7 +105,11 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		}
 
 		token := parts[1]
-		log.Printf("Token length: %d chars", len(token))
+		if isBookmarksEndpoint {
+			log.Printf("JWTAuth (bookmarks): Token length: %d chars", len(token))
+		} else {
+			log.Printf("Token length: %d chars", len(token))
+		}
 
 		if token == "" {
 			log.Printf("Empty token provided")
@@ -118,7 +133,11 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		})
 
 		if err != nil {
-			log.Printf("JWT parse error: %v", err)
+			if isBookmarksEndpoint {
+				log.Printf("JWTAuth (bookmarks): JWT parse error: %v", err)
+			} else {
+				log.Printf("JWT parse error: %v", err)
+			}
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": "User not authenticated",
@@ -129,7 +148,11 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		}
 
 		if !parsedToken.Valid {
-			log.Printf("Invalid JWT token")
+			if isBookmarksEndpoint {
+				log.Printf("JWTAuth (bookmarks): Invalid JWT token")
+			} else {
+				log.Printf("Invalid JWT token")
+			}
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": "User not authenticated",
@@ -141,22 +164,40 @@ func JWTAuth(secret string) gin.HandlerFunc {
 
 		// First try to get user ID from the standard "sub" claim
 		userIdClaim := claims["sub"]
-		log.Printf("JWT Middleware: Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
+		if isBookmarksEndpoint {
+			log.Printf("JWTAuth (bookmarks): Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
+		} else {
+			log.Printf("JWT Middleware: Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
+		}
 
 		userIdStr, ok := userIdClaim.(string)
 		if !ok {
 			// Fallback to "user_id" for backward compatibility
 			userIdClaim = claims["user_id"]
-			log.Printf("JWT Middleware: No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+			if isBookmarksEndpoint {
+				log.Printf("JWTAuth (bookmarks): No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+			} else {
+				log.Printf("JWT Middleware: No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+			}
 
 			userIdStr, ok = userIdClaim.(string)
 			if !ok {
-				log.Printf("JWT Middleware: No valid user identifier in token claims")
+				if isBookmarksEndpoint {
+					log.Printf("JWTAuth (bookmarks): No valid user identifier in token claims")
 
-				// Log all available claims for debugging
-				log.Printf("JWT Middleware: Available claims:")
-				for key, value := range claims {
-					log.Printf("  %s: %v (Type: %T)", key, value, value)
+					// Log all available claims for debugging
+					log.Printf("JWTAuth (bookmarks): Available claims:")
+					for key, value := range claims {
+						log.Printf("  %s: %v (Type: %T)", key, value, value)
+					}
+				} else {
+					log.Printf("JWT Middleware: No valid user identifier in token claims")
+
+					// Log all available claims for debugging
+					log.Printf("JWT Middleware: Available claims:")
+					for key, value := range claims {
+						log.Printf("  %s: %v (Type: %T)", key, value, value)
+					}
 				}
 
 				c.JSON(http.StatusUnauthorized, gin.H{
@@ -169,10 +210,21 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			}
 		}
 
-		log.Printf("JWT Middleware: Successfully extracted user ID: %s from token", userIdStr)
+		if isBookmarksEndpoint {
+			log.Printf("JWTAuth (bookmarks): Successfully extracted user ID: %s from token", userIdStr)
+		} else {
+			log.Printf("JWT Middleware: Successfully extracted user ID: %s from token", userIdStr)
+		}
+
 		c.Set("userId", userIdStr)
 		c.Set("userID", userIdStr)
-		log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
+
+		if isBookmarksEndpoint {
+			log.Printf("JWTAuth (bookmarks): Successfully validated token for user %s", userIdStr)
+		} else {
+			log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
+		}
+
 		c.Next()
 	}
 }

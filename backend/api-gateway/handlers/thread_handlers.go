@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"aycom/backend/api-gateway/utils"
@@ -146,21 +147,34 @@ func GetThread(c *gin.Context) {
 }
 
 func GetThreadsByUser(c *gin.Context) {
+	// Check for authenticated user
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
-		return
+		// Instead of failing immediately, try to proceed as unauthenticated user
+		// This allows public profile viewing without authentication
+		log.Printf("No authenticated user for GetThreadsByUser, proceeding as guest")
 	}
 
-	authenticatedUserIDStr, ok := authenticatedUserID.(string)
-	if !ok {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
-		return
+	// Get authenticated user ID if available
+	authenticatedUserIDStr := ""
+	if exists {
+		var ok bool
+		authenticatedUserIDStr, ok = authenticatedUserID.(string)
+		if !ok {
+			log.Printf("Invalid user ID format in token, proceeding as guest")
+		} else {
+			log.Printf("Authenticated user ID: %s", authenticatedUserIDStr)
+		}
 	}
 
+	// Get user ID from path parameter
 	userID := c.Param("id")
 
 	if userID == "me" {
+		if authenticatedUserIDStr == "" {
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required to view your own profile")
+			return
+		}
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
 	}
@@ -170,6 +184,7 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
+	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -187,11 +202,9 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
+	// Resolve username to UUID if needed
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-
-		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
-
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
@@ -201,7 +214,6 @@ func GetThreadsByUser(c *gin.Context) {
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-
 			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
@@ -211,36 +223,53 @@ func GetThreadsByUser(c *gin.Context) {
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
 
+	// Connect to thread service
+	log.Printf("Connecting to thread service for user %s", userID)
 	conn, err := threadConnPool.Get()
 	if err != nil {
+		log.Printf("Failed to connect to thread service: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
 	defer threadConnPool.Put(conn)
 
+	// Create request context with metadata
 	client := threadProto.NewThreadServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second) // Increase timeout to 10s
 	defer cancel()
 
+	// Add authenticated user ID to context metadata if available
+	if authenticatedUserIDStr != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", authenticatedUserIDStr)
+	}
+
+	// Call the gRPC method
+	log.Printf("Requesting threads for user %s, page %d, limit %d", userID, page, limit)
 	resp, err := client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
 		UserId: userID,
 		Page:   int32(page),
 		Limit:  int32(limit),
 	})
+
+	// Handle errors
 	if err != nil {
+		log.Printf("Error getting threads for user %s: %v", userID, err)
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
 			}
+			log.Printf("gRPC status error: code=%v, message=%s", st.Code(), st.Message())
 			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
+			log.Printf("Non-status error: %v", err)
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get threads: "+err.Error())
 		}
 		return
 	}
 
+	// Process response
+	log.Printf("Retrieved %d threads for user %s", len(resp.Threads), userID)
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
 		thread := map[string]interface{}{
@@ -248,8 +277,6 @@ func GetThreadsByUser(c *gin.Context) {
 			"thread_id":      t.Thread.Id,
 			"content":        t.Thread.Content,
 			"user_id":        t.Thread.UserId,
-			"created_at":     t.Thread.CreatedAt.AsTime(),
-			"updated_at":     t.Thread.UpdatedAt.AsTime(),
 			"likes_count":    t.LikesCount,
 			"replies_count":  t.RepliesCount,
 			"reposts_count":  t.RepostsCount,
@@ -263,6 +290,19 @@ func GetThreadsByUser(c *gin.Context) {
 			"username":            "anonymous",
 			"name":                "User",
 			"profile_picture_url": "",
+		}
+
+		// Handle timestamps safely
+		if t.Thread.CreatedAt != nil {
+			thread["created_at"] = t.Thread.CreatedAt.AsTime()
+		} else {
+			thread["created_at"] = time.Now()
+		}
+
+		if t.Thread.UpdatedAt != nil {
+			thread["updated_at"] = t.Thread.UpdatedAt.AsTime()
+		} else {
+			thread["updated_at"] = time.Now()
 		}
 
 		if t.User != nil {
@@ -297,9 +337,10 @@ func GetThreadsByUser(c *gin.Context) {
 		threads[i] = thread
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"threads": threads,
 		"total":   resp.Total,
+		"success": true,
 	})
 }
 

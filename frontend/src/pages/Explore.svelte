@@ -11,7 +11,7 @@
   import { getTrends } from '../api/trends';
   import { searchUsers, getAllUsers, getFollowing } from '../api/user';
   import { searchThreads, searchThreadsWithMedia, getThreadsByHashtag } from '../api/thread';
-  import { searchCommunities } from '../api/community';
+  import { searchCommunities, getCommunities } from '../api/community';
   import { debounce, stringSimilarity } from '../utils/helpers';
   import { formatTimeAgo } from '../utils/common';
   
@@ -27,6 +27,7 @@
   import ExploreCommunityResults from '../components/explore/ExploreCommunityResults.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import ProfileCard from '../components/explore/ProfileCard.svelte';
+  import CommunityCard from '../components/explore/CommunityCard.svelte';
   import Toast from '../components/common/Toast.svelte';
 
   const logger = createLoggerWithPrefix('Explore');
@@ -144,6 +145,7 @@
           type: string;
         }>;
       }>;
+      totalCount: number;
       isLoading: boolean;
     };
     communities: {
@@ -181,6 +183,7 @@
     },
     media: {
       threads: [],
+      totalCount: 0,
       isLoading: false
     },
     communities: {
@@ -225,6 +228,19 @@
   let communitiesPerPage = 25;
   let communitiesCurrentPage = 1;
   let mediaPage = 1; // Media infinite scroll page
+  
+  // State variables for communities display
+  let communitiesToDisplay: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    logo?: string | null;
+    member_count?: number;
+    is_joined?: boolean;
+    is_pending?: boolean;
+  }> = [];
+  let isLoadingCommunities = false;
+  let defaultActiveTab: 'people' | 'communities' = 'people';
   
   // Authentication check - Updated to fix auth issue
   function checkAuth() {
@@ -394,6 +410,10 @@
   
   // Handle search from search component
   function handleSearch(event) {
+    // If we're on the communities tab in non-search mode, start with the communities tab
+    if (!hasSearched && defaultActiveTab === 'communities') {
+      activeTab = 'communities';
+    }
     executeSearch();
   }
   
@@ -545,12 +565,24 @@
       // Process people results
       console.log("Raw people data:", peopleData);
       
-      const peopleUsers = (peopleData.users || []).map(user => {
+      // Add safety check to ensure peopleData has the expected structure
+      let processedPeopleData = peopleData;
+      if (!processedPeopleData || typeof processedPeopleData !== 'object') {
+        console.error("Invalid people data received:", processedPeopleData);
+        processedPeopleData = { users: [], totalCount: 0 };
+      }
+      
+      const peopleUsers = (processedPeopleData.users || []).map(user => {
         // Log each user for debugging
         console.log("Processing user:", user);
         
+        if (!user || typeof user !== 'object') {
+          console.error("Invalid user object:", user);
+          return null;
+        }
+        
         return {
-          id: user.id,
+          id: user.id || "",
           username: user.username || "",
           displayName: user.name || user.display_name || user.username || "",
           avatar: user.profile_picture_url || user.avatar || null,
@@ -559,7 +591,7 @@
           followerCount: user.follower_count || 0,
           isFollowing: user.is_following || false
         };
-      });
+      }).filter(user => user !== null); // Filter out any null entries from invalid data
       
       console.log("Mapped people users:", peopleUsers);
       
@@ -581,6 +613,34 @@
       const topProfiles = [...peopleUsers]
         .sort((a, b) => ((b.follower_count || 0) - (a.follower_count || 0)))
         .slice(0, 3);
+      
+      // Process communities data
+      console.log("Raw communities data:", communitiesData);
+      
+      // Add safety check to ensure communitiesData has the expected structure
+      let processedCommunitiesData = communitiesData;
+      if (!processedCommunitiesData || typeof processedCommunitiesData !== 'object') {
+        console.error("Invalid communities data received:", processedCommunitiesData);
+        processedCommunitiesData = { communities: [], total_count: 0 };
+      }
+      
+      // Process community items to ensure proper format
+      const normalizedCommunities = (processedCommunitiesData.communities || []).map(community => {
+        if (!community || typeof community !== 'object') {
+          console.error("Invalid community object:", community);
+          return null;
+        }
+        
+        return {
+          id: community.id || '',
+          name: community.name || '',
+          description: community.description || '',
+          logo: community.logo || community.logo_url || community.avatar || null,
+          member_count: community.member_count || community.memberCount || 0,
+          is_joined: community.is_joined || community.isJoined || false,
+          is_pending: community.is_pending || community.isPending || false
+        };
+      }).filter(community => community !== null);
       
       // Update search results
       searchResults = {
@@ -606,21 +666,22 @@
         },
         people: {
           users: peopleUsers,
-          totalCount: peopleData?.totalCount || peopleData?.total || 0,
-          pagination: peopleData?.pagination || { 
-            total_count: peopleData?.totalCount || peopleData?.total || 0,
-            current_page: peopleData?.currentPage || 1,
-            total_pages: Math.ceil((peopleData?.totalCount || peopleData?.total || 0) / peoplePerPage)
+          totalCount: processedPeopleData?.totalCount || processedPeopleData?.total || 0,
+          pagination: processedPeopleData?.pagination || { 
+            total_count: processedPeopleData?.totalCount || processedPeopleData?.total || 0,
+            current_page: processedPeopleData?.currentPage || 1,
+            total_pages: Math.ceil((processedPeopleData?.totalCount || processedPeopleData?.total || 0) / peoplePerPage)
           },
           isLoading: false
         },
         media: {
-          threads: mediaData?.threads || [],
+          threads: [...(mediaData?.threads || [])],
+          totalCount: mediaData?.total_count || mediaData?.total || 0,
           isLoading: false
         },
         communities: {
-          communities: communitiesData?.communities || [],
-          totalCount: communitiesData?.total_count || communitiesData?.total || 0,
+          communities: normalizedCommunities,
+          totalCount: processedCommunitiesData?.total_count || processedCommunitiesData?.total || 0,
           isLoading: false
         }
       };
@@ -631,10 +692,10 @@
       logger.debug('Search completed', {
         query: searchQuery,
         filter: filterOption,
-        peopleCount: peopleData?.users?.length || 0,
+        peopleCount: processedPeopleData?.users?.length || 0,
         threadsCount: topThreadsData?.threads?.length || 0,
         mediaCount: mediaData?.threads?.length || 0,
-        totalPeopleCount: peopleData?.totalCount || peopleData?.total || 0
+        totalPeopleCount: processedPeopleData?.totalCount || processedPeopleData?.total || 0
       });
       
     } catch (error) {
@@ -678,17 +739,24 @@
       // If user has already searched, immediately re-execute with new filter
       executeSearch();
     } else {
-      // If not in search results view, fetch users based on selected filter
-      isLoadingUsers = true;
-      if (searchFilter === 'all') {
-        // Fetch all users if filter is set to "Everyone"
-        fetchAllUsers();
-      } else if (searchFilter === 'following') {
-        // Fetch followed users if filter is set to "Following"
-        fetchFollowedUsers();
-      } else if (searchFilter === 'verified') {
-        // Fetch verified users if filter is set to "Verified"
-        fetchVerifiedUsers();
+      // If not in search results view, fetch data based on selected filter and active tab
+      if (defaultActiveTab === 'people') {
+        isLoadingUsers = true;
+        if (searchFilter === 'all') {
+          // Fetch all users if filter is set to "Everyone"
+          fetchAllUsers();
+        } else if (searchFilter === 'following') {
+          // Fetch followed users if filter is set to "Following"
+          fetchFollowedUsers();
+        } else if (searchFilter === 'verified') {
+          // Fetch verified users if filter is set to "Verified"
+          fetchVerifiedUsers();
+        }
+      } else if (defaultActiveTab === 'communities') {
+        isLoadingCommunities = true;
+        // For communities, we currently only support fetching all communities
+        // In a production app, you would implement filter options for communities too
+        fetchAllCommunities();
       }
     }
   }
@@ -707,16 +775,30 @@
       console.log("Fetching following users for:", userId);
       
       // Use getFollowing API instead of searchUsers for the following filter
-      const response = await getFollowing(userId, 1, 20);
+      const response = await getFollowing(userId || '', 1, 20);
       console.log("Following API response:", response);
       
-      let followingUsers = [];
+      // Define type for user objects
+      interface UserObject {
+        id: string;
+        username: string;
+        name?: string;
+        display_name?: string;
+        profile_picture_url?: string;
+        avatar?: string;
+        bio?: string;
+        is_verified?: boolean;
+        follower_count?: number;
+        [key: string]: any;
+      }
+      
+      let followingUsers: UserObject[] = [];
       
       // Handle different response structures
       if (response.data && response.data.following) {
-        followingUsers = response.data.following;
+        followingUsers = response.data.following as UserObject[];
       } else if (response.following) {
-        followingUsers = response.following;
+        followingUsers = response.following as UserObject[];
       }
       
       console.log("Found following users:", followingUsers);
@@ -778,6 +860,12 @@
   function handleTabChange(event) {
     activeTab = event.detail;
     logger.debug('Tab changed', { tab: activeTab });
+    
+    // If this is a communities or people tab, also update the default tab
+    // so when exiting search mode, we're on the right tab
+    if (activeTab === 'communities' || activeTab === 'people') {
+      defaultActiveTab = activeTab;
+    }
   }
   
   // Handle clicking on a trending hashtag
@@ -808,8 +896,19 @@
         avatar: thread.profile_picture_url || thread.author?.avatar
       }));
       
-      // Also update the top results
-      searchResults.top.threads = [...searchResults.latest.threads].slice(0, 5);
+      // Also update the top results with properly formatted data for that component
+      searchResults.top.threads = (hashtagThreadsData?.threads || []).map(thread => ({
+        id: thread.id,
+        content: thread.content,
+        username: thread.username || thread.author?.username || 'anonymous',
+        name: thread.name || thread.author?.display_name || 'User',
+        created_at: thread.created_at || new Date().toISOString(),
+        likes_count: thread.likes_count || thread.like_count || 0,
+        replies_count: thread.replies_count || thread.reply_count || 0,
+        reposts_count: thread.reposts_count || thread.repost_count || 0,
+        media: thread.media,
+        profile_picture_url: thread.profile_picture_url || thread.author?.avatar
+      })).slice(0, 5);
       
       // Set active tab to latest to show the results
       activeTab = 'latest';
@@ -847,8 +946,7 @@
       
       // Safety check for users array
       if (!response || !response.users) {
-        console.error('Invalid response format from searchUsers:', response);
-        toastStore.showToast('Error loading user data', 'error');
+        console.error("Invalid response format from searchUsers:", response);
         searchResults.people.isLoading = false;
         return;
       }
@@ -856,6 +954,12 @@
       // Map the API response to the format expected by the component
       const mappedUsers = response.users.map(user => {
         console.log('Mapping user:', user);
+        
+        if (!user || typeof user !== 'object') {
+          console.error("Invalid user object:", user);
+          return null;
+        }
+        
         return {
           id: user.id || '',
           username: user.username || '',
@@ -866,7 +970,7 @@
           followerCount: user.follower_count || 0,
           isFollowing: user.is_following || false
         };
-      });
+      }).filter(user => user !== null); // Filter out any null entries from invalid data
       
       console.log('Mapped users:', mappedUsers);
       
@@ -949,6 +1053,7 @@
       // Append new media to existing results
       searchResults.media = {
         threads: [...searchResults.media.threads, ...(data.threads || [])],
+        totalCount: data.total_count || data.total || searchResults.media.totalCount || 0,
         isLoading: false
       };
     } catch (error) {
@@ -975,6 +1080,68 @@
     window.location.href = `/user/${userId}`;
   }
   
+  // Handle join community
+  function handleJoinCommunity(event) {
+    const { communityId } = event.detail;
+    logger.debug('Join community requested', { communityId });
+    // Implement join community logic here
+    toastStore.showToast('Join community feature will be implemented soon', 'info');
+  }
+  
+  // Fetch all communities when "Everyone" filter is selected
+  async function fetchAllCommunities() {
+    isLoadingCommunities = true;
+    try {
+      const params = {
+        page: 1,
+        limit: communitiesPerPage,
+        is_approved: true
+      };
+      
+      const response = await getCommunities(params);
+      
+      console.log('fetchAllCommunities response:', response);
+      const communities = response.communities || [];
+      
+      if (communities && communities.length > 0) {
+        // Map backend response to the format expected by the frontend components
+        communitiesToDisplay = communities.map(community => ({
+          id: community.id || '',
+          name: community.name || '',
+          description: community.description || '',
+          logo: community.logo_url || null,
+          member_count: community.member_count || 0,
+          // These properties might not exist in the getCommunities response
+          is_joined: false, // Default to false since we can't know from getCommunities
+          is_pending: false // Default to false since we can't know from getCommunities
+        }));
+        
+        console.log('Mapped communities for display:', communitiesToDisplay);
+        logger.debug('Fetched communities:', { count: communitiesToDisplay.length });
+      } else {
+        communitiesToDisplay = [];
+        logger.info('No communities found');
+      }
+    } catch (error) {
+      logger.error('Error fetching all communities:', error);
+      toastStore.showToast('Failed to load communities', 'error');
+      communitiesToDisplay = [];
+    } finally {
+      isLoadingCommunities = false;
+    }
+  }
+  
+  // Handle tab change for default view
+  function handleDefaultTabChange(newTab) {
+    defaultActiveTab = newTab;
+    logger.debug('Default tab changed', { tab: defaultActiveTab });
+    
+    // Load data for the selected tab if needed
+    if (defaultActiveTab === 'communities' && communitiesToDisplay.length === 0 && !isLoadingCommunities) {
+      fetchAllCommunities();
+    }
+  }
+  
   onMount(async () => {
     logger.debug('Explore page mounted', { authState });
     
@@ -986,6 +1153,9 @@
         
         // Load initial user list using the "all" filter
         await fetchAllUsers();
+        
+        // Load initial communities list
+        await fetchAllCommunities();
         
         logger.info('Explore page initialized successfully');
       } catch (error) {
@@ -1051,15 +1221,15 @@
       <div class="search-results-container {isDarkMode ? 'search-results-container-dark' : ''}">
         {#if activeTab === 'top'}
           <ExploreTopResults 
-            usersResults={searchResults.top.profiles}
-            threadsResults={searchResults.top.threads}
+            topProfiles={searchResults.top.profiles}
+            topThreads={searchResults.top.threads}
             isLoading={searchResults.top.isLoading}
             on:profileClick={handleProfileClick}
             on:follow={handleFollowUser}
           />
         {:else if activeTab === 'latest'}
           <ExploreLatestResults 
-            threadsResults={searchResults.latest.threads}
+            latestThreads={searchResults.latest.threads}
             isLoading={searchResults.latest.isLoading}
           />
         {:else if activeTab === 'people'}
@@ -1075,85 +1245,96 @@
             on:profileClick={handleProfileClick}
           />
         {:else if activeTab === 'media'}
-          <!-- Media results with updated layout -->
-          <div class="section-container">
-            <h2 class="section-title">Media</h2>
-            
-            {#if searchResults.media.isLoading}
-              <div class="loading-container">
-                <LoadingSkeleton type="media" count={9} />
-              </div>
-            {:else if searchResults.media.threads.length > 0}
-              <div class="media-grid">
-                {#each searchResults.media.threads as thread (thread.id)}
-                  <!-- Media item -->
-                  <div class="media-item">
-                    <!-- Media content goes here -->
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="empty-state">
-                <p class="empty-state-message">No media found matching your search criteria.</p>
-              </div>
-            {/if}
-          </div>
+          <!-- Media results component -->
+          <ExploreMediaResults 
+            media={searchResults.media.threads}
+            isLoading={searchResults.media.isLoading}
+            hasMore={mediaPage * 12 < searchResults.media.totalCount}
+            on:loadMore={loadMoreMedia}
+          />
         {:else if activeTab === 'communities'}
-          <!-- Communities results with updated layout -->
-          <div class="section-container">
-            <h2 class="section-title">Communities</h2>
-            
-            {#if searchResults.communities.isLoading}
-              <div class="loading-container">
-                <LoadingSkeleton type="community" count={6} />
-              </div>
-            {:else if searchResults.communities.communities.length > 0}
-              <div class="grid-container">
-                {#each searchResults.communities.communities as community (community.id)}
-                  <div class="card {isDarkMode ? 'card-dark' : ''}">
-                    <!-- Community card content -->
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="empty-state">
-                <p class="empty-state-message">No communities found matching your search criteria.</p>
-              </div>
-            {/if}
-          </div>
+          <!-- Communities results component -->
+          <ExploreCommunityResults 
+            communityResults={searchResults.communities.communities}
+            isLoading={searchResults.communities.isLoading}
+            totalCount={searchResults.communities.totalCount}
+            communitiesPerPage={communitiesPerPage}
+            currentPage={communitiesCurrentPage}
+            on:pageChange={handleCommunitiesPageChange}
+            on:communitiesPerPageChange={handleCommunitiesPerPageChange}
+            on:joinRequest={handleJoinCommunity}
+          />
         {/if}
       </div>
     {:else}
-      <!-- When not searching, show people based on filter -->
+      <!-- When not searching, show tabs to select between People and Communities -->
+      <div class="tabs-container {isDarkMode ? 'tabs-container-dark' : ''}">
+        <div class="flex border-b border-gray-200 dark:border-gray-700">
+          <button 
+            class="py-3 px-6 font-medium {defaultActiveTab === 'people' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+            on:click={() => handleDefaultTabChange('people')}
+          >
+            People
+          </button>
+          <button 
+            class="py-3 px-6 font-medium {defaultActiveTab === 'communities' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+            on:click={() => handleDefaultTabChange('communities')}
+          >
+            Communities
+          </button>
+        </div>
+      </div>
+      
+      <!-- Content based on selected default tab -->
       <div class="section-container {isDarkMode ? 'section-container-dark' : ''}">
-        <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">People</h2>
-        
-        {#if isLoadingUsers}
-          <div class="loading-container">
-            <LoadingSkeleton type="profile" count={6} />
-          </div>
-        {:else if usersToDisplay.length > 0}
-          <div class="grid-container">
-            {#each usersToDisplay as user (user.id)}
-              <div class="card {isDarkMode ? 'card-dark' : ''}">
-                <ProfileCard
-                  id={user.id}
-                  username={user.username}
-                  displayName={user.displayName}
-                  avatar={user.avatar}
-                  bio={user.bio}
-                  isVerified={user.isVerified}
-                  followerCount={user.followerCount}
-                  isFollowing={user.isFollowing}
-                  onToggleFollow={() => handleToggleFollow(user.id)}
-                />
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <div class="empty-state {isDarkMode ? 'empty-state-dark' : ''}">
-            <p class="empty-state-message">No users found. Try a different filter.</p>
-          </div>
+        {#if defaultActiveTab === 'people'}
+          <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">People</h2>
+          
+          {#if isLoadingUsers}
+            <div class="loading-container">
+              <LoadingSkeleton type="profile" count={6} />
+            </div>
+          {:else if usersToDisplay.length > 0}
+            <div class="grid-container">
+              {#each usersToDisplay as user (user.id)}
+                <div class="card {isDarkMode ? 'card-dark' : ''}">
+                  <ProfileCard
+                    id={user.id}
+                    username={user.username}
+                    displayName={user.displayName}
+                    avatar={user.avatar}
+                    bio={user.bio}
+                    isVerified={user.isVerified}
+                    followerCount={user.followerCount}
+                    isFollowing={user.isFollowing}
+                    onToggleFollow={() => handleToggleFollow(user.id)}
+                  />
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="empty-state {isDarkMode ? 'empty-state-dark' : ''}">
+              <p class="empty-state-message">No users found. Try a different filter.</p>
+            </div>
+          {/if}
+        {:else if defaultActiveTab === 'communities'}
+          <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">Communities</h2>
+          
+          {#if isLoadingCommunities}
+            <div class="loading-container">
+              <LoadingSkeleton type="community" count={6} />
+            </div>
+          {:else if communitiesToDisplay.length > 0}
+            <div class="space-y-4">
+              {#each communitiesToDisplay as community (community.id)}
+                <CommunityCard {community} on:joinRequest={handleJoinCommunity} />
+              {/each}
+            </div>
+          {:else}
+            <div class="empty-state {isDarkMode ? 'empty-state-dark' : ''}">
+              <p class="empty-state-message">No communities found. Try a different filter.</p>
+            </div>
+          {/if}
         {/if}
       </div>
     {/if}

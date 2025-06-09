@@ -8,20 +8,34 @@
   // Reactive declarations
   $: isDarkMode = $theme === 'dark';
   
-  // Props
-  export let community: {
+  // Define a more flexible community type to handle different API response formats
+  type CommunityData = {
     id: string;
     name: string;
-    description: string;
-    logo: string | null;
-    memberCount: number;
-    isJoined: boolean;
-    isPending: boolean;
+    description?: string;
+    logo?: string | null;
+    logo_url?: string | null;
+    avatar?: string | null;
+    memberCount?: number;
+    member_count?: number;
+    isJoined?: boolean;
+    is_joined?: boolean;
+    isPending?: boolean;
+    is_pending?: boolean;
   };
+  
+  // Props
+  export let community: CommunityData;
+  
+  // Computed properties to handle different naming conventions
+  $: logo = community.logo || community.logo_url || community.avatar || null;
+  $: memberCount = community.memberCount || community.member_count || 0;
+  $: isJoined = community.isJoined || community.is_joined || false;
+  $: isPending = community.isPending || community.is_pending || false;
   
   // Handle join request
   function handleJoinRequest() {
-    dispatch('joinRequest', community.id);
+    dispatch('joinRequest', {communityId: community.id});
   }
 </script>
 
@@ -29,8 +43,8 @@
   <div class="flex items-start">
     <a href={`/community/${community.id}`} class="flex-shrink-0">
       <div class="w-16 h-16 rounded-md {isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center overflow-hidden mr-3">
-        {#if typeof community.logo === 'string' && community.logo.startsWith('http')}
-          <img src={community.logo} alt={community.name} class="w-full h-full object-cover" />
+        {#if typeof logo === 'string' && logo.startsWith('http')}
+          <img src={logo} alt={community.name} class="w-full h-full object-cover" />
         {:else}
           <span class="text-2xl">👥</span>
         {/if}
@@ -41,19 +55,19 @@
         <h3 class="font-bold {isDarkMode ? 'text-white' : 'text-black'}">{community.name}</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{community.description}</p>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          <span class="font-semibold">{community.memberCount}</span> {community.memberCount === 1 ? 'member' : 'members'}
+          <span class="font-semibold">{memberCount}</span> {memberCount === 1 ? 'member' : 'members'}
         </p>
       </a>
     </div>
     <div class="ml-4 flex-shrink-0">
-      {#if community.isJoined}
+      {#if isJoined}
         <span class="px-4 py-1.5 rounded-full bg-transparent border border-gray-300 dark:border-gray-600 font-bold text-sm flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-green-500" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
           </svg>
           Joined
         </span>
-      {:else if community.isPending}
+      {:else if isPending}
         <span class="px-4 py-1.5 rounded-full bg-transparent border border-gray-300 dark:border-gray-600 font-bold text-sm flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />

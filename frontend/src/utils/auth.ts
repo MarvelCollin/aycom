@@ -68,8 +68,12 @@ export function getUserId(): string | null {
           logger.warn("Token exists but is expired when retrieving user ID");
           return null;
         }
+        logger.debug(`Retrieved user ID from auth: ${auth.user_id.substring(0, 8)}...`);
         return auth.user_id;
       }
+      logger.warn("Auth data exists but missing user_id or access_token");
+    } else {
+      logger.warn("No auth data found in localStorage");
     }
   } catch (err) {
     logger.error("Error getting user ID:", err);

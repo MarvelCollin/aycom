@@ -47,6 +47,8 @@ service ThreadService {
   rpc GetTrendingHashtags(GetTrendingHashtagsRequest) returns (GetTrendingHashtagsResponse);
 
   rpc GetRepliesByParentReply(GetRepliesByParentReplyRequest) returns (RepliesResponse) {}
+  
+  rpc GetBookmarksByUser(GetBookmarksByUserRequest) returns (ThreadsResponse) {}
 }
 
 message Thread {
@@ -380,4 +382,10 @@ message MediaItem {
   string url = 3;
   string type = 4;
   google.protobuf.Timestamp created_at = 5;
+}
+
+message GetBookmarksByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
 }

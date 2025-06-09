@@ -2,6 +2,8 @@ package repository
 
 import (
 	"errors"
+	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -51,17 +53,23 @@ func (r *PostgresMediaRepository) FindMediaByID(id string) (*model.Media, error)
 }
 
 func (r *PostgresMediaRepository) FindMediaByThreadID(threadID string) ([]*model.Media, error) {
+	log.Printf("Finding media for thread ID: %s", threadID)
+
 	threadUUID, err := uuid.Parse(threadID)
 	if err != nil {
-		return nil, errors.New("invalid UUID format for thread ID")
+		return nil, fmt.Errorf("invalid thread ID format: %w", err)
 	}
 
-	var media []*model.Media
-	result := r.db.Where("thread_id = ?", threadUUID).Find(&media)
+	var mediaList []*model.Media
+	result := r.db.Where("thread_id = ? AND deleted_at IS NULL", threadUUID).Find(&mediaList)
+
 	if result.Error != nil {
+		log.Printf("Error finding media for thread %s: %v", threadID, result.Error)
 		return nil, result.Error
 	}
-	return media, nil
+
+	log.Printf("Found %d media items for thread %s", len(mediaList), threadID)
+	return mediaList, nil
 }
 
 func (r *PostgresMediaRepository) FindMediaByReplyID(replyID string) ([]*model.Media, error) {

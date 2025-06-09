@@ -1012,149 +1012,417 @@ async function resolveUserIdIfNeeded(userId: string): Promise<string> {
 }
 
 export const getUserThreads = async (userId: string, page = 1, limit = 10): Promise<any> => {
-  try {
-    const resolvedUserId = await resolveUserIdIfNeeded(userId);
-    logger.debug(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+  const maxRetries = 2;
+  let retryCount = 0;
+  let lastError: Error | null = null;
 
-    const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  while (retryCount <= maxRetries) {
+    try {
+      const resolvedUserId = await resolveUserIdIfNeeded(userId);
+      logger.debug(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-    if (!response.ok) {
-      let errorMessage = `Failed to get user threads: ${response.status}`;
+      // Create an AbortController to handle timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       try {
-        const errorData = await response.json();
-        console.error('Error getting user threads:', errorData);
-        if (errorData.message) {
-          errorMessage += ` - ${errorData.message}`;
-        }
-      } catch (parseError) {
-        console.error('Could not parse error response:', parseError);
-      }
-      throw new Error(errorMessage);
-    }
+        const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        });
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error in getUserThreads:', error);
-    throw error;
+        // Clear the timeout regardless of the outcome
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = `Failed to get user threads: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            logger.error('Error getting user threads:', errorData);
+            if (errorData.message) {
+              errorMessage += ` - ${errorData.message}`;
+            }
+          } catch (parseError) {
+            logger.error('Could not parse error response:', parseError);
+          }
+          
+          // For 500 errors, we'll retry
+          if (response.status >= 500) {
+            throw new Error(errorMessage);
+          } else {
+            // For 4xx errors, we'll return an empty result with an error flag
+            return {
+              threads: [],
+              total: 0,
+              error: errorMessage,
+              success: false
+            };
+          }
+        }
+
+        const result = await response.json();
+        
+        // Add success flag for more consistent handling
+        return {
+          ...result,
+          success: true
+        };
+      } catch (fetchError) {
+        // Make sure we clear the timeout if there was an error
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+    } catch (error: any) {
+      lastError = error;
+      
+      // If this was a timeout or network error, log and retry
+      const isNetworkError = error.name === 'AbortError' || 
+                             error.message?.includes('network') ||
+                             error.message?.includes('timeout');
+                             
+      if (isNetworkError || error.message?.includes('500')) {
+        logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
+        retryCount++;
+        
+        if (retryCount <= maxRetries) {
+          // Wait before retrying: 1s, then 3s
+          await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
+          continue;
+        }
+      } else {
+        // For other types of errors, don't retry
+        logger.error('Non-retriable error in getUserThreads:', error);
+        break;
+      }
+    }
   }
+
+  // If we got here, all retries failed
+  logger.error('Error in getUserThreads after all retries:', lastError);
+  
+  // Return an empty result with error information
+  return {
+    threads: [],
+    total: 0,
+    error: lastError?.message || 'Unknown error fetching threads',
+    success: false
+  };
 };
 
 export const getUserReplies = async (userId: string, page = 1, limit = 10): Promise<any> => {
-  try {
-    const resolvedUserId = await resolveUserIdIfNeeded(userId);
-    logger.debug(`Fetching replies for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+  const maxRetries = 2;
+  let retryCount = 0;
+  let lastError: Error | null = null;
 
-    const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/replies?page=${page}&limit=${limit}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  while (retryCount <= maxRetries) {
+    try {
+      const resolvedUserId = await resolveUserIdIfNeeded(userId);
+      logger.debug(`Fetching replies for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-    if (!response.ok) {
-      let errorMessage = `Failed to get user replies: ${response.status}`;
+      // Create an AbortController to handle timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       try {
-        const errorData = await response.json();
-        console.error('Error getting user replies:', errorData);
-        if (errorData.message) {
-          errorMessage += ` - ${errorData.message}`;
-        }
-      } catch (parseError) {
-        console.error('Could not parse error response:', parseError);
-      }
-      throw new Error(errorMessage);
-    }
+        const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/replies?page=${page}&limit=${limit}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        });
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error getting user replies:', error);
-    throw error;
+        // Clear the timeout regardless of the outcome
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = `Failed to get user replies: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            logger.error('Error getting user replies:', errorData);
+            if (errorData.message) {
+              errorMessage += ` - ${errorData.message}`;
+            }
+          } catch (parseError) {
+            logger.error('Could not parse error response:', parseError);
+          }
+          
+          // For 500 errors, we'll retry
+          if (response.status >= 500) {
+            throw new Error(errorMessage);
+          } else {
+            // For 4xx errors, we'll return an empty result with an error flag
+            return {
+              replies: [],
+              total: 0,
+              error: errorMessage,
+              success: false
+            };
+          }
+        }
+
+        const result = await response.json();
+        
+        // Add success flag for more consistent handling
+        return {
+          ...result,
+          success: true
+        };
+      } catch (fetchError) {
+        // Make sure we clear the timeout if there was an error
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+    } catch (error: any) {
+      lastError = error;
+      
+      // If this was a timeout or network error, log and retry
+      const isNetworkError = error.name === 'AbortError' || 
+                             error.message?.includes('network') ||
+                             error.message?.includes('timeout');
+                             
+      if (isNetworkError || error.message?.includes('500')) {
+        logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
+        retryCount++;
+        
+        if (retryCount <= maxRetries) {
+          // Wait before retrying: 1s, then 3s
+          await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
+          continue;
+        }
+      } else {
+        // For other types of errors, don't retry
+        logger.error('Non-retriable error in getUserReplies:', error);
+        break;
+      }
+    }
   }
+
+  // If we got here, all retries failed
+  logger.error('Error in getUserReplies after all retries:', lastError);
+  
+  // Return an empty result with error information
+  return {
+    replies: [],
+    total: 0,
+    error: lastError?.message || 'Unknown error fetching replies',
+    success: false
+  };
 };
 
 export const getUserLikedThreads = async (userId: string, page: number = 1, limit: number = 10) => {
-  try {
-    const token = getAuthToken();
-    let actualUserId = userId;
+  const maxRetries = 2;
+  let retryCount = 0;
+  let lastError: Error | null = null;
 
-    if (userId === 'me') {
-      actualUserId = await resolveUserIdIfNeeded(userId);
-    }
+  while (retryCount <= maxRetries) {
+    try {
+      const token = getAuthToken();
+      let actualUserId = userId;
 
-    const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/likes?page=${page}&limit=${limit}`;
-    logger.debug(`Making request to: ${endpoint}`);
-
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      credentials: "include"
-    });
-
-    if (!response.ok) {
-      if (response.status === 400) {
-        let errorMessage = `Bad request when getting user liked threads`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-          logger.error("API error response:", errorData);
-        } catch (parseError) {
-          logger.error("Could not parse error response:", parseError);
-        }
-        throw new Error(errorMessage);
+      if (userId === 'me') {
+        actualUserId = await resolveUserIdIfNeeded(userId);
       }
-      throw new Error(`Failed to get user liked threads: ${response.status}`);
-    }
 
-    const responseData = await response.json();
-    return responseData;
-  } catch (err) {
-    logger.error('Error getting user liked threads:', err);
-    throw err;
+      const endpoint = `${API_BASE_URL}/threads/user/${actualUserId}/likes?page=${page}&limit=${limit}`;
+      logger.debug(`Making request to: ${endpoint}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
+
+      // Create an AbortController to handle timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+          credentials: "include",
+          signal: controller.signal
+        });
+
+        // Clear the timeout regardless of the outcome
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = `Failed to get user liked threads: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+            logger.error("API error response:", errorData);
+          } catch (parseError) {
+            logger.error("Could not parse error response:", parseError);
+          }
+
+          // For 500 errors, we'll retry
+          if (response.status >= 500) {
+            throw new Error(errorMessage);
+          } else {
+            // For 4xx errors, we'll return an empty result with an error flag
+            return {
+              threads: [],
+              total: 0,
+              error: errorMessage,
+              success: false
+            };
+          }
+        }
+
+        const responseData = await response.json();
+        
+        // Add success flag for more consistent handling
+        return {
+          ...responseData,
+          success: true
+        };
+      } catch (fetchError) {
+        // Make sure we clear the timeout if there was an error
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+    } catch (error: any) {
+      lastError = error;
+      
+      // If this was a timeout or network error, log and retry
+      const isNetworkError = error.name === 'AbortError' || 
+                             error.message?.includes('network') ||
+                             error.message?.includes('timeout');
+                             
+      if (isNetworkError || error.message?.includes('500')) {
+        logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
+        retryCount++;
+        
+        if (retryCount <= maxRetries) {
+          // Wait before retrying: 1s, then 3s
+          await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
+          continue;
+        }
+      } else {
+        // For other types of errors, don't retry
+        logger.error('Non-retriable error in getUserLikedThreads:', error);
+        break;
+      }
+    }
   }
+
+  // If we got here, all retries failed
+  logger.error('Error in getUserLikedThreads after all retries:', lastError);
+  
+  // Return an empty result with error information
+  return {
+    threads: [],
+    total: 0,
+    error: lastError?.message || 'Unknown error fetching liked threads',
+    success: false
+  };
 };
 
 export const getUserMedia = async (userId: string, page = 1, limit = 10): Promise<any> => {
-  try {
-    const resolvedUserId = await resolveUserIdIfNeeded(userId);
-    logger.debug(`Fetching media for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}`);
+  const maxRetries = 2;
+  let retryCount = 0;
+  let lastError: Error | null = null;
 
-    const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/media?page=${page}&limit=${limit}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  while (retryCount <= maxRetries) {
+    try {
+      const resolvedUserId = await resolveUserIdIfNeeded(userId);
+      logger.debug(`Fetching media for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
-    if (!response.ok) {
-      let errorMessage = `Failed to get user media: ${response.status}`;
+      // Create an AbortController to handle timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       try {
-        const errorData = await response.json();
-        console.error('Error getting user media:', errorData);
-        if (errorData.message) {
-          errorMessage += ` - ${errorData.message}`;
-        }
-      } catch (parseError) {
-        console.error('Could not parse error response:', parseError);
-      }
-      throw new Error(errorMessage);
-    }
+        const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/media?page=${page}&limit=${limit}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        });
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error getting user media:', error);
-    throw error;
+        // Clear the timeout regardless of the outcome
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = `Failed to get user media: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            logger.error('Error getting user media:', errorData);
+            if (errorData.message) {
+              errorMessage += ` - ${errorData.message}`;
+            }
+          } catch (parseError) {
+            logger.error('Could not parse error response:', parseError);
+          }
+          
+          // For 500 errors, we'll retry
+          if (response.status >= 500) {
+            throw new Error(errorMessage);
+          } else {
+            // For 4xx errors, we'll return an empty result with an error flag
+            return {
+              media: [],
+              total: 0,
+              error: errorMessage,
+              success: false
+            };
+          }
+        }
+
+        const result = await response.json();
+        
+        // Add success flag for more consistent handling
+        return {
+          ...result,
+          success: true
+        };
+      } catch (fetchError) {
+        // Make sure we clear the timeout if there was an error
+        clearTimeout(timeoutId);
+        throw fetchError;
+      }
+    } catch (error: any) {
+      lastError = error;
+      
+      // If this was a timeout or network error, log and retry
+      const isNetworkError = error.name === 'AbortError' || 
+                             error.message?.includes('network') ||
+                             error.message?.includes('timeout');
+                             
+      if (isNetworkError || error.message?.includes('500')) {
+        logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
+        retryCount++;
+        
+        if (retryCount <= maxRetries) {
+          // Wait before retrying: 1s, then 3s
+          await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
+          continue;
+        }
+      } else {
+        // For other types of errors, don't retry
+        logger.error('Non-retriable error in getUserMedia:', error);
+        break;
+      }
+    }
   }
+
+  // If we got here, all retries failed
+  logger.error('Error in getUserMedia after all retries:', lastError);
+  
+  // Return an empty result with error information
+  return {
+    media: [],
+    total: 0,
+    error: lastError?.message || 'Unknown error fetching media',
+    success: false
+  };
 };
 
 export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Promise<any> => {
@@ -1174,8 +1442,10 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
       throw new Error('User ID is required');
     }
 
+    // Set up URL for bookmarks API
     const url = `${API_BASE_URL}/bookmarks?page=${page}&limit=${limit}`;
-    logger.debug(`Fetching bookmarks from: ${url}`);
+    logger.debug(`Fetching bookmarks from: ${url} for user ${actualUserId}`);
+    logger.debug(`Auth token available: ${!!token}, length: ${token?.length}`);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -1199,10 +1469,12 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
 
     const data = await response.json();
     logger.debug('Bookmarks API returned data:', data);
+    logger.debug(`Bookmarks count: ${data.bookmarks?.length || 0}`);
 
+    // Return data structure that matches what the frontend expects
     return {
       success: true,
-      threads: data.bookmarks || [],
+      bookmarks: data.bookmarks || [],
       total: data.total || 0,
       pagination: data.pagination || null
     };
@@ -1248,9 +1520,10 @@ export const searchBookmarks = async (query: string, page = 1, limit = 10): Prom
     const data = await response.json();
     logger.debug('Search bookmarks API returned data:', data);
 
+    // Return data structure that matches what the frontend expects
     return {
       success: true,
-      threads: data.bookmarks || [],
+      bookmarks: data.bookmarks || [],
       total: data.total || 0,
       pagination: data.pagination || null
     };

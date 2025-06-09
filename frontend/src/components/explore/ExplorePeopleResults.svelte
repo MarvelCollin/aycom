@@ -161,7 +161,7 @@
                 <img src={person.avatar} alt={person.displayName} class="avatar-image" />
               {:else}
                 <div class="avatar-fallback">
-                  <span>{person.displayName.charAt(0).toUpperCase()}</span>
+                  <span>{(person.displayName || 'User').charAt(0).toUpperCase()}</span>
                 </div>
               {/if}
             </div>
@@ -169,7 +169,7 @@
             <div class="profile-info" on:click={() => handleProfileClick(person.id)}>
               <div class="profile-name-container">
                 <h3 class="profile-name">
-                  {person.displayName}
+                  {person.displayName || 'User'}
                   {#if person.isVerified}
                     <span class="verified-badge">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="verified-icon">
@@ -178,7 +178,7 @@
                     </span>
                   {/if}
                 </h3>
-                <p class="profile-username">@{person.username}</p>
+                <p class="profile-username">@{person.username || 'user'}</p>
               </div>
               
               {#if person.bio}

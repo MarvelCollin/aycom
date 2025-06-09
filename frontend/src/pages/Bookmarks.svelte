@@ -6,14 +6,17 @@
   import { onMount } from 'svelte';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
-  import type { ITweet, ITrend, ISuggestedFollow, IMedia } from '../interfaces/ISocialMedia';
+  import type { ITweet, ISuggestedFollow } from '../interfaces/ISocialMedia';
+  import type { ITrend } from '../interfaces/ITrend';
+  import type { IMedia } from '../interfaces/IMedia';
   import type { IAuthStore } from '../interfaces/IAuth';
-  import { likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getThreadReplies, removeRepost, getUserBookmarks } from '../api/thread';
+  import { likeThread, unlikeThread, repostThread, bookmarkThread, removeBookmark, getThreadReplies, removeRepost, getUserBookmarks, searchBookmarks } from '../api/thread';
   import { getTrends } from '../api/trends';
   import { getSuggestedUsers } from '../api/suggestions';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { getProfile } from '../api/user';
+  import { getUserId } from '../utils/auth';
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
 
@@ -61,24 +64,113 @@
   let searchQuery = '';
   let filteredBookmarks: ITweet[] = [];
   let searchInputElement: HTMLInputElement;
+  let isSearching = false;
+  let searchDebounceTimer: number;
   
   // Filter bookmarks based on search query
   $: {
     if (searchQuery.trim() === '') {
       filteredBookmarks = bookmarkedTweets;
     } else {
-      const query = searchQuery.toLowerCase();
-      filteredBookmarks = bookmarkedTweets.filter(tweet => 
-        tweet.content.toLowerCase().includes(query) || 
-        (tweet.username && tweet.username.toLowerCase().includes(query)) || 
-        (tweet.name && tweet.name.toLowerCase().includes(query))
-      );
+      // Client-side filtering is only used when not actively searching
+      // The actual search is performed by the API when the user finishes typing
+      if (!isSearching) {
+        const query = searchQuery.toLowerCase();
+        filteredBookmarks = bookmarkedTweets.filter(tweet => 
+          tweet.content.toLowerCase().includes(query) || 
+          (tweet.username && tweet.username.toLowerCase().includes(query)) || 
+          (tweet.name && tweet.name.toLowerCase().includes(query))
+        );
+      }
     }
   }
   
-  // Function to handle search input change
+  // Function to handle search input change with debounce
   function handleSearchInput(event: Event) {
-    searchQuery = (event.target as HTMLInputElement).value;
+    const value = (event.target as HTMLInputElement).value;
+    searchQuery = value;
+    
+    // Clear any existing timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    
+    // Set a new timer for 500ms
+    if (value.trim() !== '') {
+      searchDebounceTimer = setTimeout(() => {
+        performSearch(value);
+      }, 500) as unknown as number;
+    } else {
+      // If search is cleared, reset to regular bookmarks
+      fetchBookmarkedTweets(true);
+    }
+  }
+  
+  // Function to perform the actual search
+  async function performSearch(query: string) {
+    if (!query.trim()) return;
+    
+    isSearching = true;
+    isLoading = true;
+    error = null;
+    
+    try {
+      if (!checkAuth()) return;
+      
+      logger.debug(`Searching bookmarks for: "${query}"`);
+      const response = await searchBookmarks(query, 1, limit);
+      
+      if (response && response.threads && Array.isArray(response.threads)) {
+        logger.info(`Received ${response.threads.length} search results from API`);
+        
+        // Format the search results as tweets
+        const searchResults = response.threads.map(thread => {
+          const tweet: ITweet = {
+            id: thread.id,
+            content: thread.content || '',
+            created_at: thread.created_at || new Date().toISOString(),
+            updated_at: thread.updated_at,
+            user_id: thread.user_id,
+            username: thread.username || 'anonymous',
+            name: thread.name || 'User',
+            profile_picture_url: thread.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp',
+            likes_count: thread.likes_count || 0,
+            replies_count: thread.replies_count || 0,
+            reposts_count: thread.reposts_count || 0,
+            bookmark_count: thread.bookmark_count || 0,
+            is_liked: !!thread.is_liked,
+            is_reposted: !!thread.is_reposted,
+            is_bookmarked: true, // Always true for bookmarks page
+            is_pinned: !!thread.is_pinned,
+            parent_id: thread.parent_id || null,
+            media: thread.media || []
+          };
+          return tweet;
+        });
+        
+        // Update filtered bookmarks with search results
+        filteredBookmarks = searchResults;
+        
+        // Update pagination info
+        if (response.pagination) {
+          hasMore = response.pagination.has_more;
+        } else {
+          hasMore = searchResults.length >= limit;
+        }
+      } else {
+        logger.info('No search results received from API or invalid format');
+        filteredBookmarks = [];
+        hasMore = false;
+      }
+    } catch (err) {
+      console.error('Error searching bookmarks:', err);
+      toastStore.showToast('Failed to search bookmarks. Please try again.', 'error');
+      error = err instanceof Error ? err.message : 'Failed to search bookmarks';
+      filteredBookmarks = [];
+    } finally {
+      isLoading = false;
+      isSearching = false;
+    }
   }
 
   // Clear search query
@@ -87,6 +179,9 @@
     if (searchInputElement) {
       searchInputElement.focus();
     }
+    
+    // Reset to regular bookmarks
+    fetchBookmarkedTweets(true);
   }
 
   // Authentication check
@@ -97,10 +192,30 @@
       // Only redirect if we're not already on the login page
       const currentPath = window.location.pathname;
       if (currentPath !== '/login') {
+        logger.debug('Redirecting to login page');
+        
+        // Store the current path to redirect back after login
+        try {
+          localStorage.setItem('redirectAfterLogin', currentPath);
+          logger.debug('Saved redirect path:', currentPath);
+        } catch (err) {
+          logger.error('Failed to save redirect path:', err);
+        }
+        
         window.location.href = '/login';
       }
       return false;
     }
+    
+    const userId = getUserId();
+    if (!userId) {
+      logger.warn('User authenticated but no user ID available, refreshing auth state');
+      // Here you might want to refresh the auth state or redirect to login
+      window.location.href = '/login';
+      return false;
+    }
+    
+    logger.debug('User authenticated with ID:', userId);
     return true;
   }
   
@@ -154,62 +269,91 @@
       
       console.log('Bookmarks API response:', response);
       
-      if (response && response.threads && Array.isArray(response.threads)) {
-        logger.info(`Received ${response.threads.length} bookmarks from API`);
-        
-        // Use threads directly from API
-        const receivedThreads = response.threads.map(thread => {
-          // Ensure all required ITweet fields are present
-          const tweet: ITweet = {
-            id: thread.id,
-            content: thread.content || '',
-            created_at: thread.created_at || new Date().toISOString(),
-            updated_at: thread.updated_at,
-            user_id: thread.user_id,
-            username: thread.username || 'anonymous',
-            name: thread.name || 'User',
-            profile_picture_url: thread.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp',
-            likes_count: thread.likes_count || 0,
-            replies_count: thread.replies_count || 0,
-            reposts_count: thread.reposts_count || 0,
-            bookmark_count: thread.bookmark_count || 0,
-            is_liked: !!thread.is_liked,
-            is_reposted: !!thread.is_reposted,
-            is_bookmarked: true, // Always true for bookmarks page
-            is_pinned: !!thread.is_pinned,
-            parent_id: thread.parent_id || null,
-            media: thread.media || []
-          };
-          return tweet;
-        });
-        
-        // If first page, replace tweets, otherwise append
-        bookmarkedTweets = page === 1 ? receivedThreads : [...bookmarkedTweets, ...receivedThreads];
-        
-        // Use pagination info from API if available
-        if (response.pagination) {
-          hasMore = response.pagination.hasMore;
-          // Set page to next page value
-          page = response.pagination.page + 1;
-        } else {
-          // Fallback to old logic
-          hasMore = receivedThreads.length >= limit;
-          page++;
-        }
-        
-        logger.debug('Updated bookmarks state', { 
-          totalBookmarks: bookmarkedTweets.length, 
-          hasMore, 
-          nextPage: page 
-        });
-      } else {
-        logger.info('No bookmarks received from API or invalid format');
+      // Check if response has the expected structure
+      if (!response) {
+        logger.warn('Empty response from bookmarks API');
         hasMore = false;
+        isLoading = false;
+        return;
       }
+      
+      // Ensure bookmarks property exists, default to empty array if not
+      const bookmarks = response.bookmarks || [];
+      
+      if (!Array.isArray(bookmarks)) {
+        logger.warn('Bookmarks is not an array:', bookmarks);
+        hasMore = false;
+        isLoading = false;
+        return;
+      }
+      
+      logger.info(`Received ${bookmarks.length} bookmarks from API`);
+      
+      if (bookmarks.length === 0) {
+        logger.info('Empty bookmarks array returned from API');
+        hasMore = false;
+        isLoading = false;
+        return;
+      }
+      
+      // Log the first bookmark for debugging
+      if (bookmarks[0]) {
+        logger.debug('First bookmark data structure:', JSON.stringify(bookmarks[0], null, 2));
+      }
+      
+      // Use threads directly from API
+      const receivedThreads = bookmarks.map(thread => {
+        // Ensure all required ITweet fields are present
+        const tweet: ITweet = {
+          id: thread.id,
+          content: thread.content || '',
+          created_at: thread.created_at || new Date().toISOString(),
+          updated_at: thread.updated_at,
+          user_id: thread.user_id,
+          username: thread.username || 'anonymous',
+          name: thread.name || 'User',
+          profile_picture_url: thread.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp',
+          likes_count: thread.likes_count || 0,
+          replies_count: thread.replies_count || 0,
+          reposts_count: thread.reposts_count || 0,
+          bookmark_count: thread.bookmark_count || 0,
+          is_liked: !!thread.is_liked,
+          is_reposted: !!thread.is_reposted,
+          is_bookmarked: true, // Always true for bookmarks page
+          is_pinned: !!thread.is_pinned,
+          parent_id: thread.parent_id || null,
+          media: thread.media || []
+        };
+        return tweet;
+      });
+      
+      // If first page, replace tweets, otherwise append
+      bookmarkedTweets = page === 1 ? receivedThreads : [...bookmarkedTweets, ...receivedThreads];
+      filteredBookmarks = bookmarkedTweets;
+      
+      // Use pagination info from API if available
+      if (response.pagination) {
+        hasMore = response.pagination.has_more;
+        // Set page to next page value
+        page = response.pagination.current_page + 1;
+        logger.debug('Pagination info from API', response.pagination);
+      } else {
+        // Fallback to old logic
+        hasMore = receivedThreads.length >= limit;
+        page++;
+        logger.debug('Using fallback pagination logic', { hasMore, nextPage: page });
+      }
+      
+      logger.debug('Updated bookmarks state', { 
+        totalBookmarks: bookmarkedTweets.length, 
+        hasMore, 
+        nextPage: page 
+      });
     } catch (err) {
       console.error('Error loading bookmarks:', err);
       toastStore.showToast('Failed to load bookmarks. Please try again.', 'error');
       error = err instanceof Error ? err.message : 'Failed to fetch bookmarks';
+      logger.error('Bookmarks error details:', { error, userId: authState?.user_id });
     } finally {
       isLoading = false;
     }
@@ -251,14 +395,25 @@
 
   onMount(() => {
     logger.debug('Bookmarks page mounted');
-    if (checkAuth()) {
-      // First load user profile
-      fetchUserProfile()
-        .then(() => {
-          // Then load bookmarks
-          fetchBookmarkedTweets();
-        });
+    
+    if (!checkAuth()) {
+      logger.warn('Authentication check failed in onMount');
+      return;
     }
+    
+    logger.debug('Auth check passed, loading profile and bookmarks');
+    
+    // First load user profile
+    fetchUserProfile()
+      .then(() => {
+        // Then load bookmarks
+        logger.debug('Profile loaded, fetching bookmarks');
+        return fetchBookmarkedTweets(true);
+      })
+      .catch(error => {
+        logger.error('Error in component initialization:', error);
+        toastStore.showToast('Error loading your data. Please refresh the page.', 'error');
+      });
   });
 
   function openThreadModal(tweet: ITweet) {

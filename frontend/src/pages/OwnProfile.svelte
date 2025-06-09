@@ -12,14 +12,23 @@
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
   import ProfileEditModal from '../components/profile/ProfileEditModal.svelte';
   import { formatStorageUrl, isSupabaseStorageUrl } from '../utils/common';
-  import type { ITweet, IFollowUser } from '../interfaces/ISocialMedia';
-  
-  // Import Feather icons
   import CalendarIcon from 'svelte-feather-icons/src/icons/CalendarIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import PinIcon from 'svelte-feather-icons/src/icons/MapPinIcon.svelte';
   import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
-    // Define interfaces for our data structures
+  import type { ITweet } from '../interfaces/ISocialMedia';
+  
+  interface IFollowUser {
+    id: string;
+    username: string;
+    name?: string;
+    display_name?: string;
+    profile_picture_url?: string;
+    is_following?: boolean;
+    is_followed_by?: boolean;
+  }
+  
+  // Define interfaces for our data structures
   interface Thread {
     id: string;
     content: string;
@@ -30,19 +39,29 @@
     replies: number;
     reposts: number;
     created_at: string;
-    author_id?: string;
-    author_username?: string;
-    author_name?: string;
-    author_avatar?: string;
+    updated_at?: string;
+    user_id: string; 
     likes_count?: number;
     replies_count?: number;
+    reposts_count?: number;
+    bookmark_count?: number;
+    views_count?: number;
     is_liked?: boolean;
     is_reposted?: boolean;
     is_bookmarked?: boolean;
     is_pinned?: boolean;
+    parent_id?: string | null;
+    author_id?: string;
+    author_username?: string;
+    author_name?: string;
+    author_avatar?: string;
+    profile_picture_url?: string;
+    name?: string;
+    thread_id?: string; // Thread ID for replies referring to parent thread
     media?: Array<{
       type: string;
       url: string;
+      id?: string;
     }>;
     avatar?: string;
     [key: string]: any; // For any additional properties
@@ -159,7 +178,7 @@
     
     // Get profile picture from all possible sources
     let profile_picture_url = thread.author_profile_picture_url || thread.profile_picture_url || 
-                       'https://secure.gravatar.com/avatar/0?d=mp';
+                       thread.author_avatar || 'https://secure.gravatar.com/avatar/0?d=mp';
     
     // Use the created_at timestamp if available, fall back to UTC now
     let created_at = thread.created_at || new Date().toISOString();
@@ -180,14 +199,15 @@
     const is_reposted = thread.is_reposted || false;
     const is_bookmarked = thread.is_bookmarked || false;
 
-    return {
+    // For type safety, create a properly formatted ITweet object
+    const tweetData: ITweet = {
       id: thread.id,
-      thread_id: thread.thread_id || thread.id,
-      user_id: userId,
+      user_id: thread.user_id || thread.author_id || userId,
       username: username,
       name: name,
       content: thread.content || '',
       created_at: typeof created_at === 'string' ? created_at : new Date(created_at).toISOString(),
+      updated_at: thread.updated_at || undefined,
       profile_picture_url: profile_picture_url,
       likes_count: likes_count,
       replies_count: replies_count,
@@ -199,8 +219,17 @@
       is_reposted: is_reposted,
       is_bookmarked: is_bookmarked,
       is_pinned: isPinned,
-      reply_to: thread.parent_id ? { id: thread.parent_id } as any : null
+      parent_id: thread.parent_id || null
     };
+
+    // If there's a thread_id property (in replies), store it as a custom property
+    if (thread.thread_id || thread.reply_to) {
+      (tweetData as any).reply_to_thread_id = thread.thread_id || 
+                                             (typeof thread.reply_to === 'string' ? thread.reply_to : 
+                                             thread.reply_to?.id || null);
+    }
+
+    return tweetData;
   }
   
   // Helper function to troubleshoot and manually repair pinned threads if needed
@@ -209,10 +238,19 @@
     
     try {
       // Step 1: Fetch recent threads to check if any should be pinned
-      const postsData = await getUserThreads(profileUserId);
-      const threads = postsData.threads || [];
+      let postsData;
+      let threads = [];
       
-      console.log("Threads from API:", threads.length);
+      try {
+        postsData = await getUserThreads(profileUserId);
+        threads = postsData.threads || [];
+        console.log("Threads from API:", threads.length);
+      } catch (error) {
+        console.error("Error fetching threads for troubleshooting:", error);
+        // Continue with empty threads array rather than failing completely
+        toastStore.showToast('Unable to check pinned threads - will try later', 'warning');
+        return; // Exit the function but don't throw error up to caller
+      }
       
       // Check different formats of is_pinned that might be present
       const pinned = {
@@ -227,14 +265,24 @@
       };
       
       console.log("Pinned threads by format:", pinned);
-      console.log("Possible pinned threads:", threads.filter(t => t.is_pinned === true || t.is_pinned === 'true' || 
-                                                              t.is_pinned === 1 || t.is_pinned === '1' || 
-                                                              t.is_pinned === 't' ||
-                                                              t.IsPinned === true).map(t => t.id));
       
-      // Check if the database shows it's pinned
-      // This uses the raw database values we saw in the terminal output
-      console.log("Database shows pinned threads - checking if they match frontend...");
+      // Get possible pinned threads with any format
+      const possiblyPinned = threads.filter(t => 
+        t.is_pinned === true || 
+        t.is_pinned === 'true' || 
+        t.is_pinned === 1 || 
+        t.is_pinned === '1' || 
+        t.is_pinned === 't' ||
+        t.IsPinned === true
+      );
+      
+      console.log("Possible pinned threads:", possiblyPinned.map(t => t.id));
+      
+      // Skip the repair steps if we couldn't get threads or there's an obvious error
+      if (threads.length === 0) {
+        console.log("No threads found, skipping pin repair");
+        return;
+      }
       
       // Find threads that should be pinned based on our database check
       // These IDs should match what you see in the database
@@ -242,6 +290,12 @@
         "5a07bfd3-5e19-401c-89a6-c14da0e44da7", // Based on the db screenshot showing is_pinned = t
         "3d3ffe9e-3b9f-4fdd-a942-7eda514429ea"  // Based on the second row in the db showing is_pinned = t
       ];
+      
+      // Only proceed with repair if we have valid thread data
+      if (!Array.isArray(threads)) {
+        console.error("Threads data is not an array, can't repair pins");
+        return;
+      }
       
       // Check if any of these threads aren't showing as pinned
       const unpinnedThreads = threads.filter(thread => 
@@ -255,31 +309,42 @@
       console.log("Threads that need pinning repair:", unpinnedThreads.map(t => t.id));
       
       // Check if there are any threads that have 't' as is_pinned value
-      console.log("Threads with PostgreSQL 't' format:", threads.filter(t => t.is_pinned === 't').map(t => ({
+      const postgresFormat = threads.filter(t => t.is_pinned === 't').map(t => ({
         id: t.id, 
         is_pinned: t.is_pinned, 
         content: t.content?.substring(0, 30) + '...'
-      })));
+      }));
+      
+      console.log("Threads with PostgreSQL 't' format:", postgresFormat);
       
       // Fix any threads that should be pinned but aren't
       if (unpinnedThreads.length > 0) {
         console.log(`Attempting to repair pin status for ${unpinnedThreads.length} threads...`);
         
+        let repairSuccessCount = 0;
         for (const thread of unpinnedThreads) {
           try {
             console.log(`Repairing pin status for thread ${thread.id}`);
             await pinThread(thread.id);
+            repairSuccessCount++;
           } catch (err) {
             console.error(`Failed to repair thread ${thread.id}:`, err);
+            // Continue with next thread rather than failing
           }
         }
         
-        // Reload data after repairs
-        toastStore.showToast("Repaired pinned thread status. Reloading...", "success");
-        setTimeout(() => loadTabContent('posts'), 2000);
+        // Reload data after repairs if at least one repair succeeded
+        if (repairSuccessCount > 0) {
+          toastStore.showToast(`Repaired ${repairSuccessCount} pinned thread(s). Reloading...`, "success");
+          setTimeout(() => loadTabContent('posts'), 2000);
+        } else {
+          toastStore.showToast("Could not repair pinned thread status. Please try again later.", "error");
+        }
       }
     } catch (error) {
       console.error("Error troubleshooting pinned threads:", error);
+      // Show error but don't crash the profile page
+      toastStore.showToast('Error checking pinned threads: ' + error.message, 'warning');
     }
   }
   
@@ -357,7 +422,12 @@
   
   function handleThreadClick(event) {
     const thread = event.detail;
-    window.location.href = `/thread/${thread.id}`;
+    if (thread && thread.id) {
+      console.log('Navigating to thread:', thread.id);
+      window.location.href = `/thread/${thread.id}`;
+    } else {
+      console.error('Invalid thread data in click event:', event);
+    }
   }
   
   function setActiveTab(tab) {
@@ -380,6 +450,15 @@
       if (tab === 'posts') {
         // Load user's threads
         const postsData = await getUserThreads(profileUserId);
+        
+        // Check if the request was successful
+        if (!postsData.success) {
+          console.error('Failed to load posts:', postsData.error);
+          toastStore.showToast(`Failed to load posts: ${postsData.error}`, 'error');
+          posts = [];
+          isLoading = false;
+          return;
+        }
         
         // Debug: Log the raw thread data
         console.log('Raw thread data from API:', postsData.threads);
@@ -415,13 +494,36 @@
         const repliesData = await getUserReplies(profileUserId);
         console.log('Raw replies data from API:', repliesData);
         
-        // Ensure we have an array of replies
+        // Check if the request was successful
+        if (!repliesData.success) {
+          console.error('Failed to load replies:', repliesData.error);
+          toastStore.showToast(`Failed to load replies: ${repliesData.error}`, 'error');
+          replies = [];
+          isLoading = false;
+          return;
+        }
+        
+        // Ensure we have an array of replies and they match expected format
         replies = ((repliesData.replies || []).map(reply => {
           // Check if this reply is in our liked threads
           if (reply.id && likedThreadIds.includes(reply.id)) {
             reply.is_liked = true;
           }
-          return ensureTweetFormat(reply);
+          
+          // Normalize fields for consistency with other tab data
+          const normalizedReply = {
+            ...reply,
+            // Ensure these properties exist for consistency with other tabs
+            username: reply.username || reply.author_username || '',
+            name: reply.name || reply.author_name || reply.display_name || '',
+            profile_picture_url: reply.profile_picture_url || reply.author_avatar || '',
+            likes_count: reply.likes_count || 0,
+            replies_count: reply.replies_count || 0,
+            is_liked: reply.is_liked || false,
+            is_bookmarked: reply.is_bookmarked || false
+          };
+          
+          return ensureTweetFormat(normalizedReply);
         }));
         
       } else if (tab === 'likes') {
@@ -429,16 +531,44 @@
         const likesData = await getUserLikedThreads(profileUserId);
         console.log('Raw likes data from API:', likesData);
         
+        // Check if the request was successful
+        if (!likesData.success) {
+          console.error('Failed to load likes:', likesData.error);
+          toastStore.showToast(`Failed to load likes: ${likesData.error}`, 'error');
+          likes = [];
+          isLoading = false;
+          return;
+        }
+        
         // Ensure we have an array of likes
         likes = ((likesData.threads || []).map(thread => {
-          thread.is_liked = true; // These are liked by definition
-          return ensureTweetFormat(thread);
+          const normalizedThread = {
+            ...thread,
+            is_liked: true, // These are liked by definition
+            // Ensure these properties exist for consistency with other tabs
+            likes_count: thread.likes_count || 0,
+            replies_count: thread.replies_count || 0,
+            is_bookmarked: thread.is_bookmarked || false
+          };
+          
+          return ensureTweetFormat(normalizedThread);
         }));
+        
+        // Log the processed likes for debugging
+        console.log('Likes processed:', likes.length);
         
       } else if (tab === 'media') {
         // Load user's media
         const mediaData = await getUserMedia(profileUserId);
         console.log('Raw media data from API:', mediaData);
+        
+        if (!mediaData.success && mediaData.error) {
+          console.error('Failed to load media:', mediaData.error);
+          toastStore.showToast(`Failed to load media: ${mediaData.error}`, 'error');
+          media = [];
+          isLoading = false;
+          return;
+        }
         
         // Process media data
         media = (mediaData.media || []).map(item => {
@@ -467,6 +597,13 @@
     } catch (error: any) {
       console.error(`Error loading ${tab} content:`, error);
       toastStore.showToast(`Failed to load ${tab}. ${error.message || ''}`, 'error');
+      
+      // Clear the tab data to prevent showing stale data
+      if (tab === 'posts') posts = [];
+      if (tab === 'replies') replies = [];
+      if (tab === 'likes') likes = [];
+      if (tab === 'media') media = [];
+      
     } finally {
       isLoading = false;
     }
@@ -1077,6 +1214,16 @@
       if (isOwnProfile) {
         await troubleshootPinnedThreads();
       }
+
+      // Pre-fetch the other tabs' data for better user experience
+      if (activeTab !== 'posts') {
+        setTimeout(() => loadTabContent('posts'), 1000);
+      }
+      
+      if (activeTab !== 'likes') {
+        setTimeout(() => loadTabContent('likes'), 2000);
+      }
+      
     } catch (error) {
       console.error('Failed to load user profile:', error);
       errorMessage = 'Failed to load profile. Please try again later.';
@@ -1359,7 +1506,7 @@
                   tweet={ensureTweetFormat(like)} 
                   isDarkMode={isDarkMode}
                   isAuth={isAuthenticated()}
-                  isLiked={like.isLiked || like.is_liked}
+                  isLiked={like.isLiked || like.is_liked || true}
                   isReposted={like.isReposted || like.is_repost}
                   isBookmarked={like.isBookmarked || like.is_bookmarked}
                   on:like={handleLike}
@@ -1373,6 +1520,7 @@
                   replies={repliesMap.get(like.id) || []}
                   showReplies={false}
                   nestedRepliesMap={nestedRepliesMap}
+                  on:click={handleThreadClick}
                 />
               </div>
             {/each}

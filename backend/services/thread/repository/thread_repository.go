@@ -56,20 +56,29 @@ func (r *PostgresThreadRepository) FindThreadByID(id string) (*model.Thread, err
 func (r *PostgresThreadRepository) FindThreadsByUserID(userID string, page, limit int) ([]*model.Thread, error) {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, errors.New("invalid UUID format for user ID")
+		return nil, fmt.Errorf("invalid UUID format for user ID: %w", err)
 	}
 
 	var threads []*model.Thread
 	offset := (page - 1) * limit
+
+	// Add debug logging
+	fmt.Printf("Executing FindThreadsByUserID query: userID=%s, offset=%d, limit=%d\n", userUUID, offset, limit)
+
 	result := r.db.Where("user_id = ?", userUUID).
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Find(&threads)
 
+	// Check if there was an actual database error
+	// Note: If no records were found, result.Error will be nil
 	if result.Error != nil {
-		return nil, result.Error
+		return nil, fmt.Errorf("database error in FindThreadsByUserID: %w", result.Error)
 	}
+
+	// If no threads found, return an empty slice (not an error)
+	fmt.Printf("Found %d threads for user %s\n", len(threads), userID)
 	return threads, nil
 }
 
