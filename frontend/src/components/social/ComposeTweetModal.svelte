@@ -9,13 +9,15 @@
     AlertCircleIcon,
     UsersIcon
   } from 'svelte-feather-icons';
-  import { createThread, uploadThreadMedia, replyToThread, suggestThreadCategory } from '../../api/thread';
+  import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
+  import { suggestThreadCategory } from '../../api/thread';
   import { getCommunityCategories } from '../../api/community';
   import { getThreadCategories } from '../../api/categories';
   import { toastStore } from '../../stores/toastStore';
   import { useTheme } from '../../hooks/useTheme';
   import { debounce } from '../../utils/helpers';
   import { getAuthToken, getUserRole } from '../../utils/auth';
+  import { uploadMultipleThreadMedia } from '../../utils/supabase';
   import type { ICategory } from '../../interfaces/ICategory';
   import type { ITweet } from '../../interfaces/ISocialMedia';
   
@@ -149,16 +151,22 @@
     try {
       isSuggestingCategory = true;
       
-      const result = await suggestThreadCategory(content);
-      suggestedCategory = result.category;
-      suggestedCategoryConfidence = result.confidence;
+      const result = await suggestThreadCategory(content).catch(() => ({ category: '', confidence: 0 }));
       
-      // Auto-select the suggested category if confidence is above 0.7
-      if (suggestedCategory && suggestedCategoryConfidence > 0.7 && !categoryTouched) {
-        selectedCategory = suggestedCategory;
+      if (result) {
+        suggestedCategory = result.category || '';
+        suggestedCategoryConfidence = result.confidence || 0;
+        
+        // Auto-select the suggested category if confidence is above 0.7
+        if (suggestedCategory && suggestedCategoryConfidence > 0.7 && !categoryTouched) {
+          selectedCategory = suggestedCategory;
+        }
       }
     } catch (error) {
       console.error("Error getting category suggestion:", error);
+      // Don't show error to user, just silently fail
+      suggestedCategory = '';
+      suggestedCategoryConfidence = 0;
     } finally {
       isSuggestingCategory = false;
     }
@@ -259,19 +267,16 @@
     }
   }
   
-  async function handleSubmit() {
+  async function handlePost() {
+    // Validate content
     if (newTweet.trim() === '' && files.length === 0 && !showPollOptions) {
       errorMessage = 'Your post cannot be empty';
       return;
     }
     
+    // Validate poll
     if (showPollOptions && (pollQuestion.trim() === '' || pollOptions.filter(opt => opt.trim() !== '').length < 2)) {
       errorMessage = 'Poll question and at least 2 options are required';
-      return;
-    }
-    
-    if (isOverLimit) {
-      errorMessage = `Your post exceeds the maximum character limit by ${-charsRemaining} characters`;
       return;
     }
     
@@ -282,9 +287,17 @@
       const threadData: any = {
         content: newTweet,
         hashtags: [],
-        who_can_reply: replyPermission,
-        category: selectedCategory || suggestedCategory || 'general'
+        who_can_reply: replyPermission.toLowerCase(), // Convert to lowercase to match backend expectations
       };
+
+      // Handle categories - Add as hashtag since backend thread proto doesn't have a category field
+      if (selectedCategory || suggestedCategory) {
+        const category = selectedCategory || suggestedCategory;
+        if (!threadData.hashtags) threadData.hashtags = [];
+        if (category && !threadData.hashtags.includes(category)) {
+          threadData.hashtags.push(category);
+        }
+      }
       
       // Add scheduled time if set
       if (showScheduleOptions && scheduledDate && scheduledTime) {
@@ -299,11 +312,15 @@
       
       // Add poll if enabled
       if (showPollOptions) {
+        // Format poll data according to backend expectations
+        const endTime = new Date();
+        endTime.setHours(endTime.getHours() + Number(pollExpiryHours));
+        
         threadData.poll = {
           question: pollQuestion,
           options: pollOptions.filter(opt => opt.trim() !== ''),
-          expiry_hours: pollExpiryHours,
-          who_can_vote: pollWhoCanVote
+          end_time: endTime.toISOString(),
+          is_anonymous: pollWhoCanVote === 'anonymous'
         };
       }
       
@@ -311,40 +328,92 @@
       if (isAdmin && isAdvertisement) {
         threadData.is_advertisement = true;
       }
+
+      console.log('Sending post data:', threadData);
       
       // Handle reply if in reply mode
       if (replyTo) {
-        threadData.thread_id = replyTo.id;
-        if (replyTo.parent_id) {
-          threadData.parent_reply_id = replyTo.id;
+        try {
+          threadData.thread_id = replyTo.id;
+          if (replyTo.parent_id) {
+            threadData.parent_reply_id = replyTo.id;
+          }
+          const response = await replyToThread(replyTo.id, threadData);
+          
+          if (files.length > 0 && response && response.id) {
+            try {
+              // First upload files to storage and get URLs
+              const mediaUrls = await uploadMultipleThreadMedia(files, response.id);
+              
+              if (mediaUrls && mediaUrls.length > 0) {
+                // Then update thread with media URLs
+                await uploadThreadMedia(response.id, files);
+                console.log('Successfully uploaded media for reply:', response.id);
+              }
+            } catch (uploadError) {
+              console.error('Error uploading media for reply:', uploadError);
+              toastStore.showToast('Your reply was published but media upload failed', 'warning');
+            }
+          }
+          
+          toastStore.showToast('Your reply was published successfully', 'success');
+          resetForm();
+          dispatch('posted', response);
+          dispatch('close');
+        } catch (replyError) {
+          console.error('Error posting reply:', replyError);
+          errorMessage = 'Failed to post your reply. Please try again.';
+          if (replyError instanceof Error) {
+            errorMessage += ' ' + replyError.message;
+          }
+          toastStore.showToast(errorMessage, 'error');
         }
-        const response = await replyToThread(replyTo.id, threadData);
-        
-        if (files.length > 0) {
-          await uploadThreadMedia(response.id, files);
+      } 
+      else { // Fix missing else branch for creating new threads
+        try {
+          // Create new thread
+          const response = await createThread(threadData);
+          
+          if (files.length > 0 && response && response.id) {
+            try {
+              // First upload files to storage and get URLs
+              const mediaUrls = await uploadMultipleThreadMedia(files, response.id);
+              
+              if (mediaUrls && mediaUrls.length > 0) {
+                // Then update thread with media URLs
+                await uploadThreadMedia(response.id, files);
+                console.log('Successfully uploaded media for thread:', response.id);
+              }
+            } catch (uploadError) {
+              console.error('Error uploading media:', uploadError);
+              toastStore.showToast('Your post was published but media upload failed', 'warning');
+            }
+          }
+          
+          toastStore.showToast('Your post was published successfully', 'success');
+          resetForm();
+          dispatch('posted', response);
+          dispatch('close');
+        } catch (threadError) {
+          console.error('Error posting new thread:', threadError);
+          errorMessage = 'Failed to publish your post. Please try again.';
+          if (threadError instanceof Error) {
+            if (threadError.message.includes('Network error')) {
+              errorMessage = threadError.message;
+            } else {
+              errorMessage += ' ' + threadError.message;
+            }
+          }
+          toastStore.showToast(errorMessage, 'error');
         }
-        
-        toastStore.showToast('Your reply was published successfully', 'success');
-        resetForm();
-        dispatch('posted', response);
-        dispatch('close');
-      } else {
-        // Create new thread
-        const response = await createThread(threadData);
-        
-        if (files.length > 0) {
-          await uploadThreadMedia(response.id, files);
-        }
-        
-        toastStore.showToast('Your post was published successfully', 'success');
-        resetForm();
-        dispatch('posted', response);
-        dispatch('close');
       }
     } catch (error) {
       console.error('Error posting thread:', error);
-      toastStore.showToast('Failed to publish your post. Please try again.', 'error');
       errorMessage = 'Failed to publish your post. Please try again.';
+      if (error instanceof Error) {
+        errorMessage += ' ' + error.message;
+      }
+      toastStore.showToast(errorMessage, 'error');
     } finally {
       isPosting = false;
     }
@@ -678,7 +747,8 @@
             
             <button 
               class="compose-tweet-submit"
-              on:click={handleSubmit}
+              type="button"
+              on:click={handlePost}
               disabled={isPosting || isOverLimit || (newTweet.trim() === '' && files.length === 0 && !showPollOptions)}
             >
               {isPosting ? 'Publishing...' : 'Post'}

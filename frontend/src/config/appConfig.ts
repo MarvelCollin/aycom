@@ -13,11 +13,15 @@ const appConfig = {
   api: {
     // For development in Docker, use the service name
     // For browser access from outside Docker, use the port mapping
-    baseUrl: (typeof window !== 'undefined' && window.location.hostname === 'localhost') 
-      ? 'http://localhost:8083/api/v1'  // Browser accessing localhost
+    baseUrl: (typeof window !== 'undefined') 
+      ? `${window.location.protocol}//${window.location.hostname}:8083/api/v1`  // Browser accessing API on same hostname
       : (import.meta.env.VITE_API_BASE_URL || 'http://api_gateway:8081/api/v1'), // Inside Docker network
-    wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:8083/api/v1',
-    aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:5000'
+    wsUrl: (typeof window !== 'undefined')
+      ? `ws://${window.location.hostname}:8083/api/v1`
+      : (import.meta.env.VITE_WS_URL || 'ws://localhost:8083/api/v1'),
+    aiServiceUrl: (typeof window !== 'undefined')
+      ? `${window.location.protocol}//${window.location.hostname}:5000`
+      : (import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:5000')
   },
 
   supabase: {

@@ -68,15 +68,31 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
           'Authorization': token ? `Bearer ${token}` : ''
         },
         credentials: 'include',
-        signal: controller.signal
+        signal: controller.signal,
+        mode: 'cors', // Explicitly set CORS mode
+        redirect: 'follow' // Handle redirects automatically
       };
 
       if (body) {
         options.body = JSON.stringify(body);
       }
 
+      logger.debug(`Making API request to ${url} with method ${method}`);
+      
       const response = await fetch(url, options);
       clearTimeout(timeoutId);
+      
+      // Log response details for debugging
+      logger.debug(`API response status: ${response.status} for ${url}`);
+      
+      // For 307/308 redirects, we need to handle them manually if they weren't followed
+      if (response.status === 307 || response.status === 308) {
+        const redirectUrl = response.headers.get('Location');
+        if (redirectUrl) {
+          logger.info(`Following redirect to ${redirectUrl}`);
+          return makeApiRequest(redirectUrl, method, body, errorMessage, timeout);
+        }
+      }
       
       // For 401 responses on public endpoints, try again without auth token
       if (response.status === 401 && isPublicReadRequest && token) {
@@ -94,24 +110,43 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
       if (error.name === 'AbortError') {
         throw new Error('Request timed out');
       }
+      logger.error(`Fetch error for ${url}: ${error.message}`);
       throw error;
     }
   } catch (error: any) {
-    logger.error(`API request failed: ${error.message}`);
+    logger.error(`API request failed for ${url}: ${error.message}`);
     throw error;
   }
 }
 
 export async function createThread(data: Record<string, any>) {
   try {
-    return await makeApiRequest(
-      `${API_BASE_URL}/threads`, 
+    logger.debug('Creating new thread with data:', { 
+      contentLength: data.content?.length || 0,
+      hasMedia: !!data.media,
+      hasPoll: !!data.poll,
+      whoCanReply: data.who_can_reply
+    });
+    
+    // Ensure the API endpoint is correctly formatted
+    const url = `${API_BASE_URL}/threads`;
+    logger.debug(`Using endpoint: ${url}`);
+    
+    const result = await makeApiRequest(
+      url, 
       'POST', 
       data, 
       'Failed to create thread'
     );
+    
+    logger.info('Thread created successfully');
+    return result;
   } catch (error) {
     logger.error('Create thread failed:', error);
+    // If this is a network error, provide a more helpful message
+    if (error instanceof Error && error.message.includes('Failed to fetch')) {
+      throw new Error('Network error: Could not connect to the API server. Please check your internet connection or contact support.');
+    }
     throw error;
   }
 }

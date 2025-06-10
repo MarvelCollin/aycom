@@ -15,6 +15,8 @@
   import CreateGroupChat from '../components/chat/CreateGroupChat.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   
+  import '../styles/pages/messages.css'; // Import the CSS file
+  
   const logger = createLoggerWithPrefix('Message');
 
   const { getAuthState } = useAuth();
@@ -87,18 +89,21 @@
   // Format group chat data for display
   function formatGroupChatForDisplay(chatData: any): Chat {
     return {
-      id: chatData.id,      name: chatData.name || 'New Group Chat',
+      id: chatData.id,      
+      name: chatData.name || 'New Group Chat',
       type: 'group',
       last_message: undefined,
       avatar: null,
-      participants: chatData.participants?.map(p => ({      id: p.id || p.user_id,
+      participants: chatData.participants?.map(p => ({      
+        id: p.id || p.user_id,
         username: p.username || '',
         display_name: p.display_name || p.username || `User`,
         avatar: p.avatar_url || p.avatar || null,
         is_verified: p.is_verified || false
       })) || [],
       messages: [],
-      unread_count: 0
+      unread_count: 0,
+      profile_picture_url: null 
     };
   }
   // Message interfaces
@@ -130,6 +135,7 @@
     last_message?: LastMessage;
     messages: Message[];
     unread_count: number;
+    profile_picture_url: string | null;
   }
 
   interface Participant {
@@ -156,14 +162,18 @@
     try {
       const response = await getProfile();
       if (response && response.user) {
-        const userData = response.user;        username = userData.username || `user_${authState.user_id?.substring(0, 4)}`;
+        const userData = response.user;        
+        username = userData.username || `user_${authState.user_id?.substring(0, 4)}`;
         displayName = userData.name || userData.display_name || `User ${authState.user_id?.substring(0, 4)}`;
-        avatar = userData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
-        logger.debug('Profile loaded', { username });      } else {
+        avatar = userData.profile_picture_url ?? 'https://secure.gravatar.com/avatar/0?d=mp';
+        logger.debug('Profile loaded', { username });      
+      } else {
         logger.warn('No user data received from API');
         username = `user_${authState.user_id?.substring(0, 4)}`;
         displayName = `User ${authState.user_id?.substring(0, 4)}`;
-      }    } catch (error) {
+        avatar = 'https://secure.gravatar.com/avatar/0?d=mp';
+      }    
+    } catch (error: any) {
       const errorResponse = handleApiError(error);
       logger.error('Error fetching user profile:', errorResponse);
       username = `user_${authState.user_id?.substring(0, 4)}`;
@@ -356,7 +366,6 @@
         
         // Update both properties for compatibility
         selectedChat.last_message = newLastMessage;
-        selectedChat.lastMessage = newLastMessage;
       }
     }
   }
@@ -374,9 +383,9 @@
     });
 
     // Update last message if needed
-    if (selectedChat && (selectedChat.last_message || selectedChat.lastMessage)) {
-      const lastMsg = selectedChat.last_message || selectedChat.lastMessage;
-      const lastMessageContent = lastMsg.content;
+          if (selectedChat && selectedChat.last_message) {
+        const lastMsg = selectedChat.last_message;
+        const lastMessageContent = lastMsg.content;
       
       if (selectedChat.messages.some(m => 
         m.id === message.message_id && 
@@ -395,7 +404,6 @@
         
         // Update both properties for compatibility
         selectedChat.last_message = newLastMessage;
-        selectedChat.lastMessage = newLastMessage;
       }
     }
   }
@@ -496,23 +504,14 @@
           }
           
           // Log last message
-          if (chat.last_message) {
-            console.log('- Last message:');
-            if (typeof chat.last_message === 'string') {
-              console.log(`  * Content: ${chat.last_message}`);
+          if (chat.last_message || chat.lastMessage) {
+            const lastMsg = chat.last_message || chat.lastMessage;
+            if (typeof lastMsg === 'string') {
+              console.log(`  * Content: ${lastMsg}`);
             } else {
-              console.log(`  * Content: ${chat.last_message.content || chat.last_message.Content || ''}`);
-              console.log(`  * Sender: ${chat.last_message.sender_id || chat.last_message.SenderId || ''}`);
-              console.log(`  * Timestamp: ${chat.last_message.timestamp || chat.last_message.Timestamp || ''}`);
-            }
-          } else if (chat.lastMessage) {
-            console.log('- Last message:');
-            if (typeof chat.lastMessage === 'string') {
-              console.log(`  * Content: ${chat.lastMessage}`);
-            } else {
-              console.log(`  * Content: ${chat.lastMessage.content || chat.lastMessage.Content || ''}`);
-              console.log(`  * Sender: ${chat.lastMessage.sender_id || chat.lastMessage.SenderId || ''}`);
-              console.log(`  * Timestamp: ${chat.lastMessage.timestamp || chat.lastMessage.Timestamp || ''}`);
+              console.log(`  * Content: ${lastMsg.content || lastMsg.Content || ''}`);
+              console.log(`  * Sender: ${lastMsg.sender_id || lastMsg.SenderId || ''}`);
+              console.log(`  * Timestamp: ${lastMsg.timestamp || lastMsg.Timestamp || ''}`);
             }
           } else {
             console.log('- No last message available');
@@ -658,108 +657,14 @@
           
           // Process last message 
           let lastMessageData: LastMessage;
-          if (chat.last_message) {
-            if (typeof chat.last_message === 'string') {
-              lastMessageData = {
-                content: chat.last_message,
-                timestamp: Date.now() / 1000,
-                sender_id: '',
-                sender_name: ''
-              };
-            } else {
-              // Extract sender information
-              const senderId = chat.last_message.sender_id || chat.last_message.user_id || '';
-              let senderName = '';
-              
-              // Try to find sender in participant list first
-              if (senderId) {
-                const sender = processedParticipants.find(p => p.id === senderId);
-                if (sender) {
-                  senderName = sender.display_name || sender.username || '';
-                }
-                
-                // If sender wasn't found or didn't have a name, try to fetch it
-                if (!senderName && senderId !== authState.user_id) {
-                  // We'll try to fetch this asynchronously
-                  getUserById(senderId).then(userData => {
-                    if (userData) {
-                      // Find this chat and update its last message sender
-                      const chatIndex = chats.findIndex(c => c.id === chatId);
-                      if (chatIndex >= 0 && chats[chatIndex].last_message) {
-                        chats[chatIndex].last_message.sender_name = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
-                        // Force UI update
-                        chats = [...chats];
-                      }
-                    }
-                  }).catch(err => {
-                    logger.error(`Failed to fetch last message sender data for ${senderId}:`, err);
-                  });
-                }
-                
-                // For current user messages
-                if (senderId === authState.user_id) {
-                  senderName = 'You';
-                }
-              }
-              
-              lastMessageData = {
-                content: chat.last_message.content || '',
-                timestamp: chat.last_message.timestamp || Date.now() / 1000,
-                sender_id: senderId,
-                sender_name: senderName
-              };
-            }
-          } else if (chat.lastMessage) {
-            if (typeof chat.last_message === 'string') {
-              lastMessageData = {
-                content: chat.last_message,
-                timestamp: Date.now() / 1000,
-                sender_id: '',
-                sender_name: ''
-              };
-            } else {
-              // Extract sender information
-              const senderId = chat.last_message.sender_id || chat.last_message.SenderId || '';
-              let senderName = '';
-              
-              // Try to find sender in participant list first
-              if (senderId) {
-                const sender = processedParticipants.find(p => p.id === senderId);
-                if (sender) {
-                  senderName = sender.display_name || sender.username || '';
-                }
-                
-                // If sender wasn't found or didn't have a name, try to fetch it
-                if (!senderName && senderId !== authState.user_id) {
-                  // We'll try to fetch this asynchronously
-                  getUserById(senderId).then(userData => {
-                    if (userData) {
-                      // Find this chat and update its last message sender
-                      const chatIndex = chats.findIndex(c => c.id === chatId);
-                      if (chatIndex >= 0 && chats[chatIndex].last_message) {
-                        chats[chatIndex].last_message.sender_name = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
-                        // Force UI update
-                        chats = [...chats];
-                      }
-                    }
-                  }).catch(err => {
-                    logger.error(`Failed to fetch last message sender data for ${senderId}:`, err);
-                  });
-                }
-                
-                // For current user messages
-                if (senderId === authState.user_id) {
-                  senderName = 'You';
-                }
-              }
-              
-              lastMessageData = {
-                content: chat.last_message.content || chat.last_message.Content || '',
-                timestamp: chat.last_message.timestamp || chat.last_message.Timestamp || Date.now() / 1000,
-                sender_id: senderId,
-                sender_name: senderName
-              };
-            }
+          if (chat.last_message || chat.lastMessage) {
+            const lastMsg = chat.last_message || chat.lastMessage;
+            lastMessageData = {
+              content: lastMsg.content || '',
+              timestamp: lastMsg.timestamp || Date.now(),
+              sender_id: lastMsg.sender_id || '',
+              sender_name: lastMsg.sender_name || ''
+            };
           } else {
             // Create a default last message when none exists
             lastMessageData = {
@@ -779,7 +684,8 @@
             participants: processedParticipants,
             last_message: lastMessageData,
             messages: [],
-            unread_count: chat.unread_count || 0
+            unread_count: chat.unread_count || 0,
+            profile_picture_url: null 
           };
           
           logger.debug('Processed chat:', { 
@@ -1103,9 +1009,10 @@
           });
           
           logger.debug(`Processed ${selectedChat.messages.length} messages for display`);
-        } catch (error) {
+        } catch (error: any) {
           // Handle 400/403 errors gracefully for new chats
-          const statusMatch = error.toString().match(/(\d{3})\s+/);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const statusMatch = errorMessage.match(/(\d{3})\s+/);
           const errorStatus = statusMatch ? parseInt(statusMatch[1]) : null;
           
           if (errorStatus === 400 || errorStatus === 403) {
@@ -1558,8 +1465,8 @@
         id: chatId,
         name: user.displayName || user.username,
         type: 'individual',
-        last_message: undefined,
-        avatar: user.avatar,
+        // Don't set last_message if it doesn't exist
+        avatar: user.avatar || null,
         participants: [
           {
             id: user.id,
@@ -1578,7 +1485,8 @@
           }
         ],
         messages: [],
-        unread_count: 0
+        unread_count: 0,
+        profile_picture_url: null 
       };
       
       logger.debug('Adding new chat to list', { newChatId: newChat.id });
@@ -1602,8 +1510,8 @@
         id: 'temp-' + Date.now(),
         name: user.displayName || user.username,
         type: 'individual',
-        last_message: undefined,
-        avatar: user.avatar,
+        // Don't set last_message if it doesn't exist
+        avatar: user.avatar || null,
         participants: [
           {
             id: user.id,
@@ -1621,7 +1529,8 @@
           }
         ],
         messages: [],
-        unread_count: 0
+        unread_count: 0,
+        profile_picture_url: null 
       };
       
       chats = [tempChat, ...chats];
@@ -1898,7 +1807,7 @@
                         </div>
                         <div class="chat-preview">
                           {#if chat.last_message && chat.last_message.content}
-                            {#if chat.last_message.sender_name}
+                            {#if chat.type === 'group' && chat.last_message.sender_name}
                               <span class="message-sender">{chat.last_message.sender_name}:</span>
                             {/if}
                             <span class="message-content">{chat.last_message.content.substring(0, 30)}{chat.last_message.content.length > 30 ? '...' : ''}</span>
@@ -1907,6 +1816,9 @@
                           {/if}
                         </div>
                       </div>
+                      {#if chat.unread_count > 0}
+                        <span class="unread-badge">{chat.unread_count}</span>
+                      {/if}
                     </button>
                   </li>
                 {/each}
@@ -2006,7 +1918,7 @@
                       </div>
                       <div class="chat-preview">
                         {#if chat.last_message && chat.last_message.content}
-                          {#if chat.last_message.sender_name}
+                          {#if chat.type === 'group' && chat.last_message.sender_name}
                             <span class="message-sender">{chat.last_message.sender_name}:</span>
                           {/if}
                           <span class="message-content">{chat.last_message.content.substring(0, 30)}{chat.last_message.content.length > 30 ? '...' : ''}</span>
@@ -2095,8 +2007,11 @@
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
             </svg>
           </button>
-          <button class="action-button" on:click={() => handleAttachment('image')} aria-label="Attach image">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <button 
+            class="action-button" 
+            on:click={() => handleAttachment('image')} 
+            aria-label="Add image attachment">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </button>
@@ -2155,800 +2070,8 @@
   </div>
 {/if}
 
-<style>
-  /* Main Container */
-  .message-container {
-    display: grid;
-    grid-template-columns: 288px 300px 1fr;
-    height: 100vh;
-    background-color: var(--background-color, white);
-    color: var(--text-color, black);
-  }
-
-  /* Dark mode overrides */
-  :global(.dark) .message-container {
-    --background-color: #111827;
-    --text-color: #f3f4f6;
-    --border-color: #374151;
-    --hover-bg: #1f2937;
-    --active-bg: rgba(29, 78, 216, 0.15);
-    --message-bg: #2d3748;
-    --own-message-bg: #3b82f6;
-    --input-bg: #1f2937;
-    --text-primary: #f3f4f6;
-    --text-secondary: #9ca3af;
-    --text-tertiary: #6b7280;
-    --avatar-fallback-bg: #374151;
-    --chat-item-border: #1f2937;
-    --chat-list-bg: #111827;
-    --active-border: #3b82f6;
-  }
-
-  /* Light mode variables */
-  .message-container {
-    --border-color: #e2e8f0;
-    --hover-bg: #f7fafc;
-    --active-bg: #e5efff;
-    --message-bg: #e2e8f0;
-    --own-message-bg: #3b82f6;
-    --input-bg: #f7fafc;
-    --text-primary: #1f2937;
-    --text-secondary: #6b7280;
-    --text-tertiary: #9ca3af;
-    --avatar-fallback-bg: #e2e8f0;
-    --chat-item-border: #f3f4f6;
-    --chat-list-bg: white;
-    --active-border: #3b82f6;
-  }
-
-  /* Left Sidebar */
-  .left-sidebar {
-    border-right: 1px solid var(--border-color);
-    height: 100%;
-    overflow-y: auto;
-    min-width: 288px;
-  }
-
-  /* Middle Section */
-  .middle-section {
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid var(--border-color);
-    height: 100%;
-  }
-
-  .section-header {
-    padding: 16px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .section-header h1 {
-    font-size: 1.25rem;
-    font-weight: bold;
-    margin: 0;
-    color: var(--text-primary);
-  }
-
-  .compose-button {
-    display: flex;
-    align-items: center;
-    background-color: var(--own-message-bg);
-    color: white;
-    border: none;
-    border-radius: 9999px;
-    padding: 6px 12px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .compose-button svg {
-    margin-right: 4px;
-  }
-
-  .compose-button:hover {
-    background-color: #2563eb;
-  }
-
-  .search-container {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-    position: relative;
-  }
-
-  .search-input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .search-input {
-    width: 100%;
-    padding: 10px 16px 10px 40px;
-    border-radius: 9999px;
-    border: 1px solid var(--border-color);
-    background-color: var(--input-bg);
-    color: var(--text-color);
-    font-size: 0.95rem;
-    transition: all 0.2s ease;
-  }
-
-  .search-input:focus {
-    outline: none;
-    border-color: var(--own-message-bg);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-  }
-
-  .search-input-wrapper::before {
-    content: "";
-    position: absolute;
-    left: 14px;
-    width: 16px;
-    height: 16px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'%3E%3C/path%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    pointer-events: none;
-  }
-
-  :global(.dark) .search-input-wrapper::before {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239CA3AF'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'%3E%3C/path%3E%3C/svg%3E");
-  }
-
-  .clear-search-button {
-    position: absolute;
-    right: 12px;
-    background: none;
-    border: none;
-    padding: 4px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .clear-search-button:hover {
-    color: var(--text-primary);
-    background-color: var(--hover-bg);
-  }
-
-  .search-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 16px;
-    right: 16px;
-    max-height: 400px;
-    overflow-y: auto;
-    background-color: var(--background-color);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-  }
-
-  .search-dropdown-section {
-    padding: 12px;
-  }
-
-  .search-dropdown-section + .search-dropdown-section {
-    border-top: 1px solid var(--border-color);
-  }
-
-  .search-dropdown-title {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin: 4px 4px 12px;
-    font-weight: 600;
-  }
-
-  .dropdown-item {
-    padding: 10px 12px;
-    border-radius: 8px;
-    margin-bottom: 4px;
-    transition: all 0.15s ease;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    text-align: left;
-    border: none;
-    background: none;
-    cursor: pointer;
-    color: var(--text-primary);
-    position: relative;
-  }
-
-  .dropdown-item:hover {
-    background-color: var(--hover-bg);
-  }
-  
-  .start-chat-btn {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    border-radius: 4px;
-    background-color: var(--own-message-bg);
-    color: white;
-    font-size: 0.75rem;
-    font-weight: 500;
-    margin-left: auto;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  
-  .start-chat-btn svg {
-    margin-right: 4px;
-  }
-  
-  .start-chat-btn:hover {
-    background-color: #2563eb;
-  }
-  
-  .no-results-message {
-    color: var(--text-secondary);
-    font-style: italic;
-    text-align: center;
-    padding: 20px 0;
-  }
-
-  /* Right Section */
-  .right-section {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  .chat-header {
-    display: flex;
-    align-items: center;
-    padding: 16px;
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .chat-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    overflow: hidden;
-    background-color: #6b7280;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 12px;
-  }
-
-  .chat-title h2 {
-    font-weight: bold;
-    margin: 0;
-  }
-
-  .group-info {
-    font-size: 0.875rem;
-    color: gray;
-    margin: 0;
-    display: flex;
-    align-items: center;
-  }
-  
-  .ws-status {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-left: 6px;
-    background-color: #ef4444;
-  }
-  
-  .ws-status[data-connected="true"] {
-    background-color: #10b981;
-  }
-
-  .messages-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    background-color: var(--bg-light, #f9fafb);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  :global(.dark) .messages-container {
-    background-color: var(--bg-dark, #121212);
-  }
-
-  .message-wrapper {
-    display: flex;
-    animation: fade-in 0.3s ease;
-  }
-
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .own-message {
-    justify-content: flex-end;
-  }
-
-  .other-message {
-    justify-content: flex-start;
-  }
-
-  .message-bubble {
-    max-width: 75%;
-    padding: 10px 14px;
-    border-radius: 18px;
-    position: relative;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-  }
-
-  .own-message .message-bubble {
-    background-color: var(--own-message-bg, #3b82f6);
-    color: white;
-    border-bottom-right-radius: 6px;
-  }
-
-  .other-message .message-bubble {
-    background-color: var(--message-bg, #f3f4f6);
-    color: var(--text-color, black);
-    border-bottom-left-radius: 6px;
-  }
-
-  :global(.dark) .other-message .message-bubble {
-    background-color: var(--message-bg-dark, #2d3748);
-    color: white;
-  }
-
-  .sender-name {
-    font-weight: 600;
-    margin-bottom: 3px;
-    font-size: 0.85rem;
-    color: var(--text-secondary, #6c757d);
-  }
-
-  .deleted-message {
-    font-style: italic;
-    color: var(--text-tertiary, #9ca3af);
-    font-size: 0.9rem;
-  }
-
-  .attachments {
-    margin-top: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .attachment-image, .attachment-video {
-    max-width: 100%;
-    border-radius: 8px;
-  }
-
-  .message-meta {
-    display: flex;
-    align-items: center;
-    font-size: 0.7rem;
-    margin-top: 4px;
-    color: rgba(255, 255, 255, 0.8);
-    justify-content: flex-end;
-  }
-
-  .other-message .message-meta {
-    color: var(--text-secondary, #6c757d);
-  }
-
-  .unsend-button {
-    margin-left: 6px;
-    background: none;
-    border: none;
-    color: inherit;
-    text-decoration: underline;
-    cursor: pointer;
-    padding: 0;
-    font-size: 0.7rem;
-    opacity: 0.8;
-    transition: opacity 0.2s;
-  }
-
-  .unsend-button:hover {
-    opacity: 1;
-  }
-
-  .message-input-container {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border-color);
-    background-color: var(--bg-light, white);
-  }
-
-  :global(.dark) .message-input-container {
-    background-color: var(--bg-dark, #121212);
-  }
-
-  .message-actions {
-    display: flex;
-    margin-right: 8px;
-  }
-
-  .action-button {
-    background: none;
-    border: none;
-    color: var(--text-secondary, #6c757d);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    margin-right: 4px;
-    transition: all 0.2s;
-  }
-
-  .action-button:hover {
-    background-color: var(--hover-bg, #f7fafc);
-    color: var(--own-message-bg, #3b82f6);
-  }
-
-  .message-input {
-    flex: 1;
-    padding: 10px 16px;
-    border-radius: 24px;
-    border: 1px solid var(--border-color, #e2e8f0);
-    background-color: var(--input-bg, #f7fafc);
-    color: var(--text-color, black);
-    font-size: 0.95rem;
-    transition: border-color 0.2s;
-  }
-
-  .message-input:focus {
-    outline: none;
-    border-color: var(--own-message-bg, #3b82f6);
-  }
-
-  .send-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: var(--own-message-bg, #3b82f6);
-    color: white;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    margin-left: 8px;
-    transition: background-color 0.2s, transform 0.1s;
-  }
-
-  .send-button:hover {
-    background-color: var(--own-message-bg-hover, #2563eb);
-    transform: scale(1.05);
-  }
-
-  .send-button:active {
-    transform: scale(0.95);
-  }
-
-  .send-button[disabled] {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .send-button svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .empty-chat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    text-align: center;
-    padding: 0 16px;
-    color: var(--text-secondary, #6c757d);
-    background-color: var(--bg-light, #f9fafb);
-  }
-
-  :global(.dark) .empty-chat {
-    background-color: var(--bg-dark, #121212);
-    color: #e5e7eb;
-  }
-
-  .empty-chat h2 {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin-bottom: 10px;
-    color: var(--text-primary, #1f2937);
-  }
-
-  :global(.dark) .empty-chat h2 {
-    color: white;
-  }
-
-  .empty-chat p {
-    color: var(--text-secondary, #6c757d);
-    margin-bottom: 24px;
-    max-width: 400px;
-    line-height: 1.5;
-  }
-
-  .new-message-button {
-    background-color: var(--own-message-bg, #3b82f6);
-    color: white;
-    font-weight: 600;
-    padding: 10px 24px;
-    border-radius: 9999px;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .new-message-button:hover {
-    background-color: var(--own-message-bg-hover, #2563eb);
-  }
-
-  .empty-message {
-    text-align: center;
-    padding: 2rem;
-    color: var(--text-secondary, #6c757d);
-    font-style: italic;
-  }
-
-  .empty-chat-icon {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 20px;
-    color: var(--own-message-bg, #3b82f6);
-    opacity: 0.7;
-  }
-
-  .message-sender {
-    font-weight: 600;
-    margin-right: 0.25rem;
-    color: var(--color-primary);
-    display: inline-block;
-  }
-  
-  .message-content {
-    opacity: 0.9;
-    display: inline;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .chat-preview {
-    display: flex;
-    align-items: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .group-indicator {
-    display: flex;
-    align-items: center;
-    margin-left: 4px;
-    color: var(--text-secondary, #6c757d);
-  }
-
-  .no-messages {
-    color: var(--text-tertiary, #9ca3af);
-    font-style: italic;
-  }
-
-  /* Chat List */
-  .chat-list {
-    overflow-y: auto;
-    flex: 1;
-    background-color: var(--chat-list-bg);
-  }
-
-  .chat-items {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .chat-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--chat-item-border);
-    background: none;
-    border-left: 3px solid transparent;
-    border-right: none;
-    border-top: none;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .chat-item:hover {
-    background-color: var(--hover-bg);
-  }
-
-  .chat-item.active {
-    background-color: var(--active-bg);
-    border-left: 3px solid var(--active-border);
-  }
-
-  .avatar-container {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    overflow: hidden;
-    background-color: var(--avatar-fallback-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 12px;
-    flex-shrink: 0;
-    position: relative;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  }
-
-  .avatar-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .avatar-placeholder {
-    color: var(--text-primary);
-    font-size: 1.2rem;
-    font-weight: 600;
-  }
-
-  .group-indicator {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    background-color: var(--own-message-bg);
-    color: white;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    border: 2px solid var(--chat-list-bg);
-  }
-
-  .chat-info {
-    flex: 1;
-    min-width: 0;
-    margin-right: 8px;
-  }
-
-  .chat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 4px;
-  }
-
-  .chat-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .chat-time {
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-
-  .chat-preview {
-    display: flex;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 0.85rem;
-    line-height: 1.3;
-  }
-
-  .message-sender {
-    font-weight: 500;
-    margin-right: 0.25rem;
-    color: var(--text-primary);
-    display: inline-block;
-  }
-  
-  .message-content {
-    opacity: 0.95;
-    display: inline;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-secondary);
-  }
-
-  .no-messages {
-    color: var(--text-tertiary);
-    font-style: italic;
-    font-size: 0.85rem;
-  }
-
-  .unread-badge {
-    background-color: var(--own-message-bg);
-    color: white;
-    font-size: 0.75rem;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    flex-shrink: 0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-
-  .search-section-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 16px 16px 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  /* Add these new styles for the button group and modal */
-  .button-group {
-    display: flex;
-    gap: 8px;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-
-  .modal-container {
-    width: 90%;
-    max-width: 600px;
-    max-height: 90vh;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  }
-</style>
-
-<!-- Add the Debug Panel component -->
-<DebugPanel />
+{#if showGroupChatModal}
+  <CreateGroupChat on:close={() => showGroupChatModal = false} on:created={handleGroupChatCreated} />
+{/if}
 
 

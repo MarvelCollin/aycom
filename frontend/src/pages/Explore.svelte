@@ -833,31 +833,60 @@
     isLoadingUsers = true;
     try {
       console.log('Fetching verified users...');
-      const response = await searchUsers('', 1, 20, { filter: 'verified' });
-      console.log('Verified users response:', response);
       
-      if (!response.users || !Array.isArray(response.users)) {
-        console.error('Invalid response structure from searchUsers:', response);
-        usersToDisplay = [];
-        return;
-      }
+      // Instead of using searchUsers, use getAllUsers and then filter for verified users
+      const response = await getAllUsers(1, 50, 'created_at', false);
+      console.log('All users response for verified filtering:', response);
       
-      usersToDisplay = response.users.map(user => {
-        console.log('Processing verified user:', user);
-        return {
-          id: user.id || '',
-          username: user.username || '',
-          displayName: user.name || user.display_name || user.username || '',
+      // Extract users and filter for only verified ones
+      const allUsers = response.users || [];
+      const verifiedUsers = allUsers.filter(user => user.is_verified === true);
+      
+      console.log('Filtered verified users:', verifiedUsers);
+      
+      if (verifiedUsers.length > 0) {
+        // Map backend response to the format expected by the frontend components
+        usersToDisplay = verifiedUsers.map(user => ({
+          id: user.id,
+          username: user.username,
+          displayName: user.name || user.display_name || user.username,
           avatar: user.profile_picture_url || user.avatar || null,
           bio: user.bio || '',
-          isVerified: true, // These users are guaranteed to be verified
+          isVerified: true, // We know these users are verified
           followerCount: user.follower_count || 0,
           isFollowing: user.is_following || false
-        };
-      });
-      console.log('Mapped verified users:', usersToDisplay);
+        }));
+        
+        console.log('Mapped verified users for display:', usersToDisplay);
+        logger.debug('Fetched verified users:', { count: usersToDisplay.length });
+      } else {
+        console.log('No verified users found');
+        usersToDisplay = [];
+        
+        // If no verified users found through filtering, try the searchUsers approach as backup
+        try {
+          const searchResponse = await searchUsers('', 1, 20, { filter: 'verified' });
+          console.log('Search API verified users response:', searchResponse);
+          
+          if (searchResponse && searchResponse.users && Array.isArray(searchResponse.users) && searchResponse.users.length > 0) {
+            usersToDisplay = searchResponse.users.map(user => ({
+              id: user.id || '',
+              username: user.username || '',
+              displayName: user.name || user.display_name || user.username || '',
+              avatar: user.profile_picture_url || user.avatar || null,
+              bio: user.bio || '',
+              isVerified: true,
+              followerCount: user.follower_count || 0,
+              isFollowing: user.is_following || false
+            }));
+            console.log('Found verified users from search API:', usersToDisplay);
+          }
+        } catch (searchError) {
+          console.error('Backup search method for verified users failed:', searchError);
+        }
+      }
     } catch (error) {
-      console.error('Error fetching verified users:', error);
+      logger.error('Error fetching verified users:', error);
       toastStore.showToast('Failed to load verified users', 'error');
       usersToDisplay = [];
     } finally {
