@@ -35,6 +35,100 @@ interface CommunitiesParams {
   [key: string]: any;
 }
 
+// Get properly filtered user communities (joined, pending, discover)
+export async function getUserCommunities(params: CommunitiesParams = {}) {
+  try {
+    const token = getAuthToken();
+    console.log(`Getting user communities with token: ${token ? 'present' : 'missing'}`);
+
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => queryParams.append(key, v));
+      } else if (value !== null && value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    try {
+      // First try the new endpoint
+      const response = await fetch(`${API_BASE_URL}/communities/user?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('User Communities API response:', data);
+        
+        return {
+          success: true,
+          communities: data.communities || [],
+          pagination: data.pagination || {
+            total_count: 0,
+            current_page: 1,
+            per_page: 25,
+            total_pages: 0
+          },
+          limit_options: data.limit_options || [25, 30, 35]
+        };
+      } else {
+        logger.warn(`New endpoint failed with ${response.status}, falling back to old endpoint`);
+        // If error, fall back to the old endpoint
+        if (params.filter === 'joined') {
+          // For joined communities, use filter=joined
+          return await getCommunities({
+            ...params,
+            filter: 'joined'
+          });
+        } else if (params.filter === 'pending') {
+          // For pending communities, use filter=pending
+          return await getCommunities({
+            ...params,
+            filter: 'pending'
+          });
+        } else {
+          // For discover, use is_approved=true
+          return await getCommunities({
+            ...params,
+            is_approved: true
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn('Error using new endpoint, falling back to old endpoint:', error);
+      // Fallback to old API
+      if (params.filter === 'joined') {
+        // For joined communities, use filter=joined
+        return await getCommunities({
+          ...params,
+          filter: 'joined'
+        });
+      } else if (params.filter === 'pending') {
+        // For pending communities, use filter=pending
+        return await getCommunities({
+          ...params,
+          filter: 'pending'
+        });
+      } else {
+        // For discover, use is_approved=true
+        return await getCommunities({
+          ...params,
+          is_approved: true
+        });
+      }
+    }
+  } catch (error) {
+    logger.error('Get user communities failed:', error);
+    throw error;
+  }
+}
+
 export async function getCommunities(params: CommunitiesParams = {}) {
   try {
     const token = getAuthToken();

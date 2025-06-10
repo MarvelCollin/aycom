@@ -864,20 +864,13 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	// No longer require query to be non-empty - allow filtering by categories or is_approved only
-	// This is needed for the discover tab that filters by is_approved=true
-
+	offset := int(req.Offset)
 	limit := int(req.Limit)
 	if limit <= 0 {
-		limit = 50
-	}
-	offset := int(req.Offset)
-	if offset < 0 {
-		offset = 0
+		limit = 10
 	}
 
-	// Use the is_approved value from the request
-	var isApproved *bool = nil
+	var isApproved *bool
 	if req.IsApproved {
 		approved := req.IsApproved
 		isApproved = &approved
@@ -886,6 +879,46 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 	communities, totalCount, err := h.communityService.SearchCommunities(ctx, req.Query, req.Categories, isApproved, offset, limit)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to search communities: %v", err))
+	}
+
+	protoCommunities := make([]*communityProto.Community, len(communities))
+	for i, community := range communities {
+		protoCommunities[i] = h.mapCommunityToProto(community)
+	}
+
+	return &communityProto.ListCommunitiesResponse{
+		Communities: protoCommunities,
+		TotalCount:  int32(totalCount),
+	}, nil
+}
+
+// ListUserCommunities gets communities based on user's membership status
+func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communityProto.ListUserCommunitiesRequest) (*communityProto.ListCommunitiesResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+	}
+
+	offset := int(req.Offset)
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Normalize status values
+	status := req.Status
+	if status != "member" && status != "pending" {
+		status = "member" // Default to member if not specified
+	}
+
+	// Get communities where the user is a member or has pending requests
+	communities, totalCount, err := h.communityService.ListUserCommunities(ctx, userID, status, offset, limit)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list user communities: %v", err))
 	}
 
 	protoCommunities := make([]*communityProto.Community, len(communities))

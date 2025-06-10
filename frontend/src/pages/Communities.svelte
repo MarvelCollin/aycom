@@ -5,7 +5,7 @@
   import { useTheme } from '../hooks/useTheme';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import { getCommunities, getCategories, requestToJoin, checkUserCommunityMembership } from '../api/community';
+  import { getCommunities, getUserCommunities, getCategories, requestToJoin, checkUserCommunityMembership } from '../api/community';
   import type { ICategoriesResponse, ICategory } from '../interfaces/ICategory';
   import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
   
@@ -94,7 +94,7 @@
     try {
       // Determine filter based on active tab
       const filter = activeTab === 'joined' ? 'joined' : 
-                     activeTab === 'pending' ? 'pending' : 'all';
+                     activeTab === 'pending' ? 'pending' : 'discover';
                      
       console.log('Fetching communities with filter:', filter);
       const params = {
@@ -103,10 +103,10 @@
         filter,
         q: searchQuery,
         category: selectedCategories,
-        is_approved: activeTab === 'discover' ? true : undefined
       };
       
-      const result = await getCommunities(params);
+      // Use the new user communities endpoint for properly filtered results
+      const result = await getUserCommunities(params);
       console.log('API response:', result);
       
       if (result.success) {
@@ -170,7 +170,7 @@
         console.error('API response success flag is false:', result);
         toastStore.showToast('Failed to fetch communities', 'error');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error in fetchCommunities:', err);
       logger.error('Error fetching communities:', err);
       error = err.message || 'Failed to load communities';
@@ -477,10 +477,10 @@
               </div>
             {/each}
           {:else}
-            <EmptyState
-              message="You haven't joined any communities yet"
-              description="Join communities to see them here"
-            />
+            <div class="empty-state">
+              <p class="message">You haven't joined any communities yet</p>
+              <p class="description">Join communities to see them here</p>
+            </div>
           {/if}
         </div>
       {:else if activeTab === 'pending'}

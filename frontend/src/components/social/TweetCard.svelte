@@ -1495,10 +1495,20 @@
   function isVerified(rawTweet: any): boolean {
     return Boolean(rawTweet.is_verified || rawTweet.verified || rawTweet.user?.is_verified || rawTweet.user?.verified || false);
   }
+
+  // Function to navigate to thread detail page
+  function navigateToThreadDetail(e: Event) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (processedTweet && processedTweet.id) {
+      dispatch('click', tweet);
+    }
+  }
 </script>
 
 <div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}">
-  <div class="tweet-card-container">
+  <div class="tweet-card-container" on:click|preventDefault={navigateToThreadDetail}>
     <div class="tweet-card-content">
       <div class="tweet-card-header">
         <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
@@ -1767,6 +1777,37 @@
 {/if}
 
 <style>
+  .tweet-card {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border-bottom: 1px solid #e6ecf0;
+    background-color: #fff;
+  }
+  
+  .tweet-card-dark {
+    background-color: #15202b;
+    border-bottom: 1px solid #38444d;
+  }
+  
+  .tweet-card-container {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .tweet-card-container:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+  }
+  
+  .tweet-card-dark .tweet-card-container:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .tweet-card-content {
+    width: 100%;
+  }
+  
   /* Note: Some CSS selectors may appear unused but are needed for dynamic class creation
      or are used by JavaScript functions like classList.add/remove */
   .tweet-card {

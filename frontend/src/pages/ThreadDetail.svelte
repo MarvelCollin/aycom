@@ -349,6 +349,18 @@
 
 <div class="thread-detail-container {isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}">
   <div class="thread-content max-w-3xl mx-auto">
+    <!-- Back Button -->
+    <div class="back-button-container p-2">
+      <button 
+        class="back-button rounded-full p-2 {isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors"
+        on:click={() => window.history.back()}
+        aria-label="Go back"
+      >
+        <ArrowLeftIcon size="20" class="{isDarkMode ? 'text-white' : 'text-black'}" />
+      </button>
+      <span class="ml-2 font-semibold {isDarkMode ? 'text-white' : 'text-black'}">Thread</span>
+    </div>
+
     {#if isLoading}
       <div class="p-4 text-center">
         <div class="loader {isDarkMode ? 'border-blue-500' : 'border-blue-600'}"></div>
@@ -411,6 +423,22 @@
   .thread-detail-container {
     min-height: calc(100vh - 60px);
     padding: 1rem 0;
+  }
+  
+  .back-button-container {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .back-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    transition: background-color 0.2s ease;
   }
   
   .loader {

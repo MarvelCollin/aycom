@@ -445,8 +445,23 @@
     try {
       if (tab === 'posts') {
         const postsData = await getUserThreads(profileUserId);
-        posts = postsData.threads || [];
-        console.log(`Loaded ${posts.length} posts`);
+        console.log('Posts data from API:', postsData);
+        
+        // Extract threads from the response, handling nested data structures
+        if (postsData && postsData.success) {
+          // Check if data is in the main object or nested inside a data property
+          if (postsData.threads) {
+            posts = postsData.threads;
+          } else if (postsData.data && postsData.data.threads) {
+            posts = postsData.data.threads;
+          } else {
+            posts = [];
+          }
+          console.log(`Loaded ${posts.length} posts:`, posts);
+        } else {
+          console.error('Failed to get posts:', postsData);
+          posts = [];
+        }
       } else if (tab === 'replies') {
         const repliesData = await getUserReplies(profileUserId);
         replies = repliesData.replies || [];
@@ -519,24 +534,40 @@
     const updatedData = event.detail;
     isUpdatingProfile = true;
     
+    console.log('Received profile update event with data:', updatedData);
+    console.log('Current profile data before update:', profileData);
+    
     try {
       // Map the form field names to what the backend API expects
       const apiData = {
-        name: updatedData.displayName,      // Backend uses 'name' instead of 'displayName'
+        name: updatedData.name,      // Backend expects 'name'
         bio: updatedData.bio,
         email: updatedData.email,
-        date_of_birth: updatedData.dateOfBirth,  // Backend uses snake_case 'date_of_birth'
+        date_of_birth: updatedData.date_of_birth,  // Backend uses snake_case 'date_of_birth'
         gender: updatedData.gender
         // profile_picture_url and banner_url are handled separately via their own handlers
       };
 
-      console.log('Sending profile update:', apiData);
+      console.log('Sending profile update to API:', apiData);
       const response = await updateProfile(apiData);
+      console.log('Profile update API response:', response);
+      
       if (response && response.success) {
         toastStore.showToast('Profile updated successfully!', 'success');
+        // Update local profile data to reflect changes
+        profileData = {
+          ...profileData,
+          displayName: updatedData.name,
+          bio: updatedData.bio,
+          email: updatedData.email,
+          dateOfBirth: updatedData.date_of_birth,
+          gender: updatedData.gender
+        };
+        
+        // Also reload full profile data from server to ensure everything is in sync
         loadProfileData();
       } else {
-        throw new Error(response.message || 'Failed to update profile');
+        throw new Error(response?.message || 'Failed to update profile');
       }
     } catch (error: any) {
       console.error('Error updating profile:', error);
@@ -1088,6 +1119,36 @@
       
       console.log('Profile loaded with username:', profileData.username);
       console.log('Profile loaded with displayName:', profileData.displayName);
+      console.log('Profile ID:', profileData.id); // Debug - Check if user ID is valid
+
+      // Make sure we have a valid user ID before loading threads
+      if (!profileData.id) {
+        console.error('No user ID available to load posts');
+        errorMessage = 'Failed to load profile data. Please try again later.';
+        return;
+      }
+      
+      // Store the user ID for thread loading
+      profileUserId = profileData.id;
+      console.log('Setting profileUserId to:', profileUserId);
+
+      // Test fetching posts directly
+      try {
+        console.log('Testing getUserThreads API directly with ID:', profileUserId);
+        const testPostsData = await getUserThreads(profileUserId);
+        console.log('Test posts data:', testPostsData);
+        
+        // Check if data is available but nested in a data property
+        if (testPostsData && testPostsData.data && testPostsData.data.threads) {
+          console.log('Found threads in nested data structure:', testPostsData.data.threads.length);
+        } else if (testPostsData && testPostsData.threads) {
+          console.log('Found threads in direct structure:', testPostsData.threads.length);
+        } else {
+          console.warn('No posts found in direct test');
+        }
+      } catch (e) {
+        console.error('Error testing posts API directly:', e);
+      }
 
       // Load initial tab content
       await loadTabContent(activeTab);
@@ -1322,16 +1383,16 @@
         id: profileData.id,
         username: profileData.username,
         name: profileData.displayName,
-        bio: profileData.bio,
-        profile_picture_url: profileData.profilePicture,
-        banner_url: profileData.backgroundBanner,
-        email: profileData.email,
-        date_of_birth: profileData.dateOfBirth,
-        gender: profileData.gender,
-        is_verified: false,
-        follower_count: profileData.followerCount,
-        following_count: profileData.followingCount,
-        created_at: profileData.joinedDate
+        bio: profileData.bio || '',
+        profile_picture_url: profileData.profilePicture || DEFAULT_AVATAR,
+        banner_url: profileData.backgroundBanner || '',
+        email: profileData.email || '',
+        date_of_birth: profileData.dateOfBirth || '',
+        gender: profileData.gender || '',
+        is_verified: profileData.isVerified || false,
+        follower_count: profileData.followerCount || 0,
+        following_count: profileData.followingCount || 0,
+        created_at: profileData.joinedDate || ''
       }}
       isOpen={showEditModal}
       on:close={() => showEditModal = false}

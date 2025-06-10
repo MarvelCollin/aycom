@@ -2679,3 +2679,199 @@ func SearchCommunityByName(c *gin.Context) {
 		},
 	})
 }
+
+// GetUserCommunities handles fetching communities with proper filtering based on membership status
+func GetUserCommunities(c *gin.Context) {
+	// Get the user ID from the JWT token
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	// Parse query parameters
+	page := 1
+	limit := 25
+	filter := c.Query("filter") // 'joined', 'pending', or 'discover'
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
+	}
+
+	// Get search query and categories (optional)
+	query := c.Query("q")
+	var categories []string
+	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
+		categories = categoriesParam
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var resp *communityProto.ListCommunitiesResponse
+	var err error
+
+	// Handle different filter types
+	if filter == "joined" || filter == "pending" {
+		// For joined or pending, use ListUserCommunities endpoint
+		status := filter // status is the same as filter in this case
+		resp, err = CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId:     userID.(string),
+			Status:     status,
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+		})
+	} else if filter == "discover" {
+		// For discover tab, we need to exclude communities where the user is a member or has pending requests
+		// First, get all approved communities
+		allCommunitiesResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+			IsApproved: true,
+		})
+
+		if err != nil {
+			log.Printf("Error fetching communities: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+			return
+		}
+
+		// Get user's joined communities to exclude
+		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID.(string),
+			Status: "member",
+			Limit:  1000, // Large limit to get all
+		})
+
+		if err != nil {
+			log.Printf("Error fetching joined communities: %v", err)
+		}
+
+		// Get user's pending communities to exclude
+		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID.(string),
+			Status: "pending",
+			Limit:  1000, // Large limit to get all
+		})
+
+		if err != nil {
+			log.Printf("Error fetching pending communities: %v", err)
+		}
+
+		// Create maps for quick lookup
+		joinedCommunityMap := make(map[string]bool)
+		pendingCommunityMap := make(map[string]bool)
+
+		if joinedResp != nil && joinedResp.Communities != nil {
+			for _, community := range joinedResp.Communities {
+				joinedCommunityMap[community.Id] = true
+			}
+		}
+
+		if pendingResp != nil && pendingResp.Communities != nil {
+			for _, community := range pendingResp.Communities {
+				pendingCommunityMap[community.Id] = true
+			}
+		}
+
+		// Filter out communities where the user is already a member or has a pending request
+		var filteredCommunities []*communityProto.Community
+		for _, community := range allCommunitiesResp.Communities {
+			if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
+				filteredCommunities = append(filteredCommunities, community)
+			}
+		}
+
+		// Update response with filtered communities
+		resp = &communityProto.ListCommunitiesResponse{
+			Communities: filteredCommunities,
+			TotalCount:  int32(len(filteredCommunities)),
+		}
+	} else {
+		// Invalid filter, return all approved communities as fallback
+		resp, err = CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+			IsApproved: true,
+		})
+	}
+
+	if err != nil {
+		log.Printf("Error fetching communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+		return
+	}
+
+	// Transform communities to response format
+	communitiesResult := make([]gin.H, 0)
+	if resp != nil && resp.Communities != nil {
+		for _, community := range resp.Communities {
+			categoryNames := make([]string, 0)
+			if community.Categories != nil {
+				for _, cat := range community.Categories {
+					if cat != nil {
+						categoryNames = append(categoryNames, cat.Name)
+					}
+				}
+			}
+
+			communityData := gin.H{
+				"id":          community.Id,
+				"name":        community.Name,
+				"description": community.Description,
+				"logo_url":    community.LogoUrl,
+				"banner_url":  community.BannerUrl,
+				"creator_id":  community.CreatorId,
+				"is_approved": community.IsApproved,
+				"categories":  categoryNames,
+				// MemberCount doesn't exist directly in proto, use 0 as placeholder
+				"member_count": 0,
+			}
+
+			if community.CreatedAt != nil {
+				communityData["created_at"] = community.CreatedAt.AsTime()
+			}
+
+			communitiesResult = append(communitiesResult, communityData)
+		}
+	}
+
+	// Calculate pagination
+	totalCount := 0
+	if resp != nil {
+		totalCount = int(resp.TotalCount)
+	}
+	totalPages := calculateTotalPages(totalCount, limit)
+	currentPage := page
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"communities": communitiesResult,
+		"pagination": gin.H{
+			"total_count":  totalCount,
+			"current_page": currentPage,
+			"per_page":     limit,
+			"total_pages":  totalPages,
+		},
+		"limit_options": []int{25, 30, 35},
+	})
+}

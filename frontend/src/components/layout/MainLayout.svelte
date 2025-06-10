@@ -5,7 +5,8 @@
   import DebugPanel from '../common/DebugPanel.svelte';
   import ComposeTweetModal from '../social/ComposeTweetModal.svelte';
   import { useTheme } from '../../hooks/useTheme';
-  import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';
+  import type { ITrend } from '../../interfaces/ITrend';
+  import type { ISuggestedFollow } from '../../interfaces/ISocialMedia';
   import { createEventDispatcher } from 'svelte';
   import { onMount, onDestroy } from 'svelte';
   import { notificationWebsocketStore } from '../../stores/notificationWebsocketStore';
@@ -76,13 +77,12 @@
 
   // Subscribe to page changes
   const unsubscribePageStore = page.subscribe(pageInfo => {
-    if (pageInfo && pageInfo.path) {
-      handleWebSocketConnection(pageInfo.path);
+    if (pageInfo && pageInfo.route) {
+      handleWebSocketConnection(pageInfo.route.id);
     }
   });
 
   onMount(() => {
-    // Check viewport size on mount and on resize
     const checkViewport = () => {
       windowWidth = window.innerWidth;
       isMobile = windowWidth < 768;
@@ -93,7 +93,6 @@
     checkViewport();
     window.addEventListener('resize', checkViewport);
     
-    // Check if we should initialize notification WebSocket on the current path
     const currentPath = window.location.pathname;
     handleWebSocketConnection(currentPath);
     
@@ -315,8 +314,9 @@
     <div 
       class="mobile-menu-overlay"
       on:click={closeMobileMenu}
+      on:keydown={(e) => { if (e.key === 'Escape') closeMobileMenu(); }}
       role="button"
-      tabindex="-1"
+      tabindex="0"
       aria-label="Close menu"
     ></div>
   {/if}

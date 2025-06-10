@@ -114,6 +114,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Public search endpoint must come before /:id to avoid route conflicts
 	v1.GET("/communities/search", handlers.OldSearchCommunities)
 
+	// Add a new endpoint for user communities with filtering
+	v1.GET("/communities/user", middleware.JWTAuth(jwtSecret), handlers.GetUserCommunities)
+
 	// Alternative search endpoint that avoids category joins
 	// Temporarily disabled due to persistent 500 errors
 	// v1.GET("/communities/name-search", handlers.SearchCommunityByName)

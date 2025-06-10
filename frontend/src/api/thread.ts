@@ -1026,7 +1026,10 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
       try {
-        const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`, {
+        const url = `${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`;
+        logger.debug(`Fetching from URL: ${url}`);
+        
+        const response = await fetch(url, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${getAuthToken()}`,
@@ -1065,6 +1068,18 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
         }
 
         const result = await response.json();
+        logger.debug(`Successfully fetched threads for user ${resolvedUserId}:`, result);
+        
+        // Check if the result has the expected structure
+        if (!result.threads && result.success) {
+          logger.warn('Response is missing threads array:', result);
+          
+          // Try to adapt to different API response formats
+          if (Array.isArray(result.data)) {
+            result.threads = result.data;
+            logger.debug('Using data array as threads');
+          }
+        }
         
         // Add success flag for more consistent handling
         return {

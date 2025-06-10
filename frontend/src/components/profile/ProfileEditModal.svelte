@@ -43,14 +43,36 @@
       date_of_birth: profile.date_of_birth || '',
       gender: profile.gender || ''
     };
+    
+    // Also update preview images when profile changes
+    profilePicturePreview = profile.profile_picture_url || DEFAULT_AVATAR;
+    bannerPreview = profile.banner_url || '';
+    
+    console.log('[ProfileEditModal] Initializing form data from profile:', formData);
+    console.log('[ProfileEditModal] Profile picture URL:', profilePicturePreview);
+    console.log('[ProfileEditModal] Banner URL:', bannerPreview);
   }
   
   onMount(() => {
     if (profile) {
+      // Ensure we initialize the form data on mount as well
+      formData = {
+        name: profile.name || '',
+        bio: profile.bio || '',
+        email: profile.email || '',
+        date_of_birth: profile.date_of_birth || '',
+        gender: profile.gender || ''
+      };
+      
       profilePicturePreview = profile.profile_picture_url || DEFAULT_AVATAR;
       bannerPreview = profile.banner_url || '';
       
-      console.log('[ProfileEditModal] Profile data:', {
+      console.log('[ProfileEditModal] Profile data on mount:', {
+        name: profile.name,
+        bio: profile.bio,
+        email: profile.email,
+        date_of_birth: profile.date_of_birth,
+        gender: profile.gender,
         profile_picture_url: profilePicturePreview,
         banner_url: bannerPreview,
       });
