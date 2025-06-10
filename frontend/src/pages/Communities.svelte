@@ -5,7 +5,16 @@
   import { useTheme } from '../hooks/useTheme';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
-  import { getCommunities, getUserCommunities, getCategories, requestToJoin, checkUserCommunityMembership } from '../api/community';
+  import { 
+    getCommunities, 
+    getUserCommunities, 
+    getCategories, 
+    requestToJoin, 
+    checkUserCommunityMembership,
+    getJoinedCommunities,
+    getPendingCommunities, 
+    getDiscoverCommunities 
+  } from '../api/community';
   import type { ICategoriesResponse, ICategory } from '../interfaces/ICategory';
   import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
   
@@ -54,12 +63,13 @@
   // Community creation modal state
   let isCreateModalOpen = false;
   
-  // Pagination settings
+  // Pagination configuration
   let limitOptions = [25, 30, 35];
   let currentPage = 1;
   let limit = limitOptions[0];
   let totalItems = 0;
-  let totalPages = 0;
+  let totalPages = 1;
+  let totalCommunities = 0;
   
   // Filter settings
   let activeTab = 'discover'; // Default to 'discover' tab instead of 'joined'
@@ -69,11 +79,12 @@
   let availableCategories: string[] = [];
   
   // Community data
-  let isLoading = true;
+  let isLoading = false;
   let joinedCommunities: any[] = [];
   let pendingCommunities: any[] = [];
   let availableCommunities: any[] = [];
-  let error = null; // Define the error variable
+  let communities: any[] = []; // Combined list for the current tab
+  let error: string | null = null;
   
   // Add a map to track membership status for each community
   let communityMembershipStatus = new Map();
@@ -92,100 +103,50 @@
     error = null;
 
     try {
-      // Determine filter based on active tab
-      const filter = activeTab === 'joined' ? 'joined' : 
-                     activeTab === 'pending' ? 'pending' : 'discover';
-                     
-      console.log('Fetching communities with filter:', filter);
+      // Make sure we have the user ID from auth
+      if (!authState.userId) {
+        logger.warn('User ID not available, cannot fetch communities');
+        error = 'Authentication required';
+        isLoading = false;
+        return;
+      }
+
+      logger.info(`Fetching communities for ${activeTab} tab`);
       const params = {
         page: currentPage,
         limit: limit,
-        filter,
         q: searchQuery,
         category: selectedCategories,
       };
       
-      // Use the new user communities endpoint for properly filtered results
-      const result = await getUserCommunities(params);
-      console.log('API response:', result);
+      let result;
+      
+      // Use appropriate API call based on active tab
+      if (activeTab === 'joined') {
+        result = await getJoinedCommunities(authState.userId, params);
+      } else if (activeTab === 'pending') {
+        result = await getPendingCommunities(authState.userId, params);
+      } else {
+        // 'discover' tab
+        result = await getDiscoverCommunities(authState.userId, params);
+      }
+      
+      logger.info('API response:', result);
       
       if (result.success) {
-        if (activeTab === 'joined') {
-          joinedCommunities = result.communities;
-          console.log('Joined communities updated:', joinedCommunities);
-        } else if (activeTab === 'pending') {
-          pendingCommunities = result.communities;
-          console.log('Pending communities updated:', pendingCommunities);
-        } else if (activeTab === 'discover') {
-          console.log('Setting available communities:', result.communities);
-          availableCommunities = [...result.communities]; // Create a new array
-          console.log('Available communities updated for discover tab:', availableCommunities, 'length:', availableCommunities.length);
-          
-          // Check membership status for each community in the discover tab
-          if (availableCommunities.length > 0) {
-            // Clear previous membership status
-            communityMembershipStatus = new Map();
-            
-            // Only check membership status if user is logged in
-            const authData = localStorage.getItem('auth');
-            if (authData) {
-              try {
-                const auth = JSON.parse(authData);
-                if (auth.access_token && (!auth.expires_at || Date.now() < auth.expires_at)) {
-                  // Process communities in batches to avoid overwhelming the server
-                  const batchSize = 5;
-                  for (let i = 0; i < availableCommunities.length; i += batchSize) {
-                    const batch = availableCommunities.slice(i, i + batchSize);
-                    await Promise.all(
-                      batch.map(async (community) => {
-                        try {
-                          const status = await checkMembershipStatus(community.id);
-                          communityMembershipStatus.set(community.id, status);
-                        } catch (err) {
-                          console.warn(`Failed to check membership for ${community.id}`, err);
-                          communityMembershipStatus.set(community.id, 'none');
-                        }
-                      })
-                    );
-                  }
-                }
-              } catch (err) {
-                console.warn('Error processing auth data:', err);
-              }
-            }
-          }
-          
-          totalItems = result.pagination.total_count;
-          totalPages = result.pagination.total_pages;
-          
-          console.log('Pagination updated:', { totalItems, totalPages });
-          
-          // Update limit options if the API returns them
-          if (result.limit_options && result.limit_options.length > 0) {
-            limitOptions = result.limit_options;
-            console.log('Limit options updated:', limitOptions);
-          }
-        }
+        communities = result.data.communities;
+        totalCommunities = result.data.total;
+        totalPages = Math.ceil(totalCommunities / limit);
       } else {
-        console.error('API response success flag is false:', result);
-        toastStore.showToast('Failed to fetch communities', 'error');
+        error = result.error?.message || 'Failed to load communities';
+        logger.error('Error fetching communities:', result.error);
       }
     } catch (err: any) {
       console.error('Error in fetchCommunities:', err);
       logger.error('Error fetching communities:', err);
       error = err.message || 'Failed to load communities';
-      
-      // Initialize appropriate community list based on active tab
-      if (activeTab === 'joined') {
-        joinedCommunities = [];
-      } else if (activeTab === 'pending') {
-        pendingCommunities = [];
-      } else {
-        availableCommunities = [];
-      }
     } finally {
       isLoading = false;
-      console.log('isLoading set to false, component should render communities now');
     }
   }
   

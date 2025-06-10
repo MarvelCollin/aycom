@@ -1,67 +1,53 @@
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import { fade, slide } from 'svelte/transition';
-  import { getThread, getThreadReplies, getReplyReplies, replyToThread } from '../api/thread';
-  import { uploadMedia } from '../api/media';
+  import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
+  import { getThread, getThreadReplies, getReplyReplies } from '../api/thread';
   import TweetCard from '../components/social/TweetCard.svelte';
-  import ComposeTweetModal from '../components/social/ComposeTweetModal.svelte';
   import ComposeTweet from '../components/social/ComposeTweet.svelte';
-  import MediaOverlay from '../components/media/MediaOverlay.svelte';
-  import MainLayout from '../components/layout/MainLayout.svelte';
-  import Spinner from '../components/common/Spinner.svelte';
   import { toastStore } from '../stores/toastStore';
-  import { tweetInteractionStore } from '../stores/tweetInteractionStore';
   import { authStore } from '../stores/authStore';
   import { useTheme } from '../hooks/useTheme';
-  import { generateFilePreview } from '../utils/common';
   import { createLoggerWithPrefix } from '../utils/logger';
-  import type { ITweet } from '../interfaces/ISocialMedia';
-  import type { IReply } from '../interfaces/ISocialMedia';
-  import type { IMedia } from '../interfaces/IMedia';
   import ArrowLeftIcon from 'svelte-feather-icons/src/icons/ArrowLeftIcon.svelte';
-  import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
-  import BookmarkIcon from 'svelte-feather-icons/src/icons/BookmarkIcon.svelte';
-  import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
-  import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
-  import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
-  import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
-  import VideoIcon from 'svelte-feather-icons/src/icons/VideoIcon.svelte';
-  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import SmileIcon from 'svelte-feather-icons/src/icons/SmileIcon.svelte';
+  import type { ITweet } from '../interfaces/ISocialMedia';
+  import { type ExtendedTweet, ensureTweetFormat } from '../interfaces/ITweet.extended';
 
   const logger = createLoggerWithPrefix('ThreadDetail');
-  const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   
-  export let threadId;
-  let thread = null;
-  let replies = [];
+  export let threadId: string;
+  let thread: ExtendedTweet | null = null;
+  let replies: ExtendedTweet[] = [];
   let isLoading = true;
-  let nestedRepliesMap = new Map();
+  let nestedRepliesMap = new Map<string, ExtendedTweet[]>();
   let showReplyForm = false;
-  let replyTo = null;
-  let isLoadingReplies = false;
+  let replyTo: ExtendedTweet | null = null;
   let isDarkMode = false;
   
-  $: isDarkMode = $theme === 'dark';
+  // Update isDarkMode based on the document's data-theme attribute
+  $: {
+    if (typeof document !== 'undefined') {
+      isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+    } else {
+      isDarkMode = $theme === 'dark';
+    }
+  }
 
-  // Function to load all replies and nested replies
+  // Function to load the thread and its replies
   async function loadThreadWithReplies() {
     isLoading = true;
     try {
       // Load the thread
       const threadData = await getThread(threadId);
-      thread = threadData;
+      console.log('Thread data received from API:', threadData);
+      
+      // Process the thread data with our utility
+      thread = ensureTweetFormat(threadData);
+      console.log('Processed thread data:', thread);
       
       // Load replies to the thread
       await loadReplies(threadId);
       
-      // Auto-load all nested replies for first-level replies
-      await Promise.all(replies.map(async (reply) => {
-        if (reply.replies > 0) {
-          await loadNestedReplies(reply.id);
-        }
-      }));
     } catch (error) {
       console.error('Error loading thread:', error);
       toastStore.showToast('Failed to load thread details', 'error');
@@ -71,54 +57,81 @@
   }
   
   // Load replies for a thread
-  async function loadReplies(threadId) {
-    isLoadingReplies = true;
+  async function loadReplies(threadId: string) {
     try {
       const response = await getThreadReplies(threadId);
+      
       if (response && response.replies) {
-        replies = response.replies;
+        replies = (response.replies as any[]).map(reply => ensureTweetFormat(reply));
         
-        // If the API provides a nestedRepliesMap, use it
-        if (response.nestedRepliesMap) {
-          console.log('API provided nested replies map:', response.nestedRepliesMap);
-          
-          // Convert the object back to a Map for our component
-          const newNestedMap = new Map();
-          Object.entries(response.nestedRepliesMap).forEach(([parentId, childReplies]) => {
-            newNestedMap.set(parentId, childReplies);
-          });
-          
-          nestedRepliesMap = newNestedMap;
-        } else {
-          // Fall back to the old way - load nested replies individually
-          console.log('No nested replies map from API, loading individually');
+        // Load nested replies for each reply that has them
+        for (const reply of replies) {
+          if (reply.replies_count && reply.replies_count > 0) {
+            await loadNestedReplies(reply.id);
+          }
         }
       }
     } catch (error) {
       console.error('Error loading replies:', error);
-      toastStore.showToast('Failed to load replies', 'error');
-    } finally {
-      isLoadingReplies = false;
     }
   }
   
-  // Load nested replies for a reply
-  async function loadNestedReplies(replyId) {
+  // Load nested replies
+  async function loadNestedReplies(replyId: string) {
     try {
-      const replyIdStr = String(replyId);
-      const response = await getReplyReplies(replyIdStr);
-      if (response && response.replies && response.replies.length > 0) {
-        nestedRepliesMap.set(replyIdStr, response.replies);
-        // Force reactivity update
-        nestedRepliesMap = new Map(nestedRepliesMap);
+      const response = await getReplyReplies(replyId);
+      
+      if (response && response.replies) {
+        const nestedReplies = (response.replies as any[]).map(reply => ensureTweetFormat(reply));
+        nestedRepliesMap.set(replyId, nestedReplies);
+        nestedRepliesMap = new Map(nestedRepliesMap); // Force reactivity update
       }
     } catch (error) {
-      console.error(`Error loading nested replies for reply ${replyId}:`, error);
+      console.error(`Error loading nested replies for ${replyId}:`, error);
     }
   }
   
-  // Handle the reply action
-  function handleReply(event) {
+  // Handle refresh replies from ComposeTweet component
+  function handleRefreshReplies(event: any) {
+    const { threadId, parentReplyId, newReply } = event.detail;
+    
+    if (!newReply) return;
+    
+    const processedReply = ensureTweetFormat(newReply);
+    
+    // If refreshing replies for a thread
+    if (threadId === thread?.id && !parentReplyId) {
+      // Add the new reply to our replies array
+      replies = [processedReply, ...replies];
+      
+      // Update reply count on thread
+      if (thread) {
+        thread.replies_count = (thread.replies_count || 0) + 1;
+      }
+    }
+    // If refreshing replies for a specific reply (nested reply)
+    else if (parentReplyId) {
+      // Get current nested replies or empty array if none exist
+      const currentNestedReplies = nestedRepliesMap.get(parentReplyId) || [];
+      // Add the new reply to the nested replies
+      nestedRepliesMap.set(parentReplyId, [processedReply, ...currentNestedReplies]);
+      // Update the map to trigger reactivity
+      nestedRepliesMap = new Map(nestedRepliesMap);
+      
+      // Find the parent reply and update its reply count
+      const parentReplyIndex = replies.findIndex(r => r.id === parentReplyId);
+      if (parentReplyIndex >= 0) {
+        replies[parentReplyIndex].replies_count = (replies[parentReplyIndex].replies_count || 0) + 1;
+        replies = [...replies]; // Force reactivity update
+      }
+    }
+    
+    // Close the reply form after a successful reply
+    showReplyForm = false;
+  }
+  
+  // Handle reply button click
+  function handleReply(event: CustomEvent<string>) {
     if (!authStore.isAuthenticated()) {
       toastStore.showToast('Please log in to reply', 'info');
       return;
@@ -127,243 +140,208 @@
     const targetId = event.detail;
     
     // If replying to the main thread
-    if (targetId === thread?.id) {
-      replyTo = {
+    if (thread && targetId === thread.id) {
+      replyTo = ensureTweetFormat({
         id: thread.id,
         content: thread.content,
-        username: thread.username || thread.author?.username || thread.user?.username,
-        displayName: thread.displayName || thread.author?.name || thread.user?.name,
-        avatar: thread.avatar || thread.author?.profile_picture_url || thread.user?.profile_picture_url
-      };
+        username: thread.username || thread.author?.username || '',
+        name: thread.name,
+        display_name: thread.display_name,
+        parent_id: null,
+        is_pinned: false,
+        avatar: thread.avatar || thread.profile_picture_url,
+        user_id: thread.user_id,
+        created_at: thread.created_at
+      });
     } 
     // If replying to a reply
     else {
       // Find the reply either in the main replies array or in nested replies
-      let targetReply = replies.find(r => r.id === targetId);
+      const targetReply = replies.find(r => r.id === targetId);
       
-      if (!targetReply) {
+      if (targetReply) {
+        replyTo = ensureTweetFormat({
+          id: targetReply.id,
+          thread_id: thread?.id,
+          content: targetReply.content,
+          username: targetReply.username,
+          name: targetReply.name,
+          parent_id: null,
+          is_pinned: false,
+          avatar: targetReply.avatar || targetReply.profile_picture_url,
+          parentReplyId: targetReply.parentReplyId || targetReply.parent_reply_id,
+          user_id: targetReply.user_id,
+          created_at: targetReply.created_at
+        });
+      } else {
         // Check in nested replies
         for (const [parentId, nestedReplies] of nestedRepliesMap.entries()) {
-          targetReply = nestedReplies.find(r => r.id === targetId);
-          if (targetReply) {
-            // Set the parent_reply_id to enable reply-to-reply
-            targetReply.parentReplyId = parentId;
+          const nestedReply = nestedReplies.find(r => r.id === targetId);
+          if (nestedReply) {
+            replyTo = ensureTweetFormat({
+              id: nestedReply.id,
+              thread_id: thread?.id,
+              content: nestedReply.content,
+              username: nestedReply.username,
+              name: nestedReply.name,
+              parent_id: null,
+              is_pinned: false,
+              avatar: nestedReply.avatar || nestedReply.profile_picture_url,
+              parentReplyId: parentId,
+              user_id: nestedReply.user_id,
+              created_at: nestedReply.created_at
+            });
             break;
           }
         }
-      }
-      
-      if (targetReply) {
-        replyTo = {
-          id: targetReply.id,
-          thread_id: thread.id,
-          content: targetReply.content,
-          username: targetReply.username || targetReply.author?.username || targetReply.user?.username,
-          displayName: targetReply.displayName || targetReply.author?.name || targetReply.user?.name,
-          avatar: targetReply.avatar || targetReply.author?.profile_picture_url || targetReply.user?.profile_picture_url,
-          parentReplyId: targetReply.parentReplyId || targetReply.parent_reply_id
-        };
       }
     }
     
     showReplyForm = true;
   }
   
-  // Handle reply submission - auto-refresh the replies
-  function handleRefreshReplies(event) {
-    const { threadId, parentReplyId, newReply } = event.detail;
-    
-    // If it's a reply to the main thread
-    if (!parentReplyId) {
-      // Add the new reply to the beginning of the replies array
-      replies = [newReply, ...replies];
-    } 
-    // If it's a reply to another reply (nested reply)
-    else {
-      // Get the current nested replies for this parent reply
-      let currentNestedReplies = nestedRepliesMap.get(parentReplyId) || [];
-      
-      console.log('Adding nested reply to parent:', parentReplyId);
-      console.log('Current nested replies:', currentNestedReplies);
-      
-      // Make sure the new reply has the parent_reply_id set
-      const enhancedReply = {
-        ...newReply,
-        parent_reply_id: parentReplyId
-      };
-      
-      // Add the new reply to the beginning of the nested replies
-      nestedRepliesMap.set(parentReplyId, [enhancedReply, ...currentNestedReplies]);
-      
-      // Force reactivity update
-      nestedRepliesMap = new Map(nestedRepliesMap);
-      
-      // Find the parent reply in the main replies array
-      const parentReply = replies.find(r => r.id === parentReplyId);
-      if (parentReply) {
-        // Make a copy of the parent with the incremented reply count
-        const updatedParentReply = {
-          ...parentReply,
-          replies: (parseInt(parentReply.replies || '0') + 1).toString()
-        };
-        
-        // Update the parent reply in the replies array
-        replies = replies.map(reply => 
-          reply.id === parentReplyId ? updatedParentReply : reply
-        );
-        
-        console.log('Updated parent reply with new reply count:', updatedParentReply.replies);
-      } else {
-        console.warn(`Parent reply ${parentReplyId} not found in main replies array`);
-        
-        // Check if it's a reply to a nested reply (multi-level nesting)
-        for (const [topReplyId, nestedReplies] of nestedRepliesMap.entries()) {
-          const nestedParent = nestedReplies.find(r => r.id === parentReplyId);
-          if (nestedParent) {
-            console.log(`Found parent reply ${parentReplyId} as a nested reply under ${topReplyId}`);
-            
-            // Increment the nested parent's reply count
-            const updatedNestedParent = {
-              ...nestedParent,
-              replies: (parseInt(nestedParent.replies || '0') + 1).toString()
-            };
-            
-            // Update the nested parent in the nested replies array
-            const updatedNestedReplies = nestedReplies.map(reply => 
-              reply.id === parentReplyId ? updatedNestedParent : reply
-            );
-            
-            // Update the map
-            nestedRepliesMap.set(topReplyId, updatedNestedReplies);
-            
-            // Also create a new entry in the map for this nested reply
-            nestedRepliesMap.set(parentReplyId, [enhancedReply]);
-            
-            // Force reactivity update
-            nestedRepliesMap = new Map(nestedRepliesMap);
-            break;
-          }
-        }
-      }
-    }
-    
-    // Close the reply form
-    showReplyForm = false;
-  }
-  
-  // Like, bookmark handlers
-  function handleLike(event) {
+  // Like, unlike, bookmark, unbookmark handlers
+  function handleLike(event: CustomEvent<string>) {
     const tweetId = event.detail;
-    if (tweetId === thread.id) {
-      thread.isLiked = true;
-      thread.likes = (parseInt(thread.likes || '0') + 1).toString();
+    if (thread && tweetId === thread.id) {
+      thread.is_liked = true;
+      thread.likes_count = (thread.likes_count || 0) + 1;
+      thread = { ...thread }; // Force reactivity
     } else {
       updateNestedInteraction(tweetId, 'like', true);
     }
   }
   
-  function handleUnlike(event) {
+  function handleUnlike(event: CustomEvent<string>) {
     const tweetId = event.detail;
-    if (tweetId === thread.id) {
-      thread.isLiked = false;
-      thread.likes = Math.max(0, parseInt(thread.likes || '0') - 1).toString();
+    if (thread && tweetId === thread.id) {
+      thread.is_liked = false;
+      thread.likes_count = Math.max(0, (thread.likes_count || 0) - 1);
+      thread = { ...thread }; // Force reactivity
     } else {
       updateNestedInteraction(tweetId, 'like', false);
     }
   }
   
-  function handleBookmark(event) {
+  function handleBookmark(event: CustomEvent<string>) {
     const tweetId = event.detail;
-    if (tweetId === thread.id) {
-      thread.isBookmarked = true;
-      thread.bookmarks = (parseInt(thread.bookmarks || '0') + 1).toString();
+    if (thread && tweetId === thread.id) {
+      thread.is_bookmarked = true;
+      thread.bookmark_count = (thread.bookmark_count || 0) + 1;
+      thread = { ...thread }; // Force reactivity
     } else {
       updateNestedInteraction(tweetId, 'bookmark', true);
     }
   }
   
-  function handleRemoveBookmark(event) {
+  function handleRemoveBookmark(event: CustomEvent<string>) {
     const tweetId = event.detail;
-    if (tweetId === thread.id) {
-      thread.isBookmarked = false;
-      thread.bookmarks = Math.max(0, parseInt(thread.bookmarks || '0') - 1).toString();
+    if (thread && tweetId === thread.id) {
+      thread.is_bookmarked = false;
+      thread.bookmark_count = Math.max(0, (thread.bookmark_count || 0) - 1);
+      thread = { ...thread }; // Force reactivity
     } else {
       updateNestedInteraction(tweetId, 'bookmark', false);
     }
   }
   
   // Update like or bookmark status in nested replies
-  function updateNestedInteraction(tweetId, type, isActive) {
+  function updateNestedInteraction(tweetId: string, type: 'like' | 'bookmark', isActive: boolean) {
     // Check in first level replies
-    let reply = replies.find(r => r.id === tweetId);
-    if (reply) {
+    const replyIndex = replies.findIndex(r => r.id === tweetId);
+    
+    if (replyIndex >= 0) {
       if (type === 'like') {
-        reply.isLiked = isActive;
-        reply.likes = isActive 
-          ? (parseInt(reply.likes || '0') + 1).toString()
-          : Math.max(0, (parseInt(reply.likes || '0') - 1)).toString();
+        replies[replyIndex].is_liked = isActive;
+        replies[replyIndex].likes_count = isActive 
+          ? (replies[replyIndex].likes_count || 0) + 1
+          : Math.max(0, (replies[replyIndex].likes_count || 0) - 1);
       } else {
-        reply.isBookmarked = isActive;
-        reply.bookmarks = isActive 
-          ? (parseInt(reply.bookmarks || '0') + 1).toString()
-          : Math.max(0, (parseInt(reply.bookmarks || '0') - 1)).toString();
+        replies[replyIndex].is_bookmarked = isActive;
+        replies[replyIndex].bookmark_count = isActive 
+          ? (replies[replyIndex].bookmark_count || 0) + 1
+          : Math.max(0, (replies[replyIndex].bookmark_count || 0) - 1);
       }
+      
+      // Force reactivity update
+      replies = [...replies];
       return;
     }
     
     // Check in nested replies
     for (const [parentId, nestedReplies] of nestedRepliesMap.entries()) {
-      reply = nestedReplies.find(r => r.id === tweetId);
-      if (reply) {
+      const nestedReplyIndex = nestedReplies.findIndex(r => r.id === tweetId);
+      if (nestedReplyIndex >= 0) {
+        const updatedReplies = [...nestedReplies];
+        
         if (type === 'like') {
-          reply.isLiked = isActive;
-          reply.likes = isActive 
-            ? (parseInt(reply.likes || '0') + 1).toString()
-            : Math.max(0, (parseInt(reply.likes || '0') - 1)).toString();
+          updatedReplies[nestedReplyIndex].is_liked = isActive;
+          updatedReplies[nestedReplyIndex].likes_count = isActive 
+            ? (updatedReplies[nestedReplyIndex].likes_count || 0) + 1
+            : Math.max(0, (updatedReplies[nestedReplyIndex].likes_count || 0) - 1);
         } else {
-          reply.isBookmarked = isActive;
-          reply.bookmarks = isActive 
-            ? (parseInt(reply.bookmarks || '0') + 1).toString()
-            : Math.max(0, (parseInt(reply.bookmarks || '0') - 1)).toString();
+          updatedReplies[nestedReplyIndex].is_bookmarked = isActive;
+          updatedReplies[nestedReplyIndex].bookmark_count = isActive 
+            ? (updatedReplies[nestedReplyIndex].bookmark_count || 0) + 1
+            : Math.max(0, (updatedReplies[nestedReplyIndex].bookmark_count || 0) - 1);
         }
         
-        // Update the map to trigger reactivity
-        const updatedReplies = [...nestedRepliesMap.get(parentId)];
+        // Update the map with the modified array
         nestedRepliesMap.set(parentId, updatedReplies);
+        // Force reactivity update
         nestedRepliesMap = new Map(nestedRepliesMap);
         return;
       }
     }
   }
   
+  // Initialize component
   onMount(() => {
     if (threadId) {
       loadThreadWithReplies();
     }
+    
+    // Add event listener to check for theme changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'data-theme') {
+          isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+        }
+      });
+    });
+    
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    
+    // Initial check
+    isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+    
+    return () => {
+      observer.disconnect();
+    };
   });
 </script>
 
 <svelte:head>
-  <title>{thread ? `${thread.displayName || 'User'}'s Post` : 'Thread'} | AYCOM</title>
+  <title>{thread ? `${thread.name || thread.display_name || 'User'}'s Post` : 'Thread'} | AYCOM</title>
 </svelte:head>
 
-<div class="thread-detail-container {isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}">
-  <div class="thread-content max-w-3xl mx-auto">
+<div class="thread-detail-container">
+  <div class="thread-content">
     <!-- Back Button -->
-    <div class="back-button-container p-2">
+    <div class="back-button-container">
       <button 
-        class="back-button rounded-full p-2 {isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors"
+        class="back-button"
         on:click={() => window.history.back()}
         aria-label="Go back"
       >
         <ArrowLeftIcon size="20" class="{isDarkMode ? 'text-white' : 'text-black'}" />
       </button>
-      <span class="ml-2 font-semibold {isDarkMode ? 'text-white' : 'text-black'}">Thread</span>
+      <span class="ml-2 font-semibold">Thread</span>
     </div>
 
     {#if isLoading}
       <div class="p-4 text-center">
-        <div class="loader {isDarkMode ? 'border-blue-500' : 'border-blue-600'}"></div>
+        <div class="loader"></div>
         <p class="mt-4 {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Loading thread...</p>
       </div>
     {:else if thread}
@@ -373,8 +351,8 @@
           tweet={thread} 
           {isDarkMode}
           isAuth={authStore.isAuthenticated()}
-          isLiked={thread.isLiked || thread.is_liked || false}
-          isBookmarked={thread.isBookmarked || thread.is_bookmarked || false}
+          isLiked={thread.is_liked || false}
+          isBookmarked={thread.is_bookmarked || false}
           showReplies={true}
           replies={replies}
           {nestedRepliesMap}
@@ -387,8 +365,8 @@
         />
         
         <!-- Reply Form -->
-        {#if showReplyForm}
-          <div class="reply-form-container p-4 {isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-lg mt-4">
+        {#if showReplyForm && replyTo}
+          <div class="reply-form-container">
             <ComposeTweet 
               {isDarkMode} 
               {replyTo}
@@ -400,14 +378,34 @@
         {:else}
           <div class="p-4">
             <button 
-              class="reply-button py-2 px-4 rounded-full border {isDarkMode ? 'border-gray-700 bg-gray-800 text-blue-400 hover:bg-gray-700' : 'border-gray-200 bg-gray-50 text-blue-500 hover:bg-gray-100'} transition-colors w-full"
+              class="reply-button"
               on:click={() => {
-                replyTo = thread;
-                showReplyForm = true;
+                if (thread) {
+                  replyTo = ensureTweetFormat({
+                    id: thread.id,
+                    content: thread.content,
+                    username: thread.username || '',
+                    name: thread.name || '',
+                    parent_id: null,
+                    is_pinned: false,
+                    avatar: thread.avatar || thread.profile_picture_url,
+                    user_id: thread.user_id,
+                    created_at: thread.created_at
+                  });
+                  showReplyForm = true;
+                }
               }}
             >
               Reply to this thread
             </button>
+          </div>
+        {/if}
+        
+        <!-- Replies List with visual connection line -->
+        {#if replies && replies.length > 0}
+          <div class="reply-section">
+            <div class="reply-separator"></div>
+            <!-- Replies are already rendered by TweetCard component -->
           </div>
         {/if}
       </div>
@@ -420,16 +418,39 @@
 </div>
 
 <style>
+  /* Base styles */
   .thread-detail-container {
     min-height: calc(100vh - 60px);
-    padding: 1rem 0;
+    padding: 0;
+    background-color: var(--light-bg-primary);
+    color: var(--light-text-primary);
+  }
+  
+  /* Dark theme overrides - these will apply when dark theme is active */
+  :global([data-theme="dark"]) .thread-detail-container {
+    background-color: var(--dark-bg-primary);
+    color: var(--dark-text-primary);
+  }
+  
+  .thread-content {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: var(--light-bg-primary);
+  }
+  
+  :global([data-theme="dark"]) .thread-content {
+    background-color: var(--dark-bg-primary);
   }
   
   .back-button-container {
     display: flex;
     align-items: center;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    border-bottom: 1px solid var(--light-border-color);
+  }
+  
+  :global([data-theme="dark"]) .back-button-container {
+    border-bottom: 1px solid var(--dark-border-color);
   }
   
   .back-button {
@@ -438,17 +459,50 @@
     justify-content: center;
     width: 36px;
     height: 36px;
+    border-radius: 50%;
     transition: background-color 0.2s ease;
+  }
+  
+  .back-button:hover {
+    background-color: var(--light-hover-bg);
+  }
+  
+  :global([data-theme="dark"]) .back-button:hover {
+    background-color: var(--dark-hover-bg);
   }
   
   .loader {
     border: 4px solid rgba(0, 0, 0, 0.1);
     border-radius: 50%;
-    border-top-color: #3498db;
+    border-top-color: var(--color-primary);
     width: 40px;
     height: 40px;
     animation: spin 1s linear infinite;
     margin: 0 auto;
+  }
+  
+  :global([data-theme="dark"]) .loader {
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--color-primary);
+  }
+  
+  .reply-section {
+    position: relative;
+    padding: 0 1rem;
+  }
+  
+  .reply-separator {
+    position: absolute;
+    left: 2.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--light-border-color);
+    z-index: 0;
+  }
+  
+  :global([data-theme="dark"]) .reply-separator {
+    background-color: var(--dark-border-color);
   }
   
   @keyframes spin {
@@ -461,9 +515,33 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 9999px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    margin-top: 1rem;
   }
   
   .reply-button:hover {
     transform: translateY(-1px);
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  :global([data-theme="dark"]) .reply-button {
+    background-color: var(--color-primary);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  }
+  
+  .reply-form-container {
+    margin-top: 1rem;
+    border-radius: 16px;
+    border: 1px solid var(--light-border-color);
+  }
+  
+  :global([data-theme="dark"]) .reply-form-container {
+    border-color: var(--dark-border-color);
   }
 </style>

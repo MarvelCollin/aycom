@@ -1502,8 +1502,26 @@
     e.stopPropagation();
     
     if (processedTweet && processedTweet.id) {
+      // Dispatch click event for any parent components that need to know
       dispatch('click', tweet);
+      
+      // Navigate to the thread detail page
+      const threadId = processedTweet.id;
+      window.location.href = `/thread/${threadId}`;
     }
+  }
+
+  // Add a new function to check if the tweet is from the current user's thread
+  function isCurrentUserThread() {
+    const currentUserId = getUserId();
+    
+    if (!currentUserId) return false;
+    
+    // Check user_id or other possible ID fields against the current user ID
+    return currentUserId === (processedTweet.user_id || 
+                             processedTweet.userId || 
+                             processedTweet.author_id || 
+                             processedTweet.authorId);
   }
 </script>
 
@@ -1525,6 +1543,13 @@
         </a>
         <div class="tweet-content-container">
           <div class="tweet-author-info">
+            <!-- Pinned indicator -->
+            {#if processedTweet.is_pinned}
+              <div class="pinned-indicator">
+                <span class="pin-icon">📌</span>
+                <span class="pinned-text">Pinned</span>
+              </div>
+            {/if}
             <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
               class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
               on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
@@ -1554,10 +1579,26 @@
             </a>
             <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
             <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(processedTweet.timestamp)}</span>
+            
+            <!-- Pin/Unpin button for own threads -->
+            {#if isCurrentUserThread()}
+              <button 
+                class="tweet-pin-btn {processedTweet.is_pinned ? 'pinned' : ''}"
+                on:click|stopPropagation={() => dispatch('pinToggle', {id: processedTweet.id, isPinned: Boolean(processedTweet.is_pinned)})}
+                title={processedTweet.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
+              >
+                <span class="pin-icon">📌</span>
+                <span class="pin-status">{processedTweet.is_pinned ? 'Pinned' : 'Pin'}</span>
+              </button>
+            {/if}
           </div>
           
           <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
-            <p>{processedTweet.content || ''}</p>
+            {#if processedTweet.content}
+              <p>{processedTweet.content}</p>
+            {:else}
+              <p class="tweet-empty-content">{processedTweet.is_reposted ? 'Reposted' : 'This post has no content'}</p>
+            {/if}
           </div>
           
           {#if processedTweet.media && processedTweet.media.length > 0}
@@ -1666,10 +1707,14 @@
               </button>
             </div>
             <div class="tweet-action-item">
-              <div class="tweet-views-count {isDarkMode ? 'tweet-views-count-dark' : ''}">
+              <button
+                class="tweet-action-btn tweet-views-btn {isDarkMode ? 'tweet-action-btn-dark' : ''}"
+                on:click|stopPropagation={navigateToThreadDetail}
+                aria-label="View thread details"
+              >
                 <EyeIcon size="20" class="tweet-action-icon" />
                 <span class="tweet-action-count">{processedTweet.views || '0'}</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1777,17 +1822,56 @@
 {/if}
 
 <style>
+  :root {
+    /* Light mode variables */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f7f9fa;
+    --text-primary: #14171a;
+    --text-secondary: #657786;
+    --border-color: #e6ecf0;
+    --color-primary: #1da1f2;
+    --color-primary-hover: #1a91da;
+    --color-primary-light: rgba(29, 161, 242, 0.1);
+    --hover-light: rgba(29, 161, 242, 0.1);
+    --hover-dark: rgba(255, 255, 255, 0.1);
+    --bg-hover: rgba(0, 0, 0, 0.05);
+    --bg-hover-dark: rgba(255, 255, 255, 0.1);
+    --radius-md: 8px;
+    --radius-full: 9999px;
+    --color-danger: #e0245e;
+    --color-danger-rgb: 224, 36, 94;
+    --color-primary-rgb: 29, 161, 242;
+  }
+  
+  /* Styles for dark mode - will be applied in dark mode context */
+  .dark-theme {
+    --bg-primary: #15202b;
+    --bg-primary-dark: #15202b;
+    --bg-secondary: #1e2732;
+    --bg-secondary-dark: #1e2732;
+    --text-primary: #ffffff;
+    --text-primary-dark: #ffffff;
+    --text-secondary: #8899a6;
+    --text-secondary-dark: #8899a6;
+    --border-color: #38444d;
+    --border-color-dark: #38444d;
+    --hover-light: rgba(29, 161, 242, 0.1);
+    --hover-dark: rgba(255, 255, 255, 0.1);
+    --bg-hover: rgba(255, 255, 255, 0.05);
+    --bg-hover-dark: rgba(255, 255, 255, 0.1);
+  }
+
   .tweet-card {
     width: 100%;
     margin: 0;
     padding: 0;
-    border-bottom: 1px solid #e6ecf0;
-    background-color: #fff;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
   }
   
   .tweet-card-dark {
-    background-color: #15202b;
-    border-bottom: 1px solid #38444d;
+    background-color: var(--bg-primary-dark);
+    border-bottom: 1px solid var(--border-color-dark);
   }
   
   .tweet-card-container {
@@ -2038,6 +2122,34 @@
   .tweet-reply-count-highlight {
     color: var(--color-primary);
     font-weight: 600;
+  }
+
+  /* Views button styling */
+  .tweet-views-btn {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 9999px;
+    transition: all 0.2s ease;
+  }
+
+  .tweet-views-btn:hover {
+    color: var(--color-primary);
+    background-color: var(--hover-light);
+  }
+  
+  .tweet-action-btn-dark.tweet-views-btn {
+    color: var(--text-secondary-dark);
+  }
+  
+  .tweet-action-btn-dark.tweet-views-btn:hover {
+    color: var(--color-primary);
+    background-color: var(--hover-dark);
   }
 
   /* Used dynamically via classList.add('clicked') */
@@ -2350,5 +2462,78 @@
   .display-name-text {
     margin-right: 2px;
     font-weight: 600;
+  }
+
+  /* Pin/Unpin button styles */
+  .tweet-pin-btn {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 0.5rem;
+  }
+
+  .tweet-pin-btn:hover {
+    background-color: var(--hover-light);
+    color: var(--color-primary);
+  }
+
+  .tweet-pin-btn.pinned {
+    color: var(--color-primary);
+  }
+  
+  .dark .tweet-pin-btn {
+    color: var(--text-secondary-dark);
+  }
+  
+  .dark .tweet-pin-btn:hover {
+    background-color: var(--hover-dark);
+    color: var(--color-primary);
+  }
+
+  .dark .tweet-pin-btn.pinned {
+    color: var(--color-primary);
+  }
+
+  .pin-icon {
+    font-size: 14px;
+  }
+
+  .pin-status {
+    font-size: 0.875rem;
+  }
+  
+  /* Pinned indicator styles */
+  .pinned-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    margin-bottom: 4px;
+    padding: 2px 6px;
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    width: fit-content;
+  }
+  
+  .pinned-text {
+    font-weight: 500;
+  }
+
+  .tweet-empty-content {
+    font-style: italic;
+    color: var(--text-secondary);
+    opacity: 0.8;
+  }
+  
+  :global([data-theme="dark"]) .tweet-empty-content {
+    color: var(--dark-text-secondary);
   }
 </style>

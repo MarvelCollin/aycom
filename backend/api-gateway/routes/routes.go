@@ -64,7 +64,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	}
 
 	publicThreads := v1.Group("/threads")
-	// Apply OptionalJWTAuth middleware to all routes in publicThreads to allow authentication if available
+	// Apply OptionalJTAuth middleware to all routes in publicThreads to allow authentication if available
 	publicThreads.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
@@ -114,8 +114,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	// Public search endpoint must come before /:id to avoid route conflicts
 	v1.GET("/communities/search", handlers.OldSearchCommunities)
 
-	// Add a new endpoint for user communities with filtering
-	v1.GET("/communities/user", middleware.JWTAuth(jwtSecret), handlers.GetUserCommunities)
+	// Add three separate endpoints for community listings
+	v1.GET("/communities/joined/:userId", handlers.GetJoinedCommunities)
+	v1.GET("/communities/pending/:userId", handlers.GetPendingCommunities)
+	v1.GET("/communities/discover/:userId", handlers.GetDiscoverCommunities)
 
 	// Alternative search endpoint that avoids category joins
 	// Temporarily disabled due to persistent 500 errors

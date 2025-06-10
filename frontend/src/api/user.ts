@@ -1230,8 +1230,8 @@ export async function unpinThread(threadId: string): Promise<any> {
   try {
     const token = getAuthToken();
 
-    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/unpin`, {
-      method: 'POST',
+    const response = await fetch(`${API_BASE_URL}/threads/${threadId}/pin`, {
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''

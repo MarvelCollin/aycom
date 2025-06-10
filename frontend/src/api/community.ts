@@ -1167,3 +1167,123 @@ function getEmptyCommunityResult(page: number, limit: number) {
     }
   };
 }
+
+// Get communities the user has joined
+export async function getJoinedCommunities(userId: string, params: CommunitiesParams = {}) {
+  try {
+    console.log(`Getting communities joined by user: ${userId}`);
+
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => queryParams.append(key, v));
+      } else if (value !== null && value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    const response = await fetch(`${API_BASE_URL}/communities/joined/${userId}?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to list joined communities (${response.status})`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    logger.error('Failed to fetch joined communities:', error);
+    return {
+      success: false,
+      error: {
+        code: 'API_ERROR',
+        message: error.message || 'Failed to fetch joined communities'
+      }
+    };
+  }
+}
+
+// Get communities the user has pending join requests for
+export async function getPendingCommunities(userId: string, params: CommunitiesParams = {}) {
+  try {
+    console.log(`Getting communities with pending requests by user: ${userId}`);
+
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => queryParams.append(key, v));
+      } else if (value !== null && value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    const response = await fetch(`${API_BASE_URL}/communities/pending/${userId}?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to list pending communities (${response.status})`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    logger.error('Failed to fetch pending communities:', error);
+    return {
+      success: false,
+      error: {
+        code: 'API_ERROR',
+        message: error.message || 'Failed to fetch pending communities'
+      }
+    };
+  }
+}
+
+// Get communities the user hasn't joined or requested to join
+export async function getDiscoverCommunities(userId: string, params: CommunitiesParams = {}) {
+  try {
+    console.log(`Getting discover communities for user: ${userId}`);
+
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => queryParams.append(key, v));
+      } else if (value !== null && value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    const response = await fetch(`${API_BASE_URL}/communities/discover/${userId}?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to list discover communities (${response.status})`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    logger.error('Failed to fetch discover communities:', error);
+    return {
+      success: false,
+      error: {
+        code: 'API_ERROR',
+        message: error.message || 'Failed to fetch discover communities'
+      }
+    };
+  }
+}

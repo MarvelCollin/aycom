@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log"
 	"math"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -2873,5 +2874,320 @@ func GetUserCommunities(c *gin.Context) {
 			"total_pages":  totalPages,
 		},
 		"limit_options": []int{25, 30, 35},
+	})
+}
+
+// GetJoinedCommunities returns all communities the specified user has joined
+func GetJoinedCommunities(c *gin.Context) {
+	userId := c.Param("userId")
+	if userId == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
+		return
+	}
+
+	// Parse query parameters
+	page := 1
+	limit := 25
+	searchQuery := c.Query("q")
+	categoryIds := c.QueryArray("category")
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	// Check if the community client is available
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get communities where user is a member
+	resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+		UserId:     userId,
+		Status:     "member",
+		Offset:     int32(offset),
+		Limit:      int32(limit),
+		Query:      searchQuery,
+		Categories: categoryIds,
+	})
+
+	if err != nil {
+		log.Printf("Error in GetJoinedCommunities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+		return
+	}
+
+	communities := resp.Communities
+	totalCount := resp.TotalCount
+
+	// Process and format the communities response
+	formattedCommunities := make([]gin.H, 0)
+	for _, community := range communities {
+		// Extract category names
+		categoryNames := make([]string, 0)
+		for _, category := range community.Categories {
+			categoryNames = append(categoryNames, category.Name)
+		}
+
+		formattedCommunities = append(formattedCommunities, gin.H{
+			"id":           community.Id,
+			"name":         community.Name,
+			"description":  community.Description,
+			"logo_url":     community.LogoUrl,
+			"banner_url":   community.BannerUrl,
+			"creator_id":   community.CreatorId,
+			"is_approved":  community.IsApproved,
+			"categories":   categoryNames,
+			"member_count": 0, // Placeholder since it's not in proto
+			"created_at":   community.CreatedAt.AsTime().Format(time.RFC3339),
+		})
+	}
+
+	// Return the response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"communities": formattedCommunities,
+			"total":       totalCount,
+			"page":        page,
+			"limit":       limit,
+		},
+	})
+}
+
+// GetPendingCommunities returns all communities the specified user has pending join requests for
+func GetPendingCommunities(c *gin.Context) {
+	userId := c.Param("userId")
+	if userId == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
+		return
+	}
+
+	// Parse query parameters
+	page := 1
+	limit := 25
+	searchQuery := c.Query("q")
+	categoryIds := c.QueryArray("category")
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	// Check if the community client is available
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get communities where user has pending requests
+	resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+		UserId:     userId,
+		Status:     "pending",
+		Offset:     int32(offset),
+		Limit:      int32(limit),
+		Query:      searchQuery,
+		Categories: categoryIds,
+	})
+
+	if err != nil {
+		log.Printf("Error in GetPendingCommunities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+		return
+	}
+
+	communities := resp.Communities
+	totalCount := resp.TotalCount
+
+	// Process and format the communities response
+	formattedCommunities := make([]gin.H, 0)
+	for _, community := range communities {
+		// Extract category names
+		categoryNames := make([]string, 0)
+		for _, category := range community.Categories {
+			categoryNames = append(categoryNames, category.Name)
+		}
+
+		formattedCommunities = append(formattedCommunities, gin.H{
+			"id":           community.Id,
+			"name":         community.Name,
+			"description":  community.Description,
+			"logo_url":     community.LogoUrl,
+			"banner_url":   community.BannerUrl,
+			"creator_id":   community.CreatorId,
+			"is_approved":  community.IsApproved,
+			"categories":   categoryNames,
+			"member_count": 0, // Placeholder since it's not in proto
+			"created_at":   community.CreatedAt.AsTime().Format(time.RFC3339),
+		})
+	}
+
+	// Return the response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"communities": formattedCommunities,
+			"total":       totalCount,
+			"page":        page,
+			"limit":       limit,
+		},
+	})
+}
+
+// GetDiscoverCommunities returns communities the user is not a member of and has no pending requests for
+func GetDiscoverCommunities(c *gin.Context) {
+	userId := c.Param("userId")
+	if userId == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
+		return
+	}
+
+	// Parse query parameters
+	page := 1
+	limit := 25
+	searchQuery := c.Query("q")
+	categoryIds := c.QueryArray("category")
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	// Check if the community client is available
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Step 1: Get all approved communities
+	approved := true
+	searchResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+		Query:      searchQuery,
+		Categories: categoryIds,
+		IsApproved: approved,
+		Offset:     int32(offset),
+		Limit:      int32(limit),
+	})
+
+	if err != nil {
+		log.Printf("Error in GetDiscoverCommunities getting all communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+		return
+	}
+
+	allCommunities := searchResp.Communities
+
+	// Step 2: Get communities where user is a member
+	joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+		UserId: userId,
+		Status: "member",
+	})
+
+	if err != nil {
+		log.Printf("Error in GetDiscoverCommunities getting joined communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch joined communities")
+		return
+	}
+
+	// Step 3: Get communities where user has pending requests
+	pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+		UserId: userId,
+		Status: "pending",
+	})
+
+	if err != nil {
+		log.Printf("Error in GetDiscoverCommunities getting pending communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch pending communities")
+		return
+	}
+
+	// Create maps of joined and pending community IDs for quick lookup
+	joinedIds := make(map[string]bool)
+	for _, community := range joinedResp.Communities {
+		joinedIds[community.Id] = true
+	}
+
+	pendingIds := make(map[string]bool)
+	for _, community := range pendingResp.Communities {
+		pendingIds[community.Id] = true
+	}
+
+	// Filter out communities the user is a member of or has pending requests for
+	discoverCommunities := make([]*communityProto.Community, 0)
+	for _, community := range allCommunities {
+		if !joinedIds[community.Id] && !pendingIds[community.Id] {
+			discoverCommunities = append(discoverCommunities, community)
+		}
+	}
+
+	// Process and format the communities response
+	formattedCommunities := make([]gin.H, 0)
+	for _, community := range discoverCommunities {
+		// Extract category names
+		categoryNames := make([]string, 0)
+		for _, category := range community.Categories {
+			categoryNames = append(categoryNames, category.Name)
+		}
+
+		formattedCommunities = append(formattedCommunities, gin.H{
+			"id":           community.Id,
+			"name":         community.Name,
+			"description":  community.Description,
+			"logo_url":     community.LogoUrl,
+			"banner_url":   community.BannerUrl,
+			"creator_id":   community.CreatorId,
+			"is_approved":  community.IsApproved,
+			"categories":   categoryNames,
+			"member_count": 0, // Placeholder since it's not in proto
+			"created_at":   community.CreatedAt.AsTime().Format(time.RFC3339),
+		})
+	}
+
+	// Return the response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"communities": formattedCommunities,
+			"total":       int32(len(discoverCommunities)), // Use filtered count
+			"page":        page,
+			"limit":       limit,
+		},
 	})
 }

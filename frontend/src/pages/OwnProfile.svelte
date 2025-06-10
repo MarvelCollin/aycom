@@ -140,10 +140,19 @@
   let activeTab = 'posts';
   let isLoading = true;
   let showEditModal = false;
-  let showPicturePreview = false;
+  let showPicturePreview = false; // Controls the profile picture preview modal
   let isUpdatingProfile = false;
   let searchQuery = '';
   let showPinnedOnly = false;
+  
+  // Log initial state for debugging
+  console.log('Initial showPicturePreview state:', showPicturePreview);
+  
+  // Function to toggle profile picture preview
+  function toggleProfilePicturePreview() {
+    showPicturePreview = !showPicturePreview;
+    console.log('Toggled picture preview:', showPicturePreview);
+  }
   
   // Modal state for followers/following
   let showFollowersModal = false;
@@ -439,6 +448,28 @@
     loadTabContent(tab);
   }
   
+  // Helper function to determine if a thread is pinned, handling different data formats
+  function isThreadPinned(thread: Thread): boolean {
+    if (!thread) return false;
+    
+    // First check for boolean values
+    if (thread.is_pinned === true || thread.IsPinned === true) return true;
+    
+    // Handle string values with explicit type assertion
+    if (typeof thread.is_pinned === 'string') {
+      // Use type assertion to tell TypeScript that is_pinned is definitely a string
+      const pinValue = (thread.is_pinned as string).toLowerCase();
+      return pinValue === 'true' || pinValue === 't' || pinValue === '1';
+    }
+    
+    // Handle numeric values
+    if (typeof thread.is_pinned === 'number') {
+      return thread.is_pinned === 1;
+    }
+    
+    return false;
+  }
+
   async function loadTabContent(tab: string) {
     isLoading = true;
     
@@ -450,14 +481,36 @@
         // Extract threads from the response, handling nested data structures
         if (postsData && postsData.success) {
           // Check if data is in the main object or nested inside a data property
+          let postsArray: Thread[] = [];
           if (postsData.threads) {
-            posts = postsData.threads;
+            postsArray = postsData.threads;
           } else if (postsData.data && postsData.data.threads) {
-            posts = postsData.data.threads;
+            postsArray = postsData.data.threads;
           } else {
-            posts = [];
+            postsArray = [];
           }
+          
+          // Sort posts to ensure pinned ones are at the top
+          postsArray.sort((a: Thread, b: Thread) => {
+            // First sort by pinned status
+            const aIsPinned = isThreadPinned(a);
+            const bIsPinned = isThreadPinned(b);
+            
+            if (aIsPinned && !bIsPinned) return -1;
+            if (!aIsPinned && bIsPinned) return 1;
+            
+            // Then sort by creation date (newest first)
+            const dateA = new Date(a.created_at);
+            const dateB = new Date(b.created_at);
+            return dateB.getTime() - dateA.getTime();
+          });
+          
+          posts = postsArray;
           console.log(`Loaded ${posts.length} posts:`, posts);
+          
+          // Log pinned posts for debugging
+          const pinnedPosts = posts.filter(post => isThreadPinned(post));
+          console.log(`Found ${pinnedPosts.length} pinned posts:`, pinnedPosts);
         } else {
           console.error('Failed to get posts:', postsData);
           posts = [];
@@ -770,8 +823,10 @@
     }
   }
   
-  async function handlePinThread(threadId, isPinned) {
+  async function handlePinThread(threadId: string, isPinned: boolean) {
     try {
+      console.log(`${isPinned ? 'Unpinning' : 'Pinning'} thread ${threadId}`);
+      
       // Optimistically update UI
       posts = posts.map(post => {
         if (post.id === threadId) {
@@ -783,8 +838,8 @@
       // Sort the posts again to ensure pinned ones appear at the top
       posts.sort((a, b) => {
         // First sort by pinned status
-        if (a.is_pinned && !b.is_pinned) return -1;
-        if (!a.is_pinned && b.is_pinned) return 1;
+        if (isThreadPinned(a) && !isThreadPinned(b)) return -1;
+        if (!isThreadPinned(a) && isThreadPinned(b)) return 1;
         
         // Then sort by creation date (newest first)
         const dateA = new Date(a.created_at);
@@ -1232,14 +1287,18 @@
         <div class="profile-avatar-container">
           <button 
             class="profile-avatar-wrapper"
-            on:click={() => showPicturePreview = true}
+            on:click={toggleProfilePicturePreview}
             aria-label="View profile picture"
+            title="Click to view full size"
           >
             <img 
               src={profileData.profilePicture || DEFAULT_AVATAR} 
               alt={profileData.displayName}
               class="profile-avatar"
             />
+            <div class="profile-avatar-overlay">
+              <span class="zoom-icon">🔍</span>
+            </div>
           </button>
         </div>
         
@@ -1341,7 +1400,30 @@
               </div>
             {:else}
               {#each posts as thread (thread.id)}
-                <TweetCard tweet={ensureTweetFormat(thread)} />
+                <div class="tweet-wrapper">
+                  {#if isOwnProfile}
+                    <div class="pin-button-container">
+                      <button 
+                        class="pin-button {isThreadPinned(thread) ? 'pinned' : ''}"
+                        on:click={() => handlePinThread(thread.id, isThreadPinned(thread))}
+                        aria-label={isThreadPinned(thread) ? 'Unpin from profile' : 'Pin to profile'}
+                        title={isThreadPinned(thread) ? 'Unpin from profile' : 'Pin to profile'}
+                      >
+                        <PinIcon size="16" />
+                        <span class="pin-text">{isThreadPinned(thread) ? 'Pinned' : 'Pin'}</span>
+                      </button>
+                    </div>
+                  {/if}
+                  
+                  {#if isThreadPinned(thread)}
+                    <div class="pinned-badge">
+                      <PinIcon size="12" />
+                      <span>Pinned</span>
+                    </div>
+                  {/if}
+                  
+                  <TweetCard tweet={ensureTweetFormat(thread)} />
+                </div>
               {/each}
             {/if}
           </div>
@@ -1404,36 +1486,49 @@
   
   <!-- Profile picture preview modal -->
   {#if showPicturePreview}
-  <dialog 
-    open
-    class="fixed inset-0 p-0 m-0 w-full h-full bg-transparent z-50 flex items-center justify-center" 
+  <div 
+    class="image-preview-modal" 
     aria-modal="true"
     aria-label="Profile picture preview"
+    role="dialog"
+    on:keydown={(e) => e.key === 'Escape' && toggleProfilePicturePreview()}
+    tabindex="-1"
   >
-    <div class="fixed inset-0 bg-black/80" on:click={() => showPicturePreview = false} aria-hidden="true"></div>
+    <div class="image-preview-overlay" on:click={toggleProfilePicturePreview} aria-hidden="true"></div>
     
-    <div class="relative max-w-[90%] max-h-[90%] z-10">
+    <div class="image-preview-content">
       <button 
-        class="absolute -top-10 right-0 text-white p-2 rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-white" 
-        on:click={() => showPicturePreview = false}
+        class="image-preview-close" 
+        on:click={toggleProfilePicturePreview}
         aria-label="Close preview"
       >
         <XIcon size="24" />
       </button>
       
-      <img 
-        src={profileData.profilePicture || DEFAULT_AVATAR} 
-        alt={profileData.displayName} 
-        class="max-w-full max-h-[80vh] rounded-lg"
-      />
+      <button
+        class="image-preview-image-button"
+        on:click={toggleProfilePicturePreview}
+        on:keydown={(e) => e.key === 'Enter' && toggleProfilePicturePreview()}
+        aria-label="Close profile picture preview"
+      >
+        <img 
+          src={profileData.profilePicture || DEFAULT_AVATAR} 
+          alt={profileData.displayName} 
+          class="image-preview-image"
+        />
+      </button>
+      
+      <div class="image-preview-caption">
+        Click anywhere or press ESC to close
+      </div>
     </div>
-  </dialog>
+  </div>
   {/if}
 </MainLayout>
 
 <!-- Followers Modal -->
 {#if showFollowersModal}
-  <div class="modal-overlay" on:click|self={closeModals}>
+  <div class="modal-overlay" on:click|self={closeModals} on:keydown={(e) => e.key === 'Escape' && closeModals()} role="dialog" aria-label="Followers list" tabindex="0">
     <div class="modal-container">
       <div class="modal-header">
         <h2>Followers</h2>
@@ -1494,7 +1589,7 @@
 
 <!-- Following Modal -->
 {#if showFollowingModal}
-  <div class="modal-overlay" on:click|self={closeModals}>
+  <div class="modal-overlay" on:click|self={closeModals} on:keydown={(e) => e.key === 'Escape' && closeModals()} role="dialog" aria-label="Following list" tabindex="0">
     <div class="modal-container">
       <div class="modal-header">
         <h2>Following</h2>
@@ -1557,7 +1652,7 @@
 <svelte:window on:keydown={(e) => {
   if (e.key === 'Escape') {
     if (showPicturePreview) {
-      showPicturePreview = false;
+      toggleProfilePicturePreview();
     } else if (showFollowersModal || showFollowingModal) {
       closeModals();
     }
@@ -1642,6 +1737,7 @@
   .profile-avatar-container {
     position: relative;
     margin-bottom: 12px;
+    z-index: 5; /* Ensure container is above other elements */
   }
 
   .profile-avatar-wrapper {
@@ -1657,11 +1753,143 @@
     cursor: pointer;
     padding: 0;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .profile-avatar {    width: 100%;
+  .profile-avatar-wrapper {
+    position: relative;
+  }
+
+  .profile-avatar-wrapper:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .profile-avatar-wrapper:hover .profile-avatar-overlay {
+    opacity: 1;
+  }
+
+  .profile-avatar {
+    width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+  
+  .profile-avatar-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .zoom-icon {
+    color: white;
+    font-size: 24px;
+  }
+  
+  /* Profile picture preview styles */
+  .image-preview-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .image-preview-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    cursor: pointer;
+  }
+  
+  .image-preview-content {
+    position: relative;
+    max-width: 90%;
+    max-height: 90%;
+    z-index: 10;
+    animation: zoomIn 0.3s ease;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  }
+  
+  .image-preview-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    color: white;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+  }
+  
+  .image-preview-close:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  .image-preview-image-button {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    transition: transform 0.2s ease;
+  }
+  
+  .image-preview-image-button:hover {
+    transform: scale(0.98);
+  }
+  
+  .image-preview-image-button:focus {
+    outline: 2px solid var(--color-primary);
+    border-radius: 4px;
+  }
+
+  .image-preview-image {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .image-preview-caption {
+    text-align: center;
+    margin-top: 16px;
+    color: white;
+    font-size: 14px;
+  }
+  
+  @keyframes zoomIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   /* Profile actions */
@@ -1839,141 +2067,11 @@
     padding: 0 16px;
   }
 
-  .profile-content-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 0;
-    text-align: center;
-  }
 
-  .profile-content-empty-icon {
-    font-size: 32px;
-    margin-bottom: 16px;
-  }
-
-  .profile-content-empty-title {
-    font-size: 20px;
-    font-weight: 700;
-    margin: 0 0 8px 0;
-    color: var(--text-primary);
-  }
-
-  .profile-content-empty-text {
-    font-size: 15px;
-    color: #536471;
-    max-width: 300px;
-  }
 
   /* Tweet card styling */
-  .tweet-card-container {
-    border-bottom: 1px solid var(--border-color);
-    padding: 12px 0;
-  }
-
-  .tweet-card-container.pinned {
-    background-color: rgba(0, 0, 0, 0.02);
-  }
-
-  .pinned-indicator {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: #536471;
-    font-size: 13px;
-    margin-bottom: 4px;
-  }
-
-  .reply-indicator {
-    font-size: 13px;
-    color: #536471;
-    margin-bottom: 4px;
-  }
-
-  .reply-indicator a {
-    color: #1da1f2;
-    text-decoration: none;
-  }
-
-  .pin-action-button {
-    margin-top: 8px;
-    padding: 6px 12px;
-    background: none;
-    border: none;
-    font-size: 13px;
-    color: #1da1f2;
-    cursor: pointer;
-  }
-
-  .pin-action-button:hover {
-    text-decoration: underline;
-  }
 
   /* Media grid */
-  .media-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 8px;
-  }
-
-  .media-grid-item {
-    aspect-ratio: 1/1;
-    overflow: hidden;
-    border-radius: 8px;
-    display: block;
-  }
-
-  .media-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .media-video-container, 
-  .media-gif-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-  }
-
-  .media-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .media-video-play-button {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.6);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .media-video-play-icon {
-    width: 20px;
-    height: 20px;
-    color: white;
-  }
-
-  .media-gif-indicator {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
   
   /* Modal styles */
   .modal-overlay {
@@ -2084,69 +2182,6 @@
   }
   
   /* User list styling */
-  .user-list {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .user-item {
-    display: flex;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s;
-    cursor: pointer;
-  }
-  
-  .user-item:hover {
-    background-color: var(--bg-hover);
-  }
-  
-  .user-avatar {
-    width: 48px;
-    height: 48px;
-    margin-right: 12px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  
-  .user-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .user-info {
-    flex-grow: 1;
-    overflow: hidden;
-  }
-  
-  .user-name {
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--text-primary);
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .user-username {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-bottom: 4px;
-  }
-  
-  .user-bio {
-    font-size: 14px;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    line-height: 1.3;
-  }
   
   /* Animation keyframes */
   @keyframes fadeIn {
@@ -2159,13 +2194,7 @@
     to { transform: translateY(0); opacity: 1; }
   }
 
-  .profile-container .user-bio p.line-clamp {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    overflow: hidden;
-  }
+
 
   .loading-container {
     display: flex;
@@ -2185,5 +2214,94 @@
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background-color: var(--bg-secondary);
+  }
+
+  /* Hidden elements for empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    text-align: center;
+    width: 100%;
+    margin-top: 1rem;
+  }
+
+  .empty-state-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+  }
+
+  .empty-state-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-state-text {
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    max-width: 400px;
+  }
+
+  .tweet-wrapper {
+    position: relative;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .pin-button-container {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+  }
+
+  .pin-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    gap: 4px;
+  }
+
+  .pin-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--color-primary);
+  }
+
+  .pin-button.pinned {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  .pin-text {
+    margin-left: 4px;
+  }
+
+  .pinned-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background-color: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
   }
 </style>

@@ -910,13 +910,13 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 	}
 
 	// Normalize status values
-	status := req.Status
-	if status != "member" && status != "pending" {
-		status = "member" // Default to member if not specified
+	memberStatus := req.Status
+	if memberStatus != "member" && memberStatus != "pending" {
+		memberStatus = "member" // Default to member if not specified
 	}
 
 	// Get communities where the user is a member or has pending requests
-	communities, totalCount, err := h.communityService.ListUserCommunities(ctx, userID, status, offset, limit)
+	communities, totalCount, err := h.communityService.ListUserCommunities(ctx, userID, memberStatus, offset, limit)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list user communities: %v", err))
 	}
