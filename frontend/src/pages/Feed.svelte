@@ -1,7 +1,7 @@
 <script lang="ts">
   import MainLayout from '../components/layout/MainLayout.svelte';
   import TweetCard from '../components/social/TweetCard.svelte';
-  import ComposeTweet from '../components/social/ComposeTweet.svelte';
+  import ComposeTweetModal from '../components/social/ComposeTweetModal.svelte';
   import { onMount, tick } from 'svelte';
   import { getAllThreads, getThreadReplies, replyToThread } from '../api/thread';
   import { useTheme } from '../hooks/useTheme';

@@ -2,7 +2,6 @@ import { derived, writable } from 'svelte/store';
 import type { MessageType } from './websocketStore';
 import { getAuthToken } from '../utils/auth';
 import { createLoggerWithPrefix } from '../utils/logger';
-import { registerChatMessageHandler } from '../api/chat';
 
 const logger = createLoggerWithPrefix('ChatMessageStore');
 
@@ -508,8 +507,6 @@ function createChatMessageStore() {
 
 export const chatMessageStore = createChatMessageStore();
 
-registerChatMessageHandler(handleIncomingMessage);
-
 export function getMessagesForChat(chatId: string) {
   return derived(chatMessageStore, $chatStore => {
     const messages = $chatStore.messages[chatId] || {};
@@ -536,3 +533,4 @@ export function getUnreadCountForChat(chatId: string) {
     return $chatStore.unreadCount[chatId] || 0;
   });
 }
+

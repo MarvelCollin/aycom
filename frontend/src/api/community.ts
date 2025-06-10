@@ -1183,19 +1183,67 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
       }
     });
 
-    const response = await fetch(`${API_BASE_URL}/communities/joined/${userId}?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Add retry logic
+    let attempts = 0;
+    const maxAttempts = 2;
+    let response;
 
-    if (!response.ok) {
-      throw new Error(`Failed to list joined communities (${response.status})`);
+    while (attempts < maxAttempts) {
+      try {
+        response = await fetch(`${API_BASE_URL}/communities/joined/${userId}?${queryParams.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+          },
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          break;
+        }
+        
+        logger.warn(`Joined communities request failed (${response.status}), attempt ${attempts + 1}/${maxAttempts}`);
+        attempts++;
+        
+        if (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retrying
+        }
+      } catch (err) {
+        logger.error('Network error in getJoinedCommunities:', err);
+        attempts++;
+        
+        if (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
     }
 
-    const result = await response.json();
-    return result;
+    // If we got a valid response
+    if (response && response.ok) {
+      const result = await response.json();
+      console.log('Joined communities raw response:', result);
+      
+      // Handle the new direct response format
+      return {
+        success: true,
+        communities: result.communities || [],
+        total: result.total || 0,
+        page: result.page || params.page || 1,
+        limit: result.limit || params.limit || 25,
+        total_pages: result.total_pages || 1
+      };
+    }
+
+    // Last resort: return a valid empty response
+    return {
+      success: true,
+      communities: [],
+      total: 0,
+      page: params.page || 1,
+      limit: params.limit || 25,
+      total_pages: 1
+    };
   } catch (error: any) {
     logger.error('Failed to fetch joined communities:', error);
     return {
@@ -1223,19 +1271,67 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
       }
     });
 
-    const response = await fetch(`${API_BASE_URL}/communities/pending/${userId}?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Add retry logic
+    let attempts = 0;
+    const maxAttempts = 3;
+    let response;
 
-    if (!response.ok) {
-      throw new Error(`Failed to list pending communities (${response.status})`);
+    while (attempts < maxAttempts) {
+      try {
+        response = await fetch(`${API_BASE_URL}/communities/pending/${userId}?${queryParams.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+          },
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          break;
+        }
+        
+        logger.warn(`Pending communities request failed (${response.status}), attempt ${attempts + 1}/${maxAttempts}`);
+        attempts++;
+        
+        if (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retrying
+        }
+      } catch (err) {
+        logger.error('Network error in getPendingCommunities:', err);
+        attempts++;
+        
+        if (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
     }
 
-    const result = await response.json();
-    return result;
+    // If we got a valid response
+    if (response && response.ok) {
+      const result = await response.json();
+      console.log('Pending communities raw response:', result);
+      
+      // Handle the new direct response format
+      return {
+        success: true,
+        communities: result.communities || [],
+        total: result.total || 0,
+        page: result.page || params.page || 1,
+        limit: result.limit || params.limit || 25,
+        total_pages: result.total_pages || 1
+      };
+    }
+
+    // Last resort: return a valid empty response
+    return {
+      success: true,
+      communities: [],
+      total: 0,
+      page: params.page || 1,
+      limit: params.limit || 25,
+      total_pages: 1
+    };
   } catch (error: any) {
     logger.error('Failed to fetch pending communities:', error);
     return {
@@ -1263,19 +1359,67 @@ export async function getDiscoverCommunities(userId: string, params: Communities
       }
     });
 
-    const response = await fetch(`${API_BASE_URL}/communities/discover/${userId}?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Add retry logic
+    let attempts = 0;
+    const maxAttempts = 2;
+    let response;
 
-    if (!response.ok) {
-      throw new Error(`Failed to list discover communities (${response.status})`);
+    while (attempts < maxAttempts) {
+      try {
+        response = await fetch(`${API_BASE_URL}/communities/discover/${userId}?${queryParams.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+          },
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          break;
+        }
+        
+        logger.warn(`Discover communities request failed (${response.status}), attempt ${attempts + 1}/${maxAttempts}`);
+        attempts++;
+        
+        if (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retrying
+        }
+      } catch (err) {
+        logger.error('Network error in getDiscoverCommunities:', err);
+        attempts++;
+        
+        if (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
     }
 
-    const result = await response.json();
-    return result;
+    // If we got a valid response
+    if (response && response.ok) {
+      const result = await response.json();
+      console.log('Discover communities raw response:', result);
+      
+      // Handle the new direct response format
+      return {
+        success: true,
+        communities: result.communities || [],
+        total: result.total || 0,
+        page: result.page || params.page || 1,
+        limit: result.limit || params.limit || 25,
+        total_pages: result.total_pages || 1
+      };
+    }
+
+    // Last resort: return a valid empty response
+    return {
+      success: true,
+      communities: [],
+      total: 0,
+      page: params.page || 1,
+      limit: params.limit || 25,
+      total_pages: 1
+    };
   } catch (error: any) {
     logger.error('Failed to fetch discover communities:', error);
     return {

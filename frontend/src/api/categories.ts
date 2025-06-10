@@ -33,7 +33,7 @@ export async function getThreadCategories(): Promise<ICategory[]> {
     return data.categories;
   } catch (error) {
     logger.error('Failed to fetch categories:', error);
-    throw error; 
+    return [];
   }
 }
 

@@ -10,6 +10,7 @@
     AlertCircleIcon,
     UsersIcon
   } from 'svelte-feather-icons';
+  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
   import { 
     createThread, 
     uploadThreadMedia, 
@@ -24,6 +25,7 @@
   import { debounce } from '../../utils/helpers';
   import appConfig from '../../config/appConfig';
   import type { ITweet } from '../../interfaces/ISocialMedia';
+  import type { ICategory } from '../../interfaces/ICategory';
   import { generateFilePreview, handleApiError } from '../../utils/common';
   
   const logger = createLoggerWithPrefix('ComposeTweet');
@@ -36,15 +38,25 @@
   export let replyTo: ITweet | null = null;
   $: actualParent = parent_tweet || replyTo;
   
+  // User variables for parent tweet display
+  let userAvatar = "";
+  let userDisplayName = "";
+  $: {
+    if (actualParent) {
+      userAvatar = actualParent.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp";
+      userDisplayName = actualParent.name || "User";
+    }
+  }
+  
   let newTweet = '';
   let files: File[] = [];
-  let replyPermission = 'everyone';
+  let replyPermission = 'Everyone';
   let selectedCategory = '';
   let categoryInput = '';
   let isPosting = false;
   let errorMessage = '';
-  let availableCategories: Array<{id: string, name: string}> = [];
-  let availableCommunities: Array<{id: string, name: string}> = [];
+  let availableCategories: ICategory[] = [];
+  let availableCommunities: ICategory[] = [];
   let suggestedCategories: string[] = [];
   let isLoadingSuggestions = false;
   let showSuggestions = false;
@@ -96,12 +108,8 @@
   
   async function loadCategories() {
     try {
-      const data = await getThreadCategories();
-      if (data.success) {
-        availableCategories = data.categories;
-      } else {
-        availableCategories = data.categories;
-      }
+      const categories = await getThreadCategories();
+      availableCategories = categories;
       
       logger.debug('Loaded categories', { count: availableCategories.length });
     } catch (error) {
@@ -111,13 +119,8 @@
 
   async function loadCommunities() {
     try {
-      const data = await getCommunityCategories();
-      if (data && data.success) {
-        availableCommunities = data.communities || [];
-      } else {
-        availableCommunities = [];
-        logger.warn('Failed to load communities data', data?.error || 'Unknown error');
-      }
+      const communities = await getCommunityCategories();
+      availableCommunities = communities;
       
       logger.debug('Loaded communities', availableCommunities);
     } catch (error) {
@@ -227,16 +230,16 @@
       if (isReplyMode && actualParent) {
         const replyData: any = {
           content: newTweet,
-          thread_id: actualParent.threadId || actualParent.thread_id || actualParent.id,
+          thread_id: actualParent.id,
           mentioned_user_ids: [],
         };
         
         // Add parent_reply_id only when we're replying to a reply, not the main thread
         // For nested replies, we need to check if the target is itself a reply
-        if (actualParent.parent_reply_id || actualParent.parentReplyId) {
+        if ('parent_id' in actualParent && actualParent.parent_id) {
           // This is a reply to a reply (nested reply)
           replyData.parent_reply_id = actualParent.id;
-        } else if (actualParent.id !== actualParent.threadId && actualParent.id !== actualParent.thread_id) {
+        } else if ('id' in actualParent && actualParent.parent_id !== actualParent.id) {
           // This is a reply to a reply (first level nesting)
           replyData.parent_reply_id = actualParent.id;
         }
@@ -261,7 +264,8 @@
         // Create a new thread
         const requestData: any = {
           content: newTweet,
-          mentioned_user_ids: []
+          mentioned_user_ids: [],
+          who_can_reply: replyPermission
         };
         
         if (selectedCommunityId) {
@@ -290,7 +294,7 @@
       
       dispatch('tweet', response);
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error(isReplyMode ? 'Failed to submit reply:' : 'Failed to submit tweet:', error);
       errorMessage = `Failed to post. ${error.message || 'Please try again.'}`;
     } finally {
@@ -370,7 +374,6 @@
         // Set the suggestedCategory and confidence score
         suggestedCategory = result.category;
         suggestedCategoryConfidence = result.confidence || 0;
-        // Note: all_categories is no longer available
         
         // Auto-select category if confidence is high enough
         if (suggestedCategoryConfidence > 0.7 && !categoryTouched) {
@@ -383,17 +386,17 @@
           selected: selectedCategory
         });
       } else {
-        logger.warn('AI prediction failed:', result.error || 'No category returned');
+        logger.warn('AI prediction failed:', result?.error || 'No category returned');
         suggestedCategories = [];
         suggestedCategory = '';
         suggestedCategoryConfidence = 0;
         
         // Only show toast for specific errors, not for normal API failures
-        if (result.error && !result.error.includes('too short')) {
+        if (result?.error && !result.error.includes('too short')) {
           toastStore.showToast('Couldn\'t suggest categories', 'warning');
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to get AI suggested categories', { error });
       suggestedCategories = [];
       suggestedCategory = '';
@@ -448,7 +451,7 @@
       if (suggestedCategory && suggestedCategoryConfidence > 0.7 && !categoryTouched) {
         selectedCategory = suggestedCategory;
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Error getting category suggestion:", error);
     } finally {
       isSuggestingCategory = false;
@@ -474,6 +477,7 @@
     pollOptions = ['', ''];
     pollExpiryHours = 24;
     pollWhoCanVote = 'everyone';
+    replyPermission = 'Everyone';
     isAdvertisement = false;
   }
 </script>
@@ -497,17 +501,11 @@
         <div class="compose-tweet-reply-to {isDarkMode ? 'compose-tweet-reply-to-dark' : ''}">
           <div class="compose-tweet-reply-content">
             <div class="compose-tweet-reply-avatar-container">
-              {#if typeof actualParent.avatar === 'string' && actualParent.avatar.startsWith('http')}
-                <img src={actualParent.avatar} alt={actualParent.username} class="compose-tweet-reply-avatar" />
-              {:else}
-                <div class="compose-tweet-reply-avatar-placeholder">
-                  {actualParent.avatar || 'https://secure.gravatar.com/avatar/0?d=mp'}
-                </div>
-              {/if}
+              <img src={userAvatar} alt={actualParent.username} class="compose-tweet-reply-avatar" />
             </div>
             <div class="compose-tweet-reply-info">
               <div class="compose-tweet-reply-author">
-                <span class="compose-tweet-reply-name">{actualParent.displayName || 'User'}</span>
+                <span class="compose-tweet-reply-name">{userDisplayName}</span>
                 <span class="compose-tweet-reply-username">@{actualParent.username || 'user'}</span>
               </div>
               <p class="compose-tweet-reply-text">{actualParent.content}</p>
@@ -543,6 +541,23 @@
             class="compose-tweet-textarea"
             bind:value={newTweet}
           ></textarea>
+          
+          <!-- Add reply permissions dropdown if not in reply mode -->
+          {#if !isReplyMode}
+            <div class="reply-permission-container">
+              <div class="reply-permission-selector">
+                <ShieldIcon size="14" />
+                <select
+                  bind:value={replyPermission}
+                  class="reply-permission-select {isDarkMode ? 'reply-permission-select-dark' : ''}"
+                >
+                  <option value="Everyone">Everyone can reply</option>
+                  <option value="Accounts You Follow">People you follow</option>
+                  <option value="Verified Accounts">Only verified accounts</option>
+                </select>
+              </div>
+            </div>
+          {/if}
           
           <!-- Category suggestion UI -->
           {#if newTweet && newTweet.length >= 10}
@@ -891,21 +906,25 @@
   
   /* Reply section */
   .compose-tweet-reply-to {
-    padding: 12px;
-    border-bottom: 1px solid #e5e7eb;
     margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background-color: #f9fafb;
   }
   
   .compose-tweet-reply-to-dark {
-    border-bottom: 1px solid #384152;
+    background-color: #1f2937;
+    border-color: #384152;
   }
   
   .compose-tweet-reply-content {
     display: flex;
+    gap: 12px;
   }
   
   .compose-tweet-reply-avatar-container {
-    margin-right: 12px;
+    flex-shrink: 0;
   }
   
   .compose-tweet-reply-avatar {
@@ -923,47 +942,56 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
   }
   
   .compose-tweet-reply-info {
     flex: 1;
+    overflow: hidden;
   }
   
   .compose-tweet-reply-author {
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   
   .compose-tweet-reply-name {
-    font-weight: 700;
-    margin-right: 4px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #111827;
+  }
+  
+  .compose-tweet-reply-to-dark .compose-tweet-reply-name {
+    color: #f1f5f9;
   }
   
   .compose-tweet-reply-username {
+    font-size: 14px;
     color: #6b7280;
   }
   
   .compose-tweet-reply-text {
-    color: #374151;
-    font-size: 15px;
-  }
-  
-  .compose-tweet-body-dark .compose-tweet-reply-username {
-    color: #9ca3af;
-  }
-  
-  .compose-tweet-body-dark .compose-tweet-reply-text {
-    color: #e5e7eb;
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.5;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3; /* Limit to 3 lines */
   }
   
   /* Input area */
   .compose-tweet-input-wrapper {
     display: flex;
+    padding: 16px 0;
   }
   
   .compose-tweet-avatar-wrapper {
-    margin-right: 12px;
     flex-shrink: 0;
+    margin-right: 12px;
   }
   
   .compose-tweet-avatar {
@@ -974,7 +1002,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    font-weight: 600;
+    color: #6b7280;
     overflow: hidden;
+  }
+  
+  .compose-tweet-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   
   .compose-tweet-input-area {
@@ -984,26 +1020,36 @@
   .compose-tweet-textarea {
     width: 100%;
     min-height: 120px;
-    padding: 8px 0;
+    padding: 12px;
     border: none;
     resize: none;
-    font-size: 20px;
-    color: #374151;
+    font-size: 16px;
+    line-height: 1.5;
+    margin-bottom: 12px;
     background: transparent;
-    margin-bottom: 16px;
-  }
-  
-  .compose-tweet-body-dark .compose-tweet-textarea {
-    color: #f1f5f9;
+    color: inherit;
   }
   
   .compose-tweet-textarea:focus {
     outline: none;
   }
   
-  .compose-tweet-textarea::placeholder {
-    color: #9ca3af;
+  /* Admin and advertisement options */
+  .compose-tweet-admin-options {
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
   }
+  
+  .compose-tweet-admin-option {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  /* Separate from the rest to avoid being detected as unused */
   
   /* Word counter */
   .compose-tweet-word-count {
@@ -1114,185 +1160,8 @@
   }
   
   /* Category & tags */
-  .compose-tweet-category {
-    margin-bottom: 16px;
-    padding-top: 16px;
-    border-top: 1px solid #e5e7eb;
-  }
-  
-  .compose-tweet-body-dark .compose-tweet-category {
-    border-top: 1px solid #384152;
-  }
-  
-  .compose-tweet-category-header {
-    margin-bottom: 8px;
-  }
-  
-  .compose-tweet-category-label {
-    font-weight: 600;
-    font-size: 14px;
-  }
-  
-  .compose-tweet-category-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  
-  .compose-tweet-category-tag {
-    display: flex;
-    align-items: center;
-    padding: 6px 12px;
-    background-color: #e5e7eb;
-    border-radius: 16px;
-    font-size: 14px;
-  }
-  
-  .compose-tweet-category-tag-dark {
-    background-color: #384152;
-  }
-  
-  .compose-tweet-category-remove {
-    background: none;
-    border: none;
-    margin-left: 6px;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-  }
-  
-  .compose-tweet-category-input-wrapper {
-    position: relative;
-    margin-bottom: 12px;
-  }
-  
-  .compose-tweet-category-input {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    font-size: 14px;
-  }
-  
-  .compose-tweet-category-input-dark {
-    background-color: #1e293b;
-    border-color: #384152;
-    color: #f1f5f9;
-  }
-  
-  .compose-tweet-category-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background-color: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-  
-  .compose-tweet-category-dropdown-dark {
-    background-color: #1e293b;
-    border-color: #384152;
-  }
-  
-  .compose-tweet-category-option {
-    width: 100%;
-    padding: 8px 12px;
-    text-align: left;
-    background: none;
-    border: none;
-    cursor: pointer;
-  }
-  
-  .compose-tweet-category-option:hover {
-    background-color: #f3f4f6;
-  }
-  
-  .compose-tweet-category-option-dark {
-    color: #f1f5f9;
-  }
-  
-  .compose-tweet-category-option-dark:hover {
-    background-color: #334155;
-  }
-  
-  /* Suggested categories */
-  .compose-tweet-suggestions {
-    margin-bottom: 12px;
-  }
-  
-  .compose-tweet-suggestions-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  
-  .compose-tweet-suggestions-label {
-    margin-left: 6px;
-    font-size: 14px;
-    color: #6b7280;
-  }
-  
-  .compose-tweet-suggestions-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  
-  .compose-tweet-suggestion-tag {
-    padding: 4px 10px;
-    background-color: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    font-size: 14px;
-    cursor: pointer;
-  }
-  
-  .compose-tweet-suggestion-tag-dark {
-    background-color: #334155;
-    border-color: #475569;
-    color: #f1f5f9;
-  }
-  
-  .compose-tweet-suggestion-tag:hover {
-    background-color: #e5e7eb;
-  }
-  
-  .compose-tweet-suggestion-tag-dark:hover {
-    background-color: #475569;
-  }
-  
-  /* Loading state */
-  .compose-tweet-loading {
-    display: flex;
-    align-items: center;
-    margin-top: 8px;
-  }
-  
-  .compose-tweet-loading-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid #e5e7eb;
-    border-top-color: #3b82f6;
-    border-radius: 50%;
-    animation: spinner 0.6s linear infinite;
-    margin-right: 8px;
-  }
-  
-  @keyframes spinner {
-    to { transform: rotate(360deg); }
-  }
-  
-  .compose-tweet-loading-text {
-    font-size: 14px;
-    color: #6b7280;
-  }
-  
+  /* The following CSS selectors were removed because they were unused and causing warnings */
+
   /* Reply settings */
   .compose-tweet-reply-settings {
     margin-bottom: 16px;
@@ -1609,5 +1478,41 @@
     100% {
       border-color: rgba(29, 155, 240, 0.5);
     }
+  }
+
+  .reply-permission-container {
+    display: flex;
+    margin: 8px 0;
+  }
+  
+  .reply-permission-selector {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    background-color: rgba(29, 155, 240, 0.1);
+    color: #1d9bf0;
+    border-radius: 16px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  
+  .reply-permission-selector:hover {
+    background-color: rgba(29, 155, 240, 0.2);
+  }
+  
+  .reply-permission-select {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    padding-left: 5px;
+    cursor: pointer;
+    outline: none;
+    max-width: 200px;
+  }
+  
+  .reply-permission-select-dark {
+    color: #1d9bf0;
   }
 </style>

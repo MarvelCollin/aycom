@@ -104,8 +104,10 @@ export interface Chat {
   profile_picture_url: string | null;
   participants: Participant[];
   last_message?: LastMessage;
+  lastMessage?: LastMessage;
   messages: Message[];
   unread_count: number;
+  avatar?: string | null;
 }
 
 export interface CreateChatResponse {

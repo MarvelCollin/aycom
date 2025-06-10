@@ -24,6 +24,9 @@
   import ChevronUpIcon from 'svelte-feather-icons/src/icons/ChevronUpIcon.svelte';
   import ChevronDownIcon from 'svelte-feather-icons/src/icons/ChevronDownIcon.svelte';
   import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
+  import { authStore } from '../../stores/authStore';
+  import { useTheme } from '../../hooks/useTheme';
+  
   interface ExtendedTweet extends ITweet {
     retweet_id?: string;
     threadId?: string;
@@ -1505,23 +1508,11 @@
       // Dispatch click event for any parent components that need to know
       dispatch('click', tweet);
       
-      // Navigate to the thread detail page
+      // Navigate directly to the thread detail page with just the ID
+      // No need to store in the store since we'll load from the API in ThreadDetail
       const threadId = processedTweet.id;
       window.location.href = `/thread/${threadId}`;
     }
-  }
-
-  // Add a new function to check if the tweet is from the current user's thread
-  function isCurrentUserThread() {
-    const currentUserId = getUserId();
-    
-    if (!currentUserId) return false;
-    
-    // Check user_id or other possible ID fields against the current user ID
-    return currentUserId === (processedTweet.user_id || 
-                             processedTweet.userId || 
-                             processedTweet.author_id || 
-                             processedTweet.authorId);
   }
 </script>
 
@@ -1543,13 +1534,6 @@
         </a>
         <div class="tweet-content-container">
           <div class="tweet-author-info">
-            <!-- Pinned indicator -->
-            {#if processedTweet.is_pinned}
-              <div class="pinned-indicator">
-                <span class="pin-icon">📌</span>
-                <span class="pinned-text">Pinned</span>
-              </div>
-            {/if}
             <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
               class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
               on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
@@ -1579,18 +1563,6 @@
             </a>
             <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
             <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(processedTweet.timestamp)}</span>
-            
-            <!-- Pin/Unpin button for own threads -->
-            {#if isCurrentUserThread()}
-              <button 
-                class="tweet-pin-btn {processedTweet.is_pinned ? 'pinned' : ''}"
-                on:click|stopPropagation={() => dispatch('pinToggle', {id: processedTweet.id, isPinned: Boolean(processedTweet.is_pinned)})}
-                title={processedTweet.is_pinned ? 'Unpin from profile' : 'Pin to profile'}
-              >
-                <span class="pin-icon">📌</span>
-                <span class="pin-status">{processedTweet.is_pinned ? 'Pinned' : 'Pin'}</span>
-              </button>
-            {/if}
           </div>
           
           <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
@@ -2462,69 +2434,6 @@
   .display-name-text {
     margin-right: 2px;
     font-weight: 600;
-  }
-
-  /* Pin/Unpin button styles */
-  .tweet-pin-btn {
-    background-color: transparent;
-    color: var(--text-secondary);
-    border: none;
-    border-radius: var(--radius-full);
-    padding: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-left: 0.5rem;
-  }
-
-  .tweet-pin-btn:hover {
-    background-color: var(--hover-light);
-    color: var(--color-primary);
-  }
-
-  .tweet-pin-btn.pinned {
-    color: var(--color-primary);
-  }
-  
-  .dark .tweet-pin-btn {
-    color: var(--text-secondary-dark);
-  }
-  
-  .dark .tweet-pin-btn:hover {
-    background-color: var(--hover-dark);
-    color: var(--color-primary);
-  }
-
-  .dark .tweet-pin-btn.pinned {
-    color: var(--color-primary);
-  }
-
-  .pin-icon {
-    font-size: 14px;
-  }
-
-  .pin-status {
-    font-size: 0.875rem;
-  }
-  
-  /* Pinned indicator styles */
-  .pinned-indicator {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    margin-bottom: 4px;
-    padding: 2px 6px;
-    background-color: var(--bg-secondary);
-    border-radius: 12px;
-    width: fit-content;
-  }
-  
-  .pinned-text {
-    font-weight: 500;
   }
 
   .tweet-empty-content {

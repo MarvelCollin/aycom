@@ -155,55 +155,87 @@ export async function createChat(data: Record<string, any>) {
       }
     }
 
+    // Send the request
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(data),
-      credentials: 'include'
+      body: JSON.stringify(data)
     });
 
-    logger.debug('Create chat response status', { 
-      status: response.status, 
-      statusText: response.statusText
-    });
-
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    if (!response.ok) {
       try {
-        const responseData = await response.json();
-        logger.debug('Create chat response data', { responseData });
-
-        if (!response.ok) {
-          throw new Error(responseData.message || `Failed to create chat: ${response.status} ${response.statusText}`);
-        }
-
-        return responseData;
-      } catch (parseError: unknown) {
-        logger.error('Failed to parse JSON response for chat creation:', parseError);
-        if (response.ok) {
-          return { 
-            chat: { 
-              id: 'temp-' + Date.now(),
-              participants: []
-            } 
-          };
-        }
-        throw new Error(`Failed to parse response when creating chat: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        // Try to parse as JSON first
+        const errorJson = await response.json();
+        logger.error('Failed to create chat:', { 
+          status: response.status, 
+          errorJson,
+          url: `${API_BASE_URL}/chats`,
+          method: 'POST'
+        });
+        throw new Error(`Failed to create chat: ${response.status} ${response.statusText} - ${JSON.stringify(errorJson)}`);
+      } catch (e) {
+        // Fall back to text if not JSON
+        const errorText = await response.text();
+        logger.error('Failed to create chat:', { 
+          status: response.status, 
+          response: errorText,
+          url: `${API_BASE_URL}/chats`,
+          method: 'POST'
+        });
+        throw new Error(`Failed to create chat: ${response.status} ${response.statusText}`);
       }
-    } else {
-      logger.warn('Non-JSON response for chat creation');
-      if (response.ok) {
-        return { 
-          chat: { 
-            id: 'temp-' + Date.now(),
-            participants: []
-          } 
+    }
+
+    let jsonResponse;
+    try {
+      jsonResponse = await response.json();
+      logger.debug('Chat creation response', { jsonResponse });
+      
+      // Enhanced logging to debug response format
+      logger.debug('Chat response analysis', { 
+        hasSuccess: jsonResponse && typeof jsonResponse.success === 'boolean',
+        successValue: jsonResponse?.success,
+        hasData: jsonResponse && jsonResponse.data !== undefined,
+        dataType: jsonResponse?.data ? typeof jsonResponse.data : 'undefined', 
+        hasChat: jsonResponse && jsonResponse.chat !== undefined,
+        chatType: jsonResponse?.chat ? typeof jsonResponse.chat : 'undefined',
+        responseKeys: jsonResponse ? Object.keys(jsonResponse) : [] 
+      });
+      
+      // Check for the standardized response format
+      if (jsonResponse && jsonResponse.success === true && jsonResponse.data) {
+        // Server returns {"success": true, "data": { "chat": { ... } }}
+        logger.debug('Using success+data response format');
+        return jsonResponse.data;
+      } else if (jsonResponse && jsonResponse.chat) {
+        // Direct chat object in response
+        logger.debug('Using direct chat object response format');
+        return jsonResponse;
+      } else if (jsonResponse && typeof jsonResponse === 'object') {
+        // Just return whatever we got if it's an object
+        logger.debug('Using generic object response format');
+        return jsonResponse;
+      } else {
+        // Create a fallback response if format doesn't match any expected pattern
+        logger.warn('Unexpected chat response format, creating fallback', { jsonResponse });
+        return {
+          chat: {
+            id: `fallback-${Date.now()}`,
+            name: data.name || 'Chat',
+            is_group_chat: data.is_group || false,
+            created_by: 'current-user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            participants: data.participants || []
+          }
         };
       }
-      throw new Error(`Failed to create chat: ${response.status} ${response.statusText}`);
+    } catch (parseError) {
+      logger.error('Failed to parse JSON response for chat creation:', parseError);
+      throw new Error(`Failed to parse response when creating chat: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
     logger.error('Create chat failed:', error);

@@ -22,6 +22,9 @@
   export let compact: boolean = true; // Default to compact
   export let onToggleFollow: () => void = () => {};
   
+  // Log props for debugging
+  $: console.log('ProfileCard props:', { id, username, displayName, isVerified });
+  
   // Handle card click to navigate to user profile
   function handleCardClick() {
     // Navigate to user profile

@@ -40,6 +40,9 @@ func NewThreadHandler(
 	threadRepo repository.ThreadRepository,
 	mediaRepo repository.MediaRepository,
 ) *ThreadHandler {
+	// TODO: The UserRelationService should be created in main.go and injected into ReplyService
+	// For proper implementation of reply permissions based on who_can_reply setting
+
 	return &ThreadHandler{
 		threadService:      threadService,
 		replyService:       replyService,

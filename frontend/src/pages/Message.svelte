@@ -336,9 +336,27 @@
       return msg;
     });    // Update last message if this was the last one
     if (selectedChat.last_message && selectedChat.last_message.content) {
-      const lastMsg = selectedChat.messages[selectedChat.messages.length - 1];
-      if (lastMsg && lastMsg.id === message.message_id) {
-        selectedChat.last_message.content = message.content;
+      const lastMsg = selectedChat.last_message;
+      const lastMessageContent = lastMsg.content;
+      
+      if (selectedChat.messages.some(m => 
+        m.id === message.message_id && 
+        m.content === lastMessageContent)) {
+        // Find the new last non-deleted message
+        const lastNonDeletedMessage = [...selectedChat.messages]
+          .reverse()
+          .find(m => !m.is_deleted);
+        
+        const newLastMessage = {
+          content: lastNonDeletedMessage ? lastNonDeletedMessage.content : '',
+          timestamp: lastNonDeletedMessage ? lastNonDeletedMessage.timestamp : (Date.now() / 1000).toString(),
+          sender_id: lastNonDeletedMessage ? lastNonDeletedMessage.sender_id : '',
+          sender_name: lastNonDeletedMessage ? lastNonDeletedMessage.sender_name : ''
+        };
+        
+        // Update both properties for compatibility
+        selectedChat.last_message = newLastMessage;
+        selectedChat.lastMessage = newLastMessage;
       }
     }
   }
@@ -356,8 +374,9 @@
     });
 
     // Update last message if needed
-    if (selectedChat && selectedChat.last_message) {
-      const lastMessageContent = selectedChat.last_message.content;
+    if (selectedChat && (selectedChat.last_message || selectedChat.lastMessage)) {
+      const lastMsg = selectedChat.last_message || selectedChat.lastMessage;
+      const lastMessageContent = lastMsg.content;
       
       if (selectedChat.messages.some(m => 
         m.id === message.message_id && 
@@ -365,23 +384,18 @@
         // Find the new last non-deleted message
         const lastNonDeletedMessage = [...selectedChat.messages]
           .reverse()
-          .find(m => !m.isDeleted);
+          .find(m => !m.is_deleted);
         
-        if (lastNonDeletedMessage) {
-          selectedChat.lastMessage = {
-            content: lastNonDeletedMessage.content,
-            timestamp: lastNonDeletedMessage.timestamp,
-            senderId: lastNonDeletedMessage.senderId,
-            senderName: lastNonDeletedMessage.senderName
-          };
-        } else {
-          selectedChat.lastMessage = {
-            content: '',
-            timestamp: Date.now() / 1000,
-            senderId: '',
-            senderName: ''
-          };
-        }
+        const newLastMessage = {
+          content: lastNonDeletedMessage ? lastNonDeletedMessage.content : '',
+          timestamp: lastNonDeletedMessage ? lastNonDeletedMessage.timestamp : (Date.now() / 1000).toString(),
+          sender_id: lastNonDeletedMessage ? lastNonDeletedMessage.sender_id : '',
+          sender_name: lastNonDeletedMessage ? lastNonDeletedMessage.sender_name : ''
+        };
+        
+        // Update both properties for compatibility
+        selectedChat.last_message = newLastMessage;
+        selectedChat.lastMessage = newLastMessage;
       }
     }
   }
@@ -487,9 +501,9 @@
             if (typeof chat.last_message === 'string') {
               console.log(`  * Content: ${chat.last_message}`);
             } else {
-              console.log(`  * Content: ${chat.last_message.content || ''}`);
-              console.log(`  * Sender: ${chat.last_message.sender_id || ''}`);
-              console.log(`  * Timestamp: ${chat.last_message.timestamp || ''}`);
+              console.log(`  * Content: ${chat.last_message.content || chat.last_message.Content || ''}`);
+              console.log(`  * Sender: ${chat.last_message.sender_id || chat.last_message.SenderId || ''}`);
+              console.log(`  * Timestamp: ${chat.last_message.timestamp || chat.last_message.Timestamp || ''}`);
             }
           } else if (chat.lastMessage) {
             console.log('- Last message:');
@@ -546,25 +560,25 @@
             // First pass: Create basic participants from available data
             processedParticipants = chat.participants.map((p: any) => {
               // Handle different property naming formats
-              const userId = p.id || p.user_id || p.userId || '';
+              const userId = p.id || p.user_id || '';
               const username = p.username || '';
-              const displayName = p.display_name || p.displayName || p.name || p.username || '';
-              const avatar = p.profile_picture_url || p.profilePictureUrl || p.avatar || null;
-              const isVerified = p.is_verified || p.isVerified || false;
+              const display_name = p.display_name || p.name || p.username || '';
+              const avatar = p.profile_picture_url || p.avatar || null;
+              const is_verified = p.is_verified || false;
               
               return {
                 id: userId,
                 username: username,
-                displayName: displayName,
+                display_name: display_name,
                 avatar: avatar,
-                isVerified: isVerified
+                is_verified: is_verified
               };
             });
             
             // Second pass (async): Fetch missing user data and update
             processedParticipants.forEach(async (participant, index) => {
               // Only fetch data if username or displayName is missing
-              if (!participant.username || !participant.displayName) {
+              if (!participant.username || !participant.display_name) {
                 try {
                   logger.debug(`Fetching missing user data for participant ${participant.id}`);
                   const userData = await getUserById(participant.id);
@@ -574,9 +588,9 @@
                     processedParticipants[index] = {
                       ...participant,
                       username: userData.username || `user_${participant.id.substring(0, 4)}`,
-                      displayName: userData.name || userData.display_name || `User ${participant.id.substring(0, 4)}`,
+                      display_name: userData.name || userData.display_name || `User ${participant.id.substring(0, 4)}`,
                       avatar: userData.profile_picture_url || participant.avatar,
-                      isVerified: userData.is_verified || participant.isVerified
+                      is_verified: userData.is_verified || participant.is_verified
                     };
                     
                     logger.debug(`Updated participant data: ${JSON.stringify(processedParticipants[index])}`);
@@ -608,16 +622,16 @@
           else if (!isGroup && processedParticipants.length > 0) {
             // Find the other participant (not the current user)
             const otherParticipant = processedParticipants.find(p => 
-              p.id !== authState.userId && 
-              p.id !== `${authState.userId}`
+              p.id !== authState.user_id && 
+              p.id !== `${authState.user_id}`
             );
             
             if (otherParticipant) {
-              chatName = otherParticipant.displayName || otherParticipant.username || 'Chat Partner';
+              chatName = otherParticipant.display_name || otherParticipant.username || 'Chat Partner';
               chatAvatar = otherParticipant.avatar;
             } else {
               // If we couldn't find another participant, use the first one
-              chatName = processedParticipants[0].displayName || 
+              chatName = processedParticipants[0].display_name || 
                         processedParticipants[0].username || 
                         'Chat';
               chatAvatar = processedParticipants[0].avatar;
@@ -631,7 +645,7 @@
           else if (chat.created_by || chat.createdBy) {
             const creatorId = chat.created_by || chat.createdBy;
             // If current user is creator
-            if (creatorId === authState.userId) {
+            if (creatorId === authState.user_id) {
               chatName = "My Chat";
             } else {
               chatName = "Chat";
@@ -649,8 +663,8 @@
               lastMessageData = {
                 content: chat.last_message,
                 timestamp: Date.now() / 1000,
-                senderId: '',
-                senderName: ''
+                sender_id: '',
+                sender_name: ''
               };
             } else {
               // Extract sender information
@@ -661,21 +675,20 @@
               if (senderId) {
                 const sender = processedParticipants.find(p => p.id === senderId);
                 if (sender) {
-                  senderName = sender.displayName || sender.username || '';
+                  senderName = sender.display_name || sender.username || '';
                 }
                 
                 // If sender wasn't found or didn't have a name, try to fetch it
-                if (!senderName && senderId !== authState.userId) {
+                if (!senderName && senderId !== authState.user_id) {
                   // We'll try to fetch this asynchronously
                   getUserById(senderId).then(userData => {
                     if (userData) {
                       // Find this chat and update its last message sender
                       const chatIndex = chats.findIndex(c => c.id === chatId);
-                      if (chatIndex >= 0 && chats[chatIndex].lastMessage) {
-                        chats[chatIndex].lastMessage.senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
+                      if (chatIndex >= 0 && chats[chatIndex].last_message) {
+                        chats[chatIndex].last_message.sender_name = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
                         // Force UI update
                         chats = [...chats];
-                        filteredChats = [...chats];
                       }
                     }
                   }).catch(err => {
@@ -684,7 +697,7 @@
                 }
                 
                 // For current user messages
-                if (senderId === authState.userId) {
+                if (senderId === authState.user_id) {
                   senderName = 'You';
                 }
               }
@@ -692,42 +705,41 @@
               lastMessageData = {
                 content: chat.last_message.content || '',
                 timestamp: chat.last_message.timestamp || Date.now() / 1000,
-                senderId: senderId,
-                senderName: senderName
+                sender_id: senderId,
+                sender_name: senderName
               };
             }
           } else if (chat.lastMessage) {
-            if (typeof chat.lastMessage === 'string') {
+            if (typeof chat.last_message === 'string') {
               lastMessageData = {
-                content: chat.lastMessage,
+                content: chat.last_message,
                 timestamp: Date.now() / 1000,
-                senderId: '',
-                senderName: ''
+                sender_id: '',
+                sender_name: ''
               };
             } else {
               // Extract sender information
-              const senderId = chat.lastMessage.sender_id || chat.lastMessage.SenderId || '';
+              const senderId = chat.last_message.sender_id || chat.last_message.SenderId || '';
               let senderName = '';
               
               // Try to find sender in participant list first
               if (senderId) {
                 const sender = processedParticipants.find(p => p.id === senderId);
                 if (sender) {
-                  senderName = sender.displayName || sender.username || '';
+                  senderName = sender.display_name || sender.username || '';
                 }
                 
                 // If sender wasn't found or didn't have a name, try to fetch it
-                if (!senderName && senderId !== authState.userId) {
+                if (!senderName && senderId !== authState.user_id) {
                   // We'll try to fetch this asynchronously
                   getUserById(senderId).then(userData => {
                     if (userData) {
                       // Find this chat and update its last message sender
                       const chatIndex = chats.findIndex(c => c.id === chatId);
-                      if (chatIndex >= 0 && chats[chatIndex].lastMessage) {
-                        chats[chatIndex].lastMessage.senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
+                      if (chatIndex >= 0 && chats[chatIndex].last_message) {
+                        chats[chatIndex].last_message.sender_name = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
                         // Force UI update
                         chats = [...chats];
-                        filteredChats = [...chats];
                       }
                     }
                   }).catch(err => {
@@ -736,16 +748,16 @@
                 }
                 
                 // For current user messages
-                if (senderId === authState.userId) {
+                if (senderId === authState.user_id) {
                   senderName = 'You';
                 }
               }
               
               lastMessageData = {
-                content: chat.lastMessage.content || chat.lastMessage.Content || '',
-                timestamp: chat.lastMessage.timestamp || chat.lastMessage.Timestamp || Date.now() / 1000,
-                senderId: senderId,
-                senderName: senderName
+                content: chat.last_message.content || chat.last_message.Content || '',
+                timestamp: chat.last_message.timestamp || chat.last_message.Timestamp || Date.now() / 1000,
+                sender_id: senderId,
+                sender_name: senderName
               };
             }
           } else {
@@ -753,8 +765,8 @@
             lastMessageData = {
               content: '',
               timestamp: Date.now() / 1000,
-              senderId: '',
-              senderName: ''
+              sender_id: '',
+              sender_name: ''
             };
           }
           
@@ -765,9 +777,9 @@
             name: chatName,
             avatar: chatAvatar,
             participants: processedParticipants,
-            lastMessage: lastMessageData,
+            last_message: lastMessageData,
             messages: [],
-            unreadCount: chat.unread_count || 0
+            unread_count: chat.unread_count || 0
           };
           
           logger.debug('Processed chat:', { 
@@ -775,7 +787,7 @@
             name: formattedChat.name,
             type: formattedChat.type,
             participantsCount: formattedChat.participants.length,
-            lastMessage: formattedChat.lastMessage ? formattedChat.lastMessage.content : 'No last message'
+            lastMessage: formattedChat.last_message ? formattedChat.last_message.content : 'No last message'
           });
           
           return formattedChat;
@@ -824,12 +836,12 @@
     if (chat.participants && chat.participants.length > 0) {
       // Find participant that isn't the current user
       const otherParticipant = chat.participants.find(p => 
-        p.id !== authState.userId && 
-        p.id !== `${authState.userId}`
+        p.id !== authState.user_id && 
+        p.id !== `${authState.user_id}`
       );
       
       if (otherParticipant) {
-        const displayName = otherParticipant.displayName || otherParticipant.username;
+        const displayName = otherParticipant.display_name || otherParticipant.username;
         if (displayName) {
           return displayName;
         } else {
@@ -840,7 +852,7 @@
       
       // If we couldn't find another participant, use the first participant
       const participant = chat.participants[0];
-      const name = participant.displayName || participant.username;
+      const name = participant.display_name || participant.username;
       if (name) {
         return name;
       } else {
@@ -870,20 +882,25 @@
       );
 
       // If this was the last message, update the lastMessage property
-      if (selectedChat.lastMessage && selectedChat.messages.find(m => m.id === messageId)) {
+      if (selectedChat.last_message && selectedChat.messages.find(m => m.id === messageId)) {
         const lastNonDeletedMessage = [...selectedChat.messages]
           .reverse()
-          .find(m => !m.isDeleted);
+          .find(m => !m.is_deleted);
         
         if (lastNonDeletedMessage) {
-          selectedChat.lastMessage = {
+          selectedChat.last_message = {
             content: lastNonDeletedMessage.content,
             timestamp: lastNonDeletedMessage.timestamp,
-            senderId: lastNonDeletedMessage.senderId,
-            senderName: lastNonDeletedMessage.senderName
+            sender_id: lastNonDeletedMessage.sender_id,
+            sender_name: lastNonDeletedMessage.sender_name
           };
         } else {
-          selectedChat.lastMessage = undefined;
+          selectedChat.last_message = {
+            content: '',
+            timestamp: Date.now() / 1000,
+            sender_id: '',
+            sender_name: ''
+          };
         }
       }
       
@@ -921,160 +938,189 @@
     
     try {
       logger.debug(`Selecting chat ${chat.id} and loading messages`);
-      const response = await listMessages(chat.id);
       
-      console.log(`===== MESSAGES DEBUG INFO (Chat: ${chat.id}) =====`);
-      console.log('Raw message response:', response);
+      // Initialize messages array to empty before API call
+      selectedChat.messages = [];
       
-      if (response && response.messages && Array.isArray(response.messages)) {
-        console.log(`Received ${response.messages.length} messages for chat ${chat.id}`);
-        
-        // Log detailed information about each message
-        response.messages.forEach((msg, index) => {
-          console.log(`\nMessage #${index + 1}:`);
-          console.log(`- ID: ${msg.id || msg.message_id || 'unknown'}`);
-          console.log(`- Sender ID: ${msg.sender_id || msg.user_id || 'unknown'}`);
-          console.log(`- Content: ${msg.content || 'empty'}`);
-          console.log(`- Timestamp: ${msg.timestamp || 'none'}`);
-          console.log(`- Is deleted: ${msg.is_deleted || false}`);
+      // Check if this is a temporary chat or newly created chat by their ID format
+      const isTempOrNewChat = chat.id.startsWith('temp-') || chat.messages.length === 0;
+      
+      if (isTempOrNewChat) {
+        logger.info(`New or temporary chat ${chat.id} detected, skipping initial message load`);
+        // For new/temp chats, skip loading messages as the participant relationship might not be established yet
+        selectedChat.messages = [];
+      } else {
+        try {
+          const response = await listMessages(chat.id);
           
-          // Log user data if available
-          if (msg.user) {
-            console.log(`- User data:`);
-            console.log(`  * ID: ${msg.user.id || 'unknown'}`);
-            console.log(`  * Username: ${msg.user.username || 'unknown'}`);
-            console.log(`  * Display name: ${msg.user.display_name || 'unknown'}`);
-          } else {
-            console.log(`- No user data available`);
-          }
-        });
-        
-        console.log('===== END MESSAGES DEBUG INFO =====');
-        
-        // Create a map of user data we've fetched to avoid duplicate API calls
-        const userDataCache = new Map();
-        
-        // Transform the messages
-        const messagesPromises = response.messages.map(async (msg: any) => {
-          // Handle inconsistent field names
-          const id = msg.id || msg.message_id || msg.Id;
-          const senderId = msg.sender_id || msg.user_id || msg.SenderId;
-          const content = msg.content || msg.Content || '';
-          let timestamp = msg.timestamp || msg.Timestamp || Date.now() / 1000;
-          const isDeleted = msg.is_deleted || msg.IsDeleted || false;
-          
-          // Ensure timestamp is a number
-          if (typeof timestamp === 'string') {
-            timestamp = parseInt(timestamp);
-          }
-          
-          // Extract user data if available
-          let senderName = '';
-          let senderAvatar = '';
-          
-          // Check if user data is provided directly in the message
-          if (msg.user) {
-            // Log the user data for debugging
-            logger.debug(`Message ${id} has user data:`, {
-              user_id: msg.user.id,
-              username: msg.user.username || 'Not provided',
-              display_name: msg.user.display_name || 'Not provided',
-              profile_picture_url: msg.user.profile_picture_url || 'No profile picture'
-            });
-            
-            // Use display_name or username from the message's user data
-            senderName = msg.user.display_name || msg.user.username || `User ${senderId.substring(0, 4)}`;
-            senderAvatar = msg.user.profile_picture_url || msg.user.avatar || '';
-          } else {
-            // Try to find the user in the participants list
-            const senderParticipant = chat.participants.find(p => 
-              p.id === senderId || (p.id === `${senderId}`)
-            );
-            
-            if (senderParticipant) {
-              senderName = senderParticipant.displayName || senderParticipant.username || `User ${senderId.substring(0, 4)}`;
-              senderAvatar = senderParticipant.avatar || '';
-            } else {
-              // If user not in participants and not in message, fetch from API
-              // Check if we already fetched this user
-              if (!userDataCache.has(senderId)) {
-                logger.debug(`Fetching user data for sender ${senderId}`);
-                
-                try {
-                  // Fetch user data from API
-                  const userData = await getUserById(senderId);
-                  if (userData) {
-                    userDataCache.set(senderId, userData);
-                    logger.debug(`Retrieved user data for ${senderId}:`, userData);
-                  }
-                } catch (error) {
-                  logger.error(`Failed to fetch user data for ${senderId}:`, error);
-                }
-              }
-              
-              // Use the cached user data if available
-              const userData = userDataCache.get(senderId);
-              if (userData) {
-                senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
-                senderAvatar = userData.profile_picture_url || '';
-                
-                logger.debug(`Using API data for user ${senderId}:`, {
-                  name: senderName,
-                  avatar: senderAvatar
-                });
-              } else {
-                // Generate a name from the sender ID if no user data found
-                senderName = senderId === authState.userId ? displayName : `User ${senderId.substring(0, 4)}`;
-                senderAvatar = senderId === authState.userId ? (avatar || '') : '';
-                
-                logger.debug(`Using generated data for user ${senderId}`);
-              }
-            }
-          }
-          
-          // Use the sender's name if it's the current user
-          if (senderId === authState.userId) {
-            senderName = displayName; // Use the logged-in user's display name
-            senderAvatar = avatar || '';    // Use the logged-in user's avatar
-          }
-          
-          logger.debug(`Message ${id} processed:`, { 
-            sender: senderId,
-            senderName: senderName,
-            isCurrentUser: senderId === authState.userId
+          logger.debug(`Message loading response received for chat ${chat.id}`, { 
+            success: response?.success, 
+            messageCount: response?.messages?.length || 0
           });
           
-          return {
-            id: id,
-            senderId: senderId,
-            senderName: senderName,
-            senderAvatar: senderAvatar,
-            content: content,
-            timestamp: timestamp.toString(),
-            isDeleted: isDeleted,
-            attachments: msg.attachments || [],
-            isOwn: senderId === authState.userId
-          };
-        });
-        
-        // Wait for all user data fetching to complete
-        selectedChat.messages = await Promise.all(messagesPromises);
-        
-        // Sort messages by timestamp (oldest first)
-        selectedChat.messages.sort((a, b) => {
-          const timestampA = parseInt(a.timestamp);
-          const timestampB = parseInt(b.timestamp);
-          return timestampA - timestampB;
-        });
-        
-        logger.debug(`Processed ${selectedChat.messages.length} messages for display`);
-      } else {
-        logger.warn(`No messages or invalid response format for chat ${chat.id}`);
-        selectedChat.messages = [];
+          // Detailed logging for debugging
+          if (response && response.messages && Array.isArray(response.messages)) {
+            console.log(`===== MESSAGES DEBUG INFO (Chat: ${chat.id}) =====`);
+            console.log(`Received ${response.messages.length} messages for chat ${chat.id}`);
+            
+            // Log detailed information about each message (limit to first 5 for brevity)
+            const messagesToLog = response.messages.slice(0, 5);
+            messagesToLog.forEach((msg, index) => {
+              console.log(`\nMessage #${index + 1}:`);
+              console.log(`- ID: ${msg.id || msg.message_id || 'unknown'}`);
+              console.log(`- Sender ID: ${msg.sender_id || msg.user_id || 'unknown'}`);
+              console.log(`- Content: ${msg.content || 'empty'}`);
+              console.log(`- Timestamp: ${msg.timestamp || 'none'}`);
+              console.log(`- Is deleted: ${msg.is_deleted || false}`);
+              
+              // Log user data if available
+              if (msg.user) {
+                console.log(`- User data: ${msg.user.id} (${msg.user.username || msg.user.display_name || 'unknown'})`);
+              }
+            });
+            
+            if (response.messages.length > 5) {
+              console.log(`... and ${response.messages.length - 5} more messages`);
+            }
+            
+            console.log('===== END MESSAGES DEBUG INFO =====');
+          }
+          
+          // Create a map of user data we've fetched to avoid duplicate API calls
+          const userDataCache = new Map();
+          
+          // Transform the messages
+          const messagesPromises = response.messages.map(async (msg: any) => {
+            // Handle inconsistent field names
+            const id = msg.id || msg.message_id || msg.Id;
+            const senderId = msg.sender_id || msg.user_id || msg.SenderId;
+            const content = msg.content || msg.Content || '';
+            let timestamp = msg.timestamp || msg.Timestamp || Date.now() / 1000;
+            const isDeleted = msg.is_deleted || msg.IsDeleted || false;
+            
+            // Ensure timestamp is a number
+            if (typeof timestamp === 'string') {
+              timestamp = parseInt(timestamp);
+            }
+            
+            // Extract user data if available
+            let senderName = '';
+            let senderAvatar = '';
+            
+            // Check if user data is provided directly in the message
+            if (msg.user) {
+              // Log the user data for debugging
+              logger.debug(`Message ${id} has user data:`, {
+                user_id: msg.user.id,
+                username: msg.user.username || 'Not provided',
+                display_name: msg.user.display_name || 'Not provided',
+                profile_picture_url: msg.user.profile_picture_url || 'No profile picture'
+              });
+              
+              // Use display_name or username from the message's user data
+              senderName = msg.user.display_name || msg.user.username || `User ${senderId.substring(0, 4)}`;
+              senderAvatar = msg.user.profile_picture_url || msg.user.avatar || '';
+            } else {
+              // Try to find the user in the participants list
+              const senderParticipant = chat.participants.find(p => 
+                p.id === senderId || (p.id === `${senderId}`)
+              );
+              
+              if (senderParticipant) {
+                senderName = senderParticipant.display_name || senderParticipant.username || `User ${senderId.substring(0, 4)}`;
+                senderAvatar = senderParticipant.avatar || '';
+              } else {
+                // If user not in participants and not in message, fetch from API
+                // Check if we already fetched this user
+                if (!userDataCache.has(senderId)) {
+                  logger.debug(`Fetching user data for sender ${senderId}`);
+                  
+                  try {
+                    // Fetch user data from API
+                    const userData = await getUserById(senderId);
+                    if (userData) {
+                      userDataCache.set(senderId, userData);
+                      logger.debug(`Retrieved user data for ${senderId}:`, userData);
+                    }
+                  } catch (error) {
+                    logger.error(`Failed to fetch user data for ${senderId}:`, error);
+                  }
+                }
+                
+                // Use the cached user data if available
+                const userData = userDataCache.get(senderId);
+                if (userData) {
+                  senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
+                  senderAvatar = userData.profile_picture_url || '';
+                  
+                  logger.debug(`Using API data for user ${senderId}:`, {
+                    name: senderName,
+                    avatar: senderAvatar
+                  });
+                } else {
+                  // Generate a name from the sender ID if no user data found
+                  senderName = senderId === authState.user_id ? displayName : `User ${senderId.substring(0, 4)}`;
+                  senderAvatar = senderId === authState.user_id ? (avatar || '') : '';
+                  
+                  logger.debug(`Using generated data for user ${senderId}`);
+                }
+              }
+            }
+            
+            // Use the sender's name if it's the current user
+            if (senderId === authState.user_id) {
+              senderName = displayName; // Use the logged-in user's display name
+              senderAvatar = avatar || '';    // Use the logged-in user's avatar
+            }
+            
+            logger.debug(`Message ${id} processed:`, { 
+              sender: senderId,
+              senderName: senderName,
+              isCurrentUser: senderId === authState.user_id
+            });
+            
+            return {
+              id: id,
+              senderId: senderId,
+              senderName: senderName,
+              senderAvatar: senderAvatar,
+              content: content,
+              timestamp: timestamp.toString(),
+              isDeleted: isDeleted,
+              attachments: msg.attachments || [],
+              isOwn: senderId === authState.user_id
+            };
+          });
+          
+          // Wait for all user data fetching to complete
+          selectedChat.messages = await Promise.all(messagesPromises);
+          
+          // Sort messages by timestamp (oldest first)
+          selectedChat.messages.sort((a, b) => {
+            const timestampA = parseInt(a.timestamp);
+            const timestampB = parseInt(b.timestamp);
+            return timestampA - timestampB;
+          });
+          
+          logger.debug(`Processed ${selectedChat.messages.length} messages for display`);
+        } catch (error) {
+          // Handle 400/403 errors gracefully for new chats
+          const statusMatch = error.toString().match(/(\d{3})\s+/);
+          const errorStatus = statusMatch ? parseInt(statusMatch[1]) : null;
+          
+          if (errorStatus === 400 || errorStatus === 403) {
+            logger.info(`Chat ${chat.id} returned ${errorStatus}, likely a new chat without established participants`);
+            selectedChat.messages = [];
+          } else {
+            logger.error('Error loading messages:', error);
+            toastStore.showToast('Failed to load messages. Please try again.', 'error');
+            selectedChat.messages = [];
+          }
+        }
       }
       
       // Reset unread count
-      selectedChat.unreadCount = 0;
+      selectedChat.unread_count = 0;
       
       // Connect to WebSocket for this chat
       websocketStore.connect(chat.id);
@@ -1107,15 +1153,15 @@
       const tempId = `temp-${Date.now()}`;
       const tempMessage: Message = {
         id: tempId,
-        senderId: authState.userId as string,
-        senderName: displayName,
-        senderAvatar: avatar,
+        sender_id: authState.user_id as string,
+        sender_name: displayName,
+        sender_avatar: avatar,
         content: newMessage.trim(),
         timestamp: (Date.now() / 1000).toString(), // Unix timestamp as string
-        isDeleted: false,
-        isRead: true, // Own messages are already read
+        is_deleted: false,
+        is_read: true, // Own messages are already read
         attachments: selectedAttachments,
-        isOwn: true
+        is_own: true
       };
       
       // Add to UI immediately
@@ -1161,7 +1207,7 @@
         const wsMessage: ChatMessage = {
           type: 'text' as MessageType,
           content: sentContent,
-          user_id: authState.userId as string,
+          user_id: authState.user_id as string,
           chat_id: selectedChat.id,
           timestamp: new Date(),
           message_id: tempId
@@ -1204,11 +1250,11 @@
       }
       
       // Update the last message in the chat list
-      selectedChat.lastMessage = {
+      selectedChat.last_message = {
         content: sentContent || 'Sent an attachment',
         timestamp: (Date.now() / 1000).toString(),
-        senderId: authState.userId as string,
-        senderName: 'You' // Current user is the sender
+        sender_id: authState.user_id as string,
+        sender_name: 'You' // Current user is the sender
       };
       
       // Force scroll to bottom to show new message
@@ -1248,7 +1294,7 @@
     let results = chats.filter(chat => 
       chat.name.toLowerCase().includes(query) || 
       chat.participants.some(p => 
-        (p.displayName && p.displayName.toLowerCase().includes(query)) || 
+        (p.display_name && p.display_name.toLowerCase().includes(query)) || 
         (p.username && p.username.toLowerCase().includes(query))
       )
     );
@@ -1405,12 +1451,12 @@
       if (chat.participants && chat.participants.length > 0) {
         chat.participants.forEach(participant => {
           // Skip if it's the current user or already in the map
-          if (participant.id === authState.userId || uniqueUsers.has(participant.id)) {
+          if (participant.id === authState.user_id || uniqueUsers.has(participant.id)) {
             return;
           }
           
           // Check if user matches search query
-          const displayName = participant.displayName || participant.username || '';
+          const displayName = participant.display_name || participant.username || '';
           const username = participant.username || '';
           
           if (displayName.toLowerCase().includes(query) || 
@@ -1423,13 +1469,15 @@
     
     // Convert participants to StandardUser format if we found any matches
     if (uniqueUsers.size > 0) {
-      userSearchResults = Array.from(uniqueUsers.values()).map(p => ({
-        id: p.id,
-        username: p.username,
-        displayName: p.displayName,
-        avatar: p.avatar,
-        isVerified: p.isVerified
-      }));
+              userSearchResults = Array.from(uniqueUsers.values()).map(p => ({
+          id: p.id,
+          username: p.username || '',
+          name: p.display_name || p.username || '',
+          displayName: p.display_name || p.username || '',
+          avatar: p.avatar || null,
+          profile_picture_url: p.avatar || null,
+          is_verified: p.is_verified || false
+        }));
       logger.info('Using local chat participants for search results', { count: userSearchResults.length });
     } else {
       userSearchResults = [];
@@ -1442,9 +1490,9 @@
     const participant: Participant = {
       id: user.id,
       username: user.username,
-      displayName: user.displayName,
-      avatar: user.avatar,
-      isVerified: user.isVerified
+      display_name: user.displayName || user.name || user.username,
+      avatar: user.avatar || user.profile_picture_url,
+      is_verified: user.is_verified || false
     };
     
     // Add more logging
@@ -1453,76 +1501,135 @@
     // Check if we already have a chat with this user
     const existingChat = chats.find(chat => 
       chat.type === 'individual' && 
-      chat.participants.some(p => p.id === user.id)
+      chat.participants.some(p => p.id === authState.user_id)
     );
     
     if (existingChat) {
-      // Validate the existing chat has an ID
-      if (!existingChat.id) {
-        logger.error('Found existing chat but it has no ID', { existingChat });
-        toastStore.showToast('Error finding chat. Please try again.', 'error');
-        return;
-      }
-      
       // If chat exists, select it
       logger.debug('Found existing chat', { chatId: existingChat.id });
       selectChat(existingChat);
-    } else {
-      // Create a new chat with this user via API
-      try {
-        const chatData = {
-          type: 'individual',
-          participants: [user.id]
-        };
-        
-        logger.debug('Creating new chat', { chatData });
-        const response = await createChat(chatData);
-        logger.debug('Create chat API response', { response });
-        
-        if (response && response.chat) {
-          // Format the received chat to match our chat structure
-          const newChat: Chat = {
-            id: response.chat.id,
-            name: user.displayName || user.username,
-            type: 'individual',
-            lastMessage: undefined, // Using undefined instead of null to satisfy TypeScript
-            avatar: user.avatar,
-            participants: [
-              {
-                id: user.id,
-                username: user.username,
-                displayName: user.displayName,
-                avatar: user.avatar,
-                isVerified: user.isVerified
-              },
-              // Add current user as participant for display name calculation
-              {
-                id: authState.userId as string,
-                username: username,
-                displayName: displayName,
-                avatar: avatar,
-                isVerified: false
-              }
-            ],
-            messages: [],
-            unreadCount: 0
-          };
-          
-          logger.debug('Adding new chat to list', { newChatId: newChat.id });
-          chats = [newChat, ...chats];
-          filteredChats = [newChat, ...filteredChats];
-          selectChat(newChat);
-          
-          toastStore.showToast(`Chat with ${user.displayName || user.username} created`, 'success');
-        } else {
-          logger.error('Invalid response format from create chat API', { response });
-          toastStore.showToast(`Failed to create chat: Invalid response`, 'error');
+      return;
+    }
+    
+    // Create a new chat with this user via API
+    try {
+      const chatData = {
+        type: 'individual',
+        participants: [user.id]
+      };
+      
+      logger.debug('Creating new chat', { chatData });
+      const response = await createChat(chatData);
+      
+      // Log the exact response structure to diagnose format issues
+      logger.debug('Create chat API response', {
+        response,
+        responseType: typeof response,
+        hasChat: !!response?.chat,
+        chatType: response?.chat ? typeof response.chat : 'undefined',
+        chatId: response?.chat?.id || response?.id || response?.chat_id || response?.chatId,
+        responseKeys: response ? Object.keys(response) : [],
+        chatKeys: response?.chat ? Object.keys(response.chat) : []
+      });
+      
+      // Parse the chat data from the response with error handling
+      let chatId = '';
+      
+      if (response) {
+        if (response.chat && response.chat.id) {
+          chatId = response.chat.id;
+        } else if (response.id) {
+          chatId = response.id;
+        } else if (response.chat_id) {
+          chatId = response.chat_id;
+        } else if (response.chatId) {
+          chatId = response.chatId;
         }
-      } catch (error) {
-        const errorDetail = handleApiError(error);
-        logger.error('Failed to create chat:', errorDetail);
-        toastStore.showToast(`Failed to create chat with ${user.displayName || user.username}`, 'error');
       }
+      
+      // If we couldn't parse a valid chat ID, create a temporary one
+      if (!chatId) {
+        chatId = `temp-${Date.now()}`;
+        logger.warn('Could not find valid chat ID in response, using temporary ID', { chatId });
+      }
+      
+      // Format the received chat to match our chat structure
+      const newChat: Chat = {
+        id: chatId,
+        name: user.displayName || user.username,
+        type: 'individual',
+        last_message: undefined,
+        avatar: user.avatar,
+        participants: [
+          {
+            id: user.id,
+            username: user.username,
+            display_name: user.displayName || user.name || user.username || '',
+            avatar: user.avatar || user.profile_picture_url || null,
+            is_verified: user.is_verified || false
+          },
+          // Add current user as participant for display name calculation
+          {
+            id: authState.user_id as string,
+            username: username,
+            display_name: displayName,
+            avatar: avatar,
+            is_verified: false
+          }
+        ],
+        messages: [],
+        unread_count: 0
+      };
+      
+      logger.debug('Adding new chat to list', { newChatId: newChat.id });
+      chats = [newChat, ...chats];
+      filteredChats = [newChat, ...filteredChats];
+      selectChat(newChat);
+      
+      // Only show a toast if this isn't a temporary ID (indicating a fallback was used)
+      if (!newChat.id.startsWith('temp-')) {
+        toastStore.showToast(`Chat with ${user.displayName || user.username} started`, 'success');
+      }
+      
+      // Clear search
+      clearSearch();
+    } catch (error) {
+      const errorDetail = handleApiError(error);
+      logger.error('Failed to create chat:', errorDetail);
+      
+      // Create a fallback chat even when an exception occurs
+      const tempChat: Chat = {
+        id: 'temp-' + Date.now(),
+        name: user.displayName || user.username,
+        type: 'individual',
+        last_message: undefined,
+        avatar: user.avatar,
+        participants: [
+          {
+            id: user.id,
+            username: user.username,
+            display_name: user.displayName || user.name || user.username || '',
+            avatar: user.avatar || user.profile_picture_url || null,
+            is_verified: user.is_verified || false
+          },
+          {
+            id: authState.user_id as string,
+            username: username,
+            display_name: displayName,
+            avatar: avatar,
+            is_verified: false
+          }
+        ],
+        messages: [],
+        unread_count: 0
+      };
+      
+      chats = [tempChat, ...chats];
+      filteredChats = [tempChat, ...filteredChats];
+      selectChat(tempChat);
+      
+      // Inform the user that we're working with a temporary chat
+      toastStore.showToast(`Chat created in offline mode`, 'warning');
       
       // Clear search
       clearSearch();
@@ -1787,14 +1894,14 @@
                       <div class="chat-info">
                         <div class="chat-header">
                           <span class="chat-name">{getChatDisplayName(chat)}</span>
-                          <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
+                          <span class="chat-time">{chat.last_message ? formatTimeAgo(chat.last_message.timestamp) : ''}</span>
                         </div>
                         <div class="chat-preview">
-                          {#if chat.lastMessage && chat.lastMessage.content}
-                            {#if chat.lastMessage.senderName}
-                              <span class="message-sender">{chat.lastMessage.senderName}:</span>
+                          {#if chat.last_message && chat.last_message.content}
+                            {#if chat.last_message.sender_name}
+                              <span class="message-sender">{chat.last_message.sender_name}:</span>
                             {/if}
-                            <span class="message-content">{chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}</span>
+                            <span class="message-content">{chat.last_message.content.substring(0, 30)}{chat.last_message.content.length > 30 ? '...' : ''}</span>
                           {:else}
                             <span class="no-messages">No messages yet</span>
                           {/if}
@@ -1895,21 +2002,21 @@
                     <div class="chat-info">
                       <div class="chat-header">
                         <span class="chat-name">{getChatDisplayName(chat)}</span>
-                        <span class="chat-time">{chat.lastMessage ? formatTimeAgo(chat.lastMessage.timestamp) : ''}</span>
+                        <span class="chat-time">{chat.last_message ? formatTimeAgo(chat.last_message.timestamp) : ''}</span>
                       </div>
                       <div class="chat-preview">
-                        {#if chat.lastMessage && chat.lastMessage.content}
-                          {#if chat.lastMessage.senderName}
-                            <span class="message-sender">{chat.lastMessage.senderName}:</span>
+                        {#if chat.last_message && chat.last_message.content}
+                          {#if chat.last_message.sender_name}
+                            <span class="message-sender">{chat.last_message.sender_name}:</span>
                           {/if}
-                          <span class="message-content">{chat.lastMessage.content.substring(0, 30)}{chat.lastMessage.content.length > 30 ? '...' : ''}</span>
+                          <span class="message-content">{chat.last_message.content.substring(0, 30)}{chat.last_message.content.length > 30 ? '...' : ''}</span>
                         {:else}
                           <span class="no-messages">No messages yet</span>
                         {/if}
                       </div>
                     </div>
-                    {#if chat.unreadCount > 0}
-                      <span class="unread-badge">{chat.unreadCount}</span>
+                    {#if chat.unread_count > 0}
+                      <span class="unread-badge">{chat.unread_count}</span>
                     {/if}
                   </button>
                 </li>
@@ -1945,13 +2052,13 @@
       <!-- Messages -->
       <div class="messages-container">
         {#each selectedChat.messages as message}
-          <div class="message-wrapper {message.isOwn ? 'own-message' : 'other-message'}">
+          <div class="message-wrapper {message.is_own ? 'own-message' : 'other-message'}">
             <div class="message-bubble">
-              {#if !message.isOwn}
-                <div class="sender-name">{message.senderName}</div>
+              {#if !message.is_own}
+                <div class="sender-name">{message.sender_name}</div>
               {/if}
-              <div class={message.isDeleted ? 'deleted-message' : ''}>
-                {message.isDeleted ? 'This message was deleted' : message.content}
+              <div class={message.is_deleted ? 'deleted-message' : ''}>
+                {message.is_deleted ? 'This message was deleted' : message.content}
               </div>
               {#if message.attachments.length > 0}
                 <div class="attachments">
@@ -1969,7 +2076,7 @@
               {/if}
               <div class="message-meta">
                 {formatTimeAgo(message.timestamp)}
-                {#if message.isOwn && !message.isDeleted && isWithinTime(message.timestamp)}
+                {#if message.is_own && !message.is_deleted && isWithinTime(message.timestamp)}
                   <button class="unsend-button" on:click={() => unsendMessage(message.id)}>
                     Unsend
                   </button>

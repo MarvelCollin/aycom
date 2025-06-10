@@ -176,6 +176,21 @@ func communityChatReadPump(c *Client) {
 		return nil
 	})
 
+	log.Printf("WebSocket read pump started for client %s, user %s, chat %s", c.ID, c.UserID, c.ChatID)
+
+	initialMessage := map[string]interface{}{
+		"type":      "connection_established",
+		"chat_id":   c.ChatID,
+		"user_id":   c.UserID,
+		"timestamp": time.Now(),
+	}
+
+	initialJSON, err := json.Marshal(initialMessage)
+	if err == nil {
+		c.Send <- initialJSON
+		log.Printf("Sent connection confirmation to client %s", c.ID)
+	}
+
 	for {
 		_, message, err := c.Connection.ReadMessage()
 		if err != nil {
@@ -242,17 +257,23 @@ func communityChatWritePump(c *Client) {
 }
 
 func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, error) {
+	log.Printf("Processing raw message: %s", string(message))
+
 	var chatMessage ChatMessage
 	if err := json.Unmarshal(message, &chatMessage); err != nil {
 		log.Printf("Error unmarshaling message: %v", err)
 		return createErrorResponse("invalid_format", "Invalid message format"), err
 	}
 
+	log.Printf("Received message type: %s from user %s in chat %s", chatMessage.Type, userID, chatID)
+
 	if chatMessage.UserID == "" {
 		chatMessage.UserID = userID
+		log.Printf("Set missing UserID to %s", userID)
 	}
 	if chatMessage.ChatID == "" {
 		chatMessage.ChatID = chatID
+		log.Printf("Set missing ChatID to %s", chatID)
 	}
 
 	if chatMessage.UserID != userID {
@@ -280,6 +301,20 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 		return processEditMessage(chatMessage)
 	case "delete":
 		return processDeleteMessage(chatMessage)
+	case "connection_check":
+		// Just echo back the connection check with server timestamp
+		chatMessage.Timestamp = time.Now()
+		responseMsg, err := json.Marshal(map[string]interface{}{
+			"type":      "connection_ack",
+			"user_id":   chatMessage.UserID,
+			"chat_id":   chatMessage.ChatID,
+			"timestamp": chatMessage.Timestamp.Unix(),
+			"message":   "Connection established",
+		})
+		if err != nil {
+			return createErrorResponse("server_error", "Failed to create connection acknowledgment"), err
+		}
+		return responseMsg, nil
 	default:
 		log.Printf("Unknown message type: %s", chatMessage.Type)
 		return createErrorResponse("invalid_type", "Unknown message type"), nil

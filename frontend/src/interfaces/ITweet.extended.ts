@@ -79,9 +79,82 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
                         thread.user_data?.profile_picture_url ||
                         'https://secure.gravatar.com/avatar/0?d=mp';
     
-    let created_at = thread.created_at || thread.createdAt || thread.timestamp || new Date().toISOString();
-    if (typeof created_at === 'string' && !created_at.includes('T')) {
-      created_at = new Date(created_at).toISOString();
+    // Safely handle created_at date with validation
+    let created_at;
+    try {
+      if (!thread.created_at && !thread.createdAt && !thread.timestamp) {
+        // No date provided, use current date
+        created_at = new Date().toISOString();
+      } else if (typeof thread.created_at === 'string') {
+        // Check if it's already a valid ISO string
+        if (thread.created_at.includes('T')) {
+          created_at = thread.created_at;
+        } else {
+          // Try to parse non-ISO string
+          const parsedDate = new Date(thread.created_at);
+          // Check if date is valid
+          if (isNaN(parsedDate.getTime())) {
+            created_at = new Date().toISOString(); // Fallback to current date
+          } else {
+            created_at = parsedDate.toISOString();
+          }
+        }
+      } else if (thread.created_at instanceof Date) {
+        // It's already a Date object
+        created_at = thread.created_at.toISOString();
+      } else if (typeof thread.createdAt === 'string') {
+        // Try alternate property
+        created_at = thread.createdAt;
+      } else if (typeof thread.timestamp === 'string' || typeof thread.timestamp === 'number') {
+        // Try timestamp property
+        const date = new Date(thread.timestamp);
+        if (isNaN(date.getTime())) {
+          created_at = new Date().toISOString();
+        } else {
+          created_at = date.toISOString();
+        }
+      } else {
+        // Fallback to current date
+        created_at = new Date().toISOString();
+      }
+    } catch (e) {
+      console.error('Error parsing date', e);
+      created_at = new Date().toISOString(); // Fallback to current date on any error
+    }
+    
+    // Safely handle updated_at date with validation
+    let updated_at;
+    try {
+      if (!thread.updated_at && !thread.updatedAt) {
+        // No updated date, use created_at as fallback
+        updated_at = created_at;
+      } else if (typeof thread.updated_at === 'string') {
+        // Already a string, check if valid ISO
+        if (thread.updated_at.includes('T')) {
+          updated_at = thread.updated_at;
+        } else {
+          // Try to parse non-ISO string
+          const parsedDate = new Date(thread.updated_at);
+          // Check if date is valid
+          if (isNaN(parsedDate.getTime())) {
+            updated_at = created_at; // Fallback to created_at
+          } else {
+            updated_at = parsedDate.toISOString();
+          }
+        }
+      } else if (thread.updated_at instanceof Date) {
+        // It's already a Date object
+        updated_at = thread.updated_at.toISOString();
+      } else if (typeof thread.updatedAt === 'string') {
+        // Try alternate property
+        updated_at = thread.updatedAt;
+      } else {
+        // Fallback to created_at
+        updated_at = created_at;
+      }
+    } catch (e) {
+      console.error('Error parsing updated_at date', e);
+      updated_at = created_at; // Fallback to created_at on any error
     }
     
     const likes_count = Number(thread.likes_count || thread.like_count || thread.metrics?.likes || 0);
@@ -120,8 +193,8 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
     return {
       id,
       content: thread.content || '',
-      created_at: typeof created_at === 'string' ? created_at : new Date(created_at).toISOString(),
-      updated_at: thread.updated_at,
+      created_at: created_at,
+      updated_at: updated_at,
       
       // User info with consistent values
       user_id,
@@ -144,7 +217,7 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
       is_verified,
       
       // Relations
-      parent_id: thread.parent_id || null,
+      parent_id: thread.parent_id || thread.parentId || thread.parent_reply_id || thread.parentReplyId || null,
       
       // Media
       media,

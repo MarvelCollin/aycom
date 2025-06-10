@@ -3,6 +3,8 @@ package repository
 import (
 	"aycom/backend/services/community/model"
 
+	"fmt"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -160,27 +162,63 @@ func (r *GormCommunityRepository) ListByUserMembership(userID uuid.UUID, status 
 	var communities []*model.Community
 	var count int64
 
-	query := r.db.Model(&model.Community{}).
-		Preload("Categories")
-
-	if status == "member" {
-
-		query = query.Joins("JOIN community_members cm ON cm.community_id = communities.community_id").
-			Where("cm.user_id = ?", userID)
-	} else if status == "pending" {
-
-		query = query.Joins("JOIN community_join_requests cjr ON cjr.community_id = communities.community_id").
-			Where("cjr.user_id = ? AND cjr.status = 'pending'", userID)
+	// Validate status parameter
+	if status != "member" && status != "pending" {
+		return nil, 0, fmt.Errorf("invalid status: %s (must be 'member' or 'pending')", status)
 	}
 
-	err := query.Count(&count).Error
+	query := r.db.Model(&model.Community{}).
+		Preload("Categories").
+		Select("DISTINCT communities.*") // Use DISTINCT to avoid duplicates
+
+	if status == "member" {
+		// Get communities where the user is a member
+		query = query.Joins("JOIN community_members cm ON cm.community_id = communities.community_id").
+			Where("cm.user_id = ? AND cm.deleted_at IS NULL", userID)
+	} else if status == "pending" {
+		// Get communities where the user has a pending join request
+		query = query.Joins("JOIN community_join_requests cjr ON cjr.community_id = communities.community_id").
+			Where("cjr.user_id = ? AND cjr.status = 'pending' AND cjr.deleted_at IS NULL", userID)
+	}
+
+	// Make sure we're only returning non-deleted communities
+	query = query.Where("communities.deleted_at IS NULL")
+
+	// Count first using a separate query to avoid issues with DISTINCT in count
+	countQuery := r.db.Model(&model.Community{})
+	if status == "member" {
+		countQuery = countQuery.Joins("JOIN community_members cm ON cm.community_id = communities.community_id").
+			Where("cm.user_id = ? AND cm.deleted_at IS NULL", userID)
+	} else if status == "pending" {
+		countQuery = countQuery.Joins("JOIN community_join_requests cjr ON cjr.community_id = communities.community_id").
+			Where("cjr.user_id = ? AND cjr.status = 'pending' AND cjr.deleted_at IS NULL", userID)
+	}
+
+	// Make sure we're only counting non-deleted communities
+	countQuery = countQuery.Where("communities.deleted_at IS NULL")
+
+	err := countQuery.Distinct("communities.community_id").Count(&count).Error
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to count communities: %w", err)
+	}
+
+	// Then fetch the actual communities with pagination
+	// Add error handling for query execution
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 10
 	}
 
 	err = query.Offset(offset).Limit(limit).Find(&communities).Error
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to fetch communities: %w", err)
+	}
+
+	// Always return at least an empty slice, not nil
+	if communities == nil {
+		communities = []*model.Community{}
 	}
 
 	return communities, count, nil

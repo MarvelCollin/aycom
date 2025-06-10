@@ -3,6 +3,7 @@ package handlers
 import (
 	"aycom/backend/proto/community"
 	"aycom/backend/proto/user"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -74,7 +75,7 @@ func (p *ConnectionPool) Get() (*grpc.ClientConn, error) {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
 
-		conn, err := grpc.NewClient(p.serviceAddr, opts...)
+		conn, err := grpc.Dial(p.serviceAddr, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +141,7 @@ func InitGRPCServices() {
 		userServiceAddr := AppConfig.Services.UserService
 		log.Printf("Connecting to User service at %s", userServiceAddr)
 
-		userConn, err := grpc.NewClient(userServiceAddr,
+		userConn, err := grpc.Dial(userServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 
@@ -152,7 +153,6 @@ func InitGRPCServices() {
 		}
 
 		if AppConfig.Services.ThreadService != "" {
-
 			threadConnPool = NewConnectionPool(AppConfig.Services.ThreadService, 5, 20, 3*time.Second)
 			log.Printf("Thread service connection pool initialized for %s", AppConfig.Services.ThreadService)
 		}
@@ -160,15 +160,58 @@ func InitGRPCServices() {
 		communityServiceAddr := AppConfig.Services.CommunityService
 		log.Printf("Connecting to Community service at %s", communityServiceAddr)
 
-		communityConn, err := grpc.NewClient(communityServiceAddr,
+		// Add connection retries with backoff
+		communityConn, err := grpc.Dial(communityServiceAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 
 		if err != nil {
-			log.Printf("Warning: Failed to connect to Community service: %v", err)
-		} else {
+			log.Printf("Initial connection attempt to Community service failed: %v", err)
+
+			// Try reconnecting with backoff
+			maxRetries := 3
+			var connErr error
+
+			for i := 0; i < maxRetries; i++ {
+				// Wait before retrying
+				time.Sleep(time.Duration(i+1) * time.Second)
+
+				log.Printf("Retry attempt %d/%d connecting to Community service...", i+1, maxRetries)
+				communityConn, connErr = grpc.Dial(communityServiceAddr,
+					grpc.WithTransportCredentials(insecure.NewCredentials()),
+				)
+
+				if connErr == nil {
+					log.Printf("Successfully connected on retry %d", i+1)
+					break
+				} else {
+					log.Printf("Retry attempt %d failed: %v", i+1, connErr)
+				}
+			}
+
+			if connErr != nil {
+				log.Printf("Error: Failed to connect to Community service after %d retries", maxRetries)
+			} else {
+				err = nil // Connection successful on retry
+			}
+		}
+
+		if err == nil {
 			CommunityClient = community.NewCommunityServiceClient(communityConn)
-			log.Printf("Connected to Community service at %s", communityServiceAddr)
+			log.Printf("Successfully connected to Community service at %s", communityServiceAddr)
+
+			// Verify connection is working properly
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			// Try a simple ping-like call to verify connection
+			// Use ListCategories as a simple method to test connectivity
+			_, pingErr := CommunityClient.ListCategories(ctx, &community.ListCategoriesRequest{})
+			if pingErr != nil {
+				log.Printf("Warning: Community service connection check failed: %v", pingErr)
+			} else {
+				log.Printf("Community service connection verified successfully")
+			}
 		}
 
 		log.Println("gRPC clients initialization complete.")

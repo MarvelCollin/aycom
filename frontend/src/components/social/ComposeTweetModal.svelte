@@ -1,22 +1,27 @@
 <script lang="ts">
-  import { createEventDispatcher, tick } from 'svelte';
+  import { createEventDispatcher, tick, onMount } from 'svelte';
   import { 
     ImageIcon, 
     BarChart2Icon, 
     SmileIcon, 
     MapPinIcon,
     XIcon,
-    ZapIcon,
     AlertCircleIcon,
     UsersIcon
   } from 'svelte-feather-icons';
-  import { createThread, uploadThreadMedia, suggestThreadCategory } from '../../api/thread';
+  import { createThread, uploadThreadMedia, replyToThread, suggestThreadCategory } from '../../api/thread';
+  import { getCommunityCategories } from '../../api/community';
+  import { getThreadCategories } from '../../api/categories';
   import { toastStore } from '../../stores/toastStore';
   import { useTheme } from '../../hooks/useTheme';
   import { debounce } from '../../utils/helpers';
+  import { getAuthToken, getUserRole } from '../../utils/auth';
+  import type { ICategory } from '../../interfaces/ICategory';
+  import type { ITweet } from '../../interfaces/ISocialMedia';
   
   export let isOpen = false;
   export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
+  export let replyTo: ITweet | null = null;
   
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
@@ -38,6 +43,22 @@
   let allCategories: Record<string, number> = {};
   let categorySuggestionDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
   
+  // New features
+  let replyPermission = 'Everyone';
+  let showScheduleOptions = false;
+  let scheduledDate = '';
+  let scheduledTime = '';
+  let showCommunityOptions = false;
+  let availableCommunities: ICategory[] = [];
+  let selectedCommunityId = '';
+  let showPollOptions = false;
+  let pollQuestion = '';
+  let pollOptions = ['', ''];
+  let pollExpiryHours = 24;
+  let pollWhoCanVote = 'everyone';
+  let isAdmin = false;
+  let isAdvertisement = false;
+  
   const categoryOptions = [
     { value: 'technology', label: 'Technology', icon: 'laptop' },
     { value: 'entertainment', label: 'Entertainment', icon: 'film' },
@@ -55,8 +76,33 @@
   $: charsRemaining = maxChars - newTweet.length;
   $: isOverLimit = charsRemaining < 0;
   $: isNearLimit = charsRemaining <= 20 && charsRemaining > 0;
+  $: wordCount = newTweet.trim().split(/\s+/).filter(Boolean).length;
+  $: wordPercent = Math.min(100, Math.round((wordCount / 280) * 100));
   
   const dispatch = createEventDispatcher();
+  
+  // Check if user is admin
+  async function checkUserRole() {
+    try {
+      const role = await getUserRole();
+      isAdmin = role === 'admin';
+    } catch (error) {
+      console.error('Failed to check user role', error);
+      isAdmin = false;
+    }
+  }
+  
+  // Load communities
+  async function loadCommunities() {
+    try {
+      const communities = await getCommunityCategories();
+      availableCommunities = communities;
+      console.log('Loaded communities', availableCommunities);
+    } catch (error) {
+      availableCommunities = [];
+      console.error('Failed to load communities', error);
+    }
+  }
   
   function handleClose() {
     resetForm();
@@ -74,6 +120,18 @@
     categoryTouched = false;
     selectedCategory = '';
     allCategories = {};
+    showScheduleOptions = false;
+    scheduledDate = '';
+    scheduledTime = '';
+    showCommunityOptions = false;
+    selectedCommunityId = '';
+    showPollOptions = false;
+    pollQuestion = '';
+    pollOptions = ['', ''];
+    pollExpiryHours = 24;
+    pollWhoCanVote = 'everyone';
+    replyPermission = 'Everyone';
+    isAdvertisement = false;
   }
   
   // Debounced function to get category suggestions
@@ -122,11 +180,11 @@
       // Convert FileList to array
       const fileArray = Array.from(input.files);
       
-      // Limit to 4 images
+      // Limit to 4 files
       const newFiles = fileArray.slice(0, 4 - files.length);
       
       if (files.length + newFiles.length > 4) {
-        toastStore.showToast('Maximum 4 images allowed', 'warning');
+        toastStore.showToast('Maximum 4 media files allowed', 'warning');
       }
       
       files = [...files, ...newFiles];
@@ -148,9 +206,67 @@
     previewImages = previewImages.filter((_, i) => i !== index);
   }
   
+  // Toggle schedule options
+  function toggleScheduleOptions() {
+    showScheduleOptions = !showScheduleOptions;
+    if (showScheduleOptions) {
+      // Set default time to current time + 1 hour
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      scheduledDate = tomorrow.toISOString().split('T')[0];
+      
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      scheduledTime = `${hours}:${minutes}`;
+    }
+  }
+
+  // Toggle community options
+  function toggleCommunityOptions() {
+    showCommunityOptions = !showCommunityOptions;
+  }
+
+  // Toggle poll options
+  function togglePollOptions() {
+    showPollOptions = !showPollOptions;
+    if (!showPollOptions) {
+      // Reset poll state when closing
+      pollQuestion = '';
+      pollOptions = ['', ''];
+      pollExpiryHours = 24;
+      pollWhoCanVote = 'everyone';
+    }
+  }
+
+  // Add poll option
+  function addPollOption() {
+    if (pollOptions.length < 4) {
+      pollOptions = [...pollOptions, ''];
+    }
+  }
+
+  // Remove poll option
+  function removePollOption(index: number) {
+    if (pollOptions.length > 2) {
+      pollOptions = pollOptions.filter((_, i) => i !== index);
+    }
+  }
+  
+  // Toggle advertisement setting (admin only)
+  function toggleAdvertisement() {
+    if (isAdmin) {
+      isAdvertisement = !isAdvertisement;
+    }
+  }
+  
   async function handleSubmit() {
-    if (newTweet.trim() === '' && files.length === 0) {
+    if (newTweet.trim() === '' && files.length === 0 && !showPollOptions) {
       errorMessage = 'Your post cannot be empty';
+      return;
+    }
+    
+    if (showPollOptions && (pollQuestion.trim() === '' || pollOptions.filter(opt => opt.trim() !== '').length < 2)) {
+      errorMessage = 'Poll question and at least 2 options are required';
       return;
     }
     
@@ -163,23 +279,68 @@
     errorMessage = '';
     
     try {
-      const threadData = {
+      const threadData: any = {
         content: newTweet,
         hashtags: [],
-        who_can_reply: 'everyone',
+        who_can_reply: replyPermission,
         category: selectedCategory || suggestedCategory || 'general'
       };
       
-      const response = await createThread(threadData);
-      
-      if (files.length > 0) {
-        await uploadThreadMedia(response.id, files);
+      // Add scheduled time if set
+      if (showScheduleOptions && scheduledDate && scheduledTime) {
+        const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+        threadData.scheduled_at = scheduledDateTime.toISOString();
       }
       
-      toastStore.showToast('Your post was published successfully', 'success');
-      resetForm();
-      dispatch('posted', response);
-      dispatch('close');
+      // Add community if selected
+      if (showCommunityOptions && selectedCommunityId) {
+        threadData.community_id = selectedCommunityId;
+      }
+      
+      // Add poll if enabled
+      if (showPollOptions) {
+        threadData.poll = {
+          question: pollQuestion,
+          options: pollOptions.filter(opt => opt.trim() !== ''),
+          expiry_hours: pollExpiryHours,
+          who_can_vote: pollWhoCanVote
+        };
+      }
+      
+      // Add advertisement flag if admin
+      if (isAdmin && isAdvertisement) {
+        threadData.is_advertisement = true;
+      }
+      
+      // Handle reply if in reply mode
+      if (replyTo) {
+        threadData.thread_id = replyTo.id;
+        if (replyTo.parent_id) {
+          threadData.parent_reply_id = replyTo.id;
+        }
+        const response = await replyToThread(replyTo.id, threadData);
+        
+        if (files.length > 0) {
+          await uploadThreadMedia(response.id, files);
+        }
+        
+        toastStore.showToast('Your reply was published successfully', 'success');
+        resetForm();
+        dispatch('posted', response);
+        dispatch('close');
+      } else {
+        // Create new thread
+        const response = await createThread(threadData);
+        
+        if (files.length > 0) {
+          await uploadThreadMedia(response.id, files);
+        }
+        
+        toastStore.showToast('Your post was published successfully', 'success');
+        resetForm();
+        dispatch('posted', response);
+        dispatch('close');
+      }
     } catch (error) {
       console.error('Error posting thread:', error);
       toastStore.showToast('Failed to publish your post. Please try again.', 'error');
@@ -188,6 +349,12 @@
       isPosting = false;
     }
   }
+  
+  // Initialize component
+  onMount(() => {
+    loadCommunities();
+    checkUserRole();
+  });
 </script>
 
 {#if isOpen}
@@ -204,20 +371,159 @@
         >
           <XIcon size="20" />
         </button>
-        <span class="modal-title">Create a post</span>
+        <span class="modal-title">{replyTo ? 'Reply' : 'Create a post'}</span>
       </div>
       
       <div class="compose-tweet-container">
+        {#if replyTo}
+          <div class="compose-tweet-reply-to {isDarkMode ? 'compose-tweet-reply-to-dark' : ''}">
+            <div class="compose-tweet-reply-content">
+              <div class="compose-tweet-reply-avatar-container">
+                <img src={replyTo.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"} alt={replyTo.username} class="compose-tweet-reply-avatar" />
+              </div>
+              <div class="compose-tweet-reply-info">
+                <div class="compose-tweet-reply-author">
+                  <span class="compose-tweet-reply-name">{replyTo.name || 'User'}</span>
+                  <span class="compose-tweet-reply-username">@{replyTo.username || 'user'}</span>
+                </div>
+                <p class="compose-tweet-reply-text">{replyTo.content}</p>
+              </div>
+            </div>
+          </div>
+        {/if}
+        
         <div class="compose-tweet-header">
           <img src={avatar} alt="Your avatar" class="compose-tweet-avatar" />
           
           <div class="compose-tweet-input-area">
             <textarea 
               class="compose-tweet-textarea"
-              placeholder="What's happening?"
+              placeholder={replyTo ? "Post your reply" : "What's happening?"}
               bind:value={newTweet}
               autofocus
             ></textarea>
+            
+            <!-- Reply Permission Selector (if not replying) -->
+            {#if !replyTo}
+              <div class="reply-permission-container">
+                <div class="reply-permission-selector">
+                  <UsersIcon size="14" />
+                  <select
+                    bind:value={replyPermission}
+                    class="reply-permission-select {isDarkMode ? 'reply-permission-select-dark' : ''}"
+                  >
+                    <option value="Everyone">Everyone can reply</option>
+                    <option value="Accounts You Follow">People you follow</option>
+                    <option value="Verified Accounts">Only verified accounts</option>
+                  </select>
+                </div>
+              </div>
+            {/if}
+            
+            <!-- Community selector if showing community options -->
+            {#if showCommunityOptions && !replyTo}
+              <div class="compose-tweet-community-selection {isDarkMode ? 'compose-tweet-community-selection-dark' : ''}">
+                <h4>Post to Community</h4>
+                <select 
+                  bind:value={selectedCommunityId} 
+                  class="compose-tweet-community-select {isDarkMode ? 'compose-tweet-community-select-dark' : ''}"
+                >
+                  <option value="">Select a community</option>
+                  {#each availableCommunities as community}
+                    <option value={community.id}>{community.name}</option>
+                  {/each}
+                </select>
+              </div>
+            {/if}
+            
+            <!-- Schedule options -->
+            {#if showScheduleOptions && !replyTo}
+              <div class="compose-tweet-schedule {isDarkMode ? 'compose-tweet-schedule-dark' : ''}">
+                <h4>Schedule post</h4>
+                <div class="compose-tweet-schedule-inputs">
+                  <input 
+                    type="date" 
+                    bind:value={scheduledDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    class="compose-tweet-schedule-date {isDarkMode ? 'compose-tweet-schedule-date-dark' : ''}"
+                  />
+                  <input 
+                    type="time" 
+                    bind:value={scheduledTime}
+                    class="compose-tweet-schedule-time {isDarkMode ? 'compose-tweet-schedule-time-dark' : ''}"
+                  />
+                </div>
+              </div>
+            {/if}
+            
+            <!-- Poll options -->
+            {#if showPollOptions}
+              <div class="compose-tweet-poll-options {isDarkMode ? 'compose-tweet-poll-options-dark' : ''}">
+                <div class="compose-tweet-poll-question">
+                  <input 
+                    type="text" 
+                    placeholder="Ask a question..." 
+                    bind:value={pollQuestion}
+                    class="compose-tweet-poll-question-input {isDarkMode ? 'compose-tweet-poll-question-input-dark' : ''}"
+                  />
+                </div>
+                <div class="compose-tweet-poll-choices">
+                  {#each pollOptions as option, index}
+                    <div class="compose-tweet-poll-choice">
+                      <input 
+                        type="text" 
+                        placeholder={`Option ${index + 1}`}
+                        bind:value={pollOptions[index]}
+                        class="compose-tweet-poll-choice-input {isDarkMode ? 'compose-tweet-poll-choice-input-dark' : ''}"
+                      />
+                      {#if index > 1 && pollOptions.length > 2}
+                        <button 
+                          class="compose-tweet-poll-choice-remove"
+                          on:click={() => removePollOption(index)}
+                        >×</button>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+                {#if pollOptions.length < 4}
+                  <button 
+                    class="compose-tweet-poll-add-option {isDarkMode ? 'compose-tweet-poll-add-option-dark' : ''}"
+                    on:click={addPollOption}
+                  >
+                    + Add Option
+                  </button>
+                {/if}
+                <div class="compose-tweet-poll-settings">
+                  <div class="compose-tweet-poll-duration">
+                    <label for="poll-duration">Poll duration:</label>
+                    <select 
+                      id="poll-duration"
+                      bind:value={pollExpiryHours}
+                      class="compose-tweet-poll-select {isDarkMode ? 'compose-tweet-poll-select-dark' : ''}"
+                    >
+                      <option value={1}>1 hour</option>
+                      <option value={6}>6 hours</option>
+                      <option value={12}>12 hours</option>
+                      <option value={24}>24 hours</option>
+                      <option value={72}>3 days</option>
+                      <option value={168}>7 days</option>
+                    </select>
+                  </div>
+                  <div class="compose-tweet-poll-who-can-vote">
+                    <label for="poll-who-can-vote">Who can vote:</label>
+                    <select 
+                      id="poll-who-can-vote"
+                      bind:value={pollWhoCanVote}
+                      class="compose-tweet-poll-select {isDarkMode ? 'compose-tweet-poll-select-dark' : ''}"
+                    >
+                      <option value="everyone">Everyone</option>
+                      <option value="following">Accounts you follow</option>
+                      <option value="verified">Verified accounts</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            {/if}
             
             <!-- Category suggestion -->
             {#if newTweet && newTweet.length >= 10}
@@ -252,6 +558,19 @@
               </div>
             {/if}
             
+            <!-- Admin advertisement option -->
+            {#if isAdmin}
+              <div class="compose-tweet-admin-options">
+                <label class="compose-tweet-admin-option">
+                  <input 
+                    type="checkbox" 
+                    bind:checked={isAdvertisement}
+                  />
+                  <span>Mark as advertisement</span>
+                </label>
+              </div>
+            {/if}
+            
             <!-- Media preview -->
             {#if previewImages.length > 0}
               <div class="compose-tweet-media-preview">
@@ -282,11 +601,11 @@
         
         <div class="compose-tweet-actions">
           <div class="compose-tweet-tools">
-            <label class="compose-tweet-tool" aria-label="Add images">
+            <label class="compose-tweet-tool" aria-label="Add images, GIFs or videos">
               <input 
                 type="file" 
                 class="compose-tweet-file-input" 
-                accept="image/*" 
+                accept="image/*,video/*,.gif" 
                 multiple 
                 bind:this={fileInputRef}
                 on:change={handleFileSelect}
@@ -295,7 +614,13 @@
               <ImageIcon size="20" />
             </label>
             
-            <button class="compose-tweet-tool" aria-label="Add poll" disabled={isPosting}>
+            <button 
+              class="compose-tweet-tool" 
+              class:active-tool={showPollOptions}
+              aria-label="Add poll" 
+              disabled={isPosting || files.length > 0}
+              on:click={togglePollOptions}
+            >
               <BarChart2Icon size="20" />
             </button>
             
@@ -303,20 +628,58 @@
               <SmileIcon size="20" />
             </button>
             
-            <button class="compose-tweet-tool" aria-label="Add location" disabled={isPosting}>
-              <MapPinIcon size="20" />
-            </button>
+            {#if !replyTo}
+              <button 
+                class="compose-tweet-tool" 
+                class:active-tool={showScheduleOptions}
+                aria-label="Schedule post" 
+                disabled={isPosting}
+                on:click={toggleScheduleOptions}
+              >
+                <AlertCircleIcon size="20" />
+              </button>
+              
+              <button 
+                class="compose-tweet-tool" 
+                class:active-tool={showCommunityOptions}
+                aria-label="Post to community" 
+                disabled={isPosting}
+                on:click={toggleCommunityOptions}
+              >
+                <UsersIcon size="20" />
+              </button>
+            {/if}
           </div>
           
           <div class="compose-tweet-submit-area">
-            <div class="compose-tweet-char-counter {isOverLimit ? 'over-limit' : ''} {isNearLimit ? 'near-limit' : ''}">
-              {isOverLimit ? -charsRemaining : charsRemaining}
+            <!-- Word Counter with Circular Progress -->
+            <div class="compose-tweet-word-count">
+              <div class="compose-tweet-word-circle">
+                <svg viewBox="0 0 36 36">
+                  <path
+                    d="M18 2a16 16 0 1 1 0 32 16 16 0 0 1 0-32"
+                    fill="none"
+                    stroke={isDarkMode ? "#374151" : "#e5e7eb"}
+                    stroke-width="4"
+                  />
+                  <path
+                    d="M18 2a16 16 0 1 1 0 32 16 16 0 0 1 0-32"
+                    fill="none"
+                    stroke={isNearLimit ? "#ef4444" : "#3b82f6"}
+                    stroke-width="4"
+                    stroke-dasharray="100, 100"
+                    stroke-dashoffset={100 - wordPercent}
+                    style="transition: stroke-dashoffset 0.2s ease;"
+                  />
+                </svg>
+                <span class="compose-tweet-word-count-text {isNearLimit ? 'near-limit' : ''}">{wordCount}</span>
+              </div>
             </div>
             
             <button 
               class="compose-tweet-submit"
               on:click={handleSubmit}
-              disabled={isPosting || isOverLimit || (newTweet.trim() === '' && files.length === 0)}
+              disabled={isPosting || isOverLimit || (newTweet.trim() === '' && files.length === 0 && !showPollOptions)}
             >
               {isPosting ? 'Publishing...' : 'Post'}
             </button>
@@ -462,51 +825,318 @@
     align-items: center;
   }
   
-  .compose-tweet-char-counter {
-    margin-right: var(--space-3);
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
+  .compose-tweet-word-count {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-right: 16px;
   }
   
-  .compose-tweet-char-counter.near-limit {
-    color: var(--color-warning);
+  .compose-tweet-word-circle {
+    position: relative;
+    width: 32px;
+    height: 32px;
   }
   
-  .compose-tweet-char-counter.over-limit {
-    color: var(--color-danger);
+  .compose-tweet-word-count-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 500;
   }
   
-  .compose-tweet-submit {
-    background-color: var(--color-primary);
-    color: white;
-    border: none;
-    border-radius: var(--radius-full);
-    padding: var(--space-2) var(--space-4);
-    font-weight: var(--font-weight-bold);
-    font-size: var(--font-size-md);
+  .compose-tweet-word-count-text.near-limit {
+    color: #ef4444;
+  }
+  
+  .active-tool {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+  }
+  
+  .reply-permission-container {
+    display: flex;
+    margin: 8px 0;
+  }
+  
+  .reply-permission-selector {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    background-color: rgba(29, 155, 240, 0.1);
+    color: #1d9bf0;
+    border-radius: 16px;
+    font-size: 13px;
     cursor: pointer;
-    transition: background-color var(--transition-fast), transform var(--transition-fast);
+  }
+  
+  .reply-permission-select {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    padding-left: 5px;
+    cursor: pointer;
+    outline: none;
+    max-width: 200px;
+  }
+  
+  .compose-tweet-reply-to {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background-color: #f9fafb;
+  }
+  
+  .compose-tweet-reply-to-dark {
+    background-color: #1f2937;
+    border-color: #384152;
+  }
+  
+  .compose-tweet-reply-content {
+    display: flex;
+    gap: 12px;
+  }
+  
+  .compose-tweet-reply-avatar-container {
+    flex-shrink: 0;
+  }
+  
+  .compose-tweet-reply-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .compose-tweet-reply-info {
+    flex: 1;
+    overflow: hidden;
+  }
+  
+  .compose-tweet-reply-author {
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .compose-tweet-reply-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #111827;
+  }
+  
+  .compose-tweet-reply-to-dark .compose-tweet-reply-name {
+    color: #f1f5f9;
+  }
+  
+  .compose-tweet-reply-username {
+    font-size: 14px;
+    color: #6b7280;
+  }
+  
+  .compose-tweet-reply-text {
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.5;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3; /* Limit to 3 lines */
+  }
+  
+  .compose-tweet-community-selection,
+  .compose-tweet-schedule,
+  .compose-tweet-poll-options {
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: 8px;
+    background-color: #f8fafc;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .compose-tweet-community-selection-dark,
+  .compose-tweet-schedule-dark,
+  .compose-tweet-poll-options-dark {
+    background-color: #1e293b;
+    border-color: #384152;
+  }
+  
+  .compose-tweet-community-select,
+  .compose-tweet-schedule-date,
+  .compose-tweet-schedule-time,
+  .compose-tweet-poll-select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    margin-top: 8px;
+  }
+  
+  .compose-tweet-community-select-dark,
+  .compose-tweet-schedule-date-dark,
+  .compose-tweet-schedule-time-dark,
+  .compose-tweet-poll-select-dark {
+    border-color: #4b5563;
+    background: #374151;
+    color: #e5e7eb;
+  }
+  
+  .compose-tweet-schedule-inputs {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .compose-tweet-poll-question,
+  .compose-tweet-poll-choice {
+    margin-bottom: 8px;
+    position: relative;
+  }
+  
+  .compose-tweet-poll-question-input,
+  .compose-tweet-poll-choice-input {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    background: white;
+  }
+  
+  .compose-tweet-poll-question-input-dark,
+  .compose-tweet-poll-choice-input-dark {
+    border-color: #4b5563;
+    background: #374151;
+    color: #e5e7eb;
+  }
+  
+  .compose-tweet-poll-choice-remove {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #ef4444;
+  }
+  
+  .compose-tweet-poll-add-option {
+    padding: 8px;
+    background: none;
+    border: 1px dashed #e2e8f0;
+    border-radius: 4px;
+    width: 100%;
+    cursor: pointer;
+    color: #3b82f6;
+    margin-bottom: 12px;
+  }
+  
+  .compose-tweet-poll-add-option-dark {
+    border-color: #4b5563;
+    color: #60a5fa;
+  }
+  
+  .compose-tweet-poll-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  
+  .compose-tweet-poll-duration,
+  .compose-tweet-poll-who-can-vote {
+    flex: 1;
+    min-width: 150px;
+  }
+  
+  .compose-tweet-admin-options {
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: 8px;
+    background-color: #fee2e2;
+    border: 1px solid #fca5a5;
+  }
+  
+  .compose-tweet-admin-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  
+  .modal-container {
+    position: relative;
+    width: 600px;
+    max-width: 95vw;
+    max-height: 90vh;
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    overflow-y: auto;
+    z-index: 1001;
+  }
+  
+  .modal-container-dark {
+    background-color: #1e293b;
+    color: #f1f5f9;
+  }
+  
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .modal-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    background-color: white;
+    z-index: 10;
+  }
+  
+  .modal-header-dark {
+    background-color: #1e293b;
+    border-bottom: 1px solid #384152;
+  }
+  
+  .modal-close-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #374151;
+    padding: 8px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 80px;
   }
   
-  .compose-tweet-submit:hover {
-    background-color: var(--color-primary-hover);
-    transform: translateY(-1px);
+  .modal-header-dark .modal-close-button {
+    color: #e5e7eb;
   }
   
-  .compose-tweet-submit:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-  
-  .compose-tweet-error {
-    margin-top: var(--space-2);
-    color: var(--color-danger);
-    font-size: var(--font-size-sm);
+  .modal-title {
+    margin-left: 16px;
+    font-size: 18px;
+    font-weight: 700;
   }
   
   .category-suggestion-container {

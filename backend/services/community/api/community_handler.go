@@ -6,6 +6,8 @@ import (
 	"aycom/backend/services/community/repository"
 	"context"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -591,12 +593,37 @@ func (h *CommunityHandler) mapCommunityToResponse(community *model.Community) *c
 
 // Helper method to map a model.Community to a protobuf Community
 func (h *CommunityHandler) mapCommunityToProto(community *model.Community) *communityProto.Community {
-	categories := make([]*communityProto.Category, len(community.Categories))
-	for i, category := range community.Categories {
-		categories[i] = &communityProto.Category{
-			Id:   category.CategoryID.String(),
-			Name: category.Name,
+	if community == nil {
+		return &communityProto.Community{}
+	}
+
+	// Handle nil Categories array
+	categories := make([]*communityProto.Category, 0)
+	if community.Categories != nil {
+		for _, category := range community.Categories {
+			if category.CategoryID.String() != "" {
+				categories = append(categories, &communityProto.Category{
+					Id:   category.CategoryID.String(),
+					Name: category.Name,
+				})
+			}
 		}
+	}
+
+	// Create timestamps safely
+	var createdAt *timestamppb.Timestamp
+	var updatedAt *timestamppb.Timestamp
+
+	if !community.CreatedAt.IsZero() {
+		createdAt = timestamppb.New(community.CreatedAt)
+	} else {
+		createdAt = timestamppb.New(time.Now())
+	}
+
+	if !community.UpdatedAt.IsZero() {
+		updatedAt = timestamppb.New(community.UpdatedAt)
+	} else {
+		updatedAt = timestamppb.New(time.Now())
 	}
 
 	return &communityProto.Community{
@@ -608,8 +635,8 @@ func (h *CommunityHandler) mapCommunityToProto(community *model.Community) *comm
 		CreatorId:   community.CreatorID.String(),
 		IsApproved:  community.IsApproved,
 		Categories:  categories,
-		CreatedAt:   timestamppb.New(community.CreatedAt),
-		UpdatedAt:   timestamppb.New(community.UpdatedAt),
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
 	}
 }
 
@@ -900,7 +927,7 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 
 	userID, err := uuid.Parse(req.UserId)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid user ID format: %v", err))
 	}
 
 	offset := int(req.Offset)
@@ -915,15 +942,50 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 		memberStatus = "member" // Default to member if not specified
 	}
 
-	// Get communities where the user is a member or has pending requests
-	communities, totalCount, err := h.communityService.ListUserCommunities(ctx, userID, memberStatus, offset, limit)
-	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list user communities: %v", err))
+	// We're keeping these variables for future implementation
+	// Currently, the service doesn't support filtering by query or categories
+	_ = req.Query      // Search query - will be implemented later
+	_ = req.Categories // Categories - will be implemented later
+
+	var communities []*model.Community
+	var totalCount int64
+	var repoErr error
+
+	// Wrap the repository call in a recovery block to handle panics
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				repoErr = fmt.Errorf("recovered from panic in ListUserCommunities: %v", r)
+				log.Printf("PANIC in ListUserCommunities: %v", r)
+				debug.PrintStack() // Print the stack trace for debugging
+			}
+		}()
+
+		// Get communities based on user membership
+		communities, totalCount, repoErr = h.communityService.ListUserCommunities(ctx, userID, memberStatus, offset, limit)
+	}()
+
+	// Handle repository error
+	if repoErr != nil {
+		log.Printf("Error in repository.ListByUserMembership: %v", repoErr)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities: %v", repoErr))
 	}
 
-	protoCommunities := make([]*communityProto.Community, len(communities))
-	for i, community := range communities {
-		protoCommunities[i] = h.mapCommunityToProto(community)
+	// Handle empty results - return empty response instead of error
+	if communities == nil {
+		return &communityProto.ListCommunitiesResponse{
+			Communities: []*communityProto.Community{},
+			TotalCount:  0,
+		}, nil
+	}
+
+	// Map model communities to protobuf communities
+	protoCommunities := make([]*communityProto.Community, 0, len(communities))
+	for _, community := range communities {
+		if community != nil {
+			protoCommunity := h.mapCommunityToProto(community)
+			protoCommunities = append(protoCommunities, protoCommunity)
+		}
 	}
 
 	return &communityProto.ListCommunitiesResponse{

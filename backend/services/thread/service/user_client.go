@@ -14,6 +14,7 @@ type UserClient interface {
 	GetUserById(ctx context.Context, userId string) (*UserInfo, error)
 	UserExists(userId string) (bool, error)
 	GetUserDetails(userId string) (map[string]interface{}, error)
+	GetGrpcClient() user.UserServiceClient
 }
 
 type UserInfo struct {
@@ -40,6 +41,10 @@ func NewUserClient(conn *grpc.ClientConn) UserClient {
 	return &realUserClient{
 		client: user.NewUserServiceClient(conn),
 	}
+}
+
+func (c *realUserClient) GetGrpcClient() user.UserServiceClient {
+	return c.client
 }
 
 func (c *realUserClient) GetUserById(ctx context.Context, userId string) (*UserInfo, error) {
@@ -78,7 +83,7 @@ func (c *realUserClient) UserExists(userId string) (bool, error) {
 
 	if c.client == nil {
 		log.Printf("Warning: User service client is nil")
-		return true, nil 
+		return true, nil
 	}
 
 	ctx := context.Background()

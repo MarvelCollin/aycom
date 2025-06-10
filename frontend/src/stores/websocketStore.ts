@@ -105,8 +105,26 @@ function createWebSocketStore() {
             ...s, 
             connected: true, 
             reconnecting: false,
-            lastError: null 
+            lastError: null,
+            chatConnections: {
+              ...s.chatConnections,
+              [chatId]: ws
+            }
           }));
+          
+          // Send an initial message to confirm connection
+          try {
+            const initialMessage = {
+              type: 'connection_check',
+              user_id: userId,
+              chat_id: chatId,
+              timestamp: new Date()
+            };
+            ws.send(JSON.stringify(initialMessage));
+            logger.debug(`Sent initial connection check for chat ${chatId}`);
+          } catch (e) {
+            logger.error(`Error sending initial message for chat ${chatId}:`, e);
+          }
           
           reconnectAttempts = 0;
         };

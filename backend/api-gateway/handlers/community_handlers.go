@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"log"
 	"math"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -1897,10 +1897,21 @@ func CreateChat(c *gin.Context) {
 	}
 	log.Printf("CreateChat: Chat created successfully with ID %s", chat.ID)
 
-	utils.SendSuccessResponse(c, 201, gin.H{
-		"chat": chat,
+	// Return a response format the frontend expects
+	c.JSON(201, gin.H{
+		"chat": gin.H{
+			"id":            chat.ID,
+			"name":          chat.Name,
+			"type":          "individual",
+			"is_group_chat": chat.IsGroupChat,
+			"created_by":    chat.CreatedBy,
+			"created_at":    chat.CreatedAt,
+			"updated_at":    chat.UpdatedAt,
+			"participants":  chat.Participants,
+		},
 	})
-	log.Printf("CreateChat: Response sent with status 201")
+	log.Printf("CreateChat: Response sent with status 201 for chat ID %s", chat.ID)
+
 }
 
 func AddChatParticipant(c *gin.Context) {}
@@ -2081,7 +2092,7 @@ func UnsendMessage(c *gin.Context) {
 }
 
 func ListMessages(c *gin.Context) {
-	_, exists := c.Get("userId")
+	userID, exists := c.Get("userId")
 	if !exists {
 		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
 		return
@@ -2090,6 +2101,17 @@ func ListMessages(c *gin.Context) {
 	chatID := c.Param("chatId")
 	if chatID == "" {
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
+		return
+	}
+
+	// Log the request for debugging
+	log.Printf("ListMessages request: chatID=%s, userID=%v", chatID, userID)
+
+	// Validate UUID format
+	_, uuidErr := uuid.Parse(chatID)
+	if uuidErr != nil {
+		log.Printf("Invalid chat UUID format: %v", uuidErr)
+		utils.SendErrorResponse(c, 400, "INVALID_ID", "Invalid chat ID format")
 		return
 	}
 
@@ -2106,14 +2128,30 @@ func ListMessages(c *gin.Context) {
 	}
 
 	if CommunityClient == nil {
+		log.Printf("ERROR: CommunityClient is nil in ListMessages")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// First, verify that the user has access to this chat
+	isParticipant, err := GetCommunityServiceClient().IsUserChatParticipant(chatID, userID.(string))
+	if err != nil {
+		log.Printf("Error checking chat participation: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	if !isParticipant {
+		log.Printf("User %s is not a participant in chat %s", userID, chatID)
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
+		return
+	}
+
 	// List messages
+	log.Printf("Fetching messages for chat %s (limit: %d, offset: %d)", chatID, limit, offset)
 	resp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
 		ChatId: chatID,
 		Limit:  int32(limit),
@@ -2121,29 +2159,75 @@ func ListMessages(c *gin.Context) {
 	})
 
 	if err != nil {
+		log.Printf("Error listing messages: %v", err)
+
+		// Handle specific gRPC errors with appropriate responses
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				utils.SendErrorResponse(c, 404, "NOT_FOUND", "Chat not found")
+				return
+			case codes.InvalidArgument:
+				utils.SendErrorResponse(c, 400, "INVALID_REQUEST", st.Message())
+				return
+			case codes.Unavailable:
+				utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+				return
+			default:
+				utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list messages: "+err.Error())
+				return
+			}
+		}
+
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list messages: "+err.Error())
 		return
 	}
 
-	messages := make([]gin.H, 0, len(resp.Messages))
-	for _, msg := range resp.Messages {
-		timestamp := time.Now().Unix()
-		if msg.SentAt != nil {
-			timestamp = msg.SentAt.AsTime().Unix()
-		}
-
-		messages = append(messages, gin.H{
-			"id":         msg.Id,
-			"chat_id":    msg.ChatId,
-			"sender_id":  msg.SenderId,
-			"content":    msg.Content,
-			"timestamp":  timestamp,
-			"is_read":    !msg.Unsent,
-			"is_edited":  false,
-			"is_deleted": msg.DeletedForAll,
+	// If we got no response or no messages, return an empty array
+	if resp == nil {
+		log.Printf("Warning: ListMessages returned nil response for chat %s", chatID)
+		utils.SendSuccessResponse(c, 200, gin.H{
+			"messages": []gin.H{},
+			"pagination": gin.H{
+				"limit":  limit,
+				"offset": offset,
+				"total":  0,
+			},
 		})
+		return
 	}
 
+	// Initialize messages to empty array if nil
+	messages := []gin.H{}
+	if resp.Messages != nil {
+		messages = make([]gin.H, 0, len(resp.Messages))
+
+		for _, msg := range resp.Messages {
+			// Skip nil messages
+			if msg == nil {
+				continue
+			}
+
+			timestamp := time.Now().Unix()
+			if msg.SentAt != nil {
+				timestamp = msg.SentAt.AsTime().Unix()
+			}
+
+			messages = append(messages, gin.H{
+				"id":         msg.Id,
+				"chat_id":    msg.ChatId,
+				"sender_id":  msg.SenderId,
+				"content":    msg.Content,
+				"timestamp":  timestamp,
+				"is_read":    !msg.Unsent,
+				"is_edited":  false,
+				"is_deleted": msg.DeletedForAll,
+			})
+		}
+	}
+
+	log.Printf("Successfully retrieved %d messages for chat %s", len(messages), chatID)
 	utils.SendSuccessResponse(c, 200, gin.H{
 		"messages": messages,
 		"pagination": gin.H{
@@ -2879,17 +2963,15 @@ func GetUserCommunities(c *gin.Context) {
 
 // GetJoinedCommunities returns all communities the specified user has joined
 func GetJoinedCommunities(c *gin.Context) {
-	userId := c.Param("userId")
-	if userId == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
+	userID := c.Param("userId")
+	if userID == "" {
+		utils.SendErrorResponse(c, 400, "INVALID_INPUT", "User ID is required")
 		return
 	}
 
 	// Parse query parameters
 	page := 1
 	limit := 25
-	searchQuery := c.Query("q")
-	categoryIds := c.QueryArray("category")
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
@@ -2903,84 +2985,90 @@ func GetJoinedCommunities(c *gin.Context) {
 		}
 	}
 
-	offset := (page - 1) * limit
-
-	// Check if the community client is available
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Get communities where user is a member
-	resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-		UserId:     userId,
-		Status:     "member",
-		Offset:     int32(offset),
-		Limit:      int32(limit),
-		Query:      searchQuery,
-		Categories: categoryIds,
-	})
+	// Call the community service to fetch joined communities
+	var communities []gin.H
+	var totalCount int32
 
-	if err != nil {
-		log.Printf("Error in GetJoinedCommunities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
-		return
-	}
-
-	communities := resp.Communities
-	totalCount := resp.TotalCount
-
-	// Process and format the communities response
-	formattedCommunities := make([]gin.H, 0)
-	for _, community := range communities {
-		// Extract category names
-		categoryNames := make([]string, 0)
-		for _, category := range community.Categories {
-			categoryNames = append(categoryNames, category.Name)
-		}
-
-		formattedCommunities = append(formattedCommunities, gin.H{
-			"id":           community.Id,
-			"name":         community.Name,
-			"description":  community.Description,
-			"logo_url":     community.LogoUrl,
-			"banner_url":   community.BannerUrl,
-			"creator_id":   community.CreatorId,
-			"is_approved":  community.IsApproved,
-			"categories":   categoryNames,
-			"member_count": 0, // Placeholder since it's not in proto
-			"created_at":   community.CreatedAt.AsTime().Format(time.RFC3339),
+	if CommunityClient != nil {
+		resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID,
+			Status: "member", // Joined communities
+			Offset: int32((page - 1) * limit),
+			Limit:  int32(limit),
 		})
+
+		if err != nil {
+			log.Printf("Error fetching joined communities: %v", err)
+		} else if resp != nil {
+			// Transform communities to response format
+			communities = make([]gin.H, 0, len(resp.Communities))
+			if resp.Communities != nil {
+				for _, community := range resp.Communities {
+					categoryNames := make([]string, 0)
+					if community.Categories != nil {
+						for _, cat := range community.Categories {
+							if cat != nil {
+								categoryNames = append(categoryNames, cat.Name)
+							}
+						}
+					}
+
+					communityData := gin.H{
+						"id":          community.Id,
+						"name":        community.Name,
+						"description": community.Description,
+						"logo_url":    community.LogoUrl,
+						"banner_url":  community.BannerUrl,
+						"creator_id":  community.CreatorId,
+						"is_approved": community.IsApproved,
+						"categories":  categoryNames,
+						// MemberCount doesn't exist directly in proto, use 0 as placeholder
+						"member_count": 0,
+					}
+
+					if community.CreatedAt != nil {
+						communityData["created_at"] = community.CreatedAt.AsTime()
+					}
+
+					communities = append(communities, communityData)
+				}
+			}
+
+			totalCount = resp.TotalCount
+		}
 	}
 
-	// Return the response
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"communities": formattedCommunities,
-			"total":       totalCount,
-			"page":        page,
-			"limit":       limit,
-		},
+	// Even if there's an error, return a valid response with empty data
+	// This ensures the UI doesn't crash even if the backend service is down
+	if communities == nil {
+		communities = []gin.H{}
+	}
+
+	totalPages := calculateTotalPages(int(totalCount), limit)
+
+	utils.SendDirectSuccessResponse(c, 200, gin.H{
+		"communities": communities,
+		"total":       totalCount,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
 	})
 }
 
 // GetPendingCommunities returns all communities the specified user has pending join requests for
 func GetPendingCommunities(c *gin.Context) {
-	userId := c.Param("userId")
-	if userId == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
+	userID := c.Param("userId")
+	if userID == "" {
+		utils.SendErrorResponse(c, 400, "INVALID_INPUT", "User ID is required")
 		return
 	}
 
 	// Parse query parameters
 	page := 1
 	limit := 25
-	searchQuery := c.Query("q")
-	categoryIds := c.QueryArray("category")
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
@@ -2994,84 +3082,90 @@ func GetPendingCommunities(c *gin.Context) {
 		}
 	}
 
-	offset := (page - 1) * limit
-
-	// Check if the community client is available
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Get communities where user has pending requests
-	resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-		UserId:     userId,
-		Status:     "pending",
-		Offset:     int32(offset),
-		Limit:      int32(limit),
-		Query:      searchQuery,
-		Categories: categoryIds,
-	})
+	// Call the community service to fetch pending communities
+	var communities []gin.H
+	var totalCount int32
 
-	if err != nil {
-		log.Printf("Error in GetPendingCommunities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
-		return
-	}
-
-	communities := resp.Communities
-	totalCount := resp.TotalCount
-
-	// Process and format the communities response
-	formattedCommunities := make([]gin.H, 0)
-	for _, community := range communities {
-		// Extract category names
-		categoryNames := make([]string, 0)
-		for _, category := range community.Categories {
-			categoryNames = append(categoryNames, category.Name)
-		}
-
-		formattedCommunities = append(formattedCommunities, gin.H{
-			"id":           community.Id,
-			"name":         community.Name,
-			"description":  community.Description,
-			"logo_url":     community.LogoUrl,
-			"banner_url":   community.BannerUrl,
-			"creator_id":   community.CreatorId,
-			"is_approved":  community.IsApproved,
-			"categories":   categoryNames,
-			"member_count": 0, // Placeholder since it's not in proto
-			"created_at":   community.CreatedAt.AsTime().Format(time.RFC3339),
+	if CommunityClient != nil {
+		resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID,
+			Status: "pending", // Pending join request communities
+			Offset: int32((page - 1) * limit),
+			Limit:  int32(limit),
 		})
+
+		if err != nil {
+			log.Printf("Error fetching pending communities: %v", err)
+		} else if resp != nil {
+			// Transform communities to response format
+			communities = make([]gin.H, 0, len(resp.Communities))
+			if resp.Communities != nil {
+				for _, community := range resp.Communities {
+					categoryNames := make([]string, 0)
+					if community.Categories != nil {
+						for _, cat := range community.Categories {
+							if cat != nil {
+								categoryNames = append(categoryNames, cat.Name)
+							}
+						}
+					}
+
+					communityData := gin.H{
+						"id":          community.Id,
+						"name":        community.Name,
+						"description": community.Description,
+						"logo_url":    community.LogoUrl,
+						"banner_url":  community.BannerUrl,
+						"creator_id":  community.CreatorId,
+						"is_approved": community.IsApproved,
+						"categories":  categoryNames,
+						// MemberCount doesn't exist directly in proto, use 0 as placeholder
+						"member_count": 0,
+					}
+
+					if community.CreatedAt != nil {
+						communityData["created_at"] = community.CreatedAt.AsTime()
+					}
+
+					communities = append(communities, communityData)
+				}
+			}
+
+			totalCount = resp.TotalCount
+		}
 	}
 
-	// Return the response
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"communities": formattedCommunities,
-			"total":       totalCount,
-			"page":        page,
-			"limit":       limit,
-		},
+	// Even if there's an error, return a valid response with empty data
+	// This ensures the UI doesn't crash even if the backend service is down
+	if communities == nil {
+		communities = []gin.H{}
+	}
+
+	totalPages := calculateTotalPages(int(totalCount), limit)
+
+	utils.SendDirectSuccessResponse(c, 200, gin.H{
+		"communities": communities,
+		"total":       totalCount,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
 	})
 }
 
 // GetDiscoverCommunities returns communities the user is not a member of and has no pending requests for
 func GetDiscoverCommunities(c *gin.Context) {
-	userId := c.Param("userId")
-	if userId == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
+	userID := c.Param("userId")
+	if userID == "" {
+		utils.SendErrorResponse(c, 400, "INVALID_INPUT", "User ID is required")
 		return
 	}
 
 	// Parse query parameters
 	page := 1
 	limit := 25
-	searchQuery := c.Query("q")
-	categoryIds := c.QueryArray("category")
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
@@ -3085,109 +3179,106 @@ func GetDiscoverCommunities(c *gin.Context) {
 		}
 	}
 
-	offset := (page - 1) * limit
-
-	// Check if the community client is available
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	// Step 1: Get all approved communities
-	approved := true
-	searchResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-		Query:      searchQuery,
-		Categories: categoryIds,
-		IsApproved: approved,
-		Offset:     int32(offset),
-		Limit:      int32(limit),
-	})
+	var communities []gin.H
+	var totalCount int32
 
-	if err != nil {
-		log.Printf("Error in GetDiscoverCommunities getting all communities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
-		return
-	}
-
-	allCommunities := searchResp.Communities
-
-	// Step 2: Get communities where user is a member
-	joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-		UserId: userId,
-		Status: "member",
-	})
-
-	if err != nil {
-		log.Printf("Error in GetDiscoverCommunities getting joined communities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch joined communities")
-		return
-	}
-
-	// Step 3: Get communities where user has pending requests
-	pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-		UserId: userId,
-		Status: "pending",
-	})
-
-	if err != nil {
-		log.Printf("Error in GetDiscoverCommunities getting pending communities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch pending communities")
-		return
-	}
-
-	// Create maps of joined and pending community IDs for quick lookup
-	joinedIds := make(map[string]bool)
-	for _, community := range joinedResp.Communities {
-		joinedIds[community.Id] = true
-	}
-
-	pendingIds := make(map[string]bool)
-	for _, community := range pendingResp.Communities {
-		pendingIds[community.Id] = true
-	}
-
-	// Filter out communities the user is a member of or has pending requests for
-	discoverCommunities := make([]*communityProto.Community, 0)
-	for _, community := range allCommunities {
-		if !joinedIds[community.Id] && !pendingIds[community.Id] {
-			discoverCommunities = append(discoverCommunities, community)
-		}
-	}
-
-	// Process and format the communities response
-	formattedCommunities := make([]gin.H, 0)
-	for _, community := range discoverCommunities {
-		// Extract category names
-		categoryNames := make([]string, 0)
-		for _, category := range community.Categories {
-			categoryNames = append(categoryNames, category.Name)
-		}
-
-		formattedCommunities = append(formattedCommunities, gin.H{
-			"id":           community.Id,
-			"name":         community.Name,
-			"description":  community.Description,
-			"logo_url":     community.LogoUrl,
-			"banner_url":   community.BannerUrl,
-			"creator_id":   community.CreatorId,
-			"is_approved":  community.IsApproved,
-			"categories":   categoryNames,
-			"member_count": 0, // Placeholder since it's not in proto
-			"created_at":   community.CreatedAt.AsTime().Format(time.RFC3339),
+	if CommunityClient != nil {
+		// First, get all approved communities
+		allCommunitiesResp, err := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+			IsApproved: true,
 		})
+
+		if err != nil {
+			log.Printf("Error fetching all communities: %v", err)
+		} else if allCommunitiesResp != nil && allCommunitiesResp.Communities != nil {
+			// Then get joined communities (to filter them out)
+			joinedResp, joinedErr := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+				UserId: userID,
+				Status: "member",
+				// Get all to make sure we filter properly
+				Limit: 100,
+			})
+
+			// Get pending communities (to filter them out)
+			pendingResp, pendingErr := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+				UserId: userID,
+				Status: "pending",
+				// Get all to make sure we filter properly
+				Limit: 100,
+			})
+
+			// Create maps for quick lookups
+			joinedCommunityMap := make(map[string]bool)
+			pendingCommunityMap := make(map[string]bool)
+
+			if joinedErr == nil && joinedResp != nil && joinedResp.Communities != nil {
+				for _, community := range joinedResp.Communities {
+					joinedCommunityMap[community.Id] = true
+				}
+			}
+
+			if pendingErr == nil && pendingResp != nil && pendingResp.Communities != nil {
+				for _, community := range pendingResp.Communities {
+					pendingCommunityMap[community.Id] = true
+				}
+			}
+
+			// Filter out communities where the user is already a member or has a pending request
+			communities = make([]gin.H, 0)
+			for _, community := range allCommunitiesResp.Communities {
+				if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
+					categoryNames := make([]string, 0)
+					if community.Categories != nil {
+						for _, cat := range community.Categories {
+							if cat != nil {
+								categoryNames = append(categoryNames, cat.Name)
+							}
+						}
+					}
+
+					communityData := gin.H{
+						"id":          community.Id,
+						"name":        community.Name,
+						"description": community.Description,
+						"logo_url":    community.LogoUrl,
+						"banner_url":  community.BannerUrl,
+						"creator_id":  community.CreatorId,
+						"is_approved": community.IsApproved,
+						"categories":  categoryNames,
+						// MemberCount doesn't exist directly in proto, use 0 as placeholder
+						"member_count": 0,
+					}
+
+					if community.CreatedAt != nil {
+						communityData["created_at"] = community.CreatedAt.AsTime()
+					}
+
+					communities = append(communities, communityData)
+				}
+			}
+
+			totalCount = int32(len(communities))
+		}
 	}
 
-	// Return the response
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"communities": formattedCommunities,
-			"total":       int32(len(discoverCommunities)), // Use filtered count
-			"page":        page,
-			"limit":       limit,
-		},
+	// Even if there's an error, return a valid response with empty data
+	// This ensures the UI doesn't crash even if the backend service is down
+	if communities == nil {
+		communities = []gin.H{}
+	}
+
+	totalPages := calculateTotalPages(int(totalCount), limit)
+
+	utils.SendDirectSuccessResponse(c, 200, gin.H{
+		"communities": communities,
+		"total":       totalCount,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
 	})
 }

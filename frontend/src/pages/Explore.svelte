@@ -730,6 +730,7 @@
   function handleFilterChange(event) {
     const newFilter = event.detail;
     logger.debug('Filter changed', { from: searchFilter, to: newFilter });
+    console.log('Filter changed from', searchFilter, 'to', newFilter);
     
     // Update filter state
     searchFilter = newFilter;
@@ -737,19 +738,24 @@
     // Handle based on current state
     if (hasSearched && searchQuery.trim() !== '') {
       // If user has already searched, immediately re-execute with new filter
+      console.log('In search mode, re-executing search with new filter');
       executeSearch();
     } else {
       // If not in search results view, fetch data based on selected filter and active tab
+      console.log('Not in search mode, fetching data for filter:', newFilter, 'and tab:', defaultActiveTab);
       if (defaultActiveTab === 'people') {
         isLoadingUsers = true;
         if (searchFilter === 'all') {
           // Fetch all users if filter is set to "Everyone"
+          console.log('Fetching all users');
           fetchAllUsers();
         } else if (searchFilter === 'following') {
           // Fetch followed users if filter is set to "Following"
+          console.log('Fetching followed users');
           fetchFollowedUsers();
         } else if (searchFilter === 'verified') {
           // Fetch verified users if filter is set to "Verified"
+          console.log('Fetching verified users');
           fetchVerifiedUsers();
         }
       } else if (defaultActiveTab === 'communities') {
@@ -826,17 +832,30 @@
   async function fetchVerifiedUsers() {
     isLoadingUsers = true;
     try {
+      console.log('Fetching verified users...');
       const response = await searchUsers('', 1, 20, { filter: 'verified' });
-      usersToDisplay = response.users.map(user => ({
-        id: user.id,
-        username: user.username,
-        displayName: user.display_name || user.username,
-        avatar: user.profile_picture_url || user.avatar || null,
-        bio: user.bio || '',
-        isVerified: true,
-        followerCount: user.follower_count || 0,
-        isFollowing: user.is_following || false
-      }));
+      console.log('Verified users response:', response);
+      
+      if (!response.users || !Array.isArray(response.users)) {
+        console.error('Invalid response structure from searchUsers:', response);
+        usersToDisplay = [];
+        return;
+      }
+      
+      usersToDisplay = response.users.map(user => {
+        console.log('Processing verified user:', user);
+        return {
+          id: user.id || '',
+          username: user.username || '',
+          displayName: user.name || user.display_name || user.username || '',
+          avatar: user.profile_picture_url || user.avatar || null,
+          bio: user.bio || '',
+          isVerified: true, // These users are guaranteed to be verified
+          followerCount: user.follower_count || 0,
+          isFollowing: user.is_following || false
+        };
+      });
+      console.log('Mapped verified users:', usersToDisplay);
     } catch (error) {
       console.error('Error fetching verified users:', error);
       toastStore.showToast('Failed to load verified users', 'error');
@@ -1144,14 +1163,17 @@
   
   onMount(async () => {
     logger.debug('Explore page mounted', { authState });
+    console.log('Explore page mounted, auth state:', authState);
     
     // Check authentication state and initialize content if authenticated
     if (checkAuth()) {
       try {
         // Set the default filter to "all" (Everyone)
         searchFilter = 'all';
+        console.log('Setting default filter to:', searchFilter);
         
         // Load initial user list using the "all" filter
+        console.log('Loading initial users with filter:', searchFilter);
         await fetchAllUsers();
         
         // Load initial communities list

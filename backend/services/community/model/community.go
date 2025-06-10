@@ -14,7 +14,7 @@ type Community struct {
 	BannerURL   string     `gorm:"type:varchar(512);not null"`
 	CreatorID   uuid.UUID  `gorm:"type:uuid;not null"`
 	IsApproved  bool       `gorm:"default:false;not null"`
-	Categories  []Category `gorm:"many2many:community_categories;"`
+	Categories  []Category `gorm:"many2many:community_categories;foreignKey:CommunityID;joinForeignKey:community_id;References:CategoryID;joinReferences:category_id"`
 	CreatedAt   time.Time  `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
 	DeletedAt   *time.Time `gorm:"index"`
@@ -23,7 +23,7 @@ type Community struct {
 type Category struct {
 	CategoryID  uuid.UUID   `gorm:"type:uuid;primaryKey;column:category_id;default:gen_random_uuid()"`
 	Name        string      `gorm:"type:varchar(50);unique;not null"`
-	Communities []Community `gorm:"many2many:community_categories;"`
+	Communities []Community `gorm:"many2many:community_categories;foreignKey:CategoryID;joinForeignKey:category_id;References:CommunityID;joinReferences:community_id"`
 	CreatedAt   time.Time   `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time   `gorm:"autoUpdateTime"`
 	DeletedAt   *time.Time  `gorm:"index"`

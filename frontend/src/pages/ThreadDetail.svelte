@@ -1,35 +1,203 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
   import { getThread, getThreadReplies, getReplyReplies } from '../api/thread';
   import TweetCard from '../components/social/TweetCard.svelte';
-  import ComposeTweet from '../components/social/ComposeTweet.svelte';
+  import ComposeTweetModal from '../components/social/ComposeTweetModal.svelte';
   import { toastStore } from '../stores/toastStore';
   import { authStore } from '../stores/authStore';
   import { useTheme } from '../hooks/useTheme';
-  import { createLoggerWithPrefix } from '../utils/logger';
   import ArrowLeftIcon from 'svelte-feather-icons/src/icons/ArrowLeftIcon.svelte';
   import type { ITweet } from '../interfaces/ISocialMedia';
-  import { type ExtendedTweet, ensureTweetFormat } from '../interfaces/ITweet.extended';
-
-  const logger = createLoggerWithPrefix('ThreadDetail');
+  
   const { theme } = useTheme();
   
   export let threadId: string;
-  let thread: ExtendedTweet | null = null;
-  let replies: ExtendedTweet[] = [];
+  export let passedThread: any = null; // Accept thread data passed from TweetCard
+  
+  let thread: any = null;
+  let replies: any[] = [];
   let isLoading = true;
-  let nestedRepliesMap = new Map<string, ExtendedTweet[]>();
+  let nestedRepliesMap = new Map();
   let showReplyForm = false;
-  let replyTo: ExtendedTweet | null = null;
+  let replyTo: any = null;
   let isDarkMode = false;
   
-  // Update isDarkMode based on the document's data-theme attribute
-  $: {
-    if (typeof document !== 'undefined') {
-      isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
-    } else {
-      isDarkMode = $theme === 'dark';
+  // Update isDarkMode based on theme
+  $: isDarkMode = $theme === 'dark';
+
+  // Function to format thread data from the API response to a consistent structure
+  function formatThreadData(responseData) {
+    try {
+      console.log('Formatting thread data from API response:', responseData);
+      
+      // Check if response has nested structure (thread + user) or flat structure
+      if (responseData.thread && responseData.user) {
+        // Handle nested structure
+        const threadData = responseData.thread || {};
+        const userData = responseData.user || {};
+        
+        return {
+          // Thread data
+          id: threadData.id || responseData.id || threadId,
+          content: threadData.content || '',
+          created_at: threadData.created_at || new Date().toISOString(),
+          updated_at: threadData.updated_at,
+          
+          // User data
+          user_id: userData.id || threadData.user_id,
+          username: userData.username || '',
+          name: userData.name || '',
+          display_name: userData.display_name || userData.name || '',
+          profile_picture_url: userData.profile_picture_url || '',
+          is_verified: userData.is_verified || false,
+          
+          // Interaction data
+          likes_count: responseData.likes_count || threadData.likes_count || 0,
+          replies_count: responseData.replies_count || threadData.replies_count || 0,
+          reposts_count: responseData.reposts_count || threadData.reposts_count || 0,
+          bookmark_count: responseData.bookmark_count || threadData.bookmark_count || 0,
+          views: responseData.views || threadData.views || 0,
+          
+          // Status flags
+          is_liked: responseData.liked_by_user || threadData.is_liked || false,
+          is_bookmarked: responseData.bookmarked_by_user || threadData.is_bookmarked || false,
+          is_reposted: responseData.reposted_by_user || threadData.is_reposted || false,
+          is_pinned: threadData.is_pinned || false,
+          
+          // Media
+          media: (threadData.media || []).map(m => {
+            return {
+              ...m,
+              url: m.url || m.media_url,
+              thumbnail_url: m.thumbnail_url || m.url || m.media_url
+            };
+          }),
+          
+          // Keep original data for reference
+          _originalThread: responseData
+        };
+      } else {
+        // Assume flat structure or handle accordingly
+        return {
+          id: responseData.id || threadId,
+          content: responseData.content || '',
+          created_at: responseData.created_at || new Date().toISOString(),
+          updated_at: responseData.updated_at,
+          user_id: responseData.user_id,
+          username: responseData.username || '',
+          name: responseData.name || '',
+          display_name: responseData.display_name || responseData.name || '',
+          profile_picture_url: responseData.profile_picture_url || '',
+          is_verified: responseData.is_verified || false,
+          likes_count: responseData.likes_count || 0,
+          replies_count: responseData.replies_count || 0,
+          reposts_count: responseData.reposts_count || 0,
+          bookmark_count: responseData.bookmark_count || 0,
+          views: responseData.views || 0,
+          is_liked: responseData.is_liked || responseData.liked_by_user || false,
+          is_bookmarked: responseData.is_bookmarked || responseData.bookmarked_by_user || false,
+          is_reposted: responseData.is_reposted || responseData.reposted_by_user || false,
+          is_pinned: responseData.is_pinned || false,
+          media: (responseData.media || []).map(m => {
+            return {
+              ...m,
+              url: m.url || m.media_url,
+              thumbnail_url: m.thumbnail_url || m.url || m.media_url
+            };
+          }),
+          
+          // Keep original data for reference
+          _originalThread: responseData
+        };
+      }
+    } catch (error) {
+      console.error('Error formatting thread data:', error);
+      // Return a minimal safe object
+      return {
+        id: threadId,
+        content: '',
+        created_at: new Date().toISOString(),
+        user_id: '',
+        username: 'user',
+        name: 'User',
+        display_name: 'User',
+        profile_picture_url: '',
+        likes_count: 0,
+        replies_count: 0,
+        reposts_count: 0,
+        bookmark_count: 0,
+        is_liked: false,
+        is_bookmarked: false,
+        is_reposted: false,
+        is_pinned: false,
+        media: [],
+        _originalThread: responseData
+      };
+    }
+  }
+  
+  // Format reply data to a consistent structure
+  function formatReplyData(replyData) {
+    try {
+      // Check if reply has nested structure
+      if (replyData.reply && replyData.user) {
+        const reply = replyData.reply || {};
+        const user = replyData.user || {};
+        
+        return {
+          id: replyData.id || reply.id,
+          content: reply.content || '',
+          created_at: reply.created_at || new Date().toISOString(),
+          updated_at: reply.updated_at,
+          thread_id: reply.thread_id || threadId,
+          user_id: user.id || reply.user_id,
+          username: user.username || '',
+          name: user.name || '',
+          display_name: user.display_name || user.name || '',
+          profile_picture_url: user.profile_picture_url || '',
+          is_verified: user.is_verified || false,
+          likes_count: replyData.likes_count || reply.likes_count || 0,
+          replies_count: replyData.replies_count || reply.replies_count || 0,
+          reposts_count: replyData.reposts_count || reply.reposts_count || 0,
+          bookmark_count: replyData.bookmark_count || reply.bookmark_count || 0,
+          views: replyData.views || reply.views || 0,
+          is_liked: replyData.liked_by_user || reply.is_liked || false,
+          is_bookmarked: replyData.bookmarked_by_user || reply.is_bookmarked || false,
+          is_reposted: replyData.reposted_by_user || reply.is_reposted || false,
+          parent_id: reply.parent_id,
+          media: (reply.media || []).map(m => {
+            return {
+              ...m,
+              url: m.url || m.media_url,
+              thumbnail_url: m.thumbnail_url || m.url || m.media_url
+            };
+          }),
+          _originalReply: replyData
+        };
+      }
+      
+      // If not a nested structure, return as is with safe defaults
+      return {
+        ...replyData,
+        content: replyData.content || '',
+        created_at: replyData.created_at || new Date().toISOString(),
+        likes_count: replyData.likes_count || 0,
+        replies_count: replyData.replies_count || 0,
+        reposts_count: replyData.reposts_count || 0,
+        bookmark_count: replyData.bookmark_count || 0,
+        media: (replyData.media || []).map(m => {
+          return {
+            ...m,
+            url: m.url || m.media_url,
+            thumbnail_url: m.thumbnail_url || m.url || m.media_url
+          };
+        }),
+      };
+    } catch (error) {
+      console.error('Error formatting reply data:', error);
+      // Return a safe object
+      return replyData;
     }
   }
 
@@ -37,15 +205,26 @@
   async function loadThreadWithReplies() {
     isLoading = true;
     try {
-      // Load the thread
-      const threadData = await getThread(threadId);
-      console.log('Thread data received from API:', threadData);
+      // Check if we have threadId
+      if (!threadId) {
+        console.error('No thread ID available');
+        isLoading = false;
+        return;
+      }
       
-      // Process the thread data with our utility
-      thread = ensureTweetFormat(threadData);
-      console.log('Processed thread data:', thread);
+      // Always load fresh thread data from API
+      const response = await getThread(threadId);
+      console.log('Thread data from API:', response);
       
-      // Load replies to the thread
+      if (!response) {
+        throw new Error('Failed to load thread data');
+      }
+      
+      // Process the response using our formatter
+      thread = formatThreadData(response);
+      console.log('Processed thread:', thread);
+      
+      // Load replies
       await loadReplies(threadId);
       
     } catch (error) {
@@ -59,14 +238,24 @@
   // Load replies for a thread
   async function loadReplies(threadId: string) {
     try {
+      // Get the replies from the API
       const response = await getThreadReplies(threadId);
+      console.log('Replies data:', response);
       
-      if (response && response.replies) {
-        replies = (response.replies as any[]).map(reply => ensureTweetFormat(reply));
+      if (response && response.replies && Array.isArray(response.replies)) {
+        // Process replies to make them compatible with TweetCard
+        replies = response.replies
+          .map(formatReplyData)
+          .filter(reply => reply && reply.id); // Filter out any null or invalid replies
         
-        // Load nested replies for each reply that has them
+        // Check structure of first reply to validate
+        if (replies.length > 0) {
+          console.log('Processed reply structure:', replies[0]);
+        }
+        
+        // Pre-load nested replies for each reply that has them
         for (const reply of replies) {
-          if (reply.replies_count && reply.replies_count > 0) {
+          if (reply && reply.replies_count && reply.replies_count > 0) {
             await loadNestedReplies(reply.id);
           }
         }
@@ -80,10 +269,15 @@
   async function loadNestedReplies(replyId: string) {
     try {
       const response = await getReplyReplies(replyId);
+      console.log(`Nested replies for ${replyId}:`, response);
       
-      if (response && response.replies) {
-        const nestedReplies = (response.replies as any[]).map(reply => ensureTweetFormat(reply));
-        nestedRepliesMap.set(replyId, nestedReplies);
+      if (response && response.replies && Array.isArray(response.replies)) {
+        // Process nested replies using the same formatter
+        const processedReplies = response.replies
+          .map(formatReplyData)
+          .filter(reply => reply && reply.id); // Filter out any null entries
+        
+        nestedRepliesMap.set(replyId, processedReplies);
         nestedRepliesMap = new Map(nestedRepliesMap); // Force reactivity update
       }
     } catch (error) {
@@ -97,7 +291,8 @@
     
     if (!newReply) return;
     
-    const processedReply = ensureTweetFormat(newReply);
+    // Process the new reply using the formatter
+    const processedReply = formatReplyData(newReply);
     
     // If refreshing replies for a thread
     if (threadId === thread?.id && !parentReplyId) {
@@ -141,18 +336,14 @@
     
     // If replying to the main thread
     if (thread && targetId === thread.id) {
-      replyTo = ensureTweetFormat({
+      replyTo = {
         id: thread.id,
-        content: thread.content,
-        username: thread.username || thread.author?.username || '',
-        name: thread.name,
-        display_name: thread.display_name,
-        parent_id: null,
-        is_pinned: false,
-        avatar: thread.avatar || thread.profile_picture_url,
-        user_id: thread.user_id,
-        created_at: thread.created_at
-      });
+        content: thread.content || '',
+        username: thread.username || '',
+        name: thread.name || '',
+        user_id: thread.user_id || '',
+        created_at: thread.created_at || new Date().toISOString()
+      };
     } 
     // If replying to a reply
     else {
@@ -160,37 +351,30 @@
       const targetReply = replies.find(r => r.id === targetId);
       
       if (targetReply) {
-        replyTo = ensureTweetFormat({
+        replyTo = {
           id: targetReply.id,
           thread_id: thread?.id,
-          content: targetReply.content,
-          username: targetReply.username,
-          name: targetReply.name,
-          parent_id: null,
-          is_pinned: false,
-          avatar: targetReply.avatar || targetReply.profile_picture_url,
-          parentReplyId: targetReply.parentReplyId || targetReply.parent_reply_id,
-          user_id: targetReply.user_id,
-          created_at: targetReply.created_at
-        });
+          content: targetReply.content || '',
+          username: targetReply.username || '',
+          name: targetReply.name || '',
+          user_id: targetReply.user_id || ''
+        };
       } else {
         // Check in nested replies
         for (const [parentId, nestedReplies] of nestedRepliesMap.entries()) {
+          if (!Array.isArray(nestedReplies)) continue;
+          
           const nestedReply = nestedReplies.find(r => r.id === targetId);
           if (nestedReply) {
-            replyTo = ensureTweetFormat({
+            replyTo = {
               id: nestedReply.id,
               thread_id: thread?.id,
-              content: nestedReply.content,
-              username: nestedReply.username,
-              name: nestedReply.name,
-              parent_id: null,
-              is_pinned: false,
-              avatar: nestedReply.avatar || nestedReply.profile_picture_url,
-              parentReplyId: parentId,
-              user_id: nestedReply.user_id,
-              created_at: nestedReply.created_at
-            });
+              parent_reply_id: parentId,
+              content: nestedReply.content || '',
+              username: nestedReply.username || '',
+              name: nestedReply.name || '',
+              user_id: nestedReply.user_id || ''
+            };
             break;
           }
         }
@@ -200,129 +384,36 @@
     showReplyForm = true;
   }
   
-  // Like, unlike, bookmark, unbookmark handlers
-  function handleLike(event: CustomEvent<string>) {
-    const tweetId = event.detail;
-    if (thread && tweetId === thread.id) {
-      thread.is_liked = true;
-      thread.likes_count = (thread.likes_count || 0) + 1;
-      thread = { ...thread }; // Force reactivity
-    } else {
-      updateNestedInteraction(tweetId, 'like', true);
-    }
-  }
-  
-  function handleUnlike(event: CustomEvent<string>) {
-    const tweetId = event.detail;
-    if (thread && tweetId === thread.id) {
-      thread.is_liked = false;
-      thread.likes_count = Math.max(0, (thread.likes_count || 0) - 1);
-      thread = { ...thread }; // Force reactivity
-    } else {
-      updateNestedInteraction(tweetId, 'like', false);
-    }
-  }
-  
-  function handleBookmark(event: CustomEvent<string>) {
-    const tweetId = event.detail;
-    if (thread && tweetId === thread.id) {
-      thread.is_bookmarked = true;
-      thread.bookmark_count = (thread.bookmark_count || 0) + 1;
-      thread = { ...thread }; // Force reactivity
-    } else {
-      updateNestedInteraction(tweetId, 'bookmark', true);
-    }
-  }
-  
-  function handleRemoveBookmark(event: CustomEvent<string>) {
-    const tweetId = event.detail;
-    if (thread && tweetId === thread.id) {
-      thread.is_bookmarked = false;
-      thread.bookmark_count = Math.max(0, (thread.bookmark_count || 0) - 1);
-      thread = { ...thread }; // Force reactivity
-    } else {
-      updateNestedInteraction(tweetId, 'bookmark', false);
-    }
-  }
-  
-  // Update like or bookmark status in nested replies
-  function updateNestedInteraction(tweetId: string, type: 'like' | 'bookmark', isActive: boolean) {
-    // Check in first level replies
-    const replyIndex = replies.findIndex(r => r.id === tweetId);
-    
-    if (replyIndex >= 0) {
-      if (type === 'like') {
-        replies[replyIndex].is_liked = isActive;
-        replies[replyIndex].likes_count = isActive 
-          ? (replies[replyIndex].likes_count || 0) + 1
-          : Math.max(0, (replies[replyIndex].likes_count || 0) - 1);
-      } else {
-        replies[replyIndex].is_bookmarked = isActive;
-        replies[replyIndex].bookmark_count = isActive 
-          ? (replies[replyIndex].bookmark_count || 0) + 1
-          : Math.max(0, (replies[replyIndex].bookmark_count || 0) - 1);
-      }
-      
-      // Force reactivity update
-      replies = [...replies];
-      return;
-    }
-    
-    // Check in nested replies
-    for (const [parentId, nestedReplies] of nestedRepliesMap.entries()) {
-      const nestedReplyIndex = nestedReplies.findIndex(r => r.id === tweetId);
-      if (nestedReplyIndex >= 0) {
-        const updatedReplies = [...nestedReplies];
-        
-        if (type === 'like') {
-          updatedReplies[nestedReplyIndex].is_liked = isActive;
-          updatedReplies[nestedReplyIndex].likes_count = isActive 
-            ? (updatedReplies[nestedReplyIndex].likes_count || 0) + 1
-            : Math.max(0, (updatedReplies[nestedReplyIndex].likes_count || 0) - 1);
-        } else {
-          updatedReplies[nestedReplyIndex].is_bookmarked = isActive;
-          updatedReplies[nestedReplyIndex].bookmark_count = isActive 
-            ? (updatedReplies[nestedReplyIndex].bookmark_count || 0) + 1
-            : Math.max(0, (updatedReplies[nestedReplyIndex].bookmark_count || 0) - 1);
-        }
-        
-        // Update the map with the modified array
-        nestedRepliesMap.set(parentId, updatedReplies);
-        // Force reactivity update
-        nestedRepliesMap = new Map(nestedRepliesMap);
-        return;
-      }
-    }
-  }
+  // Handle like, unlike, bookmark, unbookmark events by forwarding them
+  function handleLike(event) { dispatch('like', event.detail); }
+  function handleUnlike(event) { dispatch('unlike', event.detail); }
+  function handleBookmark(event) { dispatch('bookmark', event.detail); }
+  function handleRemoveBookmark(event) { dispatch('removeBookmark', event.detail); }
+  function handleRepost(event) { dispatch('repost', event.detail); }
   
   // Initialize component
   onMount(() => {
-    if (threadId) {
+    // Always load thread on mount
       loadThreadWithReplies();
-    }
-    
-    // Add event listener to check for theme changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'data-theme') {
-          isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    
-    // Initial check
-    isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
-    
-    return () => {
-      observer.disconnect();
-    };
   });
+  
+  // Clean up subscription on component destruction
+  onDestroy(() => {
+    // No cleanup needed since we're not using store subscription
+  });
+
+  // Svelte's createEventDispatcher workaround
+  function dispatch(event, data) {
+    const customEvent = new CustomEvent(event, {
+      detail: data,
+      bubbles: true
+    });
+    document.dispatchEvent(customEvent);
+  }
 </script>
 
 <svelte:head>
-  <title>{thread ? `${thread.name || thread.display_name || 'User'}'s Post` : 'Thread'} | AYCOM</title>
+  <title>{thread ? `${thread.name || 'User'}'s Post` : 'Thread'} | AYCOM</title>
 </svelte:head>
 
 <div class="thread-detail-container">
@@ -351,8 +442,6 @@
           tweet={thread} 
           {isDarkMode}
           isAuth={authStore.isAuthenticated()}
-          isLiked={thread.is_liked || false}
-          isBookmarked={thread.is_bookmarked || false}
           showReplies={true}
           replies={replies}
           {nestedRepliesMap}
@@ -361,18 +450,22 @@
           on:unlike={handleUnlike}
           on:bookmark={handleBookmark}
           on:removeBookmark={handleRemoveBookmark}
+          on:repost={handleRepost}
           on:loadReplies={() => {}}
         />
         
         <!-- Reply Form -->
         {#if showReplyForm && replyTo}
           <div class="reply-form-container">
-            <ComposeTweet 
-              {isDarkMode} 
-              {replyTo}
+            <ComposeTweetModal 
+              isOpen={showReplyForm}
+              avatar={replyTo.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"}
               on:close={() => showReplyForm = false}
-              on:tweet={() => showReplyForm = false}
-              on:refreshReplies={handleRefreshReplies}
+              on:posted={(event) => {
+                showReplyForm = false;
+                // Refresh the thread to show the new reply
+                loadThreadWithReplies();
+              }}
             />
           </div>
         {:else}
@@ -381,18 +474,15 @@
               class="reply-button"
               on:click={() => {
                 if (thread) {
-                  replyTo = ensureTweetFormat({
+                  replyTo = {
                     id: thread.id,
-                    content: thread.content,
+                    content: thread.content || '',
                     username: thread.username || '',
                     name: thread.name || '',
-                    parent_id: null,
-                    is_pinned: false,
-                    avatar: thread.avatar || thread.profile_picture_url,
-                    user_id: thread.user_id,
-                    created_at: thread.created_at
-                  });
-                  showReplyForm = true;
+                    user_id: thread.user_id || '',
+                    created_at: thread.created_at || new Date().toISOString()
+                  };
+                showReplyForm = true;
                 }
               }}
             >
@@ -401,11 +491,19 @@
           </div>
         {/if}
         
-        <!-- Replies List with visual connection line -->
+        <!-- Debug info to show thread and replies data -->
+        {#if thread && import.meta.env?.DEV}
+          <details class="p-4 bg-gray-800 text-white text-xs rounded-lg m-2">
+            <summary>Debug thread data</summary>
+            <pre>{JSON.stringify(thread, null, 2)}</pre>
+          </details>
+        {/if}
+        
+        <!-- Replies List with visual connector line -->
         {#if replies && replies.length > 0}
           <div class="reply-section">
             <div class="reply-separator"></div>
-            <!-- Replies are already rendered by TweetCard component -->
+            <!-- Replies are rendered by TweetCard component -->
           </div>
         {/if}
       </div>
