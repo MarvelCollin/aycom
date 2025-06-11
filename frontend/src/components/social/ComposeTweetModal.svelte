@@ -11,12 +11,12 @@
   } from 'svelte-feather-icons';
   import { createThread, uploadThreadMedia, replyToThread } from '../../api/thread';
   import { suggestThreadCategory } from '../../api/thread';
-  import { getCommunityCategories } from '../../api/community';
+  import { getCommunityCategories, getUserCommunities, getJoinedCommunities } from '../../api/community';
   import { getThreadCategories } from '../../api/categories';
   import { toastStore } from '../../stores/toastStore';
   import { useTheme } from '../../hooks/useTheme';
   import { debounce } from '../../utils/helpers';
-  import { getAuthToken, getUserRole } from '../../utils/auth';
+  import { getAuthToken, getUserRole, getUserId } from '../../utils/auth';
   import { uploadMultipleThreadMedia } from '../../utils/supabase';
   import appConfig from '../../config/appConfig';
   import type { ICategory } from '../../interfaces/ICategory';
@@ -52,8 +52,10 @@
   let scheduledDate = '';
   let scheduledTime = '';
   let showCommunityOptions = false;
-  let availableCommunities: ICategory[] = [];
+  let availableCommunities: Array<{id: string, name: string, description?: string, logo_url?: string}> = [];
+  let userCommunities: Array<{id: string, name: string, description?: string, logo_url?: string}> = [];
   let selectedCommunityId = '';
+  let isLoadingCommunities = false;
   let showPollOptions = false;
   let pollQuestion = '';
   let pollOptions = ['', ''];
@@ -98,12 +100,39 @@
   // Load communities
   async function loadCommunities() {
     try {
-      const communities = await getCommunityCategories();
-      availableCommunities = communities;
-      console.log('Loaded communities', availableCommunities);
+      isLoadingCommunities = true;
+      
+      // First load all available categories for selection
+      const categories = await getCommunityCategories();
+      availableCommunities = categories;
+      
+      // Get current user ID
+      const currentUserId = getUserId();
+      if (!currentUserId) {
+        console.error('Failed to get current user ID');
+        isLoadingCommunities = false;
+        return;
+      }
+      
+      // Then load the user's joined communities
+      const userCommunitiesResponse = await getJoinedCommunities(currentUserId);
+      if (userCommunitiesResponse && userCommunitiesResponse.communities) {
+        userCommunities = userCommunitiesResponse.communities.map(community => ({
+          id: community.id,
+          name: community.name,
+          description: community.description,
+          logo_url: community.logo_url || community.avatar
+        }));
+      }
+      
+      console.log('Loaded user communities:', userCommunities);
+      console.log('Loaded all communities:', availableCommunities);
+      isLoadingCommunities = false;
     } catch (error) {
       availableCommunities = [];
+      userCommunities = [];
       console.error('Failed to load communities', error);
+      isLoadingCommunities = false;
     }
   }
   
@@ -500,8 +529,8 @@
   
   // Initialize component
   onMount(() => {
-    loadCommunities();
     checkUserRole();
+    loadCommunities();
   });
 </script>
 
@@ -572,15 +601,46 @@
             {#if showCommunityOptions && !replyTo}
               <div class="compose-tweet-community-selection {isDarkMode ? 'compose-tweet-community-selection-dark' : ''}">
                 <h4>Post to Community</h4>
-                <select 
-                  bind:value={selectedCommunityId} 
-                  class="compose-tweet-community-select {isDarkMode ? 'compose-tweet-community-select-dark' : ''}"
-                >
-                  <option value="">Select a community</option>
-                  {#each availableCommunities as community}
-                    <option value={community.id}>{community.name}</option>
-                  {/each}
-                </select>
+                {#if isLoadingCommunities}
+                  <div class="community-loading">Loading your communities...</div>
+                {:else if userCommunities.length === 0}
+                  <div class="community-empty">
+                    You're not a member of any communities yet. 
+                    <a href="/communities" class="community-link">Join a community</a>
+                  </div>
+                {:else}
+                  <select 
+                    bind:value={selectedCommunityId} 
+                    class="compose-tweet-community-select {isDarkMode ? 'compose-tweet-community-select-dark' : ''}"
+                  >
+                    <option value="">Select a community</option>
+                    {#each userCommunities as community}
+                      <option value={community.id}>{community.name}</option>
+                    {/each}
+                  </select>
+                  
+                  {#if selectedCommunityId}
+                    {#each userCommunities as community}
+                      {#if community.id === selectedCommunityId}
+                        <div class="selected-community-info">
+                          <div class="selected-community-header">
+                            {#if community.logo_url}
+                              <img src={community.logo_url} alt={community.name} class="selected-community-logo" />
+                            {:else}
+                              <div class="selected-community-logo-placeholder">
+                                {community.name.charAt(0).toUpperCase()}
+                              </div>
+                            {/if}
+                            <span class="selected-community-name">{community.name}</span>
+                          </div>
+                          {#if community.description}
+                            <p class="selected-community-description">{community.description}</p>
+                          {/if}
+                        </div>
+                      {/if}
+                    {/each}
+                  {/if}
+                {/if}
               </div>
             {/if}
             
@@ -1384,5 +1444,66 @@
   
   :global(.dark) .category-option:hover {
     background-color: #3f4246;
+  }
+  
+  .community-loading, .community-empty {
+    padding: var(--space-2);
+    margin: var(--space-2) 0;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+  
+  .community-link {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+  
+  .community-link:hover {
+    text-decoration: underline;
+  }
+  
+  .selected-community-info {
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-tertiary);
+  }
+  
+  .selected-community-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+  
+  .selected-community-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .selected-community-logo-placeholder {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-sm);
+  }
+  
+  .selected-community-name {
+    font-weight: var(--font-weight-bold);
+  }
+  
+  .selected-community-description {
+    font-size: var(--font-size-sm);
+    margin: 0;
+    color: var(--text-secondary);
   }
 </style> 

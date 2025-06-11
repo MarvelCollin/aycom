@@ -42,6 +42,7 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
       if (publicResponse.ok) {
         const data = await publicResponse.json();
         if (!data || !data.trends || !Array.isArray(data.trends)) {
+          logger.warn('Invalid data format from trends API (public response)');
           return [];
         }
         
@@ -61,8 +62,15 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
     
     const data = await response.json();
     
-    if (!data || !data.trends || !Array.isArray(data.trends)) {
-      logger.warn('Invalid data format from trends API');
+    // Handle different API response formats
+    if (data && data.data && Array.isArray(data.data.trends)) {
+      // Format: { data: { trends: [...] } }
+      return data.data.trends;
+    } else if (data && Array.isArray(data.trends)) {
+      // Format: { trends: [...] }
+      return data.trends;
+    } else {
+      logger.warn('Invalid data format from trends API', { data });
       return [];
     }
     

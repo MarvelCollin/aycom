@@ -3,6 +3,8 @@
   import UserCard from '../social/UserCard.svelte';
   import Button from '../common/Button.svelte';
   import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
+  import UserMinusIcon from 'svelte-feather-icons/src/icons/UserMinusIcon.svelte';
+  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
 
   // Types
   interface Member {
@@ -20,6 +22,7 @@
   export let members: Member[] = [];
   export let pendingMembers: Member[] = [];
   export let canManageCommunity: boolean = false;
+  export let currentUserId: string = ''; // Add current user ID to prevent self-kick
 
   // Event dispatcher
   const dispatch = createEventDispatcher();
@@ -31,22 +34,64 @@
   function handleRejectJoinRequest(requestId: string) {
     dispatch('rejectJoinRequest', requestId);
   }
+  
+  function handleKickMember(userId: string, username: string) {
+    if (confirm(`Are you sure you want to remove ${username} from this community?`)) {
+      dispatch('kickMember', userId);
+    }
+  }
+  
+  // Function to check if current user can kick another member
+  function canKickMember(member: Member): boolean {
+    if (!canManageCommunity) return false;
+    if (member.user_id === currentUserId) return false; // Can't kick yourself
+    
+    // Admins and owners cannot be kicked by regular moderators
+    if ((member.role === 'admin' || member.role === 'owner')) return false;
+    
+    return true;
+  }
 </script>
 
 <div class="members-container">
   <h2 class="section-title">Members ({members.length})</h2>
   {#if members.length > 0}
-    <div class="members-grid">
+    <div class="members-list">
       {#each members as member (member.id)}
-        <UserCard 
-          user={{
-            id: member.user_id || member.id,
-            name: member.name || member.username || 'Unknown User',
-            username: member.username || `user_${(member.user_id || '').substring(0, 8)}`,
-            avatar_url: member.avatar_url || '',
-            role: member.role || 'member'
-          }} 
-        />
+        <div class="member-card">
+          <UserCard 
+            user={{
+              id: member.user_id || member.id,
+              name: member.name || member.username || 'Unknown User',
+              username: member.username || `user_${(member.user_id || '').substring(0, 8)}`,
+              avatar_url: member.avatar_url || '',
+              role: member.role || 'member'
+            }}
+            showFollowButton={false}
+          />
+          
+          {#if canManageCommunity}
+            <div class="member-actions">
+              {#if canKickMember(member)}
+                <div on:click|stopPropagation>
+                  <Button 
+                    variant="danger" 
+                    size="small"
+                    icon={UserMinusIcon}
+                    on:click={() => handleKickMember(member.user_id, member.username)}
+                  >
+                    Kick
+                  </Button>
+                </div>
+              {:else if member.role === 'owner' || member.role === 'admin'}
+                <div class="protected-badge">
+                  <ShieldIcon size="16" />
+                  <span>{member.role === 'owner' ? 'Owner' : 'Admin'}</span>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
       {/each}
     </div>
   {:else}
@@ -111,6 +156,42 @@
     margin-bottom: var(--space-4);
     padding-bottom: var(--space-2);
     border-bottom: 1px solid var(--border-color);
+  }
+  
+  .members-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  
+  .member-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-secondary);
+    transition: background-color 0.2s;
+  }
+  
+  .member-card:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .member-actions {
+    margin-left: var(--space-2);
+  }
+  
+  .protected-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
   }
 
   .members-grid {

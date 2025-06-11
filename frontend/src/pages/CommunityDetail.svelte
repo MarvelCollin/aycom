@@ -47,6 +47,10 @@
   import LockIcon from 'svelte-feather-icons/src/icons/LockIcon.svelte';
   import LogOutIcon from 'svelte-feather-icons/src/icons/LogOutIcon.svelte';
   import UserPlusIcon from 'svelte-feather-icons/src/icons/UserPlusIcon.svelte';
+  import TrendingUpIcon from 'svelte-feather-icons/src/icons/TrendingUpIcon.svelte';
+  import ClockIcon from 'svelte-feather-icons/src/icons/ClockIcon.svelte';
+  import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
+  import UserCheckIcon from 'svelte-feather-icons/src/icons/UserCheckIcon.svelte';
     // Components
   import TweetCard from '../components/social/TweetCard.svelte';
   import Spinner from '../components/common/Spinner.svelte';
@@ -142,8 +146,18 @@
   let rules: Rule[] = [];
   let threads: Thread[] = [];
   let pendingMembers: Member[] = [];
-  let activeTab = 'posts'; // 'posts', 'members', 'rules', 'about'
+  let activeTab = 'top'; // 'top', 'latest', 'media', 'about', 'manage'
   let errorMessage = '';
+  
+  // Add properties to store different thread types
+  let topThreads: Thread[] = [];
+  let latestThreads: Thread[] = [];
+  let mediaThreads: Thread[] = [];
+  let isLoadingTopThreads = false;
+  let isLoadingLatestThreads = false;
+  let isLoadingMediaThreads = false;
+  let topMembers: Member[] = [];
+  let isLoadingTopMembers = false;
   
   onMount(async () => {
     if (!communityId) {
@@ -297,7 +311,11 @@
           loadThreads(),
           loadMembers(),
           loadRules(),
-          loadPendingMembers()
+          loadPendingMembers(),
+          loadTopThreads(),
+          loadLatestThreads(),
+          loadMediaThreads(),
+          loadTopMembers()
         ]);
       } catch (loadError) {
         console.warn('Error loading related community data:', loadError);
@@ -540,12 +558,30 @@
     }
   }
   
-  const tabItems = [
-    { id: 'posts', label: 'Posts', icon: MessageSquareIcon },
-    { id: 'members', label: 'Members', icon: UsersIcon },
-    { id: 'rules', label: 'Rules', icon: AlertCircleIcon },
-    { id: 'about', label: 'About', icon: InfoIcon }
-  ];
+  // Update the tabItems array with the new tabs - make it reactive to ensure it's evaluated after authState
+  $: {
+    console.log('Re-evaluating tabItems with authState:', 
+      authState ? { isAuthenticated: authState.is_authenticated, userId: authState.user_id } : 'undefined', 
+      'Community creator:', community?.creator_id);
+  }
+  
+  $: tabItems = [
+    { id: 'top', label: 'Top', icon: TrendingUpIcon },
+    { id: 'latest', label: 'Latest', icon: ClockIcon },
+    { id: 'media', label: 'Media', icon: ImageIcon },
+    { id: 'about', label: 'About', icon: InfoIcon },
+    { 
+      id: 'manage', 
+      label: 'Manage Members', 
+      icon: UserCheckIcon, 
+      condition: () => {
+        const isCreator = community?.creator_id === authState?.user_id;
+        const hasRole = ['owner', 'admin', 'moderator'].includes(userRole);
+        console.log('Manage tab condition:', { isCreator, hasRole, userRole, canManage: canManageCommunity() });
+        return authState?.is_authenticated && (isCreator || hasRole);
+      }
+    }
+  ].filter(tab => !tab.condition || tab.condition());
   
   // Function to handle join/leave community toggle
   function toggleJoinCommunity() {
@@ -669,14 +705,145 @@
   
   // Check if user can manage the community (approve/reject join requests, etc.)
   function canManageCommunity(): boolean {
+    // Safety check - if authState is undefined, return false
+    if (!authState) return false;
+    
+    // Debug the owner check
+    console.log('DEBUG canManageCommunity:', {
+      userRole,
+      authUserId: authState.user_id,
+      communityCreatorId: community?.creator_id,
+      isAuthUserCreator: community?.creator_id === authState.user_id
+    });
+    
     // User must be logged in and have appropriate role
     // Ownership is determined either by userRole or by being the creator
     const isOwner = userRole === 'owner' || 
-                    (community?.creator_id && authState.user_id === community.creator_id);
+                    (community?.creator_id && community.creator_id === authState.user_id);
     const isAdmin = userRole === 'admin';
     const isModerator = userRole === 'moderator';
     
-    return authState.is_authenticated && (isOwner || isAdmin || isModerator);
+    const canManage = authState.is_authenticated && (isOwner || isAdmin || isModerator);
+    console.log('Can manage community:', canManage);
+    return canManage;
+  }
+  
+  // Handle kicking a member from the community
+  async function handleKickMember(userId: string) {
+    if (!communityId || !authState.user_id) return;
+    
+    try {
+      // Call the API to remove the member
+      await removeMember(communityId, userId);
+      toastStore.showToast('Member removed from community', 'success');
+      
+      // Refresh the members list
+      await loadMembers();
+    } catch (error) {
+      logger.error('Error kicking member:', error);
+      toastStore.showToast('Failed to remove member. Please try again.', 'error');
+    }
+  }
+  
+  async function loadTopThreads() {
+    try {
+      isLoadingTopThreads = true;
+      
+      // First try to fetch from backend API for top threads
+      try {
+        // Here we would call a specific API endpoint for top threads if available
+        // For example: const response = await fetch(`${API_BASE_URL}/communities/${communityId}/top-threads`);
+        
+        // For now, we'll use the existing threads and sort them by likes
+        console.log('Sorting threads by likes to get top threads');
+        topThreads = [...threads].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 10);
+      } catch (apiError) {
+        console.warn('Error fetching top threads from API, falling back to client-side sorting', apiError);
+        topThreads = [...threads].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 10);
+      }
+      
+      isLoadingTopThreads = false;
+    } catch (error) {
+      logger.error('Error loading top threads:', error);
+      isLoadingTopThreads = false;
+    }
+  }
+  
+  async function loadLatestThreads() {
+    try {
+      isLoadingLatestThreads = true;
+      // Here you would call an API to get latest threads
+      // For now, we'll just sort the existing threads by date
+      latestThreads = [...threads].sort((a, b) => {
+        const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return dateB - dateA;
+      });
+      isLoadingLatestThreads = false;
+    } catch (error) {
+      logger.error('Error loading latest threads:', error);
+      isLoadingLatestThreads = false;
+    }
+  }
+  
+  async function loadMediaThreads() {
+    try {
+      isLoadingMediaThreads = true;
+      // Here you would call an API to get media threads
+      // For now, we'll just filter threads that might contain media
+      // This is just a placeholder - in a real app, you'd check for actual media attachments
+      mediaThreads = [...threads].filter(thread => 
+        thread.content && (
+          thread.content.includes('image') || 
+          thread.content.includes('gif') || 
+          thread.content.includes('video')
+        )
+      );
+      isLoadingMediaThreads = false;
+    } catch (error) {
+      logger.error('Error loading media threads:', error);
+      isLoadingMediaThreads = false;
+    }
+  }
+  
+  async function loadTopMembers() {
+    try {
+      isLoadingTopMembers = true;
+      
+      // First try to fetch from backend API for top members
+      try {
+        // Here we would call a specific API endpoint for top members if available
+        // For example: const response = await fetch(`${API_BASE_URL}/communities/${communityId}/top-members`);
+        
+        // For now, we'll check if we have member data and sort it by a proxy for popularity
+        // In a real application, you would have a dedicated API endpoint for this
+        if (members && members.length > 0) {
+          console.log('Selecting top members from available members');
+          
+          // Since we don't have follower count in our current data model,
+          // we'll just take the first 3 members, prioritizing admins and moderators
+          const sortedMembers = [...members].sort((a, b) => {
+            // First prioritize by role (admin > moderator > member)
+            const roleValueMap = { owner: 3, admin: 2, moderator: 1, member: 0 };
+            const roleValueA = roleValueMap[a.role] || 0;
+            const roleValueB = roleValueMap[b.role] || 0;
+            return roleValueB - roleValueA;
+          });
+          
+          topMembers = sortedMembers.slice(0, 3);
+        } else {
+          topMembers = [];
+        }
+      } catch (apiError) {
+        console.warn('Error fetching top members from API, falling back to first 3 members', apiError);
+        topMembers = members.slice(0, 3);
+      }
+      
+      isLoadingTopMembers = false;
+    } catch (error) {
+      logger.error('Error loading top members:', error);
+      isLoadingTopMembers = false;
+    }
   }
 </script>
 
@@ -758,30 +925,101 @@
         />
       </div>
         <div class="community-content">
-        {#if activeTab === 'posts'}
-          <CommunityPosts 
-            {threads}
-            {isMember}
-            canPostInCommunity={canPostInCommunity()}
-            communityIsApproved={community.is_approved}
-            on:threadClick={handleThreadClick}
-            on:createPost={handleCreatePost}
-          />
+        {#if activeTab === 'top'}
+          <div class="top-content">
+            <h2 class="section-title">Top Members</h2>
+            <div class="top-members">
+              {#if isLoadingTopMembers}
+                <div class="loading-indicator"><Spinner size="medium" /></div>
+              {:else if topMembers.length > 0}
+                {#each topMembers as member}
+                  <UserCard 
+                    user={{
+                      id: member.user_id,
+                      username: member.username,
+                      name: member.name,
+                      avatar_url: member.avatar_url,
+                      role: member.role
+                    }}
+                    showFollowButton={false}
+                  />
+                {/each}
+              {:else}
+                <p class="empty-message">No members to display.</p>
+              {/if}
+            </div>
+            
+            <h2 class="section-title">Top Posts</h2>
+            {#if isLoadingTopThreads}
+              <div class="loading-indicator"><Spinner size="medium" /></div>
+            {:else if topThreads.length > 0}
+              <CommunityPosts 
+                threads={topThreads}
+                isMember={isMember}
+                canPostInCommunity={canPostInCommunity()}
+                communityIsApproved={community.is_approved}
+                on:threadClick={handleThreadClick}
+                on:createPost={handleCreatePost}
+              />
+            {:else}
+              <p class="empty-message">No posts to display.</p>
+            {/if}
+          </div>
         
-        {:else if activeTab === 'members'}
+        {:else if activeTab === 'latest'}
+          <h2 class="section-title">Latest Posts</h2>
+          {#if isLoadingLatestThreads}
+            <div class="loading-indicator"><Spinner size="medium" /></div>
+          {:else if latestThreads.length > 0}
+            <CommunityPosts 
+              threads={latestThreads}
+              isMember={isMember}
+              canPostInCommunity={canPostInCommunity()}
+              communityIsApproved={community.is_approved}
+              on:threadClick={handleThreadClick}
+              on:createPost={handleCreatePost}
+            />
+          {:else}
+            <p class="empty-message">No recent posts to display.</p>
+          {/if}
+        
+        {:else if activeTab === 'media'}
+          <h2 class="section-title">Media</h2>
+          {#if isLoadingMediaThreads}
+            <div class="loading-indicator"><Spinner size="medium" /></div>
+          {:else if mediaThreads.length > 0}
+            <div class="media-grid">
+              {#each mediaThreads as thread}
+                <div class="media-item" on:click={() => handleThreadClick({ detail: thread })}>
+                  <!-- This is a placeholder for media content - in a real app, you'd display actual media -->
+                  <div class="media-preview">
+                    <ImageIcon size="48" />
+                  </div>
+                  <div class="media-info">
+                    <span class="media-author">{thread.username || 'User'}</span>
+                    <span class="media-date">{thread.timestamp ? new Date(thread.timestamp).toLocaleDateString() : 'Unknown date'}</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="empty-message">No media content to display.</p>
+          {/if}
+        
+        {:else if activeTab === 'about'}
+          <CommunityAbout {community} />
+        
+        {:else if activeTab === 'manage'}
+          <h2 class="section-title">Manage Members</h2>
           <CommunityMembers 
             {members}
             {pendingMembers}
             canManageCommunity={canManageCommunity()}
+            currentUserId={authState.user_id}
             on:approveJoinRequest={(e) => handleApproveJoinRequest(e.detail)}
             on:rejectJoinRequest={(e) => handleRejectJoinRequest(e.detail)}
+            on:kickMember={(e) => handleKickMember(e.detail)}
           />
-          
-        {:else if activeTab === 'rules'}
-          <CommunityRules {rules} />
-          
-        {:else if activeTab === 'about'}
-          <CommunityAbout {community} />
         {/if}
       </div>
     {:else}
@@ -967,6 +1205,99 @@
     
     .community-stats {
       justify-content: center;
+    }
+  }
+  
+  .top-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  
+  .section-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .top-members {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  
+  .media-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+  }
+  
+  .media-item {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    background-color: var(--bg-secondary);
+    aspect-ratio: 1;
+  }
+  
+  .media-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .media-preview {
+    width: 100%;
+    height: 80%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-tertiary);
+  }
+  
+  .media-info {
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .media-author {
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .media-date {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+  
+  .loading-indicator {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-6);
+  }
+  
+  .empty-message {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: var(--space-6);
+  }
+  
+  /* Responsive adjustments for the media grid */
+  @media (max-width: 768px) {
+    .media-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .media-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

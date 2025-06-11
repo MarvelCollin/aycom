@@ -38,20 +38,6 @@
     message?: string;
   }
 
-  interface RequestsResponse extends BaseResponse {
-    requests?: any[];
-    total_count?: number;
-    page?: number;
-    total_pages?: number;
-  }
-
-  interface CategoriesResponse extends BaseResponse {
-    categories?: any[];
-    total_count?: number;
-    page?: number;
-    total_pages?: number;
-  }
-
   const logger = createLoggerWithPrefix('AdminDashboard');
 
   const { getAuthState } = useAuth();
@@ -178,10 +164,10 @@
   let isLoadingReportRequests = false;
   let isLoadingCategories = false;
 
-  let communityRequestsPagination: RequestsResponse | null = null;
-  let premiumRequestsPagination: RequestsResponse | null = null;
-  let reportRequestsPagination: RequestsResponse | null = null;
-  let categoriesPagination: CategoriesResponse | null = null;
+  let communityRequestsPagination: any = null;
+  let premiumRequestsPagination: any = null;
+  let reportRequestsPagination: any = null;
+  let categoriesPagination: any = null;
 
   let communityRequestsPage = 1;
   let premiumRequestsPage = 1;
@@ -198,55 +184,66 @@
       isAdmin = await checkAdmin();
 
       if (isAdmin) {
-        logger.info("User is admin, loading dashboard data");
         await loadDashboardData();
+        
+        // Also load categories on initial load for quicker access
+        if (activeTab !== 'categories') {
+          logger.info("Pre-loading categories data for better user experience");
+          await loadCategories();
+        }
       } else {
-        logger.warn("User is not an admin but reached admin page");
+        // Handle non-admin users
+        logger.warn("User is not an admin");
+        window.location.href = '/feed';
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to load admin data', error);
-      toastStore.showToast(`Failed to load admin data: ${message}`, 'error');
+      logger.error("Error in onMount:", error);
+      isLoading = false;
+      toastStore.showToast('Error loading admin dashboard. Please try again later.', 'error');
+    } finally {
+      // Ensure loading state is cleared even if there's an error
+      isLoading = false;
     }
   });
 
   async function checkAdmin() {
     try {
-
-      logger.info('Checking admin status from auth state:', authState);
-      if (authState.is_authenticated && authState.is_admin === true) {
-        logger.info('Admin access granted based on auth state');
+      logger.info("Checking admin status with authState:", authState);
+      
+      // First check if the user is already marked as admin in the auth state
+      if (authState && authState.is_admin === true) {
+        logger.info("User is admin according to auth state");
         return true;
       }
-
-      logger.info('Auth state admin check failed, calling check-admin API endpoint');
-      const adminCheckResult = await checkAdminStatus();
-
-      if (adminCheckResult) {
-        logger.info('Admin access granted based on API check');
-
+      
+      // If not, make an API call to check admin status
+      logger.info("Checking admin status via API call");
+      const isAdmin = await checkAdminStatus();
+      
+      if (isAdmin) {
+        logger.info("API confirmed user is admin");
+        
+        // Update the auth state in localStorage
         try {
           const authData = localStorage.getItem('auth');
           if (authData) {
             const auth = JSON.parse(authData);
             auth.is_admin = true;
             localStorage.setItem('auth', JSON.stringify(auth));
-            logger.info('Updated localStorage with admin status');
+            logger.info("Updated localStorage with admin status");
           }
         } catch (e) {
-          logger.error('Error updating auth state:', e);
+          logger.error("Error updating auth state:", e);
         }
-
+        
         return true;
+      } else {
+        logger.warn("User is not an admin according to API");
+        return false;
       }
-
-      logger.error('Non-admin user attempted to access admin page');
-      toastStore.showToast('You do not have permission to access this page', 'error');
-      window.location.href = '/feed';
-      return false;
     } catch (error) {
-      logger.error('Admin check failed with error:', error);
-      toastStore.showToast('Failed to verify admin access', 'error');
+      logger.error("Error checking admin status:", error);
+      toastStore.showToast('Error checking admin status. Redirecting to feed.', 'error');
       window.location.href = '/feed';
       return false;
     }
@@ -267,7 +264,7 @@
           await loadAllRequests();
           break;
         case 'categories':
-          await loadThreadCategories();
+          await loadCategories();
           break;
       }
 
@@ -349,13 +346,22 @@
       const result = await adminAPI.getCommunityRequests(communityRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
       
       if (result && result.success) {
-        // Standardize community request data
-        communityRequests = result.data ? result.data.map(request => standardizeCommunityRequest(request)) : [];
+        // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
+        if (result.requests && Array.isArray(result.requests)) {
+          communityRequests = result.requests.map(request => standardizeCommunityRequest(request));
+        } else if (result.data && Array.isArray(result.data)) {
+          communityRequests = result.data.map(request => standardizeCommunityRequest(request));
+        } else {
+          communityRequests = [];
+          logger.warn('No valid community requests data found in API response');
+        }
+        
         communityRequestsPagination = result.pagination;
       }
     } catch (error) {
-      console.error('Failed to load community requests:', error);
-      toastStore.showToast('Failed to load community requests. Please try again.', 'error');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to load community requests:', error);
+      toastStore.showToast(`Failed to load community requests: ${message}`, 'error');
     } finally {
       isLoadingCommunityRequests = false;
     }
@@ -367,13 +373,22 @@
       const result = await adminAPI.getPremiumRequests(premiumRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
       
       if (result && result.success) {
-        // Standardize premium request data
-        premiumRequests = result.data ? result.data.map(request => standardizePremiumRequest(request)) : [];
+        // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
+        if (result.requests && Array.isArray(result.requests)) {
+          premiumRequests = result.requests.map(request => standardizePremiumRequest(request));
+        } else if (result.data && Array.isArray(result.data)) {
+          premiumRequests = result.data.map(request => standardizePremiumRequest(request));
+        } else {
+          premiumRequests = [];
+          logger.warn('No valid premium requests data found in API response');
+        }
+        
         premiumRequestsPagination = result.pagination;
       }
     } catch (error) {
-      console.error('Failed to load premium requests:', error);
-      toastStore.showToast('Failed to load premium requests. Please try again.', 'error');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to load premium requests:', error);
+      toastStore.showToast(`Failed to load premium requests: ${message}`, 'error');
     } finally {
       isLoadingPremiumRequests = false;
     }
@@ -385,13 +400,22 @@
       const result = await adminAPI.getReportRequests(reportRequestsPage, 10, reportStatusFilter === 'all' ? undefined : reportStatusFilter);
       
       if (result && result.success) {
-        // Standardize report request data
-        reportRequests = result.data ? result.data.map(request => standardizeReportRequest(request)) : [];
+        // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
+        if (result.requests && Array.isArray(result.requests)) {
+          reportRequests = result.requests.map(request => standardizeReportRequest(request));
+        } else if (result.data && Array.isArray(result.data)) {
+          reportRequests = result.data.map(request => standardizeReportRequest(request));
+        } else {
+          reportRequests = [];
+          logger.warn('No valid report requests data found in API response');
+        }
+        
         reportRequestsPagination = result.pagination;
       }
     } catch (error) {
-      console.error('Failed to load report requests:', error);
-      toastStore.showToast('Failed to load report requests. Please try again.', 'error');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to load report requests:', error);
+      toastStore.showToast(`Failed to load report requests: ${message}`, 'error');
     } finally {
       isLoadingReportRequests = false;
     }
@@ -415,47 +439,49 @@
   }
 
   async function loadCategories() {
+    logger.info('Loading both thread and community categories');
+    isLoadingCategories = true;
+    
     try {
-
-      threadCategories = [];
-      communityCategories = [];
-
-      try {
-        const threadResponse = await adminAPI.getThreadCategories(currentPage, limit);
-        if (threadResponse.success) {
-          threadCategories = threadResponse.categories || [];
-          if (threadResponse.pagination && threadResponse.pagination.total_count) {
-            totalCount = threadResponse.pagination.total_count;
-          }
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Error loading thread categories:', error);
-        toastStore.showToast(`Thread categories: ${message}`, 'warning');
+      // Use Promise.allSettled to load both category types in parallel
+      // This way if one fails, we still get the other
+      const [threadResult, communityResult] = await Promise.allSettled([
+        adminAPI.getThreadCategories(categoriesPage, 50),
+        adminAPI.getCommunityCategories(categoriesPage, 50)
+      ]);
+      
+      // Process thread categories result
+      if (threadResult.status === 'fulfilled' && threadResult.value && threadResult.value.success) {
+        threadCategories = threadResult.value.data || [];
+        logger.info(`Loaded ${threadCategories.length} thread categories`);
+      } else {
+        const error = threadResult.status === 'rejected' ? threadResult.reason : 'Unknown error';
+        logger.warn('Failed to load thread categories:', error);
+        threadCategories = [];
       }
-
-      try {
-        const communityResponse = await adminAPI.getCommunityCategories(currentPage, limit);
-        if (communityResponse.success) {
-          communityCategories = communityResponse.categories || [];
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Error loading community categories:', error);
-        toastStore.showToast(`Community categories: ${message}`, 'warning');
+      
+      // Process community categories result
+      if (communityResult.status === 'fulfilled' && communityResult.value && communityResult.value.success) {
+        communityCategories = communityResult.value.data || [];
+        logger.info(`Loaded ${communityCategories.length} community categories`);
+      } else {
+        const error = communityResult.status === 'rejected' ? communityResult.reason : 'Unknown error';
+        logger.warn('Failed to load community categories:', error);
+        communityCategories = [];
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Error loading categories:', error);
-
-      if (message.includes('permission')) {
-        toastStore.showToast('You do not have sufficient permissions to view these categories', 'error');
-      } else {
-        toastStore.showToast('Failed to load categories', 'error');
-      }
+      toastStore.showToast(`Failed to load categories: ${message}`, 'error');
+      
+      threadCategories = [];
+      communityCategories = [];
+    } finally {
+      isLoadingCategories = false;
     }
   }
-    const tabItems = [
+
+  const tabItems = [
     { id: 'overview', label: 'Overview', icon: TrendingUpIcon },
     { id: 'users', label: 'Users', icon: UsersIcon },
     { id: 'requests', label: 'Requests', icon: AlertCircleIcon },
@@ -466,6 +492,11 @@
   function handleTabChange(event) {
     activeTab = event.detail;
     currentPage = 1; 
+    
+    // Log the tab change for debugging
+    logger.info(`Tab changed to: ${activeTab}`);
+    
+    // Load the appropriate data for the tab
     loadDashboardData();
   }
 
@@ -708,9 +739,11 @@
   
   // For example, in the activeTab watcher
   $: if (activeTab === 'requests') {
+    logger.info("Request tab activated, loading requests data");
     loadAllRequests();
   } else if (activeTab === 'categories') {
-    loadThreadCategories();
+    logger.info("Categories tab activated, loading categories data");
+    loadCategories();
   }
   
   // And in status filter handlers
@@ -1316,30 +1349,35 @@
 
       <div class="modal-body">
         <div class="form-group">
-          <label>Category Type</label>
-          <select bind:value={categoryType}>
+          <label class="form-label">Category Type</label>
+          <select 
+            bind:value={categoryType}
+            class="theme-input"
+          >
             <option value="thread">Thread Category</option>
             <option value="community">Community Category</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label for="category-name">Name</label>
+          <label for="category-name" class="form-label">Name</label>
           <input 
             id="category-name"
             type="text" 
             bind:value={newCategoryName}
             placeholder="Enter category name..."
+            class="theme-input"
           />
         </div>
 
         <div class="form-group">
-          <label for="category-description">Description (Optional)</label>
+          <label for="category-description" class="form-label">Description (Optional)</label>
           <textarea 
             id="category-description"
             bind:value={newCategoryDescription}
             placeholder="Enter category description..."
             rows="3"
+            class="theme-input"
           ></textarea>
         </div>
       </div>
@@ -1367,22 +1405,24 @@
 
       <div class="modal-body">
         <div class="form-group">
-          <label for="edit-category-name">Name</label>
+          <label for="edit-category-name" class="form-label">Name</label>
           <input 
             id="edit-category-name"
             type="text" 
             bind:value={editingCategory.name}
             placeholder="Enter category name..."
+            class="theme-input"
           />
         </div>
 
         <div class="form-group">
-          <label for="edit-category-description">Description</label>
+          <label for="edit-category-description" class="form-label">Description</label>
           <textarea 
             id="edit-category-description"
             bind:value={editingCategory.description}
             placeholder="Enter category description..."
             rows="3"
+            class="theme-input"
           ></textarea>
         </div>
       </div>
@@ -1764,11 +1804,39 @@
     margin-bottom: var(--space-4);
   }
 
+  .form-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+  }
+
   .form-group label {
     display: block;
     margin-bottom: var(--space-2);
     font-weight: var(--font-weight-medium);
     color: var(--text-primary);
+  }
+
+  .theme-input {
+    width: 100%;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  }
+  
+  .dark-theme .theme-input {
+    background-color: var(--dark-bg-secondary);
+    color: var(--dark-text-primary);
+    border-color: var(--dark-border-color);
+  }
+  
+  .theme-input::placeholder {
+    color: var(--text-tertiary);
   }
 
   .form-group input,
@@ -1778,9 +1846,40 @@
     padding: var(--space-3);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
-    background-color: var(--bg-input);
+    background-color: var(--bg-color);
     color: var(--text-primary);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-md);
+    transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  }
+  
+  /* Apply hover and focus styles for form inputs */
+  .form-group input:hover,
+  .form-group textarea:hover,
+  .form-group select:hover,
+  .theme-input:hover {
+    border-color: var(--color-primary);
+  }
+  
+  .form-group input:focus,
+  .form-group textarea:focus,
+  .form-group select:focus,
+  .theme-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-light);
+  }
+  
+  /* Specific styling for select elements to handle native browser rendering */
+  select.theme-input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23536471' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+  }
+  
+  [data-theme="dark"] select.theme-input {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371767b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   }
 
   .form-group textarea {
@@ -1838,16 +1937,18 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    backdrop-filter: blur(3px);
   }
 
   .modal {
-    background-color: var(--bg-primary);
+    background-color: var(--bg-color);
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
     width: 90%;
     max-width: 500px;
     max-height: 90vh;
     overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .modal-header {
@@ -1856,12 +1957,14 @@
     align-items: center;
     padding: var(--space-4);
     border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
   }
 
   .modal-header h3 {
     margin: 0;
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
   }
 
   .modal-close {
@@ -1872,15 +1975,23 @@
     color: var(--text-secondary);
     padding: var(--space-1);
     border-radius: var(--radius-sm);
+    transition: background-color 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
   }
 
   .modal-close:hover {
-    background-color: var(--bg-accent);
+    background-color: var(--bg-hover);
     color: var(--text-primary);
   }
 
   .modal-body {
     padding: var(--space-4);
+    background-color: var(--bg-color);
+    color: var(--text-primary);
   }
 
   .modal-footer {
@@ -1889,6 +2000,7 @@
     gap: var(--space-3);
     padding: var(--space-4);
     border-top: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
   }
 
   .setting-card {

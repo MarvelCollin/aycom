@@ -52,12 +52,28 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
     });
 
     try {
+      // If no token, return empty results to avoid 401 errors
+      if (!token) {
+        logger.warn('No auth token available for getUserCommunities, returning empty results');
+        return {
+          success: true,
+          communities: [],
+          pagination: {
+            total_count: 0,
+            current_page: 1,
+            per_page: 25,
+            total_pages: 0
+          },
+          limit_options: [25, 30, 35]
+        };
+      }
+      
       // First try the new endpoint
       const response = await fetch(`${API_BASE_URL}/communities/user?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          'Authorization': `Bearer ${token}`
         },
         credentials: 'include'
       });
@@ -79,6 +95,23 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
         };
       } else {
         logger.warn(`New endpoint failed with ${response.status}, falling back to old endpoint`);
+        
+        // If we get a 401 or 500, return empty results instead of falling back
+        if (response.status === 401 || response.status === 500) {
+          logger.warn(`Server returned ${response.status}, returning empty results`);
+          return {
+            success: true,
+            communities: [],
+            pagination: {
+              total_count: 0,
+              current_page: 1,
+              per_page: 25,
+              total_pages: 0
+            },
+            limit_options: [25, 30, 35]
+          };
+        }
+        
         // If error, fall back to the old endpoint
         if (params.filter === 'joined') {
           // For joined communities, use filter=joined
@@ -101,27 +134,20 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
         }
       }
     } catch (error) {
-      logger.warn('Error using new endpoint, falling back to old endpoint:', error);
-      // Fallback to old API
-      if (params.filter === 'joined') {
-        // For joined communities, use filter=joined
-        return await getCommunities({
-          ...params,
-          filter: 'joined'
-        });
-      } else if (params.filter === 'pending') {
-        // For pending communities, use filter=pending
-        return await getCommunities({
-          ...params,
-          filter: 'pending'
-        });
-      } else {
-        // For discover, use is_approved=true
-        return await getCommunities({
-          ...params,
-          is_approved: true
-        });
-      }
+      logger.warn('Error using new endpoint, returning empty results:', error);
+      
+      // Return empty results instead of falling back on error
+      return {
+        success: true,
+        communities: [],
+        pagination: {
+          total_count: 0,
+          current_page: 1,
+          per_page: 25,
+          total_pages: 0
+        },
+        limit_options: [25, 30, 35]
+      };
     }
   } catch (error) {
     logger.error('Get user communities failed:', error);

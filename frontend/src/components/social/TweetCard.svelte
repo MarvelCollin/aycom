@@ -27,6 +27,7 @@
   import { authStore } from '../../stores/authStore';
   import { useTheme } from '../../hooks/useTheme';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
+  import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
   
   interface ExtendedTweet extends ITweet {
     retweet_id?: string;
@@ -1695,6 +1696,14 @@
             {/if}
           </div>
           
+          <!-- Community information -->
+          {#if processedTweet.community_id && processedTweet.community_name}
+            <div class="tweet-community-info {isDarkMode ? 'tweet-community-info-dark' : ''}">
+              <UsersIcon size="16" />
+              <span class="tweet-community-name">Posted in {processedTweet.community_name}</span>
+            </div>
+          {/if}
+          
           {#if processedTweet.media && processedTweet.media.length > 0}
             <div class="tweet-media-container {isDarkMode ? 'tweet-media-container-dark' : ''}">
               {#if processedTweet.media.length === 1}
@@ -2806,6 +2815,29 @@
   
   .modal-btn-cancel-dark:hover {
     background-color: var(--bg-hover-dark);
+  }
+
+  /* Community information */
+  .tweet-community-info {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 16px;
+    background-color: rgba(var(--color-primary-rgb), 0.08);
+    color: var(--color-primary);
+    width: fit-content;
+    font-size: 0.85rem;
+  }
+  
+  .tweet-community-info-dark {
+    background-color: rgba(var(--color-primary-rgb), 0.15);
+  }
+  
+  .tweet-community-name {
+    font-weight: 500;
   }
 </style>
 

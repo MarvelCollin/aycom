@@ -21,7 +21,8 @@ export type AdminApiResponse = IApiResponse<{
 // Response for requests endpoints (community, premium, report)
 export interface RequestsResponse {
   success: boolean;
-  data: any[];
+  data: any[];  // Standardized data for frontend use
+  requests?: any[];  // Original requests from backend API
   pagination: IPagination;
 }
 
@@ -96,63 +97,111 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
  * Get all community requests with pagination
  */
 export async function getCommunityRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
-  const response = await apiRequest<RequestsResponse>(
+  const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/community-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
     'GET'
   );
   
-  // Standardize data
-  if (response.data && Array.isArray(response.data)) {
-    response.data = response.data.map(standardizeCommunityRequest);
+  // Backend sends data in 'requests' field, but our interface expects 'data'
+  // Standardize the response format
+  const standardizedResponse: RequestsResponse = {
+    success: response.success || false,
+    data: [],
+    pagination: {
+      total_count: response.total_count || 0,
+      current_page: response.page || page,
+      per_page: limit,
+      total_pages: Math.ceil((response.total_count || 0) / limit)
+    }
+  };
+  
+  // Handle both possible formats (API might return 'requests' or 'data')
+  if (response.requests && Array.isArray(response.requests)) {
+    standardizedResponse.data = response.requests.map(standardizeCommunityRequest);
+  } else if (response.data && Array.isArray(response.data)) {
+    standardizedResponse.data = response.data.map(standardizeCommunityRequest);
   }
   
-  if (response.pagination) {
-    response.pagination = standardizePagination(response.pagination);
+  // Also store original requests array if it exists
+  if (response.requests) {
+    standardizedResponse.requests = response.requests;
   }
   
-  return response;
+  return standardizedResponse;
 }
 
 /**
  * Get premium requests with pagination
  */
 export async function getPremiumRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
-  const response = await apiRequest<RequestsResponse>(
+  const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/premium-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
     'GET'
   );
   
-  // Standardize data
-  if (response.data && Array.isArray(response.data)) {
-    response.data = response.data.map(standardizePremiumRequest);
+  // Backend sends data in 'requests' field, but our interface expects 'data'
+  // Standardize the response format
+  const standardizedResponse: RequestsResponse = {
+    success: response.success || false,
+    data: [],
+    pagination: {
+      total_count: response.total_count || 0,
+      current_page: response.page || page,
+      per_page: limit,
+      total_pages: Math.ceil((response.total_count || 0) / limit)
+    }
+  };
+  
+  // Handle both possible formats (API might return 'requests' or 'data')
+  if (response.requests && Array.isArray(response.requests)) {
+    standardizedResponse.data = response.requests.map(standardizePremiumRequest);
+  } else if (response.data && Array.isArray(response.data)) {
+    standardizedResponse.data = response.data.map(standardizePremiumRequest);
   }
   
-  if (response.pagination) {
-    response.pagination = standardizePagination(response.pagination);
+  // Also store original requests array if it exists
+  if (response.requests) {
+    standardizedResponse.requests = response.requests;
   }
   
-  return response;
+  return standardizedResponse;
 }
 
 /**
  * Get report requests with pagination
  */
 export async function getReportRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
-  const response = await apiRequest<RequestsResponse>(
+  const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/report-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
     'GET'
   );
   
-  // Standardize data
-  if (response.data && Array.isArray(response.data)) {
-    response.data = response.data.map(standardizeReportRequest);
+  // Backend sends data in 'requests' field, but our interface expects 'data'
+  // Standardize the response format
+  const standardizedResponse: RequestsResponse = {
+    success: response.success || false,
+    data: [],
+    pagination: {
+      total_count: response.total_count || 0,
+      current_page: response.page || page,
+      per_page: limit,
+      total_pages: Math.ceil((response.total_count || 0) / limit)
+    }
+  };
+  
+  // Handle both possible formats (API might return 'requests' or 'data')
+  if (response.requests && Array.isArray(response.requests)) {
+    standardizedResponse.data = response.requests.map(standardizeReportRequest);
+  } else if (response.data && Array.isArray(response.data)) {
+    standardizedResponse.data = response.data.map(standardizeReportRequest);
   }
   
-  if (response.pagination) {
-    response.pagination = standardizePagination(response.pagination);
+  // Also store original requests array if it exists
+  if (response.requests) {
+    standardizedResponse.requests = response.requests;
   }
   
-  return response;
+  return standardizedResponse;
 }
 
 export async function getDashboardStatistics(): Promise<StatisticsResponse> {
@@ -205,21 +254,30 @@ export async function processPremiumRequest(requestId: string, approve: boolean,
 }
 
 export async function getThreadCategories(page: number = 1, limit: number = 10): Promise<CategoriesResponse> {
-  const response = await apiRequest<CategoriesResponse>(
+  const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/thread-categories?page=${page}&limit=${limit}`,
     'GET'
   );
   
-  // Standardize data
-  if (response.data && Array.isArray(response.data)) {
-    // Apply any specific standardization if needed
+  // Create a standardized response with proper data mapping
+  const standardizedResponse: CategoriesResponse = {
+    success: response.success || false,
+    data: [],
+    pagination: {
+      total_count: response.total_count || 0,
+      current_page: response.page || page,
+      per_page: limit,
+      total_pages: Math.ceil((response.total_count || 0) / limit)
+    }
+  };
+  
+  // Map the categories from the response to the data field
+  if (response.categories && Array.isArray(response.categories)) {
+    standardizedResponse.data = response.categories;
+    console.log(`Mapped ${response.categories.length} thread categories to data field`);
   }
   
-  if (response.pagination) {
-    response.pagination = standardizePagination(response.pagination);
-  }
-  
-  return response;
+  return standardizedResponse;
 }
 
 export async function createThreadCategory(name: string, description?: string): Promise<IApiResponse<void>> {
@@ -251,10 +309,30 @@ export async function getCommunityCategories(page: number = 1, limit: number = 1
     limit: limit.toString()
   });
 
-  return apiRequest<CategoriesResponse>(
+  const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/community-categories?${params}`,
     'GET'
   );
+  
+  // Create a standardized response with proper data mapping
+  const standardizedResponse: CategoriesResponse = {
+    success: response.success || false,
+    data: [],
+    pagination: {
+      total_count: response.total_count || 0,
+      current_page: response.page || page,
+      per_page: limit,
+      total_pages: Math.ceil((response.total_count || 0) / limit)
+    }
+  };
+  
+  // Map the categories from the response to the data field
+  if (response.categories && Array.isArray(response.categories)) {
+    standardizedResponse.data = response.categories;
+    console.log(`Mapped ${response.categories.length} community categories to data field`);
+  }
+  
+  return standardizedResponse;
 }
 
 export async function createCommunityCategory(name: string, description?: string): Promise<IApiResponse<void>> {
