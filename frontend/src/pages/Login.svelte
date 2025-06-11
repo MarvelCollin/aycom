@@ -10,6 +10,7 @@
   import DebugPanel from '../components/common/DebugPanel.svelte';
   import { onMount } from 'svelte';
   import Toast from '../components/common/Toast.svelte';
+  import ProfileCompletion from '../components/auth/ProfileCompletion.svelte';
 
   const { login } = useAuth();
   
@@ -24,6 +25,10 @@
   let isLoading = false;
   let recaptchaToken: string | null = null;
   let recaptchaWrapper: ReCaptchaWrapper;
+  
+  // New state for Google auth profile completion
+  let showProfileCompletion = false;
+  let missingProfileFields: string[] = [];
   
   function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
     recaptchaToken = event.detail.token;
@@ -97,8 +102,15 @@
   
   function handleGoogleAuthSuccess(result: AuthResult) {
     console.log('Google auth success in Login page');
-    toastStore.showToast('Google login successful', 'success');
-    window.location.href = '/feed';
+    
+    if (result.requires_profile_completion && result.missing_fields?.length > 0) {
+      console.log('User needs to complete profile information:', result.missing_fields);
+      missingProfileFields = result.missing_fields;
+      showProfileCompletion = true;
+    } else {
+      toastStore.showToast('Google login successful', 'success');
+      window.location.href = '/feed';
+    }
   }
   
   function handleGoogleAuthError(message: string) {
@@ -108,96 +120,120 @@
       toastStore.showToast(`Google Auth Error: ${message}`, 'error');
     }
   }
+
+  function handleProfileCompleted() {
+    console.log('Profile completion successful');
+    toastStore.showToast('Profile updated successfully', 'success');
+    window.location.href = '/feed';
+  }
+
+  function handleProfileSkipped() {
+    console.log('Profile completion skipped');
+    toastStore.showToast('You can complete your profile later in account settings', 'info');
+    window.location.href = '/feed';
+  }
 </script>
 
-<AuthLayout title="Sign in to AYCOM">
-  <div class="auth-social-btn-container" data-cy="google-login-button">
-    <GoogleSignInButton 
-      onAuthSuccess={handleGoogleAuthSuccess} 
-      onAuthError={handleGoogleAuthError}
-      class="auth-social-btn {isDarkMode ? 'auth-social-btn-dark' : ''}"
-    />
-  </div>
-  
-  <div class="auth-divider {isDarkMode ? 'auth-divider-dark' : ''}">
-    <span class="auth-divider-text">or</span>
-  </div>
-  
-  {#if error}
-    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4" data-cy="error-message">
-      {error}
-    </div>
-  {/if}
-  
-  <form on:submit|preventDefault={handleSubmit} class="mb-4">
-    <div class="auth-input-group">
-      <label for="email" class="auth-label">Email</label>
-      <input 
-        type="email" 
-        id="email" 
-        bind:value={email} 
-        class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {error && !email ? 'auth-input-error' : ''}"
-        placeholder="Email"
-        required
-        data-cy="email-input"
+<AuthLayout 
+  title={showProfileCompletion ? "Complete Your Profile" : "Sign in to AYCOM"}
+  showBackButton={showProfileCompletion}
+  onBack={() => showProfileCompletion = false}
+>
+  {#if !showProfileCompletion}
+    <div class="auth-social-btn-container" data-cy="google-login-button">
+      <GoogleSignInButton 
+        onAuthSuccess={handleGoogleAuthSuccess} 
+        onAuthError={handleGoogleAuthError}
+        class="auth-social-btn {isDarkMode ? 'auth-social-btn-dark' : ''}"
       />
-      {#if error && !email}
-        <p class="auth-error-message" data-cy="email-error">Email is required</p>
-      {/if}
     </div>
     
-    <div class="auth-input-group">
-      <div class="flex justify-between items-center mb-1">
-        <label for="password" class="auth-label">Password</label>
-        <a href="/forgot-password" class="auth-forgot-password" data-cy="forgot-password">Forgot password?</a>
+    <div class="auth-divider {isDarkMode ? 'auth-divider-dark' : ''}">
+      <span class="auth-divider-text">or</span>
+    </div>
+    
+    {#if error}
+      <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4" data-cy="error-message">
+        {error}
       </div>
-      <input 
-        type="password" 
-        id="password" 
-        bind:value={password} 
-        class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {error && !password ? 'auth-input-error' : ''}"
-        placeholder="Password"
-        required
-        data-cy="password-input"
-      />
-      {#if error && !password}
-        <p class="auth-error-message" data-cy="password-error">Password is required</p>
-      {/if}
+    {/if}
+    
+    <form on:submit|preventDefault={handleSubmit} class="mb-4">
+      <div class="auth-input-group">
+        <label for="email" class="auth-label">Email</label>
+        <input 
+          type="email" 
+          id="email" 
+          bind:value={email} 
+          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {error && !email ? 'auth-input-error' : ''}"
+          placeholder="Email"
+          required
+          data-cy="email-input"
+        />
+        {#if error && !email}
+          <p class="auth-error-message" data-cy="email-error">Email is required</p>
+        {/if}
+      </div>
+      
+      <div class="auth-input-group">
+        <div class="flex justify-between items-center mb-1">
+          <label for="password" class="auth-label">Password</label>
+          <a href="/forgot-password" class="auth-forgot-password" data-cy="forgot-password">Forgot password?</a>
+        </div>
+        <input 
+          type="password" 
+          id="password" 
+          bind:value={password} 
+          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {error && !password ? 'auth-input-error' : ''}"
+          placeholder="Password"
+          required
+          data-cy="password-input"
+        />
+        {#if error && !password}
+          <p class="auth-error-message" data-cy="password-error">Password is required</p>
+        {/if}
+      </div>
+      
+      <div class="auth-checkbox-group">
+        <input 
+          type="checkbox" 
+          id="remember-me"
+          bind:checked={rememberMe} 
+          class="auth-checkbox"
+          data-cy="remember-me"
+        />
+        <label for="remember-me" class="auth-checkbox-label">Remember me</label>
+      </div>
+      
+      
+      <button 
+        type="submit"
+        class="auth-btn"
+        disabled={isLoading}
+        data-cy="login-button"
+      >
+        {#if isLoading}
+          <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Signing in...
+        {:else}
+          Sign in
+        {/if}
+      </button>
+    </form>
+    
+    <div class="auth-footer">
+      Don't have an account? <a href="/register" class="auth-link" data-cy="register-link">Sign up</a>
     </div>
-    
-    <div class="auth-checkbox-group">
-      <input 
-        type="checkbox" 
-        id="remember-me"
-        bind:checked={rememberMe} 
-        class="auth-checkbox"
-        data-cy="remember-me"
-      />
-      <label for="remember-me" class="auth-checkbox-label">Remember me</label>
-    </div>
-    
-    
-    <button 
-      type="submit"
-      class="auth-btn"
-      disabled={isLoading}
-      data-cy="login-button"
-    >
-      {#if isLoading}
-        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Signing in...
-      {:else}
-        Sign in
-      {/if}
-    </button>
-  </form>
-  
-  <div class="auth-footer">
-    Don't have an account? <a href="/register" class="auth-link" data-cy="register-link">Sign up</a>
-  </div>
+  {:else}
+    <ProfileCompletion 
+      missingFields={missingProfileFields} 
+      onComplete={handleProfileCompleted}
+      onSkip={handleProfileSkipped}
+    />
+  {/if}
 </AuthLayout>
 
 <DebugPanel />

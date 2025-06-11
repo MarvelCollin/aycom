@@ -146,10 +146,52 @@ func InitGRPCServices() {
 		)
 
 		if err != nil {
-			log.Printf("Warning: Failed to connect to User service: %v", err)
-		} else {
+			log.Printf("Initial connection attempt to User service failed: %v", err)
+
+			// Try reconnecting with backoff
+			maxRetries := 3
+			var connErr error
+
+			for i := 0; i < maxRetries; i++ {
+				// Wait before retrying
+				time.Sleep(time.Duration(i+1) * time.Second)
+
+				log.Printf("Retry attempt %d/%d connecting to User service...", i+1, maxRetries)
+				userConn, connErr = grpc.Dial(userServiceAddr,
+					grpc.WithTransportCredentials(insecure.NewCredentials()),
+				)
+
+				if connErr == nil {
+					log.Printf("Successfully connected to User service on retry %d", i+1)
+					break
+				} else {
+					log.Printf("Retry attempt %d failed: %v", i+1, connErr)
+				}
+			}
+
+			if connErr != nil {
+				log.Printf("Error: Failed to connect to User service after %d retries", maxRetries)
+			} else {
+				err = nil // Connection successful on retry
+			}
+		}
+
+		if err == nil {
 			UserClient = user.NewUserServiceClient(userConn)
 			log.Printf("Connected to User service at %s", userServiceAddr)
+
+			// Verify connection is working properly
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			// Try a simple ping-like call to verify connection
+			_, pingErr := UserClient.GetUser(ctx, &user.GetUserRequest{UserId: "ping-test"})
+			if pingErr != nil {
+				log.Printf("Warning: User service connection check failed: %v", pingErr)
+				log.Printf("User service may not be fully initialized yet, but connection is established")
+			} else {
+				log.Printf("User service connection verified successfully")
+			}
 		}
 
 		if AppConfig.Services.ThreadService != "" {

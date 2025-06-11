@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"aycom/backend/api-gateway/config"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -86,7 +89,11 @@ type GRPCUserServiceClient struct {
 	client userProto.UserServiceClient
 }
 
-var userServiceClient UserServiceClient
+var (
+	userServiceClient UserServiceClient
+	healthCheckMutex  sync.Mutex
+	healthCheckActive bool
+)
 
 func InitUserServiceClient(cfg *config.Config) {
 	if userServiceClient != nil {
@@ -103,8 +110,85 @@ func InitUserServiceClient(cfg *config.Config) {
 			client: UserClient,
 		}
 		log.Println("User service client initialized successfully")
+
+		// Start background health check if not already running
+		startBackgroundHealthCheck()
 	} else {
 		log.Println("WARNING: Cannot initialize user service client - no connection to User service")
+
+		// Try to establish connection
+		maxRetries := 3
+		for i := 0; i < maxRetries; i++ {
+			if i > 0 {
+				log.Printf("Retry attempt %d/%d to connect to User service", i+1, maxRetries)
+				time.Sleep(time.Duration(i+1) * time.Second)
+			}
+
+			conn, err := grpc.Dial(userServiceAddr,
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+			)
+
+			if err == nil {
+				log.Println("Successfully connected to User service")
+				UserClient = userProto.NewUserServiceClient(conn)
+				userServiceClient = &GRPCUserServiceClient{
+					client: UserClient,
+				}
+
+				// Start background health check
+				startBackgroundHealthCheck()
+				return
+			}
+
+			log.Printf("Failed to connect to User service on attempt %d: %v", i+1, err)
+		}
+
+		log.Println("Failed to establish connection with User service after multiple attempts")
+	}
+}
+
+// startBackgroundHealthCheck starts a goroutine that periodically checks the health of the UserClient
+func startBackgroundHealthCheck() {
+	healthCheckMutex.Lock()
+	defer healthCheckMutex.Unlock()
+
+	if healthCheckActive {
+		log.Println("User service health check already active")
+		return
+	}
+
+	healthCheckActive = true
+	log.Println("Starting background health check for User service")
+
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			checkUserServiceHealth()
+		}
+	}()
+}
+
+// checkUserServiceHealth verifies that the UserClient is still working
+func checkUserServiceHealth() {
+	if UserClient == nil {
+		log.Println("Health check: UserClient is nil, attempting to reconnect")
+		InitGRPCServices()
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make a simple request to check connectivity
+	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: "health-check",
+	})
+
+	if err != nil {
+		log.Printf("Health check failed: %v - attempting to reconnect", err)
+		InitGRPCServices()
 	}
 }
 

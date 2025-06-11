@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,32 @@ import (
 	"aycom/backend/api-gateway/middleware"
 	"os"
 )
+
+// CORSPreflightHandler handles OPTIONS requests with appropriate CORS headers
+func CORSPreflightHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
+
+		log.Printf("CORS Preflight for %s: Setting Allow-Origin to %s", c.Request.URL.Path, origin)
+
+		c.Header("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token")
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Max-Age", "86400") // 24 hours
+		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Powered-By")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
 
 func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	handlers.AppConfig = cfg
@@ -63,6 +90,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.POST("/admin/create", handlers.CreateAdminUser)
 	}
 
+	// Add specific OPTIONS handler for threads endpoint
+	v1.OPTIONS("/threads", CORSPreflightHandler())
+	v1.OPTIONS("/threads/*path", CORSPreflightHandler())
+
 	publicThreads := v1.Group("/threads")
 	// Apply OptionalJTAuth middleware to all routes in publicThreads to allow authentication if available
 	publicThreads.Use(middleware.OptionalJWTAuth(jwtSecret))
@@ -72,6 +103,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 		// Apply JWTAuth middleware to these specific routes to require authentication
 		authPublicThreads := publicThreads.Group("/")
+		authPublicThreads.Use(CORSPreflightHandler()) // Add specific CORS handler here
 		authPublicThreads.Use(middleware.JWTAuth(jwtSecret))
 		{
 			authPublicThreads.POST("", handlers.CreateThread)

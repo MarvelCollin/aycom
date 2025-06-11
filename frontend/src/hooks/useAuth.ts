@@ -6,8 +6,9 @@ import appConfig from '../config/appConfig';
 import { uploadFile } from '../utils/supabase';
 import { getProfile, checkAdminStatus } from '../api/user';
 import { createLoggerWithPrefix } from '../utils/logger';
+import * as userApi from '../api/user';
 
-const API_URL = appConfig.api.baseUrl;
+const API_BASE_URL = appConfig.api.baseUrl;
 const TOKEN_EXPIRY_BUFFER = 300000; // 5 minutes in milliseconds
 const logger = createLoggerWithPrefix('Auth');
 
@@ -294,8 +295,16 @@ export function useAuth() {
   };
   
   const getCurrentUser = async () => {
-    return null;
+    try {
+      return await userApi.getProfile();
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      return null;
+    }
   };
+  
+  // Alias for getCurrentUser for clarity and consistency with API
+  const getProfile = getCurrentUser;
   
   const login = async (email: string, password: string) => {
     try {
@@ -397,14 +406,49 @@ export function useAuth() {
           access_token: data.access_token,
           refresh_token: data.refresh_token,
           expires_at: expiresAt,
-          is_admin: data.user_data?.is_admin || false
+          is_admin: data.user_data?.is_admin || false,
+          username: data.user_data?.username,
+          display_name: data.user_data?.name || data.user_data?.display_name
         };
         
         authStore.set(authState);
         
+        // Check if profile information is complete
+        let requiredFields = ['gender', 'date_of_birth', 'security_question', 'security_answer'];
+        let missingFields: string[] = [];
+        
+        if (data.is_new_user === true || data.requires_profile_completion === true) {
+          // For new users or users with incomplete profiles, determine missing fields
+          try {
+            const userProfile = await getProfile();
+            if (userProfile?.user) {
+              const userData = userProfile.user;
+              
+              // Check for missing required fields
+              if (!userData.gender || userData.gender === 'unknown') missingFields.push('gender');
+              if (!userData.date_of_birth || userData.date_of_birth === '') missingFields.push('date_of_birth');
+              if (!userData.security_question) missingFields.push('security_question');
+              if (!userData.security_answer) missingFields.push('security_answer');
+              
+              // Update auth store with any available information
+              authStore.update(state => ({
+                ...state,
+                username: userData?.username || state.username,
+                display_name: userData?.name || userData?.display_name || state.display_name,
+                is_admin: userData?.is_admin === true || state.is_admin
+              }));
+            }
+          } catch (profileError) {
+            console.error('Failed to get user profile after Google login:', profileError);
+          }
+        }
+        
         return {
           success: true,
-          message: data.message || 'Google login successful!'
+          message: data.message || 'Google login successful!',
+          is_new_user: data.is_new_user || false,
+          missing_fields: missingFields,
+          requires_profile_completion: missingFields.length > 0
         };
       } else {
         return {
@@ -425,7 +469,32 @@ export function useAuth() {
       message: 'Logged out successfully'
     };
   };
-    const getAuthState = () => {
+  
+  const updateProfile = async (data: Record<string, any>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/profile`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      
+      const responseData = await handleApiResponse(response, 'Update profile failed');
+      
+      return {
+        success: true,
+        message: responseData.message || 'Profile updated successfully'
+      };
+    } catch (error) {
+      console.error('Update profile error:', error);
+      return handleApiError(error);
+    }
+  };
+  
+  const getAuthState = () => {
     const store = get(authStore);
     
     if (store.expires_at && store.expires_at - TOKEN_EXPIRY_BUFFER < Date.now()) {
@@ -491,7 +560,9 @@ export function useAuth() {
     refreshToken: authStore.refreshToken,
     getAuthState,
     getAuthToken,
+    getProfile,
     subscribe: authStore.subscribe,
-    checkAndRefreshTokenIfNeeded
+    checkAndRefreshTokenIfNeeded,
+    updateProfile
   };
 }

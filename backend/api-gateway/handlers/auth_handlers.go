@@ -408,25 +408,54 @@ func GoogleLogin(c *gin.Context) {
 		return
 	}
 
+	// Check if user service is available, and try to reinitialize if needed
 	if UserClient == nil {
-		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
-		return
+		log.Println("GoogleLogin: User service client is nil, attempting to initialize")
+		InitGRPCServices()
+		InitUserServiceClient(AppConfig)
+
+		if UserClient == nil {
+			log.Println("GoogleLogin: Failed to initialize user service client")
+			utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
+			return
+		}
+		log.Println("GoogleLogin: User service client initialized successfully")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	userResp, err := UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
-		Email: tokenInfo.Email,
-	})
+	var userResp *userProto.GetUserByEmailResponse
+	var getUserErr error
+
+	// Add retry logic for getting user by email
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			log.Printf("GoogleLogin: Retry attempt %d/%d for GetUserByEmail", i+1, maxRetries)
+			time.Sleep(time.Duration(i) * 500 * time.Millisecond)
+		}
+
+		userResp, getUserErr = UserClient.GetUserByEmail(ctx, &userProto.GetUserByEmailRequest{
+			Email: tokenInfo.Email,
+		})
+
+		if getUserErr == nil {
+			break
+		}
+
+		log.Printf("GoogleLogin: Error getting user by email (attempt %d): %v", i+1, getUserErr)
+	}
 
 	var userID string
-	if err != nil || userResp.User == nil {
+	var isNewUser bool
+	var requiresProfileCompletion bool
+
+	if getUserErr != nil || userResp == nil || userResp.User == nil {
+		log.Printf("GoogleLogin: User with email %s not found, creating new user", tokenInfo.Email)
 
 		newUsername := utils.GenerateUsername(tokenInfo.Name)
-
 		randomPassword := utils.GenerateSecureRandomPassword(16)
-
 		currentDate := time.Now().Format("2006-01-02")
 
 		user := &userProto.User{
@@ -444,20 +473,53 @@ func GoogleLogin(c *gin.Context) {
 			User: user,
 		}
 
-		createResp, err := UserClient.CreateUser(ctx, createReq)
-		if err != nil {
+		// Add retry logic for creating a new user
+		var createResp *userProto.CreateUserResponse
+		var createErr error
+
+		for i := 0; i < maxRetries; i++ {
+			if i > 0 {
+				log.Printf("GoogleLogin: Retry attempt %d/%d for CreateUser", i+1, maxRetries)
+				time.Sleep(time.Duration(i) * 500 * time.Millisecond)
+			}
+
+			createResp, createErr = UserClient.CreateUser(ctx, createReq)
+
+			if createErr == nil && createResp != nil && createResp.User != nil {
+				break
+			}
+
+			log.Printf("GoogleLogin: Error creating user (attempt %d): %v", i+1, createErr)
+		}
+
+		if createErr != nil || createResp == nil || createResp.User == nil {
+			log.Printf("GoogleLogin: Failed to create user account: %v", createErr)
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "USER_CREATION_FAILED", "Failed to create user account")
 			return
 		}
 
 		userID = createResp.User.Id
+		isNewUser = true
+		requiresProfileCompletion = true
+		log.Printf("GoogleLogin: Successfully created new user with ID: %s", userID)
 	} else {
-
 		userID = userResp.User.Id
+		log.Printf("GoogleLogin: Found existing user with ID: %s", userID)
+
+		// Check if user needs to complete their profile
+		user := userResp.User
+		if user.Gender == "" || user.Gender == "unknown" ||
+			user.DateOfBirth == "" ||
+			user.SecurityQuestion == "" ||
+			user.SecurityAnswer == "" {
+			requiresProfileCompletion = true
+			log.Printf("GoogleLogin: User %s needs to complete their profile", userID)
+		}
 	}
 
 	accessToken, err := utils.GenerateJWT(userID, time.Hour)
 	if err != nil {
+		log.Printf("GoogleLogin: Failed to generate access token: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
 		return
 	}
@@ -465,18 +527,22 @@ func GoogleLogin(c *gin.Context) {
 	refreshTokenDuration := 7 * 24 * time.Hour
 	refreshToken, err := utils.GenerateJWT(userID, refreshTokenDuration)
 	if err != nil {
+		log.Printf("GoogleLogin: Failed to generate refresh token: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate token")
 		return
 	}
 
+	log.Printf("GoogleLogin: Authentication successful for user ID: %s", userID)
 	c.JSON(http.StatusOK, gin.H{
-		"success":       true,
-		"message":       "Google authentication successful",
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"user_id":       userID,
-		"expires_in":    3600,
-		"token_type":    "Bearer",
+		"success":                     true,
+		"message":                     "Google authentication successful",
+		"access_token":                accessToken,
+		"refresh_token":               refreshToken,
+		"user_id":                     userID,
+		"expires_in":                  3600,
+		"token_type":                  "Bearer",
+		"is_new_user":                 isNewUser,
+		"requires_profile_completion": requiresProfileCompletion,
 	})
 }
 

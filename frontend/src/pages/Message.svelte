@@ -13,6 +13,7 @@
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
   import DebugPanel from '../components/common/DebugPanel.svelte';
   import CreateGroupChat from '../components/chat/CreateGroupChat.svelte';
+  import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   
   import '../styles/pages/messages.css'; // Import the CSS file
@@ -64,6 +65,8 @@
       }
     }
   }
+  
+
   
   // Handle successful group chat creation
   function handleGroupChatCreated(event: any) {
@@ -188,6 +191,20 @@
     if (!checkAuth(authState, 'messages')) {
       return;
     }
+    
+    // Apply theme class to document when component mounts
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark-theme', 'dark');
+      document.documentElement.classList.remove('light-theme', 'light');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.classList.add('light-theme', 'light');
+      document.documentElement.classList.remove('dark-theme', 'dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+    
+    // Also update body for component-specific styling
+    document.body.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
     
     // Fetch user profile first, then chats
     fetchUserProfile().then(() => {
@@ -385,7 +402,7 @@
     // Update last message if needed
           if (selectedChat && selectedChat.last_message) {
         const lastMsg = selectedChat.last_message;
-        const lastMessageContent = lastMsg.content;
+      const lastMessageContent = lastMsg.content;
       
       if (selectedChat.messages.some(m => 
         m.id === message.message_id && 
@@ -659,7 +676,7 @@
           let lastMessageData: LastMessage;
           if (chat.last_message || chat.lastMessage) {
             const lastMsg = chat.last_message || chat.lastMessage;
-            lastMessageData = {
+              lastMessageData = {
               content: lastMsg.content || '',
               timestamp: lastMsg.timestamp || Date.now(),
               sender_id: lastMsg.sender_id || '',
@@ -856,159 +873,159 @@
         // For new/temp chats, skip loading messages as the participant relationship might not be established yet
         selectedChat.messages = [];
       } else {
-        try {
-          const response = await listMessages(chat.id);
+      try {
+        const response = await listMessages(chat.id);
+        
+        logger.debug(`Message loading response received for chat ${chat.id}`, { 
+          success: response?.success, 
+          messageCount: response?.messages?.length || 0
+        });
+        
+        // Detailed logging for debugging
+        if (response && response.messages && Array.isArray(response.messages)) {
+          console.log(`===== MESSAGES DEBUG INFO (Chat: ${chat.id}) =====`);
+          console.log(`Received ${response.messages.length} messages for chat ${chat.id}`);
           
-          logger.debug(`Message loading response received for chat ${chat.id}`, { 
-            success: response?.success, 
-            messageCount: response?.messages?.length || 0
+          // Log detailed information about each message (limit to first 5 for brevity)
+          const messagesToLog = response.messages.slice(0, 5);
+          messagesToLog.forEach((msg, index) => {
+            console.log(`\nMessage #${index + 1}:`);
+            console.log(`- ID: ${msg.id || msg.message_id || 'unknown'}`);
+            console.log(`- Sender ID: ${msg.sender_id || msg.user_id || 'unknown'}`);
+            console.log(`- Content: ${msg.content || 'empty'}`);
+            console.log(`- Timestamp: ${msg.timestamp || 'none'}`);
+            console.log(`- Is deleted: ${msg.is_deleted || false}`);
+            
+            // Log user data if available
+            if (msg.user) {
+              console.log(`- User data: ${msg.user.id} (${msg.user.username || msg.user.display_name || 'unknown'})`);
+            }
           });
           
-          // Detailed logging for debugging
-          if (response && response.messages && Array.isArray(response.messages)) {
-            console.log(`===== MESSAGES DEBUG INFO (Chat: ${chat.id}) =====`);
-            console.log(`Received ${response.messages.length} messages for chat ${chat.id}`);
-            
-            // Log detailed information about each message (limit to first 5 for brevity)
-            const messagesToLog = response.messages.slice(0, 5);
-            messagesToLog.forEach((msg, index) => {
-              console.log(`\nMessage #${index + 1}:`);
-              console.log(`- ID: ${msg.id || msg.message_id || 'unknown'}`);
-              console.log(`- Sender ID: ${msg.sender_id || msg.user_id || 'unknown'}`);
-              console.log(`- Content: ${msg.content || 'empty'}`);
-              console.log(`- Timestamp: ${msg.timestamp || 'none'}`);
-              console.log(`- Is deleted: ${msg.is_deleted || false}`);
-              
-              // Log user data if available
-              if (msg.user) {
-                console.log(`- User data: ${msg.user.id} (${msg.user.username || msg.user.display_name || 'unknown'})`);
-              }
-            });
-            
-            if (response.messages.length > 5) {
-              console.log(`... and ${response.messages.length - 5} more messages`);
-            }
-            
-            console.log('===== END MESSAGES DEBUG INFO =====');
+          if (response.messages.length > 5) {
+            console.log(`... and ${response.messages.length - 5} more messages`);
           }
           
-          // Create a map of user data we've fetched to avoid duplicate API calls
-          const userDataCache = new Map();
+          console.log('===== END MESSAGES DEBUG INFO =====');
+        }
+        
+        // Create a map of user data we've fetched to avoid duplicate API calls
+        const userDataCache = new Map();
+        
+        // Transform the messages
+        const messagesPromises = response.messages.map(async (msg: any) => {
+          // Handle inconsistent field names
+          const id = msg.id || msg.message_id || msg.Id;
+          const senderId = msg.sender_id || msg.user_id || msg.SenderId;
+          const content = msg.content || msg.Content || '';
+          let timestamp = msg.timestamp || msg.Timestamp || Date.now() / 1000;
+          const isDeleted = msg.is_deleted || msg.IsDeleted || false;
           
-          // Transform the messages
-          const messagesPromises = response.messages.map(async (msg: any) => {
-            // Handle inconsistent field names
-            const id = msg.id || msg.message_id || msg.Id;
-            const senderId = msg.sender_id || msg.user_id || msg.SenderId;
-            const content = msg.content || msg.Content || '';
-            let timestamp = msg.timestamp || msg.Timestamp || Date.now() / 1000;
-            const isDeleted = msg.is_deleted || msg.IsDeleted || false;
-            
-            // Ensure timestamp is a number
-            if (typeof timestamp === 'string') {
-              timestamp = parseInt(timestamp);
-            }
-            
-            // Extract user data if available
-            let senderName = '';
-            let senderAvatar = '';
-            
-            // Check if user data is provided directly in the message
-            if (msg.user) {
-              // Log the user data for debugging
-              logger.debug(`Message ${id} has user data:`, {
-                user_id: msg.user.id,
-                username: msg.user.username || 'Not provided',
-                display_name: msg.user.display_name || 'Not provided',
-                profile_picture_url: msg.user.profile_picture_url || 'No profile picture'
-              });
-              
-              // Use display_name or username from the message's user data
-              senderName = msg.user.display_name || msg.user.username || `User ${senderId.substring(0, 4)}`;
-              senderAvatar = msg.user.profile_picture_url || msg.user.avatar || '';
-            } else {
-              // Try to find the user in the participants list
-              const senderParticipant = chat.participants.find(p => 
-                p.id === senderId || (p.id === `${senderId}`)
-              );
-              
-              if (senderParticipant) {
-                senderName = senderParticipant.display_name || senderParticipant.username || `User ${senderId.substring(0, 4)}`;
-                senderAvatar = senderParticipant.avatar || '';
-              } else {
-                // If user not in participants and not in message, fetch from API
-                // Check if we already fetched this user
-                if (!userDataCache.has(senderId)) {
-                  logger.debug(`Fetching user data for sender ${senderId}`);
-                  
-                  try {
-                    // Fetch user data from API
-                    const userData = await getUserById(senderId);
-                    if (userData) {
-                      userDataCache.set(senderId, userData);
-                      logger.debug(`Retrieved user data for ${senderId}:`, userData);
-                    }
-                  } catch (error) {
-                    logger.error(`Failed to fetch user data for ${senderId}:`, error);
-                  }
-                }
-                
-                // Use the cached user data if available
-                const userData = userDataCache.get(senderId);
-                if (userData) {
-                  senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
-                  senderAvatar = userData.profile_picture_url || '';
-                  
-                  logger.debug(`Using API data for user ${senderId}:`, {
-                    name: senderName,
-                    avatar: senderAvatar
-                  });
-                } else {
-                  // Generate a name from the sender ID if no user data found
-                  senderName = senderId === authState.user_id ? displayName : `User ${senderId.substring(0, 4)}`;
-                  senderAvatar = senderId === authState.user_id ? (avatar || '') : '';
-                  
-                  logger.debug(`Using generated data for user ${senderId}`);
-                }
-              }
-            }
-            
-            // Use the sender's name if it's the current user
-            if (senderId === authState.user_id) {
-              senderName = displayName; // Use the logged-in user's display name
-              senderAvatar = avatar || '';    // Use the logged-in user's avatar
-            }
-            
-            logger.debug(`Message ${id} processed:`, { 
-              sender: senderId,
-              senderName: senderName,
-              isCurrentUser: senderId === authState.user_id
+          // Ensure timestamp is a number
+          if (typeof timestamp === 'string') {
+            timestamp = parseInt(timestamp);
+          }
+          
+          // Extract user data if available
+          let senderName = '';
+          let senderAvatar = '';
+          
+          // Check if user data is provided directly in the message
+          if (msg.user) {
+            // Log the user data for debugging
+            logger.debug(`Message ${id} has user data:`, {
+              user_id: msg.user.id,
+              username: msg.user.username || 'Not provided',
+              display_name: msg.user.display_name || 'Not provided',
+              profile_picture_url: msg.user.profile_picture_url || 'No profile picture'
             });
             
-            return {
-              id: id,
-              senderId: senderId,
-              senderName: senderName,
-              senderAvatar: senderAvatar,
-              content: content,
-              timestamp: timestamp.toString(),
-              isDeleted: isDeleted,
-              attachments: msg.attachments || [],
-              isOwn: senderId === authState.user_id
-            };
+            // Use display_name or username from the message's user data
+            senderName = msg.user.display_name || msg.user.username || `User ${senderId.substring(0, 4)}`;
+            senderAvatar = msg.user.profile_picture_url || msg.user.avatar || '';
+          } else {
+            // Try to find the user in the participants list
+            const senderParticipant = chat.participants.find(p => 
+              p.id === senderId || (p.id === `${senderId}`)
+            );
+            
+            if (senderParticipant) {
+              senderName = senderParticipant.display_name || senderParticipant.username || `User ${senderId.substring(0, 4)}`;
+              senderAvatar = senderParticipant.avatar || '';
+            } else {
+              // If user not in participants and not in message, fetch from API
+              // Check if we already fetched this user
+              if (!userDataCache.has(senderId)) {
+                logger.debug(`Fetching user data for sender ${senderId}`);
+                
+                try {
+                  // Fetch user data from API
+                  const userData = await getUserById(senderId);
+                  if (userData) {
+                    userDataCache.set(senderId, userData);
+                    logger.debug(`Retrieved user data for ${senderId}:`, userData);
+                  }
+                } catch (error) {
+                  logger.error(`Failed to fetch user data for ${senderId}:`, error);
+                }
+              }
+              
+              // Use the cached user data if available
+              const userData = userDataCache.get(senderId);
+              if (userData) {
+                senderName = userData.name || userData.display_name || userData.username || `User ${senderId.substring(0, 4)}`;
+                senderAvatar = userData.profile_picture_url || '';
+                
+                logger.debug(`Using API data for user ${senderId}:`, {
+                  name: senderName,
+                  avatar: senderAvatar
+                });
+              } else {
+                // Generate a name from the sender ID if no user data found
+                senderName = senderId === authState.user_id ? displayName : `User ${senderId.substring(0, 4)}`;
+                senderAvatar = senderId === authState.user_id ? (avatar || '') : '';
+                
+                logger.debug(`Using generated data for user ${senderId}`);
+              }
+            }
+          }
+          
+          // Use the sender's name if it's the current user
+          if (senderId === authState.user_id) {
+            senderName = displayName; // Use the logged-in user's display name
+            senderAvatar = avatar || '';    // Use the logged-in user's avatar
+          }
+          
+          logger.debug(`Message ${id} processed:`, { 
+            sender: senderId,
+            senderName: senderName,
+            isCurrentUser: senderId === authState.user_id
           });
           
-          // Wait for all user data fetching to complete
-          selectedChat.messages = await Promise.all(messagesPromises);
-          
-          // Sort messages by timestamp (oldest first)
-          selectedChat.messages.sort((a, b) => {
-            const timestampA = parseInt(a.timestamp);
-            const timestampB = parseInt(b.timestamp);
-            return timestampA - timestampB;
-          });
-          
-          logger.debug(`Processed ${selectedChat.messages.length} messages for display`);
+          return {
+            id: id,
+            senderId: senderId,
+            senderName: senderName,
+            senderAvatar: senderAvatar,
+            content: content,
+            timestamp: timestamp.toString(),
+            isDeleted: isDeleted,
+            attachments: msg.attachments || [],
+            isOwn: senderId === authState.user_id
+          };
+        });
+        
+        // Wait for all user data fetching to complete
+        selectedChat.messages = await Promise.all(messagesPromises);
+        
+        // Sort messages by timestamp (oldest first)
+        selectedChat.messages.sort((a, b) => {
+          const timestampA = parseInt(a.timestamp);
+          const timestampB = parseInt(b.timestamp);
+          return timestampA - timestampB;
+        });
+        
+        logger.debug(`Processed ${selectedChat.messages.length} messages for display`);
         } catch (error: any) {
           // Handle 400/403 errors gracefully for new chats
           const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1019,9 +1036,9 @@
             logger.info(`Chat ${chat.id} returned ${errorStatus}, likely a new chat without established participants`);
             selectedChat.messages = [];
           } else {
-            logger.error('Error loading messages:', error);
-            toastStore.showToast('Failed to load messages. Please try again.', 'error');
-            selectedChat.messages = [];
+        logger.error('Error loading messages:', error);
+        toastStore.showToast('Failed to load messages. Please try again.', 'error');
+        selectedChat.messages = [];
           }
         }
       }
@@ -1702,7 +1719,7 @@
   }
 </script>
 
-<div class="message-container {chatSelectedClass}">
+<div class="message-container {chatSelectedClass} {isDarkMode ? 'dark-theme' : 'light-theme'}">
   <!-- Left navigation/profile -->
   <div class="left-sidebar">
     <LeftSide username={username} displayName={displayName} avatar={avatar} />
@@ -1725,6 +1742,7 @@
           </svg>
           <span>New</span>
         </button>
+        <ThemeToggle size="sm" />
       </div>
     </div>
     <div class="search-container">

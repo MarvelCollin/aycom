@@ -4,6 +4,7 @@
   import AuthLayout from '../components/layout/AuthLayout.svelte';
   import RegistrationForm from '../components/auth/RegistrationForm.svelte';
   import VerificationForm from '../components/auth/VerificationForm.svelte';
+  import ProfileCompletion from '../components/auth/ProfileCompletion.svelte';
   import { useRegistrationForm } from '../hooks/useRegistrationForm';
   import { useAuth } from '../hooks/useAuth';
   import type { IUserRegistration } from '../interfaces/IAuth';
@@ -31,6 +32,10 @@
   const { theme } = useTheme();
   
   $: isDarkMode = $theme === 'dark';
+  
+  // New state for Google auth profile completion
+  let showProfileCompletion = false;
+  let missingProfileFields: string[] = [];
   
   function validateNameAndUpdate() {
     $formData.name && validateFormField('name', $formData.name);
@@ -136,8 +141,15 @@
   
   function handleGoogleAuthSuccess(result: any) {
     console.log('Google auth success in Register page');
-    toastStore.showToast('Google registration successful', 'success'); 
-    window.location.href = '/feed';
+    
+    if (result.requires_profile_completion && result.missing_fields?.length > 0) {
+      console.log('User needs to complete profile information:', result.missing_fields);
+      missingProfileFields = result.missing_fields;
+      showProfileCompletion = true;
+    } else {
+      toastStore.showToast('Google registration successful', 'success'); 
+      window.location.href = '/feed';
+    }
   }
   
   function handleGoogleAuthError(errorMsg: string) {
@@ -203,15 +215,29 @@
     formState.update(state => ({ ...state, step: 1, error: "" }));
   }
   
+  function handleProfileCompleted() {
+    console.log('Profile completion successful');
+    toastStore.showToast('Profile updated successfully', 'success');
+    window.location.href = '/feed';
+  }
+  
+  function handleProfileSkipped() {
+    console.log('Profile completion skipped');
+    toastStore.showToast('You can complete your profile later in account settings', 'info');
+    window.location.href = '/feed';
+  }
+  
   onDestroy(() => {
     cleanupTimers();
   });
 </script>
 
 <AuthLayout 
-  title={$formState.step === 1 ? "Create your account" : "We sent you a code"}
-  showBackButton={$formState.step === 2} 
-  onBack={goBack}
+  title={$formState.step === 1 
+    ? (showProfileCompletion ? "Complete Your Profile" : "Create your account") 
+    : "We sent you a code"}
+  showBackButton={$formState.step === 2 || showProfileCompletion} 
+  onBack={() => showProfileCompletion ? showProfileCompletion = false : goBack()}
 >
   {#if $formState.error}
     <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4" data-cy="error-message">
@@ -219,7 +245,13 @@
     </div>
   {/if}
   
-  {#if $formState.step === 1}
+  {#if showProfileCompletion}
+    <ProfileCompletion 
+      missingFields={missingProfileFields} 
+      onComplete={handleProfileCompleted}
+      onSkip={handleProfileSkipped}
+    />
+  {:else if $formState.step === 1}
     <div data-cy="google-login-button">
       <RegistrationForm
         bind:name={$formData.name}

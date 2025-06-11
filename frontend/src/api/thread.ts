@@ -57,15 +57,25 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
     
     const token = getAuthToken();
     
+    // Log full URL to help with debugging
+    logger.debug(`Full request URL: ${url}`);
+    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
+      // Extract origin from URL for CORS headers
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      logger.debug(`Using origin: ${origin} for CORS headers`);
+      
       const options: RequestInit = {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Accept': 'application/json',
+          'Origin': origin, // Use current origin
+          'Cache-Control': 'no-cache' // Prevent caching issues
         },
         credentials: 'include',
         signal: controller.signal,
@@ -75,33 +85,76 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
 
       if (body) {
         options.body = JSON.stringify(body);
+        logger.debug(`Request body (truncated): ${JSON.stringify(body).substring(0, 100)}...`);
       }
 
       logger.debug(`Making API request to ${url} with method ${method}`);
       
-      const response = await fetch(url, options);
-      clearTimeout(timeoutId);
-      
-      // Log response details for debugging
-      logger.debug(`API response status: ${response.status} for ${url}`);
-      
-      // For 307/308 redirects, we need to handle them manually if they weren't followed
-      if (response.status === 307 || response.status === 308) {
-        const redirectUrl = response.headers.get('Location');
-        if (redirectUrl) {
-          logger.info(`Following redirect to ${redirectUrl}`);
-          return makeApiRequest(redirectUrl, method, body, errorMessage, timeout);
-        }
+      // For POST/PUT requests, check if we have a token first
+      if ((method === 'POST' || method === 'PUT') && !token && !isPublicReadRequest) {
+        logger.warn('Attempting to make a write request without auth token');
       }
+      
+      // Handle critical paths with special handling
+      if (url.includes('/threads') && method === 'POST') {
+        logger.debug(`Critical path detected: Creating thread. Adding extra headers.`);
+        // Add extra CORS headers for critical paths
+        options.headers = {
+          ...options.headers,
+          'X-Requested-With': 'XMLHttpRequest'
+        };
+      }
+      
+      // Create a wrapper for multiple fetches if needed (for redirect handling)
+      const fetchWithRetry = async (fetchUrl: string, fetchOptions: RequestInit, retries = 1): Promise<Response> => {
+        try {
+          const response = await fetch(fetchUrl, fetchOptions);
+          
+          // Log response details
+          logger.debug(`API response status: ${response.status} ${response.statusText} for ${fetchUrl}`);
+          
+          // Handle redirects manually if needed
+          if ([301, 302, 307, 308].includes(response.status)) {
+            const location = response.headers.get('Location');
+            if (location && retries > 0) {
+              logger.info(`Following redirect to ${location}, retries left: ${retries-1}`);
+              
+              // If redirect is to the same host, pass all headers
+              // If to a different host, be more careful with what we send
+              const redirectUrl = new URL(location, fetchUrl);
+              
+              return fetchWithRetry(redirectUrl.toString(), fetchOptions, retries - 1);
+            }
+          }
+          
+          return response;
+        } catch (error: any) {
+          logger.error(`Fetch attempt error for ${fetchUrl}: ${error.message}`);
+          throw error;
+        }
+      };
+      
+      // Perform the actual fetch with retry capability
+      const response = await fetchWithRetry(url, options, 2);
+      clearTimeout(timeoutId);
       
       // For 401 responses on public endpoints, try again without auth token
       if (response.status === 401 && isPublicReadRequest && token) {
         logger.warn('Got 401 on public endpoint, retrying without auth');
         const publicOptions = { ...options };
-        publicOptions.headers = { 'Content-Type': 'application/json' };
+        publicOptions.headers = { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Origin': origin
+        };
         
         const publicResponse = await fetch(url, publicOptions);
         return await handleApiResponse(publicResponse, errorMessage);
+      }
+      
+      // Special handling for thread creation
+      if (url.includes('/threads') && method === 'POST' && response.status >= 200 && response.status < 300) {
+        logger.debug('Thread creation succeeded with status:', response.status);
       }
       
       return await handleApiResponse(response, errorMessage);
@@ -110,6 +163,45 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
       if (error.name === 'AbortError') {
         throw new Error('Request timed out');
       }
+      
+      // Enhanced error logging for CORS issues
+      if (error.message.includes('CORS') || error.message.includes('cross-origin') || error.message === 'Failed to fetch') {
+        logger.error(`CORS error for ${url}:`, error.message);
+        
+        // Try another approach for thread creation if that's what we're doing
+        if (url.includes('/threads') && method === 'POST') {
+          logger.debug('Thread creation CORS issue - attempting fallback approach');
+          
+          try {
+            // Try with different headers as a fallback
+            const fallbackOptions: RequestInit = {
+              method,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : '',
+                'Accept': '*/*',
+              },
+              credentials: 'include',
+              mode: 'cors',
+              body: body ? JSON.stringify(body) : undefined
+            };
+            
+            // Add an extra delay before retrying to allow any previous requests to settle
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            const fallbackResponse = await fetch(url, fallbackOptions);
+            logger.debug(`Fallback approach status: ${fallbackResponse.status}`);
+            
+            return await handleApiResponse(fallbackResponse, errorMessage);
+          } catch (fallbackError) {
+            logger.error('Fallback approach failed:', fallbackError);
+            throw new Error(`CORS error: The server may not allow requests from this origin. Please check your browser console for more details.`);
+          }
+        } else {
+          throw new Error(`CORS error: ${error.message}. The server may not allow requests from this origin.`);
+        }
+      }
+      
       logger.error(`Fetch error for ${url}: ${error.message}`);
       throw error;
     }
@@ -132,20 +224,48 @@ export async function createThread(data: Record<string, any>) {
     const url = `${API_BASE_URL}/threads`;
     logger.debug(`Using endpoint: ${url}`);
     
-    const result = await makeApiRequest(
-      url, 
-      'POST', 
-      data, 
-      'Failed to create thread'
-    );
+    // Check if token is available before making request
+    const token = getAuthToken();
+    if (!token) {
+      logger.warn('No auth token available for createThread. User may need to log in');
+    }
     
-    logger.info('Thread created successfully');
-    return result;
+    try {
+      const result = await makeApiRequest(
+        url, 
+        'POST', 
+        data, 
+        'Failed to create thread',
+        30000 // Increase timeout to 30 seconds for create operations
+      );
+      
+      logger.info('Thread created successfully');
+      return result;
+    } catch (apiError: any) {
+      // Handle API-specific errors with more detail
+      if (apiError.message?.includes('307') || apiError.message?.includes('Temporary Redirect')) {
+        logger.error('Server returned redirect for thread creation. This could be a CORS issue');
+        throw new Error('Server redirect occurred. This might be due to CORS configuration issues. Please check your network settings or contact support.');
+      }
+      
+      if (apiError.message?.includes('CORS') || apiError.message?.includes('cross-origin')) {
+        logger.error('CORS error detected when creating thread');
+        throw new Error('Cross-origin request blocked. Please check your browser settings or contact support.');
+      }
+      
+      // Re-throw original error if not handled specifically
+      throw apiError;
+    }
   } catch (error) {
     logger.error('Create thread failed:', error);
     // If this is a network error, provide a more helpful message
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network error: Could not connect to the API server. Please check your internet connection or contact support.');
+    if (error instanceof Error) {
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error: Could not connect to the API server. Please check your internet connection or contact support.');
+      }
+      if (error.message.includes('NetworkError')) {
+        throw new Error('Network error: Browser blocked the request. This might be due to CORS or security settings.');
+      }
     }
     throw error;
   }

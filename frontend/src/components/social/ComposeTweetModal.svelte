@@ -338,7 +338,13 @@
           if (replyTo.parent_id) {
             threadData.parent_reply_id = replyTo.id;
           }
+          
+          console.log('Sending reply data:', JSON.stringify(threadData));
           const response = await replyToThread(replyTo.id, threadData);
+          
+          if (!response) {
+            throw new Error('No response received from server');
+          }
           
           if (files.length > 0 && response && response.id) {
             try {
@@ -363,16 +369,31 @@
         } catch (replyError) {
           console.error('Error posting reply:', replyError);
           errorMessage = 'Failed to post your reply. Please try again.';
+          
           if (replyError instanceof Error) {
-            errorMessage += ' ' + replyError.message;
+            // Special handling for CORS-related errors
+            if (replyError.message.includes('CORS') || replyError.message.includes('cross-origin')) {
+              errorMessage = 'Browser security prevented the request. This might be a CORS issue.';
+            } else if (replyError.message.includes('307') || replyError.message.includes('redirect')) {
+              errorMessage = 'Server redirected the request unexpectedly. Please try again later.';
+            } else {
+              errorMessage += ' ' + replyError.message;
+            }
           }
+          
           toastStore.showToast(errorMessage, 'error');
         }
       } 
-      else { // Fix missing else branch for creating new threads
+      else { // Creating a new thread
         try {
+          console.log('Sending thread data:', JSON.stringify(threadData));
+          
           // Create new thread
           const response = await createThread(threadData);
+          
+          if (!response) {
+            throw new Error('No response received from server');
+          }
           
           if (files.length > 0 && response && response.id) {
             try {
@@ -397,13 +418,20 @@
         } catch (threadError) {
           console.error('Error posting new thread:', threadError);
           errorMessage = 'Failed to publish your post. Please try again.';
+          
           if (threadError instanceof Error) {
-            if (threadError.message.includes('Network error')) {
+            // Special handling for specific error types
+            if (threadError.message.includes('CORS') || threadError.message.includes('cross-origin')) {
+              errorMessage = 'Browser security prevented the request. This might be a CORS issue.';
+            } else if (threadError.message.includes('307') || threadError.message.includes('redirect')) {
+              errorMessage = 'Server redirected the request unexpectedly. Please try again later.';
+            } else if (threadError.message.includes('Network error')) {
               errorMessage = threadError.message;
             } else {
               errorMessage += ' ' + threadError.message;
             }
           }
+          
           toastStore.showToast(errorMessage, 'error');
         }
       }

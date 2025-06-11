@@ -16,8 +16,9 @@ const appConfig = {
     baseUrl: (typeof window !== 'undefined') 
       ? `${window.location.protocol}//${window.location.hostname}:8083/api/v1`  // Browser accessing API on same hostname
       : (import.meta.env.VITE_API_BASE_URL || 'http://api_gateway:8081/api/v1'), // Inside Docker network
+    // Use HTTP for WebSocket if on HTTP, WSS for HTTPS
     wsUrl: (typeof window !== 'undefined')
-      ? `ws://${window.location.hostname}:8083/api/v1`
+      ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8083/api/v1`
       : (import.meta.env.VITE_WS_URL || 'ws://localhost:8083/api/v1'),
     aiServiceUrl: (typeof window !== 'undefined')
       ? `${window.location.protocol}//${window.location.hostname}:5000`
@@ -44,14 +45,21 @@ console.log('[Config] AI Service URL:', appConfig.api.aiServiceUrl);
 export const checkApiHealth = async () => {
   try {
     console.log(`[Config] Testing API connection to: ${appConfig.api.baseUrl}`);
+    
+    // Add origin information to help with debugging CORS issues
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'unknown';
+    console.log(`[Config] Current origin: ${currentOrigin}`);
+    
     // Use /trends endpoint which we know is working from the logs
     const response = await fetch(`${appConfig.api.baseUrl}/trends`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Origin': currentOrigin
       },
-      mode: 'cors' // Ensure CORS is enabled
+      mode: 'cors', // Ensure CORS is enabled
+      credentials: 'include' // Send cookies if available
     });
     
     console.log(`[Config] API health check status: ${response.status}`);
@@ -68,9 +76,26 @@ export const checkApiHealth = async () => {
       }
     } else {
       console.log('[Config] API connection successful');
+      
+      // Check CORS headers in response
+      const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
+      const allowMethods = response.headers.get('Access-Control-Allow-Methods');
+      const allowHeaders = response.headers.get('Access-Control-Allow-Headers');
+      
+      console.log('[Config] CORS headers in response:', {
+        'Access-Control-Allow-Origin': allowOrigin || 'not present',
+        'Access-Control-Allow-Methods': allowMethods || 'not present',
+        'Access-Control-Allow-Headers': allowHeaders || 'not present'
+      });
     }
   } catch (error) {
     console.error('[Config] Error connecting to API:', error);
+    
+    // CORS errors don't provide much info in the error object
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      console.error('[Config] This might be a CORS issue or the API server is not running');
+      console.error('[Config] Try checking the Network tab in DevTools for more details');
+    }
   }
 };
 

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +17,35 @@ import (
 func SetupRouter(cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
+	// Log middleware setup
+	log.Println("Setting up router with middleware...")
+
 	// Enable CORS for all origins - must be first middleware
 	r.Use(middleware.CORS())
 
 	// Add debug middleware after CORS
 	r.Use(middleware.CORSDebug())
+
+	// Add custom middleware to prevent automatic redirects
+	r.Use(func(c *gin.Context) {
+		// Log original request
+		log.Printf("Request received: %s %s", c.Request.Method, c.Request.URL.Path)
+
+		// Save original headers before they might be modified
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
+
+		// Set CORS headers early
+		c.Header("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token")
+
+		// Continue request handling
+		c.Next()
+	})
 
 	// Add global OPTIONS handler to handle preflight requests that don't match specific routes
 	r.NoRoute(func(c *gin.Context) {
@@ -54,5 +79,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	routes.RegisterRoutes(r, cfg)
+
+	// Log that router setup is complete
+	log.Println("Router setup complete with CORS and middleware")
+
 	return r
 }

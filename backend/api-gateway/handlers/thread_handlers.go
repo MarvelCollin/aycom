@@ -21,6 +21,31 @@ import (
 )
 
 func CreateThread(c *gin.Context) {
+	// Always set CORS headers first thing
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token, Pragma, Expires, Connection, User-Agent, Host, Referer, Cookie, Set-Cookie, *")
+
+	// Log important request headers for debugging
+	log.Printf("CreateThread: Origin: %s, Content-Type: %s, Auth header length: %d",
+		c.GetHeader("Origin"),
+		c.GetHeader("Content-Type"),
+		len(c.GetHeader("Authorization")))
+
+	// Handle OPTIONS requests immediately
+	if c.Request.Method == "OPTIONS" {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
+	// Add origin to response headers to support CORS
+	log.Printf("Processing CreateThread request from origin: %s", origin)
+
 	userIDAny, exists := c.Get("userId")
 	if !exists {
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
@@ -33,8 +58,12 @@ func CreateThread(c *gin.Context) {
 		return
 	}
 
+	// Log user information
+	log.Printf("Creating thread for user ID: %s", userID)
+
 	var request threadProto.CreateThreadRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
+		log.Printf("Error binding JSON for CreateThread: %v", err)
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request: "+err.Error())
 		return
 	}
@@ -43,6 +72,7 @@ func CreateThread(c *gin.Context) {
 
 	conn, err := threadConnPool.Get()
 	if err != nil {
+		log.Printf("Error connecting to thread service: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
 		return
 	}
@@ -50,11 +80,19 @@ func CreateThread(c *gin.Context) {
 
 	client := threadProto.NewThreadServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	// Add more time for the request
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
+
+	// Pass auth headers to gRPC context
+	md := metadata.New(map[string]string{
+		"authorization": c.GetHeader("Authorization"),
+	})
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	resp, err := client.CreateThread(ctx, &request)
 	if err != nil {
+		log.Printf("Error creating thread: %v", err)
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.InvalidArgument {
@@ -67,12 +105,19 @@ func CreateThread(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Successfully created thread ID: %s", resp.Thread.Id)
+
+	// Set content type header explicitly
+	c.Header("Content-Type", "application/json")
+
+	// Return response with thread ID and additional info
 	c.JSON(http.StatusCreated, gin.H{
 		"id":         resp.Thread.Id,
 		"content":    resp.Thread.Content,
 		"media":      resp.Thread.Media,
 		"media_urls": resp.Thread.Media,
 		"success":    true,
+		"thread":     resp.Thread,
 	})
 }
 

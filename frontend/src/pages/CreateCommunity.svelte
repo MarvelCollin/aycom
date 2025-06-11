@@ -14,10 +14,10 @@
   const { theme } = useTheme();
   
   // Reactive declarations
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { userId: null, isAuthenticated: false, accessToken: null, refreshToken: null };
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
   $: isDarkMode = $theme === 'dark';
-  $: sidebarUsername = authState?.userId ? `User_${authState.userId.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.userId ? `User ${authState.userId.substring(0, 4)}` : '';
+  $: sidebarUsername = authState?.user_id ? `User_${authState.user_id.substring(0, 4)}` : '';
+  $: sidebarDisplayName = authState?.user_id ? `User ${authState.user_id.substring(0, 4)}` : '';
   $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar with proper image URL
   
   // Available categories for selection
@@ -45,7 +45,7 @@
   
   // Authentication check
   function checkAuth() {
-    if (!authState.isAuthenticated) {
+    if (!authState.is_authenticated) {
       toastStore.showToast('You need to log in to create a community', 'warning');
       window.location.href = '/login';
       return false;
@@ -328,9 +328,15 @@
             
             <!-- Categories -->
             <div>
-              <label id="categories-label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label for="categories-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Categories <span class="text-red-500">*</span> <span class="text-sm font-normal text-gray-500">(Select up to 5)</span>
               </label>
+              <!-- Hidden select for accessibility -->
+              <select id="categories-select" class="sr-only" aria-hidden="true" multiple>
+                {#each availableCategories as category}
+                  <option value={category} selected={selectedCategories.includes(category)}>{category}</option>
+                {/each}
+              </select>
               <div class="flex flex-wrap gap-2 mt-2" role="group" aria-labelledby="categories-label">
                 {#each availableCategories as category}
                   <button
