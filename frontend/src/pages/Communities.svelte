@@ -124,15 +124,7 @@
         // Extract communities from the result
         communities = result.communities || [];
         
-        // Filter out communities that aren't approved by admin
-        // Only apply this filter to the discover tab, as joined/pending communities are specially handled
-        if (activeTab === 'discover') {
-          communities = communities.filter(community => 
-            community.is_approved === true || community.isApproved === true
-          );
-        }
-        
-        totalCount = activeTab === 'discover' ? communities.length : (result.total || 0);
+        totalCount = result.total || 0;
         
         console.log('[Communities] Extracted communities:', communities);
         console.log('[Communities] Total count:', totalCount);
@@ -570,7 +562,8 @@
         </div>
         
         <Pagination 
-          totalPages={totalPages > 0 ? totalPages : 1}
+          totalItems={totalCount}
+          perPage={limit}
           currentPage={currentPage}
           maxDisplayPages={5}
           on:pageChange={handlePageChange}

@@ -18,7 +18,6 @@
   const { theme } = useTheme();
   $: isDarkMode = $theme === 'dark';
 
-  // Function to fetch bookmarks
   async function fetchBookmarks() {
     try {
       loading = true;

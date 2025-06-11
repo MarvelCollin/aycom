@@ -3,6 +3,7 @@ package routes
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -10,10 +11,8 @@ import (
 	_ "aycom/backend/api-gateway/docs"
 	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/middleware"
-	"os"
 )
 
-// CORSPreflightHandler handles OPTIONS requests with appropriate CORS headers
 func CORSPreflightHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
@@ -27,7 +26,7 @@ func CORSPreflightHandler() gin.HandlerFunc {
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token")
 		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Max-Age", "86400") // 24 hours
+		c.Header("Access-Control-Max-Age", "86400")
 		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Powered-By")
 
 		if c.Request.Method == "OPTIONS" {
@@ -44,13 +43,11 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1 := router.Group("/api/v1")
 
-	// Get JWT secret as string for middleware
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "insecure_fallback_jwt_key" // Same fallback as in utils.GetJWTSecret()
+		jwtSecret = "wompwompAWIKWOKKWOKWOK"
 	}
 
-	// Add public suggestions endpoint directly to v1 - NO MIDDLEWARE
 	v1.GET("/public-suggestions", handlers.GetPublicUserSuggestions)
 
 	auth := v1.Group("/auth")
@@ -90,12 +87,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicUsers.POST("/admin/create", handlers.CreateAdminUser)
 	}
 
-	// Add specific OPTIONS handler for threads endpoint
 	v1.OPTIONS("/threads", CORSPreflightHandler())
 	v1.OPTIONS("/threads/*path", CORSPreflightHandler())
 
 	publicThreads := v1.Group("/threads")
-	// Apply OptionalJTAuth middleware to all routes in publicThreads to allow authentication if available
 	publicThreads.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
@@ -103,15 +98,12 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicThreads.GET("/:id", handlers.GetThread)
 		publicThreads.GET("/:id/replies", handlers.GetThreadReplies)
 
-		// Add direct POST endpoint with JWTAuth middleware specifically for thread creation
 		publicThreads.POST("", middleware.JWTAuth(jwtSecret), handlers.CreateThread)
 
-		// Apply JWTAuth middleware to these specific routes to require authentication
 		authPublicThreads := publicThreads.Group("/")
-		authPublicThreads.Use(CORSPreflightHandler()) // Add specific CORS handler here
+		authPublicThreads.Use(CORSPreflightHandler())
 		authPublicThreads.Use(middleware.JWTAuth(jwtSecret))
 		{
-			// Removed POST "" to move it to parent group with more direct middleware
 			authPublicThreads.POST("/:id/like", handlers.LikeThreadHandler)
 			authPublicThreads.DELETE("/:id/like", handlers.UnlikeThreadHandler)
 			authPublicThreads.POST("/:id/bookmark", handlers.BookmarkThreadHandler)
@@ -142,24 +134,16 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1.Group("/categories").GET("", handlers.GetCategories)
 
-	// Make communities/categories and communities listing public (no auth required)
 	v1.GET("/communities/categories", handlers.ListCategories)
 
-	// Public search endpoint must come before /:id to avoid route conflicts
 	v1.GET("/communities/search", handlers.OldSearchCommunities)
 
-	// Add three separate endpoints for community listings
 	v1.GET("/communities/joined/:userId", handlers.GetJoinedCommunities)
 	v1.GET("/communities/pending/:userId", handlers.GetPendingCommunities)
 	v1.GET("/communities/discover/:userId", handlers.GetDiscoverCommunities)
 
-	// Alternative search endpoint that avoids category joins
-	// Temporarily disabled due to persistent 500 errors
-	// v1.GET("/communities/name-search", handlers.SearchCommunityByName)
-
-	// Other community public endpoints
 	v1.GET("/communities", handlers.ListCommunities)
-	v1.GET("/communities/:id", handlers.GetCommunityByID) // Make individual community details public
+	v1.GET("/communities/:id", handlers.GetCommunityByID)
 
 	publicWebsockets := v1.Group("/chats")
 	{
@@ -267,7 +251,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		media.GET("/search", handlers.SearchMedia)
 	}
 
-	// Add a dedicated OPTIONS handler for the admin endpoints without auth middleware
 	v1.OPTIONS("/admin/*path", func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin == "" {
@@ -284,9 +267,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		c.AbortWithStatus(http.StatusNoContent)
 	})
 
-	// Remove the middleware for admin routes to allow anyone to access
 	admin := v1.Group("/admin")
-	// No middleware needed, open to all
 	{
 		admin.GET("/dashboard/statistics", handlers.GetDashboardStatistics)
 		admin.POST("/users/:userId/ban", handlers.BanUser)

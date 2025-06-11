@@ -94,6 +94,7 @@
     logo_url?: string;
     banner_url?: string;
     category_id?: string;
+    user_id?: string;
   }
 
   interface PremiumRequest {
@@ -334,7 +335,6 @@
 
           console.log('Community requests:', communityRequests);
           
-          // Log detailed requester information for debugging
           communityRequests.forEach((request, index) => {
             console.log(`Request #${index} - ${request.name}:`, { 
               fullRequest: request,
@@ -494,7 +494,6 @@
     } catch (error: any) {
       const newsletterError = error as Error;
       logger.error('Error sending newsletter:', newsletterError);
-
       if (newsletterError.message && newsletterError.message.includes('permission')) {
         toastStore.showToast('You do not have sufficient permissions to send newsletters', 'error');
       } else {
@@ -504,11 +503,20 @@
       isSendingNewsletter = false;
     }
   }
-
   async function handleProcessCommunityRequest(requestId: string, approve: boolean) {
     try {
       isProcessingRequest = true;
       logger.info(`Processing community request ${requestId} with approve=${approve}`);
+
+      // First check if the request still exists by refreshing data
+      await loadRequests();
+      
+      // Check if the request still exists after refresh
+      const requestExists = communityRequests.some(req => req.id === requestId);
+      if (!requestExists) {
+        toastStore.showToast('This request no longer exists. It may have already been processed.', 'warning');
+        return;
+      }
 
       const response = await adminAPI.processCommunityRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
       if (response.success) {
@@ -519,7 +527,18 @@
       }
     } catch (error) {
       logger.error('Error processing community request:', error);
-      toastStore.showToast('Failed to process request', 'error');
+      
+      // Enhanced error handling for specific error cases
+      if (error instanceof Error) {
+        if (error.message.includes('404') || error.message.includes('not found')) {
+          toastStore.showToast('This request no longer exists. Refreshing data...', 'warning');
+          await loadRequests(); // Refresh the data to remove stale entries
+        } else {
+          toastStore.showToast(`Failed to process request: ${error.message}`, 'error');
+        }
+      } else {
+        toastStore.showToast('Failed to process request', 'error');
+      }
     } finally {
       isProcessingRequest = false;
     }
@@ -827,25 +846,32 @@
                 </div>
               {/if}
             </div>
-          </div>
-
-        {:else if activeTab === 'requests'}
+          </div>        {:else if activeTab === 'requests'}
           <div class="requests-section">
             <div class="section-header">
               <h2>Manage Requests</h2>
-              <div class="search-filter">
-                <select bind:value={selectedRequestType} on:change={() => loadRequests()}>
-                  <option value="all">All Types</option>
-                  <option value="community">Community Requests</option>
-                  <option value="premium">Premium Requests</option>
-                  <option value="report">Report Requests</option>
-                </select>
-                <select bind:value={requestStatusFilter} on:change={() => loadRequests()}>
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
+              <div class="section-controls">
+                <div class="search-filter">
+                  <select bind:value={selectedRequestType} on:change={() => loadRequests()}>
+                    <option value="all">All Types</option>
+                    <option value="community">Community Requests</option>
+                    <option value="premium">Premium Requests</option>
+                    <option value="report">Report Requests</option>
+                  </select>
+                  <select bind:value={requestStatusFilter} on:change={() => loadRequests()}>
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+                <Button 
+                  variant="outlined" 
+                  on:click={() => loadRequests()}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Refreshing...' : 'Refresh Data'}
+                </Button>
               </div>
             </div>
 
@@ -1441,7 +1467,6 @@
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
   }
-
   .section-header {
     display: flex;
     justify-content: space-between;
@@ -1453,6 +1478,12 @@
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
     margin: 0;
+  }
+
+  .section-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
   }
 
   .badge {

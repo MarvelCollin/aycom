@@ -226,9 +226,10 @@ func GetCommunityRequests(c *gin.Context) {
 	// Also get all communities with is_approved='f' from the community service
 	if CommunityClient != nil {
 		communitiesResponse, commErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-			Query:  "",
-			Limit:  int32(limit),
-			Offset: int32((page - 1) * limit),
+			Query:      "",
+			Limit:      int32(limit),
+			Offset:     int32((page - 1) * limit),
+			IsApproved: false, // Only get unapproved communities for admin review
 		})
 
 		if commErr == nil && communitiesResponse != nil && len(communitiesResponse.Communities) > 0 {

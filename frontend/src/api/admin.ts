@@ -68,8 +68,22 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
     logger.info(`Received response with status: ${response.status} from ${url}`);
 
     if (!response.ok) {
-      logger.error(`Request failed with status: ${response.status}`);
-      throw new Error(`Request failed with status: ${response.status}`);
+      // Try to get error details from response
+      let errorMessage = `Request failed with status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (jsonError) {
+        // If JSON parsing fails, use status text
+        errorMessage = response.statusText || errorMessage;
+      }
+      
+      logger.error(`Request failed: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     const data = await response.json() as T;
@@ -147,7 +161,6 @@ export async function getPremiumRequests(page: number = 1, limit: number = 10, s
 }
 
 export async function processPremiumRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
-  // Backend expects a boolean, not a "t" or "f" string
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/premium-requests/${requestId}/process`,
     'POST',
@@ -172,7 +185,6 @@ export async function getReportRequests(page: number = 1, limit: number = 10, st
 }
 
 export async function processReportRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
-  // Backend expects a boolean, not a "t" or "f" string
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/report-requests/${requestId}/process`,
     'POST',

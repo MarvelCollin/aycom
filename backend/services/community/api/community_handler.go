@@ -211,19 +211,16 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *communityPr
 	}
 
 	var communities []*model.Community
-	var err error
-
-	// Standard listing without additional filters
-	communities, err = h.communityService.ListCommunities(ctx, offset, limit)
-
+	var totalCount int64
+	var err error // Check if IsApproved filtering is requested
+	var isApproved *bool
+	// Always apply the filter since the field is always explicitly set in our API calls
+	approved := req.IsApproved
+	isApproved = &approved
+	// Use SearchCommunities for filtered results
+	communities, totalCount, err = h.communityService.SearchCommunities(ctx, "", []string{}, isApproved, offset, limit)
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities: %v", err))
-	}
-
-	// Get total count of communities
-	totalCount, err := h.communityService.CountCommunities(ctx)
-	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to count communities: %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to list communities with approval filter: %v", err))
 	}
 
 	protoCommunities := make([]*communityProto.Community, len(communities))
@@ -890,7 +887,6 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
-
 	offset := int(req.Offset)
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -898,10 +894,9 @@ func (h *CommunityHandler) SearchCommunities(ctx context.Context, req *community
 	}
 
 	var isApproved *bool
-	if req.IsApproved {
-		approved := req.IsApproved
-		isApproved = &approved
-	}
+	// Always apply the filter since the field is always explicitly set in our API calls
+	approved := req.IsApproved
+	isApproved = &approved
 
 	communities, totalCount, err := h.communityService.SearchCommunities(ctx, req.Query, req.Categories, isApproved, offset, limit)
 	if err != nil {

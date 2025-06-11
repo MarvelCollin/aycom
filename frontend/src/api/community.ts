@@ -1712,12 +1712,10 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
 // Get communities the user hasn't joined or requested to join
 export async function getDiscoverCommunities(userId: string, params: CommunitiesParams = {}) {
   try {
-    console.log(`Getting discover communities for user: ${userId}`);
-
-    // Ensure we only get approved communities
+    console.log(`Getting discover communities for user: ${userId}`);    // Ensure we only get non-approved communities (for admin review)
     const paramsWithApproval = {
       ...params,
-      is_approved: true
+      is_approved: false
     };
 
     // Build query parameters
