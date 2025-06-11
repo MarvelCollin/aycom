@@ -1,16 +1,16 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 type NotificationClient struct {
@@ -240,58 +240,4 @@ func sendUnreadNotifications(client *NotificationClient) {
 	default:
 		log.Printf("Error: notification channel is full for user %s", client.UserID)
 	}
-}
-
-func GetUserNotifications(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	limitStr := c.DefaultQuery("limit", "10")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 10
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
-	}
-
-	notifications := notificationManager.GetUserNotifications(userID.(string), limit, offset)
-
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"notifications": notifications,
-		"pagination": gin.H{
-			"per_page":    limit,
-			"offset":      offset,
-			"total_count": len(notifications),
-		},
-	})
-}
-
-func MarkNotificationAsRead(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	notificationID := c.Param("id")
-	if notificationID == "" {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Notification ID is required")
-		return
-	}
-
-	err := notificationManager.MarkNotificationAsRead(userID.(string), notificationID)
-	if err != nil {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to mark notification as read")
-		return
-	}
-
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{"message": "Notification marked as read"})
 }

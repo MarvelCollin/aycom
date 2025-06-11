@@ -1184,7 +1184,7 @@ func ListMembers(c *gin.Context) {
 				"role":                member.Role,
 				"joined_at":           joinedAt,
 				"profile_picture_url": "",
-			}			// Try to fetch real user data from UserService
+			} // Try to fetch real user data from UserService
 			if UserClient != nil {
 				userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
 				userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
@@ -1208,7 +1208,8 @@ func ListMembers(c *gin.Context) {
 					}
 				} else {
 					log.Printf("Warning: Could not fetch user data for member %s: %v", member.UserId, userErr)
-				}			} else {
+				}
+			} else {
 				log.Printf("Warning: UserClient is nil, using placeholder data for member %s", member.UserId)
 			}
 
@@ -1657,9 +1658,20 @@ func ApproveJoinRequest(c *gin.Context) {
 
 	// Check if the user is admin of the community or system admin
 	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
+	
+	// First check if user is a system admin by querying the User service
+	if UserClient != nil {
+		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer userCancel()
+		
+		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+			UserId: userID.(string),
+		})
+		
+		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
+			isAdmin = true
+			log.Printf("User %s is a system admin, granting access to approve join request", userID.(string))
+		}
 	}
 
 	if !isAdmin {
@@ -1746,9 +1758,20 @@ func RejectJoinRequest(c *gin.Context) {
 
 	// Check if the user is admin of the community or system admin
 	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
+	
+	// First check if user is a system admin by querying the User service
+	if UserClient != nil {
+		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer userCancel()
+		
+		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+			UserId: userID.(string),
+		})
+		
+		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
+			isAdmin = true
+			log.Printf("User %s is a system admin, granting access to reject join request", userID.(string))
+		}
 	}
 
 	if !isAdmin {

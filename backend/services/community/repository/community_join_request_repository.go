@@ -2,6 +2,7 @@ package repository
 
 import (
 	"aycom/backend/services/community/model"
+	"context"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -10,10 +11,15 @@ import (
 type CommunityJoinRequestRepository interface {
 	Add(request *model.CommunityJoinRequest) error
 	Remove(requestID uuid.UUID) error
+	FindByID(requestID uuid.UUID) (*model.CommunityJoinRequest, error)
 	FindByCommunity(communityID uuid.UUID) ([]*model.CommunityJoinRequest, error)
 	FindByUser(userID uuid.UUID) ([]*model.CommunityJoinRequest, error)
 	Update(request *model.CommunityJoinRequest) error
 	HasPendingJoinRequest(communityID, userID uuid.UUID) (bool, error)
+
+	// Transaction support
+	BeginTx(ctx context.Context) (*gorm.DB, error)
+	UpdateTx(tx *gorm.DB, request *model.CommunityJoinRequest) error
 }
 
 type GormCommunityJoinRequestRepository struct {
@@ -32,9 +38,18 @@ func (r *GormCommunityJoinRequestRepository) Remove(requestID uuid.UUID) error {
 	return r.db.Delete(&model.CommunityJoinRequest{}, "request_id = ?", requestID).Error
 }
 
+func (r *GormCommunityJoinRequestRepository) FindByID(requestID uuid.UUID) (*model.CommunityJoinRequest, error) {
+	var request model.CommunityJoinRequest
+	err := r.db.Where("request_id = ?", requestID).First(&request).Error
+	if err != nil {
+		return nil, err
+	}
+	return &request, nil
+}
+
 func (r *GormCommunityJoinRequestRepository) FindByCommunity(communityID uuid.UUID) ([]*model.CommunityJoinRequest, error) {
 	var requests []*model.CommunityJoinRequest
-	err := r.db.Where("community_id = ?", communityID).Find(&requests).Error
+	err := r.db.Where("community_id = ? AND status = ?", communityID, "pending").Find(&requests).Error
 	return requests, err
 }
 
@@ -55,4 +70,14 @@ func (r *GormCommunityJoinRequestRepository) HasPendingJoinRequest(communityID, 
 		Count(&count).Error
 
 	return count > 0, err
+}
+
+// Transaction support
+func (r *GormCommunityJoinRequestRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	return tx, tx.Error
+}
+
+func (r *GormCommunityJoinRequestRepository) UpdateTx(tx *gorm.DB, request *model.CommunityJoinRequest) error {
+	return tx.Save(request).Error
 }

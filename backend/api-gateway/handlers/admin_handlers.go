@@ -351,8 +351,8 @@ func GetCommunityRequests(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
+	// Use standard success response format
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"requests":    response.Requests,
 		"total_count": response.TotalCount,
 		"page":        response.Page,
@@ -475,8 +475,8 @@ func ProcessCommunityRequest(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": response.Success,
+	// Use standard success response format
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})
 }
@@ -605,8 +605,8 @@ func ProcessPremiumRequest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": response.Success,
+	// Use standard success response format
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})
 }
@@ -735,8 +735,8 @@ func ProcessReportRequest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": response.Success,
+	// Use standard success response format
+	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})
 }

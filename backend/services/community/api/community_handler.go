@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/gorm"
 )
 
 type CommunityService interface {
@@ -53,11 +54,22 @@ type ChatService interface {
 }
 
 type CommunityMemberRepository interface {
+	Add(member *model.CommunityMember) error
+	Remove(communityID, userID uuid.UUID) error
+	FindByCommunity(communityID uuid.UUID) ([]*model.CommunityMember, error)
 	IsMember(communityID, userID uuid.UUID) (bool, error)
+	AddTx(tx *gorm.DB, member *model.CommunityMember) error
 }
 
 type CommunityJoinRequestRepository interface {
+	Add(request *model.CommunityJoinRequest) error
+	Remove(requestID uuid.UUID) error
+	FindByID(requestID uuid.UUID) (*model.CommunityJoinRequest, error)
+	FindByCommunity(communityID uuid.UUID) ([]*model.CommunityJoinRequest, error)
+	Update(request *model.CommunityJoinRequest) error
 	HasPendingJoinRequest(communityID, userID uuid.UUID) (bool, error)
+	BeginTx(ctx context.Context) (*gorm.DB, error)
+	UpdateTx(tx *gorm.DB, request *model.CommunityJoinRequest) error
 }
 
 type CommunityHandler struct {
@@ -510,19 +522,80 @@ func (h *CommunityHandler) ApproveJoinRequest(ctx context.Context, req *communit
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	_, err := uuid.Parse(req.JoinRequestId)
+	requestID, err := uuid.Parse(req.JoinRequestId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid request ID")
 	}
 
-	// Logic to approve join request would go here
-	// Since we don't have a model.CommunityJoinRequest struct with appropriate fields shown,
-	// this implementation is incomplete
+	// Get the join request by ID - we need to find it first
+	joinRequest, err := h.communityJoinRequestRepo.FindByID(requestID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to find join request: %v", err))
+	}
+
+	if joinRequest == nil {
+		return nil, status.Error(codes.NotFound, "join request not found")
+	}
+
+	// Check if the request is still pending
+	if joinRequest.Status != "pending" {
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("join request is not pending, current status: %s", joinRequest.Status))
+	}
+
+	// Start a database transaction for all operations
+	tx, err := h.communityJoinRequestRepo.BeginTx(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to start transaction: %v", err))
+	}
+
+	// Use defer with a named return value to handle transaction rollback/commit
+	var txErr error
+	defer func() {
+		if txErr != nil {
+			// If there's an error, rollback the transaction
+			if rbErr := tx.Rollback(); rbErr != nil {
+				log.Printf("Error rolling back transaction: %v", rbErr)
+			}
+			log.Printf("Transaction rolled back due to error: %v", txErr)
+		}
+	}()
+
+	// Update the join request status to approved within the transaction
+	joinRequest.Status = "approved"
+	joinRequest.UpdatedAt = time.Now()
+	txErr = h.communityJoinRequestRepo.UpdateTx(tx, joinRequest)
+	if txErr != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to update join request: %v", txErr))
+	}
+
+	// Add the user as a member to the community within the transaction
+	member := &model.CommunityMember{
+		CommunityID: joinRequest.CommunityID,
+		UserID:      joinRequest.UserID,
+		Role:        "member",
+	}
+
+	txErr = h.communityMemberRepo.AddTx(tx, member)
+	if txErr != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to add community member: %v", txErr))
+	}
+
+	// Commit the transaction
+	txErr = tx.Commit().Error
+	if txErr != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to commit transaction: %v", txErr))
+	}
+
+	// Log successful approval
+	log.Printf("Successfully approved join request ID %s for user %s in community %s",
+		joinRequest.RequestID, joinRequest.UserID, joinRequest.CommunityID)
 
 	return &communityProto.JoinRequestResponse{
 		JoinRequest: &communityProto.JoinRequest{
-			Id:     req.JoinRequestId,
-			Status: "approved",
+			Id:          joinRequest.RequestID.String(),
+			CommunityId: joinRequest.CommunityID.String(),
+			UserId:      joinRequest.UserID.String(),
+			Status:      joinRequest.Status,
 		},
 	}, nil
 }
@@ -532,19 +605,67 @@ func (h *CommunityHandler) RejectJoinRequest(ctx context.Context, req *community
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
 
-	_, err := uuid.Parse(req.JoinRequestId)
+	requestID, err := uuid.Parse(req.JoinRequestId)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid request ID")
 	}
 
-	// Logic to reject join request would go here
-	// Since we don't have a model.CommunityJoinRequest struct with appropriate fields shown,
-	// this implementation is incomplete
+	// Get the join request by ID
+	joinRequest, err := h.communityJoinRequestRepo.FindByID(requestID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to find join request: %v", err))
+	}
+
+	if joinRequest == nil {
+		return nil, status.Error(codes.NotFound, "join request not found")
+	}
+
+	// Check if the request is still pending
+	if joinRequest.Status != "pending" {
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("join request is not pending, current status: %s", joinRequest.Status))
+	}
+
+	// Start a database transaction
+	tx, err := h.communityJoinRequestRepo.BeginTx(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to start transaction: %v", err))
+	}
+
+	// Use defer with a named return value to handle transaction rollback/commit
+	var txErr error
+	defer func() {
+		if txErr != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				log.Printf("Error rolling back transaction: %v", rbErr)
+			}
+			log.Printf("Transaction rolled back due to error: %v", txErr)
+		}
+	}()
+
+	// Update the join request status to rejected
+	joinRequest.Status = "rejected"
+	joinRequest.UpdatedAt = time.Now()
+	txErr = h.communityJoinRequestRepo.UpdateTx(tx, joinRequest)
+	if txErr != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to update join request: %v", txErr))
+	}
+
+	// Commit the transaction
+	txErr = tx.Commit().Error
+	if txErr != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to commit transaction: %v", txErr))
+	}
+
+	// Log successful rejection
+	log.Printf("Successfully rejected join request ID %s for user %s in community %s",
+		joinRequest.RequestID, joinRequest.UserID, joinRequest.CommunityID)
 
 	return &communityProto.JoinRequestResponse{
 		JoinRequest: &communityProto.JoinRequest{
-			Id:     req.JoinRequestId,
-			Status: "rejected",
+			Id:          joinRequest.RequestID.String(),
+			CommunityId: joinRequest.CommunityID.String(),
+			UserId:      joinRequest.UserID.String(),
+			Status:      joinRequest.Status,
 		},
 	}, nil
 }
@@ -986,5 +1107,57 @@ func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *communi
 	return &communityProto.ListCommunitiesResponse{
 		Communities: protoCommunities,
 		TotalCount:  int32(totalCount),
+	}, nil
+}
+
+// IsMember checks if a user is a member of a community
+func (h *CommunityHandler) IsMember(ctx context.Context, req *communityProto.IsMemberRequest) (*communityProto.IsMemberResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	communityID, err := uuid.Parse(req.CommunityId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid community ID")
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+	}
+
+	isMember, err := h.communityMemberRepo.IsMember(communityID, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to check membership: %v", err))
+	}
+
+	return &communityProto.IsMemberResponse{
+		IsMember: isMember,
+	}, nil
+}
+
+// HasPendingJoinRequest checks if a user has a pending join request for a community
+func (h *CommunityHandler) HasPendingJoinRequest(ctx context.Context, req *communityProto.HasPendingJoinRequestRequest) (*communityProto.HasPendingJoinRequestResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	communityID, err := uuid.Parse(req.CommunityId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid community ID")
+	}
+
+	userID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user ID")
+	}
+
+	hasPendingRequest, err := h.communityJoinRequestRepo.HasPendingJoinRequest(communityID, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to check pending join requests: %v", err))
+	}
+
+	return &communityProto.HasPendingJoinRequestResponse{
+		HasRequest: hasPendingRequest,
 	}, nil
 }

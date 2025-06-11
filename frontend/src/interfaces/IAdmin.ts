@@ -48,10 +48,15 @@ export interface ISendNewsletterResponse {
 export interface ICommunityRequest {
   id: string;
   user_id: string;
-  community_name: string;
+  name: string;
   description: string;
+  category_id?: string;
   status: string;
   created_at: string;
+  updated_at?: string;
+  logo_url?: string;
+  banner_url?: string;
+  requester?: any;
 }
 
 /**
@@ -60,8 +65,11 @@ export interface ICommunityRequest {
 export interface IPremiumRequest {
   id: string;
   user_id: string;
+  reason?: string;
   status: string;
   created_at: string;
+  updated_at?: string;
+  requester?: any;
 }
 
 /**
@@ -70,10 +78,13 @@ export interface IPremiumRequest {
 export interface IReportRequest {
   id: string;
   reporter_id: string;
-  reported_id: string;
+  reported_user_id: string;
   reason: string;
   status: string;
   created_at: string;
+  updated_at?: string;
+  reporter?: any;
+  reported_user?: any;
 }
 
 /**

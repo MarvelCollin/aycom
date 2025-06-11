@@ -3,22 +3,36 @@ import { getAuthToken } from '../utils/auth';
 import { createLoggerWithPrefix } from '../utils/logger';
 import { checkAdminStatus } from './user';
 import type { IApiResponse, IPagination } from '../interfaces/ICommon';
+import { 
+  standardizeCommunityRequest, 
+  standardizePremiumRequest, 
+  standardizeReportRequest, 
+  standardizePagination 
+} from '../utils/standardizeApiData';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('AdminAPI');
 
+// Standard API response for admin endpoints
+export type AdminApiResponse = IApiResponse<{
+  message: string;
+}>;
+
+// Response for requests endpoints (community, premium, report)
 export interface RequestsResponse {
   success: boolean;
-  requests?: any[];
+  data: any[];
   pagination: IPagination;
 }
 
+// Response for category endpoints
 export interface CategoriesResponse {
   success: boolean;
-  categories?: any[];
+  data: any[];
   pagination: IPagination;
 }
 
+// Statistics response
 export interface StatisticsResponse extends IApiResponse<{
   total_users?: number;
   active_users?: number;
@@ -27,15 +41,11 @@ export interface StatisticsResponse extends IApiResponse<{
   pending_reports?: number;
   new_users_today?: number;
   new_posts_today?: number;
-  [key: string]: any;
 }> {}
 
-export interface AdminApiResponse {
-  success: boolean;
-  message?: string;
-  [key: string]: any;
-}
-
+/**
+ * Make a standardized API request
+ */
 async function apiRequest<T>(url: string, method: string, body?: any): Promise<T> {
   // For development/demo purposes: no admin check required
   logger.info(`Making ${method} request to ${url}`);
@@ -65,34 +75,84 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
   try {
     logger.info(`Sending fetch request to ${url}`);
     const response = await fetch(url, options);
-    logger.info(`Received response with status: ${response.status} from ${url}`);
-
+    
     if (!response.ok) {
-      // Try to get error details from response
-      let errorMessage = `Request failed with status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error && errorData.error.message) {
-          errorMessage = errorData.error.message;
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-      } catch (jsonError) {
-        // If JSON parsing fails, use status text
-        errorMessage = response.statusText || errorMessage;
-      }
-      
-      logger.error(`Request failed: ${errorMessage}`);
-      throw new Error(errorMessage);
+      logger.error(`API error: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || `Request failed with status ${response.status}`);
     }
-
-    const data = await response.json() as T;
-    logger.info(`Successfully parsed response data`);
+    
+    const data = await response.json();
+    logger.info(`Request successful, data received`);
     return data;
-  } catch (error) {
-    logger.error('API request error:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    logger.error(`Request failed: ${errorMessage}`);
     throw error;
   }
+}
+
+/**
+ * Get all community requests with pagination
+ */
+export async function getCommunityRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
+  const response = await apiRequest<RequestsResponse>(
+    `${API_BASE_URL}/admin/community-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
+    'GET'
+  );
+  
+  // Standardize data
+  if (response.data && Array.isArray(response.data)) {
+    response.data = response.data.map(standardizeCommunityRequest);
+  }
+  
+  if (response.pagination) {
+    response.pagination = standardizePagination(response.pagination);
+  }
+  
+  return response;
+}
+
+/**
+ * Get premium requests with pagination
+ */
+export async function getPremiumRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
+  const response = await apiRequest<RequestsResponse>(
+    `${API_BASE_URL}/admin/premium-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
+    'GET'
+  );
+  
+  // Standardize data
+  if (response.data && Array.isArray(response.data)) {
+    response.data = response.data.map(standardizePremiumRequest);
+  }
+  
+  if (response.pagination) {
+    response.pagination = standardizePagination(response.pagination);
+  }
+  
+  return response;
+}
+
+/**
+ * Get report requests with pagination
+ */
+export async function getReportRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
+  const response = await apiRequest<RequestsResponse>(
+    `${API_BASE_URL}/admin/report-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
+    'GET'
+  );
+  
+  // Standardize data
+  if (response.data && Array.isArray(response.data)) {
+    response.data = response.data.map(standardizeReportRequest);
+  }
+  
+  if (response.pagination) {
+    response.pagination = standardizePagination(response.pagination);
+  }
+  
+  return response;
 }
 
 export async function getDashboardStatistics(): Promise<StatisticsResponse> {
@@ -119,68 +179,12 @@ export async function sendNewsletter(subject: string, content: string): Promise<
   );
 }
 
-export async function getCommunityRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString()
-  });
-
-  if (status) {
-    params.append('status', status);
-  }
-
-  return apiRequest<RequestsResponse>(
-    `${API_BASE_URL}/admin/community-requests?${params}`,
-    'GET'
-  );
-}
-
 export async function processCommunityRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
   // Backend expects a boolean, not a "t" or "f" string
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/community-requests/${requestId}/process`,
     'POST',
     { approve: approve, reason }
-  );
-}
-
-export async function getPremiumRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString()
-  });
-
-  if (status) {
-    params.append('status', status);
-  }
-
-  return apiRequest<RequestsResponse>(
-    `${API_BASE_URL}/admin/premium-requests?${params}`,
-    'GET'
-  );
-}
-
-export async function processPremiumRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
-  return apiRequest<AdminApiResponse>(
-    `${API_BASE_URL}/admin/premium-requests/${requestId}/process`,
-    'POST',
-    { approve: approve, reason }
-  );
-}
-
-export async function getReportRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString()
-  });
-
-  if (status) {
-    params.append('status', status);
-  }
-
-  return apiRequest<RequestsResponse>(
-    `${API_BASE_URL}/admin/report-requests?${params}`,
-    'GET'
   );
 }
 
@@ -192,16 +196,30 @@ export async function processReportRequest(requestId: string, approve: boolean, 
   );
 }
 
-export async function getThreadCategories(page: number = 1, limit: number = 10): Promise<CategoriesResponse> {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString()
-  });
+export async function processPremiumRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
+  return apiRequest<AdminApiResponse>(
+    `${API_BASE_URL}/admin/premium-requests/${requestId}/process`,
+    'POST',
+    { approve: approve, reason }
+  );
+}
 
-  return apiRequest<CategoriesResponse>(
-    `${API_BASE_URL}/admin/thread-categories?${params}`,
+export async function getThreadCategories(page: number = 1, limit: number = 10): Promise<CategoriesResponse> {
+  const response = await apiRequest<CategoriesResponse>(
+    `${API_BASE_URL}/admin/thread-categories?page=${page}&limit=${limit}`,
     'GET'
   );
+  
+  // Standardize data
+  if (response.data && Array.isArray(response.data)) {
+    // Apply any specific standardization if needed
+  }
+  
+  if (response.pagination) {
+    response.pagination = standardizePagination(response.pagination);
+  }
+  
+  return response;
 }
 
 export async function createThreadCategory(name: string, description?: string): Promise<IApiResponse<void>> {

@@ -3,7 +3,7 @@
   import ThemeToggle from '../common/ThemeToggle.svelte';
   import { useTheme } from '../../hooks/useTheme';
   import { useAuth } from '../../hooks/useAuth';
-  import { isAuthenticated, getUserId } from '../../utils/auth';
+  import { isAuthenticated, getUserId, isUserAdmin } from '../../utils/auth';
   import { toastStore } from '../../stores/toastStore';
   import { getProfile, checkAdminStatus } from '../../api/user';
   import { onMount } from 'svelte';
@@ -77,7 +77,7 @@
     try {
       // First check the auth state
       const authState = getAuthState();
-      if (authState && authState.is_admin === true) {
+      if (authState && isUserAdmin(authState)) {
         console.log('User already has admin status in auth store');
         isAdmin = true;
         return;
@@ -140,7 +140,7 @@
         
         // Check admin status from both the API response and the auth store
         const authState = getAuthState();
-        isAdmin = userData.is_admin === true || (authState && authState.is_admin === true);
+        isAdmin = isUserAdmin(userData) || (authState && isUserAdmin(authState));
         
         console.log('Is admin?', isAdmin, '(API:', userData.is_admin, ', Auth store:', authState?.is_admin, ')');
         
@@ -158,7 +158,7 @@
         
         // Even if userData is missing, still check auth store for admin status
         const authState = getAuthState();
-        if (authState && authState.is_admin === true) {
+        if (authState && isUserAdmin(authState)) {
           isAdmin = true;
           console.log('No API user data but user is admin based on auth store');
         }
@@ -168,7 +168,7 @@
       
       // Even on error, still check auth store for admin status
       const authState = getAuthState();
-      if (authState && authState.is_admin === true) {
+      if (authState && isUserAdmin(authState)) {
         isAdmin = true;
         console.log('Profile fetch failed but user is admin based on auth store');
       }
@@ -229,7 +229,7 @@
     
     // Check admin status from auth store as early as possible
     const authState = getAuthState();
-    if (authState && authState.is_admin === true) {
+    if (authState && isUserAdmin(authState)) {
       isAdmin = true;
       console.log('User is admin based on auth state');
     }

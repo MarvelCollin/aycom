@@ -1,8 +1,0 @@
-2025/06/10 04:41:45 CORS Debug: Response header Access-Control-Allow-Origin: [http://localhost:3000]
-2025/06/10 04:41:45 CORS Debug: Response header Access-Control-Allow-Methods: [GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD]
-2025/06/10 04:41:45 CORS Debug: Response header Access-Control-Allow-Headers: [Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token, Pragma, Expires, Connection, User-Agent, Host, Referer, Cookie, Set-Cookie, *]
-2025/06/10 04:41:45 CORS Debug: Response header Access-Control-Allow-Credentials: [true]
-2025/06/10 04:41:45 CORS Debug: Response header Access-Control-Max-Age: [86400]
-2025/06/10 04:41:45 CORS Debug: Response header Access-Control-Expose-Headers: [Content-Length, Content-Type, Authorization, X-Powered-By]
-2025/06/10 04:41:45 CORS Debug: Response header Content-Type: [application/json; charset=utf-8]
-[GIN] 2025/06/10 - 04:41:45 |[97;42m 200 [0m|    4.620246ms |      172.19.0.1 |[97;44m GET     [0m "/api/v1/communities/categories"

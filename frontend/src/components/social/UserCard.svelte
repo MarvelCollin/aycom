@@ -1,5 +1,4 @@
-<script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+<script lang="ts">  import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   import { useAuth } from '../../hooks/useAuth';
   import { createLoggerWithPrefix } from '../../utils/logger';
@@ -7,6 +6,7 @@
   import { formatStorageUrl } from '../../utils/common';
   import { getPublicUrl, SUPABASE_BUCKETS } from '../../utils/supabase';
   import type { IUser } from '../../interfaces/IUser';
+  import type { IAuthStore } from '../../interfaces/IAuth';
   
   // Icons
   import UserIcon from 'svelte-feather-icons/src/icons/UserIcon.svelte';
@@ -17,9 +17,16 @@
   const logger = createLoggerWithPrefix('UserCard');
   const dispatch = createEventDispatcher();
   
-  // Theme
+  // Theme and Auth
   const { theme } = useTheme();
+  const { getAuthState } = useAuth();
   $: isDarkMode = $theme === 'dark';
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { 
+    user_id: null, 
+    is_authenticated: false, 
+    access_token: null, 
+    refresh_token: null 
+  };
 
   // Props - Accept either a full IUser object or the custom structure
   export let user: IUser | {
@@ -40,14 +47,14 @@
   // Optional props
   export let showFollowButton = true;
   export let compact = false;
-  
-  // Computed values
+    // Computed values
   $: displayName = user.name || user.username || `User_${user.id.substring(0, 4)}`;
   $: username = user.username || `user_${user.id.substring(0, 4)}`;
   $: isFollowing = 'isFollowing' in user ? user.isFollowing : ('is_following' in user ? user.is_following : false);
   $: isVerified = 'isVerified' in user ? user.isVerified : ('is_verified' in user ? user.is_verified : false);
   $: isPending = user.role === 'pending';
   $: avatarUrl = getProfilePictureUrl(user);
+  $: isCurrentUser = authState.is_authenticated && authState.user_id === user.id;
   
   // Function to get profile picture URL using Supabase
   function getProfilePictureUrl(user) {
@@ -145,8 +152,7 @@
       </div>
     {/if}
   </div>
-  
-  {#if showFollowButton && !isPending}
+    {#if showFollowButton && !isPending && !isCurrentUser}
     <div class="user-action" on:click|stopPropagation>
       <Button 
         variant={isFollowing ? "outlined" : "primary"} 

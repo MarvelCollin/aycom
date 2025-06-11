@@ -225,14 +225,20 @@
       console.log('Normalized community data:', community);
       
       // Check membership status
-      try {
-        // Only check membership if user is logged in
+      try {        // Only check membership if user is logged in
         const authData = localStorage.getItem('auth');
+        console.log('🔍 DEBUG: Auth data from localStorage:', authData ? 'present' : 'missing');
         if (authData) {
           const auth = JSON.parse(authData);
+          console.log('🔍 DEBUG: Parsed auth data:', { 
+            hasToken: !!auth.access_token, 
+            expiresAt: auth.expires_at,
+            isExpired: auth.expires_at ? new Date(auth.expires_at) <= new Date() : 'no expiry set'
+          });
           if (auth.access_token && (!auth.expires_at || new Date(auth.expires_at) > new Date())) {
+            console.log('🔍 DEBUG: Calling checkUserCommunityMembership for community:', communityId);
             const membershipResponse = await checkUserCommunityMembership(communityId);
-            console.log('Membership response:', membershipResponse);
+            console.log('🔍 DEBUG: Raw membership response:', membershipResponse);
             
             interface MembershipData {
               is_member?: boolean;
@@ -249,38 +255,37 @@
             
             // Cast the response to the proper type
             const typedResponse = membershipResponse as MembershipResponse;
-            
-            // Check various response formats for membership status
+              // Check various response formats for membership status
             if (typedResponse?.status === 'member' || 
                 typedResponse?.is_member === true || 
                 typedResponse?.data?.is_member === true ||
                 typedResponse?.data?.status === 'member') {
               isMember = true;
-              console.log('User is a member of this community');
+              console.log('✅ DEBUG: User is a member of this community');
               
               // Get the user's role in the community
               userRole = typedResponse?.user_role || 
                          typedResponse?.data?.user_role ||
                          'member';
                          
-              console.log(`User has role "${userRole}" in this community`);
+              console.log(`✅ DEBUG: User has role "${userRole}" in this community`);
             } else if (typedResponse?.status === 'pending' || 
                        typedResponse?.data?.status === 'pending') {
               isPending = true;
-              console.log('User has a pending join request for this community');
+              console.log('⏳ DEBUG: User has a pending join request for this community');
             } else {
               isMember = false;
               isPending = false;
-              console.log('User is not a member of this community');
-            }
-          }
+              console.log('❌ DEBUG: User is not a member of this community');
+              console.log('❌ DEBUG: Response details for debugging:', JSON.stringify(typedResponse, null, 2));
+            }          }
         } else {
-          console.log('User not logged in, skipping membership check');
+          console.log('🔍 DEBUG: User not logged in, skipping membership check');
           isMember = false;
           isPending = false;
         }
       } catch (membershipError) {
-        console.warn('Error checking membership status:', membershipError);
+        console.error('❌ DEBUG: Error checking membership status:', membershipError);
         // Default to non-member if check fails
         isMember = false;
         isPending = false;

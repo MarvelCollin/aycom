@@ -6,8 +6,16 @@
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import type { IAuthStore } from '../interfaces/IAuth';
+  import { isUserAdmin } from '../utils/auth';
+  import { 
+    standardizeCommunityRequest, 
+    standardizePremiumRequest, 
+    standardizeReportRequest,
+    standardizeUser
+  } from '../utils/standardizeApiData';
 
   import * as adminAPI from '../api/admin';
+  import type { RequestsResponse, CategoriesResponse } from '../api/admin';
   import { getAllUsers, checkAdminStatus } from '../api/user';
 
   import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
@@ -164,6 +172,24 @@
   let showNewCategoryModal = false;
   let categoryType: 'thread' | 'community' = 'thread';
 
+  // Variable declarations for pagination
+  let isLoadingCommunityRequests = false;
+  let isLoadingPremiumRequests = false;
+  let isLoadingReportRequests = false;
+  let isLoadingCategories = false;
+
+  let communityRequestsPagination: RequestsResponse | null = null;
+  let premiumRequestsPagination: RequestsResponse | null = null;
+  let reportRequestsPagination: RequestsResponse | null = null;
+  let categoriesPagination: CategoriesResponse | null = null;
+
+  let communityRequestsPage = 1;
+  let premiumRequestsPage = 1;
+  let reportRequestsPage = 1;
+  let categoriesPage = 1;
+
+  let reportStatusFilter = 'pending';
+
   onMount(async () => {
     try {
       logger.info("Admin.svelte mounted");
@@ -238,10 +264,10 @@
           await loadUsers();
           break;
         case 'requests':
-          await loadRequests();
+          await loadAllRequests();
           break;
         case 'categories':
-          await loadCategories();
+          await loadThreadCategories();
           break;
       }
 
@@ -317,73 +343,74 @@
     }
   }
 
-  async function loadRequests() {
+  async function loadCommunityRequests() {
     try {
-
-      communityRequests = [];
-      premiumRequests = [];
-      reportRequests = [];
-
-      try {
-        const communityResponse = await adminAPI.getCommunityRequests(currentPage, limit, requestStatusFilter !== 'all' ? requestStatusFilter : undefined);
-        if (communityResponse.success) {
-          communityRequests = communityResponse.requests || [];
-          if (communityResponse.pagination && communityResponse.pagination.total_count) {
-            totalCount = communityResponse.pagination.total_count;
-          }
-          logger.info(`Loaded ${communityRequests.length} community requests`);
-
-          console.log('Community requests:', communityRequests);
-          
-          communityRequests.forEach((request, index) => {
-            console.log(`Request #${index} - ${request.name}:`, { 
-              fullRequest: request,
-              requesterObject: request.requester,
-              hasRequester: !!request.requester,
-              requesterName: request.requester?.name,
-              requesterUsername: request.requester?.username,
-              userId: request.user_id
-            });
-          });
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Error loading community requests:', error);
-        toastStore.showToast(`Community requests: ${message}`, 'warning');
-      }
-
-      try {
-        const premiumResponse = await adminAPI.getPremiumRequests(currentPage, limit, requestStatusFilter !== 'all' ? requestStatusFilter : undefined);
-        if (premiumResponse.success) {
-          premiumRequests = premiumResponse.requests || [];
-          logger.info(`Loaded ${premiumRequests.length} premium requests`);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Error loading premium requests:', error);
-        toastStore.showToast(`Premium requests: ${message}`, 'warning');
-      }
-
-      try {
-        const reportResponse = await adminAPI.getReportRequests(currentPage, limit, requestStatusFilter !== 'all' ? requestStatusFilter : undefined);
-        if (reportResponse.success) {
-          reportRequests = reportResponse.requests || [];
-          logger.info(`Loaded ${reportRequests.length} report requests`);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Error loading report requests:', error);
-        toastStore.showToast(`Report requests: ${message}`, 'warning');
+      isLoadingCommunityRequests = true;
+      const result = await adminAPI.getCommunityRequests(communityRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
+      
+      if (result && result.success) {
+        // Standardize community request data
+        communityRequests = result.data ? result.data.map(request => standardizeCommunityRequest(request)) : [];
+        communityRequestsPagination = result.pagination;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error loading requests:', error);
+      console.error('Failed to load community requests:', error);
+      toastStore.showToast('Failed to load community requests. Please try again.', 'error');
+    } finally {
+      isLoadingCommunityRequests = false;
+    }
+  }
 
-      if (message.includes('permission')) {
-        toastStore.showToast('You do not have sufficient permissions to view these requests', 'error');
-      } else {
-        toastStore.showToast('Failed to load requests', 'error');
+  async function loadPremiumRequests() {
+    try {
+      isLoadingPremiumRequests = true;
+      const result = await adminAPI.getPremiumRequests(premiumRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
+      
+      if (result && result.success) {
+        // Standardize premium request data
+        premiumRequests = result.data ? result.data.map(request => standardizePremiumRequest(request)) : [];
+        premiumRequestsPagination = result.pagination;
       }
+    } catch (error) {
+      console.error('Failed to load premium requests:', error);
+      toastStore.showToast('Failed to load premium requests. Please try again.', 'error');
+    } finally {
+      isLoadingPremiumRequests = false;
+    }
+  }
+
+  async function loadReportRequests() {
+    try {
+      isLoadingReportRequests = true;
+      const result = await adminAPI.getReportRequests(reportRequestsPage, 10, reportStatusFilter === 'all' ? undefined : reportStatusFilter);
+      
+      if (result && result.success) {
+        // Standardize report request data
+        reportRequests = result.data ? result.data.map(request => standardizeReportRequest(request)) : [];
+        reportRequestsPagination = result.pagination;
+      }
+    } catch (error) {
+      console.error('Failed to load report requests:', error);
+      toastStore.showToast('Failed to load report requests. Please try again.', 'error');
+    } finally {
+      isLoadingReportRequests = false;
+    }
+  }
+
+  async function loadThreadCategories() {
+    try {
+      isLoadingCategories = true;
+      const result = await adminAPI.getThreadCategories(categoriesPage, 10);
+      
+      if (result && result.success) {
+        threadCategories = result.data || [];
+        categoriesPagination = result.pagination;
+      }
+    } catch (error) {
+      console.error('Failed to load thread categories:', error);
+      toastStore.showToast('Failed to load thread categories. Please try again.', 'error');
+    } finally {
+      isLoadingCategories = false;
     }
   }
 
@@ -509,7 +536,7 @@
       logger.info(`Processing community request ${requestId} with approve=${approve}`);
 
       // First check if the request still exists by refreshing data
-      await loadRequests();
+      await loadAllRequests();
       
       // Check if the request still exists after refresh
       const requestExists = communityRequests.some(req => req.id === requestId);
@@ -521,7 +548,7 @@
       const response = await adminAPI.processCommunityRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
       if (response.success) {
         toastStore.showToast(`Community request ${approve ? 'approved' : 'rejected'}`, 'success');
-        await loadRequests();
+        await loadAllRequests();
       } else {
         throw new Error(response.message || 'Failed to process request');
       }
@@ -532,7 +559,7 @@
       if (error instanceof Error) {
         if (error.message.includes('404') || error.message.includes('not found')) {
           toastStore.showToast('This request no longer exists. Refreshing data...', 'warning');
-          await loadRequests(); // Refresh the data to remove stale entries
+          await loadAllRequests(); // Refresh the data to remove stale entries
         } else {
           toastStore.showToast(`Failed to process request: ${error.message}`, 'error');
         }
@@ -552,7 +579,7 @@
       const response = await adminAPI.processPremiumRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
       if (response.success) {
         toastStore.showToast(`Premium request ${approve ? 'approved' : 'rejected'}`, 'success');
-        await loadRequests();
+        await loadAllRequests();
       } else {
         throw new Error(response.message || 'Failed to process request');
       }
@@ -572,7 +599,7 @@
       const response = await adminAPI.processReportRequest(requestId, approve, approve ? 'Action taken by admin' : 'No action needed');
       if (response.success) {
         toastStore.showToast(`Report ${approve ? 'approved and user banned' : 'dismissed'}`, 'success');
-        await loadRequests();
+        await loadAllRequests();
         await loadUsers(); 
       } else {
         throw new Error(response.message || 'Failed to process request');
@@ -668,6 +695,34 @@
       month: 'short',
       day: 'numeric'
     });
+  }
+
+  // Function to load all requests
+  async function loadAllRequests() {
+    loadCommunityRequests();
+    loadPremiumRequests();
+    loadReportRequests();
+  }
+
+  // Replace any calls to loadRequests() with loadAllRequests()
+  
+  // For example, in the activeTab watcher
+  $: if (activeTab === 'requests') {
+    loadAllRequests();
+  } else if (activeTab === 'categories') {
+    loadThreadCategories();
+  }
+  
+  // And in status filter handlers
+  function handleRequestStatusFilterChange(event) {
+    requestStatusFilter = event.target.value;
+    loadAllRequests();
+  }
+  
+  // And in report status filter
+  function handleReportStatusFilterChange(event) {
+    reportStatusFilter = event.target.value;
+    loadReportRequests();
   }
 </script>
 
@@ -852,13 +907,13 @@
               <h2>Manage Requests</h2>
               <div class="section-controls">
                 <div class="search-filter">
-                  <select bind:value={selectedRequestType} on:change={() => loadRequests()}>
+                  <select bind:value={selectedRequestType} on:change={() => loadAllRequests()}>
                     <option value="all">All Types</option>
                     <option value="community">Community Requests</option>
                     <option value="premium">Premium Requests</option>
                     <option value="report">Report Requests</option>
                   </select>
-                  <select bind:value={requestStatusFilter} on:change={() => loadRequests()}>
+                  <select bind:value={requestStatusFilter} on:change={() => loadAllRequests()}>
                     <option value="all">All Status</option>
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>
@@ -867,7 +922,7 @@
                 </div>
                 <Button 
                   variant="outlined" 
-                  on:click={() => loadRequests()}
+                  on:click={() => loadAllRequests()}
                   disabled={isLoading}
                 >
                   {isLoading ? 'Refreshing...' : 'Refresh Data'}

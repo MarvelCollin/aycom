@@ -289,3 +289,29 @@ export async function getUserRole(): Promise<string> {
     return 'user';
   }
 }
+
+/**
+ * Utility function to check if a user is an admin, handling all possible data types
+ * This ensures consistent admin checking across the application
+ * 
+ * @param user The user object to check
+ * @returns boolean indicating whether the user is an admin
+ */
+export function isUserAdmin(user: any): boolean {
+  if (!user) return false;
+  
+  const adminFlag = user.is_admin;
+  
+  if (adminFlag === null || adminFlag === undefined) {
+    return false;
+  } else if (typeof adminFlag === 'boolean') {
+    return adminFlag;
+  } else if (typeof adminFlag === 'string') {
+    const adminStr = String(adminFlag).toLowerCase();
+    return adminStr === 'true' || adminStr === 't' || adminStr === '1';
+  } else if (typeof adminFlag === 'number') {
+    return adminFlag === 1;
+  }
+  
+  return false;
+}

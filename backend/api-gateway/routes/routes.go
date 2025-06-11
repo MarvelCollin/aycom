@@ -232,6 +232,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	notifications.Use(middleware.JWTAuth(jwtSecret))
 	{
 		notifications.GET("", handlers.GetUserNotifications)
+		notifications.GET("/interactions", handlers.GetUserInteractionNotifications)
 		notifications.GET("/mentions", handlers.GetMentionNotifications)
 		notifications.POST("/:id/read", handlers.MarkNotificationAsRead)
 		notifications.POST("/read-all", handlers.MarkAllNotificationsAsRead)

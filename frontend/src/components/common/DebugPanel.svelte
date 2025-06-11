@@ -2,7 +2,7 @@
   import { LogLevel, setGlobalLogLevel, logger } from '../../utils/logger';
   import { writable, get } from 'svelte/store';
   import { useAuth } from '../../hooks/useAuth';
-  import { getAuthData, getAuthToken } from '../../utils/auth';
+  import { getAuthData, getAuthToken, isUserAdmin as checkIsAdmin } from '../../utils/auth';
   import { useTheme } from '../../hooks/useTheme';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
@@ -796,16 +796,9 @@
     loadUsers();
   }
   
-  // Helper function to check if a user is an admin regardless of data type (boolean or string)
+  // Helper function to check if a user is an admin - use the utility function from auth.ts
   function isUserAdmin(user): boolean {
-    if (!user) return false;
-    
-    // Handle different data types for is_admin
-    return user.is_admin === true || 
-           user.is_admin === "true" || 
-           user.is_admin === "t" || 
-           user.is_admin === 1 || 
-           user.is_admin === "1";
+    return checkIsAdmin(user);
   }
   
   // Toggle admin status for a user
