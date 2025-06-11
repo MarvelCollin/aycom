@@ -462,8 +462,40 @@ func (h *ThreadHandler) RemoveBookmark(ctx context.Context, req *thread.RemoveBo
 }
 
 func (h *ThreadHandler) CreatePoll(ctx context.Context, req *thread.CreatePollRequest) (*thread.PollResponse, error) {
+	if req.ThreadId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Thread ID is required")
+	}
 
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	if req.Poll == nil {
+		return nil, status.Error(codes.InvalidArgument, "Poll data is required")
+	}
+
+	poll, options, err := h.pollService.CreatePoll(ctx, req.ThreadId, req.Poll)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to create poll: %v", err)
+	}
+
+	// Create poll options for response
+	pollOptions := make([]*thread.PollOption, 0, len(options))
+	for _, opt := range options {
+		pollOptions = append(pollOptions, &thread.PollOption{
+			Id:   opt.OptionID.String(),
+			Text: opt.Text,
+		})
+	}
+
+	// Create poll object
+	protoPoll := &thread.Poll{
+		Id:          poll.PollID.String(),
+		Question:    poll.Question,
+		Options:     pollOptions,
+		EndTime:     timestamppb.New(poll.ClosesAt),
+		IsAnonymous: poll.WhoCanVote == "anonymous",
+	}
+
+	return &thread.PollResponse{
+		Poll: protoPoll,
+	}, nil
 }
 
 func (h *ThreadHandler) VotePoll(ctx context.Context, req *thread.VotePollRequest) (*emptypb.Empty, error) {
@@ -479,8 +511,49 @@ func (h *ThreadHandler) VotePoll(ctx context.Context, req *thread.VotePollReques
 }
 
 func (h *ThreadHandler) GetPollResults(ctx context.Context, req *thread.GetPollResultsRequest) (*thread.PollResultsResponse, error) {
+	if req.PollId == "" {
+		return nil, status.Error(codes.InvalidArgument, "Poll ID is required")
+	}
 
-	return nil, status.Error(codes.Unimplemented, "Method not implemented")
+	// Extract requesting user ID if available
+	var userID *string = nil
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		ids := md.Get("user_id")
+		if len(ids) > 0 && ids[0] != "" {
+			id := ids[0]
+			userID = &id
+		}
+	}
+
+	results, err := h.pollService.GetPollResults(ctx, req.PollId, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get poll results: %v", err)
+	}
+
+	// Convert options to protobuf format
+	optionResults := make([]*thread.PollOptionResult, 0, len(results.Options))
+	for _, opt := range results.Options {
+		optionResults = append(optionResults, &thread.PollOptionResult{
+			OptionId:   opt.OptionID.String(),
+			Text:       opt.Text,
+			Votes:      opt.VoteCount,
+			Percentage: opt.Percentage,
+		})
+	}
+
+	// Set user's voted option if available
+	var userVoteOptionId *string = nil
+	if results.HasUserVoted && results.UserVotedOption != nil {
+		voted := results.UserVotedOption.String()
+		userVoteOptionId = &voted
+	}
+
+	return &thread.PollResultsResponse{
+		Results:          optionResults,
+		TotalVotes:       results.TotalVotes,
+		UserVoteOptionId: userVoteOptionId,
+		HasEnded:         results.IsClosed,
+	}, nil
 }
 
 func (h *ThreadHandler) GetTrendingHashtags(ctx context.Context, req *thread.GetTrendingHashtagsRequest) (*thread.GetTrendingHashtagsResponse, error) {
@@ -1027,6 +1100,38 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 	}
 	protoThread.Media = mediaList
 
+	// Check for poll associated with this thread
+	var pollResponse *thread.PollResponse = nil
+	if h.pollService != nil {
+		threadID := threadModel.ThreadID.String()
+		poll, options, err := h.pollService.GetPollByThreadID(ctx, threadID)
+
+		if err == nil && poll != nil && options != nil && len(options) > 0 {
+			// Create poll options
+			pollOptions := make([]*thread.PollOption, 0, len(options))
+			for _, opt := range options {
+				pollOptions = append(pollOptions, &thread.PollOption{
+					Id:   opt.OptionID.String(),
+					Text: opt.Text,
+				})
+			}
+
+			// Create poll object
+			protoPoll := &thread.Poll{
+				Id:          poll.PollID.String(),
+				Question:    poll.Question,
+				Options:     pollOptions,
+				EndTime:     timestamppb.New(poll.ClosesAt),
+				IsAnonymous: poll.WhoCanVote == "anonymous",
+			}
+
+			// Add to response
+			pollResponse = &thread.PollResponse{
+				Poll: protoPoll,
+			}
+		}
+	}
+
 	// Get interaction counts
 	likesCount := int64(0)
 	repliesCount := int64(0)
@@ -1064,6 +1169,7 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		LikedByUser:      false,
 		RepostedByUser:   false,
 		BookmarkedByUser: false,
+		Poll:             pollResponse,
 	}
 
 	// Check user interaction status if user ID is in context and interaction service is available

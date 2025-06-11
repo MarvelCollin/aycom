@@ -42,10 +42,11 @@
   export let compact = false;
   
   // Computed values
-  $: displayName = user.name || `User_${user.id.substring(0, 4)}`;
+  $: displayName = user.name || user.username || `User_${user.id.substring(0, 4)}`;
   $: username = user.username || `user_${user.id.substring(0, 4)}`;
   $: isFollowing = 'isFollowing' in user ? user.isFollowing : ('is_following' in user ? user.is_following : false);
   $: isVerified = 'isVerified' in user ? user.isVerified : ('is_verified' in user ? user.is_verified : false);
+  $: isPending = user.role === 'pending';
   $: avatarUrl = getProfilePictureUrl(user);
   
   // Function to get profile picture URL using Supabase
@@ -139,13 +140,13 @@
     {/if}
     
     {#if ('role' in user) && user.role}
-      <div class="user-role-badge">
-        {user.role}
+      <div class="user-role-badge {user.role.toLowerCase()}">
+        {user.role === 'pending' ? 'pending' : user.role}
       </div>
     {/if}
   </div>
   
-  {#if showFollowButton}
+  {#if showFollowButton && !isPending}
     <div class="user-action" on:click|stopPropagation>
       <Button 
         variant={isFollowing ? "outlined" : "primary"} 
@@ -264,12 +265,33 @@
   
   .user-role-badge {
     display: inline-block;
-    background-color: var(--color-primary-light);
-    color: var(--color-primary);
-    padding: 0 var(--space-2);
-    border-radius: var(--radius-full);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-muted);
+    color: var(--text-secondary);
     font-size: var(--font-size-xs);
     margin-top: var(--space-1);
+    text-transform: capitalize;
+  }
+  
+  .user-role-badge.admin {
+    background-color: rgba(var(--color-primary-rgb), 0.2);
+    color: var(--color-primary);
+  }
+  
+  .user-role-badge.moderator {
+    background-color: rgba(var(--color-success-rgb), 0.2);
+    color: var(--color-success);
+  }
+  
+  .user-role-badge.pending {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ff9800;
+  }
+  
+  :global(.dark) .user-role-badge.pending {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffb74d;
   }
   
   .user-action {

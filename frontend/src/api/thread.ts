@@ -228,17 +228,36 @@ export async function createThread(data: Record<string, any>) {
     const token = getAuthToken();
     if (!token) {
       logger.warn('No auth token available for createThread. User may need to log in');
+      throw new Error('Authentication required. Please log in to post.');
     }
     
+    // Extra debugging
+    logger.debug(`Using auth token for createThread: ${token.substring(0, 10)}...${token.substring(token.length - 10)}`);
+    
     try {
-      const result = await makeApiRequest(
-        url, 
-        'POST', 
-        data, 
-        'Failed to create thread',
-        30000 // Increase timeout to 30 seconds for create operations
-      );
+      // Explicitly create the request with correct headers
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'Origin': origin,
+          'Cache-Control': 'no-cache'
+        },
+        credentials: 'include',
+        mode: 'cors',
+        body: JSON.stringify(data)
+      });
       
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+        logger.error('Thread creation failed with status:', response.status, errorData);
+        throw new Error(errorData.message || `Failed to create thread: ${response.status}`);
+      }
+      
+      const result = await response.json();
       logger.info('Thread created successfully');
       return result;
     } catch (apiError: any) {
@@ -248,25 +267,10 @@ export async function createThread(data: Record<string, any>) {
         throw new Error('Server redirect occurred. This might be due to CORS configuration issues. Please check your network settings or contact support.');
       }
       
-      if (apiError.message?.includes('CORS') || apiError.message?.includes('cross-origin')) {
-        logger.error('CORS error detected when creating thread');
-        throw new Error('Cross-origin request blocked. Please check your browser settings or contact support.');
-      }
-      
-      // Re-throw original error if not handled specifically
       throw apiError;
     }
-  } catch (error) {
-    logger.error('Create thread failed:', error);
-    // If this is a network error, provide a more helpful message
-    if (error instanceof Error) {
-      if (error.message.includes('Failed to fetch')) {
-        throw new Error('Network error: Could not connect to the API server. Please check your internet connection or contact support.');
-      }
-      if (error.message.includes('NetworkError')) {
-        throw new Error('Network error: Browser blocked the request. This might be due to CORS or security settings.');
-      }
-    }
+  } catch (error: any) {
+    logger.error(`Thread creation failed: ${error.message}`);
     throw error;
   }
 }

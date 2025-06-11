@@ -100,13 +100,18 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
 		publicThreads.GET("/search", handlers.SearchThreads)
+		publicThreads.GET("/:id", handlers.GetThread)
+		publicThreads.GET("/:id/replies", handlers.GetThreadReplies)
+
+		// Add direct POST endpoint with JWTAuth middleware specifically for thread creation
+		publicThreads.POST("", middleware.JWTAuth(jwtSecret), handlers.CreateThread)
 
 		// Apply JWTAuth middleware to these specific routes to require authentication
 		authPublicThreads := publicThreads.Group("/")
 		authPublicThreads.Use(CORSPreflightHandler()) // Add specific CORS handler here
 		authPublicThreads.Use(middleware.JWTAuth(jwtSecret))
 		{
-			authPublicThreads.POST("", handlers.CreateThread)
+			// Removed POST "" to move it to parent group with more direct middleware
 			authPublicThreads.POST("/:id/like", handlers.LikeThreadHandler)
 			authPublicThreads.DELETE("/:id/like", handlers.UnlikeThreadHandler)
 			authPublicThreads.POST("/:id/bookmark", handlers.BookmarkThreadHandler)
@@ -127,9 +132,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 			authPublicThreads.GET("/user/:id/media", handlers.GetUserMedia)
 			authPublicThreads.GET("/following", handlers.GetThreadsFromFollowing)
 		}
-
-		publicThreads.GET("/:id", handlers.GetThread)
-		publicThreads.GET("/:id/replies", handlers.GetThreadReplies)
 	}
 
 	trendsGroup := v1.Group("/trends")

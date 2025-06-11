@@ -586,3 +586,20 @@ export async function updateSupabaseFile(
     return null;
   }
 }
+
+export async function uploadMultipleUserMedia(
+  files: File[], 
+  userId: string
+): Promise<string[]> {
+  return uploadMultipleFiles(files, SUPABASE_BUCKETS.USER_MEDIA, userId);
+}
+
+export async function uploadCommunityLogo(file: File, communityId: string): Promise<string | null> {
+  // Use the existing tpaweb bucket with INSERT policy folder pattern
+  return uploadFile(file, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+}
+
+export async function uploadCommunityBanner(file: File, communityId: string): Promise<string | null> {
+  // Use the existing tpaweb bucket with INSERT policy folder pattern
+  return uploadFile(file, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+}

@@ -195,6 +195,40 @@
     color: var(--text-primary-dark);
   }
   
+  /* Dropdown styling for light and dark mode */
+  .category-select option {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    padding: var(--space-2);
+  }
+  
+  .category-select-dark option {
+    background-color: var(--bg-primary-dark, #1a1a1a);
+    color: var(--text-primary-dark, #ffffff);
+  }
+  
+  /* Override browser defaults */
+  select::-ms-expand {
+    display: none;
+  }
+  
+  /* For Firefox */
+  select {
+    -moz-appearance: none;
+  }
+  
+  /* For Chrome and Safari */
+  select::-webkit-dropdown-button {
+    display: none;
+  }
+  
+  /* For a consistent dropdown appearance */
+  @supports (-moz-appearance:none) {
+    .category-select option {
+      padding: var(--space-3);
+    }
+  }
+  
   .category-select:focus {
     outline: none;
     border-color: var(--color-primary);

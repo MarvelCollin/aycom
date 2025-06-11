@@ -2,7 +2,7 @@ import { getAuthToken } from '../utils/auth';
 import appConfig from '../config/appConfig';
 import { createLoggerWithPrefix } from '../utils/logger';
 import type { ICategory } from '../interfaces/ICategory';
-import { uploadFile, SUPABASE_BUCKETS } from '../utils/supabase';
+import { uploadFile, SUPABASE_BUCKETS, uploadCommunityLogo, uploadCommunityBanner } from '../utils/supabase';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
@@ -499,16 +499,16 @@ export async function createCommunity(data: Record<string, any>) {
     }
     
     // Upload media files first if provided
-    if (data.logo && data.logo instanceof File) {
-      const logoUrl = await uploadFile(data.logo, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+    if (data.icon && data.icon instanceof File) {
+      const logoUrl = await uploadCommunityLogo(data.icon, '');
       if (logoUrl) {
         data.logo_url = logoUrl;
       }
-      delete data.logo;
+      delete data.icon;
     }
     
     if (data.banner && data.banner instanceof File) {
-      const bannerUrl = await uploadFile(data.banner, SUPABASE_BUCKETS.FALLBACK, '1kolknj_1');
+      const bannerUrl = await uploadCommunityBanner(data.banner, '');
       if (bannerUrl) {
         data.banner_url = bannerUrl;
       }
@@ -723,19 +723,51 @@ export async function getCommunityById(id: string) {
 
 export async function updateCommunity(id: string, data: Record<string, any>) {
   try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    // Upload media files first if provided
+    if (data.icon && data.icon instanceof File) {
+      const logoUrl = await uploadCommunityLogo(data.icon, '');
+      if (logoUrl) {
+        data.logo_url = logoUrl;
+      }
+      delete data.icon;
+    }
+    
+    if (data.banner && data.banner instanceof File) {
+      const bannerUrl = await uploadCommunityBanner(data.banner, '');
+      if (bannerUrl) {
+        data.banner_url = bannerUrl;
+      }
+      delete data.banner;
+    }
+
     const response = await fetch(`${API_BASE_URL}/communities/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(data),
       credentials: 'include'
     });
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to update community');
+      const errorText = await response.text();
+      let errorMessage = 'Failed to update community';
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorMessage;
+      } catch(e) {
+        logger.error('Error parsing error response:', { error: e, text: errorText });
+      }
+      throw new Error(errorMessage);
     }
+    
     return response.json();
   } catch (error) {
     logger.error(`Update community ${id} failed:`, error);
@@ -807,13 +839,16 @@ export async function addMember(communityId: string, data: Record<string, any>) 
 
 export async function listMembers(communityId: string) {
   try {
+    const token = getAuthToken();
+    
     const response = await fetch(`${API_BASE_URL}/communities/${communityId}/members`, {
       method: 'GET',
       headers: {
-        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+        'Authorization': token ? `Bearer ${token}` : ''
       },
       credentials: 'include'
     });
+    
     if (!response.ok) {
       const text = await response.text();
       let errorData;
@@ -821,12 +856,175 @@ export async function listMembers(communityId: string) {
         errorData = JSON.parse(text);
       } catch (e) {
         logger.warn(`Failed to parse error response when listing members: ${e}`);
-
         return { success: true, members: [] };
       }
       throw new Error(errorData.message || 'Failed to list members');
     }
-    return response.json();
+    
+    const data = await response.json();
+    console.log("Raw members data:", data);
+    
+    // Extract members
+    let members = data.members || [];
+    
+    if (members.length === 0) {
+      console.log("No members found in response");
+      return data; // Return empty data as is
+    }
+    
+    console.log(`Processing ${members.length} community members`);
+    
+    // Generate fake usernames from user IDs if real data isn't available
+    // This ensures we at least have readable usernames instead of raw UUIDs
+    function generateUsernameFromUserId(userId) {
+      // Take first 8 characters of the user ID and create a username
+      if (!userId) return 'unknown_user';
+      const shortId = userId.substring(0, 8);
+      return `user_${shortId}`;
+    }
+    
+    // Fetch user data for each member
+    try {
+      // First check if we have a userService endpoint available
+      let userServiceAvailable = false;
+      try {
+        const userServiceCheck = await fetch(`${API_BASE_URL}/users/health`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        userServiceAvailable = userServiceCheck.ok;
+        console.log(`User service health check: ${userServiceAvailable ? 'available' : 'unavailable'}`);
+      } catch (e) {
+        console.log('User service health check failed, assuming unavailable');
+      }
+      
+      const userPromises = members.map(async (member) => {
+        if (!member.user_id) {
+          console.log("Member missing user_id:", member);
+          return {
+            ...member,
+            username: 'unknown_user',
+            name: 'Unknown User'
+          };
+        }
+        
+        console.log(`Fetching user data for member ID: ${member.user_id}`);
+        
+        // Generate a readable username from the user ID that we'll use as fallback
+        const generatedUsername = generateUsernameFromUserId(member.user_id);
+        
+        // If user service isn't available, use generated username
+        if (!userServiceAvailable) {
+          return {
+            ...member,
+            username: generatedUsername,
+            name: `User ${member.user_id.substring(0, 6)}`,
+            generated: true
+          };
+        }
+        
+        try {
+          // Try to use the getUserById function from user.ts
+          const { getUserById } = await import('./user');
+          const userData = await getUserById(member.user_id);
+          
+          if (userData && userData.user) {
+            console.log(`Successfully fetched user data from getUserById:`, userData.user);
+            
+            return {
+              ...member,
+              username: userData.user.username || generatedUsername,
+              name: userData.user.display_name || userData.user.name || userData.user.username || generatedUsername,
+              avatar_url: userData.user.profile_picture_url || userData.user.avatar_url || ''
+            };
+          }
+        } catch (userApiError) {
+          console.warn(`Failed to get user data from getUserById: ${userApiError}`);
+        }
+        
+        // Fallback: Try all possible user API endpoints
+        const endpoints = [
+          `${API_BASE_URL}/users/${member.user_id}`,
+          `${API_BASE_URL}/user/${member.user_id}`,
+          `${API_BASE_URL}/auth/users/${member.user_id}`,
+          `${API_BASE_URL}/v1/users/${member.user_id}`,
+          `${API_BASE_URL}/api/users/${member.user_id}`
+        ];
+        
+        for (const endpoint of endpoints) {
+          try {
+            const userResponse = await fetch(endpoint, {
+              method: 'GET',
+              headers: {
+                'Authorization': token ? `Bearer ${token}` : '',
+                'Content-Type': 'application/json'
+              },
+              credentials: 'include'
+            });
+            
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              console.log(`Successfully fetched user data from ${endpoint}:`, userData);
+              
+              // Try to extract user data from various possible response formats
+              let userDetails = userData;
+              if (userData.user) {
+                userDetails = userData.user;
+              } else if (userData.data && userData.data.user) {
+                userDetails = userData.data.user;
+              }
+              
+              // Try to extract username from various possible field names
+              const username = 
+                userDetails.username || 
+                userDetails.user_name || 
+                userDetails.userName || 
+                generatedUsername;
+                
+              // Try to extract display name from various possible field names
+              const name = 
+                userDetails.display_name || 
+                userDetails.displayName || 
+                userDetails.name || 
+                userDetails.full_name || 
+                userDetails.fullName || 
+                username || 
+                `User ${member.user_id.substring(0, 6)}`;
+              
+              // Merge user data with member
+              return {
+                ...member,
+                username: username,
+                name: name,
+                avatar_url: userDetails.avatar_url || userDetails.profile_picture_url || '',
+                user: userDetails // Keep full user object for reference
+              };
+            }
+          } catch (endpointError) {
+            console.warn(`Failed to fetch user data from ${endpoint}:`, endpointError);
+          }
+        }
+        
+        // If all API calls fail, use the generated username
+        return {
+          ...member,
+          username: generatedUsername,
+          name: `User ${member.user_id.substring(0, 6)}`,
+          generated: true
+        };
+      });
+      
+      // Wait for all user data to be fetched
+      const enrichedMembers = await Promise.all(userPromises);
+      console.log("All members after enrichment:", enrichedMembers);
+      
+      // Replace the original members with the enriched ones
+      data.members = enrichedMembers;
+    } catch (enrichError) {
+      console.warn('Failed to enrich members with user data:', enrichError);
+    }
+    
+    return data;
   } catch (error) {
     logger.error(`List members for community ${communityId} failed:`, error);
     return { success: true, members: [] };
@@ -968,18 +1166,170 @@ export async function requestToJoin(communityId: string, data: Record<string, an
 
 export async function listJoinRequests(communityId: string) {
   try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+    
     const response = await fetch(`${API_BASE_URL}/communities/${communityId}/join-requests`, {
       method: 'GET',
       headers: {
-        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+        'Authorization': `Bearer ${token}`
       },
       credentials: 'include'
     });
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to list join requests');
     }
-    return response.json();
+    
+    const data = await response.json();
+    console.log("Raw join requests data:", data);
+    
+    // Extract join requests
+    let joinRequests = data.join_requests || [];
+    
+    if (joinRequests.length === 0) {
+      console.log("No join requests found in response");
+      return data; // Return empty data as is
+    }
+    
+    console.log(`Processing ${joinRequests.length} join requests`);
+    
+    // Generate fake usernames from user IDs if real data isn't available
+    // This ensures we at least have readable usernames instead of raw UUIDs
+    function generateUsernameFromUserId(userId) {
+      // Take first 8 characters of the user ID and create a username
+      if (!userId) return 'unknown_user';
+      const shortId = userId.substring(0, 8);
+      return `user_${shortId}`;
+    }
+    
+    // Fetch user data for each join request
+    try {
+      // First check if we have a userService endpoint available
+      let userServiceAvailable = false;
+      try {
+        const userServiceCheck = await fetch(`${API_BASE_URL}/users/health`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        userServiceAvailable = userServiceCheck.ok;
+        console.log(`User service health check: ${userServiceAvailable ? 'available' : 'unavailable'}`);
+      } catch (e) {
+        console.log('User service health check failed, assuming unavailable');
+      }
+      
+      const userPromises = joinRequests.map(async (request) => {
+        if (!request.user_id) {
+          console.log("Join request missing user_id:", request);
+          return {
+            ...request,
+            username: 'unknown_user',
+            name: 'Unknown User'
+          };
+        }
+        
+        console.log(`Fetching user data for user ID: ${request.user_id}`);
+        
+        // Generate a readable username from the user ID that we'll use as fallback
+        const generatedUsername = generateUsernameFromUserId(request.user_id);
+        
+        // If user service isn't available, use generated username
+        if (!userServiceAvailable) {
+          return {
+            ...request,
+            username: generatedUsername,
+            name: `User ${request.user_id.substring(0, 6)}`,
+            generated: true
+          };
+        }
+        
+        // Try all possible user API endpoints
+        const endpoints = [
+          `${API_BASE_URL}/users/${request.user_id}`,
+          `${API_BASE_URL}/user/${request.user_id}`,
+          `${API_BASE_URL}/auth/users/${request.user_id}`,
+          `${API_BASE_URL}/v1/users/${request.user_id}`,
+          `${API_BASE_URL}/api/users/${request.user_id}`
+        ];
+        
+        for (const endpoint of endpoints) {
+          try {
+            const userResponse = await fetch(endpoint, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              credentials: 'include'
+            });
+            
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              console.log(`Successfully fetched user data from ${endpoint}:`, userData);
+              
+              // Try to extract user data from various possible response formats
+              let userDetails = userData;
+              if (userData.user) {
+                userDetails = userData.user;
+              } else if (userData.data && userData.data.user) {
+                userDetails = userData.data.user;
+              }
+              
+              // Try to extract username from various possible field names
+              const username = 
+                userDetails.username || 
+                userDetails.user_name || 
+                userDetails.userName || 
+                generatedUsername;
+                
+              // Try to extract display name from various possible field names
+              const name = 
+                userDetails.display_name || 
+                userDetails.displayName || 
+                userDetails.name || 
+                userDetails.full_name || 
+                userDetails.fullName || 
+                username || 
+                `User ${request.user_id.substring(0, 6)}`;
+              
+              // Merge user data with request
+              return {
+                ...request,
+                username: username,
+                name: name,
+                avatar_url: userDetails.avatar_url || userDetails.profile_picture_url || '',
+                user: userDetails // Keep full user object for reference
+              };
+            }
+          } catch (endpointError) {
+            console.warn(`Failed to fetch user data from ${endpoint}:`, endpointError);
+          }
+        }
+        
+        // If all API calls fail, use the generated username
+        return {
+          ...request,
+          username: generatedUsername,
+          name: `User ${request.user_id.substring(0, 6)}`,
+          generated: true
+        };
+      });
+      
+      // Wait for all user data to be fetched
+      const enrichedRequests = await Promise.all(userPromises);
+      console.log("All join requests after enrichment:", enrichedRequests);
+      
+      // Replace the original join requests with the enriched ones
+      data.join_requests = enrichedRequests;
+    } catch (enrichError) {
+      console.warn('Failed to enrich join requests with user data:', enrichError);
+    }
+    
+    return data;
   } catch (error) {
     logger.error(`List join requests for community ${communityId} failed:`, error);
     throw error;
@@ -1029,10 +1379,11 @@ export async function rejectJoinRequest(communityId: string, requestId: string) 
 export async function searchCommunities(
   query: string, 
   page: number = 1, 
-  limit: number = 10
+  limit: number = 10, 
+  options: any = {}
 ) {
   try {
-    logger.info(`Searching communities with query: ${query}, page: ${page}, limit: ${limit}`);
+    logger.info(`Searching communities with query: ${query}, page: ${page}, limit: ${limit}, options:`, options);
     
     // Clean up the query string
     const cleanQuery = query ? query.trim() : '';
@@ -1046,6 +1397,17 @@ export async function searchCommunities(
     if (cleanQuery) {
       params.append('q', cleanQuery);
     }
+    
+    // Add any filter options passed in
+    if (options && typeof options === 'object') {
+      Object.entries(options).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, value.toString());
+        }
+      });
+    }
+    
+    logger.debug(`Search params: ${params.toString()}`);
     
     // Use the communities search endpoint
     const response = await fetch(`${API_BASE_URL}/communities/search?${params.toString()}`, {
@@ -1078,8 +1440,9 @@ export async function searchCommunities(
       totalCount = data.total_count || 0;
     }
     
-    // If there's no search endpoint and we're doing client-side filtering
-    if (cleanQuery && !response.url.includes('/search')) {
+    // If clientFuzzy option is true and there's a search query, further filter results on client side
+    if (options?.clientFuzzy && cleanQuery && communities.length > 0) {
+      logger.debug(`Performing client-side fuzzy search for "${cleanQuery}"`);
       const lowerQuery = cleanQuery.toLowerCase();
       communities = communities.filter((community: any) => {
         if (!community) return false;
@@ -1087,10 +1450,12 @@ export async function searchCommunities(
         const name = (community.name || '').toLowerCase();
         const description = (community.description || '').toLowerCase();
         
+        // Simple fuzzy matching (more advanced implementations would use Damerau-Levenshtein)
         return name.includes(lowerQuery) || description.includes(lowerQuery);
       });
       
       totalCount = communities.length;
+      logger.debug(`Client-side filtering found ${communities.length} matches`);
     }
     
     logger.debug(`Found ${communities.length} communities${cleanQuery ? ' matching search' : ''}`);
@@ -1349,9 +1714,15 @@ export async function getDiscoverCommunities(userId: string, params: Communities
   try {
     console.log(`Getting discover communities for user: ${userId}`);
 
+    // Ensure we only get approved communities
+    const paramsWithApproval = {
+      ...params,
+      is_approved: true
+    };
+
     // Build query parameters
     const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
+    Object.entries(paramsWithApproval).forEach(([key, value]) => {
       if (Array.isArray(value)) {
         value.forEach(v => queryParams.append(key, v));
       } else if (value !== null && value !== undefined) {

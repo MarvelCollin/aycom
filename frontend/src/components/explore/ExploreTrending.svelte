@@ -34,10 +34,10 @@
     }
   });
   
-  // Load trending hashtags
-  function loadTrendingThreads(hashtag: string) {
-    logger.debug('Loading trending hashtag', { hashtag });
-    dispatch('loadTrending', hashtag);
+  // Handle hashtag click - pass the hashtag to the parent component
+  function handleHashtagClick(hashtag: string) {
+    logger.debug('Hashtag clicked', { hashtag });
+    dispatch('hashtagClick', hashtag);
   }
   
   // Log when trends are loaded
@@ -51,72 +51,56 @@
       }
     }
   }
-  
-  // Handle hashtag click
-  function handleHashtagClick(hashtag: string) {
-    dispatch('hashtagClick', hashtag);
-  }
-  
-  // Handle view thread by hashtag
-  function viewThreadsByHashtag(hashtag: string) {
-    dispatch('viewThreads', hashtag);
-  }
 </script>
 
-<div class="trending-container {isDarkMode ? 'trending-container-dark' : ''}">
-  <div class="trending-header">
-    <h2 class="trending-title">Trending Now</h2>
-  </div>
+<div class="twitter-trends-container {isDarkMode ? 'twitter-trends-container-dark' : ''}">
+  <h2 class="trends-header">What's happening</h2>
   
   {#if isTrendsLoading}
-    <div class="trending-loading">
-      <div class="trending-item-skeleton animate-pulse"></div>
-      <div class="trending-item-skeleton animate-pulse" style="animation-delay: 0.2s"></div>
-      <div class="trending-item-skeleton animate-pulse" style="animation-delay: 0.4s"></div>
+    <div class="trends-loading">
+      <div class="trend-skeleton"></div>
+      <div class="trend-skeleton"></div>
+      <div class="trend-skeleton"></div>
     </div>
   {:else if trends.length > 0}
-    <div class="trending-list">
+    <div class="trends-list">
       {#each trends as trend, i}
-        <div class="trending-item">
-          <div class="trending-item-content">
-            <div>
-              <button 
-                class="trending-hashtag"
-                on:click={() => handleHashtagClick(trend.title || trend.name || '')}
-              >
-                #{trend.title || trend.name || ''}
-              </button>
-              <p class="trending-post-count">{trend.post_count || trend.tweet_count || 0} posts</p>
-              {#if trend.category && trend.category !== 'Trending'}
-                <span class="trending-category">
-                  {trend.category}
-                </span>
-              {/if}
-            </div>
-            <span class="trending-rank">#{i + 1}</span>
+        <button 
+          class="trend-item" 
+          on:click={() => handleHashtagClick(trend.title || trend.name || '')}
+        >
+          <div class="trend-content">
+            <div class="trend-category">{trend.category || 'Trending'}</div>
+            <div class="trend-tag">#{trend.title || trend.name || ''}</div>
+            <div class="trend-metrics">{trend.post_count || trend.tweet_count || 0} posts</div>
           </div>
-        </div>
+          <div class="trend-more">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </button>
       {/each}
     </div>
   {:else}
-    <div class="trending-empty">
-      <div class="trending-empty-icon pulse-animation">
-        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <div class="trends-empty">
+      <div class="trends-empty-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="20" x2="12" y2="10"></line>
           <line x1="18" y1="20" x2="18" y2="4"></line>
           <line x1="6" y1="20" x2="6" y2="16"></line>
         </svg>
       </div>
-      <p class="trending-empty-text">No trending topics yet</p>
-      <p class="trending-empty-subtext">Be the first to start a trending conversation!</p>
+      <h3 class="trends-empty-title">No trends available</h3>
+      <p class="trends-empty-text">Check back soon for trending topics</p>
       
       {#if showSampleTrends}
-        <div class="sample-trends fade-in">
-          <p class="sample-trends-title">Try exploring these topics:</p>
-          <div class="sample-trends-list">
+        <div class="sample-trends">
+          <h4 class="sample-trends-title">Try these topics</h4>
+          <div class="sample-trends-grid">
             {#each sampleTrends as trend}
               <button 
-                class="sample-trend-chip"
+                class="sample-trend-tag"
                 on:click={() => handleHashtagClick(trend.title)}
               >
                 #{trend.title}
@@ -130,276 +114,213 @@
 </div>
 
 <style>
-  .trending-container {
-    background-color: var(--bg-secondary);
-    border-radius: var(--radius-lg);
-    padding: var(--space-4);
-    margin-bottom: var(--space-4);
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border-color);
-    transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+  .twitter-trends-container {
+    background-color: var(--bg-primary);
+    border-radius: 16px;
+    overflow: hidden;
   }
   
-  .trending-container:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+  .twitter-trends-container-dark {
+    background-color: var(--dark-bg-primary);
   }
   
-  .trending-container-dark {
-    background-color: var(--bg-secondary-dark);
-    border-color: var(--border-color-dark);
-  }
-  
-  .trending-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: var(--space-3);
+  .trends-header {
+    padding: 12px 16px;
+    font-size: 20px;
+    font-weight: 800;
     border-bottom: 1px solid var(--border-color);
-    margin-bottom: var(--space-3);
-  }
-  
-  .trending-container-dark .trending-header {
-    border-bottom-color: var(--border-color-dark);
-  }
-  
-  .trending-title {
-    font-weight: var(--font-weight-bold);
-    font-size: var(--font-size-xl);
+    margin: 0;
     color: var(--text-primary);
-    position: relative;
-    display: inline-block;
   }
   
-  .trending-title::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -5px;
-    width: 30px;
-    height: 3px;
-    background-color: var(--color-primary);
-    border-radius: var(--radius-full);
+  .twitter-trends-container-dark .trends-header {
+    color: var(--dark-text-primary);
+    border-bottom-color: var(--dark-border-color);
   }
   
-  .trending-container-dark .trending-title {
-    color: var(--text-primary-dark);
-  }
-  
-  .trending-list {
+  .trends-list {
     display: flex;
     flex-direction: column;
   }
   
-  .trending-item {
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color var(--transition-fast);
-  }
-  
-  .trending-item:hover {
-    background-color: var(--hover-bg);
-    border-radius: var(--radius-md);
-    padding-left: var(--space-2);
-    padding-right: var(--space-2);
-  }
-  
-  .trending-container-dark .trending-item {
-    border-bottom-color: var(--border-color-dark);
-  }
-  
-  .trending-item:last-child {
-    border-bottom: none;
-  }
-  
-  .trending-item-content {
+  .trend-item {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-  }
-  
-  .trending-hashtag {
-    color: var(--color-primary);
-    font-weight: var(--font-weight-medium);
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    transition: all var(--transition-fast);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: transparent;
+    border-left: none;
+    border-right: none;
+    border-top: none;
     text-align: left;
-    font-size: var(--font-size-md);
-  }
-  
-  .trending-hashtag:hover {
-    color: var(--color-primary-hover);
-    text-decoration: underline;
-    transform: scale(1.02);
-  }
-  
-  .trending-post-count {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    margin: var(--space-1) 0;
-  }
-  
-  .trending-container-dark .trending-post-count {
-    color: var(--text-secondary-dark);
-  }
-  
-  .trending-category {
-    display: inline-block;
-    margin-top: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    background-color: var(--bg-tertiary);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    font-weight: var(--font-weight-medium);
-  }
-  
-  .trending-container-dark .trending-category {
-    background-color: var(--bg-tertiary-dark);
-    color: var(--text-secondary-dark);
-  }
-  
-  .trending-rank {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    font-weight: var(--font-weight-bold);
-    background-color: var(--bg-tertiary);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-full);
-  }
-  
-  .trending-container-dark .trending-rank {
-    color: var(--text-secondary-dark);
-    background-color: var(--bg-tertiary-dark);
-  }
-  
-  .trending-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-6) var(--space-4);
-    text-align: center;
-    background: linear-gradient(135deg, 
-      rgba(var(--color-primary-rgb), 0.05) 0%, 
-      rgba(var(--color-primary-rgb), 0.02) 100%);
-    border-radius: var(--radius-lg);
-    min-height: 200px;
-  }
-  
-  .trending-container-dark .trending-empty {
-    background: linear-gradient(135deg, 
-      rgba(var(--color-primary-rgb), 0.1) 0%, 
-      rgba(var(--color-primary-rgb), 0.05) 100%);
-  }
-  
-  .trending-empty-icon {
-    color: var(--color-primary);
-    margin-bottom: var(--space-3);
-    opacity: 0.8;
-  }
-  
-  .pulse-animation {
-    animation: pulse-fade 2s infinite ease-in-out;
-  }
-  
-  @keyframes pulse-fade {
-    0% { opacity: 0.5; transform: scale(0.95); }
-    50% { opacity: 1; transform: scale(1.05); }
-    100% { opacity: 0.5; transform: scale(0.95); }
-  }
-  
-  .trending-empty-text {
-    color: var(--text-primary);
-    font-weight: var(--font-weight-bold);
-    font-size: var(--font-size-lg);
-    margin-bottom: var(--space-2);
-  }
-  
-  .trending-container-dark .trending-empty-text {
-    color: var(--text-primary-dark);
-  }
-  
-  .trending-empty-subtext {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--space-4);
-  }
-  
-  .trending-container-dark .trending-empty-subtext {
-    color: var(--text-secondary-dark);
-  }
-  
-  .sample-trends {
-    margin-top: var(--space-4);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
     width: 100%;
   }
   
-  .fade-in {
-    animation: fadeIn 0.5s ease-in-out;
+  .trend-item:hover {
+    background-color: var(--hover-bg);
   }
   
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+  .twitter-trends-container-dark .trend-item {
+    border-bottom-color: var(--dark-border-color);
+  }
+  
+  .twitter-trends-container-dark .trend-item:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .trend-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .trend-category {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  
+  .twitter-trends-container-dark .trend-category {
+    color: var(--dark-text-secondary);
+  }
+  
+  .trend-tag {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  
+  .twitter-trends-container-dark .trend-tag {
+    color: var(--dark-text-primary);
+  }
+  
+  .trend-metrics {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  
+  .twitter-trends-container-dark .trend-metrics {
+    color: var(--dark-text-secondary);
+  }
+  
+  .trend-more {
+    color: var(--text-secondary);
+  }
+  
+  .twitter-trends-container-dark .trend-more {
+    color: var(--dark-text-secondary);
+  }
+  
+  .trends-loading {
+    padding: 16px;
+  }
+  
+  .trend-skeleton {
+    height: 68px;
+    background: linear-gradient(
+      90deg,
+      var(--bg-tertiary) 0%,
+      var(--bg-secondary) 50%,
+      var(--bg-tertiary) 100%
+    );
+    border-radius: 8px;
+    margin-bottom: 12px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  .twitter-trends-container-dark .trend-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--dark-bg-tertiary) 0%,
+      var(--dark-bg-secondary) 50%,
+      var(--dark-bg-tertiary) 100%
+    );
+  }
+  
+  @keyframes pulse {
+    0% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.3;
+    }
+    100% {
+      opacity: 0.6;
+    }
+  }
+  
+  .trends-empty {
+    padding: 32px 16px;
+    text-align: center;
+  }
+  
+  .trends-empty-icon {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  
+  .twitter-trends-container-dark .trends-empty-icon {
+    color: var(--dark-text-secondary);
+  }
+  
+  .trends-empty-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+  }
+  
+  .twitter-trends-container-dark .trends-empty-title {
+    color: var(--dark-text-primary);
+  }
+  
+  .trends-empty-text {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  
+  .twitter-trends-container-dark .trends-empty-text {
+    color: var(--dark-text-secondary);
+  }
+  
+  .sample-trends {
+    margin-top: 24px;
   }
   
   .sample-trends-title {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    margin-bottom: var(--space-2);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px;
   }
   
-  .sample-trends-list {
+  .twitter-trends-container-dark .sample-trends-title {
+    color: var(--dark-text-primary);
+  }
+  
+  .sample-trends-grid {
     display: flex;
     flex-wrap: wrap;
+    gap: 8px;
     justify-content: center;
-    gap: var(--space-2);
   }
   
-  .sample-trend-chip {
-    background-color: var(--bg-primary);
+  .sample-trend-tag {
+    background-color: var(--color-primary-bg);
     color: var(--color-primary);
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-sm);
-    border: 1px solid var(--color-primary);
+    border: none;
+    border-radius: 16px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: background-color 0.2s;
   }
   
-  .sample-trend-chip:hover {
-    background-color: var(--color-primary);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-sm);
-  }
-  
-  .trending-loading {
-    padding: var(--space-2) 0;
-  }
-  
-  .trending-item-skeleton {
-    height: 80px;
-    margin-bottom: var(--space-3);
-    background-color: var(--bg-tertiary);
-    border-radius: var(--radius-md);
-  }
-  
-  .trending-container-dark .trending-item-skeleton {
-    background-color: var(--bg-tertiary-dark);
-  }
-  
-  /* Animation */
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 0.8; }
-  }
-  
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  .sample-trend-tag:hover {
+    background-color: var(--hover-primary);
   }
 </style> 

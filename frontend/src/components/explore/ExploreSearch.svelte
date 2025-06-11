@@ -83,24 +83,21 @@
 <div class="search-container">
   <!-- Search bar -->
   <div class="search-input-wrapper {isDarkMode ? 'search-input-wrapper-dark' : ''}">
+    <div class="search-icon-container">
+      <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+    
     <input 
       type="text" 
-      placeholder="Search AYCOM" 
+      placeholder="Search" 
       value={searchQuery}
       on:input={handleSearchInput}
       on:focus={handleFocus}
       on:keydown={handleKeydown}
       class="search-input {isDarkMode ? 'search-input-dark' : ''}"
     />
-    <button 
-      class="search-icon-button {isDarkMode ? 'search-icon-button-dark' : ''}"
-      on:click={executeSearch}
-      aria-label="Search"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    </button>
     
     {#if searchQuery}
       <button 
@@ -108,8 +105,9 @@
         on:click={clearSearch}
         aria-label="Clear search"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="search-clear-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="search-clear-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10" fill={isDarkMode ? "#4e555d" : "#e7eaec"}></circle>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9l-6 6M9 9l6 6" />
         </svg>
       </button>
     {/if}
@@ -119,7 +117,7 @@
   {#if showRecentSearches && recentSearches.length > 0 && !searchQuery}
     <div class="search-dropdown {isDarkMode ? 'search-dropdown-dark' : ''}">
       <div class="search-dropdown-header">
-        <h3 class="search-dropdown-title">Recent searches</h3>
+        <h3 class="search-dropdown-title">Recent</h3>
         <button 
           class="search-dropdown-clear-button"
           on:click={clearRecentSearches}
@@ -201,40 +199,56 @@
   
   .search-input-wrapper {
     position: relative;
-    margin-bottom: var(--space-2);
     background-color: var(--bg-tertiary);
     border-radius: var(--radius-full);
-    box-shadow: var(--shadow-sm);
-    transition: all var(--transition-normal);
-    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
     display: flex;
     align-items: center;
+    height: 42px;
   }
   
   .search-input-wrapper-dark {
-    background-color: var(--dark-bg-tertiary, rgba(255, 255, 255, 0.1));
-    border-color: var(--border-color-dark);
+    background-color: var(--dark-bg-tertiary);
+    border: 1px solid var(--dark-bg-tertiary);
   }
   
   .search-input-wrapper:focus-within {
     border-color: var(--color-primary);
-    box-shadow: var(--shadow-md), 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
+    background-color: var(--bg-primary);
+  }
+  
+  .search-input-wrapper-dark:focus-within {
+    background-color: var(--dark-bg-primary);
+  }
+  
+  .search-icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 12px;
+  }
+  
+  .search-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--text-secondary);
   }
   
   .search-input {
     width: 100%;
-    padding: var(--space-3) var(--space-12) var(--space-3) var(--space-12);
+    padding: 8px 8px 8px 8px;
     border-radius: var(--radius-full);
     border: none;
     background-color: transparent;
     color: var(--text-primary);
     font-size: var(--font-size-md);
-    transition: all var(--transition-normal);
     outline: none;
+    caret-color: var(--color-primary);
   }
   
   .search-input-dark {
-    color: var(--dark-text-primary, #fff);
+    color: var(--dark-text-primary);
   }
   
   .search-input::placeholder {
@@ -243,85 +257,65 @@
   }
   
   .search-input-dark::placeholder {
-    color: var(--dark-text-tertiary, rgba(255, 255, 255, 0.5));
+    color: var(--dark-text-tertiary);
   }
   
-  .search-icon-button {
-    position: absolute;
-    left: var(--space-3);
-    top: 50%;
-    transform: translateY(-50%);
-    padding: var(--space-1);
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: color var(--transition-fast);
+  .search-clear-button {
+    height: 22px;
+    width: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    margin-right: 12px;
+    padding: 0;
   }
   
-  .search-icon-button-dark {
-    color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
-  }
-  
-  .search-icon-button:hover,
-  .search-input:focus + .search-icon-button {
-    color: var(--color-primary);
-  }
-  
-  .search-icon {
-    width: 20px;
-    height: 20px;
+  .search-clear-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--text-primary);
   }
   
   .search-dropdown {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 4px);
     left: 0;
     right: 0;
     background-color: var(--bg-primary);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 3px 10px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--border-color);
-    margin-top: var(--space-2);
     z-index: var(--z-dropdown);
     max-height: 500px;
     overflow-y: auto;
-    animation: fadeInDown 0.3s ease-out;
-  }
-  
-  @keyframes fadeInDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
   
   .search-dropdown-dark {
     background-color: var(--dark-bg-primary);
-    border-color: var(--border-color-dark);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    border-color: var(--dark-border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 3px 10px rgba(0, 0, 0, 0.3);
   }
   
   .search-dropdown-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-3) var(--space-4);
+    padding: 12px 16px;
     border-bottom: 1px solid var(--border-color);
   }
   
+  .search-dropdown-dark .search-dropdown-header {
+    border-color: var(--dark-border-color);
+  }
+  
   .search-dropdown-title {
-    font-weight: var(--font-weight-bold);
-    color: var(--text-primary);
     font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
     margin: 0;
+    color: var(--text-primary);
   }
   
   .search-dropdown-clear-button {
@@ -329,18 +323,18 @@
     border: none;
     color: var(--color-primary);
     font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
-    padding: var(--space-1) var(--space-2);
+    padding: 4px 8px;
     border-radius: var(--radius-md);
-    transition: all var(--transition-fast);
+    transition: background-color 0.2s;
   }
   
   .search-dropdown-clear-button:hover {
-    background-color: rgba(var(--color-primary-rgb), 0.1);
-    text-decoration: underline;
+    background-color: var(--hover-primary);
   }
   
-  .search-recent-list,
+  .search-recent-list, 
   .search-profiles-list {
     list-style: none;
     padding: 0;
@@ -350,76 +344,70 @@
   .search-recent-item {
     display: flex;
     align-items: center;
-    padding: var(--space-3) var(--space-4);
     width: 100%;
+    padding: 12px 16px;
     text-align: left;
     background: none;
     border: none;
-    color: var(--text-primary);
-    font-size: var(--font-size-md);
     cursor: pointer;
-    transition: background-color var(--transition-fast);
-    border-left: 3px solid transparent;
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    transition: background-color 0.2s;
   }
   
   .search-recent-item-dark {
-    color: var(--text-primary-dark);
+    color: var(--dark-text-primary);
   }
   
   .search-recent-item:hover {
     background-color: var(--hover-bg);
-    border-left-color: var(--color-primary);
+  }
+  
+  .search-recent-item-dark:hover {
+    background-color: var(--dark-hover-bg);
   }
   
   .search-recent-icon {
     width: 18px;
     height: 18px;
-    margin-right: var(--space-3);
-    color: var(--text-tertiary);
-    flex-shrink: 0;
+    margin-right: 12px;
+    color: var(--text-secondary);
   }
   
   .search-profile-item {
-    display: flex;
-    padding: var(--space-3) var(--space-4);
+    display: block;
+    padding: 12px 16px;
     text-decoration: none;
-    transition: background-color var(--transition-fast);
-    border-left: 3px solid transparent;
+    transition: background-color 0.2s;
   }
   
   .search-profile-item:hover {
     background-color: var(--hover-bg);
-    border-left-color: var(--color-primary);
   }
   
   .search-profile-item-dark:hover {
-    background-color: var(--bg-hover-dark);
+    background-color: var(--dark-hover-bg);
   }
   
   .search-profile-content {
     display: flex;
     align-items: center;
-    width: 100%;
   }
   
   .search-profile-avatar {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    margin-right: var(--space-3);
     overflow: hidden;
+    margin-right: 12px;
     background-color: var(--bg-tertiary);
-    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border-color);
   }
   
   .search-profile-avatar-dark {
-    background-color: var(--bg-tertiary-dark);
-    border-color: var(--border-color-dark);
+    background-color: var(--dark-bg-tertiary);
   }
   
   .search-profile-img {
@@ -429,14 +417,13 @@
   }
   
   .search-profile-placeholder {
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-bold);
     font-size: var(--font-size-lg);
-    color: var(--text-tertiary);
-    text-transform: uppercase;
   }
   
   .search-profile-info {
     flex: 1;
-    min-width: 0;
   }
   
   .search-profile-name-wrapper {
@@ -445,131 +432,58 @@
   }
   
   .search-profile-name {
+    margin: 0;
     font-weight: var(--font-weight-bold);
     color: var(--text-primary);
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   
   .search-profile-name-dark {
-    color: var(--text-primary-dark);
+    color: var(--dark-text-primary);
   }
   
   .search-profile-verified {
-    margin-left: var(--space-1);
-    color: var(--color-primary);
-    display: inline-flex;
+    margin-left: 4px;
+    display: flex;
   }
   
   .search-verified-icon {
     width: 16px;
     height: 16px;
+    color: var(--color-primary);
   }
   
   .search-profile-username {
-    color: var(--text-secondary);
+    margin: 2px 0 0;
     font-size: var(--font-size-sm);
-    margin: var(--space-1) 0 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: var(--text-secondary);
   }
   
   .search-profile-username-dark {
-    color: var(--text-secondary-dark);
+    color: var(--dark-text-secondary);
   }
   
   .search-dropdown-footer {
-    padding: var(--space-3);
+    padding: 12px 16px;
     border-top: 1px solid var(--border-color);
-    text-align: center;
+  }
+  
+  .search-dropdown-dark .search-dropdown-footer {
+    border-color: var(--dark-border-color);
   }
   
   .search-query-button {
-    background-color: var(--color-primary);
-    color: white;
-    border: none;
+    width: 100%;
+    padding: 8px 16px;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-full);
-    padding: var(--space-2) var(--space-4);
+    color: var(--color-primary);
     font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: background-color var(--transition-fast), transform var(--transition-fast);
-    width: 100%;
+    transition: background-color 0.2s;
   }
   
   .search-query-button:hover {
-    background-color: var(--color-primary-hover);
-    transform: translateY(-1px);
-  }
-  
-  .search-query-button:active {
-    transform: translateY(0);
-  }
-  
-  @media (max-width: 500px) {
-    .search-dropdown {
-      position: fixed;
-      top: 60px;
-      left: 0;
-      right: 0;
-      border-radius: 0;
-      max-height: calc(100vh - 60px);
-      margin-top: 0;
-      border-top: 1px solid var(--border-color);
-      border-left: none;
-      border-right: none;
-      box-shadow: none;
-    }
-    
-    .search-dropdown-dark {
-      border-top: 1px solid var(--border-color-dark);
-    }
-    
-    .search-input {
-      font-size: var(--font-size-base);
-      padding: var(--space-2) var(--space-10) var(--space-2) var(--space-10);
-    }
-    
-    .search-icon {
-      width: 18px;
-      height: 18px;
-    }
-  }
-  
-  .search-clear-button {
-    position: absolute;
-    right: var(--space-3);
-    top: 50%;
-    transform: translateY(-50%);
-    padding: var(--space-1);
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: color var(--transition-fast);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.6;
-  }
-  
-  .search-clear-button:hover {
-    opacity: 1;
-    color: var(--color-error, #e53e3e);
-  }
-  
-  .search-clear-button-dark {
-    color: var(--dark-text-secondary, rgba(255, 255, 255, 0.6));
-  }
-  
-  .search-clear-button-dark:hover {
-    color: var(--dark-color-error, #fc8181);
-  }
-  
-  .search-clear-icon {
-    width: 16px;
-    height: 16px;
+    background-color: var(--hover-primary);
   }
 </style> 

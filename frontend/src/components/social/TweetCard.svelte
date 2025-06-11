@@ -2,7 +2,7 @@
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { isAuthenticated as checkAuth, getUserId } from '../../utils/auth';
   import { useAuth } from '../../hooks/useAuth';
-  import { likeThread, unlikeThread, replyToThread, getReplyReplies, likeReply, unlikeReply, bookmarkThread, removeBookmark } from '../../api';
+  import { likeThread, unlikeThread, replyToThread, getReplyReplies, likeReply, unlikeReply, bookmarkThread, removeBookmark, deleteThread } from '../../api';
   import { tweetInteractionStore } from '../../stores/tweetInteractionStore';
   import { notificationStore } from '../../stores/notificationStore';
   import { toastStore } from '../../stores/toastStore';
@@ -26,6 +26,7 @@
   import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
   import { authStore } from '../../stores/authStore';
   import { useTheme } from '../../hooks/useTheme';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   
   interface ExtendedTweet extends ITweet {
     retweet_id?: string;
@@ -1514,9 +1515,105 @@
       window.location.href = `/thread/${threadId}`;
     }
   }
+
+  // In the script section, add isCurrentUserAuthor and dropdown toggle functionality
+  // Add this after the other reactive declarations
+  $: isCurrentUserAuthor = authState?.user_id === processedTweet?.user_id;
+  let isSettingsDropdownOpen = false;
+
+  function toggleSettingsDropdown(e) {
+    e.stopPropagation();
+    isSettingsDropdownOpen = !isSettingsDropdownOpen;
+  }
+
+  // Close dropdown if clicked outside
+  function handleClickOutside(e) {
+    if (isSettingsDropdownOpen) {
+      isSettingsDropdownOpen = false;
+    }
+  }
+
+  // Add a state variable for the delete confirmation modal
+  let showDeleteConfirmationModal = false;
+  let tweetToDelete: string | null = null;
+
+  // In the script section, update the handleDeleteTweet function
+  async function handleDeleteTweet(e) {
+    e.stopPropagation();
+    
+    if (!isCurrentUserAuthor) {
+      toastStore.showToast('You can only delete your own posts', 'error');
+      return;
+    }
+    
+    // Show the modal instead of using browser confirm
+    tweetToDelete = String(processedTweet.id);
+    showDeleteConfirmationModal = true;
+    isSettingsDropdownOpen = false; // Close the dropdown
+  }
+
+  // Add a new function to perform the actual deletion
+  async function confirmDeleteTweet() {
+    if (tweetToDelete === null) {
+      console.error('No tweet ID to delete');
+      return;
+    }
+    
+    try {
+      await deleteThread(tweetToDelete);
+      toastStore.showToast('Post deleted successfully', 'success');
+      
+      // Notify parent component that tweet was deleted
+      dispatch('deleted', { id: tweetToDelete });
+      
+      // Remove the tweet from the DOM
+      const tweetElement = document.getElementById(`tweet-${tweetToDelete}`);
+      if (tweetElement) {
+        tweetElement.style.height = `${tweetElement.offsetHeight}px`;
+        tweetElement.style.overflow = 'hidden';
+        
+        // Add animation
+        setTimeout(() => {
+          tweetElement.style.height = '0';
+          tweetElement.style.opacity = '0';
+          tweetElement.style.margin = '0';
+          tweetElement.style.padding = '0';
+          tweetElement.style.transition = 'all 0.3s ease';
+        }, 10);
+        
+        // Remove after animation
+        setTimeout(() => {
+          tweetElement.remove();
+        }, 300);
+      }
+      
+    } catch (error) {
+      console.error('Error deleting tweet:', error);
+      toastStore.showToast('Failed to delete post. Please try again.', 'error');
+    } finally {
+      // Close the modal
+      showDeleteConfirmationModal = false;
+      tweetToDelete = null;
+    }
+  }
+
+  // Add a function to cancel deletion
+  function cancelDeleteTweet() {
+    showDeleteConfirmationModal = false;
+    tweetToDelete = null;
+  }
+
+  // Listen for clicks to close the dropdown
+  onMount(() => {
+    document.addEventListener('click', handleClickOutside);
+  });
+
+  onDestroy(() => {
+    document.removeEventListener('click', handleClickOutside);
+  });
 </script>
 
-<div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}">
+<div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}" id="tweet-{processedTweet.id}">
   <div class="tweet-card-container" on:click|preventDefault={navigateToThreadDetail}>
     <div class="tweet-card-content">
       <div class="tweet-card-header">
@@ -1563,6 +1660,31 @@
             </a>
             <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
             <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(processedTweet.timestamp)}</span>
+            
+            <!-- Settings button for tweet owner -->
+            {#if isCurrentUserAuthor}
+              <div class="tweet-settings-container">
+                <button 
+                  class="tweet-settings-btn {isDarkMode ? 'tweet-settings-btn-dark' : ''}" 
+                  on:click|stopPropagation={toggleSettingsDropdown}
+                  aria-label="Tweet settings"
+                >
+                  <MoreHorizontalIcon size="18" />
+                </button>
+                
+                {#if isSettingsDropdownOpen}
+                  <div class="tweet-settings-dropdown {isDarkMode ? 'tweet-settings-dropdown-dark' : ''}">
+                    <button 
+                      class="tweet-settings-option tweet-delete-option {isDarkMode ? 'tweet-settings-option-dark' : ''}" 
+                      on:click|stopPropagation={handleDeleteTweet}
+                    >
+                      <TrashIcon size="16" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
           
           <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
@@ -2445,4 +2567,276 @@
   :global([data-theme="dark"]) .tweet-empty-content {
     color: var(--dark-text-secondary);
   }
+
+  /* Styles for settings menu */
+  .tweet-settings-container {
+    position: relative;
+    margin-left: auto;
+  }
+  
+  .tweet-settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+  }
+  
+  .tweet-settings-btn:hover {
+    background-color: var(--hover-light);
+    color: var(--color-primary);
+  }
+  
+  .tweet-settings-btn-dark {
+    color: var(--text-secondary-dark);
+  }
+  
+  .tweet-settings-btn-dark:hover {
+    background-color: var(--hover-dark);
+    color: var(--color-primary);
+  }
+  
+  .tweet-settings-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    min-width: 150px;
+    margin-top: 5px;
+    overflow: hidden;
+  }
+  
+  .tweet-settings-dropdown-dark {
+    background-color: var(--bg-primary-dark);
+    border-color: var(--border-color-dark);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+  
+  .tweet-settings-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 15px;
+    border: none;
+    background-color: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+  }
+  
+  .tweet-settings-option-dark {
+    color: var(--text-primary-dark);
+  }
+  
+  .tweet-delete-option {
+    color: var(--color-danger);
+  }
+  
+  .tweet-delete-option:hover {
+    background-color: rgba(var(--color-danger-rgb), 0.1);
+  }
+  
+  .tweet-settings-option-dark.tweet-delete-option:hover {
+    background-color: rgba(var(--color-danger-rgb), 0.2);
+  }
+
+  /* Delete confirmation modal styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+  }
+  
+  .modal-container {
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    max-width: 400px;
+    overflow: hidden;
+    padding: 0;
+    animation: modal-slide-in 0.3s ease;
+  }
+  
+  @keyframes modal-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .modal-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  
+  .modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  
+  .modal-close:hover {
+    background-color: var(--hover-light);
+    color: var(--color-primary);
+  }
+  
+  .modal-body {
+    padding: 20px;
+    color: var(--text-primary);
+  }
+  
+  .modal-warning-text {
+    color: var(--color-danger);
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  
+  .modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+  
+  .modal-btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .modal-btn-cancel {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+  }
+  
+  .modal-btn-cancel:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .modal-btn-danger {
+    background-color: var(--color-danger);
+    border: 1px solid var(--color-danger);
+    color: white;
+  }
+  
+  .modal-btn-danger:hover {
+    background-color: rgba(var(--color-danger-rgb), 0.9);
+  }
+  
+  .modal-container-dark {
+    background-color: var(--bg-primary-dark);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+  
+  .modal-header-dark {
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .modal-title-dark {
+    color: var(--text-primary-dark);
+  }
+  
+  .modal-close-dark {
+    color: var(--text-secondary-dark);
+  }
+  
+  .modal-close-dark:hover {
+    background-color: var(--hover-dark);
+  }
+  
+  .modal-body-dark {
+    color: var(--text-primary-dark);
+  }
+  
+  .modal-footer-dark {
+    border-top: 1px solid var(--border-color-dark);
+  }
+  
+  .modal-btn-cancel-dark {
+    border: 1px solid var(--border-color-dark);
+    color: var(--text-primary-dark);
+  }
+  
+  .modal-btn-cancel-dark:hover {
+    background-color: var(--bg-hover-dark);
+  }
 </style>
+
+<!-- Delete confirmation modal -->
+{#if showDeleteConfirmationModal}
+  <div class="modal-overlay" on:click|self={cancelDeleteTweet}>
+    <div class="modal-container {isDarkMode ? 'modal-container-dark' : ''}">
+      <div class="modal-header {isDarkMode ? 'modal-header-dark' : ''}">
+        <h3 class="modal-title {isDarkMode ? 'modal-title-dark' : ''}">Delete Post</h3>
+        <button class="modal-close {isDarkMode ? 'modal-close-dark' : ''}" on:click={cancelDeleteTweet}>
+          <XIcon size="18" />
+        </button>
+      </div>
+      <div class="modal-body {isDarkMode ? 'modal-body-dark' : ''}">
+        <p class="modal-warning-text">Are you sure you want to delete this post?</p>
+        <p>This action cannot be undone. The post, all its likes, bookmarks, and replies will be permanently deleted.</p>
+      </div>
+      <div class="modal-footer {isDarkMode ? 'modal-footer-dark' : ''}">
+        <button 
+          class="modal-btn modal-btn-cancel {isDarkMode ? 'modal-btn-cancel-dark' : ''}" 
+          on:click={cancelDeleteTweet}
+        >
+          Cancel
+        </button>
+        <button 
+          class="modal-btn modal-btn-danger" 
+          on:click={confirmDeleteTweet}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

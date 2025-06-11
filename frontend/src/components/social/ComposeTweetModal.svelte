@@ -18,6 +18,7 @@
   import { debounce } from '../../utils/helpers';
   import { getAuthToken, getUserRole } from '../../utils/auth';
   import { uploadMultipleThreadMedia } from '../../utils/supabase';
+  import appConfig from '../../config/appConfig';
   import type { ICategory } from '../../interfaces/ICategory';
   import type { ITweet } from '../../interfaces/ISocialMedia';
   
@@ -268,35 +269,37 @@
   }
   
   async function handlePost() {
-    // Validate content
-    if (newTweet.trim() === '' && files.length === 0 && !showPollOptions) {
-      errorMessage = 'Your post cannot be empty';
-      return;
-    }
-    
-    // Validate poll
-    if (showPollOptions && (pollQuestion.trim() === '' || pollOptions.filter(opt => opt.trim() !== '').length < 2)) {
-      errorMessage = 'Poll question and at least 2 options are required';
-      return;
-    }
-    
-    isPosting = true;
-    errorMessage = '';
-    
+    if (isPosting) return;
+
     try {
-      const threadData: any = {
-        content: newTweet,
-        hashtags: [],
-        who_can_reply: replyPermission.toLowerCase(), // Convert to lowercase to match backend expectations
+      isPosting = true;
+      errorMessage = '';
+
+      if (newTweet.trim().length === 0 && files.length === 0) {
+        errorMessage = 'Please enter some content or attach media to post.';
+        return;
+      }
+
+      if (isOverLimit) {
+        errorMessage = 'Tweet exceeds maximum character limit.';
+        return;
+      }
+
+      // If it's a reply, ensure we have the parent thread ID
+      if (replyTo && !replyTo.id) {
+        errorMessage = 'Missing parent thread ID.';
+        return;
+      }
+
+      // Format the thread data
+      const threadData: Record<string, any> = {
+        content: newTweet.trim(),
+        who_can_reply: replyPermission.toLowerCase(),
       };
 
-      // Handle categories - Add as hashtag since backend thread proto doesn't have a category field
-      if (selectedCategory || suggestedCategory) {
-        const category = selectedCategory || suggestedCategory;
-        if (!threadData.hashtags) threadData.hashtags = [];
-        if (category && !threadData.hashtags.includes(category)) {
-          threadData.hashtags.push(category);
-        }
+      // Add category if selected
+      if (selectedCategory) {
+        threadData.category = selectedCategory;
       }
       
       // Add scheduled time if set
@@ -312,13 +315,28 @@
       
       // Add poll if enabled
       if (showPollOptions) {
+        // Validate poll data
+        if (!pollQuestion || pollQuestion.trim() === '') {
+          errorMessage = 'Poll question cannot be empty';
+          isPosting = false;
+          return;
+        }
+        
+        // Filter out empty poll options and ensure at least 2 valid options
+        const validOptions = pollOptions.filter(opt => opt.trim() !== '');
+        if (validOptions.length < 2) {
+          errorMessage = 'Poll requires at least 2 valid options';
+          isPosting = false;
+          return;
+        }
+        
         // Format poll data according to backend expectations
         const endTime = new Date();
         endTime.setHours(endTime.getHours() + Number(pollExpiryHours));
         
         threadData.poll = {
-          question: pollQuestion,
-          options: pollOptions.filter(opt => opt.trim() !== ''),
+          question: pollQuestion.trim(),
+          options: validOptions,
           end_time: endTime.toISOString(),
           is_anonymous: pollWhoCanVote === 'anonymous'
         };
@@ -334,27 +352,44 @@
       // Handle reply if in reply mode
       if (replyTo) {
         try {
+          // Direct implementation for better reliability
+          const authToken = getAuthToken();
+          if (!authToken) {
+            throw new Error('Authentication required to reply');
+          }
+          
           threadData.thread_id = replyTo.id;
           if (replyTo.parent_id) {
             threadData.parent_reply_id = replyTo.id;
           }
           
           console.log('Sending reply data:', JSON.stringify(threadData));
-          const response = await replyToThread(replyTo.id, threadData);
           
-          if (!response) {
-            throw new Error('No response received from server');
+          const response = await fetch(`${appConfig.api.baseUrl}/threads/${replyTo.id}/replies`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(threadData)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            throw new Error(errorData.message || `Failed to post reply: ${response.status}`);
           }
           
-          if (files.length > 0 && response && response.id) {
+          const data = await response.json();
+          
+          if (files.length > 0 && data && data.id) {
             try {
               // First upload files to storage and get URLs
-              const mediaUrls = await uploadMultipleThreadMedia(files, response.id);
+              const mediaUrls = await uploadMultipleThreadMedia(files, data.id);
               
               if (mediaUrls && mediaUrls.length > 0) {
                 // Then update thread with media URLs
-                await uploadThreadMedia(response.id, files);
-                console.log('Successfully uploaded media for reply:', response.id);
+                await uploadThreadMedia(data.id, files);
+                console.log('Successfully uploaded media for reply:', data.id);
               }
             } catch (uploadError) {
               console.error('Error uploading media for reply:', uploadError);
@@ -364,7 +399,7 @@
           
           toastStore.showToast('Your reply was published successfully', 'success');
           resetForm();
-          dispatch('posted', response);
+          dispatch('posted', data);
           dispatch('close');
         } catch (replyError) {
           console.error('Error posting reply:', replyError);
@@ -388,22 +423,38 @@
         try {
           console.log('Sending thread data:', JSON.stringify(threadData));
           
-          // Create new thread
-          const response = await createThread(threadData);
-          
-          if (!response) {
-            throw new Error('No response received from server');
+          // Get the authentication token
+          const authToken = getAuthToken();
+          if (!authToken) {
+            throw new Error('Authentication required to post');
           }
           
-          if (files.length > 0 && response && response.id) {
+          // Use direct fetch implementation instead of higher-level wrappers
+          const response = await fetch(`${appConfig.api.baseUrl}/threads`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(threadData)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            throw new Error(errorData.message || `Failed to create thread: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          if (files.length > 0 && data && data.id) {
             try {
               // First upload files to storage and get URLs
-              const mediaUrls = await uploadMultipleThreadMedia(files, response.id);
+              const mediaUrls = await uploadMultipleThreadMedia(files, data.id);
               
               if (mediaUrls && mediaUrls.length > 0) {
                 // Then update thread with media URLs
-                await uploadThreadMedia(response.id, files);
-                console.log('Successfully uploaded media for thread:', response.id);
+                await uploadThreadMedia(data.id, files);
+                console.log('Successfully uploaded media for thread:', data.id);
               }
             } catch (uploadError) {
               console.error('Error uploading media:', uploadError);
@@ -413,7 +464,7 @@
           
           toastStore.showToast('Your post was published successfully', 'success');
           resetForm();
-          dispatch('posted', response);
+          dispatch('posted', data);
           dispatch('close');
         } catch (threadError) {
           console.error('Error posting new thread:', threadError);

@@ -46,14 +46,24 @@ func CreateThread(c *gin.Context) {
 	// Add origin to response headers to support CORS
 	log.Printf("Processing CreateThread request from origin: %s", origin)
 
+	// Try both possible key names for user ID
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
-		return
+		// Try alternate key
+		userIDAny, exists = c.Get("userID")
+		if !exists {
+			log.Printf("CreateThread: No user ID found in context (tried both 'userId' and 'userID')")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
+			return
+		}
+		log.Printf("CreateThread: Found user ID using 'userID' key")
+	} else {
+		log.Printf("CreateThread: Found user ID using 'userId' key")
 	}
 
 	userID, ok := userIDAny.(string)
 	if !ok {
+		log.Printf("CreateThread: User ID is not a string: %v (type %T)", userIDAny, userIDAny)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
 		return
 	}
@@ -89,6 +99,10 @@ func CreateThread(c *gin.Context) {
 		"authorization": c.GetHeader("Authorization"),
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	// Log the request data
+	log.Printf("CreateThread: Sending request to thread service. Content length: %d, Has media: %v",
+		len(request.Content), len(request.Media) > 0)
 
 	resp, err := client.CreateThread(ctx, &request)
 	if err != nil {

@@ -4,6 +4,10 @@
   import { useAuth } from '../../hooks/useAuth';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import Button from '../common/Button.svelte';
+  import LoadingSkeleton from '../common/LoadingSkeleton.svelte';
+  import Pagination from '../common/Pagination.svelte';
+  import PerPageSelector from '../common/PerPageSelector.svelte';
+  import { formatNumber } from '../../utils/common';
   
   const logger = createLoggerWithPrefix('ExplorePeopleResults');
   const dispatch = createEventDispatcher();
@@ -26,7 +30,7 @@
     isFollowing: boolean;
   }> = [];
   export let isLoading = false;
-  export let peoplePerPage = 25;
+  export let peoplePerPage = 20;
   export let currentPage = 1;
   export let totalCount = 0;
   
@@ -34,25 +38,25 @@
   $: totalPages = Math.max(1, Math.ceil(totalCount / peoplePerPage));
   
   // Handle page change
-  function changePage(page: number) {
-    logger.debug('Changing page', { page });
-    currentPage = page;
-    dispatch('pageChange', page);
+  function handlePageChange(event: CustomEvent<number>) {
+    logger.debug('Changing page', { page: event.detail });
+    currentPage = event.detail;
+    dispatch('pageChange', event.detail);
   }
   
   // Page size options
   const perPageOptions = [25, 30, 35];
   
   // Handle per page change
-  function handlePerPageChange(e) {
-    const newValue = parseInt(e.target.value);
+  function handlePerPageChange(event: CustomEvent<number>) {
+    const newValue = event.detail;
     logger.debug('Changing results per page', { value: newValue });
     peoplePerPage = newValue;
     dispatch('peoplePerPageChange', newValue);
   }
   
   // Handle follow user
-  function handleFollowUser(userId: string) {
+  function handleFollow(userId: string) {
     logger.debug('Follow request initiated', { userId });
     
     // Find the user in results
@@ -118,92 +122,59 @@
   }
 </script>
 
-<div class="people-results-container">
-  <div class="people-header">
-    <h2 class="people-title">People</h2>
-    
-    {#if totalCount > 0}
-      <div class="results-count">
-        <span>{totalCount} {totalCount === 1 ? 'result' : 'results'}</span>
-      </div>
-    {/if}
-  </div>
-  
+<div class="people-results {isDarkMode ? 'people-results-dark' : ''}">
   {#if isLoading}
-    <div class="people-grid animate-pulse">
-      {#each Array(peoplePerPage > 9 ? 9 : peoplePerPage) as _, i}
-        <div class="profile-card-skeleton">
-          <div class="flex items-center space-x-3 w-full">
-            <div class="skeleton-avatar"></div>
-            <div class="skeleton-content">
-              <div class="skeleton-name"></div>
-              <div class="skeleton-username"></div>
-              <div class="skeleton-bio"></div>
-            </div>
-            <div class="skeleton-button"></div>
-          </div>
-        </div>
+    <div class="people-loading">
+      {#each Array(5) as _, i}
+        <div class="twitter-profile-skeleton"></div>
       {/each}
     </div>
-  {:else if peopleResults.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">👤</div>
-      <p class="empty-message">No users found matching your search criteria</p>
-      <p class="empty-tip">Try adjusting your search or filters</p>
-    </div>
-  {:else}
-    <div class="people-grid">
-      {#each peopleResults as person (person.id)}
-        <div class="profile-card {isDarkMode ? 'profile-card-dark' : ''}">
-          <div class="profile-content">
-            <div class="profile-avatar" on:click={() => handleProfileClick(person.id)}>
-              {#if person.avatar}
-                <img src={person.avatar} alt={person.displayName} class="avatar-image" />
-              {:else}
-                <div class="avatar-fallback">
-                  <span>{(person.displayName || 'User').charAt(0).toUpperCase()}</span>
-                </div>
-              {/if}
-            </div>
-            
-            <div class="profile-info" on:click={() => handleProfileClick(person.id)}>
-              <div class="profile-name-container">
-                <h3 class="profile-name">
-                  {person.displayName || 'User'}
-                  {#if person.isVerified}
-                    <span class="verified-badge">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="verified-icon">
-                        <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+  {:else if peopleResults.length > 0}
+    <div class="twitter-people-list">
+      {#each peopleResults as user (user.id)}
+        <div class="twitter-profile-card">
+          <div class="twitter-profile-avatar" on:click={() => handleProfileClick(user.id)}>
+            {#if user.avatar}
+              <img src={user.avatar} alt={user.username} class="twitter-profile-img" />
+            {:else}
+              <div class="twitter-profile-placeholder">{user.displayName.charAt(0)}</div>
+            {/if}
+          </div>
+          
+          <div class="twitter-profile-content">
+            <div class="twitter-profile-header">
+              <div class="twitter-profile-info" on:click={() => handleProfileClick(user.id)}>
+                <div class="twitter-profile-name-row">
+                  <span class="twitter-profile-name">{user.displayName}</span>
+                  {#if user.isVerified}
+                    <span class="twitter-verified-badge">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="var(--color-primary)">
+                        <path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25s2.818-.916 3.437-2.25c.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z" />
                       </svg>
                     </span>
                   {/if}
-                </h3>
-                <p class="profile-username">@{person.username || 'user'}</p>
+                </div>
+                <span class="twitter-profile-username">@{user.username}</span>
+                {#if user.bio}
+                  <p class="twitter-profile-bio">{user.bio}</p>
+                {/if}
               </div>
               
-              {#if person.bio}
-                <p class="profile-bio">{person.bio}</p>
-              {/if}
-              
-              <div class="profile-stats">
-                <span class="follower-count">
-                  <strong>{person.followerCount}</strong> {person.followerCount === 1 ? 'follower' : 'followers'}
-                </span>
+              <div class="twitter-profile-follow">
+                <button 
+                  class="twitter-follow-button {user.isFollowing ? 'following' : ''}"
+                  on:click={() => handleFollow(user.id)}
+                >
+                  {user.isFollowing ? 'Following' : 'Follow'}
+                </button>
               </div>
             </div>
             
-            {#if authState.is_authenticated && person.id !== authState.user_id}
-              <div class="profile-action">
-                <button 
-                  class="follow-button {person.isFollowing ? 'following' : ''}"
-                  on:click|stopPropagation={() => handleFollowUser(person.id)}
-                >
-                  {#if person.isFollowing}
-                    <span class="follow-icon">✓</span> Following
-                  {:else}
-                    <span class="follow-icon">+</span> Follow
-                  {/if}
-                </button>
+            {#if user.followerCount > 0}
+              <div class="twitter-profile-stats">
+                <span class="twitter-profile-followers">
+                  <strong>{formatNumber(user.followerCount)}</strong> followers
+                </span>
               </div>
             {/if}
           </div>
@@ -211,542 +182,347 @@
       {/each}
     </div>
     
-    {#if totalPages > 1}
-      <div class="pagination-container">
-        <div class="pagination-select">
-          <label for="perPage">Show:</label>
-          <select 
-            id="perPage"
-            class="per-page-select {isDarkMode ? 'per-page-select-dark' : ''}"
-            bind:value={peoplePerPage}
-            on:change={handlePerPageChange}
-          >
-            {#each perPageOptions as option}
-              <option value={option}>{option} per page</option>
-            {/each}
-          </select>
-        </div>
-        
-        <div class="pagination-controls">
-          <button 
-            class="pagination-button {currentPage === 1 ? 'disabled' : ''}"
-            disabled={currentPage === 1}
-            on:click={() => changePage(1)}
-          >
-            &laquo;
-          </button>
-          
-          <button 
-            class="pagination-button {currentPage === 1 ? 'disabled' : ''}"
-            disabled={currentPage === 1}
-            on:click={() => changePage(currentPage - 1)}
-          >
-            &lt;
-          </button>
-          
-          <div class="pagination-pages">
-            {#if totalPages <= 5}
-              {#each Array(totalPages) as _, i}
-                <button 
-                  class="pagination-page {i + 1 === currentPage ? 'active' : ''}"
-                  on:click={() => changePage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              {/each}
-            {:else}
-              {#if currentPage > 3}
-                <button class="pagination-page" on:click={() => changePage(1)}>1</button>
-                {#if currentPage > 4}
-                  <span class="pagination-ellipsis">...</span>
-                {/if}
-              {/if}
-              
-              {#each Array(Math.min(5, totalPages)) as _, i}
-                {@const pageNum = currentPage <= 3 ? i + 1 : 
-                            currentPage >= totalPages - 2 ? totalPages - 4 + i : 
-                            currentPage - 2 + i}
-                {#if pageNum > 0 && pageNum <= totalPages}
-                  <button 
-                    class="pagination-page {pageNum === currentPage ? 'active' : ''}"
-                    on:click={() => changePage(pageNum)}
-                  >
-                    {pageNum}
-                  </button>
-                {/if}
-              {/each}
-              
-              {#if currentPage < totalPages - 2}
-                {#if currentPage < totalPages - 3}
-                  <span class="pagination-ellipsis">...</span>
-                {/if}
-                <button class="pagination-page" on:click={() => changePage(totalPages)}>{totalPages}</button>
-              {/if}
-            {/if}
-          </div>
-          
-          <button 
-            class="pagination-button {currentPage === totalPages ? 'disabled' : ''}"
-            disabled={currentPage === totalPages}
-            on:click={() => changePage(currentPage + 1)}
-          >
-            &gt;
-          </button>
-          
-          <button 
-            class="pagination-button {currentPage === totalPages ? 'disabled' : ''}"
-            disabled={currentPage === totalPages}
-            on:click={() => changePage(totalPages)}
-          >
-            &raquo;
-          </button>
-        </div>
+    <div class="twitter-people-footer">
+      <div class="twitter-pagination-wrapper">
+        <Pagination 
+          totalItems={totalCount} 
+          perPage={peoplePerPage} 
+          currentPage={currentPage} 
+          on:pageChange={handlePageChange}
+        />
       </div>
-    {/if}
+      
+      <div class="twitter-perpage-wrapper">
+        <PerPageSelector 
+          perPage={peoplePerPage} 
+          options={[10, 20, 50]} 
+          on:perPageChange={handlePerPageChange}
+        />
+      </div>
+    </div>
+  {:else}
+    <div class="twitter-people-empty">
+      <div class="twitter-people-empty-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+      </div>
+      <h3 class="twitter-people-empty-title">No users found</h3>
+      <p class="twitter-people-empty-text">Try adjusting your search or filters</p>
+    </div>
   {/if}
 </div>
 
 <style>
-  .people-results-container {
-    width: 100%;
-    margin: 0 auto;
-    padding: 1rem 0;
-  }
-  
-  .people-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-  }
-  
-  .people-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin: 0;
-  }
-  
-  .results-count {
-    font-size: 0.9rem;
-    color: #666;
-    padding: 0.25rem 0.5rem;
-    background-color: #f5f5f5;
-    border-radius: 1rem;
-  }
-  
-  .people-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-  }
-  
-  .profile-card {
-    border-radius: 0.75rem;
-    padding: 1.25rem;
-    background-color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid #eaeaea;
-  }
-  
-  .profile-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-  
-  .profile-card-dark {
-    background-color: #1a1a1a;
-    border-color: #333;
-  }
-  
-  .profile-content {
-    display: flex;
-    align-items: flex-start;
+  .people-results {
     width: 100%;
   }
   
-  .profile-avatar {
-    flex: 0 0 48px;
+  .people-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 0 16px 0;
+  }
+  
+  .twitter-profile-skeleton {
+    height: 80px;
+    background: linear-gradient(
+      90deg,
+      var(--bg-tertiary) 0%,
+      var(--bg-secondary) 50%,
+      var(--bg-tertiary) 100%
+    );
+    border-radius: 16px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  .people-results-dark .twitter-profile-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--dark-bg-tertiary) 0%,
+      var(--dark-bg-secondary) 50%,
+      var(--dark-bg-tertiary) 100%
+    );
+  }
+  
+  @keyframes pulse {
+    0% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.3;
+    }
+    100% {
+      opacity: 0.6;
+    }
+  }
+  
+  .twitter-people-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .twitter-profile-card {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    transition: background-color 0.2s;
+  }
+  
+  .twitter-profile-card:hover {
+    background-color: var(--hover-bg);
+  }
+  
+  .people-results-dark .twitter-profile-card:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .twitter-profile-avatar {
     width: 48px;
     height: 48px;
     border-radius: 50%;
     overflow: hidden;
-    margin-right: 1rem;
+    flex-shrink: 0;
     cursor: pointer;
   }
   
-  .avatar-image {
+  .twitter-profile-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 50%;
   }
   
-  .avatar-fallback {
+  .twitter-profile-placeholder {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #3b82f6;
-    color: white;
-    font-weight: 600;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-weight: bold;
+    font-size: 20px;
   }
   
-  .profile-info {
+  .people-results-dark .twitter-profile-placeholder {
+    background-color: var(--dark-bg-tertiary);
+    color: var(--dark-text-secondary);
+  }
+  
+  .twitter-profile-content {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .twitter-profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4px;
+  }
+  
+  .twitter-profile-info {
     flex: 1;
     min-width: 0;
     cursor: pointer;
   }
   
-  .profile-name-container {
-    margin-bottom: 0.25rem;
-  }
-  
-  .profile-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin: 0 0 0.125rem 0;
+  .twitter-profile-name-row {
     display: flex;
     align-items: center;
+    gap: 4px;
+    margin-bottom: 1px;
+  }
+  
+  .twitter-profile-name {
+    font-weight: bold;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   
-  .verified-badge {
-    display: inline-flex;
-    margin-left: 0.25rem;
-    color: #3b82f6;
+  .people-results-dark .twitter-profile-name {
+    color: var(--dark-text-primary);
   }
   
-  .verified-icon {
-    width: 1rem;
-    height: 1rem;
+  .twitter-verified-badge {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
   
-  .profile-username {
-    font-size: 0.9rem;
-    color: #666;
-    margin: 0;
-  }
-  
-  .profile-bio {
-    font-size: 0.9rem;
-    margin: 0.5rem 0;
-    line-height: 1.4;
+  .twitter-profile-username {
+    color: var(--text-secondary);
+    font-size: 14px;
+    display: block;
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .people-results-dark .twitter-profile-username {
+    color: var(--dark-text-secondary);
+  }
+  
+  .twitter-profile-bio {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin: 4px 0 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
-  :global(.dark) .profile-bio {
-    color: #ddd;
+  .people-results-dark .twitter-profile-bio {
+    color: var(--dark-text-primary);
   }
   
-  :global(.dark) .profile-username {
-    color: #aaa;
-  }
-  
-  .profile-stats {
-    font-size: 0.85rem;
-    color: #666;
-    margin-top: 0.25rem;
-  }
-  
-  :global(.dark) .profile-stats {
-    color: #aaa;
-  }
-  
-  .profile-action {
-    margin-left: 0.75rem;
+  .twitter-profile-follow {
     flex-shrink: 0;
+    margin-left: 16px;
   }
   
-  .follow-button {
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 0.375rem 0.75rem;
-    border-radius: 1.5rem;
-    background-color: #3b82f6;
-    color: white;
+  .twitter-follow-button {
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
     border: none;
+    border-radius: 9999px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: bold;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s;
+    white-space: nowrap;
   }
   
-  .follow-button:hover {
-    background-color: #2563eb;
+  .twitter-follow-button:hover {
+    background-color: var(--text-primary);
+    opacity: 0.9;
   }
   
-  .follow-button.following {
+  .twitter-follow-button.following {
     background-color: transparent;
-    color: #3b82f6;
-    border: 1px solid #3b82f6;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
   }
   
-  .follow-button.following:hover {
-    background-color: rgba(59, 130, 246, 0.1);
+  .twitter-follow-button.following:hover {
+    border-color: rgba(var(--color-danger-rgb), 0.4);
+    color: var(--color-danger);
+    background-color: rgba(var(--color-danger-rgb), 0.1);
   }
   
-  .follow-icon {
-    margin-right: 0.25rem;
-    font-size: 0.75rem;
+  .people-results-dark .twitter-follow-button {
+    background-color: var(--dark-text-primary);
+    color: var(--dark-bg-primary);
   }
   
-  .empty-state {
-    text-align: center;
-    padding: 3rem 1rem;
+  .people-results-dark .twitter-follow-button.following {
+    background-color: transparent;
+    color: var(--dark-text-primary);
+    border: 1px solid var(--dark-border-color);
   }
   
-  .empty-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
+  .twitter-profile-stats {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 4px;
   }
   
-  .empty-message {
-    font-size: 1.1rem;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    color: #555;
+  .people-results-dark .twitter-profile-stats {
+    color: var(--dark-text-secondary);
   }
   
-  .empty-tip {
-    font-size: 0.9rem;
-    color: #777;
+  .twitter-profile-followers strong {
+    color: var(--text-primary);
+    font-weight: bold;
   }
   
-  .profile-card-skeleton {
-    padding: 1.25rem;
-    border-radius: 0.75rem;
-    background-color: #fff;
-    border: 1px solid #eaeaea;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    width: 100%;
+  .people-results-dark .twitter-profile-followers strong {
+    color: var(--dark-text-primary);
   }
   
-  .flex {
-    display: flex;
-  }
-  
-  .items-center {
-    align-items: center;
-  }
-  
-  .space-x-3 > * + * {
-    margin-left: 0.75rem;
-  }
-  
-  .w-full {
-    width: 100%;
-  }
-  
-  .skeleton-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background-color: #e5e7eb;
-    flex-shrink: 0;
-  }
-  
-  .skeleton-content {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  .skeleton-name {
-    height: 1.25rem;
-    background-color: #e5e7eb;
-    border-radius: 0.25rem;
-    width: 60%;
-    margin-bottom: 0.5rem;
-  }
-  
-  .skeleton-username {
-    height: 1rem;
-    background-color: #e5e7eb;
-    border-radius: 0.25rem;
-    width: 40%;
-    margin-bottom: 0.75rem;
-  }
-  
-  .skeleton-bio {
-    height: 1rem;
-    background-color: #e5e7eb;
-    border-radius: 0.25rem;
-    width: 80%;
-  }
-  
-  .skeleton-button {
-    height: 2rem;
-    width: 5rem;
-    background-color: #e5e7eb;
-    border-radius: 1.5rem;
-    flex-shrink: 0;
-  }
-  
-  .animate-pulse {
-    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
-  }
-  
-  .pagination-container {
+  .twitter-people-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 2rem;
-    padding: 1rem 0;
-    border-top: 1px solid #eaeaea;
+    margin-top: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
   }
   
-  :global(.dark) .pagination-container {
-    border-top-color: #333;
+  .twitter-pagination-wrapper {
+    flex: 1;
   }
   
-  .pagination-select {
-    display: flex;
-    align-items: center;
+  .twitter-perpage-wrapper {
+    flex-shrink: 0;
   }
   
-  .pagination-select label {
-    margin-right: 0.5rem;
-    font-size: 0.875rem;
-    color: #555;
-  }
-  
-  :global(.dark) .pagination-select label {
-    color: #aaa;
-  }
-  
-  .per-page-select {
-    padding: 0.375rem 0.75rem;
-    border-radius: 0.375rem;
-    border: 1px solid #d1d5db;
-    background-color: white;
-    font-size: 0.875rem;
-    color: #4b5563;
-    cursor: pointer;
-  }
-  
-  .per-page-select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-  }
-  
-  .per-page-select-dark {
-    border-color: #4b5563;
-    background-color: #1f2937;
-    color: #e5e7eb;
-  }
-  
-  .pagination-controls {
-    display: flex;
-    align-items: center;
-  }
-  
-  .pagination-button {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #d1d5db;
-    background-color: white;
-    color: #4b5563;
-    cursor: pointer;
-    margin: 0 0.125rem;
-    transition: all 0.2s ease;
-  }
-  
-  .pagination-button:hover:not(.disabled) {
-    background-color: #f3f4f6;
-    border-color: #9ca3af;
-    color: #111827;
-  }
-  
-  .pagination-button.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  :global(.dark) .pagination-button {
-    border-color: #4b5563;
-    background-color: #1f2937;
-    color: #e5e7eb;
-  }
-  
-  :global(.dark) .pagination-button:hover:not(.disabled) {
-    background-color: #374151;
-    border-color: #6b7280;
-  }
-  
-  .pagination-pages {
-    display: flex;
-    align-items: center;
-    margin: 0 0.25rem;
-  }
-  
-  .pagination-page {
-    padding: 0.5rem 0.75rem;
-    margin: 0 0.125rem;
-    border: 1px solid #d1d5db;
-    background-color: white;
-    color: #4b5563;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 2.5rem;
+  .twitter-people-empty {
+    padding: 40px 16px;
     text-align: center;
   }
   
-  .pagination-page:hover:not(.active) {
-    background-color: #f3f4f6;
-    border-color: #9ca3af;
-    color: #111827;
+  .twitter-people-empty-icon {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
   }
   
-  .pagination-page.active {
-    background-color: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-    font-weight: 500;
+  .people-results-dark .twitter-people-empty-icon {
+    color: var(--dark-text-secondary);
   }
   
-  :global(.dark) .pagination-page {
-    border-color: #4b5563;
-    background-color: #1f2937;
-    color: #e5e7eb;
+  .twitter-people-empty-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin: 0 0 8px;
   }
   
-  :global(.dark) .pagination-page:hover:not(.active) {
-    background-color: #374151;
-    border-color: #6b7280;
+  .people-results-dark .twitter-people-empty-title {
+    color: var(--dark-text-primary);
   }
   
-  :global(.dark) .pagination-page.active {
-    background-color: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
+  .twitter-people-empty-text {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin: 0;
   }
   
-  .pagination-ellipsis {
-    display: inline-block;
-    padding: 0.5rem 0.375rem;
-    color: #4b5563;
-    font-weight: 500;
+  .people-results-dark .twitter-people-empty-text {
+    color: var(--dark-text-secondary);
   }
   
-  :global(.dark) .pagination-ellipsis {
-    color: #e5e7eb;
+  @media (max-width: 640px) {
+    .twitter-profile-bio {
+      display: none;
+    }
+    
+    .twitter-follow-button {
+      padding: 4px 12px;
+      font-size: 13px;
+    }
+    
+    .twitter-people-footer {
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .twitter-pagination-wrapper {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
   }
 </style> 

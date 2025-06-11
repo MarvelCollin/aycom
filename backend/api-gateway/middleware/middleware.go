@@ -101,9 +101,12 @@ func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 		isBookmarksEndpoint := strings.Contains(path, "/bookmarks")
+		isThreadsEndpoint := strings.Contains(path, "/threads")
 
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth: Processing auth for bookmarks endpoint: %s %s", c.Request.Method, path)
+		} else if isThreadsEndpoint {
+			log.Printf("JWTAuth: Processing auth for threads endpoint: %s %s", c.Request.Method, path)
 		} else {
 			log.Printf("Processing JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
 		}
@@ -122,6 +125,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
+		} else if isThreadsEndpoint {
+			log.Printf("JWTAuth (threads): Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
 		} else {
 			log.Printf("Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
 		}
@@ -141,6 +146,12 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		token := parts[1]
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Token length: %d chars", len(token))
+			// Add full token logging for debugging
+			log.Printf("JWTAuth (bookmarks): Full token: %s", token)
+		} else if isThreadsEndpoint {
+			log.Printf("JWTAuth (threads): Token length: %d chars", len(token))
+			// Add full token logging for debugging
+			log.Printf("JWTAuth (threads): Full token: %s", token)
 		} else {
 			log.Printf("Token length: %d chars", len(token))
 		}
@@ -169,6 +180,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		if err != nil {
 			if isBookmarksEndpoint {
 				log.Printf("JWTAuth (bookmarks): JWT parse error: %v", err)
+			} else if isThreadsEndpoint {
+				log.Printf("JWTAuth (threads): JWT parse error: %v", err)
 			} else {
 				log.Printf("JWT parse error: %v", err)
 			}
@@ -184,6 +197,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		if !parsedToken.Valid {
 			if isBookmarksEndpoint {
 				log.Printf("JWTAuth (bookmarks): Invalid JWT token")
+			} else if isThreadsEndpoint {
+				log.Printf("JWTAuth (threads): Invalid JWT token")
 			} else {
 				log.Printf("Invalid JWT token")
 			}
@@ -200,6 +215,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		userIdClaim := claims["sub"]
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
+		} else if isThreadsEndpoint {
+			log.Printf("JWTAuth (threads): Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
 		} else {
 			log.Printf("JWT Middleware: Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
 		}
@@ -210,6 +227,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 			userIdClaim = claims["user_id"]
 			if isBookmarksEndpoint {
 				log.Printf("JWTAuth (bookmarks): No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
+			} else if isThreadsEndpoint {
+				log.Printf("JWTAuth (threads): No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
 			} else {
 				log.Printf("JWT Middleware: No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
 			}
@@ -221,6 +240,14 @@ func JWTAuth(secret string) gin.HandlerFunc {
 
 					// Log all available claims for debugging
 					log.Printf("JWTAuth (bookmarks): Available claims:")
+					for key, value := range claims {
+						log.Printf("  %s: %v (Type: %T)", key, value, value)
+					}
+				} else if isThreadsEndpoint {
+					log.Printf("JWTAuth (threads): No valid user identifier in token claims")
+
+					// Log all available claims for debugging
+					log.Printf("JWTAuth (threads): Available claims:")
 					for key, value := range claims {
 						log.Printf("  %s: %v (Type: %T)", key, value, value)
 					}
@@ -246,6 +273,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Successfully extracted user ID: %s from token", userIdStr)
+		} else if isThreadsEndpoint {
+			log.Printf("JWTAuth (threads): Successfully extracted user ID: %s from token", userIdStr)
 		} else {
 			log.Printf("JWT Middleware: Successfully extracted user ID: %s from token", userIdStr)
 		}
@@ -255,6 +284,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 
 		if isBookmarksEndpoint {
 			log.Printf("JWTAuth (bookmarks): Successfully validated token for user %s", userIdStr)
+		} else if isThreadsEndpoint {
+			log.Printf("JWTAuth (threads): Successfully validated token for user %s", userIdStr)
 		} else {
 			log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
 		}

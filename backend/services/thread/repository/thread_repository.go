@@ -19,6 +19,7 @@ type ThreadRepository interface {
 	UpdateThread(thread *model.Thread) error
 	DeleteThread(id string) error
 	ThreadExists(threadID string) (bool, error)
+	RunInTransaction(fn func(tx *gorm.DB) error) error
 }
 
 type PostgresThreadRepository struct {
@@ -27,6 +28,11 @@ type PostgresThreadRepository struct {
 
 func NewThreadRepository(db *gorm.DB) ThreadRepository {
 	return &PostgresThreadRepository{db: db}
+}
+
+// RunInTransaction executes the given function within a database transaction
+func (r *PostgresThreadRepository) RunInTransaction(fn func(tx *gorm.DB) error) error {
+	return r.db.Transaction(fn)
 }
 
 func (r *PostgresThreadRepository) CreateThread(thread *model.Thread) error {

@@ -200,3 +200,36 @@ export function formatStorageUrl(url: string | null): string {
   console.log(`Formatted default URL: ${url} -> ${formatted}`);
   return formatted;
 }
+
+/**
+ * Format a number with abbreviations for thousands, millions, etc.
+ * @param num The number to format
+ * @returns Formatted number string (e.g., 1.2K, 3.4M)
+ */
+export function formatNumber(num: number): string {
+  if (num === undefined || num === null) return '0';
+  
+  if (num === 0) return '0';
+  
+  const absNum = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  
+  if (absNum < 1000) {
+    return sign + absNum.toString();
+  }
+  
+  const abbreviations = ['', 'K', 'M', 'B', 'T'];
+  const tier = Math.floor(Math.log10(absNum) / 3);
+  
+  if (tier >= abbreviations.length) {
+    return sign + absNum.toString(); // If number is too large, just return it as is
+  }
+  
+  const scale = Math.pow(10, tier * 3);
+  const scaled = absNum / scale;
+  
+  // Format with 1 decimal place if needed, but remove .0
+  let formatted = scaled.toFixed(1).replace(/\.0$/, '');
+  
+  return sign + formatted + abbreviations[tier];
+}

@@ -118,7 +118,7 @@ export function fuzzySearch<T>(
   needle: string,
   haystack: T[],
   key?: string,
-  threshold: number = 0.6
+  threshold: number = 0.2
 ): T[] {
   if (!needle || !haystack || !haystack.length) return [];
 

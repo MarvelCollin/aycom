@@ -2,200 +2,178 @@
   import { createEventDispatcher } from 'svelte';
   import { useTheme } from '../../hooks/useTheme';
   
-  // Event dispatcher
   const dispatch = createEventDispatcher();
-  
-  // Props
-  export let currentPage = 1;
-  export let totalPages = 1;
-  export let maxDisplayPages = 5;
-  
-  // Theme state
   const { theme } = useTheme();
+  
+  // Reactive declarations
   $: isDarkMode = $theme === 'dark';
   
-  // Computed values
-  $: pagesArray = generatePaginationArray(currentPage, totalPages, maxDisplayPages);
-  $: hasPrevious = currentPage > 1;
-  $: hasNext = currentPage < totalPages;
+  // Props
+  export let totalItems: number = 0;
+  export let perPage: number = 20;
+  export let currentPage: number = 1;
+  export let maxDisplayPages: number = 5;
   
-  // Generate the array of page numbers to display
-  function generatePaginationArray(current: number, total: number, max: number): (number | string)[] {
-    if (total <= max) {
-      // Show all pages if total is less than max
-      return Array.from({ length: total }, (_, i) => i + 1);
+  // Calculate total pages
+  $: totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+  
+  // Visible page range
+  $: {
+    let start = Math.max(1, currentPage - Math.floor(maxDisplayPages / 2));
+    let end = start + maxDisplayPages - 1;
+    
+    if (end > totalPages) {
+      end = totalPages;
+      start = Math.max(1, end - maxDisplayPages + 1);
     }
     
-    // Calculate half of max (rounded down)
-    const half = Math.floor(max / 2);
-    
-    // Determine start and end
-    let start = current - half;
-    let end = current + half;
-    
-    // Adjust if out of bounds
-    if (start < 1) {
-      end = end + (1 - start);
-      start = 1;
-    }
-    
-    if (end > total) {
-      start = Math.max(1, start - (end - total));
-      end = total;
-    }
-    
-    // Generate array
-    const result: (number | string)[] = [];
-    
-    // Add first page and ellipsis if needed
-    if (start > 1) {
-      result.push(1);
-      if (start > 2) result.push('...');
-    }
-    
-    // Add page numbers
-    for (let i = start; i <= end; i++) {
-      result.push(i);
-    }
-    
-    // Add ellipsis and last page if needed
-    if (end < total) {
-      if (end < total - 1) result.push('...');
-      result.push(total);
-    }
-    
-    return result;
+    visiblePages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }
   
-  // Handle page change
-  function handlePageChange(page: number | string) {
-    if (typeof page === 'number' && page !== currentPage) {
-      currentPage = page;
-      dispatch('pageChange', { page });
-    }
+  let visiblePages: number[] = [];
+  
+  function goToPage(page: number) {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    dispatch('pageChange', page);
   }
   
-  // Go to previous page
-  function goToPrevious() {
-    if (hasPrevious) {
-      handlePageChange(currentPage - 1);
-    }
+  function showEllipsisBefore() {
+    return visiblePages.length > 0 && visiblePages[0] > 1;
   }
   
-  // Go to next page
-  function goToNext() {
-    if (hasNext) {
-      handlePageChange(currentPage + 1);
-    }
+  function showEllipsisAfter() {
+    return visiblePages.length > 0 && visiblePages[visiblePages.length - 1] < totalPages;
   }
 </script>
 
-<div class="pagination {isDarkMode ? 'dark' : ''}">
-  <button 
-    class="pagination-control {!hasPrevious ? 'disabled' : ''}"
-    disabled={!hasPrevious}
-    on:click={goToPrevious}
-    aria-label="Previous page"
-  >
-    &lt;
-  </button>
-  
-  {#each pagesArray as page}
-    {#if page === "..."}
-      <span class="pagination-ellipsis">...</span>
-    {:else}
+{#if totalPages > 1}
+  <nav class="pagination {isDarkMode ? 'pagination-dark' : ''}">
+    <button 
+      class="pagination-action" 
+      on:click={() => goToPage(currentPage - 1)} 
+      disabled={currentPage === 1}
+      aria-label="Previous page"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+    </button>
+    
+    {#if showEllipsisBefore()}
+      <button class="pagination-button" on:click={() => goToPage(1)}>1</button>
+      {#if visiblePages[0] > 2}
+        <span class="pagination-ellipsis">...</span>
+      {/if}
+    {/if}
+    
+    {#each visiblePages as page}
       <button 
-        class="pagination-page {page === currentPage ? 'active' : ''}"
-        on:click={() => handlePageChange(page)}
+        class="pagination-button {page === currentPage ? 'active' : ''}" 
+        on:click={() => goToPage(page)}
       >
         {page}
       </button>
+    {/each}
+    
+    {#if showEllipsisAfter()}
+      {#if visiblePages[visiblePages.length - 1] < totalPages - 1}
+        <span class="pagination-ellipsis">...</span>
+      {/if}
+      <button class="pagination-button" on:click={() => goToPage(totalPages)}>{totalPages}</button>
     {/if}
-  {/each}
-  
-  <button 
-    class="pagination-control {!hasNext ? 'disabled' : ''}"
-    disabled={!hasNext}
-    on:click={goToNext}
-    aria-label="Next page"
-  >
-    &gt;
-  </button>
-</div>
+    
+    <button 
+      class="pagination-action" 
+      on:click={() => goToPage(currentPage + 1)} 
+      disabled={currentPage === totalPages}
+      aria-label="Next page"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </button>
+  </nav>
+{/if}
 
 <style>
   .pagination {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 4px;
   }
   
-  .pagination-control,
-  .pagination-page {
-    display: flex;
+  .pagination-dark {
+    color: var(--dark-text-secondary);
+  }
+  
+  .pagination-button,
+  .pagination-action {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 2rem;
-    height: 2rem;
-    padding: 0 0.5rem;
-    background-color: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 9999px;
+    padding: 0 8px;
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s;
   }
   
-  .pagination.dark .pagination-control,
-  .pagination.dark .pagination-page {
-    background-color: #2d3748;
-    border-color: #4a5568;
+  .pagination-button:hover,
+  .pagination-action:hover:not([disabled]) {
+    background-color: var(--hover-bg);
+  }
+  
+  .pagination-button.active {
+    background-color: var(--color-primary);
     color: white;
+    border-color: var(--color-primary);
+    font-weight: bold;
   }
   
-  .pagination-control:hover,
-  .pagination-page:hover {
-    background-color: #edf2f7;
-    border-color: #cbd5e0;
-  }
-  
-  .pagination.dark .pagination-control:hover,
-  .pagination.dark .pagination-page:hover {
-    background-color: #4a5568;
-    border-color: #718096;
-  }
-  
-  .pagination-control.disabled {
-    opacity: 0.5;
+  .pagination-action[disabled] {
     cursor: not-allowed;
-  }
-  
-  .pagination-control.disabled:hover {
-    background-color: white;
-    border-color: #e2e8f0;
-  }
-  
-  .pagination.dark .pagination-control.disabled:hover {
-    background-color: #2d3748;
-    border-color: #4a5568;
-  }
-  
-  .pagination-page.active {
-    background-color: #3182ce;
-    border-color: #3182ce;
-    color: white;
-  }
-  
-  .pagination.dark .pagination-page.active {
-    background-color: #4299e1;
-    border-color: #4299e1;
+    opacity: 0.5;
   }
   
   .pagination-ellipsis {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0 0.5rem;
-    font-size: 0.875rem;
+    min-width: 32px;
+    color: var(--text-secondary);
+  }
+  
+  .pagination-dark .pagination-button,
+  .pagination-dark .pagination-action {
+    border-color: var(--dark-border-color);
+    color: var(--dark-text-primary);
+  }
+  
+  .pagination-dark .pagination-button:hover,
+  .pagination-dark .pagination-action:hover:not([disabled]) {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .pagination-dark .pagination-ellipsis {
+    color: var(--dark-text-secondary);
+  }
+  
+  @media (max-width: 640px) {
+    .pagination-button,
+    .pagination-action {
+      min-width: 28px;
+      height: 28px;
+      padding: 0 6px;
+      font-size: 13px;
+    }
+    
+    .pagination {
+      gap: 2px;
+    }
   }
 </style> 

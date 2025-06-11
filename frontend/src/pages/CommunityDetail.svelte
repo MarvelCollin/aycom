@@ -9,13 +9,17 @@
     requestToJoin,
     listMembers,
     listRules,
-    removeMember
+    removeMember,
+    listJoinRequests,
+    approveJoinRequest,
+    rejectJoinRequest
   } from '../api/community';
   import { getUserThreads } from '../api/thread';
   import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
   import type { IAuthStore } from '../interfaces/IAuth';
+  import { formatStorageUrl } from '../utils/common';
   interface ITweet {
     id: string;
     content?: string;
@@ -80,6 +84,7 @@
     role: string;
     avatar_url: string;
     joined_at?: Date;
+    requested_at?: Date | string;
   }
   
   interface Rule {
@@ -128,8 +133,10 @@
   let isMember = false;
   let isPending = false;
   let members: Member[] = [];
+  let userRole = 'member'; // Can be 'owner', 'admin', 'moderator', 'member'
   let rules: Rule[] = [];
   let threads: Thread[] = [];
+  let pendingMembers: Member[] = [];
   let activeTab = 'posts'; // 'posts', 'members', 'rules', 'about'
   let errorMessage = '';
   
@@ -157,25 +164,8 @@
   function getImageUrl(url, type = 'logo') {
     if (!url) return null;
     
-    // Check if the URL is already a Supabase URL
-    if (url.includes('supabase')) {
-      return url;
-    }
-    
-    // If it's just a path, construct the Supabase URL
-    if (url.startsWith('/')) {
-      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `communities${url}`);
-    }
-    
-    // Try to extract the path if it's in a special format
-    const parts = url.split('/');
-    if (parts.length > 0) {
-      const filename = parts[parts.length - 1];
-      const folder = type === 'logo' ? 'logos' : 'banners';
-      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `communities/${folder}/${filename}`);
-    }
-    
-    return url;
+    // Use the shared formatStorageUrl utility for consistent image handling
+    return formatStorageUrl(url);
   }
   
   async function loadCommunityData() {
@@ -242,11 +232,13 @@
             interface MembershipData {
               is_member?: boolean;
               status?: string;
+              user_role?: string;
             }
             
             interface MembershipResponse {
               status?: string;
               is_member?: boolean;
+              user_role?: string;
               data?: MembershipData;
             }
             
@@ -260,6 +252,13 @@
                 typedResponse?.data?.status === 'member') {
               isMember = true;
               console.log('User is a member of this community');
+              
+              // Get the user's role in the community
+              userRole = typedResponse?.user_role || 
+                         typedResponse?.data?.user_role ||
+                         'member';
+                         
+              console.log(`User has role "${userRole}" in this community`);
             } else if (typedResponse?.status === 'pending' || 
                        typedResponse?.data?.status === 'pending') {
               isPending = true;
@@ -287,7 +286,8 @@
         await Promise.allSettled([
           loadThreads(),
           loadMembers(),
-          loadRules()
+          loadRules(),
+          loadPendingMembers()
         ]);
       } catch (loadError) {
         console.warn('Error loading related community data:', loadError);
@@ -365,6 +365,26 @@
         processedMember.avatar_url = getProfileImageUrl(avatarUrl);
       }
       
+      // Ensure we have username and name even if they weren't in the original data
+      // This handles both regular members and pending join requests
+      if (!processedMember.username && processedMember.user_id) {
+        // Generate a readable username from the user ID
+        const userId = processedMember.user_id;
+        processedMember.username = `user_${userId.substring(0, 8)}`;
+      }
+      
+      if (!processedMember.name) {
+        processedMember.name = processedMember.username || 'Unknown User';
+      }
+      
+      console.log('Processed member data:', {
+        id: processedMember.id,
+        user_id: processedMember.user_id,
+        username: processedMember.username,
+        name: processedMember.name,
+        role: processedMember.role
+      });
+      
       return processedMember;
     });
   }
@@ -373,24 +393,114 @@
   function getProfileImageUrl(url) {
     if (!url) return null;
     
-    // Check if the URL is already a Supabase URL
-    if (url.includes('supabase')) {
-      return url;
+    // Use the shared formatStorageUrl utility for consistent image handling
+    return formatStorageUrl(url);
+  }
+  
+  async function loadPendingMembers() {
+    try {
+      // Only attempt to load pending members if user is authenticated and community exists
+      if (!authState.is_authenticated || !community || !community.id) {
+        pendingMembers = [];
+        return;
+      }
+      
+      const pendingResponse = await listJoinRequests(communityId);
+      console.log('Raw pending join requests response:', JSON.stringify(pendingResponse, null, 2));
+      
+      if (pendingResponse && Array.isArray(pendingResponse.join_requests)) {
+        console.log(`Found ${pendingResponse.join_requests.length} pending join requests`);
+        
+        // Debug log to see the structure of the first join request (if available)
+        if (pendingResponse.join_requests.length > 0) {
+          const sampleRequest = pendingResponse.join_requests[0];
+          console.log('Example join request structure:', sampleRequest);
+          console.log('All fields in join request:', Object.keys(sampleRequest));
+          console.log('Join request ID:', sampleRequest.id);
+          console.log('Join request user_id:', sampleRequest.user_id);
+          console.log('Join request username field value:', sampleRequest.username);
+          console.log('Join request name field value:', sampleRequest.name || sampleRequest.display_name);
+          
+          // If the join request contains a user object, log its structure too
+          if (sampleRequest.user) {
+            console.log('User object in join request:', sampleRequest.user);
+            console.log('User object fields:', Object.keys(sampleRequest.user));
+            console.log('User object username:', sampleRequest.user.username);
+          }
+        }
+        
+        // Format users from join requests to match Member structure
+        pendingMembers = pendingResponse.join_requests.map(request => {
+          console.log(`Processing request for user_id: ${request.user_id}, found username: ${request.username || 'MISSING'}`);
+          
+          // Extract the user info from the request
+          // The backend might return user info in a different structure
+          const user = request.user || request;
+          
+          const member = {
+            id: request.id || user.id || request.user_id || '',
+            user_id: request.user_id || user.id || '',
+            // Try multiple possible field names for username and name
+            username: user.username || request.username || user.user_name || request.user_name || user.user_id || request.user_id || 'Unknown',
+            name: user.display_name || user.name || request.display_name || request.name || user.username || request.username || user.user_id || request.user_id || 'Unknown User',
+            role: 'pending',
+            avatar_url: user.avatar_url || request.avatar_url || user.profile_picture || request.profile_picture || '',
+            requested_at: request.created_at || new Date()
+          };
+          
+          console.log('Created member object:', member);
+          return member;
+        });
+        
+        // Process avatars for pending members
+        pendingMembers = processMembersAvatars(pendingMembers);
+      } else if (pendingResponse && pendingResponse.data && Array.isArray(pendingResponse.data.join_requests)) {
+        // Similar debugging for alternative response format
+        console.log(`Found ${pendingResponse.data.join_requests.length} pending join requests (alt format)`);
+        
+        if (pendingResponse.data.join_requests.length > 0) {
+          const sampleRequest = pendingResponse.data.join_requests[0];
+          console.log('Example join request structure (alt format):', sampleRequest);
+          console.log('All fields in join request (alt format):', Object.keys(sampleRequest));
+          console.log('Join request ID (alt):', sampleRequest.id);
+          console.log('Join request user_id (alt):', sampleRequest.user_id);
+          console.log('Join request username field value (alt):', sampleRequest.username);
+        }
+        
+        // Format users from join requests (alternative response format)
+        pendingMembers = pendingResponse.data.join_requests.map(request => {
+          console.log(`Processing alt request for user_id: ${request.user_id}, found username: ${request.username || 'MISSING'}`);
+          
+          // Extract the user info from the request
+          const user = request.user || request;
+          
+          const member = {
+            id: request.id || user.id || request.user_id || '',
+            user_id: request.user_id || user.id || '',
+            // Try multiple possible field names for username and name
+            username: user.username || request.username || user.user_name || request.user_name || user.user_id || request.user_id || 'Unknown',
+            name: user.display_name || user.name || request.display_name || request.name || user.username || request.username || user.user_id || request.user_id || 'Unknown User',
+            role: 'pending',
+            avatar_url: user.avatar_url || request.avatar_url || user.profile_picture || request.profile_picture || '',
+            requested_at: request.created_at || new Date()
+          };
+          
+          console.log('Created member object (alt):', member);
+          return member;
+        });
+        
+        // Process avatars for pending members
+        pendingMembers = processMembersAvatars(pendingMembers);
+      } else {
+        console.log('No valid join requests found in the response');
+        pendingMembers = [];
+      }
+      
+      console.log('Final processed pending members:', pendingMembers);
+    } catch (error) {
+      logger.error('Error loading pending join requests:', error);
+      pendingMembers = [];
     }
-    
-    // If it's just a path, construct the Supabase URL
-    if (url.startsWith('/')) {
-      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles${url}`);
-    }
-    
-    // Try to extract the filename if it's in a special format
-    const parts = url.split('/');
-    if (parts.length > 0) {
-      const filename = parts[parts.length - 1];
-      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `profiles/${filename}`);
-    }
-    
-    return url;
   }
   
   async function loadRules() {
@@ -493,6 +603,78 @@
       window.location.href = href; // Direct navigation as fallback
     }
   }
+  
+  // Check if the user can post in this community
+  function canPostInCommunity(): boolean {
+    // User must be logged in, a member, and community must be approved
+    return authState.is_authenticated && isMember && community?.is_approved === true;
+  }
+  
+  // Function to handle thread creation
+  function handleCreatePost() {
+    // Only allow post creation if community is approved
+    if (!community?.is_approved) {
+      toastStore.showToast('This community is pending approval. You cannot create posts yet.', 'warning');
+      return;
+    }
+    
+    // Navigate to create post page with community context
+    const href = `/create-post?community=${communityId}`;
+    window.location.href = href;
+  }
+  
+  async function handleApproveJoinRequest(requestId: string) {
+    try {
+      if (!authState.is_authenticated) {
+        toastStore.showToast('You need to log in to approve join requests', 'warning');
+        return;
+      }
+      
+      // Call the API to approve the join request
+      await approveJoinRequest(communityId, requestId);
+      toastStore.showToast('Join request approved successfully', 'success');
+      
+      // Reload members and pending members
+      await Promise.all([
+        loadMembers(),
+        loadPendingMembers()
+      ]);
+    } catch (error) {
+      logger.error('Error approving join request:', error);
+      toastStore.showToast('Failed to approve join request. Please try again.', 'error');
+    }
+  }
+  
+  async function handleRejectJoinRequest(requestId: string) {
+    try {
+      if (!authState.is_authenticated) {
+        toastStore.showToast('You need to log in to reject join requests', 'warning');
+        return;
+      }
+      
+      // Call the API to reject the join request
+      await rejectJoinRequest(communityId, requestId);
+      toastStore.showToast('Join request rejected', 'success');
+      
+      // Reload pending members
+      await loadPendingMembers();
+    } catch (error) {
+      logger.error('Error rejecting join request:', error);
+      toastStore.showToast('Failed to reject join request. Please try again.', 'error');
+    }
+  }
+  
+  // Check if user can manage the community (approve/reject join requests, etc.)
+  function canManageCommunity(): boolean {
+    // User must be logged in and have appropriate role
+    // Ownership is determined either by userRole or by being the creator
+    const isOwner = userRole === 'owner' || 
+                    (community?.creator_id && authState.user_id === community.creator_id);
+    const isAdmin = userRole === 'admin';
+    const isModerator = userRole === 'moderator';
+    
+    return authState.is_authenticated && (isOwner || isAdmin || isModerator);
+  }
 </script>
 
 <MainLayout>
@@ -524,6 +706,12 @@
                     <span>Private</span>
                   </div>
                 {/if}
+                {#if !community.is_approved}
+                  <div class="community-badge pending">
+                    <AlertCircleIcon size="16" />
+                    <span>Pending Admin Approval</span>
+                  </div>
+                {/if}
               </div>
               
               <div class="community-stats">
@@ -538,7 +726,11 @@
               </div>
               
               <div class="community-actions">
-                {#if isMember}
+                {#if !community.is_approved}
+                  <Button variant="outlined" disabled>
+                    Community Awaiting Approval
+                  </Button>
+                {:else if isMember}
                   <Button variant="outlined" icon={LogOutIcon}>
                     Leave Community
                   </Button>
@@ -574,13 +766,23 @@
                 />
               {/each}
             </div>
+            
+            {#if canPostInCommunity()}
+              <div class="create-post-floating">
+                <Button variant="primary" icon={MessageSquareIcon} on:click={handleCreatePost}>
+                  Create Post
+                </Button>
+              </div>
+            {/if}
           {:else}
             <div class="empty-state">
               <MessageSquareIcon size="48" />
               <h2>No posts yet</h2>
               <p>Be the first to post in this community!</p>
-              {#if isMember}
-                <Button variant="primary">Create Post</Button>
+              {#if isMember && community.is_approved}
+                <Button variant="primary" on:click={handleCreatePost}>Create Post</Button>
+              {:else if isMember && !community.is_approved}
+                <p class="approval-note">You can create posts once this community is approved by an admin.</p>
               {/if}
             </div>
           {/if}
@@ -591,13 +793,81 @@
             {#if members.length > 0}
               <div class="members-grid">
                 {#each members as member (member.id)}
-                  <UserCard user={member} />
+                  <!-- Debug info as HTML comment -->
+                  <!-- 
+                    Member debug info:
+                    id: {member.id}
+                    user_id: {member.user_id}
+                    username: {member.username}
+                    name: {member.name}
+                  -->
+                  <UserCard 
+                    user={{
+                      id: member.user_id || member.id,
+                      name: member.name || 'Unknown User',
+                      username: member.username || `user_${(member.user_id || '').substring(0, 8)}`,
+                      avatar_url: member.avatar_url || '',
+                      role: member.role || 'member'
+                    }} 
+                  />
                 {/each}
               </div>
             {:else}
               <div class="empty-state">
                 <UsersIcon size="48" />
                 <p>No members found</p>
+              </div>
+            {/if}
+            
+            {#if pendingMembers.length > 0 && canManageCommunity()}
+              <div class="pending-members-section">
+                <h2 class="section-title">Pending Join Requests ({pendingMembers.length})</h2>
+                <div class="members-grid">
+                  {#each pendingMembers as member (member.id)}
+                    <div class="pending-member-card">
+                      <!-- Debug info as HTML comment -->
+                      <!-- 
+                        Member debug info:
+                        id: {member.id}
+                        user_id: {member.user_id}
+                        username: {member.username}
+                        name: {member.name}
+                        role: {member.role}
+                      -->
+                      
+                      <!-- Custom pending member card instead of UserCard to ensure we display the right data -->
+                      <div class="pending-member-header">
+                        <div class="user-avatar">
+                          {#if member.avatar_url}
+                            <img src={member.avatar_url} alt={member.username || member.name} />
+                          {:else}
+                            <div class="user-avatar-placeholder">
+                              {member.username ? member.username[0].toUpperCase() : "?"}
+                            </div>
+                          {/if}
+                        </div>
+                        <div class="user-info">
+                          <h3 class="user-name">{member.name || 'Unknown User'}</h3>
+                          <p class="user-username">@{member.username || `user_${(member.user_id || '').substring(0, 8)}`}</p>
+                          <span class="user-role-badge pending">Pending</span>
+                        </div>
+                      </div>
+                      
+                      <div class="pending-member-info">
+                        <p><strong>Requested:</strong> {member.requested_at ? new Date(member.requested_at).toLocaleDateString() : 'Unknown'}</p>
+                      </div>
+                      
+                      <div class="pending-member-actions">
+                        <Button variant="success" size="small" on:click={() => handleApproveJoinRequest(member.id)}>
+                          Approve
+                        </Button>
+                        <Button variant="danger" size="small" on:click={() => handleRejectJoinRequest(member.id)}>
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
               </div>
             {/if}
           </div>
@@ -783,6 +1053,19 @@
     backdrop-filter: blur(5px);
   }
   
+  .community-badge.pending {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ff9800;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    backdrop-filter: blur(5px);
+  }
+  
+  :global(.dark) .community-badge.pending {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffb74d;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+  }
+  
   .community-stats {
     display: flex;
     gap: var(--space-4);
@@ -922,5 +1205,203 @@
     color: var(--color-danger, #e53e3e);
     margin-bottom: var(--space-4);
     font-size: var(--font-size-sm);
+  }
+  
+  .approval-note {
+    color: var(--text-secondary);
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+    padding: var(--space-2) var(--space-3);
+    background-color: rgba(255, 193, 7, 0.1);
+    border-radius: var(--border-radius-sm);
+    text-align: center;
+  }
+  
+  :global(.dark) .approval-note {
+    background-color: rgba(255, 193, 7, 0.05);
+  }
+
+  .create-post-floating {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    z-index: 100;
+  }
+  
+  .create-post-floating button {
+    border-radius: 50px;
+    padding: var(--space-2) var(--space-4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .create-post-floating button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  }
+  
+  :global(.dark) .create-post-floating button {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  :global(.dark) .create-post-floating button:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+  
+  .member-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+  
+  .pending-members-section {
+    margin-top: var(--space-12);
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--space-6);
+  }
+  
+  .pending-member-card {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pending-member-card :global(.user-card) {
+    border: none;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+  }
+  
+  .pending-member-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--background-secondary);
+    justify-content: flex-end;
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .pending-member-info {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    background-color: var(--background-secondary);
+  }
+  
+  .pending-member-info p {
+    margin: var(--space-1) 0;
+  }
+  
+  :global(.dark) .pending-member-info {
+    background-color: var(--background-secondary-dark);
+  }
+  
+  :global(.dark) .pending-member-actions {
+    background-color: var(--background-secondary-dark);
+  }
+
+  .pending-member-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .pending-member-header {
+    display: flex;
+    padding: var(--space-3);
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .pending-member-header .user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+  }
+
+  .pending-member-header .user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .pending-member-header .user-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .pending-member-header .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pending-member-header .user-name {
+    font-weight: var(--font-weight-bold);
+    margin: 0;
+    font-size: var(--font-size-md);
+    line-height: 1.2;
+    margin-bottom: var(--space-1);
+  }
+
+  .pending-member-header .user-username {
+    color: var(--text-secondary);
+    margin: 0;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+  }
+  
+  :global(.dark) .pending-member-header .user-avatar-placeholder {
+    background-color: var(--color-primary-dark);
+    color: white;
+  }
+
+  .pending-member-header .user-role-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    text-transform: capitalize;
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ff9800;
+  }
+  
+  :global(.dark) .pending-member-header .user-role-badge {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffb74d;
+  }
+
+  .pending-member-info {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    background-color: var(--background-secondary);
+  }
+  
+  .pending-member-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--background-secondary);
+    justify-content: flex-end;
+    border-top: 1px solid var(--border-color);
   }
 </style>

@@ -15,6 +15,7 @@
   } from '../api/community';
   import type { ICategoriesResponse, ICategory } from '../interfaces/ICategory';
   import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
+  import { formatStorageUrl } from '../utils/common';
   
   // Import components
   import Pagination from '../components/common/Pagination.svelte';
@@ -43,7 +44,7 @@
   let isCreateModalOpen = false;
   
   // Pagination configuration
-  let limitOptions = [25, 50, 100];
+  let limitOptions = [25, 30, 35];
   let currentPage = 1;
   let limit = limitOptions[0];
   let totalCount = 0;  // Total number of communities
@@ -65,6 +66,7 @@
   
   // Helper function to calculate total pages
   function calculateTotalPages(total: number, perPage: number): number {
+    // Always return at least 1 page, even with 0 items
     if (total <= 0 || perPage <= 0) return 1;
     return Math.ceil(total / perPage);
   }
@@ -121,7 +123,16 @@
       if (result && result.success !== false) {
         // Extract communities from the result
         communities = result.communities || [];
-        totalCount = result.total || 0;
+        
+        // Filter out communities that aren't approved by admin
+        // Only apply this filter to the discover tab, as joined/pending communities are specially handled
+        if (activeTab === 'discover') {
+          communities = communities.filter(community => 
+            community.is_approved === true || community.isApproved === true
+          );
+        }
+        
+        totalCount = activeTab === 'discover' ? communities.length : (result.total || 0);
         
         console.log('[Communities] Extracted communities:', communities);
         console.log('[Communities] Total count:', totalCount);
@@ -313,19 +324,22 @@
   
   // Helper function to get the Supabase URL for community logos
   function getLogoUrl(community: any): string|null {
-    if (!community.logo_url) return null;
+    if (!community.logo_url && !community.logoUrl) return null;
     
-    // Check if the URL is already a complete URL
-    if (community.logo_url.startsWith('http')) {
-      return community.logo_url;
-    }
+    const logoUrl = community.logo_url || community.logoUrl;
     
-    // If it's just a path, construct the Supabase URL
-    if (community.logo_url.startsWith('/')) {
-      return getPublicUrl(SUPABASE_BUCKETS.MEDIA, `communities${community.logo_url}`);
-    }
+    // Use formatStorageUrl utility to handle all URL formatting consistently
+    return formatStorageUrl(logoUrl);
+  }
+  
+  // Helper function to get the Supabase URL for community banners
+  function getBannerUrl(community: any): string|null {
+    if (!community.banner_url && !community.bannerUrl) return null;
     
-    return community.logo_url;
+    const bannerUrl = community.banner_url || community.bannerUrl;
+    
+    // Use formatStorageUrl utility to handle all URL formatting consistently
+    return formatStorageUrl(bannerUrl);
   }
   
   // Initial data loading
@@ -415,10 +429,33 @@
         {#if communities.length > 0}
           {#each communities as community (community.id)}
             <div class="community-card">
+              <div class="community-banner">
+                {#if community.banner_url || community.bannerUrl}
+                  <img 
+                    src={getBannerUrl(community)} 
+                    alt={`${community.name || 'Community'} banner`} 
+                    on:error={(e) => {
+                      if (e.target instanceof HTMLImageElement) {
+                        e.target.src = '/placeholder-banner.png';
+                      }
+                    }}
+                  />
+                {:else}
+                  <div class="banner-placeholder"></div>
+                {/if}
+              </div>
               <div class="community-card-content" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
-                  {#if community.logo_url}
-                    <img src={getLogoUrl(community)} alt={community.name || 'Community'} />
+                  {#if community.logo_url || community.logoUrl}
+                    <img 
+                      src={getLogoUrl(community)} 
+                      alt={community.name || 'Community'} 
+                      on:error={(e) => {
+                        if (e.target instanceof HTMLImageElement) {
+                          e.target.src = '/placeholder-community.png';
+                        }
+                      }}
+                    />
                   {:else}
                     <div class="logo-placeholder">
                       {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
@@ -426,8 +463,16 @@
                   {/if}
                 </div>
                 <div class="community-info">
-                  <h3>{community.name || 'Unnamed Community'}</h3>
-                  <p>{community.description || 'No description available'}</p>
+                  <h3 class="community-name">
+                    {community.name || 'Unnamed Community'}
+                    {#if community.is_approved === false || community.isApproved === false}
+                      <span class="pending-badge">
+                        <AlertCircleIcon size="12" />
+                        <span>Pending Admin Approval</span>
+                      </span>
+                    {/if}
+                  </h3>
+                  <p class="community-description">{community.description || 'No description available'}</p>
                   
                   <div class="community-meta">
                     {#if community.categories && community.categories.length > 0}
@@ -439,6 +484,10 @@
                           <span class="category-tag more">+{community.categories.length - 3}</span>
                         {/if}
                       </div>
+                    {:else}
+                      <div class="community-categories">
+                        <span class="category-tag no-category">Uncategorized</span>
+                      </div>
                     {/if}
                     
                     <div class="community-stats">
@@ -449,9 +498,9 @@
                 </div>
               </div>
               
-              <!-- Show action buttons based on tab -->
-              {#if activeTab === 'discover'}
-                <div class="community-action">
+              <!-- Show action buttons based on tab - using a unified design -->
+              <div class="community-action">
+                {#if activeTab === 'discover'}
                   {#if communityMembershipStatus.get(community.id) === 'member'}
                     <div class="membership-status joined">
                       <CheckIcon size="14" />
@@ -464,30 +513,26 @@
                     </div>
                   {:else}
                     <button 
-                      class="join-button"
+                      class="action-button join-button"
                       on:click={(e) => joinCommunity(community.id, e)}
                     >
                       {community.is_private ? 'Request to Join' : 'Join'}
                     </button>
                   {/if}
-                </div>
-              {:else if activeTab === 'pending'}
-                <div class="community-action">
+                {:else if activeTab === 'pending'}
                   <div class="membership-status pending">
                     <AlertCircleIcon size="14" />
                     <span>Join Request Pending</span>
                   </div>
-                </div>
-              {:else if activeTab === 'joined'}
-                <div class="community-action">
+                {:else if activeTab === 'joined'}
                   <button 
-                    class="view-button"
+                    class="action-button view-button"
                     on:click={() => handleCommunityClick(community.id)}
                   >
                     View
                   </button>
-                </div>
-              {/if}
+                {/if}
+              </div>
             </div>
           {/each}
         {:else}
@@ -513,26 +558,24 @@
         {/if}
       </div>
       
-      <!-- Pagination controls -->
-      {#if totalPages > 1}
-        <div class="pagination-container">
-          <div class="limit-selector">
-            <label for="limit-select">Show:</label>
-            <select id="limit-select" bind:value={limit} on:change={handleLimitChange}>
-              {#each limitOptions as option}
-                <option value={option}>{option}</option>
-              {/each}
-            </select>
-          </div>
-          
-          <Pagination 
-            totalPages={totalPages}
-            currentPage={currentPage}
-            maxDisplayPages={5}
-            on:pageChange={handlePageChange}
-          />
+      <!-- Pagination controls - always show even with fewer than limit items -->
+      <div class="pagination-container">
+        <div class="limit-selector">
+          <label for="limit-select">Show:</label>
+          <select id="limit-select" bind:value={limit} on:change={handleLimitChange}>
+            {#each limitOptions as option}
+              <option value={option}>{option}</option>
+            {/each}
+          </select>
         </div>
-      {/if}
+        
+        <Pagination 
+          totalPages={totalPages > 0 ? totalPages : 1}
+          currentPage={currentPage}
+          maxDisplayPages={5}
+          on:pageChange={handlePageChange}
+        />
+      </div>
     {/if}
   </div>
   
@@ -710,23 +753,40 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
-    margin-bottom: 2rem;
-  }
-  
-  @media (max-width: 640px) {
-    .communities-list {
-      grid-template-columns: 1fr;
-    }
   }
   
   .community-card {
     display: flex;
     flex-direction: column;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
     background-color: white;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    height: 100%;
+  }
+  
+  .community-banner {
+    width: 100%;
+    height: 80px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .community-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .banner-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+  }
+  
+  .dark .community-banner .banner-placeholder {
+    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
   }
   
   .dark .community-card {
@@ -790,16 +850,36 @@
     min-width: 0;
   }
   
-  .community-info h3 {
-    font-size: 1rem;
-    font-weight: 600;
+  .community-name {
     margin: 0 0 0.25rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 1.125rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
-    
-  .community-info p {
+  
+  .pending-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: normal;
+    color: #805600;
+    background-color: #fff6e0;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  
+  .dark .pending-badge {
+    background-color: #3c2f00;
+    color: #ffdb7d;
+  }
+  
+  .community-description {
     font-size: 0.875rem;
     color: #718096;
     margin: 0 0 0.5rem;
@@ -840,6 +920,11 @@
     white-space: nowrap;
   }
   
+  .category-tag.no-category {
+    background-color: #e2e8f0;
+    color: #718096;
+  }
+  
   .category-tag.more {
     background-color: #e2e8f0;
     color: #4a5568;
@@ -848,6 +933,11 @@
   .dark .category-tag {
     background-color: #4a5568;
     color: #e2e8f0;
+  }
+  
+  .dark .category-tag.no-category {
+    background-color: #2d3748;
+    color: #a0aec0;
   }
   
   .dark .category-tag.more {
@@ -876,7 +966,7 @@
     border-color: #4a5568;
   }
   
-  .join-button, .view-button, .action-button {
+  .action-button {
     padding: 0.375rem 0.75rem;
     background-color: var(--primary-color, #3182ce);
     color: white;
@@ -886,6 +976,10 @@
     font-weight: 500;
     cursor: pointer;
     transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
   }
   
   .view-button {
@@ -903,11 +997,14 @@
   .membership-status {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.25rem;
     padding: 0.375rem 0.75rem;
     border-radius: 0.25rem;
     font-size: 0.875rem;
     font-weight: 500;
+    min-width: 100px;
+    text-align: center;
   }
   
   .membership-status.joined {

@@ -203,6 +203,26 @@ func GetCommunityRequests(c *gin.Context) {
 		return
 	}
 
+	// Ensure all requests have requester information if they have a user_id
+	for i, req := range response.Requests {
+		if req.Requester == nil && req.UserId != "" {
+			log.Printf("Request %s missing requester info, fetching user data for ID: %s", req.Id, req.UserId)
+			userResp, userErr := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+				UserId: req.UserId,
+			})
+			if userErr == nil && userResp != nil && userResp.User != nil {
+				response.Requests[i].Requester = userResp.User
+				log.Printf("Added missing requester %s for community request %s", userResp.User.Name, req.Name)
+			} else {
+				log.Printf("Warning: Could not find user %s for adding to community request: %v", req.UserId, userErr)
+			}
+		} else if req.Requester != nil {
+			log.Printf("Request %s already has requester info: %s", req.Id, req.Requester.Name)
+		} else {
+			log.Printf("Request %s has no user_id to fetch requester for", req.Id)
+		}
+	}
+
 	// Also get all communities with is_approved='f' from the community service
 	if CommunityClient != nil {
 		communitiesResponse, commErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
@@ -212,7 +232,7 @@ func GetCommunityRequests(c *gin.Context) {
 		})
 
 		if commErr == nil && communitiesResponse != nil && len(communitiesResponse.Communities) > 0 {
-			log.Printf("Found %d unapproved communities", len(communitiesResponse.Communities))
+			log.Printf("Found %d communities from community service", len(communitiesResponse.Communities))
 
 			// Convert community objects to community requests
 			for _, community := range communitiesResponse.Communities {
@@ -225,9 +245,34 @@ func GetCommunityRequests(c *gin.Context) {
 					}
 				}
 
-				if !exists {
+				if !exists && community.CreatorId != "" {
+					log.Printf("Adding community %s with creator ID: %s", community.Name, community.CreatorId)
+
+					// Get user info for the creator (requester) - with more robust error handling
+					var requester *userProto.User
+					if UserClient != nil {
+						log.Printf("Fetching user info for creator ID: %s", community.CreatorId)
+						userResp, userErr := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+							UserId: community.CreatorId,
+						})
+
+						if userErr != nil {
+							log.Printf("ERROR fetching creator info: %v", userErr)
+						} else if userResp == nil {
+							log.Printf("ERROR: GetUser returned nil response for ID: %s", community.CreatorId)
+						} else if userResp.User == nil {
+							log.Printf("ERROR: GetUser returned nil user for ID: %s", community.CreatorId)
+						} else {
+							requester = userResp.User
+							log.Printf("SUCCESS: Found creator %s (%s) for community %s",
+								requester.Name, requester.Username, community.Name)
+						}
+					} else {
+						log.Printf("ERROR: UserClient is nil when trying to fetch creator info")
+					}
+
 					// Add it to the requests list
-					response.Requests = append(response.Requests, &userProto.CommunityRequest{
+					communityRequest := &userProto.CommunityRequest{
 						Id:          community.Id,
 						UserId:      community.CreatorId,
 						Name:        community.Name,
@@ -235,12 +280,73 @@ func GetCommunityRequests(c *gin.Context) {
 						Status:      "pending",
 						CreatedAt:   community.CreatedAt.AsTime().Format(time.RFC3339),
 						UpdatedAt:   community.UpdatedAt.AsTime().Format(time.RFC3339),
-					})
+						Requester:   requester,
+						LogoUrl:     community.LogoUrl,
+						BannerUrl:   community.BannerUrl,
+					}
+
+					// Additional log to verify the requester info
+					if requester != nil {
+						log.Printf("Added community request with requester: %s (%s)", requester.Name, requester.Username)
+					} else {
+						log.Printf("WARNING: Added community request WITHOUT requester for ID: %s", community.CreatorId)
+					}
+
+					response.Requests = append(response.Requests, communityRequest)
 					response.TotalCount++
 				}
 			}
 		} else if commErr != nil {
-			log.Printf("Warning: Failed to get unapproved communities: %v", commErr)
+			log.Printf("ERROR: Failed to get communities: %v", commErr)
+		}
+	}
+
+	// Final pass to ensure ALL requests have requester information
+	for i, req := range response.Requests {
+		if req.Requester == nil && req.UserId != "" {
+			log.Printf("Final check: Request %s for community %s is missing requester info, fetching user data for ID: %s",
+				req.Id, req.Name, req.UserId)
+
+			if UserClient == nil {
+				log.Printf("ERROR: UserClient is nil during final requester check")
+				continue
+			}
+
+			retryCount := 2
+			var userResp *userProto.GetUserResponse
+			var userErr error
+
+			for attempt := 0; attempt <= retryCount; attempt++ {
+				if attempt > 0 {
+					log.Printf("Retry attempt %d for fetching user %s", attempt, req.UserId)
+				}
+
+				userResp, userErr = UserClient.GetUser(ctx, &userProto.GetUserRequest{
+					UserId: req.UserId,
+				})
+
+				if userErr == nil && userResp != nil && userResp.User != nil {
+					response.Requests[i].Requester = userResp.User
+					log.Printf("SUCCESS: Added requester %s (%s) for community %s",
+						userResp.User.Name, userResp.User.Username, req.Name)
+					break
+				}
+
+				if attempt < retryCount {
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+
+			if userErr != nil || userResp == nil || userResp.User == nil {
+				// More detailed error logging
+				if userErr != nil {
+					log.Printf("ERROR: Failed to fetch user %s after %d attempts: %v", req.UserId, retryCount+1, userErr)
+				} else if userResp == nil {
+					log.Printf("ERROR: Empty response when fetching user %s after %d attempts", req.UserId, retryCount+1)
+				} else {
+					log.Printf("ERROR: User object is nil in response for ID %s after %d attempts", req.UserId, retryCount+1)
+				}
+			}
 		}
 	}
 

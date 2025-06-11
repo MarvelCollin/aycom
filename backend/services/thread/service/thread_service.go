@@ -105,6 +105,75 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 		return nil, status.Errorf(codes.Internal, "Failed to create thread: %v", err)
 	}
 
+	// Handle poll creation if poll data is provided
+	if req.Poll != nil && req.Poll.Question != "" && len(req.Poll.Options) >= 2 {
+		// Create a poll for the thread
+		pollID := uuid.New()
+
+		// Set default end time to 24 hours if not provided
+		closesAt := time.Now().Add(24 * time.Hour)
+		if req.Poll.EndTime != nil {
+			closesAt = req.Poll.EndTime.AsTime()
+		}
+
+		isAnonymous := false
+		if req.Poll.IsAnonymous {
+			isAnonymous = true
+		}
+
+		whoCanVote := "Everyone"
+
+		poll := &model.Poll{
+			PollID:     pollID,
+			ThreadID:   threadID,
+			Question:   req.Poll.Question,
+			ClosesAt:   closesAt,
+			WhoCanVote: whoCanVote,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+
+		// Create poll options
+		pollOptions := make([]*model.PollOption, 0, len(req.Poll.Options))
+		for _, optionText := range req.Poll.Options {
+			if optionText == "" {
+				continue // Skip empty options
+			}
+			option := &model.PollOption{
+				OptionID:  uuid.New(),
+				PollID:    pollID,
+				Text:      optionText,
+				CreatedAt: time.Now(),
+			}
+			pollOptions = append(pollOptions, option)
+		}
+
+		// Only create poll if we have valid options
+		if len(pollOptions) >= 2 {
+			// Transaction to ensure both poll and options are created
+			err := s.threadRepo.RunInTransaction(func(tx *gorm.DB) error {
+				// Create poll
+				if err := tx.Create(poll).Error; err != nil {
+					return err
+				}
+
+				// Create poll options
+				for _, option := range pollOptions {
+					if err := tx.Create(option).Error; err != nil {
+						return err
+					}
+				}
+
+				return nil
+			})
+
+			if err != nil {
+				log.Printf("Failed to create poll for thread %s: %v", threadID, err)
+				// Continue with thread creation even if poll creation fails
+			}
+		}
+	}
+
 	if len(req.Media) > 0 {
 		for _, mediaInfo := range req.Media {
 			media := &model.Media{

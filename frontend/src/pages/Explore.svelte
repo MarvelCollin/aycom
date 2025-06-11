@@ -66,7 +66,7 @@
   let isSearching = false;
   let recentSearches: string[] = [];
   let searchFilter: 'all' | 'following' | 'verified' = 'all';
-  let activeTab: 'top' | 'latest' | 'people' | 'media' | 'communities' = 'top';
+  let activeTab: 'top' | 'latest' | 'people' | 'media' | 'communities' | 'trending' = 'top';
   let showRecentSearches = false;
   let isLoadingRecommendations = false;
   
@@ -210,16 +210,23 @@
   let isLoadingUsers = false;
   
   // Thread categories
-  const threadCategories = [
-    { id: 'all', name: 'All Categories' },
-    { id: 'news', name: 'News' },
-    { id: 'sports', name: 'Sports' },
-    { id: 'entertainment', name: 'Entertainment' },
-    { id: 'politics', name: 'Politics' },
-    { id: 'tech', name: 'Technology' },
-    { id: 'science', name: 'Science' },
-    { id: 'health', name: 'Health' }
+  type ThreadCategory = {
+    id: string;
+    label: string;
+    value: string;
+  };
+  
+  let threadCategories: ThreadCategory[] = [
+    { id: 'tech', label: 'Technology', value: 'technology' },
+    { id: 'entertainment', label: 'Entertainment', value: 'entertainment' },
+    { id: 'sports', label: 'Sports', value: 'sports' },
+    { id: 'politics', label: 'Politics', value: 'politics' },
+    { id: 'science', label: 'Science', value: 'science' },
+    { id: 'health', label: 'Health', value: 'health' },
+    { id: 'business', label: 'Business', value: 'business' },
+    { id: 'lifestyle', label: 'Lifestyle', value: 'lifestyle' }
   ];
+  
   let selectedCategory = 'all';
   
   // Pagination options for People and Communities tabs
@@ -240,7 +247,7 @@
     is_pending?: boolean;
   }> = [];
   let isLoadingCommunities = false;
-  let defaultActiveTab: 'people' | 'communities' = 'people';
+  let defaultActiveTab: 'trending' | 'people' | 'communities' = 'trending';
   
   // Authentication check - Updated to fix auth issue
   function checkAuth() {
@@ -378,7 +385,7 @@
             similarity
           };
         })
-        .filter(item => item.similarity > 0.3) // Only include relevant matches
+        .filter(item => item.similarity > 0.15) // Only include relevant matches (lower threshold for better fuzzy matching)
         .sort((a, b) => b.similarity - a.similarity) // Sort by similarity (highest first)
         .slice(0, 3); // Take top 3 matches
       
@@ -447,15 +454,18 @@
   
   // Main search function
   async function executeSearch() {
-    // Handle empty search query - still perform search to show all items
+    // If the search query is empty, reset to showing trending hashtags
     if (!searchQuery || searchQuery.trim() === '') {
-      logger.debug('Empty search query, showing all items');
-    } else {
-      // Add to recent searches if not already there
-      if (!recentSearches.includes(searchQuery)) {
-        recentSearches = [searchQuery, ...recentSearches.slice(0, 2)];
-        localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
-      }
+      logger.debug('Empty search query, showing trending tab');
+      hasSearched = false;
+      activeTab = 'trending';
+      return;
+    }
+
+    // Add to recent searches if not already there
+    if (!recentSearches.includes(searchQuery)) {
+      recentSearches = [searchQuery, ...recentSearches.slice(0, 2)];
+      localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
     }
     
     isSearching = true;
@@ -529,24 +539,29 @@
         safeApiCall(searchThreads, searchQuery, 1, 10, {
           filter: filterOption,
           category: categoryOption,
-          sort_by: 'popular'
+          sort_by: 'popular',
+          clientFuzzy: true
         }),
         
         // Latest threads
         safeApiCall(searchThreads, searchQuery, 1, 20, {
           filter: filterOption,
           category: categoryOption,
-          sort_by: 'recent'
+          sort_by: 'recent',
+          clientFuzzy: true
         }),
         
         // Media tab data
         safeApiCall(searchThreadsWithMedia, searchQuery, 1, 12, {
           filter: filterOption,
-          category: categoryOption
+          category: categoryOption,
+          clientFuzzy: true
         }),
         
         // Communities tab data
-        safeApiCall(searchCommunities, searchQuery, 1, communitiesPerPage)
+        safeApiCall(searchCommunities, searchQuery, 1, communitiesPerPage, {
+          clientFuzzy: true
+        })
           .catch(error => {
             logger.error('Failed to search communities:', error);
             return {
@@ -921,51 +936,46 @@
     const hashtag = event.detail;
     logger.debug('Hashtag clicked', { hashtag });
     
-    try {
-      // Show loading state
-      hasSearched = true;
-      isSearching = true;
-      searchQuery = hashtag;
-      
-      // Get threads for this hashtag sorted by likes
-      const hashtagThreadsData = await getThreadsByHashtag(hashtag, 1, 20);
-      
-      // Update the latest tab with these results
+    // Change to search mode
+    isSearching = true;
+    hasSearched = true;
+    activeTab = 'latest';  // Default to showing latest threads for this hashtag
+    searchQuery = hashtag;
+    
+    // Get threads for this hashtag sorted by likes
+    const hashtagThreadsData = await getThreadsByHashtag(hashtag, 1, 20);
+    
+    if (hashtagThreadsData?.threads) {
+      // Update latest tab with these threads
       searchResults.latest.threads = (hashtagThreadsData?.threads || []).map(thread => ({
-        id: thread.id,
-        content: thread.content,
-        username: thread.username || thread.author?.username || 'anonymous',
-        displayName: thread.name || thread.author?.display_name || 'User',
+        id: thread.id || '',
+        content: thread.content || '',
+        username: thread.username || thread.author?.username || '',
+        displayName: thread.display_name || thread.author?.display_name || thread.username || '',
         timestamp: thread.created_at || new Date().toISOString(),
         likes: thread.likes_count || thread.like_count || 0,
         replies: thread.replies_count || thread.reply_count || 0,
         reposts: thread.reposts_count || thread.repost_count || 0,
-        media: thread.media,
-        avatar: thread.profile_picture_url || thread.author?.avatar
+        media: thread.media || [],
+        avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
       }));
       
-      // Also update the top results with properly formatted data for that component
+      // Also update top tab
       searchResults.top.threads = (hashtagThreadsData?.threads || []).map(thread => ({
-        id: thread.id,
-        content: thread.content,
-        username: thread.username || thread.author?.username || 'anonymous',
-        name: thread.name || thread.author?.display_name || 'User',
+        id: thread.id || '',
+        content: thread.content || '',
+        username: thread.username || thread.author?.username || '',
+        name: thread.display_name || thread.author?.display_name || thread.username || '',
         created_at: thread.created_at || new Date().toISOString(),
         likes_count: thread.likes_count || thread.like_count || 0,
         replies_count: thread.replies_count || thread.reply_count || 0,
         reposts_count: thread.reposts_count || thread.repost_count || 0,
-        media: thread.media,
-        profile_picture_url: thread.profile_picture_url || thread.author?.avatar
-      })).slice(0, 5);
-      
-      // Set active tab to latest to show the results
-      activeTab = 'latest';
-      
-    } catch (error) {
-      console.error('Error fetching hashtag threads:', error);
+        media: thread.media || [],
+        profile_picture_url: thread.profile_picture_url || thread.author?.profile_picture_url || null
+      }));
+    } else {
+      console.error('Error fetching hashtag threads');
       toastStore.showToast('Failed to load hashtag threads', 'error');
-    } finally {
-      isSearching = false;
     }
   }
   
@@ -1185,34 +1195,33 @@
     logger.debug('Default tab changed', { tab: defaultActiveTab });
     
     // Load data for the selected tab if needed
-    if (defaultActiveTab === 'communities' && communitiesToDisplay.length === 0 && !isLoadingCommunities) {
+    if (defaultActiveTab === 'trending' && trends.length === 0 && !isTrendsLoading) {
+      // If there are no trends, fetch them
+      fetchTrends();
+    } else if (defaultActiveTab === 'communities' && communitiesToDisplay.length === 0 && !isLoadingCommunities) {
       fetchAllCommunities();
+    } else if (defaultActiveTab === 'people' && usersToDisplay.length === 0 && !isLoadingUsers) {
+      fetchAllUsers();
     }
   }
   
   onMount(async () => {
-    logger.debug('Explore page mounted', { authState });
-    console.log('Explore page mounted, auth state:', authState);
+    logger.debug('Explore component mounted');
+
+    // Load recent searches from localStorage
+    loadRecentSearches();
     
-    // Check authentication state and initialize content if authenticated
+    // Load trending hashtags
+    await fetchTrends();
+    
+    // If authenticated, fetch all users
     if (checkAuth()) {
-      try {
-        // Set the default filter to "all" (Everyone)
-        searchFilter = 'all';
-        console.log('Setting default filter to:', searchFilter);
-        
-        // Load initial user list using the "all" filter
-        console.log('Loading initial users with filter:', searchFilter);
-        await fetchAllUsers();
-        
-        // Load initial communities list
-        await fetchAllCommunities();
-        
-        logger.info('Explore page initialized successfully');
-      } catch (error) {
-        logger.error('Error initializing explore page:', error);
-        toastStore.showToast('Failed to load explore page content', 'error');
-      }
+      await fetchAllUsers();
+    }
+    
+    // Show trending tab by default when no search is active
+    if (!hasSearched) {
+      activeTab = 'trending';
     }
   });
 </script>
@@ -1227,12 +1236,8 @@
   pageTitle="Explore"
 >
   <div class="explore-page-content {isDarkMode ? 'explore-page-content-dark' : ''}">
-    <!-- Page header with search -->
+    <!-- Modern header with search -->
     <div class="page-header {isDarkMode ? 'page-header-dark' : ''}">
-      <h1 class="page-title {isDarkMode ? 'page-title-dark' : ''}">Explore</h1>
-      <p class="page-subtitle {isDarkMode ? 'page-subtitle-dark' : ''}">Discover people, communities, and conversations</p>
-      
-      <!-- Search bar -->
       <div class="search-container">
         <ExploreSearch 
           bind:searchQuery={searchQuery}
@@ -1248,24 +1253,85 @@
       </div>
     </div>
     
-    <!-- Filters in a dedicated container -->
+    <!-- Modern Filters with pill design -->
     <div class="filter-container {isDarkMode ? 'filter-container-dark' : ''}">
-      <ExploreFilters 
-        bind:searchFilter={searchFilter}
-        bind:selectedCategory={selectedCategory}
-        threadCategories={threadCategories}
-        on:filterChange={handleFilterChange}
-        on:categoryChange={handleCategoryChange}
-      />
+      <div class="filter-pills">
+        <button 
+          class="filter-pill {searchFilter === 'all' ? 'active' : ''}"
+          on:click={() => { searchFilter = 'all'; handleFilterChange({detail: 'all'}); }}
+        >
+          For you
+        </button>
+        <button 
+          class="filter-pill {searchFilter === 'following' ? 'active' : ''}"
+          on:click={() => { searchFilter = 'following'; handleFilterChange({detail: 'following'}); }}
+        >
+          Following
+        </button>
+        <button 
+          class="filter-pill {searchFilter === 'verified' ? 'active' : ''}"
+          on:click={() => { searchFilter = 'verified'; handleFilterChange({detail: 'verified'}); }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pill-icon">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          Verified
+        </button>
+      </div>
+      
+      <div class="category-select">
+        <select 
+          class="category-dropdown {isDarkMode ? 'category-dropdown-dark' : ''}"
+          bind:value={selectedCategory}
+          on:change={(e) => {
+            const value = (e.target as HTMLSelectElement).value;
+            handleCategoryChange({detail: value});
+          }}
+        >
+          <option value="all">All Categories</option>
+          {#each threadCategories as category}
+            <option value={category.value}>{category.label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
     
     <!-- Tab navigation for search results -->
     {#if hasSearched}
       <div class="tabs-container {isDarkMode ? 'tabs-container-dark' : ''}">
-        <ExploreTabs 
-          activeTab={activeTab}
-          on:tabChange={handleTabChange}
-        />
+        <div class="modern-tabs">
+          <button 
+            class="modern-tab {activeTab === 'top' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'top'})}
+          >
+            Top
+          </button>
+          <button 
+            class="modern-tab {activeTab === 'latest' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'latest'})}
+          >
+            Latest
+          </button>
+          <button 
+            class="modern-tab {activeTab === 'people' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'people'})}
+          >
+            People
+          </button>
+          <button 
+            class="modern-tab {activeTab === 'media' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'media'})}
+          >
+            Media
+          </button>
+          <button 
+            class="modern-tab {activeTab === 'communities' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'communities'})}
+          >
+            Communities
+          </button>
+        </div>
       </div>
       
       <!-- Search results based on active tab -->
@@ -1318,28 +1384,58 @@
         {/if}
       </div>
     {:else}
-      <!-- When not searching, show tabs to select between People and Communities -->
+      <!-- When not searching, show tabs to select between Trending, People and Communities -->
       <div class="tabs-container {isDarkMode ? 'tabs-container-dark' : ''}">
-        <div class="flex border-b border-gray-200 dark:border-gray-700">
+        <div class="modern-tabs">
           <button 
-            class="py-3 px-6 font-medium {defaultActiveTab === 'people' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
-            on:click={() => handleDefaultTabChange('people')}
+            class="modern-tab {defaultActiveTab === 'trending' ? 'active' : ''}"
+            on:click={() => handleDefaultTabChange('trending')}
           >
-            People
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tab-icon"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+            <span>Trending</span>
           </button>
           <button 
-            class="py-3 px-6 font-medium {defaultActiveTab === 'communities' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+            class="modern-tab {defaultActiveTab === 'people' ? 'active' : ''}"
+            on:click={() => handleDefaultTabChange('people')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tab-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>People</span>
+          </button>
+          <button 
+            class="modern-tab {defaultActiveTab === 'communities' ? 'active' : ''}"
             on:click={() => handleDefaultTabChange('communities')}
           >
-            Communities
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tab-icon"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <span>Communities</span>
           </button>
         </div>
       </div>
       
       <!-- Content based on selected default tab -->
-      <div class="section-container {isDarkMode ? 'section-container-dark' : ''}">
-        {#if defaultActiveTab === 'people'}
-          <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">People</h2>
+      <div class="content-container {isDarkMode ? 'content-container-dark' : ''}">
+        {#if defaultActiveTab === 'trending'}
+          <div class="section-header">
+            <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+              Trending Hashtags
+            </h2>
+            <p class="section-description">Popular conversations happening right now</p>
+          </div>
+          
+          <ExploreTrending 
+            {trends}
+            {isTrendsLoading}
+            on:hashtagClick={handleHashtagClick}
+          />
+          
+        {:else if defaultActiveTab === 'people'}
+          <div class="section-header">
+            <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              People to Follow
+            </h2>
+            <p class="section-description">Connect with interesting profiles</p>
+          </div>
           
           {#if isLoadingUsers}
             <div class="loading-container">
@@ -1369,7 +1465,13 @@
             </div>
           {/if}
         {:else if defaultActiveTab === 'communities'}
-          <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">Communities</h2>
+          <div class="section-header">
+            <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              Communities
+            </h2>
+            <p class="section-description">Join groups with shared interests</p>
+          </div>
           
           {#if isLoadingCommunities}
             <div class="loading-container">
@@ -1395,11 +1497,12 @@
 <Toast />
 
 <style>
-  /* Explore page styles */
+  /* Modern Explore page styles */
   .explore-page-content {
     width: 100%;
     background-color: var(--bg-primary);
     color: var(--text-primary);
+    min-height: 100vh;
   }
   
   .explore-page-content-dark {
@@ -1407,179 +1510,268 @@
     color: var(--dark-text-primary);
   }
   
-  /* Page header styles */
+  /* Modern header styles */
   .page-header {
-    padding: var(--space-5) var(--space-4);
+    padding: 8px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     background-color: var(--bg-primary);
-    border-bottom: 1px solid var(--border-color);
-    position: relative;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid transparent;
   }
   
   .page-header-dark {
-    background-color: var(--dark-bg-primary);
-    border-bottom: 1px solid var(--border-color-dark);
-  }
-  
-  .page-title {
-    font-size: var(--font-size-xxl);
-    font-weight: var(--font-weight-bold);
-    margin: 0 0 var(--space-2);
-    color: var(--text-primary);
-  }
-  
-  .page-title-dark {
-    color: var(--dark-text-primary);
-  }
-  
-  .page-subtitle {
-    font-size: var(--font-size-md);
-    margin: 0 0 var(--space-4);
-    color: var(--text-secondary);
-    max-width: 600px;
-  }
-  
-  .page-subtitle-dark {
-    color: var(--dark-text-secondary);
+    background-color: rgba(var(--dark-bg-primary-rgb), 0.8);
+    border-bottom-color: var(--dark-border-color);
   }
   
   .search-container {
     width: 100%;
     max-width: 600px;
+    margin: 0 auto;
   }
 
-  /* Filter container */
+  /* Modern filter container with pills */
   .filter-container {
-    background-color: var(--bg-primary);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
   }
   
   .filter-container-dark {
-    background-color: var(--dark-bg-primary);
+    border-bottom-color: var(--dark-border-color);
   }
   
-  /* Tabs container */
+  .filter-pills {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 4px;
+  }
+  
+  .filter-pills::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .filter-pill {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  
+  .filter-pill:hover {
+    background-color: var(--hover-bg);
+  }
+  
+  .filter-pill.active {
+    background-color: var(--text-primary);
+    border-color: var(--text-primary);
+    color: var(--bg-primary);
+  }
+  
+  .filter-container-dark .filter-pill {
+    color: var(--dark-text-primary);
+    border-color: var(--dark-border-color);
+  }
+  
+  .filter-container-dark .filter-pill:hover {
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .filter-container-dark .filter-pill.active {
+    background-color: var(--dark-text-primary);
+    border-color: var(--dark-text-primary);
+    color: var(--dark-bg-primary);
+  }
+  
+  .pill-icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .category-select {
+    position: relative;
+  }
+  
+  .category-dropdown {
+    appearance: none;
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    padding: 6px 30px 6px 16px;
+    font-size: 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23536471' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+  }
+  
+  .category-dropdown-dark {
+    color: var(--dark-text-primary);
+    border-color: var(--dark-border-color);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b98a5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  
+  /* Modern tabs container */
   .tabs-container {
+    position: sticky;
+    top: 60px;
+    z-index: 5;
     background-color: var(--bg-primary);
     border-bottom: 1px solid var(--border-color);
   }
   
   .tabs-container-dark {
     background-color: var(--dark-bg-primary);
-    border-bottom: 1px solid var(--border-color-dark);
+    border-bottom-color: var(--dark-border-color);
   }
   
-  /* Section layout */
-  .section-container {
-    padding: var(--space-4);
-    background-color: var(--bg-primary);
+  .modern-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
   
-  .section-container-dark {
-    background-color: var(--dark-bg-primary);
+  .modern-tabs::-webkit-scrollbar {
+    display: none;
   }
   
-  .section-title {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
-    margin-bottom: var(--space-4);
+  .modern-tab {
+    flex: 1;
+    min-width: fit-content;
+    padding: 16px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 15px;
+    font-weight: 500;
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: color 0.2s;
+  }
+  
+  .modern-tab:hover {
     color: var(--text-primary);
+    background-color: var(--hover-bg);
   }
   
-  .section-title-dark {
+  .modern-tab.active {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  
+  .modern-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 56px;
+    height: 4px;
+    border-radius: 4px 4px 0 0;
+    background-color: var(--color-primary);
+  }
+  
+  .tabs-container-dark .modern-tab {
+    color: var(--dark-text-secondary);
+  }
+  
+  .tabs-container-dark .modern-tab:hover {
+    color: var(--dark-text-primary);
+    background-color: var(--dark-hover-bg);
+  }
+  
+  .tabs-container-dark .modern-tab.active {
     color: var(--dark-text-primary);
   }
   
-  /* Grid layout */
-  .grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: var(--space-3);
-    width: 100%;
+  .content-container {
+    padding: 16px;
   }
   
-  /* Loading state */
-  .loading-container {
-    padding: var(--space-4);
+  .content-container-dark {
+    border-color: var(--dark-border-color);
   }
   
-  /* Card styling */
-  .card {
-    background-color: var(--bg-secondary);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    border: 1px solid var(--border-color);
-    padding: var(--space-1);
-  }
-  
-  .card:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-  }
-  
-  .card-dark {
-    background-color: var(--dark-bg-secondary);
-    border: 1px solid var(--border-color-dark);
-  }
-  
-  /* Empty state */
-  .empty-state {
-    padding: var(--space-8) var(--space-4);
-    text-align: center;
-    background-color: var(--bg-secondary);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border-color);
-    margin-bottom: var(--space-4);
-  }
-  
-  .empty-state-dark {
-    background-color: var(--dark-bg-secondary);
-    border-color: var(--border-color-dark);
-  }
-  
-  .empty-state-message {
-    color: var(--text-secondary);
-    font-size: var(--font-size-lg);
-    margin: 0;
-  }
-  
-  /* Search results container */
   .search-results-container {
-    padding-bottom: var(--space-8);
-    background-color: var(--bg-primary);
+    padding: 16px;
   }
   
   .search-results-container-dark {
-    background-color: var(--dark-bg-primary);
+    border-color: var(--dark-border-color);
   }
   
   /* Responsive adjustments */
   @media (max-width: 768px) {
-    .page-title {
-      font-size: var(--font-size-xl);
+    .filter-container {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    
+    .filter-pills {
+      width: 100%;
+    }
+    
+    .category-select {
+      width: 100%;
+    }
+    
+    .category-dropdown {
+      width: 100%;
+    }
+    
+    .modern-tab {
+      padding: 12px 8px;
+      font-size: 14px;
+    }
+    
+    .modern-tab.active::after {
+      width: 40px;
     }
     
     .page-header {
-      padding: var(--space-4) var(--space-3);
-    }
-    
-    .section-container {
-      padding: var(--space-3);
-    }
-    
-    .grid-container {
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: var(--space-2);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
   }
   
   @media (max-width: 576px) {
-    .grid-container {
-      grid-template-columns: repeat(2, 1fr);
-      gap: var(--space-2);
+    .modern-tab span {
+      display: none;
     }
     
-    .page-subtitle {
-      font-size: var(--font-size-sm);
+    .modern-tab {
+      padding: 12px;
+    }
+    
+    .content-container,
+    .search-results-container {
+      padding: 12px 8px;
     }
   }
 </style>

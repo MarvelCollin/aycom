@@ -187,14 +187,13 @@ func (s *userService) CreateUserProfile(ctx context.Context, req *userpb.CreateU
 }
 
 func (s *userService) GetUserByID(ctx context.Context, id string) (*model.User, error) {
+	log.Printf("GetUserByID called with ID: %s", id)
 	user, err := s.repo.FindUserByID(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, status.Errorf(codes.NotFound, "User with ID %s not found", id)
-		}
 		log.Printf("Error finding user by ID %s: %v", id, err)
-		return nil, status.Error(codes.Internal, "Failed to retrieve user")
+		return nil, status.Error(codes.NotFound, "User not found")
 	}
+	log.Printf("Found user with ID %s: %s", id, user.Name)
 	return user, nil
 }
 
