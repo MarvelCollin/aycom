@@ -47,13 +47,18 @@
   import LockIcon from 'svelte-feather-icons/src/icons/LockIcon.svelte';
   import LogOutIcon from 'svelte-feather-icons/src/icons/LogOutIcon.svelte';
   import UserPlusIcon from 'svelte-feather-icons/src/icons/UserPlusIcon.svelte';
-  
-  // Components
+    // Components
   import TweetCard from '../components/social/TweetCard.svelte';
   import Spinner from '../components/common/Spinner.svelte';
   import UserCard from '../components/social/UserCard.svelte';
   import TabButtons from '../components/common/TabButtons.svelte';
   import Button from '../components/common/Button.svelte';
+  
+  // Community-specific components
+  import CommunityPosts from '../components/communities/CommunityPosts.svelte';
+  import CommunityMembers from '../components/communities/CommunityMembers.svelte';
+  import CommunityRules from '../components/communities/CommunityRules.svelte';
+  import CommunityAbout from '../components/communities/CommunityAbout.svelte';
     // Define types for our data
   interface Community {
     id: string;
@@ -428,23 +433,19 @@
             console.log('User object username:', sampleRequest.user.username);
           }
         }
-        
-        // Format users from join requests to match Member structure
+          // Format users from join requests to match Member structure
         pendingMembers = pendingResponse.join_requests.map(request => {
           console.log(`Processing request for user_id: ${request.user_id}, found username: ${request.username || 'MISSING'}`);
           
-          // Extract the user info from the request
-          // The backend might return user info in a different structure
-          const user = request.user || request;
-          
+          // The backend now returns real user data, so prioritize that
           const member = {
-            id: request.id || user.id || request.user_id || '',
-            user_id: request.user_id || user.id || '',
-            // Try multiple possible field names for username and name
-            username: user.username || request.username || user.user_name || request.user_name || user.user_id || request.user_id || 'Unknown',
-            name: user.display_name || user.name || request.display_name || request.name || user.username || request.username || user.user_id || request.user_id || 'Unknown User',
+            id: request.id || request.user_id || '',
+            user_id: request.user_id || '',
+            // Prioritize real username from backend, fallback only if not available
+            username: request.username || `user_${(request.user_id || '').substring(0, 8)}`,
+            name: request.name || request.username || `User ${(request.user_id || '').substring(0, 8)}`,
             role: 'pending',
-            avatar_url: user.avatar_url || request.avatar_url || user.profile_picture || request.profile_picture || '',
+            avatar_url: request.avatar_url || request.profile_picture_url || '',
             requested_at: request.created_at || new Date()
           };
           
@@ -466,22 +467,19 @@
           console.log('Join request user_id (alt):', sampleRequest.user_id);
           console.log('Join request username field value (alt):', sampleRequest.username);
         }
-        
-        // Format users from join requests (alternative response format)
+          // Format users from join requests (alternative response format)
         pendingMembers = pendingResponse.data.join_requests.map(request => {
           console.log(`Processing alt request for user_id: ${request.user_id}, found username: ${request.username || 'MISSING'}`);
           
-          // Extract the user info from the request
-          const user = request.user || request;
-          
+          // The backend now returns real user data, so prioritize that
           const member = {
-            id: request.id || user.id || request.user_id || '',
-            user_id: request.user_id || user.id || '',
-            // Try multiple possible field names for username and name
-            username: user.username || request.username || user.user_name || request.user_name || user.user_id || request.user_id || 'Unknown',
-            name: user.display_name || user.name || request.display_name || request.name || user.username || request.username || user.user_id || request.user_id || 'Unknown User',
+            id: request.id || request.user_id || '',
+            user_id: request.user_id || '',
+            // Prioritize real username from backend, fallback only if not available
+            username: request.username || `user_${(request.user_id || '').substring(0, 8)}`,
+            name: request.name || request.username || `User ${(request.user_id || '').substring(0, 8)}`,
             role: 'pending',
-            avatar_url: user.avatar_url || request.avatar_url || user.profile_picture || request.profile_picture || '',
+            avatar_url: request.avatar_url || request.profile_picture_url || '',
             requested_at: request.created_at || new Date()
           };
           
@@ -754,170 +752,31 @@
           on:tabChange={(e) => activeTab = e.detail}
         />
       </div>
-      
-      <div class="community-content">
+        <div class="community-content">
         {#if activeTab === 'posts'}
-          {#if threads.length > 0}
-            <div class="threads-container">
-              {#each threads as thread (thread.id)}
-                <TweetCard 
-                  tweet={thread as any} 
-                  on:click={handleThreadClick}
-                />
-              {/each}
-            </div>
-            
-            {#if canPostInCommunity()}
-              <div class="create-post-floating">
-                <Button variant="primary" icon={MessageSquareIcon} on:click={handleCreatePost}>
-                  Create Post
-                </Button>
-              </div>
-            {/if}
-          {:else}
-            <div class="empty-state">
-              <MessageSquareIcon size="48" />
-              <h2>No posts yet</h2>
-              <p>Be the first to post in this community!</p>
-              {#if isMember && community.is_approved}
-                <Button variant="primary" on:click={handleCreatePost}>Create Post</Button>
-              {:else if isMember && !community.is_approved}
-                <p class="approval-note">You can create posts once this community is approved by an admin.</p>
-              {/if}
-            </div>
-          {/if}
+          <CommunityPosts 
+            {threads}
+            {isMember}
+            canPostInCommunity={canPostInCommunity()}
+            communityIsApproved={community.is_approved}
+            on:threadClick={handleThreadClick}
+            on:createPost={handleCreatePost}
+          />
         
         {:else if activeTab === 'members'}
-          <div class="members-container">
-            <h2 class="section-title">Members ({members.length})</h2>
-            {#if members.length > 0}
-              <div class="members-grid">
-                {#each members as member (member.id)}
-                  <!-- Debug info as HTML comment -->
-                  <!-- 
-                    Member debug info:
-                    id: {member.id}
-                    user_id: {member.user_id}
-                    username: {member.username}
-                    name: {member.name}
-                  -->
-                  <UserCard 
-                    user={{
-                      id: member.user_id || member.id,
-                      name: member.name || 'Unknown User',
-                      username: member.username || `user_${(member.user_id || '').substring(0, 8)}`,
-                      avatar_url: member.avatar_url || '',
-                      role: member.role || 'member'
-                    }} 
-                  />
-                {/each}
-              </div>
-            {:else}
-              <div class="empty-state">
-                <UsersIcon size="48" />
-                <p>No members found</p>
-              </div>
-            {/if}
-            
-            {#if pendingMembers.length > 0 && canManageCommunity()}
-              <div class="pending-members-section">
-                <h2 class="section-title">Pending Join Requests ({pendingMembers.length})</h2>
-                <div class="members-grid">
-                  {#each pendingMembers as member (member.id)}
-                    <div class="pending-member-card">
-                      <!-- Debug info as HTML comment -->
-                      <!-- 
-                        Member debug info:
-                        id: {member.id}
-                        user_id: {member.user_id}
-                        username: {member.username}
-                        name: {member.name}
-                        role: {member.role}
-                      -->
-                      
-                      <!-- Custom pending member card instead of UserCard to ensure we display the right data -->
-                      <div class="pending-member-header">
-                        <div class="user-avatar">
-                          {#if member.avatar_url}
-                            <img src={member.avatar_url} alt={member.username || member.name} />
-                          {:else}
-                            <div class="user-avatar-placeholder">
-                              {member.username ? member.username[0].toUpperCase() : "?"}
-                            </div>
-                          {/if}
-                        </div>
-                        <div class="user-info">
-                          <h3 class="user-name">{member.name || 'Unknown User'}</h3>
-                          <p class="user-username">@{member.username || `user_${(member.user_id || '').substring(0, 8)}`}</p>
-                          <span class="user-role-badge pending">Pending</span>
-                        </div>
-                      </div>
-                      
-                      <div class="pending-member-info">
-                        <p><strong>Requested:</strong> {member.requested_at ? new Date(member.requested_at).toLocaleDateString() : 'Unknown'}</p>
-                      </div>
-                      
-                      <div class="pending-member-actions">
-                        <Button variant="success" size="small" on:click={() => handleApproveJoinRequest(member.id)}>
-                          Approve
-                        </Button>
-                        <Button variant="danger" size="small" on:click={() => handleRejectJoinRequest(member.id)}>
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-          </div>
+          <CommunityMembers 
+            {members}
+            {pendingMembers}
+            canManageCommunity={canManageCommunity()}
+            on:approveJoinRequest={(e) => handleApproveJoinRequest(e.detail)}
+            on:rejectJoinRequest={(e) => handleRejectJoinRequest(e.detail)}
+          />
           
         {:else if activeTab === 'rules'}
-          <div class="rules-container">
-            <h2 class="section-title">Community Rules</h2>
-            {#if rules.length > 0}
-              <div class="rules-list">
-                {#each rules as rule, i (rule.id)}
-                  <div class="rule-item">
-                    <div class="rule-number">{i + 1}</div>
-                    <div class="rule-content">
-                      <h3 class="rule-title">{rule.title}</h3>
-                      <p class="rule-description">{rule.description}</p>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="empty-state">
-                <AlertCircleIcon size="48" />
-                <p>No rules have been set for this community</p>
-              </div>
-            {/if}
-          </div>
+          <CommunityRules {rules} />
           
         {:else if activeTab === 'about'}
-          <div class="about-container">
-            <h2 class="section-title">About {community.name}</h2>
-            <div class="community-description">
-              <p>{community.description || 'No description provided'}</p>
-            </div>
-            
-            {#if community.categories && community.categories.length > 0}
-              <div class="categories-section">
-                <h3>Categories</h3>
-                <div class="categories-list">
-                  {#each community.categories as category}
-                    <span class="category-tag">{category}</span>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-              {#if community.created_at}
-              <div class="community-metadata">
-                <p>Created: {new Date(community.created_at).toLocaleDateString()}</p>
-              </div>
-            {/if}
-          </div>
+          <CommunityAbout {community} />
         {/if}
       </div>
     {:else}
@@ -942,8 +801,7 @@
   }
   
   .loading-container,
-  .error-container,
-  .empty-state {
+  .error-container {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -953,15 +811,13 @@
     text-align: center;
   }
   
-  .error-container h2,
-  .empty-state h2 {
+  .error-container h2 {
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
     margin: var(--space-2) 0;
   }
   
-  .error-container p,
-  .empty-state p {
+  .error-container p {
     color: var(--text-secondary);
     margin-bottom: var(--space-4);
   }
@@ -1083,97 +939,9 @@
     padding: var(--space-4);
   }
   
-  .section-title {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
+  .error-details {
+    color: var(--color-danger, #e53e3e);
     margin-bottom: var(--space-4);
-    padding-bottom: var(--space-2);
-    border-bottom: 1px solid var(--border-color);
-  }
-  
-  .threads-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-  
-  .members-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--space-4);
-  }
-  
-  .rules-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-  
-  .rule-item {
-    display: flex;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    background-color: var(--bg-secondary);
-    border-radius: var(--radius-md);
-  }
-  
-  .rule-number {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background-color: var(--color-primary);
-    color: white;
-    border-radius: 50%;
-    font-weight: var(--font-weight-bold);
-    flex-shrink: 0;
-  }
-  
-  .rule-content {
-    flex: 1;
-  }
-  
-  .rule-title {
-    font-weight: var(--font-weight-bold);
-    margin-bottom: var(--space-1);
-  }
-  
-  .rule-description {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
-  
-  .community-description {
-    margin-bottom: var(--space-6);
-    line-height: 1.6;
-  }
-  
-  .categories-section {
-    margin-bottom: var(--space-6);
-  }
-  
-  .categories-section h3 {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-medium);
-    margin-bottom: var(--space-3);
-  }
-  
-  .categories-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-  
-  .category-tag {
-    padding: var(--space-1) var(--space-3);
-    background-color: var(--bg-accent);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-sm);
-  }
-  
-  .community-metadata {
-    color: var(--text-secondary);
     font-size: var(--font-size-sm);
   }
   
@@ -1195,213 +963,5 @@
     .community-stats {
       justify-content: center;
     }
-    
-    .members-grid {
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    }
-  }
-  
-  .error-details {
-    color: var(--color-danger, #e53e3e);
-    margin-bottom: var(--space-4);
-    font-size: var(--font-size-sm);
-  }
-  
-  .approval-note {
-    color: var(--text-secondary);
-    margin-top: var(--space-2);
-    font-size: var(--font-size-sm);
-    font-style: italic;
-    padding: var(--space-2) var(--space-3);
-    background-color: rgba(255, 193, 7, 0.1);
-    border-radius: var(--border-radius-sm);
-    text-align: center;
-  }
-  
-  :global(.dark) .approval-note {
-    background-color: rgba(255, 193, 7, 0.05);
-  }
-
-  .create-post-floating {
-    position: fixed;
-    bottom: var(--space-6);
-    right: var(--space-6);
-    z-index: 100;
-  }
-  
-  .create-post-floating button {
-    border-radius: 50px;
-    padding: var(--space-2) var(--space-4);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  
-  .create-post-floating button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-  }
-  
-  :global(.dark) .create-post-floating button {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-  
-  :global(.dark) .create-post-floating button:hover {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-  }
-  
-  .member-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-  
-  .pending-members-section {
-    margin-top: var(--space-12);
-    border-top: 1px solid var(--border-color);
-    padding-top: var(--space-6);
-  }
-  
-  .pending-member-card {
-    position: relative;
-    width: 100%;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    overflow: hidden;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition: all 0.2s ease;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .pending-member-card :global(.user-card) {
-    border: none;
-    box-shadow: none;
-    margin: 0;
-    padding: 0;
-    border-radius: 0;
-  }
-  
-  .pending-member-actions {
-    display: flex;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background-color: var(--background-secondary);
-    justify-content: flex-end;
-    border-top: 1px solid var(--border-color);
-  }
-  
-  .pending-member-info {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    border-top: 1px solid var(--border-color);
-    background-color: var(--background-secondary);
-  }
-  
-  .pending-member-info p {
-    margin: var(--space-1) 0;
-  }
-  
-  :global(.dark) .pending-member-info {
-    background-color: var(--background-secondary-dark);
-  }
-  
-  :global(.dark) .pending-member-actions {
-    background-color: var(--background-secondary-dark);
-  }
-
-  .pending-member-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-
-  .pending-member-header {
-    display: flex;
-    padding: var(--space-3);
-    gap: var(--space-3);
-    align-items: center;
-  }
-
-  .pending-member-header .user-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
-    border: 1px solid var(--border-color);
-  }
-
-  .pending-member-header .user-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .pending-member-header .user-avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--color-primary-light);
-    color: var(--color-primary);
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-  }
-
-  .pending-member-header .user-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .pending-member-header .user-name {
-    font-weight: var(--font-weight-bold);
-    margin: 0;
-    font-size: var(--font-size-md);
-    line-height: 1.2;
-    margin-bottom: var(--space-1);
-  }
-
-  .pending-member-header .user-username {
-    color: var(--text-secondary);
-    margin: 0;
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--space-2);
-  }
-  
-  :global(.dark) .pending-member-header .user-avatar-placeholder {
-    background-color: var(--color-primary-dark);
-    color: white;
-  }
-
-  .pending-member-header .user-role-badge {
-    display: inline-block;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    text-transform: capitalize;
-    background-color: rgba(255, 193, 7, 0.2);
-    color: #ff9800;
-  }
-  
-  :global(.dark) .pending-member-header .user-role-badge {
-    background-color: rgba(255, 193, 7, 0.1);
-    color: #ffb74d;
-  }
-
-  .pending-member-info {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    border-top: 1px solid var(--border-color);
-    background-color: var(--background-secondary);
-  }
-  
-  .pending-member-actions {
-    display: flex;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background-color: var(--background-secondary);
-    justify-content: flex-end;
-    border-top: 1px solid var(--border-color);
   }
 </style>

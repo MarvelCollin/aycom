@@ -965,21 +965,52 @@ func AddMember(c *gin.Context) {
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to add member: "+err.Error())
 		return
 	}
-
 	joinedAt := time.Now()
 	if resp.Member.JoinedAt != nil {
 		joinedAt = resp.Member.JoinedAt.AsTime()
 	}
 
-	utils.SendSuccessResponse(c, 201, gin.H{
+	// Default member response data in case user fetch fails
+	memberData := gin.H{
 		"id":                  resp.Member.UserId,
 		"user_id":             resp.Member.UserId,
-		"username":            "user_" + resp.Member.UserId, // This would typically come from a user service
-		"name":                "User " + resp.Member.UserId, // This would typically come from a user service
+		"username":            "user_" + resp.Member.UserId,
+		"name":                "User " + resp.Member.UserId,
 		"role":                resp.Member.Role,
 		"joined_at":           joinedAt,
-		"profile_picture_url": "", // This would typically come from a user service
-	})
+		"profile_picture_url": "",
+	}
+
+	// Try to fetch real user data from UserService
+	if UserClient != nil {
+		userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+			UserId: resp.Member.UserId,
+		})
+		userCancel()
+
+		if userErr == nil && userResp != nil && userResp.User != nil {
+			user := userResp.User
+			// Update member data with real user information
+			memberData = gin.H{
+				"id":                  resp.Member.UserId,
+				"user_id":             resp.Member.UserId,
+				"username":            user.Username,
+				"name":                user.Name,
+				"role":                resp.Member.Role,
+				"joined_at":           joinedAt,
+				"profile_picture_url": user.ProfilePictureUrl,
+				"is_verified":         user.IsVerified,
+				"bio":                 user.Bio,
+			}
+		} else {
+			log.Printf("Warning: Could not fetch user data for new member %s: %v", resp.Member.UserId, userErr)
+		}
+	} else {
+		log.Printf("Warning: UserClient is nil, using placeholder data for new member %s", resp.Member.UserId)
+	}
+
+	utils.SendSuccessResponse(c, 201, memberData)
 }
 
 func RemoveMember(c *gin.Context) {
@@ -1136,7 +1167,6 @@ func ListMembers(c *gin.Context) {
 		utils.SendErrorResponse(c, 500, "server_error", "Failed to list members: "+err.Error())
 		return
 	}
-
 	formattedMembers := make([]gin.H, 0)
 	if resp != nil && resp.Members != nil {
 		for _, member := range resp.Members {
@@ -1145,7 +1175,8 @@ func ListMembers(c *gin.Context) {
 				joinedAt = member.JoinedAt.AsTime()
 			}
 
-			formattedMembers = append(formattedMembers, gin.H{
+			// Default member data in case user fetch fails
+			memberData := gin.H{
 				"id":                  member.UserId,
 				"user_id":             member.UserId,
 				"username":            "user_" + member.UserId,
@@ -1153,7 +1184,35 @@ func ListMembers(c *gin.Context) {
 				"role":                member.Role,
 				"joined_at":           joinedAt,
 				"profile_picture_url": "",
-			})
+			}			// Try to fetch real user data from UserService
+			if UserClient != nil {
+				userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+					UserId: member.UserId,
+				})
+				userCancel()
+
+				if userErr == nil && userResp != nil && userResp.User != nil {
+					user := userResp.User
+					// Update member data with real user information
+					memberData = gin.H{
+						"id":                  member.UserId,
+						"user_id":             member.UserId,
+						"username":            user.Username,
+						"name":                user.Name,
+						"role":                member.Role,
+						"joined_at":           joinedAt,
+						"profile_picture_url": user.ProfilePictureUrl,
+						"is_verified":         user.IsVerified,
+						"bio":                 user.Bio,
+					}
+				} else {
+					log.Printf("Warning: Could not fetch user data for member %s: %v", member.UserId, userErr)
+				}			} else {
+				log.Printf("Warning: UserClient is nil, using placeholder data for member %s", member.UserId)
+			}
+
+			formattedMembers = append(formattedMembers, memberData)
 		}
 	}
 
@@ -1819,15 +1878,49 @@ func ListJoinRequests(c *gin.Context) {
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list join requests: "+err.Error())
 		return
 	}
-
 	formattedRequests := make([]gin.H, 0, len(resp.JoinRequests))
 	for _, req := range resp.JoinRequests {
-		formattedRequests = append(formattedRequests, gin.H{
-			"id":           req.Id,
-			"community_id": req.CommunityId,
-			"user_id":      req.UserId,
-			"status":       req.Status,
-		})
+		// Default request data in case user fetch fails
+		requestData := gin.H{
+			"id":                  req.Id,
+			"community_id":        req.CommunityId,
+			"user_id":             req.UserId,
+			"status":              req.Status,
+			"username":            "user_" + req.UserId,
+			"name":                "User " + req.UserId,
+			"profile_picture_url": "",
+		}
+
+		// Try to fetch real user data from UserService
+		if UserClient != nil {
+			userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+				UserId: req.UserId,
+			})
+			userCancel()
+
+			if userErr == nil && userResp != nil && userResp.User != nil {
+				user := userResp.User
+				// Update request data with real user information
+				requestData = gin.H{
+					"id":                  req.Id,
+					"community_id":        req.CommunityId,
+					"user_id":             req.UserId,
+					"status":              req.Status,
+					"username":            user.Username,
+					"name":                user.Name,
+					"profile_picture_url": user.ProfilePictureUrl,
+					"is_verified":         user.IsVerified,
+					"bio":                 user.Bio,
+				}
+			} else {
+				log.Printf("Warning: Could not fetch user data for join request %s: %v", req.UserId, userErr)
+			}
+		} else {
+			log.Printf("Warning: UserClient is nil, using placeholder data for join request %s", req.UserId)
+		}
+
+		formattedRequests = append(formattedRequests, requestData)
 	}
 
 	utils.SendSuccessResponse(c, 200, gin.H{

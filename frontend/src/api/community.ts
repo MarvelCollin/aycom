@@ -863,8 +863,7 @@ export async function listMembers(communityId: string) {
     
     const data = await response.json();
     console.log("Raw members data:", data);
-    
-    // Extract members
+      // Extract members
     let members = data.members || [];
     
     if (members.length === 0) {
@@ -873,156 +872,34 @@ export async function listMembers(communityId: string) {
     }
     
     console.log(`Processing ${members.length} community members`);
+    console.log("Sample member data from backend:", members[0]);
     
-    // Generate fake usernames from user IDs if real data isn't available
-    // This ensures we at least have readable usernames instead of raw UUIDs
-    function generateUsernameFromUserId(userId) {
-      // Take first 8 characters of the user ID and create a username
-      if (!userId) return 'unknown_user';
-      const shortId = userId.substring(0, 8);
-      return `user_${shortId}`;
-    }
-    
-    // Fetch user data for each member
-    try {
-      // First check if we have a userService endpoint available
-      let userServiceAvailable = false;
-      try {
-        const userServiceCheck = await fetch(`${API_BASE_URL}/users/health`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        userServiceAvailable = userServiceCheck.ok;
-        console.log(`User service health check: ${userServiceAvailable ? 'available' : 'unavailable'}`);
-      } catch (e) {
-        console.log('User service health check failed, assuming unavailable');
-      }
-      
-      const userPromises = members.map(async (member) => {
-        if (!member.user_id) {
-          console.log("Member missing user_id:", member);
-          return {
-            ...member,
-            username: 'unknown_user',
-            name: 'Unknown User'
-          };
-        }
-        
-        console.log(`Fetching user data for member ID: ${member.user_id}`);
-        
-        // Generate a readable username from the user ID that we'll use as fallback
-        const generatedUsername = generateUsernameFromUserId(member.user_id);
-        
-        // If user service isn't available, use generated username
-        if (!userServiceAvailable) {
-          return {
-            ...member,
-            username: generatedUsername,
-            name: `User ${member.user_id.substring(0, 6)}`,
-            generated: true
-          };
-        }
-        
-        try {
-          // Try to use the getUserById function from user.ts
-          const { getUserById } = await import('./user');
-          const userData = await getUserById(member.user_id);
-          
-          if (userData && userData.user) {
-            console.log(`Successfully fetched user data from getUserById:`, userData.user);
-            
-            return {
-              ...member,
-              username: userData.user.username || generatedUsername,
-              name: userData.user.display_name || userData.user.name || userData.user.username || generatedUsername,
-              avatar_url: userData.user.profile_picture_url || userData.user.avatar_url || ''
-            };
-          }
-        } catch (userApiError) {
-          console.warn(`Failed to get user data from getUserById: ${userApiError}`);
-        }
-        
-        // Fallback: Try all possible user API endpoints
-        const endpoints = [
-          `${API_BASE_URL}/users/${member.user_id}`,
-          `${API_BASE_URL}/user/${member.user_id}`,
-          `${API_BASE_URL}/auth/users/${member.user_id}`,
-          `${API_BASE_URL}/v1/users/${member.user_id}`,
-          `${API_BASE_URL}/api/users/${member.user_id}`
-        ];
-        
-        for (const endpoint of endpoints) {
-          try {
-            const userResponse = await fetch(endpoint, {
-              method: 'GET',
-              headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-                'Content-Type': 'application/json'
-              },
-              credentials: 'include'
-            });
-            
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              console.log(`Successfully fetched user data from ${endpoint}:`, userData);
-              
-              // Try to extract user data from various possible response formats
-              let userDetails = userData;
-              if (userData.user) {
-                userDetails = userData.user;
-              } else if (userData.data && userData.data.user) {
-                userDetails = userData.data.user;
-              }
-              
-              // Try to extract username from various possible field names
-              const username = 
-                userDetails.username || 
-                userDetails.user_name || 
-                userDetails.userName || 
-                generatedUsername;
-                
-              // Try to extract display name from various possible field names
-              const name = 
-                userDetails.display_name || 
-                userDetails.displayName || 
-                userDetails.name || 
-                userDetails.full_name || 
-                userDetails.fullName || 
-                username || 
-                `User ${member.user_id.substring(0, 6)}`;
-              
-              // Merge user data with member
-              return {
-                ...member,
-                username: username,
-                name: name,
-                avatar_url: userDetails.avatar_url || userDetails.profile_picture_url || '',
-                user: userDetails // Keep full user object for reference
-              };
-            }
-          } catch (endpointError) {
-            console.warn(`Failed to fetch user data from ${endpoint}:`, endpointError);
-          }
-        }
-        
-        // If all API calls fail, use the generated username
+    // The backend now returns enhanced user data, so we only need minimal fallback logic
+    const processedMembers = members.map((member) => {
+      // If backend provided real user data, use it
+      if (member.username && member.username !== 'user_' + member.user_id) {
+        console.log(`Using backend user data for member ${member.user_id}: ${member.username}`);
         return {
           ...member,
-          username: generatedUsername,
-          name: `User ${member.user_id.substring(0, 6)}`,
-          generated: true
+          // Ensure we have reasonable fallbacks only for missing fields
+          name: member.name || member.username || 'Unknown User',
+          avatar_url: member.avatar_url || member.profile_picture_url || ''
         };
-      });
+      }
       
-      // Wait for all user data to be fetched
-      const enrichedMembers = await Promise.all(userPromises);
-      console.log("All members after enrichment:", enrichedMembers);
-      
-      // Replace the original members with the enriched ones
-      data.members = enrichedMembers;
-    } catch (enrichError) {
-      console.warn('Failed to enrich members with user data:', enrichError);
-    }
+      // Minimal fallback for cases where backend data is incomplete
+      const shortId = member.user_id ? member.user_id.substring(0, 8) : 'unknown';
+      return {
+        ...member,
+        username: member.username || `user_${shortId}`,
+        name: member.name || `User ${shortId}`,
+        avatar_url: member.avatar_url || member.profile_picture_url || '',
+        needs_enrichment: true // Flag to indicate this needs enrichment
+      };
+    });
+    
+    console.log("Processed members:", processedMembers);
+    data.members = processedMembers;
     
     return data;
   } catch (error) {
@@ -1187,8 +1064,7 @@ export async function listJoinRequests(communityId: string) {
     
     const data = await response.json();
     console.log("Raw join requests data:", data);
-    
-    // Extract join requests
+      // Extract join requests
     let joinRequests = data.join_requests || [];
     
     if (joinRequests.length === 0) {
@@ -1197,137 +1073,34 @@ export async function listJoinRequests(communityId: string) {
     }
     
     console.log(`Processing ${joinRequests.length} join requests`);
+    console.log("Sample join request data from backend:", joinRequests[0]);
     
-    // Generate fake usernames from user IDs if real data isn't available
-    // This ensures we at least have readable usernames instead of raw UUIDs
-    function generateUsernameFromUserId(userId) {
-      // Take first 8 characters of the user ID and create a username
-      if (!userId) return 'unknown_user';
-      const shortId = userId.substring(0, 8);
-      return `user_${shortId}`;
-    }
-    
-    // Fetch user data for each join request
-    try {
-      // First check if we have a userService endpoint available
-      let userServiceAvailable = false;
-      try {
-        const userServiceCheck = await fetch(`${API_BASE_URL}/users/health`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        userServiceAvailable = userServiceCheck.ok;
-        console.log(`User service health check: ${userServiceAvailable ? 'available' : 'unavailable'}`);
-      } catch (e) {
-        console.log('User service health check failed, assuming unavailable');
-      }
-      
-      const userPromises = joinRequests.map(async (request) => {
-        if (!request.user_id) {
-          console.log("Join request missing user_id:", request);
-          return {
-            ...request,
-            username: 'unknown_user',
-            name: 'Unknown User'
-          };
-        }
-        
-        console.log(`Fetching user data for user ID: ${request.user_id}`);
-        
-        // Generate a readable username from the user ID that we'll use as fallback
-        const generatedUsername = generateUsernameFromUserId(request.user_id);
-        
-        // If user service isn't available, use generated username
-        if (!userServiceAvailable) {
-          return {
-            ...request,
-            username: generatedUsername,
-            name: `User ${request.user_id.substring(0, 6)}`,
-            generated: true
-          };
-        }
-        
-        // Try all possible user API endpoints
-        const endpoints = [
-          `${API_BASE_URL}/users/${request.user_id}`,
-          `${API_BASE_URL}/user/${request.user_id}`,
-          `${API_BASE_URL}/auth/users/${request.user_id}`,
-          `${API_BASE_URL}/v1/users/${request.user_id}`,
-          `${API_BASE_URL}/api/users/${request.user_id}`
-        ];
-        
-        for (const endpoint of endpoints) {
-          try {
-            const userResponse = await fetch(endpoint, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              credentials: 'include'
-            });
-            
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              console.log(`Successfully fetched user data from ${endpoint}:`, userData);
-              
-              // Try to extract user data from various possible response formats
-              let userDetails = userData;
-              if (userData.user) {
-                userDetails = userData.user;
-              } else if (userData.data && userData.data.user) {
-                userDetails = userData.data.user;
-              }
-              
-              // Try to extract username from various possible field names
-              const username = 
-                userDetails.username || 
-                userDetails.user_name || 
-                userDetails.userName || 
-                generatedUsername;
-                
-              // Try to extract display name from various possible field names
-              const name = 
-                userDetails.display_name || 
-                userDetails.displayName || 
-                userDetails.name || 
-                userDetails.full_name || 
-                userDetails.fullName || 
-                username || 
-                `User ${request.user_id.substring(0, 6)}`;
-              
-              // Merge user data with request
-              return {
-                ...request,
-                username: username,
-                name: name,
-                avatar_url: userDetails.avatar_url || userDetails.profile_picture_url || '',
-                user: userDetails // Keep full user object for reference
-              };
-            }
-          } catch (endpointError) {
-            console.warn(`Failed to fetch user data from ${endpoint}:`, endpointError);
-          }
-        }
-        
-        // If all API calls fail, use the generated username
+    // The backend now returns enhanced user data, so we only need minimal fallback logic
+    const processedRequests = joinRequests.map((request) => {
+      // If backend provided real user data, use it
+      if (request.username && request.username !== 'user_' + request.user_id) {
+        console.log(`Using backend user data for join request ${request.user_id}: ${request.username}`);
         return {
           ...request,
-          username: generatedUsername,
-          name: `User ${request.user_id.substring(0, 6)}`,
-          generated: true
+          // Ensure we have reasonable fallbacks only for missing fields
+          name: request.name || request.username || 'Unknown User',
+          avatar_url: request.avatar_url || request.profile_picture_url || ''
         };
-      });
+      }
       
-      // Wait for all user data to be fetched
-      const enrichedRequests = await Promise.all(userPromises);
-      console.log("All join requests after enrichment:", enrichedRequests);
-      
-      // Replace the original join requests with the enriched ones
-      data.join_requests = enrichedRequests;
-    } catch (enrichError) {
-      console.warn('Failed to enrich join requests with user data:', enrichError);
-    }
+      // Minimal fallback for cases where backend data is incomplete
+      const shortId = request.user_id ? request.user_id.substring(0, 8) : 'unknown';
+      return {
+        ...request,
+        username: request.username || `user_${shortId}`,
+        name: request.name || `User ${shortId}`,
+        avatar_url: request.avatar_url || request.profile_picture_url || '',
+        needs_enrichment: true // Flag to indicate this needs enrichment
+      };
+    });
+    
+    console.log("Processed join requests:", processedRequests);
+    data.join_requests = processedRequests;
     
     return data;
   } catch (error) {
