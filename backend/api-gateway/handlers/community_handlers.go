@@ -1658,16 +1658,16 @@ func ApproveJoinRequest(c *gin.Context) {
 
 	// Check if the user is admin of the community or system admin
 	isAdmin := false
-	
+
 	// First check if user is a system admin by querying the User service
 	if UserClient != nil {
 		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer userCancel()
-		
+
 		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
 			UserId: userID.(string),
 		})
-		
+
 		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
 			isAdmin = true
 			log.Printf("User %s is a system admin, granting access to approve join request", userID.(string))
@@ -1758,16 +1758,16 @@ func RejectJoinRequest(c *gin.Context) {
 
 	// Check if the user is admin of the community or system admin
 	isAdmin := false
-	
+
 	// First check if user is a system admin by querying the User service
 	if UserClient != nil {
 		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer userCancel()
-		
+
 		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
 			UserId: userID.(string),
 		})
-		
+
 		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
 			isAdmin = true
 			log.Printf("User %s is a system admin, granting access to reject join request", userID.(string))
@@ -2917,5 +2917,78 @@ func GetDiscoverCommunities(c *gin.Context) {
 		"page":        page,
 		"limit":       limit,
 		"total_pages": totalPages,
+	})
+}
+
+// GetTopCommunityMembers retrieves the top members of a community
+func GetTopCommunityMembers(c *gin.Context) {
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	// Fall back to ListMembers for now
+	c.Params = append(c.Params, gin.Param{Key: "id", Value: communityID})
+	ListMembers(c)
+}
+
+// GetCommunityThreadsByLikes retrieves community threads sorted by likes
+func GetCommunityThreadsByLikes(c *gin.Context) {
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	// Return a simple response since this is a stub implementation
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"threads":     []gin.H{},
+		"total_count": 0,
+		"pagination": gin.H{
+			"current_page": 1,
+			"per_page":     10,
+			"total_pages":  0,
+		},
+	})
+}
+
+// GetCommunityThreadsByDate retrieves community threads sorted by date
+func GetCommunityThreadsByDate(c *gin.Context) {
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	// Return a simple response since this is a stub implementation
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"threads":     []gin.H{},
+		"total_count": 0,
+		"pagination": gin.H{
+			"current_page": 1,
+			"per_page":     10,
+			"total_pages":  0,
+		},
+	})
+}
+
+// GetCommunityMediaThreads retrieves community threads with media
+func GetCommunityMediaThreads(c *gin.Context) {
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	// Return a simple response since this is a stub implementation
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"threads":     []gin.H{},
+		"total_count": 0,
+		"pagination": gin.H{
+			"current_page": 1,
+			"per_page":     10,
+			"total_pages":  0,
+		},
 	})
 }

@@ -211,6 +211,16 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.GET("/:id/membership", handlers.CheckMembershipStatus)
 	}
 
+	// New community detail tab endpoints - publicly accessible with optional authentication
+	communityDetails := v1.Group("/communities/:id")
+	communityDetails.Use(middleware.OptionalJWTAuth(jwtSecret))
+	{
+		communityDetails.GET("/top-members", handlers.GetTopCommunityMembers)
+		communityDetails.GET("/threads/top", handlers.GetCommunityThreadsByLikes)
+		communityDetails.GET("/threads/latest", handlers.GetCommunityThreadsByDate)
+		communityDetails.GET("/threads/media", handlers.GetCommunityMediaThreads)
+	}
+
 	chats := v1.Group("/chats")
 	chats.Use(middleware.JWTAuth(jwtSecret))
 	{
@@ -268,24 +278,24 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		c.AbortWithStatus(http.StatusNoContent)
 	})
 
-	admin := v1.Group("/admin")
+	adminGroup := v1.Group("/admin")
 	{
-		admin.GET("/dashboard/statistics", handlers.GetDashboardStatistics)
-		admin.POST("/users/:userId/ban", handlers.BanUser)
-		admin.POST("/newsletter/send", handlers.SendNewsletter)
-		admin.GET("/community-requests", handlers.GetCommunityRequests)
-		admin.POST("/community-requests/:requestId/process", handlers.ProcessCommunityRequest)
-		admin.GET("/premium-requests", handlers.GetPremiumRequests)
-		admin.POST("/premium-requests/:requestId/process", handlers.ProcessPremiumRequest)
-		admin.GET("/report-requests", handlers.GetReportRequests)
-		admin.POST("/report-requests/:requestId/process", handlers.ProcessReportRequest)
-		admin.GET("/thread-categories", handlers.GetThreadCategories)
-		admin.POST("/thread-categories", handlers.CreateThreadCategory)
-		admin.PUT("/thread-categories/:categoryId", handlers.UpdateThreadCategory)
-		admin.DELETE("/thread-categories/:categoryId", handlers.DeleteThreadCategory)
-		admin.GET("/community-categories", handlers.GetCommunityCategories)
-		admin.POST("/community-categories", handlers.CreateCommunityCategory)
-		admin.PUT("/community-categories/:categoryId", handlers.UpdateCommunityCategory)
-		admin.DELETE("/community-categories/:categoryId", handlers.DeleteCommunityCategory)
+		adminGroup.GET("/dashboard/statistics", handlers.GetDashboardStatistics)
+		adminGroup.POST("/users/:userId/ban", handlers.BanUser)
+		adminGroup.POST("/newsletter/send", handlers.SendNewsletter)
+		adminGroup.GET("/community-requests", handlers.GetCommunityRequests)
+		adminGroup.POST("/community-requests/:requestId/process", handlers.ProcessCommunityRequest)
+		adminGroup.GET("/premium-requests", handlers.GetPremiumRequests)
+		adminGroup.POST("/premium-requests/:requestId/process", handlers.ProcessPremiumRequest)
+		adminGroup.GET("/report-requests", handlers.GetReportRequests)
+		adminGroup.POST("/report-requests/:requestId/process", handlers.ProcessReportRequest)
+		adminGroup.GET("/thread-categories", handlers.GetThreadCategories)
+		adminGroup.POST("/thread-categories", handlers.CreateThreadCategory)
+		adminGroup.PUT("/thread-categories/:categoryId", handlers.UpdateThreadCategory)
+		adminGroup.DELETE("/thread-categories/:categoryId", handlers.DeleteThreadCategory)
+		adminGroup.GET("/community-categories", handlers.GetCommunityCategories)
+		adminGroup.POST("/community-categories", handlers.CreateCommunityCategory)
+		adminGroup.PUT("/community-categories/:categoryId", handlers.UpdateCommunityCategory)
+		adminGroup.DELETE("/community-categories/:categoryId", handlers.DeleteCommunityCategory)
 	}
 }

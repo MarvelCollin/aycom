@@ -116,10 +116,7 @@ func (s *threadService) CreateThread(ctx context.Context, req *thread.CreateThre
 			closesAt = req.Poll.EndTime.AsTime()
 		}
 
-		isAnonymous := false
-		if req.Poll.IsAnonymous {
-			isAnonymous = true
-		}
+		// The isAnonymous field will be stored in the Poll model in a future update
 
 		whoCanVote := "Everyone"
 
