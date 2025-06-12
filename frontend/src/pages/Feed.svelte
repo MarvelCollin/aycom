@@ -29,6 +29,8 @@
     is_liked: boolean;
     is_bookmarked: boolean;
     media?: Array<{url: string, type: string}>;
+    community_id?: string;
+    community_name?: string;
   }
 
   // Get theme status
@@ -368,7 +370,9 @@
       is_bookmarked: thread.is_bookmarked,
       is_pinned: false,
       parent_id: null,
-      media: mappedMedia
+      media: mappedMedia,
+      community_id: thread.community_id || null,
+      community_name: thread.community_name || null
     };
   }
   

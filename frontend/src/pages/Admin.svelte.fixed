@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from 'svelte';
   import { toastStore } from '../stores/toastStore';
   import MainLayout from '../components/layout/MainLayout.svelte';
@@ -1092,17 +1092,17 @@
                       
                       <div class="card-footer">
                         <button class="btn btn-approve" on:click={() => handleProcessCommunityRequest(request.id, true)}>
-                          <span class="btn-icon">✓</span> Approve
+                          <span class="btn-icon">âœ“</span> Approve
                         </button>
                         <button class="btn btn-reject" on:click={() => handleProcessCommunityRequest(request.id, false)}>
-                          <span class="btn-icon">✕</span> Reject
+                          <span class="btn-icon">âœ•</span> Reject
                         </button>
                       </div>
                     </div>
                   {:else}
                     <div class="no-requests">
                       <div class="empty-state">
-                        <div class="empty-icon">📭</div>
+                        <div class="empty-icon">ðŸ“­</div>
                         <h3>No community requests</h3>
                         <p>There are no pending community requests to display.</p>
                       </div>
@@ -1475,7 +1475,7 @@
     <div class="modal" on:click|stopPropagation>
       <div class="modal-header">
         <h3>Create New Category</h3>
-        <button class="modal-close" on:click={() => showNewCategoryModal = false}>×</button>
+        <button class="modal-close" on:click={() => showNewCategoryModal = false}>Ã—</button>
       </div>
 
       <div class="modal-body">
@@ -1531,7 +1531,7 @@
     <div class="modal" on:click|stopPropagation>
       <div class="modal-header">
         <h3>Edit Category</h3>
-        <button class="modal-close" on:click={() => editingCategory = null}>×</button>
+        <button class="modal-close" on:click={() => editingCategory = null}>Ã—</button>
       </div>
 
       <div class="modal-body">
@@ -2813,4 +2813,6 @@
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
   }
-}</style>
+}
+</style>
+

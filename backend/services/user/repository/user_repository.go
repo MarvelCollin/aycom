@@ -38,12 +38,16 @@ type UserRepository interface {
 	SearchUsers(query, filter string, page, limit int) ([]*model.User, int, error)
 	GetRecommendedUsers(limit int, excludeUserID string) ([]*model.User, error)
 	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*model.User, int, error)
+	GetNewsletterSubscribers(page, limit int) ([]*model.User, int, error)
 
 	BlockUser(blockerID, blockedID string) error
 	UnblockUser(unblockerID, unblockedID string) error
 	IsUserBlocked(userID, blockedByID string) (bool, error)
 	ReportUser(reporterID, reportedID, reason string) error
 	GetBlockedUsers(userID string, page, limit int) ([]map[string]interface{}, int64, error)
+
+	CountFollowers(userID string) (int, error)
+	CountFollowing(userID string) (int, error)
 
 	GetDB() *gorm.DB
 }
@@ -642,4 +646,57 @@ func (r *PostgresUserRepository) ExecuteInTransaction(fn func(tx UserRepository)
 
 func (r *PostgresUserRepository) GetDB() *gorm.DB {
 	return r.db
+}
+
+func (r *PostgresUserRepository) GetNewsletterSubscribers(page, limit int) ([]*model.User, int, error) {
+	var users []*model.User
+	var total int64
+
+	offset := (page - 1) * limit
+
+	// Count total subscribers
+	if err := r.db.Model(&model.User{}).Where("subscribe_to_newsletter = ?", true).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Get subscribers with pagination
+	if err := r.db.Where("subscribe_to_newsletter = ?", true).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, int(total), nil
+}
+
+func (r *PostgresUserRepository) CountFollowers(userID string) (int, error) {
+	var count int64
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return 0, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	if err := r.db.Model(&model.Follow{}).Where("followed_id = ?", userUUID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+func (r *PostgresUserRepository) CountFollowing(userID string) (int, error) {
+	var count int64
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return 0, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	if err := r.db.Model(&model.Follow{}).Where("follower_id = ?", userUUID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
 }

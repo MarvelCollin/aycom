@@ -1249,3 +1249,76 @@ func GetDashboardStatistics(c *gin.Context) {
 		"new_posts_today":   int64(175),
 	})
 }
+
+func AdminGetAllUsers(c *gin.Context) {
+	log.Printf("AdminGetAllUsers: Handling get all users request")
+
+	// Add CORS headers
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:3000"
+	}
+	c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+
+	page := 1
+	limit := 10
+	sortBy := "created_at"
+	sortDesc := true
+	searchQuery := c.Query("search")
+	newsletterOnly := c.Request.URL.Path == "/api/v1/admin/newsletter-subscribers"
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	if sortByStr := c.Query("sort_by"); sortByStr != "" {
+		sortBy = sortByStr
+	}
+
+	if sortDescStr := c.Query("sort_desc"); sortDescStr != "" {
+		if sd, err := strconv.ParseBool(sortDescStr); err == nil {
+			sortDesc = sd
+		}
+	}
+
+	if UserClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := UserClient.GetAllUsers(ctx, &userProto.GetAllUsersRequest{
+		Page:           int32(page),
+		Limit:          int32(limit),
+		SortBy:         sortBy,
+		SortDesc:       sortDesc,
+		SearchQuery:    searchQuery,
+		NewsletterOnly: newsletterOnly,
+	})
+
+	if err != nil {
+		log.Printf("AdminGetAllUsers Handler: gRPC error: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get users")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":     true,
+		"users":       response.Users,
+		"total_count": response.TotalCount,
+		"page":        response.Page,
+	})
+}

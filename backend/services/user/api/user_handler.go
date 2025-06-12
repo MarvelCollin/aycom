@@ -177,7 +177,10 @@ func (h *UserHandler) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequ
 		limit = 10
 	}
 
-	users, total, err := h.svc.GetAllUsers(ctx, page, limit, req.GetSortBy(), !req.GetSortDesc())
+	searchQuery := req.GetSearchQuery()
+	newsletterOnly := req.GetNewsletterOnly()
+
+	users, total, err := h.svc.GetAllUsers(ctx, page, limit, req.GetSortBy(), !req.GetSortDesc(), searchQuery, newsletterOnly)
 	if err != nil {
 		return nil, err
 	}

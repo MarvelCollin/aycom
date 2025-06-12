@@ -7,7 +7,8 @@ import {
   standardizeCommunityRequest, 
   standardizePremiumRequest, 
   standardizeReportRequest, 
-  standardizePagination 
+  standardizePagination,
+  standardizeUser
 } from '../utils/standardizeApiData';
 
 const API_BASE_URL = appConfig.api.baseUrl;
@@ -356,4 +357,44 @@ export async function deleteCommunityCategory(categoryId: string): Promise<IApiR
     `${API_BASE_URL}/admin/community-categories/${categoryId}`,
     'DELETE'
   );
+}
+
+export async function getNewsletterSubscribers(page: number = 1, limit: number = 10): Promise<RequestsResponse> {
+  try {
+    const response = await apiRequest<any>(
+      `${API_BASE_URL}/admin/newsletter-subscribers?page=${page}&limit=${limit}`,
+      'GET'
+    );
+    
+    // Standardize the response format
+    const standardizedResponse: RequestsResponse = {
+      success: response.success || false,
+      data: [],
+      pagination: {
+        total_count: response.total_count || 0,
+        current_page: response.page || page,
+        per_page: limit,
+        total_pages: Math.ceil((response.total_count || 0) / limit)
+      }
+    };
+    
+    // Map users to data
+    if (response.users && Array.isArray(response.users)) {
+      standardizedResponse.data = response.users.map(standardizeUser);
+    }
+    
+    return standardizedResponse;
+  } catch (error) {
+    console.error('Error fetching newsletter subscribers:', error);
+    return {
+      success: false,
+      data: [],
+      pagination: {
+        total_count: 0,
+        current_page: page,
+        per_page: limit,
+        total_pages: 0
+      }
+    };
+  }
 }

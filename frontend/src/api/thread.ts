@@ -347,6 +347,8 @@ interface Thread {
   is_bookmarked: boolean;
   is_pinned: boolean;
   media: ThreadMedia[];
+  community_id?: string;
+  community_name?: string;
 }
 
 interface ThreadsResponse {

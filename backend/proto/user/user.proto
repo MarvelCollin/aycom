@@ -360,6 +360,8 @@ message GetAllUsersRequest {
   int32 limit = 2;
   string sort_by = 3;
   bool sort_desc = 4;
+  string search_query = 5;
+  bool newsletter_only = 6;
 }
 
 message GetAllUsersResponse {
