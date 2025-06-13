@@ -58,6 +58,7 @@
     isBookmarked?: boolean;
     isPinned?: boolean;
     is_verified?: boolean; // Add is_verified property to match ITweet
+    is_admin?: boolean; // Add is_admin property to match ITweet
     
     // Nested data
     bookmarked_thread?: any;
@@ -237,6 +238,15 @@
         authorIsVerified: rawTweet.author?.is_verified
       });
       
+      // Log admin status fields from API response
+      console.debug('TWEET ADMIN CHECK:', {
+        id: rawTweet.id || 'unknown',
+        username: rawTweet.username,
+        isAdminDirect: rawTweet.is_admin,
+        userIsAdmin: rawTweet.user?.is_admin,
+        authorIsAdmin: rawTweet.author?.is_admin
+      });
+      
       // Make a deep copy to avoid modifying the original
       const processed: ExtendedTweet = {
         ...rawTweet,
@@ -264,12 +274,13 @@
         is_bookmarked: Boolean(rawTweet.is_bookmarked || rawTweet.IsBookmarked || rawTweet.bookmarked_by_user || rawTweet.BookmarkedByUser || false),
         is_pinned: Boolean(rawTweet.is_pinned || rawTweet.IsPinned || rawTweet.pinned || false),
         is_verified: isVerified(rawTweet),
+        is_admin: Boolean(rawTweet.is_admin || rawTweet.IsAdmin || rawTweet.user?.is_admin || rawTweet.author?.is_admin || false),
         
         // Media with validation
         media: validateMedia(rawTweet.media || rawTweet.Media || []),
       };
       
-      console.log(`Tweet processed - verified status: ${processed.is_verified} (${processed.name || processed.displayName})`);
+      console.log(`Tweet processed - verified status: ${processed.is_verified}, admin status: ${processed.is_admin} (${processed.name || processed.displayName})`);
       
       // Before the return statement, make sure is_verified is set
       processed.is_verified = isVerified(rawTweet);
@@ -300,6 +311,7 @@
       is_bookmarked: false,
       is_pinned: false,
       is_verified: false,
+      is_admin: false,
       parent_id: null,
       media: []
     };
@@ -1612,6 +1624,20 @@
   onDestroy(() => {
     document.removeEventListener('click', handleClickOutside);
   });
+
+  // Helper function to check if a tweet is from an admin user
+  function isAdminTweet(tweet: any): boolean {
+    // Check the direct is_admin flag on the tweet
+    if (tweet.is_admin === true) return true;
+    
+    // Check the user object if available
+    if (tweet.user && tweet.user.is_admin === true) return true;
+    
+    // Check author object if available
+    if (tweet.author && tweet.author.is_admin === true) return true;
+    
+    return false;
+  }
 </script>
 
 <div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}" id="tweet-{processedTweet.id}">
@@ -1689,6 +1715,17 @@
           </div>
           
           <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
+            {#if processedTweet.is_advertisement || isAdminTweet(processedTweet)}
+              <div class="tweet-ad-badge {isDarkMode ? 'tweet-ad-badge-dark' : ''}">
+                <span class="ad-label">AD</span>
+              </div>
+              {#if isAdminTweet(processedTweet)}
+                <div class="tweet-admin-indicator {isDarkMode ? 'tweet-admin-indicator-dark' : ''}">
+                  <span>This is admin</span>
+                </div>
+              {/if}
+            {/if}
+            
             {#if processedTweet.content}
               <p>{processedTweet.content}</p>
             {:else}
@@ -2838,6 +2875,45 @@
   
   .tweet-community-name {
     font-weight: 500;
+    }
+  
+  /* Admin/Ad badge styles */
+  .tweet-ad-badge {
+    background-color: #ffd700;
+    color: #000;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    display: inline-block;
+  }
+
+  .tweet-ad-badge-dark {
+    background-color: #ffa500;
+    color: #fff;
+  }
+
+  .ad-label {
+    font-weight: bold;
+  }
+
+  .tweet-admin-indicator {
+    color: #2f80ed;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+  }
+
+  .tweet-admin-indicator::before {
+    content: "⚙️";
+    margin-right: 4px;
+  }
+
+  .tweet-admin-indicator-dark {
+    color: #4da3ff;
   }
 </style>
 

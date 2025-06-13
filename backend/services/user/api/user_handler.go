@@ -6,6 +6,7 @@ import (
 	"aycom/backend/services/user/service"
 	"context"
 	"log"
+	"reflect"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -177,8 +178,31 @@ func (h *UserHandler) GetAllUsers(ctx context.Context, req *user.GetAllUsersRequ
 		limit = 10
 	}
 
-	searchQuery := req.GetSearchQuery()
-	newsletterOnly := req.GetNewsletterOnly()
+	searchQuery := ""
+	newsletterOnly := false
+
+	// Check if the request has GetSearchQuery and GetNewsletterOnly fields
+	// in case we're dealing with an older protobuf definition
+	if req != nil {
+		// Use reflection to check if the fields exist
+		reqValue := reflect.ValueOf(req)
+		searchQueryMethod := reqValue.MethodByName("GetSearchQuery")
+		newsletterOnlyMethod := reqValue.MethodByName("GetNewsletterOnly")
+
+		if searchQueryMethod.IsValid() {
+			results := searchQueryMethod.Call(nil)
+			if len(results) > 0 {
+				searchQuery = results[0].String()
+			}
+		}
+
+		if newsletterOnlyMethod.IsValid() {
+			results := newsletterOnlyMethod.Call(nil)
+			if len(results) > 0 {
+				newsletterOnly = results[0].Bool()
+			}
+		}
+	}
 
 	users, total, err := h.svc.GetAllUsers(ctx, page, limit, req.GetSortBy(), !req.GetSortDesc(), searchQuery, newsletterOnly)
 	if err != nil {

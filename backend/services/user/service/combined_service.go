@@ -79,8 +79,8 @@ func (s *CombinedService) GetRecommendedUsers(ctx context.Context, limit int) ([
 	return s.userService.GetRecommendedUsers(ctx, limit)
 }
 
-func (s *CombinedService) GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool) ([]*model.User, int, error) {
-	return s.userService.GetAllUsers(ctx, page, limit, sortBy, ascending)
+func (s *CombinedService) GetAllUsers(ctx context.Context, page, limit int, sortBy string, ascending bool, searchQuery string, newsletterOnly bool) ([]*model.User, int, error) {
+	return s.userService.GetAllUsers(ctx, page, limit, sortBy, ascending, searchQuery, newsletterOnly)
 }
 
 func (s *CombinedService) BlockUser(ctx context.Context, blockerID, blockedID string) error {
@@ -105,4 +105,8 @@ func (s *CombinedService) GetBlockedUsers(ctx context.Context, userID string, pa
 
 func (s *CombinedService) CreatePremiumRequest(ctx context.Context, req *userpb.CreatePremiumRequestRequest) (*userpb.CreatePremiumRequestResponse, error) {
 	return s.userService.CreatePremiumRequest(ctx, req)
+}
+
+func (s *CombinedService) GetNewsletterSubscribers(ctx context.Context, page, limit int) ([]*model.User, int, error) {
+	return s.userService.GetNewsletterSubscribers(ctx, page, limit)
 }

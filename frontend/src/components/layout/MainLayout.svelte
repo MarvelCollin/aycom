@@ -549,30 +549,32 @@
   
   .app-layout {
     display: grid;
-    grid-template-columns: minmax(60px, 250px) minmax(0, 1fr) 320px;
+    grid-template-columns: 1fr 3fr 1fr;
     grid-template-areas: "sidebar main widgets";
     min-height: 100vh;
     width: 100%;
     margin: 0 auto;
-    max-width: 100%;
+    max-width: 1440px;
   }
   
   /* Adjust sidebar width */
   @media (min-width: 1281px) {
     .app-layout {
-      grid-template-columns: minmax(60px, 250px) minmax(0, 1fr) 320px;
+      grid-template-columns: 1fr 3fr 1fr;
+      max-width: 1280px;
     }
   }
   
   @media (max-width: 1280px) {
     .app-layout {
-      grid-template-columns: minmax(60px, 160px) minmax(0, 1fr) 320px;
+      grid-template-columns: 1fr 3fr 1fr;
+      max-width: 100%;
     }
   }
   
   @media (max-width: 992px) {
     .app-layout {
-      grid-template-columns: 70px minmax(0, 1fr);
+      grid-template-columns: 1fr 4fr;
       grid-template-areas: "sidebar main";
     }
     
@@ -621,5 +623,55 @@
   .sidebar-dark {
     background-color: var(--dark-bg-primary);
     border-right: 1px solid var(--border-color-dark);
+  }
+  
+  .main-content {
+    width: 100%;
+    max-width: 670px;
+    margin: 0 auto;
+    border-right: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  .main-content-dark {
+    border-right: 1px solid var(--border-color-dark);
+    border-left: 1px solid var(--border-color-dark);
+  }
+  
+  .widgets-container {
+    grid-area: widgets;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: var(--space-4);
+    z-index: var(--z-sidebar);
+  }
+  
+  .widgets-container-dark {
+    background-color: var(--dark-bg-primary);
+  }
+  
+  /* Custom styles for content containment */
+  :global(.view-replies-button) {
+    padding: var(--space-2) 0;
+    width: auto;
+    max-width: 95%;
+    margin: 0 auto;
+    text-align: center;
+    color: var(--color-primary);
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+  }
+  
+  :global(.reply-container) {
+    width: 100%;
+    max-width: 100%;
+    border-top: 1px solid var(--border-color);
+    padding: var(--space-2) var(--space-3);
   }
 </style>
