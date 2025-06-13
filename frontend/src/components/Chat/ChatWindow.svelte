@@ -35,7 +35,13 @@
       isLoadingMessages = true;
       logger.debug('Loading message history for chat', { chatId });
       
+      // Log API URL for debugging
+      console.log(`[ChatWindow] Fetching messages for chat ID: ${chatId}`);
+      
       const response = await listMessages(chatId);
+      
+      // Log the response for debugging
+      console.log('[ChatWindow] API response:', response);
       
       if (response && response.messages && Array.isArray(response.messages)) {
         logger.debug('Loaded messages from API', { count: response.messages.length });
@@ -75,10 +81,28 @@
         });
       } else {
         logger.warn('No messages returned from API or invalid response format', { response });
+        console.warn('[ChatWindow] Invalid or empty messages response:', response);
+        
+        // Check response properties for debugging
+        if (response) {
+          console.log('[ChatWindow] Response keys:', Object.keys(response));
+          console.log('[ChatWindow] Response type:', typeof response);
+          
+          if (response.messages) {
+            console.log('[ChatWindow] Messages type:', typeof response.messages);
+            console.log('[ChatWindow] Is array?', Array.isArray(response.messages));
+          }
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to load message history', error);
       errorMessage = 'Failed to load messages. Please try refreshing.';
+      console.error('[ChatWindow] Error loading messages:', error?.message || error);
+      
+      // Add more context about the error
+      if (error?.stack) {
+        console.debug('[ChatWindow] Error stack:', error.stack);
+      }
     } finally {
       isLoadingMessages = false;
     }

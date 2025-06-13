@@ -61,6 +61,7 @@ function createWebSocketStore() {
         userId = payload.user_id || payload.sub || '';
       } catch (e) {
         logger.warn('Could not extract user ID from token');
+        console.error('[WebSocket] Failed to extract user ID from token:', e);
       }
     }
     
@@ -73,11 +74,13 @@ function createWebSocketStore() {
       wsUrl += `?${params.join('&')}`;
     }
     
+    console.log('[WebSocket] Built connection URL:', wsUrl);
     return wsUrl;
   };
 
   const connect = (chatId: string) => {
     logger.info(`Connecting to WebSocket for chat: ${chatId}`);
+    console.log(`[WebSocket] Attempting to connect for chat ID: ${chatId}`);
     
     update(state => ({
       ...state,
@@ -97,6 +100,7 @@ function createWebSocketStore() {
           state.chatConnections[chatId].close();
         } catch (e) {
           logger.warn(`Error closing existing connection: ${e}`);
+          console.error(`[WebSocket] Error closing existing connection for chat ${chatId}:`, e);
         }
       }
       return state;
@@ -105,10 +109,12 @@ function createWebSocketStore() {
     try {
       const wsUrl = buildWebSocketUrl(chatId);
       logger.info(`Attempting to connect to WebSocket: ${wsUrl}`);
+      console.log(`[WebSocket] Attempting connection with URL: ${wsUrl}`);
       
       const ws = new WebSocket(wsUrl);
       ws.onopen = () => {
         logger.info(`WebSocket connection established for chat ${chatId}`);
+        console.log(`[WebSocket] Connection established successfully for chat ${chatId}`);
         update(s => ({ 
           ...s, 
           connected: true, 
@@ -134,6 +140,7 @@ function createWebSocketStore() {
               userId = payload.user_id || payload.sub || '';
             } catch (e) {
               logger.warn('Could not extract user ID from token');
+              console.error('[WebSocket] Failed to extract user ID for initial message:', e);
             }
           }
           
@@ -147,6 +154,7 @@ function createWebSocketStore() {
           logger.debug(`Sent initial connection check for chat ${chatId}`);
         } catch (e) {
           logger.error(`Error sending initial message for chat ${chatId}:`, e);
+          console.error(`[WebSocket] Failed to send initial message for chat ${chatId}:`, e);
         }
         
         reconnectAttempts = 0;
@@ -160,11 +168,20 @@ function createWebSocketStore() {
           messageHandlers.forEach(handler => handler(message));
         } catch (e) {
           logger.error(`Error parsing WebSocket message for chat ${chatId}:`, e);
+          console.error(`[WebSocket] Failed to parse message for chat ${chatId}:`, e, 'Raw data:', event.data);
         }
       };
       
       ws.onerror = (error) => {
         logger.error(`WebSocket error for chat ${chatId}:`, error);
+        console.error(`[WebSocket] Error in connection for chat ${chatId}:`, error);
+        console.log(`[WebSocket] Error details:`, {
+          url: wsUrl,
+          readyState: ws.readyState,
+          protocol: ws.protocol,
+          bufferedAmount: ws.bufferedAmount
+        });
+        
         update(s => ({ 
           ...s, 
           lastError: 'Connection error',
@@ -177,6 +194,33 @@ function createWebSocketStore() {
       
       ws.onclose = (event) => {
         logger.info(`WebSocket closed for chat ${chatId}: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
+        console.log(`[WebSocket] Connection closed for chat ${chatId}:`, {
+          code: event.code,
+          reason: event.reason || 'No reason provided',
+          wasClean: event.wasClean,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Log explanations for common close codes
+        const closeCodeMessages: Record<number, string> = {
+          1000: 'Normal closure',
+          1001: 'Going away (page unload)',
+          1002: 'Protocol error',
+          1003: 'Unsupported data',
+          1005: 'No status received',
+          1006: 'Abnormal closure (connection lost)',
+          1007: 'Invalid frame payload data',
+          1008: 'Policy violation',
+          1009: 'Message too big',
+          1010: 'Missing extension',
+          1011: 'Internal server error',
+          1012: 'Service restart',
+          1013: 'Try again later',
+          1015: 'TLS handshake failure'
+        };
+        
+        const codeExplanation = closeCodeMessages[event.code] || 'Unknown close code';
+        console.log(`[WebSocket] Close code explanation: ${codeExplanation}`);
         
         update(s => {
           const connections = { ...s.chatConnections };
@@ -195,6 +239,7 @@ function createWebSocketStore() {
         
         if (event.code !== 1000) {
           logger.info(`Will attempt to reconnect to chat ${chatId} due to non-clean close`);
+          console.log(`[WebSocket] Will attempt reconnect for chat ${chatId} (non-clean close)`);
           attemptReconnect(chatId);
         }
       };
@@ -209,6 +254,7 @@ function createWebSocketStore() {
       
     } catch (error) {
       logger.error('Failed to establish WebSocket connection:', error);
+      console.error(`[WebSocket] Failed to establish connection for chat ${chatId}:`, error);
       
       update(state => ({
         ...state,

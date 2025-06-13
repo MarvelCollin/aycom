@@ -286,6 +286,18 @@ func (s *userService) UpdateUserProfile(ctx context.Context, req *userpb.UpdateU
 			updated = true
 			log.Printf("User %s admin status updated from %v to %v", req.UserId, prevStatus, user.IsAdmin)
 		}
+
+		// Handle password update
+		if req.User.Password != "" {
+			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.User.Password), bcrypt.DefaultCost)
+			if err != nil {
+				log.Printf("Error hashing password: %v", err)
+				return nil, status.Error(codes.Internal, "Failed to process password update")
+			}
+			user.PasswordHash = string(hashedPassword)
+			updated = true
+			log.Printf("Password updated for user %s", req.UserId)
+		}
 	}
 
 	if !updated {

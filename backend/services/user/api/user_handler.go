@@ -46,6 +46,8 @@ func mapUserModelToProto(u *model.User) *user.User {
 		Website:           u.Website,
 		ProfilePictureUrl: u.ProfilePictureURL,
 		BannerUrl:         u.BannerURL,
+		SecurityQuestion:  u.SecurityQuestion,
+		SecurityAnswer:    u.SecurityAnswer,
 		FollowerCount:     int32(u.FollowerCount),
 		FollowingCount:    int32(u.FollowingCount),
 		IsVerified:        u.IsVerified,

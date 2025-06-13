@@ -77,6 +77,7 @@ interface Logger {
   debug(message: string, data?: any, options?: ToastOptions): void;
   info(message: string, data?: any, options?: ToastOptions): void;
   warn(message: string, data?: any, options?: ToastOptions): void;
+  warning(message: string, data?: any, options?: ToastOptions): void;
   error(message: string, data?: any, options?: ToastOptions): void;
   getLevel(): LogLevel;
   setLevel(level: LogLevel): void;
@@ -138,6 +139,8 @@ const createLogger = (prefix: string): Logger => {
     info: (message: string, data?: any, options?: ToastOptions) => 
       log(LogLevel.INFO, message, data, options),
     warn: (message: string, data?: any, options?: ToastOptions) => 
+      log(LogLevel.WARN, message, data, options),
+    warning: (message: string, data?: any, options?: ToastOptions) => 
       log(LogLevel.WARN, message, data, options),
     error: (message: string, data?: any, options?: ToastOptions) => 
       log(LogLevel.ERROR, message, data, options),

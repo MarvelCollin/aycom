@@ -256,36 +256,92 @@ export async function createChat(data: Record<string, any>) {
 export async function listChats() {
   try {
     const token = getAuthToken();
+    logger.debug('Fetching chat list');
+    
+    // Log API URL to ensure it's correct
+    logger.info(`API URL for chats: ${API_BASE_URL}/chats`);
 
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
       credentials: 'include'
     });
 
+    // Log the response status
+    logger.info(`Chat list response status: ${response.status} ${response.statusText}`);
+    
+    // Log response headers to debug content-type issues
+    const contentTypeHeader = response.headers.get('content-type');
+    logger.info(`Response content type: ${contentTypeHeader || 'not provided'}`);
+
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to list chats');
+      // Try to log the error body for more context
+      try {
+        const errorText = await response.text();
+        logger.error(`Error response body: ${errorText}`);
+      } catch (textError) {
+        logger.error('Could not read error response body', textError);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to list chats');
+        } catch (parseError) {
+          logger.error('Could not parse error response as JSON', parseError);
+          throw new Error(`Failed to list chats: ${response.status} ${response.statusText}`);
+        }
       } else {
         throw new Error(`Failed to list chats: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType) {
+      logger.warn('No content-type header in response');
+    }
+    
+    if (contentType.includes('application/json')) {
       try {
-        return await response.json();
+        const responseData = await response.json();
+        // Log the shape of the response data
+        logger.debug('API response structure:', {
+          hasData: !!responseData,
+          hasChats: responseData && 'chats' in responseData,
+          isChatsArray: responseData && 'chats' in responseData && Array.isArray(responseData.chats),
+          responseKeys: responseData ? Object.keys(responseData) : []
+        });
+        return responseData;
       } catch (parseError: unknown) {
         logger.error('Failed to parse JSON response for listing chats:', parseError);
+        // Try to log the raw response for debugging
+        try {
+          const responseText = await response.clone().text();
+          logger.error('Raw response text:', responseText.substring(0, 200) + '...');
+        } catch (textError) {
+          logger.error('Could not read raw response', textError);
+        }
         return { chats: [] };
       }
     } else {
       logger.warn('Non-JSON response for listing chats');
+      // Try to log the actual response content
+      try {
+        const responseText = await response.text();
+        logger.warn('Non-JSON response content:', responseText.substring(0, 500));
+        
+        // Check if this might be HTML (likely an error page)
+        if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
+          logger.error('Received HTML response instead of JSON. This is likely a server error page or misconfigured route');
+        }
+      } catch (textError) {
+        logger.error('Could not read response text', textError);
+      }
       return { chats: [] };
     }
   } catch (error) {
@@ -419,6 +475,25 @@ export async function removeChatParticipant(chatId: string, userId: string) {
 
 export async function sendMessage(chatId: string, data: Record<string, any>) {
   try {
+    // TEMPORARY: Return mock data for testing UI
+    logger.debug(`TESTING MODE: Returning mock send message response for chat ${chatId}`, { content: data.content });
+    
+    const mockMessage = {
+      message_id: `msg-${Date.now()}`,
+      message: {
+        id: `msg-${Date.now()}`,
+        chat_id: chatId,
+        sender_id: "test-user-123",
+        content: data.content,
+        timestamp: Date.now() / 1000,
+        is_read: false,
+        is_edited: false,
+        is_deleted: false,
+      }
+    };
+    
+    return mockMessage;
+
     const token = getAuthToken();
     logger.debug(`Sending message to chat ${chatId}`, { content: data.content });
 
@@ -505,8 +580,8 @@ export async function listMessages(chatId: string) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
         try {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Failed to list messages');
@@ -518,8 +593,8 @@ export async function listMessages(chatId: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
       try {
         const data = await response.json();
         logger.debug(`Received ${data.messages?.length || 0} messages for chat ${chatId}`);
@@ -551,8 +626,8 @@ export async function deleteMessage(chatId: string, messageId: string) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to delete message');
       } else {
@@ -560,8 +635,8 @@ export async function deleteMessage(chatId: string, messageId: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -591,8 +666,8 @@ export async function unsendMessage(chatId: string, messageId: string) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to unsend message');
       } else {
@@ -600,8 +675,8 @@ export async function unsendMessage(chatId: string, messageId: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -632,8 +707,8 @@ export async function searchMessages(chatId: string, query: string) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to search messages');
       } else {
@@ -641,8 +716,8 @@ export async function searchMessages(chatId: string, query: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -679,8 +754,8 @@ export async function getChatHistoryList() {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
         const errorData = await response.json();
         logger.error('Error response from chat history endpoint', errorData);
         throw new Error(errorData.message || 'Failed to get chat history');
@@ -689,8 +764,8 @@ export async function getChatHistoryList() {
       }
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
       try {
         const data = await response.json();
         logger.debug('Chat history response data', { 
@@ -712,5 +787,197 @@ export async function getChatHistoryList() {
   } catch (error) {
     logger.error('Get chat history failed:', error);
     throw error;
+  }
+}
+
+// Adding API test function to check server connection
+export async function testApiConnection() {
+  try {
+    logger.debug('Testing API connection');
+    
+    // Check API URL format
+    const baseUrlComponents = API_BASE_URL.split('/');
+    if (baseUrlComponents.length < 3) {
+      logger.error('Invalid API URL format:', API_BASE_URL);
+      return { success: false, error: 'Invalid API URL format', url: API_BASE_URL };
+    }
+    
+    const protocol = baseUrlComponents[0];
+    const host = baseUrlComponents[2];
+    
+    logger.debug(`API Protocol: ${protocol}, Host: ${host}`);
+    
+    // First check if the server is reachable with a basic request
+    try {
+      const basicResponse = await fetch(`${protocol}//${host}/`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html,application/json'
+        }
+      });
+      
+      logger.debug(`Basic server response: ${basicResponse.status}`);
+    } catch (err) {
+      logger.warn('Basic connectivity check failed:', err);
+      // Continue with other tests even if this fails
+    }
+    
+    // Define endpoints to try in order
+    const endpointsToTry = [
+      '/api/v1/chats',     // Try chats endpoint first (what we actually need)
+      '/api/v1',           // Try base API path
+      '/api/v1/users',     // Try users endpoint
+      '/api/v1/trends',    // Try trends endpoint
+      '/api/v1/health'     // Try health endpoint last
+    ];
+    
+    let successful = false;
+    let status = 0;
+    let responseData = null;
+    let errorMessage = '';
+    
+    // Try each endpoint until one works
+    for (const endpoint of endpointsToTry) {
+      try {
+        logger.debug(`Testing API endpoint: ${endpoint}`);
+        const apiResponse = await fetch(`${protocol}//${host}${endpoint}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+        
+        status = apiResponse.status;
+        logger.debug(`API endpoint ${endpoint} response: ${status}`);
+        
+        // Consider any response a success for connectivity purposes
+        successful = true;
+        
+        // If we got a successful response, try to parse it
+        if (apiResponse.ok) {
+          try {
+            responseData = await apiResponse.json();
+            logger.debug(`API response data from ${endpoint}:`, responseData);
+            // If we got a valid response, stop trying more endpoints
+            break;
+          } catch (e) {
+            logger.debug(`Could not parse JSON from ${endpoint} response`);
+          }
+        } else {
+          errorMessage = apiResponse.statusText;
+        }
+      } catch (endpointErr) {
+        logger.debug(`Failed to connect to ${endpoint}:`, endpointErr);
+      }
+    }
+    
+    if (successful) {
+      return {
+        success: true,
+        status,
+        endpoint: endpointsToTry.find(ep => successful) || '',
+        data: responseData
+      };
+    } else {
+      return {
+        success: false,
+        error: errorMessage || 'Could not connect to any API endpoint',
+        testedEndpoints: endpointsToTry
+      };
+    }
+  } catch (error) {
+    logger.error('API connection test failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+// Adding a function to help diagnose auth token issues
+export function logAuthTokenInfo() {
+  try {
+    const token = getAuthToken();
+    if (!token) {
+      logger.error('No auth token found');
+      return { success: false, error: 'No auth token available' };
+    }
+    
+    logger.info('Auth token found, checking format');
+    
+    // Check token format
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      logger.error('Invalid JWT format - expected 3 parts separated by periods');
+      return { success: false, error: 'Invalid JWT format', tokenLength: token.length };
+    }
+    
+    // Check header
+    try {
+      const headerJson = atob(parts[0]);
+      const header = JSON.parse(headerJson);
+      logger.debug('Token header:', header);
+      
+      if (!header.alg) {
+        logger.warn('Token header missing algorithm');
+      }
+      
+      if (!header.typ) {
+        logger.warn('Token header missing type');
+      }
+    } catch (e) {
+      logger.error('Failed to parse token header:', e);
+    }
+    
+    // Check payload
+    try {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payloadJson = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const payload = JSON.parse(payloadJson);
+      
+      // Log useful information but redact sensitive data
+      const safePayload = { ...payload };
+      delete safePayload.password;
+      delete safePayload.secret;
+      
+      logger.info('Token payload:', safePayload);
+      
+      // Check for important claims
+      if (!payload.exp) {
+        logger.warn('Token missing expiration (exp) claim');
+      } else {
+        const expiry = new Date(payload.exp * 1000);
+        const now = new Date();
+        
+        if (expiry < now) {
+          logger.error(`Token expired at ${expiry.toISOString()}`);
+        } else {
+          logger.info(`Token valid until ${expiry.toISOString()} (${Math.floor((expiry.getTime() - now.getTime()) / 60000)} minutes)`);
+        }
+      }
+      
+      if (!payload.sub && !payload.user_id) {
+        logger.warn('Token missing subject (sub) or user_id claim');
+      }
+      
+      return {
+        success: true,
+        isExpired: payload.exp ? new Date(payload.exp * 1000) < new Date() : null,
+        userId: payload.sub || payload.user_id,
+        expiresAt: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
+        issuer: payload.iss || null
+      };
+    } catch (e) {
+      logger.error('Failed to parse token payload:', e);
+      return { success: false, error: 'Failed to parse token payload' };
+    }
+  } catch (e) {
+    logger.error('Error checking auth token:', e);
+    return { success: false, error: 'Error analyzing token' };
   }
 }

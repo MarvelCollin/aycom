@@ -34,6 +34,7 @@ function createNotificationWebSocketStore() {
   const connect = () => {
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
       logger.info('WebSocket already connecting or connected');
+      console.log('[NotificationWebSocket] Connection already active or in progress');
       return;
     }
 
@@ -44,6 +45,7 @@ function createNotificationWebSocketStore() {
           ws.close();
         } catch (e) {
           logger.debug('Error closing existing WebSocket connection:', e);
+          console.error('[NotificationWebSocket] Error closing existing connection:', e);
         }
         ws = null;
       }
@@ -51,10 +53,12 @@ function createNotificationWebSocketStore() {
       // Always use localhost for WebSocket testing until we resolve the connection issue
       const wsBaseUrl = 'ws://localhost:8083/api/v1';
       logger.debug(`Using direct WebSocket base URL: ${wsBaseUrl}`);
+      console.log('[NotificationWebSocket] Using base URL:', wsBaseUrl);
       
       const token = getAuthToken();
       if (!token) {
         logger.error('No auth token available, cannot connect to WebSocket');
+        console.error('[NotificationWebSocket] Authentication error: No token available');
         update(s => ({ 
           ...s, 
           lastError: 'No authentication token available' 
@@ -74,9 +78,11 @@ function createNotificationWebSocketStore() {
           const tokenData = JSON.parse(jsonPayload);
           userId = tokenData.user_id || tokenData.sub || '';
           logger.debug('Extracted user ID from token:', userId);
+          console.log('[NotificationWebSocket] Extracted user ID:', userId.substring(0, 8) + '...');
         }
       } catch (e) {
         logger.error('Error decoding token:', e);
+        console.error('[NotificationWebSocket] Failed to decode token:', e);
       }
       
       let wsUrl = `${wsBaseUrl}/notifications/ws`;
@@ -96,6 +102,7 @@ function createNotificationWebSocketStore() {
       }
       
       logger.info(`Attempting to connect to Notification WebSocket: ${wsUrl.substring(0, 50)}...`);
+      console.log('[NotificationWebSocket] Connecting to:', wsUrl.substring(0, 50) + '...');
       
       // Try to use pure WebSocket without extensions
       ws = new WebSocket(wsUrl);
@@ -104,6 +111,7 @@ function createNotificationWebSocketStore() {
       const connectionTimeout = setTimeout(() => {
         if (ws && ws.readyState !== WebSocket.OPEN) {
           logger.error('WebSocket connection timeout');
+          console.error('[NotificationWebSocket] Connection timeout after 5 seconds');
           if (ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) {
             ws.close();
           }
@@ -116,6 +124,7 @@ function createNotificationWebSocketStore() {
       ws.onopen = () => {
         clearTimeout(connectionTimeout);
         logger.info('Notification WebSocket connection established');
+        console.log('[NotificationWebSocket] Connection successfully established');
         update(s => ({ 
           ...s, 
           connected: true, 
@@ -148,15 +157,23 @@ function createNotificationWebSocketStore() {
           messageHandlers.forEach(handler => handler(message));
         } catch (e) {
           logger.error('Error parsing notification WebSocket message:', e);
+          console.error('[NotificationWebSocket] Failed to parse message:', e, 'Raw data:', event.data);
         }
       };
       
       ws.onerror = (error) => {
         clearTimeout(connectionTimeout);
         logger.error('Notification WebSocket error:', error);
+        console.error('[NotificationWebSocket] Connection error:', error);
         
-        // Log the WSUrl to help debug connection issues
-        logger.error('Connection URL was:', wsUrl);
+        // Log more details about the connection attempt
+        console.log('[NotificationWebSocket] Connection details:', {
+          url: wsUrl.substring(0, 50) + '...',
+          readyState: ws?.readyState,
+          protocol: ws?.protocol,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        });
         
         update(s => ({ 
           ...s, 
@@ -167,6 +184,33 @@ function createNotificationWebSocketStore() {
       ws.onclose = (event) => {
         clearTimeout(connectionTimeout);
         logger.info(`Notification WebSocket closed: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
+        console.log('[NotificationWebSocket] Connection closed:', {
+          code: event.code,
+          reason: event.reason || 'No reason provided',
+          wasClean: event.wasClean,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Log explanations for common close codes
+        const closeCodeMessages: Record<number, string> = {
+          1000: 'Normal closure',
+          1001: 'Going away (page unload)',
+          1002: 'Protocol error',
+          1003: 'Unsupported data',
+          1005: 'No status received',
+          1006: 'Abnormal closure (connection lost)',
+          1007: 'Invalid frame payload data',
+          1008: 'Policy violation',
+          1009: 'Message too big',
+          1010: 'Missing extension',
+          1011: 'Internal server error',
+          1012: 'Service restart',
+          1013: 'Try again later',
+          1015: 'TLS handshake failure'
+        };
+        
+        const codeExplanation = closeCodeMessages[event.code] || 'Unknown close code';
+        console.log(`[NotificationWebSocket] Close code explanation: ${codeExplanation}`);
         
         update(s => ({ 
           ...s, 
@@ -179,12 +223,16 @@ function createNotificationWebSocketStore() {
           const notificationEnabledPaths = ['/feed', '/notifications'];
           
           if (notificationEnabledPaths.includes(currentPath)) {
+            console.log('[NotificationWebSocket] Will attempt reconnect (non-clean close)');
             attemptReconnect();
+          } else {
+            console.log('[NotificationWebSocket] Not reconnecting - not on a notification-enabled page');
           }
         }
       };
     } catch (error) {
       logger.error('Failed to establish notification WebSocket connection:', error);
+      console.error('[NotificationWebSocket] Fatal connection error:', error);
       
       // Only attempt reconnect if we're on a page that requires it
       const currentPath = window.location.pathname;
@@ -204,6 +252,7 @@ function createNotificationWebSocketStore() {
 
   const disconnect = () => {
     logger.info('Disconnecting notification WebSocket');
+    console.log('[NotificationWebSocket] Disconnecting by request');
     
     if (ws) {
       try {
@@ -211,6 +260,7 @@ function createNotificationWebSocketStore() {
         ws = null;
       } catch (e) {
         logger.error('Error closing notification WebSocket:', e);
+        console.error('[NotificationWebSocket] Error while disconnecting:', e);
       }
     }
 
@@ -240,6 +290,7 @@ function createNotificationWebSocketStore() {
     
     if (reconnectAttempts >= maxReconnectAttempts) {
       logger.warn(`Maximum reconnect attempts (${maxReconnectAttempts}) reached. Giving up.`);
+      console.warn(`[NotificationWebSocket] Giving up after ${maxReconnectAttempts} reconnect attempts`);
       update(s => ({
         ...s,
         reconnecting: false,

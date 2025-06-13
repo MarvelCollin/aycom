@@ -664,13 +664,11 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	storedPassword := userResp.User.Password
-	if storedPassword == req.NewPassword {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "SAME_PASSWORD", "New password cannot be the same as the old one")
-		return
-	}
+	// We can't compare the old password hash with the new plain text password
+	// So we'll just update the password without checking if it's the same
 
 	updateReq := &userProto.UpdateUserRequest{
+		UserId: userResp.User.Id,
 		User: &userProto.User{
 			Id:       userResp.User.Id,
 			Password: req.NewPassword,

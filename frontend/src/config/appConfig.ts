@@ -39,9 +39,10 @@ const appConfig = {
 // Log the configuration for debugging
 console.log('[Config] Environment:', appConfig.environment);
 console.log('[Config] API Base URL:', appConfig.api.baseUrl);
+console.log('[Config] WebSocket URL:', appConfig.api.wsUrl);
 console.log('[Config] AI Service URL:', appConfig.api.aiServiceUrl);
 
-// Helper function to log API health status
+// Add more comprehensive API health check
 export const checkApiHealth = async () => {
   try {
     console.log(`[Config] Testing API connection to: ${appConfig.api.baseUrl}`);
@@ -50,8 +51,8 @@ export const checkApiHealth = async () => {
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'unknown';
     console.log(`[Config] Current origin: ${currentOrigin}`);
     
-    // Use /trends endpoint which we know is working from the logs
-    const response = await fetch(`${appConfig.api.baseUrl}/trends`, {
+    // Check if API gateway is accessible
+    const response = await fetch(`${appConfig.api.baseUrl}/health`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -87,6 +88,41 @@ export const checkApiHealth = async () => {
         'Access-Control-Allow-Methods': allowMethods || 'not present',
         'Access-Control-Allow-Headers': allowHeaders || 'not present'
       });
+      
+      // Try to parse response
+      try {
+        const responseData = await response.json();
+        console.log('[Config] API health response:', responseData);
+      } catch(e) {
+        console.warn('[Config] Could not parse API response as JSON');
+      }
+    }
+    
+    // Also check chats endpoint specifically
+    console.log('[Config] Testing chats endpoint...');
+    try {
+      const chatsResponse = await fetch(`${appConfig.api.baseUrl}/chats`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Origin': currentOrigin
+        },
+        mode: 'cors',
+        credentials: 'include'
+      });
+      
+      console.log(`[Config] Chats endpoint status: ${chatsResponse.status}`);
+      
+      if (!chatsResponse.ok) {
+        console.warn('[Config] Chats endpoint not responding correctly');
+        const contentType = chatsResponse.headers.get('content-type');
+        console.log('[Config] Chats endpoint content-type:', contentType || 'none');
+      } else {
+        console.log('[Config] Chats endpoint responding correctly');
+      }
+    } catch(e) {
+      console.error('[Config] Error testing chats endpoint:', e);
     }
   } catch (error) {
     console.error('[Config] Error connecting to API:', error);

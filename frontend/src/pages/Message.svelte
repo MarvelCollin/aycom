@@ -7,7 +7,7 @@
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
   import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
-  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList } from '../api/chat';
+  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList, testApiConnection, logAuthTokenInfo } from '../api/chat';
   import { getProfile, searchUsers, getUserById, getAllUsers } from '../api/user';
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
@@ -499,6 +499,9 @@
     checkViewport();
     window.addEventListener('resize', checkViewport);
     
+    // Run API connection test first
+    testApiConfig();
+    
     // Initialize user profile and chats
     if (authState && authState.is_authenticated) {
       fetchUserProfile();
@@ -507,9 +510,37 @@
     
     return () => {
       window.removeEventListener('resize', checkViewport);
-          };
-        });
-        
+    };
+  });
+  
+  // Test API configuration and connectivity
+  async function testApiConfig() {
+    try {
+      logger.info('Testing API connection...');
+      
+      // Check authentication token first
+      console.log('[Message] Checking authentication token...');
+      const tokenInfo = logAuthTokenInfo();
+      console.log('[Message] Auth token check result:', tokenInfo);
+      
+      if (!tokenInfo.success || tokenInfo.isExpired) {
+        logger.error('Authentication token issue detected:', tokenInfo);
+        toastStore.showToast(`Authentication error: ${tokenInfo.error || 'Token expired or invalid'}. Please log in again.`, 'error');
+      }
+      
+      // Test API connection
+      const result = await testApiConnection();
+      logger.info('API connection test result:', result);
+      
+      if (!result.success) {
+        logger.error('API connection test failed:', result.error);
+        toastStore.showToast(`API connection error: ${result.error}. This may affect chat functionality.`, 'error');
+      }
+    } catch (error) {
+      logger.error('Error running API connection test:', error);
+    }
+  }
+  
   function toggleMobileMenu() {
     showMobileMenu = !showMobileMenu;
   }
@@ -540,33 +571,43 @@
     
     isLoadingChats = true;
     try {
+      logger.info('Fetching chats from API');
       const response = await listChats();
       
-      if (response && Array.isArray(response)) {
-        // Map API response to our Chat interface
-        chats = response.map(chat => ({
-          id: chat.id,
-          type: chat.is_group_chat ? 'group' : 'individual',
-          name: chat.name || '',
-          avatar: chat.profile_picture_url,
-          profile_picture_url: chat.profile_picture_url,
-          participants: chat.participants?.map(p => ({
-            id: p.user_id,
-            username: p.username || '',
-            display_name: p.display_name || p.username || 'User',
-            avatar: p.avatar_url || null,
-            is_verified: p.is_verified || false
-          })) || [],
-          last_message: chat.last_message ? {
-            content: chat.last_message.content || '',
-            timestamp: chat.last_message.timestamp || Date.now(),
-            sender_id: chat.last_message.sender_id || '',
-            sender_name: chat.last_message.sender_name || ''
-          } : undefined,
-          messages: [],
-          unread_count: chat.unread_count || 0
-        }));
+      logger.info('API response received:', { 
+        hasData: !!response,
+        hasChats: response && 'chats' in response,
+        isArray: Array.isArray(response),
+        keysIfObject: response && typeof response === 'object' ? Object.keys(response) : []
+      });
+      
+      if (response && 'chats' in response && Array.isArray(response.chats)) {
+        // Standard API response with chats property
+        logger.info(`Processing ${response.chats.length} chats from API`);
+        chats = mapApiChatsToClientFormat(response.chats);
+      } else if (Array.isArray(response)) {
+        // API returns direct array
+        logger.info(`Processing ${response.length} chats from direct array`);
+        chats = mapApiChatsToClientFormat(response);
+      } else if (response && typeof response === 'object') {
+        // API returns unknown object structure
+        logger.warn('API returned unknown response structure:', response);
+        
+        // Try to find any array that might contain chats
+        const possibleChatArrays = Object.entries(response)
+          .filter(([_key, value]) => Array.isArray(value))
+          .sort(([_keyA, valueA], [_keyB, valueB]) => (valueB as any[]).length - (valueA as any[]).length);
+        
+        if (possibleChatArrays.length > 0) {
+          const [arrayName, chatArray] = possibleChatArrays[0];
+          logger.info(`Using '${arrayName}' array with ${(chatArray as any[]).length} items`);
+          chats = mapApiChatsToClientFormat(chatArray as any[]);
+        } else {
+          logger.error('No usable chat data found in API response');
+          chats = [];
+        }
       } else {
+        logger.error('Invalid API response format for chats');
         chats = [];
       }
       
@@ -575,10 +616,38 @@
       
     } catch (error) {
       logger.error('Failed to fetch chats', error);
-      toastStore.showToast('Failed to load chats', 'error');
+      toastStore.showToast('Failed to load chats. Please try refreshing.', 'error');
+      chats = [];
+      filteredChats = [];
     } finally {
       isLoadingChats = false;
     }
+  }
+  
+  // Helper function to map API chat data to client format
+  function mapApiChatsToClientFormat(apiChats: any[]): Chat[] {
+    return apiChats.map(chat => ({
+      id: chat.id,
+      type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
+      name: chat.name || '',
+      avatar: chat.profile_picture_url || chat.avatar_url || chat.avatar,
+      profile_picture_url: chat.profile_picture_url || chat.avatar_url || chat.avatar,
+      participants: chat.participants?.map((p: any) => ({
+        id: p.user_id || p.id,
+        username: p.username || '',
+        display_name: p.display_name || p.username || p.name || 'User',
+        avatar: p.avatar_url || p.profile_picture_url || p.avatar || null,
+        is_verified: p.is_verified || false
+      })) || [],
+      last_message: chat.last_message ? {
+        content: chat.last_message.content || '',
+        timestamp: chat.last_message.timestamp || Date.now(),
+        sender_id: chat.last_message.sender_id || chat.last_message.user_id || '',
+        sender_name: chat.last_message.sender_name || chat.last_message.username || ''
+      } : undefined,
+      messages: [],
+      unread_count: chat.unread_count || 0
+    }));
   }
   
   // Format chat data for display
@@ -642,6 +711,23 @@
 
   <!-- Main content area -->
   <div class="custom-content-area">
+    <!-- WebSocket Status Display -->
+    <div class="websocket-status">
+      <div class="status-indicator {$websocketStore.connected ? 'connected' : 'disconnected'}">
+        {$websocketStore.connected ? '🟢' : '🔴'} WebSocket: {$websocketStore.connected ? 'Connected' : 'Disconnected'}
+      </div>
+      {#if $websocketStore.lastError}
+        <div class="status-error">Error: {$websocketStore.lastError}</div>
+      {/if}
+      {#if Object.keys($websocketStore.connectionStatus).length > 0}
+        <div class="chat-connections">
+          {#each Object.entries($websocketStore.connectionStatus) as [chatId, status]}
+            <span class="chat-status {status}">Chat {chatId.slice(-8)}: {status}</span>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
     <div class="message-container {isDarkMode ? 'dark-theme' : ''}">
   <div class="middle-section">
         <!-- Chat header -->
@@ -951,9 +1037,70 @@
     overflow: hidden;
   }
   
-  .custom-message-layout.dark-theme {
-    background-color: var(--bg-primary-dark);
+  /* WebSocket Status Styles */
+  .websocket-status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.8);
     color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: monospace;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .status-indicator {
+    margin-bottom: 4px;
+  }
+  
+  .status-indicator.connected {
+    color: #4ade80;
+  }
+  
+  .status-indicator.disconnected {
+    color: #ef4444;
+  }
+  
+  .status-error {
+    color: #fbbf24;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  
+  .chat-connections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .chat-status {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .chat-status.connected {
+    background: rgba(74, 222, 128, 0.2);
+    color: #4ade80;
+  }
+  
+  .chat-status.disconnected {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+  
+  .chat-status.connecting {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+  }
+  
+  .chat-status.error {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
   }
   
   /* Make all text in the sidebar white */

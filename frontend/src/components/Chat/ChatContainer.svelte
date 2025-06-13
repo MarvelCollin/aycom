@@ -46,39 +46,57 @@
   
   // Load chat participants and message history when component mounts
   onMount(async () => {
+    // Get user ID from auth token
+    const token = getAuthToken();
+    if (token) {
+      try {
+        // Extract user ID from JWT token
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        
+        const tokenData = JSON.parse(jsonPayload);
+        userId = tokenData.user_id || tokenData.sub || '';
+        console.log('[ChatContainer] Extracted user ID from token:', userId);
+      } catch (e) {
+        logger.error('Failed to extract userID from token:', e);
+        console.error('[ChatContainer] Auth token parsing error:', e);
+      }
+    } else {
+      console.warn('[ChatContainer] No authentication token found');
+    }
+
     try {
       isLoading = true;
-      // Get current user ID from auth token
-      const token = getAuthToken();
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
+      console.log('[ChatContainer] Loading chat data for chat ID:', chatId);
       
-      // Parse JWT to get user ID
-      try {
-        const payload = token.split('.')[1];
-        const decoded = JSON.parse(atob(payload));
-        userId = decoded.sub || '';
-      } catch (e) {
-        logger.error('Failed to decode JWT token', e);
-        throw new Error('Failed to get user ID');
-      }
-      
-      // Fetch participant data
-      logger.debug('Fetching participants for chat', { chatId });
+      // Fetch participants
       const participantsResponse = await listChatParticipants(chatId);
-      participants = participantsResponse.participants || [];
-      logger.debug('Loaded participants', { count: participants.length, participants });
+      console.log('[ChatContainer] Participants response:', participantsResponse);
       
-      // Fetch message history
+      if (participantsResponse && participantsResponse.participants) {
+        participants = participantsResponse.participants.map((p: any) => ({
+          id: p.user_id || p.id,
+          username: p.username || '',
+          display_name: p.display_name || p.name || p.username || 'Unknown User',
+          avatar_url: p.avatar_url || p.profile_picture_url || null
+        }));
+        console.log('[ChatContainer] Processed participants:', participants);
+      }
+      
+      // Fetch messages
       const messagesResponse = await listMessages(chatId);
-      messages = messagesResponse.messages || [];
-      logger.debug('Loaded messages', { count: messages.length });
+      console.log('[ChatContainer] Messages response:', messagesResponse);
       
-      // Clear existing messages for this chat from the store to avoid duplicates
-      chatMessageStore.clearChat(chatId);
+      if (messagesResponse && messagesResponse.messages) {
+        messages = messagesResponse.messages;
+      } else {
+        console.warn('[ChatContainer] Invalid or empty messages response');
+      }
       
-      // Add messages to store for real-time updates
+      // Process messages for chat store
       if (messages.length > 0) {
         messages.forEach(message => {
           // Use existing user data if available, otherwise find from participants
@@ -122,8 +140,16 @@
       isLoading = false;
     } catch (err: unknown) {
       logger.error('Error loading chat data:', err);
+      console.error('[ChatContainer] Error details:', err instanceof Error ? err.message : err);
       error = err instanceof Error ? err.message : 'Failed to load chat';
       isLoading = false;
+      
+      // Check if this is an auth error
+      if (err instanceof Error && err.message.includes('authentication') || 
+          err instanceof Error && err.message.includes('UNAUTHORIZED')) {
+        console.error('[ChatContainer] Authentication error detected');
+        error = 'Authentication error. Please try logging in again.';
+      }
     }
   });
   
