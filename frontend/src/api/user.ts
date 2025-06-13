@@ -820,16 +820,24 @@ export async function getAllUsers(
       params.append('search', searchQuery);
     }
 
-    const response = await fetch(`${API_BASE_URL}/users?${params.toString()}`, {
+    const url = `${API_BASE_URL}/users?${params.toString()}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
+      headers
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get users (${response.status})`);
+      const errorText = await response.text();
+      throw new Error(`Failed to get users (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();

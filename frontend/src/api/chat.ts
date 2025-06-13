@@ -126,7 +126,8 @@ export async function createChat(data: Record<string, any>) {
     const token = getAuthToken();
     logger.debug('Creating chat with data', { data, apiUrl: `${API_BASE_URL}/chats` });
 
-    if (!data.is_group && data.participants && data.participants.length === 1) {
+    // Check for individual chat type and see if chat already exists
+    if (data.type === 'individual' && data.participants && data.participants.length === 1) {
       const participantId = data.participants[0];
 
       try {
@@ -166,27 +167,36 @@ export async function createChat(data: Record<string, any>) {
     });
 
     if (!response.ok) {
+      let errorMessage = `Failed to create chat: ${response.status} ${response.statusText}`;
       try {
-        // Try to parse as JSON first
-        const errorJson = await response.json();
-        logger.error('Failed to create chat:', { 
-          status: response.status, 
-          errorJson,
-          url: `${API_BASE_URL}/chats`,
-          method: 'POST'
-        });
-        throw new Error(`Failed to create chat: ${response.status} ${response.statusText} - ${JSON.stringify(errorJson)}`);
-      } catch (e) {
-        // Fall back to text if not JSON
-        const errorText = await response.text();
-        logger.error('Failed to create chat:', { 
-          status: response.status, 
-          response: errorText,
-          url: `${API_BASE_URL}/chats`,
-          method: 'POST'
-        });
-        throw new Error(`Failed to create chat: ${response.status} ${response.statusText}`);
+        // Try to read the response once
+        const responseText = await response.text();
+        try {
+          // Try to parse as JSON
+          const errorJson = JSON.parse(responseText);
+          logger.error('Failed to create chat:', { 
+            status: response.status, 
+            errorJson,
+            url: `${API_BASE_URL}/chats`,
+            method: 'POST'
+          });
+          errorMessage += ` - ${JSON.stringify(errorJson)}`;
+        } catch (jsonParseError) {
+          // If not JSON, use as text
+          logger.error('Failed to create chat:', { 
+            status: response.status, 
+            response: responseText,
+            url: `${API_BASE_URL}/chats`,
+            method: 'POST'
+          });
+          if (responseText) {
+            errorMessage += ` - ${responseText}`;
+          }
+        }
+      } catch (readError) {
+        logger.error('Failed to read error response:', readError);
       }
+      throw new Error(errorMessage);
     }
 
     let jsonResponse;
@@ -225,7 +235,7 @@ export async function createChat(data: Record<string, any>) {
           chat: {
             id: `fallback-${Date.now()}`,
             name: data.name || 'Chat',
-            is_group_chat: data.is_group || false,
+            is_group_chat: data.type === 'group',
             created_by: 'current-user',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),

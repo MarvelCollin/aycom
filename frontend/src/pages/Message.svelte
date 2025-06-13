@@ -13,6 +13,7 @@
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
   import DebugPanel from '../components/common/DebugPanel.svelte';
   import CreateGroupChat from '../components/chat/CreateGroupChat.svelte';
+  import NewChatModal from '../components/chat/NewChatModal.svelte';
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   import Toast from '../components/common/Toast.svelte';
@@ -103,6 +104,7 @@
   
   // Group chat modal state
   let showGroupChatModal = false;
+  let showNewChatModal = false;
 
   // Mobile detection
   let isMobile = false;
@@ -130,17 +132,131 @@
   }
   
   // Chat interaction functions
-  function selectChat(chat: Chat) {
+  async function selectChat(chat: Chat) {
     selectedChat = chat;
     
-    // Additional chat selection logic...
+    // Add loading state for messages
+    let tempChat = {...chat};
+    tempChat.messages = [];
+    selectedChat = tempChat;
+
+    try {
+      // Fetch messages for this chat
+      const response = await listMessages(chat.id);
+      
+      if (response && response.messages && Array.isArray(response.messages)) {
+        // Process messages
+        const formattedMessages = response.messages.map(msg => ({
+          id: msg.id,
+          content: msg.content || '',
+          timestamp: msg.timestamp || Date.now(),
+          sender_id: msg.sender_id || '',
+          sender_name: msg.sender_name || 'User',
+          sender_avatar: msg.sender_avatar || null,
+          is_own: msg.sender_id === authState.user_id,
+          is_read: msg.is_read || false,
+          is_deleted: msg.is_deleted || false,
+          attachments: msg.attachments?.map(att => ({
+            id: att.id,
+            type: att.type as 'image' | 'gif' | 'video',
+            url: att.url,
+            thumbnail: att.thumbnail
+          })) || []
+        }));
+        
+        // Update chat with messages
+        selectedChat = {
+          ...chat,
+          messages: formattedMessages
+        };
+        
+        // Mark as read if there are unread messages
+        if (chat.unread_count > 0) {
+          // This would require an API call to mark as read
+          // markChatAsRead(chat.id);
+          
+          // Update the chat list to show read status
+          const updatedChats = chats.map(c => {
+            if (c.id === chat.id) {
+              return {...c, unread_count: 0};
+            }
+            return c;
+          });
+          
+          chats = updatedChats;
+          filteredChats = filteredChats.map(c => {
+            if (c.id === chat.id) {
+              return {...c, unread_count: 0};
+            }
+            return c;
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to fetch messages', error);
+      toastStore.showToast('Failed to load messages', 'error');
+    }
   }
   
-  function startChatWithUser(user: StandardUser) {
+  async function startChatWithUser(user: StandardUser) {
     // Logic to start a new chat with a user
     logger.debug(`Starting new chat with user: ${user.username}`);
     
-    // Implementation here...
+    // Check if chat already exists
+    const existingChat = chats.find(chat => 
+      chat.type === 'individual' && 
+      chat.participants.some(p => p.id === user.id)
+    );
+    
+    if (existingChat) {
+      // Chat already exists, just select it
+      selectChat(existingChat);
+      showNewChatModal = false; // Close the modal
+      return;
+    }
+    
+    try {
+      // Create new chat
+      const response = await createChat({
+        type: 'individual',
+        participants: [user.id],
+        name: user.display_name || user.username
+      });
+      
+      // The backend returns {chat: {...}}, so we need to extract the chat object
+      const chatData = response.chat || response;
+      
+      if (chatData && chatData.id) {
+        // Create a new chat object
+        const newChat: Chat = {
+          id: chatData.id,
+          type: 'individual',
+          name: user.display_name || user.username,
+          avatar: user.avatar || null,
+          participants: [{
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name || user.username,
+            avatar: user.avatar || null,
+            is_verified: user.is_verified
+          }],
+          messages: [],
+          unread_count: 0,
+          profile_picture_url: user.avatar || null
+        };
+        
+        // Add to chats and select it
+        chats = [newChat, ...chats];
+        filteredChats = [newChat, ...filteredChats];
+        selectChat(newChat);
+        
+        // Close the modal
+        showNewChatModal = false;
+      }
+    } catch (error) {
+      logger.error('Failed to create chat', error);
+      toastStore.showToast('Failed to create chat', 'error');
+    }
   }
   
   function getAvatarColor(name: string) {
@@ -164,37 +280,213 @@
     // Simple time formatter
     if (!timestamp) return '';
     
-    // Implementation here...
-    return 'just now';
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffSecs < 60) {
+      return 'just now';
+    } else if (diffMins < 60) {
+      return `${diffMins}m ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+      return `${diffDays}d ago`;
+    } else {
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
   }
   
   // Message handling functions
-  function sendMessage() {
+  async function sendMessage() {
     // Logic to send a message
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !selectedChat) return;
     
-    // Implementation will call apiSendMessage
-    newMessage = ''; // Clear input after sending
+    const content = newMessage.trim();
+    // Clear input right away for better UX
+    newMessage = '';
+    
+    // Add optimistic update - add message to UI immediately
+    const tempMessageId = `temp-${Date.now()}`;
+    const tempMessage: Message = {
+      id: tempMessageId,
+      content,
+      timestamp: new Date().toISOString(),
+      sender_id: authState.user_id || '',
+      sender_name: displayName,
+      sender_avatar: avatar,
+      is_own: true,
+      is_read: false,
+      is_deleted: false,
+      attachments: [...selectedAttachments]
+    };
+    
+    // Clear attachments
+    selectedAttachments = [];
+    
+    // Update UI optimistically
+    if (selectedChat?.messages) {
+      selectedChat = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, tempMessage]
+      };
+    }
+    
+    try {
+      // Call API to send message
+      const response = await apiSendMessage(selectedChat.id, {
+        content: content,
+        attachments: selectedAttachments.map(att => att.id)
+      });
+      
+      if (response && response.id) {
+        // Replace temp message with real one
+        if (selectedChat?.messages) {
+          selectedChat = {
+            ...selectedChat,
+            messages: selectedChat.messages.map(msg => 
+              msg.id === tempMessageId ? { ...msg, id: response.id } : msg
+            )
+          };
+        }
+        
+        // Update chat in the list with last message
+        const updatedChats = chats.map(chat => {
+          if (chat.id === selectedChat?.id) {
+            return {
+              ...chat,
+              last_message: {
+                content,
+                timestamp: new Date().toISOString(),
+                sender_id: authState.user_id || '',
+                sender_name: displayName
+              }
+            };
+          }
+          return chat;
+        });
+        
+        // Update chats and move the active chat to top
+        chats = [
+          updatedChats.find(c => c.id === selectedChat?.id) as Chat,
+          ...updatedChats.filter(c => c.id !== selectedChat?.id)
+        ];
+        
+        // Also update filtered chats
+        filteredChats = [
+          ...filteredChats.filter(c => c.id === selectedChat?.id),
+          ...filteredChats.filter(c => c.id !== selectedChat?.id)
+        ];
+      }
+    } catch (error) {
+      logger.error('Failed to send message', error);
+      toastStore.showToast('Failed to send message', 'error');
+      
+      // Remove the optimistic update on error
+      if (selectedChat?.messages) {
+        selectedChat = {
+          ...selectedChat,
+          messages: selectedChat.messages.filter(msg => msg.id !== tempMessageId)
+        };
+      }
+    }
   }
   
-  function unsendMessage(messageId: string) {
+  async function unsendMessage(messageId: string) {
     // Logic to unsend/delete a message
-    // Implementation will call apiUnsendMessage
+    if (!selectedChat) return;
+    
+    // Find the message
+    const message = selectedChat.messages.find(m => m.id === messageId);
+    if (!message || !message.is_own) return;
+    
+    try {
+      // Optimistically update UI
+      selectedChat = {
+        ...selectedChat,
+        messages: selectedChat.messages.map(msg => 
+          msg.id === messageId ? { ...msg, is_deleted: true, content: 'Message deleted' } : msg
+        )
+      };
+      
+      // Call API to unsend
+      await apiUnsendMessage(selectedChat.id, messageId);
+      
+      // Update the chat if the deleted message was the last message
+      const lastMessage = selectedChat.last_message;
+      if (lastMessage && message) {
+        // Check if this was the last message by comparing content and sender
+        const isLastMessage = lastMessage.content === message.content && 
+                             lastMessage.sender_id === message.sender_id;
+        
+        if (isLastMessage) {
+        // Find the new last message
+        const newLastMessage = selectedChat.messages
+          .filter(m => !m.is_deleted && m.id !== messageId)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+          
+        if (newLastMessage) {
+          // Update the chat list
+          const updatedChats = chats.map(c => {
+            if (c.id === selectedChat?.id) {
+              return {
+                ...c,
+                last_message: {
+                  content: newLastMessage.is_deleted ? 'Message deleted' : newLastMessage.content,
+                  timestamp: newLastMessage.timestamp,
+                  sender_id: newLastMessage.sender_id,
+                  sender_name: newLastMessage.sender_name
+                }
+              };
+            }
+            return c;
+          });
+          
+          chats = updatedChats;
+          filteredChats = filteredChats.map(c => {
+            if (c.id === selectedChat?.id) {
+              return updatedChats.find(u => u.id === c.id) || c;
+            }
+            return c;
+          });
+        }
+        }
+      }
+      
+    } catch (error) {
+      logger.error('Failed to unsend message', error);
+      toastStore.showToast('Failed to delete message', 'error');
+      
+      // Revert optimistic update
+      selectedChat = {
+        ...selectedChat,
+        messages: selectedChat.messages.map(msg => 
+          msg.id === messageId ? { ...msg, is_deleted: false } : msg
+        )
+      };
+    }
   }
   
   async function handleSearch() {
-    // Logic to search for users or messages
-    if (searchQuery === 'new') {
-      isLoadingUsers = true;
-      try {
-        const users = await getAllUsers();
-        userSearchResults = transformApiUsers(users);
-                } catch (error) {
-        logger.error('Failed to fetch users', error);
-        toastStore.showToast('Failed to load users', 'error');
-    } finally {
-        isLoadingUsers = false;
-      }
+    // Filter existing chats
+    if (searchQuery && searchQuery !== 'new') {
+      filteredChats = chats.filter(chat => {
+        const chatName = getChatDisplayName(chat).toLowerCase();
+        const participants = chat.participants.map(p => 
+          (p.username + p.display_name).toLowerCase()
+        ).join(' ');
+        
+        return (
+          chatName.includes(searchQuery.toLowerCase()) ||
+          participants.includes(searchQuery.toLowerCase())
+        );
+      });
+    } else {
+      filteredChats = [...chats];
     }
   }
   
@@ -224,12 +516,69 @@
   
   // Call this function to fetch profile data
   async function fetchUserProfile() {
-    // Implementation here...
+    if (!authState.is_authenticated) return;
+    
+    isLoadingProfile = true;
+    try {
+      const response = await getProfile();
+      if (response) {
+        username = response.username || '';
+        displayName = response.display_name || username;
+        avatar = response.avatar_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+      }
+    } catch (error) {
+      logger.error('Failed to fetch profile', error);
+      toastStore.showToast('Failed to load profile', 'error');
+    } finally {
+      isLoadingProfile = false;
+    }
   }
   
   // Call this function to load the chat list
   async function fetchChats() {
-    // Implementation here...
+    if (!authState.is_authenticated) return;
+    
+    isLoadingChats = true;
+    try {
+      const response = await listChats();
+      
+      if (response && Array.isArray(response)) {
+        // Map API response to our Chat interface
+        chats = response.map(chat => ({
+          id: chat.id,
+          type: chat.is_group_chat ? 'group' : 'individual',
+          name: chat.name || '',
+          avatar: chat.profile_picture_url,
+          profile_picture_url: chat.profile_picture_url,
+          participants: chat.participants?.map(p => ({
+            id: p.user_id,
+            username: p.username || '',
+            display_name: p.display_name || p.username || 'User',
+            avatar: p.avatar_url || null,
+            is_verified: p.is_verified || false
+          })) || [],
+          last_message: chat.last_message ? {
+            content: chat.last_message.content || '',
+            timestamp: chat.last_message.timestamp || Date.now(),
+            sender_id: chat.last_message.sender_id || '',
+            sender_name: chat.last_message.sender_name || ''
+          } : undefined,
+          messages: [],
+          unread_count: chat.unread_count || 0
+        }));
+      } else {
+        chats = [];
+      }
+      
+      // Also update filtered chats
+      filteredChats = [...chats];
+      
+    } catch (error) {
+      logger.error('Failed to fetch chats', error);
+      toastStore.showToast('Failed to load chats', 'error');
+    } finally {
+      isLoadingChats = false;
+    }
   }
   
   // Format chat data for display
@@ -258,7 +607,7 @@
   <!-- Mobile header -->
   {#if isMobile}
     <div class="mobile-header">
-      <button class="mobile-menu-button" on:click={toggleMobileMenu}>
+      <button class="mobile-menu-button" on:click={toggleMobileMenu} aria-label="Toggle mobile menu">>
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="3" y1="12" x2="21" y2="12"></line>
           <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -283,7 +632,12 @@
   
   <!-- Mobile menu overlay -->
   {#if isMobile && showMobileMenu}
-    <div class="mobile-overlay" on:click={toggleMobileMenu}></div>
+    <div class="mobile-overlay" 
+         on:click={toggleMobileMenu} 
+         on:keydown={(e) => e.key === 'Enter' && toggleMobileMenu()}
+         role="button"
+         tabindex="0"
+         aria-label="Close mobile menu"></div>
   {/if}
 
   <!-- Main content area -->
@@ -293,12 +647,11 @@
         <!-- Chat header -->
     <div class="section-header">
       <h1>Messages</h1>
-      <div class="button-group">
-            <button
-              class="compose-button"
-              on:click={() => searchQuery = 'new'}
-              aria-label="New message"
-            >
+      <div class="button-group">        <button
+          class="compose-button"
+          on:click={() => showNewChatModal = true}
+          aria-label="New message"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
@@ -330,68 +683,37 @@
           class="search-input"
         />
           {#if searchQuery}
-            <button class="clear-search" on:click={() => searchQuery = ''}>
+            <button class="clear-search" on:click={() => searchQuery = ''} aria-label="Clear search">>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         {/if}
       </div>
-      
-        <!-- Chat list -->
-        <div class="chat-list">
-          {#if searchQuery === 'new' && userSearchResults.length > 0}
-            <!-- User search results -->
-            <div class="search-results">
-              <h3>Users</h3>
-                {#each userSearchResults as user}
-                <div 
-                  class="chat-item" 
-                  on:click={() => startChatWithUser(user)}
-                  on:keydown={(e) => e.key === 'Enter' && startChatWithUser(user)}
-                  tabindex="0"
-                >
-                  <div class="avatar">
-                        {#if user.avatar}
-                      <img src={user.avatar} alt={user.display_name} />
-                        {:else}
-                      <div class="avatar-placeholder" style="background-color: {getAvatarColor(user.username)}">
-                        {(user.display_name || user.username).charAt(0).toUpperCase()}
-                      </div>
-                        {/if}
-                      </div>
-                  <div class="chat-details">
-                    <div class="chat-name">
-                      {user.display_name}
-                      {#if user.is_verified}
-                        <span class="verified-badge">✓</span>
-                        {/if}
-                      </div>
-                    <div class="username">@{user.username}</div>
-                        </div>
-                        </div>
-                {/each}
-            </div>
-          {:else if isLoadingChats}
-            <div class="loading-container">
-              <div class="loading-spinner"></div>
-              <p>Loading chats...</p>
-            </div>
-          {:else if chats.length === 0}
-            <div class="empty-state">
-              <p>No conversations yet</p>
-              <button class="compose-button" on:click={() => searchQuery = 'new'}>
-                Start a new chat
-                  </button>
+         <!-- Chat list -->
+      <div class="chat-list">
+        {#if isLoadingChats}
+          <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading chats...</p>
           </div>
-          {:else}
-              {#each filteredChats as chat}
-              <div 
-                class="chat-item {selectedChat?.id === chat.id ? 'selected' : ''}" 
-                    on:click={() => selectChat(chat)}
-                on:keydown={(e) => e.key === 'Enter' && selectChat(chat)}
-                tabindex="0"
-                  >
+        {:else if chats.length === 0}
+          <div class="empty-state">
+            <p>No conversations yet</p>
+            <button class="compose-button" on:click={() => showNewChatModal = true}>
+              Start a new chat
+            </button>
+          </div>
+        {:else}
+          {#each filteredChats as chat}
+            <div 
+              class="chat-item {selectedChat?.id === chat.id ? 'selected' : ''}" 
+              on:click={() => selectChat(chat)}
+              on:keydown={(e) => e.key === 'Enter' && selectChat(chat)}
+              role="button"
+              tabindex="0"
+              aria-label="Open chat with {getChatDisplayName(chat)}"
+            >
                 <div class="avatar">
                       {#if chat.avatar}
                     <img src={chat.avatar} alt={getChatDisplayName(chat)} />
@@ -438,7 +760,7 @@
     {#if selectedChat}
       <div class="chat-header">
             {#if isMobile}
-              <button class="back-button" on:click={() => selectedChat = null}>
+              <button class="back-button" on:click={() => selectedChat = null} aria-label="Back to chat list">>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -499,7 +821,7 @@
                         <div class="attachments-container">
                   {#each message.attachments as attachment}
                             {#if attachment.type === 'image'}
-                              <img src={attachment.url} alt="Image attachment" class="image-attachment" />
+                              <img src={attachment.url} alt="Attachment" class="image-attachment" />
                             {:else if attachment.type === 'gif'}
                               <img src={attachment.url} alt="GIF attachment" class="gif-attachment" />
                     {:else if attachment.type === 'video'}
@@ -516,7 +838,7 @@
                         
                         {#if message.is_own}
                           <div class="message-actions">
-                            <button class="action-button" on:click={() => unsendMessage(message.id)}>
+                            <button class="action-button" on:click={() => unsendMessage(message.id)} aria-label="Delete message">>
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
@@ -546,14 +868,14 @@
               ></textarea>
               
               <div class="attachment-buttons">
-                <div class="attachment-button" on:click={() => handleAttachment('image')}>
+                <button class="attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-        </div>
-                <div class="attachment-button" on:click={() => handleAttachment('gif')}>
+        </button>
+                <button class="attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
                   <span class="gif-button">GIF</span>
-                </div>
+                </button>
               </div>
             </div>
             
@@ -561,6 +883,7 @@
               class="send-button {newMessage.trim() ? 'active' : ''}"
           disabled={!newMessage.trim()}
               on:click={sendMessage}
+              aria-label="Send message"
         >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -575,20 +898,19 @@
         </svg>
             </div>
             <h2>Your Messages</h2>
-            <p>Send private messages to a friend or group</p>
-            <button 
+            <p>Send private messages to a friend or group</p>            <button 
               class="compose-button"
-              on:click={() => searchQuery = 'new'}
+              on:click={() => showNewChatModal = true}
             >
               New Message
-        </button>
+            </button>
       </div>
     {/if}
       </div>
   </div>
 </div>
 
-<!-- Add the Group Chat modal -->
+<!-- Add the modals -->
 {#if showGroupChatModal}
   <div class="modal-overlay">
     <div class="modal-container">
@@ -598,6 +920,13 @@
       />
     </div>
   </div>
+{/if}
+
+{#if showNewChatModal}
+  <NewChatModal
+    onCancel={() => showNewChatModal = false}
+    onUserSelect={startChatWithUser}
+  />
 {/if}
 
   <!-- Toast and DebugPanel -->

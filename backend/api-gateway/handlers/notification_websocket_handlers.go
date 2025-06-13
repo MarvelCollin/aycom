@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
@@ -40,11 +42,70 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("userId")
-	if !exists {
-		log.Printf("WebSocket connection rejected - no userId in context")
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
-		return
+	// Get authentication from query parameters for WebSocket
+	userID := ""
+
+	// First try to get userID from context (if JWT middleware was applied)
+	if contextUserID, exists := c.Get("userId"); exists {
+		userID = contextUserID.(string)
+		log.Printf("Got user ID from context: %s", userID)
+	} else {
+		// Fallback: authenticate from query parameters
+		token := c.Query("token")
+		queryUserID := c.Query("user_id")
+
+		log.Printf("Authenticating WebSocket from query params: token=%s..., user_id=%s",
+			token[:min(len(token), 20)], queryUserID)
+
+		if token != "" {
+			// Validate the token
+			jwtSecret := string(utils.GetJWTSecret())
+
+			parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+				return []byte(jwtSecret), nil
+			})
+
+			if err != nil {
+				log.Printf("JWT validation failed: %v", err)
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token")
+				return
+			}
+
+			if !parsedToken.Valid {
+				log.Printf("Invalid JWT token")
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token")
+				return
+			}
+
+			// Extract user ID from token claims
+			if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
+				if tokenUserID, ok := claims["user_id"].(string); ok {
+					userID = tokenUserID
+				} else if sub, ok := claims["sub"].(string); ok {
+					userID = sub
+				}
+
+				// Verify user ID matches query parameter if provided
+				if queryUserID != "" && userID != queryUserID {
+					log.Printf("User ID mismatch: token=%s, query=%s", userID, queryUserID)
+					utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID mismatch")
+					return
+				}
+			}
+		} else if queryUserID != "" {
+			// For development/testing, allow direct user ID (remove in production)
+			log.Printf("WARNING: Using direct user ID without token validation (development only)")
+			userID = queryUserID
+		}
+
+		if userID == "" {
+			log.Printf("WebSocket connection rejected - no valid authentication")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+			return
+		}
 	}
 
 	log.Printf("Handling WebSocket connection for user ID: %s", userID)
@@ -72,7 +133,7 @@ func HandleNotificationsWebSocket(c *gin.Context) {
 
 	client := &NotificationClient{
 		ID:         uuid.New().String(),
-		UserID:     userID.(string),
+		UserID:     userID,
 		Connection: conn,
 		Send:       make(chan []byte, AppConfig.WebSocket.SendBufferSize),
 	}

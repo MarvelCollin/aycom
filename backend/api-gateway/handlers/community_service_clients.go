@@ -284,12 +284,13 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 	}
 
 	chat := &Chat{
-		ID:          resp.Chat.Id,
-		Name:        resp.Chat.Name,
-		IsGroupChat: resp.Chat.IsGroup,
-		CreatedBy:   resp.Chat.CreatedBy,
-		CreatedAt:   resp.Chat.CreatedAt.AsTime(),
-		UpdatedAt:   resp.Chat.UpdatedAt.AsTime(),
+		ID:           resp.Chat.Id,
+		Name:         resp.Chat.Name,
+		IsGroupChat:  resp.Chat.IsGroup,
+		CreatedBy:    resp.Chat.CreatedBy,
+		CreatedAt:    resp.Chat.CreatedAt.AsTime(),
+		UpdatedAt:    resp.Chat.UpdatedAt.AsTime(),
+		Participants: participantIDs, // Include the participants that were provided
 	}
 
 	return chat, nil

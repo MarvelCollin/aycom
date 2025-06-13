@@ -247,8 +247,10 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		notifications.POST("/:id/read", handlers.MarkNotificationAsRead)
 		notifications.POST("/read-all", handlers.MarkAllNotificationsAsRead)
 		notifications.DELETE("/:id", handlers.DeleteNotification)
-		notifications.GET("/ws", handlers.HandleNotificationsWebSocket)
 	}
+
+	// WebSocket endpoint without JWT middleware (handles auth internally)
+	v1.GET("/notifications/ws", handlers.HandleNotificationsWebSocket)
 
 	bookmarks := v1.Group("/bookmarks")
 	bookmarks.Use(middleware.JWTAuth(jwtSecret))

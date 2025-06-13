@@ -1262,13 +1262,10 @@ func AdminGetAllUsers(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
-
 	page := 1
 	limit := 10
 	sortBy := "created_at"
 	sortDesc := true
-	searchQuery := c.Query("search")
-	newsletterOnly := c.Request.URL.Path == "/api/v1/admin/newsletter-subscribers"
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
@@ -1291,7 +1288,6 @@ func AdminGetAllUsers(c *gin.Context) {
 			sortDesc = sd
 		}
 	}
-
 	if UserClient == nil {
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
@@ -1299,14 +1295,13 @@ func AdminGetAllUsers(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	response, err := UserClient.GetAllUsers(ctx, &userProto.GetAllUsersRequest{
 		Page:           int32(page),
 		Limit:          int32(limit),
 		SortBy:         sortBy,
 		SortDesc:       sortDesc,
-		SearchQuery:    searchQuery,
-		NewsletterOnly: newsletterOnly,
+		SearchQuery:    c.Query("search"),
+		NewsletterOnly: false,
 	})
 
 	if err != nil {

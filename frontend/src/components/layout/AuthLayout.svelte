@@ -5,10 +5,8 @@
   import { onMount } from 'svelte';
   import lightLogo from '../../assets/logo/light-logo.jpeg';
   import darkLogo from '../../assets/logo/dark-logo.jpeg';
-  
-  export let title = '';
+    export let title = '';
   export let showLogo = true;
-  export let showCloseButton = false;
   export let showBackButton = false;
   export let onBack = () => {};
   
@@ -17,14 +15,17 @@
   
   // Reactive declaration to update isDarkMode when theme changes
   $: isDarkMode = $theme === 'dark';
-  
-  onMount(() => {
+    onMount(() => {
     // Apply theme class to document when component mounts
     document.documentElement.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
+    
+    // Add auth-layout class to body for specific styling
+    document.body.classList.add('auth-layout');
     
     return () => {
       // Cleanup when component is destroyed
       document.documentElement.classList.remove(isDarkMode ? 'dark-theme' : 'light-theme');
+      document.body.classList.remove('auth-layout');
     };
   });
   
@@ -56,39 +57,42 @@
     </div>
     <div class="auth-left-bg"></div>
   </div>
-  
   <div class="auth-right">
-    <div class="auth-form">
-      <div class="auth-header">
-        {#if showBackButton}
-          <button 
-            class="auth-back-button"
-            on:click={onBack}
-            data-cy="back-button"
-            aria-label="Go back"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </button>
-        {/if}
+    <div class="auth-scrollable-container">
+      <div class="auth-form">
+        <div class="auth-header">
+          {#if showBackButton}
+            <button 
+              class="auth-back-button"
+              on:click={onBack}
+              data-cy="back-button"
+              aria-label="Go back"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+          {/if}
+          
+          {#if showLogo}
+            <div class="auth-logo">
+              {#if isDarkMode}
+                <img src={lightLogo} alt="AYCOM Logo" class="auth-header-logo-image" />
+              {:else}
+                <img src={darkLogo} alt="AYCOM Logo" class="auth-header-logo-image" />
+              {/if}
+            </div>
+          {/if}
+          
+          {#if title}
+            <h1 class="auth-title" data-cy="page-title">{title}</h1>
+          {/if}
+        </div>
         
-        {#if showLogo}
-          <div class="auth-logo">
-            {#if isDarkMode}
-              <img src={lightLogo} alt="AYCOM Logo" class="auth-header-logo-image" />
-            {:else}
-              <img src={darkLogo} alt="AYCOM Logo" class="auth-header-logo-image" />
-            {/if}
-          </div>
-        {/if}
-        
-        {#if title}
-          <h1 class="auth-title" data-cy="page-title">{title}</h1>
-        {/if}
+        <div class="auth-content">
+          <slot />
+        </div>
       </div>
-      
-      <slot />
     </div>
   </div>
 </div>
