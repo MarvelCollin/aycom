@@ -109,7 +109,51 @@ func AddChatParticipant(c *gin.Context) {}
 
 func RemoveChatParticipant(c *gin.Context) {}
 
-func ListChats(c *gin.Context) {}
+func ListChats(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("ListChats: Missing userId in context")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	log.Printf("ListChats: Received request from user %v", userID)
+
+	client := GetCommunityServiceClient()
+	if client == nil {
+		log.Printf("ListChats: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	// Get chats for the user
+	chats, err := client.GetChats(userID.(string), 100, 0) // Get up to 100 chats
+	if err != nil {
+		log.Printf("ListChats: Error fetching chats: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch chats: "+err.Error())
+		return
+	}
+
+	// Format chats for frontend
+	formattedChats := make([]gin.H, 0, len(chats))
+	for _, chat := range chats {
+		formattedChats = append(formattedChats, gin.H{
+			"id":            chat.ID,
+			"name":          chat.Name,
+			"is_group_chat": chat.IsGroupChat,
+			"created_by":    chat.CreatedBy,
+			"created_at":    chat.CreatedAt,
+			"updated_at":    chat.UpdatedAt,
+			"participants":  chat.Participants,
+			"last_message":  chat.LastMessage,
+		})
+	}
+
+	log.Printf("ListChats: Successfully retrieved %d chats for user %v", len(formattedChats), userID)
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"chats": formattedChats,
+	})
+}
 
 func ListChatParticipants(c *gin.Context) {}
 

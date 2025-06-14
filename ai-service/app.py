@@ -55,17 +55,59 @@ def load_models():
     global thread_model, tokenizer
 
     try:
-        # Look for model in models directory
-        model_path = "/app/models/thread_category_model.h5"
-        tokenizer_path = "/app/models/tokenizer.pickle"
+        # Try all possible model locations
+        possible_model_paths = [
+            "/app/models/thread_category_model.h5",
+            "/app/thread_category_model.h5",
+            "./thread_category_model.h5",
+            "./models/thread_category_model.h5"
+        ]
+        
+        possible_tokenizer_paths = [
+            "/app/models/tokenizer.pickle",
+            "/app/tokenizer.pickle",
+            "./tokenizer.pickle",
+            "./models/tokenizer.pickle"
+        ]
+        
+        # Handle the 'batch_shape' argument issue by adding it to custom_objects
+        custom_objects = {'batch_shape': lambda x: x}
 
-        logger.info(f"Loading model from {model_path}")
-        thread_model = load_model(model_path, compile=False)
+        # Try to load the model from any location
+        for model_path in possible_model_paths:
+            try:
+                if os.path.exists(model_path):
+                    logger.info(f"Found model at {model_path}, attempting to load")
+                    thread_model = load_model(model_path, compile=False, custom_objects=custom_objects)
+                    logger.info(f"Successfully loaded model from {model_path}")
+                    break
+            except Exception as e:
+                logger.info(f"Error loading model from {model_path}: {e}")
+                continue
+                
+        # If model is still None, we couldn't load it
+        if thread_model is None:
+            raise Exception("Could not load model from any location")
+
+        # Compile the model
         thread_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-        logger.info(f"Loading tokenizer from {tokenizer_path}")
-        with open(tokenizer_path, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        # Try to load tokenizer from either location
+        for tokenizer_path in possible_tokenizer_paths:
+            try:
+                if os.path.exists(tokenizer_path):
+                    logger.info(f"Found tokenizer at {tokenizer_path}, attempting to load")
+                    with open(tokenizer_path, 'rb') as handle:
+                        tokenizer = pickle.load(handle)
+                    logger.info(f"Successfully loaded tokenizer from {tokenizer_path}")
+                    break
+            except Exception as e:
+                logger.info(f"Error loading tokenizer from {tokenizer_path}: {e}")
+                continue
+                
+        # If tokenizer is still None, we couldn't load it
+        if tokenizer is None:
+            raise Exception("Could not load tokenizer from any location")
 
         logger.info("Model and tokenizer loaded successfully")
         return True

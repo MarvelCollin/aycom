@@ -133,68 +133,35 @@
   
   // Chat interaction functions
   async function selectChat(chat: Chat) {
-    selectedChat = chat;
+    logger.info(`Selecting chat: ${chat.id}`);
+    selectedChat = { ...chat, messages: [] };
     
-    // Add loading state for messages
-    let tempChat = {...chat};
-    tempChat.messages = [];
-    selectedChat = tempChat;
-
+    // On mobile, hide the chat list
+    if (isMobile) {
+      showMobileMenu = false;
+    }
+    
+    // Fetch messages for the selected chat
+    isLoadingMessages = true;
     try {
-      // Fetch messages for this chat
       const response = await listMessages(chat.id);
-      
-      if (response && response.messages && Array.isArray(response.messages)) {
-        // Process messages
-        const formattedMessages = response.messages.map(msg => ({
-          id: msg.id,
-          content: msg.content || '',
-          timestamp: msg.timestamp || Date.now(),
-          sender_id: msg.sender_id || '',
-          sender_name: msg.sender_name || 'User',
-          sender_avatar: msg.sender_avatar || null,
-          is_own: msg.sender_id === authState.user_id,
-          is_read: msg.is_read || false,
-          is_deleted: msg.is_deleted || false,
-          attachments: msg.attachments?.map(att => ({
-            id: att.id,
-            type: att.type as 'image' | 'gif' | 'video',
-            url: att.url,
-            thumbnail: att.thumbnail
-          })) || []
-        }));
-        
-        // Update chat with messages
-        selectedChat = {
-          ...chat,
-          messages: formattedMessages
-        };
-        
-        // Mark as read if there are unread messages
-        if (chat.unread_count > 0) {
-          // This would require an API call to mark as read
-          // markChatAsRead(chat.id);
-          
-          // Update the chat list to show read status
-          const updatedChats = chats.map(c => {
-            if (c.id === chat.id) {
-              return {...c, unread_count: 0};
-            }
-            return c;
-          });
-          
-          chats = updatedChats;
-          filteredChats = filteredChats.map(c => {
-            if (c.id === chat.id) {
-              return {...c, unread_count: 0};
-            }
-            return c;
-          });
-        }
+      if (response && response.messages) {
+        selectedChat.messages = response.messages;
+        logger.info(`Loaded ${response.messages.length} messages for chat ${chat.id}`);
       }
     } catch (error) {
-      logger.error('Failed to fetch messages', error);
+      logger.error(`Error fetching messages for chat ${chat.id}:`, error);
       toastStore.showToast('Failed to load messages', 'error');
+    } finally {
+      isLoadingMessages = false;
+    }
+    
+    // Connect to WebSocket for this chat
+    try {
+      websocketStore.connect(chat.id);
+      logger.info(`Connected to WebSocket for chat ${chat.id}`);
+    } catch (error) {
+      logger.error(`Error connecting to WebSocket for chat ${chat.id}:`, error);
     }
   }
   
@@ -505,11 +472,30 @@
     // Initialize user profile and chats
     if (authState && authState.is_authenticated) {
       fetchUserProfile();
-      fetchChats();
+      fetchChats().then(() => {
+        // Initialize WebSocket connection if a chat is selected
+        if (selectedChat && selectedChat.id) {
+          // Connect to WebSocket for selected chat
+          try {
+            websocketStore.connect(selectedChat.id);
+          } catch (error) {
+            logger.error('Error connecting to WebSocket:', error);
+          }
+        }
+      });
     }
     
     return () => {
       window.removeEventListener('resize', checkViewport);
+      
+      // Disconnect WebSocket connections when component unmounts
+      if (selectedChat && selectedChat.id) {
+        try {
+          websocketStore.disconnect(selectedChat.id);
+        } catch (error) {
+          logger.error('Error disconnecting from WebSocket:', error);
+        }
+      }
     };
   });
   
@@ -590,21 +576,25 @@
         logger.info(`Processing ${response.length} chats from direct array`);
         chats = mapApiChatsToClientFormat(response);
       } else if (response && typeof response === 'object') {
-        // API returns unknown object structure
-        logger.warn('API returned unknown response structure:', response);
-        
-        // Try to find any array that might contain chats
-        const possibleChatArrays = Object.entries(response)
-          .filter(([_key, value]) => Array.isArray(value))
-          .sort(([_keyA, valueA], [_keyB, valueB]) => (valueB as any[]).length - (valueA as any[]).length);
-        
-        if (possibleChatArrays.length > 0) {
-          const [arrayName, chatArray] = possibleChatArrays[0];
-          logger.info(`Using '${arrayName}' array with ${(chatArray as any[]).length} items`);
-          chats = mapApiChatsToClientFormat(chatArray as any[]);
-        } else {
-          logger.error('No usable chat data found in API response');
+        // API returns unknown object structure or empty object
+        if (Object.keys(response).length === 0) {
+          logger.info('API returned empty object, no chats available');
           chats = [];
+        } else {
+          // Try to find any array that might contain chats
+          logger.warn('API returned unknown response structure:', response);
+          const possibleChatArrays = Object.entries(response)
+            .filter(([_key, value]) => Array.isArray(value))
+            .sort(([_keyA, valueA], [_keyB, valueB]) => (valueB as any[]).length - (valueA as any[]).length);
+          
+          if (possibleChatArrays.length > 0) {
+            const [arrayName, chatArray] = possibleChatArrays[0];
+            logger.info(`Using '${arrayName}' array with ${(chatArray as any[]).length} items`);
+            chats = mapApiChatsToClientFormat(chatArray as any[]);
+          } else {
+            logger.error('No usable chat data found in API response');
+            chats = [];
+          }
         }
       } else {
         logger.error('Invalid API response format for chats');
@@ -769,7 +759,7 @@
           class="search-input"
         />
           {#if searchQuery}
-            <button class="clear-search" on:click={() => searchQuery = ''} aria-label="Clear search">>
+            <button class="clear-search" on:click={() => searchQuery = ''} aria-label="Clear search">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -846,7 +836,7 @@
     {#if selectedChat}
       <div class="chat-header">
             {#if isMobile}
-              <button class="back-button" on:click={() => selectedChat = null} aria-label="Back to chat list">>
+              <button class="back-button" on:click={() => selectedChat = null} aria-label="Back to chat list">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -889,11 +879,11 @@
                         <div class="avatar-placeholder" style="background-color: {getAvatarColor(message.sender_name)}">
                           {message.sender_name.charAt(0).toUpperCase()}
                         </div>
-              {/if}
-              </div>
+                      {/if}
+                    </div>
                   {/if}
                   
-                  <div class="message-content">
+                  <div class="message-bubble">
                     {#if !message.is_own && selectedChat.type === 'group'}
                       <div class="sender-name">{message.sender_name}</div>
                     {/if}
@@ -905,36 +895,36 @@
                       
                       {#if message.attachments && message.attachments.length > 0}
                         <div class="attachments-container">
-                  {#each message.attachments as attachment}
+                          {#each message.attachments as attachment}
                             {#if attachment.type === 'image'}
                               <img src={attachment.url} alt="Attachment" class="image-attachment" />
                             {:else if attachment.type === 'gif'}
                               <img src={attachment.url} alt="GIF attachment" class="gif-attachment" />
-                    {:else if attachment.type === 'video'}
+                            {:else if attachment.type === 'video'}
                               <video src={attachment.url} controls class="video-attachment">
-                        Your browser does not support the video tag.
-                      </video>
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
+                                Your browser does not support the video tag.
+                              </video>
+                            {/if}
+                          {/each}
+                        </div>
+                      {/if}
                       
                       <div class="message-footer">
                         <span class="timestamp">{formatTimeAgo(message.timestamp)}</span>
                         
                         {#if message.is_own}
                           <div class="message-actions">
-                            <button class="action-button" on:click={() => unsendMessage(message.id)} aria-label="Delete message">>
+                            <button class="action-button" on:click={() => unsendMessage(message.id)} aria-label="Delete message">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
-                  </button>
+                            </button>
                           </div>
-                {/if}
-              </div>
+                        {/if}
+                      </div>
                     {/if}
-            </div>
-          </div>
+                  </div>
+                </div>
         {/each}
             {:else}
               <div class="empty-messages">
@@ -944,34 +934,34 @@
             {/if}
       </div>
       
-      <div class="message-input-container">
-            <div class="input-wrapper">
-              <textarea 
-                bind:value={newMessage}
-                placeholder="Type a message..."
-                rows="1"
-                on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              ></textarea>
-              
-              <div class="attachment-buttons">
-                <button class="attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-        </button>
-                <button class="attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
-                  <span class="gif-button">GIF</span>
-                </button>
-              </div>
-            </div>
-            
-        <button
-              class="send-button {newMessage.trim() ? 'active' : ''}"
-          disabled={!newMessage.trim()}
-              on:click={sendMessage}
-              aria-label="Send message"
-        >
+            <div class="message-input-container">
+        <div class="input-wrapper">
+          <textarea 
+            bind:value={newMessage}
+            placeholder="Type a message..."
+            rows="1"
+            on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+          ></textarea>
+          
+          <div class="attachment-buttons">
+            <button class="attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button class="attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
+              <span class="gif-button">GIF</span>
+            </button>
+          </div>
+        </div>
+        
+        <button
+          class="send-button {newMessage.trim() ? 'active' : ''}"
+          disabled={!newMessage.trim()}
+          on:click={sendMessage}
+          aria-label="Send message"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
         </button>
@@ -1213,6 +1203,219 @@
     .message-container {
       height: calc(100vh - 56px);
     }
+  }
+  
+  /* Dark theme fixes for message bubbles and icons */
+  .message-container.dark-theme .message-item.own-message .message-bubble {
+    background-color: #4b5563;
+    color: white;
+  }
+  
+  .message-container.dark-theme .message-item .action-button {
+    color: #e5e7eb;
+  }
+  
+  .message-container.dark-theme .message-actions svg {
+    stroke: #e5e7eb;
+  }
+  
+  .message-container.dark-theme .message-input-container {
+    background-color: #1f2937;
+  }
+  
+  .message-container.dark-theme .input-wrapper textarea {
+    background-color: #374151;
+    color: white;
+    border-color: #4b5563;
+  }
+  
+  .message-container.dark-theme .attachment-button svg {
+    stroke: #e5e7eb;
+  }
+  
+  .message-container.dark-theme .send-button {
+    background-color: #3b82f6;
+  }
+  
+  .message-container.dark-theme .gif-button {
+    color: #e5e7eb;
+  }
+  
+  /* Message bubble styling improvements */
+  .message-bubble {
+    padding: 12px 16px;
+    border-radius: 18px;
+    max-width: 80%;
+    word-wrap: break-word;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    margin: 4px 0;
+    display: inline-block;
+  }
+  
+  .own-message .message-bubble {
+    background-color: #3b82f6;
+    color: white;
+    border-bottom-right-radius: 4px;
+    margin-left: auto;
+  }
+  
+  .message-container.dark-theme .own-message .message-bubble {
+    background-color: #3b82f6;
+  }
+  
+  .message-item:not(.own-message) .message-bubble {
+    background-color: #f3f4f6;
+    color: #1f2937;
+    border-bottom-left-radius: 4px;
+    margin-right: auto;
+  }
+  
+  .message-container.dark-theme .message-item:not(.own-message) .message-bubble {
+    background-color: #374151;
+    color: #f3f4f6;
+  }
+  
+  .message-item {
+    display: flex;
+    margin-bottom: 8px;
+    position: relative;
+    width: 100%;
+    padding: 0 16px;
+  }
+  
+  /* Fix for the just now message bubble */
+  .message-container.dark-theme .message-item {
+    color: white;
+  }
+  
+  .message-container.dark-theme .content-text {
+    color: white;
+  }
+  
+  /* Fix for the delete icon in message bubbles */
+  .message-actions {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+  }
+  
+  .action-button {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .action-button:hover {
+    opacity: 1;
+    background-color: rgba(0,0,0,0.1);
+  }
+  
+  .message-container.dark-theme .action-button:hover {
+    background-color: rgba(255,255,255,0.1);
+  }
+  
+  .action-button svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* Message timestamp styling */
+  .timestamp {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    margin-right: 4px;
+  }
+  
+  /* Message avatar styling */
+  .message-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    margin-right: 8px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  
+  .message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+    font-size: 0.7rem;
+  }
+  
+  /* Input area styling */
+  .input-wrapper {
+    display: flex;
+    flex: 1;
+    background-color: #f3f4f6;
+    border-radius: 24px;
+    padding: 8px 16px;
+    align-items: center;
+  }
+  
+  .message-container.dark-theme .input-wrapper {
+    background-color: #374151;
+  }
+  
+  .input-wrapper textarea {
+    flex: 1;
+    border: none;
+    background: transparent;
+    resize: none;
+    padding: 8px 0;
+    outline: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+  
+  .attachment-buttons {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+  }
+  
+  .attachment-button {
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    margin-left: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  
+  .attachment-button:hover {
+    background-color: rgba(0,0,0,0.05);
+    color: #3b82f6;
+  }
+  
+  .message-container.dark-theme .attachment-button:hover {
+    background-color: rgba(255,255,255,0.1);
+  }
+  
+  .gif-button {
+    font-weight: bold;
+    font-size: 0.8rem;
   }
 </style>
 

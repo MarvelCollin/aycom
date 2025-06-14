@@ -5,10 +5,10 @@
   import { isAuthenticated, getUserId } from '../utils/auth';
   import { getUserById, followUser, unfollowUser, reportUser, blockUser, unblockUser, checkFollowStatus, getUserFollowers, getUserFollowing, getUserByUsername } from '../api/user';
   import type { FollowUserResponse, UnfollowUserResponse } from '../api/user';
-  import { getUserThreads, getUserReplies, getUserMedia } from '../api/thread';
+  import { getUserThreads, getUserReplies, getUserMedia, getUserLikedThreads } from '../api/thread';
   import { toastStore } from '../stores/toastStore';  import TweetCard from '../components/social/TweetCard.svelte';
   import LoadingSkeleton from '../components/common/LoadingSkeleton.svelte';
-  import type { ITweet, IMedia } from '../interfaces/ISocialMedia';
+  import type { ITweet } from '../interfaces/ISocialMedia';
   import type { ExtendedTweet } from '../interfaces/ITweet.extended';
   import { ensureTweetFormat } from '../interfaces/ITweet.extended';
   import { createLoggerWithPrefix } from '../utils/logger';
@@ -68,6 +68,7 @@
     is_private: boolean;
     is_following: boolean;
     is_blocked: boolean;
+    is_verified: boolean;  // Added this field that was missing
   }
   
   // Initial profile data using the new interface
@@ -85,12 +86,14 @@
     website: '',
     is_private: false,
     is_following: false,
-    is_blocked: false
+    is_blocked: false,
+    is_verified: false   // Initialize is_verified field
   };
   
   let posts: Thread[] = [];
   let replies: Reply[] = [];
   let media: ThreadMedia[] = [];
+  let likes: Thread[] = [];
   
   let activeTab = 'posts';
   let isLoading = true;
@@ -109,7 +112,8 @@
   
   // Add state for followers/following modals
   let showFollowersModal = false;
-  let showFollowingModal = false;  interface UserFollower {
+  let showFollowingModal = false;
+  interface UserFollower {
     id: string;
     username: string;
     name: string;
@@ -190,7 +194,8 @@
         website: response.user.website || '',
         is_private: response.user.is_private === true,
         is_following: initialFollowState,
-        is_blocked: response.user.is_blocked === true
+        is_blocked: response.user.is_blocked === true,
+        is_verified: response.user.is_verified === true
       };
       
       logger.debug('Profile data processed:', profileData);
@@ -222,8 +227,8 @@
         logger.debug('Skipping follow status check - no user ID or same user');
       }
       
-      // Load initial tab content
-      await loadTabContent(activeTab);
+      // Remove the automatic tab content loading - we'll do this explicitly in onMount
+      // await loadTabContent(activeTab);
     } catch (error: any) {
       logger.error('Error loading profile data:', error);
       errorMessage = error.message || 'Failed to load profile data';
@@ -238,23 +243,120 @@
     }
   }
 
+  function setActiveTab(tab: string) {
+    activeTab = tab;
+    loadTabContent(tab);
+  }
+
   async function loadTabContent(tab: string) {
-    logger.debug(`Loading tab content: ${tab}`);
     isLoading = true;
+    logger.debug(`Loading tab content for ${tab}`);
+    
+    // Make sure we have a valid username to use
+    if (!profileData.id || !profileData.username) {
+      logger.error("Cannot load tab content: profileData is not fully loaded");
+      errorMessage = "Unable to load profile data. Please refresh the page.";
+      isLoading = false;
+      return;
+    }
+
+    // Log which username/ID we're using for API calls
+    logger.debug(`Using username: ${profileData.username} and ID: ${profileData.id} for content loading`);
     
     try {
       if (tab === 'posts') {
-        const threadsResponse = await getUserThreads(userId);
-        posts = (threadsResponse?.threads || []).map(ensureTweetFormat);
+        // Log the API call we're about to make
+        logger.debug(`Calling getUserThreads API with username: ${profileData.username}`);
+        
+        // If we have an ID but not a username, use the ID instead
+        const userIdentifier = profileData.username || profileData.id;
+        const response = await getUserThreads(userIdentifier);
+        logger.debug(`Posts API response:`, response);
+        
+        // Handle different response structures
+        if (response && response.threads) {
+          // Direct threads array in response
+          posts = response.threads.map(thread => ensureTweetFormat(thread));
+          logger.debug(`Loaded ${posts.length} posts from response.threads`);
+        } else if (response && response.data && Array.isArray(response.data.threads)) {
+          // Threads nested in data.threads
+          posts = response.data.threads.map(thread => ensureTweetFormat(thread));
+          logger.debug(`Loaded ${posts.length} posts from response.data.threads`);
+        } else if (response && response.data && Array.isArray(response.data)) {
+          // Direct array in data
+          posts = response.data.map(thread => ensureTweetFormat(thread));
+          logger.debug(`Loaded ${posts.length} posts from response.data array`);
+        } else if (response && Array.isArray(response)) {
+          // Response is directly an array
+          posts = response.map(thread => ensureTweetFormat(thread));
+          logger.debug(`Loaded ${posts.length} posts from direct array`);
+        } else {
+          posts = [];
+          logger.warn("No posts found in API response, response structure:", response);
+        }
       } else if (tab === 'replies') {
-        const repliesResponse = await getUserReplies(userId);
-        replies = (repliesResponse?.replies || []).map(ensureTweetFormat);
+        const response = await getUserReplies(profileData.username);
+        logger.debug(`Replies API response:`, response);
+        
+        if (response && response.replies) {
+          // Direct replies array in response
+          replies = response.replies.map(reply => ensureTweetFormat(reply));
+        } else if (response && response.data && Array.isArray(response.data.replies)) {
+          // Replies nested in data.replies
+          replies = response.data.replies.map(reply => ensureTweetFormat(reply));
+        } else if (response && response.data && Array.isArray(response.data)) {
+          // Direct array in data
+          replies = response.data.map(reply => ensureTweetFormat(reply));
+        } else if (response && Array.isArray(response)) {
+          // Response is directly an array
+          replies = response.map(reply => ensureTweetFormat(reply));
+        } else {
+          replies = [];
+          logger.warn("No replies found in API response");
+        }
+        
+        logger.debug(`Loaded ${replies.length} replies`);
       } else if (tab === 'media') {
-        const mediaResponse = await getUserMedia(userId);
-        media = mediaResponse?.media || [];
+        const response = await getUserMedia(profileData.username);
+        logger.debug(`Media API response:`, response);
+        
+        if (response && response.media) {
+          media = response.media;
+        } else if (response && response.data && Array.isArray(response.data.media)) {
+          media = response.data.media;
+        } else if (response && response.data && Array.isArray(response.data)) {
+          media = response.data;
+        } else if (response && Array.isArray(response)) {
+          media = response;
+        } else {
+          media = [];
+          logger.warn("No media found in API response");
+        }
+        
+        logger.debug(`Loaded ${media.length} media items`);
+      } else if (tab === 'likes') {
+        const response = await getUserLikedThreads(profileData.username);
+        logger.debug(`Likes API response:`, response);
+        
+        if (response && response.threads) {
+          likes = response.threads.map(thread => ensureTweetFormat(thread));
+        } else if (response && response.data && Array.isArray(response.data.threads)) {
+          likes = response.data.threads.map(thread => ensureTweetFormat(thread));
+        } else if (response && response.data && Array.isArray(response.data)) {
+          likes = response.data.map(thread => ensureTweetFormat(thread));
+        } else if (response && Array.isArray(response)) {
+          likes = response.map(thread => ensureTweetFormat(thread));
+        } else {
+          likes = [];
+          logger.warn("No likes found in API response");
+        }
+        
+        logger.debug(`Loaded ${likes.length} likes`);
       }
-    } catch (error) {
-      logger.error(`Error loading ${tab}:`, error);
+    } catch (err) {
+      logger.error(`Error loading ${tab} tab:`, err);
+      errorMessage = `Failed to load ${tab}. Please try again.`;
+      toastStore.showToast(`Failed to load ${tab}. Please try again.`, 'error');
     } finally {
       isLoading = false;
     }
@@ -598,12 +700,30 @@
       logger.error('Error toggling follow state:', error);
       toastStore.showToast(error.message || 'Failed to update follow status', 'error');
     }
-  }
-
-  // Setup on component mount
+    }
+  
   onMount(async () => {
+    logger.debug(`Component mounting with userId: ${userId}`);
+    
     if (userId) {
-      await loadProfileData();
+      try {
+        await loadProfileData();
+        // Log the profile data after loading
+        logger.debug(`Profile data loaded, username: ${profileData.username}, id: ${profileData.id}`);
+        
+        // Load initial tab content explicitly after profile data is loaded
+        if (profileData.username) {
+          logger.debug(`Loading initial tab content for ${activeTab}`);
+          await loadTabContent(activeTab);
+        } else {
+          logger.error("Profile data loaded but no username was found");
+          errorMessage = "Could not load user profile data properly";
+        }
+      } catch (error) {
+        logger.error(`Error during profile initialization: ${error}`);
+        errorMessage = 'Failed to load profile data';
+        isLoading = false;
+      }
     } else {
       logger.error('No userId provided or invalid userId');
       errorMessage = 'Invalid user ID';
@@ -759,21 +879,27 @@
     <div class="profile-tabs">
       <button 
         class="profile-tab {activeTab === 'posts' ? 'active' : ''}"
-        on:click={() => activeTab = 'posts'}
+        on:click={() => setActiveTab('posts')}
       >
         Posts
       </button>
       <button 
         class="profile-tab {activeTab === 'replies' ? 'active' : ''}"
-        on:click={() => activeTab = 'replies'}
+        on:click={() => setActiveTab('replies')}
       >
         Replies
       </button>
       <button 
         class="profile-tab {activeTab === 'media' ? 'active' : ''}"
-        on:click={() => activeTab = 'media'}
+        on:click={() => setActiveTab('media')}
       >
         Media
+      </button>
+      <button 
+        class="profile-tab {activeTab === 'likes' ? 'active' : ''}"
+        on:click={() => setActiveTab('likes')}
+      >
+        Likes
       </button>
     </div>
     
@@ -824,7 +950,8 @@
               This user hasn't posted any media yet
             </p>
           </div>
-        {:else}          <div class="media-grid">
+        {:else}
+          <div class="media-grid">
             {#each media as item (item.id)}
               <a href={`/thread/${item.thread_id || item.id}`} class="media-item">
                 <img 
@@ -841,6 +968,21 @@
             {/each}
           </div>
         {/if}
+      {:else if activeTab === 'likes'}
+        {#if likes.length === 0}
+          <div class="profile-content-empty">
+            <p class="profile-content-empty-title">No liked posts yet</p>
+            <p class="profile-content-empty-text">
+              This user hasn't liked any posts yet
+            </p>
+          </div>
+        {:else}
+          <div class="tweet-feed">
+            {#each likes as like (like.id)}
+              <TweetCard tweet={like} />
+            {/each}
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
@@ -848,7 +990,12 @@
 
 <!-- Followers Modal -->
 {#if showFollowersModal}
-  <div class="modal-overlay" on:click|self={closeModals}>
+  <div class="modal-overlay" 
+       on:click|self={closeModals}
+       on:keydown={(e) => e.key === 'Escape' && closeModals()}
+       role="dialog"
+       aria-label="Followers list"
+       tabindex="0">
     <div class="modal-container">
       <div class="modal-header">
         <h2>Followers</h2>
@@ -877,7 +1024,9 @@
         {:else}
           <div class="user-list">
             {#each followersList as user (user.id)}
-              <div class="user-item" on:click={() => navigateToProfile(user.username)}>
+              <button class="user-item" 
+                      on:click={() => navigateToProfile(user.username)}
+                      aria-label="View profile of {user.name || user.username}">
                 <div class="user-avatar">
                   <img 
                     src={user.profile_picture_url || '/images/default-avatar.png'} 
@@ -907,7 +1056,7 @@
                     </button>
                   {/if}
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -918,7 +1067,12 @@
 
 <!-- Following Modal -->
 {#if showFollowingModal}
-  <div class="modal-overlay" on:click|self={closeModals}>
+  <div class="modal-overlay" 
+       on:click|self={closeModals}
+       on:keydown={(e) => e.key === 'Escape' && closeModals()}
+       role="dialog"
+       aria-label="Following list"
+       tabindex="0">
     <div class="modal-container">
       <div class="modal-header">
         <h2>Following</h2>
@@ -947,7 +1101,9 @@
         {:else}
           <div class="user-list">
             {#each followingList as user (user.id)}
-              <div class="user-item" on:click={() => navigateToProfile(user.username)}>
+              <button class="user-item" 
+                      on:click={() => navigateToProfile(user.username)}
+                      aria-label="View profile of {user.name || user.username}">
                 <div class="user-avatar">
                   <img 
                     src={user.profile_picture_url || '/images/default-avatar.png'} 
@@ -977,7 +1133,7 @@
                     </button>
                   {/if}
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {/if}
@@ -1371,9 +1527,9 @@
   }
 
   .profile-content-empty-text {
-    font-size: 15px;
-    line-height: 1.5;
-    margin-bottom: 16px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 4px;
   }
 
   .tweet-feed {
@@ -1557,7 +1713,7 @@
     padding: 8px 16px;
     border-radius: 20px;
     background-color: var(--color-primary);
-    color: white;
+    color: #ffffff;
     border: none;
     font-weight: 600;
     cursor: pointer;
@@ -1580,6 +1736,13 @@
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s;
     cursor: pointer;
+    width: 100%;
+    text-align: left;
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    font-family: inherit;
+    align-items: center;
   }
   
   .user-item:hover {

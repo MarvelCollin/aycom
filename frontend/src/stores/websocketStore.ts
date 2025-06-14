@@ -67,14 +67,14 @@ function createWebSocketStore() {
     
     // Add query parameters
     const params = [];
-    if (token) params.push(`token=${token}`);
-    if (userId) params.push(`user_id=${userId}`);
+    if (token) params.push(`token=${encodeURIComponent(token)}`);
+    if (userId) params.push(`user_id=${encodeURIComponent(userId)}`);
     
     if (params.length > 0) {
       wsUrl += `?${params.join('&')}`;
     }
     
-    console.log('[WebSocket] Built connection URL:', wsUrl);
+    logger.info('[WebSocket] Built connection URL:', wsUrl);
     return wsUrl;
   };
 

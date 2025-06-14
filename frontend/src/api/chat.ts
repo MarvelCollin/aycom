@@ -199,9 +199,39 @@ export async function createChat(data: Record<string, any>) {
       throw new Error(errorMessage);
     }
 
-    let jsonResponse;
+    // Check if the response is empty
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0') {
+      logger.warn('Empty response received from create chat endpoint');
+      return {
+        success: true,
+        chat: {
+          id: `temp-${Date.now()}`,
+          name: data.name || 'New Chat',
+          is_group_chat: data.type === 'group',
+          created_at: new Date().toISOString(),
+          participants: data.participants || []
+        }
+      };
+    }
+
     try {
-      jsonResponse = await response.json();
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        logger.warn('Empty response body from create chat endpoint');
+        return {
+          success: true,
+          chat: {
+            id: `temp-${Date.now()}`,
+            name: data.name || 'New Chat',
+            is_group_chat: data.type === 'group',
+            created_at: new Date().toISOString(),
+            participants: data.participants || []
+          }
+        };
+      }
+      
+      const jsonResponse = JSON.parse(responseText);
       logger.debug('Chat creation response', { jsonResponse });
       
       // Enhanced logging to debug response format
@@ -301,14 +331,27 @@ export async function listChats() {
       }
     }
 
+    // Check if the response is empty
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0') {
+      logger.warn('Empty response received from list chats endpoint');
+      return { chats: [] };
+    }
+
     const contentType = response.headers.get('content-type') || '';
     if (!contentType) {
       logger.warn('No content-type header in response');
     }
     
-    if (contentType.includes('application/json')) {
+    try {
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        logger.warn('Empty response body from list chats endpoint');
+        return { chats: [] };
+      }
+      
       try {
-        const responseData = await response.json();
+        const responseData = JSON.parse(responseText);
         // Log the shape of the response data
         logger.debug('API response structure:', {
           hasData: !!responseData,
@@ -316,32 +359,25 @@ export async function listChats() {
           isChatsArray: responseData && 'chats' in responseData && Array.isArray(responseData.chats),
           responseKeys: responseData ? Object.keys(responseData) : []
         });
-        return responseData;
+        
+        // Handle different response formats
+        if (responseData && 'chats' in responseData) {
+          return responseData;
+        } else if (Array.isArray(responseData)) {
+          return { chats: responseData };
+        } else if (responseData && typeof responseData === 'object') {
+          return { chats: [responseData] };
+        } else {
+          return { chats: [] };
+        }
       } catch (parseError: unknown) {
         logger.error('Failed to parse JSON response for listing chats:', parseError);
         // Try to log the raw response for debugging
-        try {
-          const responseText = await response.clone().text();
-          logger.error('Raw response text:', responseText.substring(0, 200) + '...');
-        } catch (textError) {
-          logger.error('Could not read raw response', textError);
-        }
+        logger.error('Raw response text:', responseText.substring(0, 200) + '...');
         return { chats: [] };
       }
-    } else {
-      logger.warn('Non-JSON response for listing chats');
-      // Try to log the actual response content
-      try {
-        const responseText = await response.text();
-        logger.warn('Non-JSON response content:', responseText.substring(0, 500));
-        
-        // Check if this might be HTML (likely an error page)
-        if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
-          logger.error('Received HTML response instead of JSON. This is likely a server error page or misconfigured route');
-        }
-      } catch (textError) {
-        logger.error('Could not read response text', textError);
-      }
+    } catch (textError) {
+      logger.error('Could not read response text', textError);
       return { chats: [] };
     }
   } catch (error) {
@@ -822,19 +858,52 @@ export async function testApiConnection() {
       // Continue with other tests even if this fails
     }
     
+    // Try the authenticated chats endpoint first (most important for this page)
+    const token = getAuthToken();
+    
+    if (token) {
+      try {
+        logger.debug('Testing authenticated chats endpoint');
+        const chatResponse = await fetch(`${API_BASE_URL}/chats`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        logger.debug(`Chats endpoint response: ${chatResponse.status}`);
+        
+        if (chatResponse.ok) {
+          // Successfully tested the endpoint we actually need
+          return {
+            success: true,
+            status: chatResponse.status,
+            endpoint: '/chats',
+            authenticated: true
+          };
+        }
+      } catch (chatErr) {
+        logger.debug('Failed to test authenticated chats endpoint:', chatErr);
+        // Continue to try other endpoints
+      }
+    }
+    
     // Define endpoints to try in order
     const endpointsToTry = [
       '/api/v1/chats',     // Try chats endpoint first (what we actually need)
-      '/api/v1',           // Try base API path
-      '/api/v1/users',     // Try users endpoint
+      '/api/v1/users/me',  // Try user profile endpoint next
       '/api/v1/trends',    // Try trends endpoint
-      '/api/v1/health'     // Try health endpoint last
+      '/api/v1/health',    // Try health endpoint
+      '/api/v1'            // Try base API path last
     ];
     
     let successful = false;
     let status = 0;
     let responseData = null;
     let errorMessage = '';
+    let testedEndpoint = '';
     
     // Try each endpoint until one works
     for (const endpoint of endpointsToTry) {
@@ -844,25 +913,29 @@ export async function testApiConnection() {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
           }
         });
         
         status = apiResponse.status;
         logger.debug(`API endpoint ${endpoint} response: ${status}`);
         
-        // Consider any response a success for connectivity purposes
-        successful = true;
-        
-        // If we got a successful response, try to parse it
-        if (apiResponse.ok) {
-          try {
-            responseData = await apiResponse.json();
-            logger.debug(`API response data from ${endpoint}:`, responseData);
-            // If we got a valid response, stop trying more endpoints
+        // For the base /api/v1 endpoint, a 404 is expected since it's not implemented directly
+        if ((endpoint === '/api/v1' && status === 404) || apiResponse.ok) {
+          successful = true;
+          testedEndpoint = endpoint;
+          
+          // If we got a successful response, try to parse it
+          if (apiResponse.ok) {
+            try {
+              responseData = await apiResponse.json();
+              logger.debug(`API response data from ${endpoint}:`, responseData);
+            } catch (e) {
+              logger.debug(`Could not parse JSON from ${endpoint} response`);
+            }
+            // Found a working endpoint, stop trying more
             break;
-          } catch (e) {
-            logger.debug(`Could not parse JSON from ${endpoint} response`);
           }
         } else {
           errorMessage = apiResponse.statusText;
@@ -876,7 +949,7 @@ export async function testApiConnection() {
       return {
         success: true,
         status,
-        endpoint: endpointsToTry.find(ep => successful) || '',
+        endpoint: testedEndpoint,
         data: responseData
       };
     } else {
