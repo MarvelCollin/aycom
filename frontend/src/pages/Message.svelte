@@ -33,12 +33,11 @@
     content: string;
     timestamp: string;
     sender_id: string;
-    sender_name: string;
+    sender_name?: string;
     sender_avatar?: string;
-    is_own: boolean;
     is_read: boolean;
     is_deleted: boolean;
-    attachments: Attachment[];
+    attachments?: Attachment[];
   }
   
   interface Participant {
@@ -87,6 +86,7 @@
   let selectedChat: Chat | null = null;
   let chats: Chat[] = [];
   let isLoadingChats = true;
+  let isLoadingMessages = false;
   let newMessage = '';
   let searchQuery = '';
   let filteredChats: Chat[] = [];
@@ -286,10 +286,9 @@
       sender_id: authState.user_id || '',
       sender_name: displayName,
       sender_avatar: avatar,
-      is_own: true,
       is_read: false,
       is_deleted: false,
-      attachments: [...selectedAttachments]
+      attachments: selectedAttachments.length > 0 ? [...selectedAttachments] : undefined
     };
     
     // Clear attachments
@@ -369,7 +368,7 @@
     
     // Find the message
     const message = selectedChat.messages.find(m => m.id === messageId);
-    if (!message || !message.is_own) return;
+    if (!message || message.sender_id !== authState.user_id) return;
     
     try {
       // Optimistically update UI
@@ -868,24 +867,29 @@
       </div>
       
       <div class="messages-container">
-            {#if selectedChat.messages && selectedChat.messages.length > 0}
+            {#if isLoadingMessages}
+              <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p>Loading messages...</p>
+              </div>
+            {:else if selectedChat.messages && selectedChat.messages.length > 0}
         {#each selectedChat.messages as message}
-                <div class="message-item {message.is_own ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''}">
-              {#if !message.is_own}
+                <div class="message-item {message.sender_id === authState.user_id ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''}">
+              {#if message.sender_id !== authState.user_id}
                     <div class="message-avatar">
                       {#if message.sender_avatar}
                         <img src={message.sender_avatar} alt={message.sender_name} />
                       {:else}
-                        <div class="avatar-placeholder" style="background-color: {getAvatarColor(message.sender_name)}">
-                          {message.sender_name.charAt(0).toUpperCase()}
+                        <div class="avatar-placeholder" style="background-color: {getAvatarColor(message.sender_name || 'User')}">
+                          {(message.sender_name || 'User').charAt(0).toUpperCase()}
                         </div>
                       {/if}
                     </div>
                   {/if}
                   
                   <div class="message-bubble">
-                    {#if !message.is_own && selectedChat.type === 'group'}
-                      <div class="sender-name">{message.sender_name}</div>
+                    {#if message.sender_id !== authState.user_id && selectedChat.type === 'group'}
+                      <div class="sender-name">{message.sender_name || 'User'}</div>
                     {/if}
                     
                     {#if message.is_deleted}
@@ -912,7 +916,7 @@
                       <div class="message-footer">
                         <span class="timestamp">{formatTimeAgo(message.timestamp)}</span>
                         
-                        {#if message.is_own}
+                        {#if message.sender_id === authState.user_id}
                           <div class="message-actions">
                             <button class="action-button" on:click={() => unsendMessage(message.id)} aria-label="Delete message">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">

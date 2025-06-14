@@ -315,8 +315,8 @@ func UnsendMessage(c *gin.Context) {
 func ListMessages(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
-		log.Printf("ListMessages: Missing userId in context - but allowing for testing")
-		userID = "test-user-123" // Set a default user ID for testing
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
 	}
 
 	chatID := c.Param("id") // Changed from "chatId" to "id" to match route
@@ -327,7 +327,7 @@ func ListMessages(c *gin.Context) {
 	}
 
 	// Log the request for debugging
-	log.Printf("ListMessages request: chatID=%s, userID=%v (type: %T) - BYPASSING ALL AUTH CHECKS FOR TESTING", chatID, userID, userID)
+	log.Printf("ListMessages request: chatID=%s, userID=%v", chatID, userID)
 
 	// Parse query parameters
 	limit := 20
@@ -341,14 +341,57 @@ func ListMessages(c *gin.Context) {
 	if offsetVal, err := strconv.Atoi(offsetStr); err == nil && offsetVal >= 0 {
 		offset = offsetVal
 	}
-	// COMPLETELY BYPASS ALL SERVICE CHECKS - JUST RETURN EMPTY DATA FOR TESTING
-	log.Printf("TESTING MODE: Returning empty message list for chat %s", chatID)
+
+	// Check if community client is available
+	if CommunityClient == nil {
+		log.Printf("ERROR: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Get messages for the chat
+	resp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
+		ChatId: chatID,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+
+	if err != nil {
+		log.Printf("Error fetching messages: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch messages: "+err.Error())
+		return
+	}
+
+	// Format messages for frontend
+	messages := make([]gin.H, 0, len(resp.Messages))
+	for _, msg := range resp.Messages {
+		timestamp := time.Now().Unix()
+		if msg.SentAt != nil {
+			timestamp = msg.SentAt.AsTime().Unix()
+		}
+
+		messages = append(messages, gin.H{
+			"id":         msg.Id,
+			"chat_id":    msg.ChatId,
+			"sender_id":  msg.SenderId,
+			"content":    msg.Content,
+			"timestamp":  timestamp,
+			"is_read":    !msg.Unsent,
+			"is_edited":  false,
+			"is_deleted": msg.DeletedForAll,
+		})
+	}
+
+	log.Printf("Successfully retrieved %d messages for chat %s", len(messages), chatID)
 	utils.SendSuccessResponse(c, 200, gin.H{
-		"messages": []gin.H{},
+		"messages": messages,
 		"pagination": gin.H{
 			"limit":  limit,
 			"offset": offset,
-			"total":  0,
+			"total":  len(messages),
 		},
 	})
 }
