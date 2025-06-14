@@ -1158,19 +1158,55 @@ func (h *ThreadHandler) convertThreadToResponse(ctx context.Context, threadModel
 		}
 	}
 
+	// Handle original thread conversion for reposts
+	var originalThreadResponse *thread.ThreadResponse = nil
+	var originalThreadId string = ""
+
+	if threadModel.IsRepost && threadModel.OriginalThreadID != nil {
+		originalThreadId = threadModel.OriginalThreadID.String()
+
+		// If we have the original thread data loaded, convert it
+		if threadModel.OriginalThread != nil {
+			// Create a new context with a timeout to avoid long recursion chains
+			originalCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+
+			// Use recursion to convert the original thread, but without its own original thread
+			// to avoid deep nesting that could cause performance issues
+			originalThreadModel := threadModel.OriginalThread
+			originalThreadModel.OriginalThread = nil // Break potential deep nesting
+
+			var err error
+			originalThreadResponse, err = h.convertThreadToResponse(originalCtx, originalThreadModel)
+			if err != nil {
+				log.Printf("WARNING: Failed to convert original thread %s for repost %s: %v",
+					originalThreadId, threadModel.ThreadID.String(), err)
+			}
+		}
+	}
+
 	// Create thread response
+	// Create response object with all required fields
 	response := &thread.ThreadResponse{
 		Thread:           protoThread,
 		User:             user,
 		LikesCount:       likesCount,
 		RepliesCount:     repliesCount,
 		RepostsCount:     repostsCount,
-		BookmarkCount:    bookmarkCount,
 		LikedByUser:      false,
 		RepostedByUser:   false,
 		BookmarkedByUser: false,
 		Poll:             pollResponse,
+		Hashtags:         []string{},
+		MentionedUserIds: []string{},
+		// Add repost information
+		IsRepost:         threadModel.IsRepost,
+		OriginalThreadId: &originalThreadId,
+		OriginalThread:   originalThreadResponse,
 	}
+
+	// Bookmark count is currently not used in response
+	_ = bookmarkCount
 
 	// Check user interaction status if user ID is in context and interaction service is available
 	if requestingUserID != "" && h.interactionService != nil {

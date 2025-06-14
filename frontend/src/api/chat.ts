@@ -602,8 +602,28 @@ export async function listMessages(chatId: string) {
       if (contentType && contentType.includes('application/json')) {
         try {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to list messages');
+          logger.error('Error response from message list endpoint', errorData);
+          
+          // Check for standard error formats
+          if (errorData.error && errorData.error.message) {
+            // Format: { success: false, error: { code: 'ERROR_CODE', message: 'Error message' } }
+            throw new Error(errorData.error.message);
+          } else if (errorData.message) {
+            // Format: { message: 'Error message' }
+            throw new Error(errorData.message);
+          } else if (errorData.error && typeof errorData.error === 'string') {
+            // Format: { error: 'Error message' }
+            throw new Error(errorData.error);
+          } else if (errorData.success === false) {
+            // Format: { success: false, ... }
+            throw new Error('Failed to list messages: Request failed');
+          } else {
+            throw new Error('Failed to list messages: Unknown error');
+          }
         } catch (parseError) {
+          if (parseError instanceof Error && parseError.message !== 'Failed to list messages: Unknown error') {
+            throw parseError; // Re-throw if it's our custom error with message
+          }
           throw new Error(`Failed to list messages: ${response.status} ${response.statusText}`);
         }
       } else {
@@ -630,16 +650,26 @@ export async function listMessages(chatId: string) {
         // Log the shape of the response data
         logger.debug('API messages response structure:', {
           hasData: !!responseData,
+          hasSuccess: responseData && 'success' in responseData,
           hasMessages: responseData && 'messages' in responseData,
+          hasDataObject: responseData && 'data' in responseData,
           isMessagesArray: responseData && 'messages' in responseData && Array.isArray(responseData.messages),
           messagesLength: responseData?.messages?.length || 0,
           responseKeys: responseData ? Object.keys(responseData) : []
         });
         
         // Handle different response formats
-        if (responseData && 'messages' in responseData) {
+        if (responseData && responseData.success && responseData.data && responseData.data.messages) {
+          // Format: { success: true, data: { messages: [...] } }
+          return responseData.data;
+        } else if (responseData && 'messages' in responseData) {
+          // Format: { messages: [...] }
           return responseData;
+        } else if (responseData && responseData.data && Array.isArray(responseData.data)) {
+          // Format: { data: [...] } - array might be messages
+          return { messages: responseData.data };
         } else if (Array.isArray(responseData)) {
+          // Format: [...] - direct array of messages
           return { messages: responseData };
         } else if (responseData && typeof responseData === 'object') {
           // If the response is an object but doesn't have a messages property,
@@ -822,14 +852,38 @@ export async function getChatHistoryList() {
     if (contentType && contentType.includes('application/json')) {
       try {
         const data = await response.json();
-        logger.debug('Chat history response data', { 
-          hasSuccess: 'success' in data,
-          hasChats: 'chats' in data,
-          chatsIsArray: Array.isArray(data.chats),
-          chatsLength: data.chats ? data.chats.length : 0,
-          data: data
+        
+        // Enhanced logging to debug response structure
+        logger.debug('API response structure:', { 
+          hasData: !!data,
+          hasSuccess: data && 'success' in data,
+          hasChats: data && 'chats' in data,
+          hasDataChats: data && data.data && 'chats' in data.data,
+          isChatsArray: data && 'chats' in data && Array.isArray(data.chats),
+          isDataChatsArray: data && data.data && 'chats' in data.data && Array.isArray(data.data.chats),
+          chatsLength: data?.chats?.length || (data?.data?.chats?.length) || 0,
+          responseKeys: data ? Object.keys(data) : []
         });
-        return data;
+        
+        // Handle different response formats
+        if (data && data.data && data.data.chats) {
+          // Format: { success: true, data: { chats: [...] } }
+          return {
+            chats: data.data.chats
+          };
+        } else if (data && data.chats) {
+          // Format: { chats: [...] }
+          return data;
+        } else if (data && Array.isArray(data)) {
+          // Format: [...]
+          return {
+            chats: data
+          };
+        } else {
+          // Default empty response
+          logger.warn('Unexpected response format from chat history endpoint', data);
+          return { chats: [] };
+        }
       } catch (parseError: unknown) {
         logger.error('Failed to parse JSON response for getting chat history:', parseError);
         return { chats: [] };
@@ -1088,5 +1142,49 @@ export function logAuthTokenInfo() {
   } catch (e) {
     logger.error('Error checking auth token:', e);
     return { success: false, error: 'Error analyzing token' };
+  }
+}
+
+// Adding a function to join a chat as a participant
+export async function joinChat(chatId: string) {
+  try {
+    const token = getAuthToken();
+    logger.debug(`Joining chat ${chatId}`);
+
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      body: JSON.stringify({ is_admin: false }), // Join as a regular participant
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error?.message || 'Failed to join chat');
+      } else {
+        throw new Error(`Failed to join chat: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        return await response.json();
+      } catch (parseError: unknown) {
+        logger.error(`Failed to parse JSON response for joining chat ${chatId}:`, parseError);
+        return { success: true };
+      }
+    } else {
+      logger.warn(`Non-JSON response for joining chat ${chatId}`);
+      return { success: true };
+    }
+  } catch (error) {
+    logger.error(`Join chat ${chatId} failed:`, error);
+    throw error;
   }
 }

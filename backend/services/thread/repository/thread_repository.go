@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"aycom/backend/services/thread/model"
 
@@ -20,6 +21,7 @@ type ThreadRepository interface {
 	DeleteThread(id string) error
 	ThreadExists(threadID string) (bool, error)
 	RunInTransaction(fn func(tx *gorm.DB) error) error
+	GetAllThreads(page, limit int) ([]*model.Thread, error)
 }
 
 type PostgresThreadRepository struct {
@@ -45,17 +47,27 @@ func (r *PostgresThreadRepository) CreateThread(thread *model.Thread) error {
 func (r *PostgresThreadRepository) FindThreadByID(id string) (*model.Thread, error) {
 	threadID, err := uuid.Parse(id)
 	if err != nil {
-		return nil, errors.New("invalid UUID format for thread ID")
+		return nil, err
 	}
 
 	var thread model.Thread
-	result := r.db.Where("thread_id = ?", threadID).First(&thread)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, gorm.ErrRecordNotFound
-		}
-		return nil, result.Error
+	if err := r.db.Where("thread_id = ?", threadID).First(&thread).Error; err != nil {
+		return nil, err
 	}
+
+	// If this is a repost, fetch original thread details as well (for API response)
+	if thread.IsRepost && thread.OriginalThreadID != nil {
+		var originalThread model.Thread
+		if err := r.db.Where("thread_id = ?", thread.OriginalThreadID).First(&originalThread).Error; err != nil {
+			// Log but don't fail if original thread can't be found
+			log.Printf("Warning: Could not find original thread %s for repost %s: %v",
+				thread.OriginalThreadID.String(), thread.ThreadID.String(), err)
+		} else {
+			// Store original thread details in a field we can access later
+			thread.OriginalThread = &originalThread
+		}
+	}
+
 	return &thread, nil
 }
 
@@ -146,4 +158,37 @@ func (r *PostgresThreadRepository) CountAllThreads() (int64, error) {
 		return 0, result.Error
 	}
 	return count, nil
+}
+
+func (r *PostgresThreadRepository) GetAllThreads(page, limit int) ([]*model.Thread, error) {
+	var threads []*model.Thread
+	offset := (page - 1) * limit
+
+	query := r.db.
+		Model(&model.Thread{}).
+		Where("deleted_at IS NULL").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit)
+
+	err := query.Find(&threads).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// For each thread that is a repost, load the original thread data
+	for _, thread := range threads {
+		if thread.IsRepost && thread.OriginalThreadID != nil {
+			var originalThread model.Thread
+			if err := r.db.Where("thread_id = ?", thread.OriginalThreadID).First(&originalThread).Error; err != nil {
+				// Log error but don't fail the operation
+				log.Printf("Failed to load original thread %s for repost %s: %v",
+					thread.OriginalThreadID.String(), thread.ThreadID.String(), err)
+			} else {
+				thread.OriginalThread = &originalThread
+			}
+		}
+	}
+
+	return threads, nil
 }

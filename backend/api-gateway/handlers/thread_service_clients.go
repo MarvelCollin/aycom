@@ -1051,7 +1051,7 @@ func convertProtoToThread(t any) *Thread {
 			thread.LikeCount = int(tr.LikesCount)
 			thread.ReplyCount = int(tr.RepliesCount)
 			thread.RepostCount = int(tr.RepostsCount)
-			thread.BookmarkCount = int(tr.BookmarkCount)
+			thread.BookmarkCount = 0 // TODO: fix after regenerating proto
 			thread.IsLiked = tr.LikedByUser
 			thread.IsReposted = tr.RepostedByUser
 			thread.IsBookmarked = tr.BookmarkedByUser

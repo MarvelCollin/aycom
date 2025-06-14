@@ -72,11 +72,42 @@
             user: msg.user || {
               id: messageUserId,
               username: '',
-              display_name: getUserDisplayName(messageUserId)
+              name: getUserDisplayName(messageUserId)
             }
           };
           
           // Add the message to the store
+          chatMessageStore.addMessage(processedMsg);
+        });
+      } else if (response && Array.isArray(response)) {
+        // Handle case where response is a direct array
+        logger.debug('Loaded messages from API (direct array)', { count: response.length });
+        
+        response.forEach(msg => {
+          const messageId = msg.message_id || msg.id || '';
+          const messageUserId = msg.user_id || msg.sender_id || '';
+          
+          const processedMsg = {
+            message_id: messageId,
+            chat_id: msg.chat_id || chatId,
+            content: msg.content,
+            timestamp: msg.timestamp ? 
+              (typeof msg.timestamp === 'number' ? 
+                new Date(msg.timestamp * 1000) : 
+                new Date(msg.timestamp)) : 
+              new Date(),
+            user_id: messageUserId,
+            type: 'text' as MessageType,
+            is_edited: msg.is_edited || false,
+            is_deleted: msg.is_deleted || false,
+            is_read: msg.is_read || false,
+            user: msg.user || {
+              id: messageUserId,
+              username: '',
+              name: getUserDisplayName(messageUserId)
+            }
+          };
+          
           chatMessageStore.addMessage(processedMsg);
         });
       } else {
@@ -96,7 +127,14 @@
       }
     } catch (error: any) {
       logger.error('Failed to load message history', error);
-      errorMessage = 'Failed to load messages. Please try refreshing.';
+      
+      // Check for specific error types
+      if (error.message && error.message.includes('not a participant in this chat')) {
+        errorMessage = 'You are not a participant in this chat. Please join the chat first.';
+      } else {
+        errorMessage = 'Failed to load messages. Please try refreshing.';
+      }
+      
       console.error('[ChatWindow] Error loading messages:', error?.message || error);
       
       // Add more context about the error
@@ -133,8 +171,8 @@
   function getUserDisplayName(userId: string): string {
     // First check if the user data is in the messages store
     const userMessage = $messages.find(m => m.user_id === userId);
-    if (userMessage && userMessage.user && userMessage.user.display_name) {
-      return userMessage.user.display_name;
+    if (userMessage && userMessage.user && userMessage.user.name) {
+      return userMessage.user.name;
     }
     
     // Then check participants array as fallback

@@ -14,8 +14,11 @@ export function useExternalServices() {
     return clientId;
   }
     
-  const getGoogleRedirectUri = (): string => 
-    import.meta.env.VITE_GOOGLE_REDIRECT_URI || 'http://localhost:5173';
+  const getGoogleRedirectUri = (): string => {
+    const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI || 'http://localhost:3000/register';
+    console.log('Using Google Redirect URI:', redirectUri);
+    return redirectUri;
+  }
   
   const loadRecaptcha = (
     callback: (token: string) => void, 

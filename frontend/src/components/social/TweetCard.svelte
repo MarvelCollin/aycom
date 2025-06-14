@@ -31,6 +31,7 @@
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
   import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
   import { navigate } from '../../utils/navigation';
+  import RepostedContent from './RepostedContent.svelte';
   
   // Extract the API methods we need
   const { 
@@ -215,6 +216,11 @@ themeStore.subscribe(theme => {
   let className = "";
   let isReply = false;
   let isRepost = false;
+
+  // Add to the Thread interface to handle repost data
+  $: isRepost = safeTweet.is_repost || safeTweet.IsRepost || false;
+  $: originalThreadId = safeTweet.original_thread_id || safeTweet.OriginalThreadID;
+  $: originalThread = safeTweet.original_thread;
 
   // Add a function to process content with entities
   function processContentWithEntities(content: string): string {
@@ -776,6 +782,13 @@ themeStore.subscribe(theme => {
     // Ensure we're passing a string ID
     const replyId = typeof event.detail === 'string' ? event.detail : String(event.detail);
     dispatch('reply', replyId);
+  }
+
+  function handleOriginalTweetClick(originalTweet) {
+    // Navigate to the original tweet
+    if (originalTweet && originalTweet.id) {
+      navigate(`/thread/${originalTweet.id}`);
+    }
   }
 
   async function handleLoadNestedReplies(event) {
@@ -1677,155 +1690,70 @@ themeStore.subscribe(theme => {
 </script>
 
 {#if tweet}
-  <div class="tweet-card {className} {isDarkMode ? 'tweet-card-dark' : ''}" class:is-reply={isReply} class:is-repost={isRepost}>
-    <!-- Tweet content -->
-    <div class="tweet-container">
-      <!-- Tweet header with user info -->
-      <div class="tweet-header">
-        <a href={`/user/${safeTweet.username}`}
-          class="tweet-avatar"
-          on:click|preventDefault={(e) => navigateToUserProfile(e, safeTweet.username, safeTweet.user_id)}
-          on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, safeTweet.username, safeTweet.user_id)}>
-          {#if safeTweet.profile_picture_url}
-            <img src={safeTweet.profile_picture_url} alt={safeTweet.username} class="tweet-avatar-image" />
-          {:else}
-            <div class="tweet-avatar-placeholder">
-              <div class="tweet-avatar-text">{safeTweet.username ? safeTweet.username[0].toUpperCase() : 'U'}</div>
-            </div>
-          {/if}
-        </a>
-        <div class="tweet-content-container">
-          <div class="tweet-author-info">
-            <a href={`/user/${safeTweet.username}`}
-              class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
-              on:click|preventDefault={(e) => navigateToUserProfile(e, safeTweet.username, safeTweet.user_id)}
-              on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, safeTweet.username, safeTweet.user_id)}>
-              <span class="display-name-text">{safeTweet.name || safeTweet.displayName || safeTweet.username}</span>
-              {#if safeTweet.is_verified}
-                <span class="user-verified-badge">
-                  <CheckCircleIcon size="14" />
-                </span>
+  <div class="tweet-card {className} {isDarkMode ? 'tweet-card-dark' : ''}" on:click|self={handleClick}>
+    {#if processedTweet !== null}
+      <div class="tweet-container">
+        <!-- Repost indicator for reposted tweets -->
+        {#if isRepost}
+          <div class="tweet-repost-indicator">
+            <RefreshCwIcon size="16" strokeWidth="1.5" />
+            <span>Reposted</span>
+          </div>
+        {/if}
+        
+        <div class="tweet-header">
+          <div class="tweet-author-container" on:click|stopPropagation={() => handleUserProfileClick(safeTweet.user_id)}>
+            <div class="tweet-avatar" class:dark-bg={isDarkMode}>
+              {#if safeTweet.profile_picture_url}
+                <img src={safeTweet.profile_picture_url} alt={safeTweet.name || safeTweet.username || 'User'} />
+              {:else}
+                <UserIcon size="20" />
               {/if}
-            </a>
-            <a href={`/user/${safeTweet.username}`}
-              class="tweet-author-username {isDarkMode ? 'tweet-author-username-dark' : ''}"
-              on:click|preventDefault={(e) => navigateToUserProfile(e, safeTweet.username, safeTweet.user_id)}
-              on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, safeTweet.username, safeTweet.user_id)}>
-              @{safeTweet.username}
-            </a>
-            <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
-            <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(safeTweet.created_at)}</span>
-          </div>
-          
-          <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
-            <p>{safeTweet.content}</p>
-          </div>
-          
-          {#if safeTweet.media && safeTweet.media.length > 0}
-            <div class="tweet-media-container {isDarkMode ? 'tweet-media-container-dark' : ''}">
-              {#if safeTweet.media.length === 1}
-                <!-- Single Media Display -->
-                <div class="tweet-media-single">
-                  {#if safeTweet.media[0].type === 'image'}
-                    <img 
-                      src={safeTweet.media[0].url} 
-                      alt={safeTweet.media[0].alt_text || "Media"} 
-                      class="tweet-media-img"
-                    />
-                  {:else if safeTweet.media[0].type === 'video'}
-                    <video 
-                      src={safeTweet.media[0].url} 
-                      controls 
-                      class="tweet-media-video"
-                    >
-                      <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
-                    </video>
-                  {:else}
-                    <img 
-                      src={safeTweet.media[0].url} 
-                      alt="GIF" 
-                      class="tweet-media-img"
-                    />
+            </div>
+            
+            <div class="tweet-author-info">
+              <div class="tweet-name-container">
+                <div class="tweet-author-name {isDarkMode ? 'dark' : ''}">
+                  {safeTweet.name || ''}
+                  {#if safeTweet.is_verified}
+                    <CheckCircleIcon size="14" class="verified-icon" />
                   {/if}
                 </div>
-              {:else if safeTweet.media.length > 1}
-                <!-- Multiple Media Grid -->
-                <div class="tweet-media-grid">
-                  {#each safeTweet.media.slice(0, 4) as media, index (media.url || index)}
-                    <div class="tweet-media-item">
-                      {#if media.type === 'image'}
-                        <img 
-                          src={media.url} 
-                          alt={media.alt_text || "Media"} 
-                          class="tweet-media-img"
-                        />
-                      {:else if media.type === 'video'}
-                        <video 
-                          src={media.url} 
-                          controls 
-                          class="tweet-media-video"
-                        >
-                          <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
-                        </video>
-                      {:else}
-                        <img 
-                          src={media.url} 
-                          alt="GIF" 
-                          class="tweet-media-img"
-                        />
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              {/if}
+                
+                <div class="tweet-username">@{safeTweet.username || ''}</div>
+              </div>
             </div>
-          {/if}
-          
-          <div class="tweet-actions {isDarkMode ? 'tweet-actions-dark' : ''}">
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-reply-btn {hasReplies ? 'has-replies' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleReply} 
-                aria-label="Reply to tweet"
-              >
-                <MessageCircleIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count">{effectiveReplies}</span>
-              </button>
-            </div>
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-repost-btn {effectiveIsReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleRepostClick}
-                aria-label="{effectiveIsReposted ? 'Undo repost' : 'Repost'}"
-              >
-                <RefreshCwIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count">{effectiveReposts}</span>
-              </button>
-            </div>
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isLikeLoading ? 'loading' : ''} {heartAnimating ? 'animating' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleLikeClick}
-                aria-label="{effectiveIsLiked ? 'Unlike this post' : 'Like this post'}"
-              >
-                <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon" />
-                <span class="tweet-action-count">{effectiveLikes}</span>
-              </button>
-            </div>
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={() => {}}
-                aria-label="{effectiveIsBookmarked ? 'Remove bookmark' : 'Bookmark'}"
-              >
-                <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
-                <span class="tweet-action-count">{effectiveBookmarks}</span>
-              </button>
+          </div>
+
+          <div class="tweet-actions-dropdown">
+            <div class="tweet-more-button" on:click|stopPropagation={toggleDropdown}>
+              <MoreHorizontalIcon size="20" />
             </div>
           </div>
         </div>
+
+        <!-- Tweet content -->
+        <div class="tweet-content {safeTweet.content ? '' : 'empty-content'}">
+          {#if safeTweet.content}
+            <Linkify text={safeTweet.content} />
+          {/if}
+          
+          <!-- Original tweet content for reposts -->
+          {#if isRepost && originalThread}
+            <RepostedContent 
+              originalTweet={originalThread} 
+              isDarkMode={isDarkMode} 
+              on:clickOriginal={handleOriginalTweetClick}
+            />
+          {/if}
+        </div>
       </div>
-    </div>
+    {:else}
+      <!-- Fallback for null tweets -->
+      <div class="tweet-card-error {isDarkMode ? 'tweet-card-error-dark' : ''}">
+        <p>Unable to display this tweet</p>
+      </div>
+    {/if}
   </div>
 {:else}
   <!-- Fallback for null tweets -->
@@ -1960,6 +1888,18 @@ themeStore.subscribe(theme => {
   
   .tweet-text-dark {
     color: #fff;
+  }
+  
+  .tweet-repost-indicator {
+    display: flex;
+    align-items: center;
+    color: #536471;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  
+  .tweet-repost-indicator span {
+    margin-left: 4px;
   }
   
   .tweet-media-container {

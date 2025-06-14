@@ -79,6 +79,8 @@
     messages: Message[];
     unread_count: number;
     profile_picture_url: string | null;
+    created_at: string;
+    updated_at: string;
   }
   
   const logger = createLoggerWithPrefix('Message');
@@ -256,7 +258,9 @@
           }],
           messages: [],
           unread_count: 0,
-          profile_picture_url: user.avatar || null
+          profile_picture_url: user.avatar || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
         
         // Add to chats and select it
@@ -677,28 +681,38 @@
     isLoadingChats = true;
     try {
       logger.info('Fetching chats from API');
-      const response = await listChats();
+      const response = await getChatHistoryList();
       
       logger.info('API response received:', { 
         hasData: !!response,
-        hasChats: response && 'chats' in response,
-        isArray: Array.isArray(response),
-        keysIfObject: response && typeof response === 'object' ? Object.keys(response) : []
+        hasChats: response && 'chats' in response || (response && response.data && 'chats' in response.data),
+        isChatsArray: response && 'chats' in response && Array.isArray(response.chats) || 
+                     (response && response.data && 'chats' in response.data && Array.isArray(response.data.chats)),
+        chatsLength: (response?.chats?.length || (response?.data?.chats?.length)) || 0,
+        responseKeys: response ? Object.keys(response) : []
       });
+      
+      let rawChats: any[] = [];
       
       if (!response || (typeof response === 'object' && Object.keys(response).length === 0)) {
         // Empty response
         logger.info('API returned empty response, no chats available');
-        chats = [];
+        rawChats = [];
       }
       else if (response && 'chats' in response && Array.isArray(response.chats)) {
         // Standard API response with chats property
         logger.info(`Processing ${response.chats.length} chats from API`);
-        chats = mapApiChatsToClientFormat(response.chats);
-      } else if (Array.isArray(response)) {
+        rawChats = response.chats;
+      } 
+      else if (response && response.data && 'chats' in response.data && Array.isArray(response.data.chats)) {
+        // Response with data.chats structure
+        logger.info(`Processing ${response.data.chats.length} chats from API data.chats`);
+        rawChats = response.data.chats;
+      }
+      else if (Array.isArray(response)) {
         // API returns direct array
         logger.info(`Processing ${response.length} chats from direct array`);
-        chats = mapApiChatsToClientFormat(response);
+        rawChats = response;
       } else if (response && typeof response === 'object') {
         // Try to find any array that might contain chats
         logger.warn('API returned unknown response structure:', response);
@@ -710,20 +724,57 @@
           // Use the first array found
           const firstArray = possibleChatArrays[0].value;
           logger.info(`Using ${possibleChatArrays[0].key} as chat array with ${firstArray.length} items`);
-          chats = mapApiChatsToClientFormat(firstArray);
+          rawChats = firstArray;
         } else {
           logger.warn('No usable arrays found in response');
-          chats = [];
+          rawChats = [];
         }
       } else {
         logger.warn('Unrecognized API response format, no chats available');
-        chats = [];
+        rawChats = [];
       }
       
-      // Update filtered chats
-      filteredChats = [...chats];
+      // Map raw chats to client format
+      const mappedChats = mapApiChatsToClientFormat(rawChats);
       
-      logger.info(`Loaded ${chats.length} chats`);
+      // Filter out duplicate non-group chats with the same name
+      const uniqueChats: Chat[] = [];
+      const nameMap: Record<string, Chat> = {};
+      
+      // First pass: collect the most recent chat for each name
+      mappedChats.forEach(chat => {
+        // For group chats, always keep them
+        if (chat.type === 'group') {
+          uniqueChats.push(chat);
+          return;
+        }
+        
+        // For non-group chats with a name, keep only the most recent one
+        if (chat.name && chat.name.trim() !== '') {
+          const existingChat = nameMap[chat.name];
+          if (!existingChat || 
+              (chat.last_message && existingChat.last_message && 
+               new Date(chat.last_message.timestamp) > new Date(existingChat.last_message.timestamp)) || 
+              (!existingChat.last_message && chat.last_message) ||
+              (!existingChat.last_message && !chat.last_message && new Date(chat.updated_at || chat.created_at) > new Date(existingChat.updated_at || existingChat.created_at))) {
+            nameMap[chat.name] = chat;
+          }
+        } else {
+          // Chats without names are always kept
+          uniqueChats.push(chat);
+        }
+      });
+      
+      // Add the most recent chat for each name
+      Object.values(nameMap).forEach(chat => {
+        uniqueChats.push(chat);
+      });
+      
+      logger.info(`Filtered ${mappedChats.length} chats down to ${uniqueChats.length} unique chats`);
+      
+      // Set the chats and filtered chats
+      chats = uniqueChats;
+      filteredChats = [...uniqueChats];
     } catch (error) {
       logger.error('Failed to load chats', error);
       toastStore.showToast('Failed to load chats', 'error');
@@ -736,6 +787,7 @@
   
   // Helper function to map API chat data to client format
   function mapApiChatsToClientFormat(apiChats: any[]): Chat[] {
+    // First convert all chats to our format
     return apiChats.map(chat => ({
       id: chat.id,
       type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
@@ -756,7 +808,9 @@
         sender_name: chat.last_message.sender_name || chat.last_message.username || ''
       } : undefined,
       messages: [],
-      unread_count: chat.unread_count || 0
+      unread_count: chat.unread_count || 0,
+      created_at: chat.created_at || new Date().toISOString(),
+      updated_at: chat.updated_at || chat.created_at || new Date().toISOString()
     }));
   }
   
@@ -777,7 +831,9 @@
       })) || [],
         messages: [],
         unread_count: 0,
-        profile_picture_url: null 
+        profile_picture_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
   }
 </script>

@@ -17,11 +17,12 @@ type Like struct {
 }
 
 type Repost struct {
-	UserID     uuid.UUID  `gorm:"type:uuid;not null;column:user_id;primaryKey"`
-	ThreadID   uuid.UUID  `gorm:"type:uuid;not null;column:thread_id;primaryKey"`
-	RepostText *string    `gorm:"type:text"`
-	CreatedAt  time.Time  `gorm:"autoCreateTime"`
-	DeletedAt  *time.Time `gorm:"index"`
+	UserID      uuid.UUID  `gorm:"type:uuid;not null;column:user_id;primaryKey"`
+	ThreadID    uuid.UUID  `gorm:"type:uuid;not null;column:thread_id;primaryKey"`
+	RepostText  *string    `gorm:"type:text"`
+	NewThreadID *uuid.UUID `gorm:"type:uuid;column:new_thread_id"`
+	CreatedAt   time.Time  `gorm:"autoCreateTime"`
+	DeletedAt   *time.Time `gorm:"index"`
 }
 
 type Bookmark struct {

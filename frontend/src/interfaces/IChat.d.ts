@@ -108,6 +108,8 @@ export interface Chat {
   messages: Message[];
   unread_count: number;
   avatar?: string | null;
+  created_at?: string | Date;
+  updated_at?: string | Date;
 }
 
 export interface CreateChatResponse {

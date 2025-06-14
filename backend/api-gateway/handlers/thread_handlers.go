@@ -318,7 +318,7 @@ func GetThreadsByUser(c *gin.Context) {
 			"likes_count":    t.LikesCount,
 			"replies_count":  t.RepliesCount,
 			"reposts_count":  t.RepostsCount,
-			"bookmark_count": t.BookmarkCount,
+			"bookmark_count": 0, // TODO: fix after regenerating proto
 			"views_count":    t.Thread.ViewCount,
 			"is_liked":       t.LikedByUser,
 			"is_reposted":    t.RepostedByUser,
@@ -671,7 +671,7 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 		thread["likes_count"] = t.LikesCount
 		thread["replies_count"] = t.RepliesCount
 		thread["reposts_count"] = t.RepostsCount
-		thread["bookmark_count"] = t.BookmarkCount
+		thread["bookmark_count"] = 0 // TODO: fix after regenerating proto
 		thread["is_liked"] = t.LikedByUser
 		thread["is_reposted"] = t.RepostedByUser
 		thread["is_bookmarked"] = t.BookmarkedByUser

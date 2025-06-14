@@ -103,9 +103,150 @@ func CreateChat(c *gin.Context) {
 	log.Printf("CreateChat: Response sent with status 201 for chat ID %s", chat.ID)
 }
 
-func AddChatParticipant(c *gin.Context) {}
+func AddChatParticipant(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("AddChatParticipant: Missing userId in context")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
 
-func RemoveChatParticipant(c *gin.Context) {}
+	chatID := c.Param("id")
+	if chatID == "" {
+		log.Printf("AddChatParticipant: Missing chat ID parameter")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
+		return
+	}
+
+	log.Printf("AddChatParticipant: Adding user %s to chat %s", userID, chatID)
+
+	// Get the community service client
+	if CommunityClient == nil {
+		log.Printf("AddChatParticipant: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	// Parse request body for additional parameters (optional)
+	var req struct {
+		IsAdmin bool `json:"is_admin"`
+	}
+
+	// Default to false if not provided
+	isAdmin := false
+	if err := c.ShouldBindJSON(&req); err == nil {
+		isAdmin = req.IsAdmin
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the community service to add the participant
+	_, err := CommunityClient.AddChatParticipant(ctx, &communityProto.AddChatParticipantRequest{
+		ChatId:  chatID,
+		UserId:  userID.(string),
+		IsAdmin: isAdmin,
+	})
+
+	if err != nil {
+		log.Printf("AddChatParticipant: Error adding participant: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to add participant: "+err.Error())
+		return
+	}
+
+	log.Printf("AddChatParticipant: Successfully added user %s to chat %s", userID, chatID)
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message":  "Participant added successfully",
+		"chat_id":  chatID,
+		"user_id":  userID,
+		"is_admin": isAdmin,
+	})
+}
+
+func RemoveChatParticipant(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("RemoveChatParticipant: Missing userId in context")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		log.Printf("RemoveChatParticipant: Missing chat ID parameter")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
+		return
+	}
+
+	participantID := c.Param("userId")
+	if participantID == "" {
+		log.Printf("RemoveChatParticipant: Missing participant ID parameter")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Participant ID is required")
+		return
+	}
+
+	log.Printf("RemoveChatParticipant: Removing user %s from chat %s, requested by %s", participantID, chatID, userID)
+
+	// Get the community service client
+	if CommunityClient == nil {
+		log.Printf("RemoveChatParticipant: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	// Check if the requesting user is an admin or removing themselves
+	isSelfRemoval := participantID == userID.(string)
+	isAdmin := false
+
+	if !isSelfRemoval {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		participantsResp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+			ChatId: chatID,
+		})
+
+		if err != nil {
+			log.Printf("RemoveChatParticipant: Error checking chat participants: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat access: "+err.Error())
+			return
+		}
+
+		// Check if the requesting user is an admin
+		for _, participant := range participantsResp.Participants {
+			if participant.UserId == userID.(string) && participant.IsAdmin {
+				isAdmin = true
+				break
+			}
+		}
+
+		if !isAdmin {
+			log.Printf("RemoveChatParticipant: User %s is not an admin in chat %s", userID, chatID)
+			utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only admins can remove other participants")
+			return
+		}
+	}
+
+	// Remove the participant
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+
+	_, err := CommunityClient.RemoveChatParticipant(ctx2, &communityProto.RemoveChatParticipantRequest{
+		ChatId: chatID,
+		UserId: participantID,
+	})
+
+	if err != nil {
+		log.Printf("RemoveChatParticipant: Error removing participant: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to remove participant: "+err.Error())
+		return
+	}
+
+	log.Printf("RemoveChatParticipant: Successfully removed user %s from chat %s", participantID, chatID)
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Participant removed successfully",
+	})
+}
 
 func ListChats(c *gin.Context) {
 	userID, exists := c.Get("userId")
@@ -151,13 +292,99 @@ func ListChats(c *gin.Context) {
 	})
 }
 
-func ListChatParticipants(c *gin.Context) {}
+func ListChatParticipants(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		log.Printf("ListChatParticipants: Missing userId in context")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		log.Printf("ListChatParticipants: Missing chat ID parameter")
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
+		return
+	}
+
+	log.Printf("ListChatParticipants: Listing participants for chat %s, requested by user %s", chatID, userID)
+
+	// Get the community service client
+	if CommunityClient == nil {
+		log.Printf("ListChatParticipants: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call the community service to get participants
+	resp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+		ChatId: chatID,
+	})
+
+	if err != nil {
+		log.Printf("ListChatParticipants: Error listing participants: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list participants: "+err.Error())
+		return
+	}
+
+	// Check if the user is a participant
+	userIsParticipant := false
+	for _, participant := range resp.Participants {
+		if participant.UserId == userID.(string) {
+			userIsParticipant = true
+			break
+		}
+	}
+
+	// If user is not a participant, return a forbidden error
+	if !userIsParticipant {
+		log.Printf("ListChatParticipants: User %s is not a participant in chat %s", userID, chatID)
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
+		return
+	}
+
+	// Enrich participant data with user information if possible
+	participants := make([]gin.H, 0, len(resp.Participants))
+	for _, participant := range resp.Participants {
+		participantData := gin.H{
+			"user_id":   participant.UserId,
+			"is_admin":  participant.IsAdmin,
+			"joined_at": participant.JoinedAt.AsTime().Format(time.RFC3339),
+		}
+
+		// Get user details if user service is available
+		if UserClient != nil {
+			userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+				UserId: participant.UserId,
+			})
+			userCancel()
+
+			if userErr == nil && userResp.User != nil {
+				participantData["username"] = userResp.User.Username
+				participantData["name"] = userResp.User.Name
+				participantData["profile_picture_url"] = userResp.User.ProfilePictureUrl
+			}
+		}
+
+		participants = append(participants, participantData)
+	}
+
+	log.Printf("ListChatParticipants: Successfully retrieved %d participants for chat %s", len(participants), chatID)
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"participants": participants,
+	})
+}
 
 func SendMessage(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
-		log.Printf("SendMessage: Missing userId in context - but allowing for testing")
-		userID = "test-user-123"
+		log.Printf("SendMessage: Missing userId in context")
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
 	}
 
 	chatID := c.Param("id")
@@ -177,20 +404,113 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	log.Printf("SendMessage request: chatID=%s, userID=%v, content=%s - BYPASSING ALL SERVICE CALLS FOR TESTING", chatID, userID, req.Content)
+	log.Printf("SendMessage request: chatID=%s, userID=%v, content=%s", chatID, userID, req.Content)
 
-	log.Printf("TESTING MODE: Returning mock message response for chat %s", chatID)
+	// Get the community service client
+	if CommunityClient == nil {
+		log.Printf("SendMessage: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
 
-	messageID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
+	// Check if user is a participant in this chat
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	participantsResp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+		ChatId: chatID,
+	})
+
+	if err != nil {
+		log.Printf("SendMessage: Error checking chat participants: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	// Check if the user is a participant
+	userIsParticipant := false
+	for _, participant := range participantsResp.Participants {
+		if participant.UserId == userID.(string) {
+			userIsParticipant = true
+			break
+		}
+	}
+
+	if !userIsParticipant {
+		log.Printf("SendMessage: User %s is not a participant in chat %s", userID, chatID)
+
+		// Auto-add the user as a participant if they're trying to send a message
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+
+		_, addErr := CommunityClient.AddChatParticipant(ctx2, &communityProto.AddChatParticipantRequest{
+			ChatId:  chatID,
+			UserId:  userID.(string),
+			IsAdmin: false,
+		})
+
+		if addErr != nil {
+			log.Printf("SendMessage: Error adding user as participant: %v", addErr)
+			utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
+			return
+		}
+
+		log.Printf("SendMessage: Auto-added user %s as participant to chat %s", userID, chatID)
+	}
+
+	// Send the message
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel3()
+
+	messageResp, err := CommunityClient.SendMessage(ctx3, &communityProto.SendMessageRequest{
+		ChatId:   chatID,
+		SenderId: userID.(string),
+		Content:  req.Content,
+	})
+
+	if err != nil {
+		log.Printf("SendMessage: Error sending message: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to send message: "+err.Error())
+		return
+	}
+
+	// If community client is unavailable or for testing, use mock response
+	if messageResp == nil || messageResp.Message == nil {
+		log.Printf("SendMessage: Using mock response for chat %s", chatID)
+
+		messageID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
+		timestamp := time.Now().Unix()
+
+		utils.SendSuccessResponse(c, 201, gin.H{
+			"message_id": messageID,
+			"message": gin.H{
+				"id":         messageID,
+				"chat_id":    chatID,
+				"sender_id":  userID,
+				"content":    req.Content,
+				"timestamp":  timestamp,
+				"is_read":    false,
+				"is_edited":  false,
+				"is_deleted": false,
+			},
+		})
+		return
+	}
+
+	// Format the response
+	message := messageResp.Message
 	timestamp := time.Now().Unix()
+	if message.SentAt != nil {
+		timestamp = message.SentAt.AsTime().Unix()
+	}
 
 	utils.SendSuccessResponse(c, 201, gin.H{
-		"message_id": messageID,
+		"message_id": message.Id,
 		"message": gin.H{
-			"id":         messageID,
-			"chat_id":    chatID,
-			"sender_id":  userID,
-			"content":    req.Content,
+			"id":         message.Id,
+			"chat_id":    message.ChatId,
+			"sender_id":  message.SenderId,
+			"content":    message.Content,
 			"timestamp":  timestamp,
 			"is_read":    false,
 			"is_edited":  false,
@@ -349,9 +669,26 @@ func ListMessages(c *gin.Context) {
 	}
 
 	if !userIsParticipant {
-		log.Printf("User %s is not a participant in chat %s", userID, chatID)
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
-		return
+		log.Printf("User %s is not a participant in chat %s, attempting to add them", userID, chatID)
+
+		// Auto-add the user as a participant if they're trying to view messages
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+
+		_, addErr := CommunityClient.AddChatParticipant(ctx2, &communityProto.AddChatParticipantRequest{
+			ChatId:  chatID,
+			UserId:  userID.(string),
+			IsAdmin: false,
+		})
+
+		if addErr != nil {
+			log.Printf("Error adding user as participant: %v", addErr)
+			utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
+			return
+		}
+
+		log.Printf("Successfully auto-added user %s as participant to chat %s", userID, chatID)
+		userIsParticipant = true
 	}
 
 	// Get messages

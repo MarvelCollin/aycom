@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import ChatWindow from './ChatWindow.svelte';
-  import { listChatParticipants, listMessages } from '../../api';
+  import { listChatParticipants, listMessages, joinChat } from '../../api';
   import { getAuthToken } from '../../utils/auth';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { chatMessageStore } from '../../stores/chatMessageStore';
@@ -43,6 +43,25 @@
   let isLoading = true;
   let error: string | null = null;
   let messages: ChatMessage[] = [];
+  let isParticipantError = false;
+  let isJoiningChat = false;
+  
+  // Function to handle joining a chat
+  async function handleJoinChat() {
+    try {
+      isJoiningChat = true;
+      error = null;
+      
+      await joinChat(chatId);
+      
+      // Reload the page to refresh data after joining
+      window.location.reload();
+    } catch (err: any) {
+      logger.error('Failed to join chat:', err);
+      error = err.message || 'Failed to join chat. Please try again.';
+      isJoiningChat = false;
+    }
+  }
   
   // Load chat participants and message history when component mounts
   onMount(async () => {
@@ -72,32 +91,72 @@
       isLoading = true;
       console.log('[ChatContainer] Loading chat data for chat ID:', chatId);
       
-      // Fetch participants
-      const participantsResponse = await listChatParticipants(chatId);
-      console.log('[ChatContainer] Participants response:', participantsResponse);
-      
-      if (participantsResponse && participantsResponse.participants) {
-        participants = participantsResponse.participants.map((p: any) => ({
-          id: p.user_id || p.id,
-          username: p.username || '',
-          display_name: p.display_name || p.name || p.username || 'Unknown User',
-          avatar_url: p.avatar_url || p.profile_picture_url || null
-        }));
-        console.log('[ChatContainer] Processed participants:', participants);
+      // Fetch participants first to get user data for messages
+      try {
+        const participantsResponse = await listChatParticipants(chatId);
+        console.log('[ChatContainer] Participants response:', participantsResponse);
+        
+        if (participantsResponse && participantsResponse.participants) {
+          participants = participantsResponse.participants.map((p: any) => ({
+            id: p.user_id || p.id,
+            username: p.username || '',
+            display_name: p.display_name || p.name || p.username || 'Unknown User',
+            avatar_url: p.avatar_url || p.profile_picture_url || null
+          }));
+          console.log('[ChatContainer] Processed participants:', participants);
+        } else if (participantsResponse && Array.isArray(participantsResponse)) {
+          // Handle array response format
+          participants = participantsResponse.map((p: any) => ({
+            id: p.user_id || p.id,
+            username: p.username || '',
+            display_name: p.display_name || p.name || p.username || 'Unknown User',
+            avatar_url: p.avatar_url || p.profile_picture_url || null
+          }));
+        }
+      } catch (participantsError: any) {
+        console.error('[ChatContainer] Failed to load participants:', participantsError);
+        
+        // Check if this is a "not a participant" error
+        if (participantsError.message && participantsError.message.includes('not a participant in this chat')) {
+          isParticipantError = true;
+          error = 'You are not a participant in this chat. Please join the chat first.';
+        }
+        // Continue even if participants fail to load
       }
       
-      // Fetch messages
-      const messagesResponse = await listMessages(chatId);
-      console.log('[ChatContainer] Messages response:', messagesResponse);
-      
-      if (messagesResponse && messagesResponse.messages) {
-        messages = messagesResponse.messages;
-      } else {
-        console.warn('[ChatContainer] Invalid or empty messages response');
+      // Only fetch messages if we're not already showing a participant error
+      if (!isParticipantError) {
+        // Fetch messages
+        try {
+          const messagesResponse = await listMessages(chatId);
+          console.log('[ChatContainer] Messages response:', messagesResponse);
+          
+          if (messagesResponse && messagesResponse.messages) {
+            messages = messagesResponse.messages;
+          } else if (messagesResponse && Array.isArray(messagesResponse)) {
+            // Handle case where response might be direct array
+            messages = messagesResponse;
+          } else {
+            console.warn('[ChatContainer] Invalid or empty messages response');
+            messages = []; // Ensure we have an empty array at minimum
+          }
+        } catch (messagesError: any) {
+          console.error('[ChatContainer] Failed to load messages:', messagesError);
+          
+          // Check if this is a "not a participant" error
+          if (messagesError.message && messagesError.message.includes('not a participant in this chat')) {
+            isParticipantError = true;
+            error = 'You are not a participant in this chat. Please join the chat first.';
+          } else {
+            error = messagesError instanceof Error ? messagesError.message : 'Failed to load messages';
+          }
+          
+          messages = []; // Ensure we have an empty array at minimum
+        }
       }
       
-      // Process messages for chat store
-      if (messages.length > 0) {
+      // Process messages for chat store if we have any
+      if (!isParticipantError && messages.length > 0) {
         messages.forEach(message => {
           // Use existing user data if available, otherwise find from participants
           let sender = message.user;
@@ -110,15 +169,23 @@
           // Ensure we have message_id (use either id or message_id from backend)
           const messageId = message.message_id || message.id || '';
           
+          // Convert timestamp to a Date object if it's not already
+          let messageTimestamp;
+          if (typeof message.timestamp === 'number') {
+            messageTimestamp = new Date(message.timestamp * 1000);
+          } else if (typeof message.timestamp === 'string') {
+            messageTimestamp = new Date(message.timestamp);
+          } else {
+            messageTimestamp = new Date();
+          }
+          
           const storeMessage = {
             type: 'text' as MessageType,
             content: message.content,
             user_id: senderId,
             chat_id: chatId,
             message_id: messageId,
-            timestamp: typeof message.timestamp === 'number' ? 
-              new Date(message.timestamp * 1000) : 
-              (typeof message.timestamp === 'string' ? new Date(message.timestamp) : new Date()),
+            timestamp: messageTimestamp,
             is_read: message.is_read || false,
             is_deleted: message.is_deleted || false,
             is_edited: message.is_edited || false,
@@ -134,19 +201,31 @@
         });
       }
       
-      // Connect to real-time updates
-      chatMessageStore.connectToChat(chatId);
+      // Connect to real-time updates if we're a participant
+      if (!isParticipantError) {
+        chatMessageStore.connectToChat(chatId);
+      }
       
       isLoading = false;
     } catch (err: unknown) {
       logger.error('Error loading chat data:', err);
       console.error('[ChatContainer] Error details:', err instanceof Error ? err.message : err);
-      error = err instanceof Error ? err.message : 'Failed to load chat';
+      
+      // Check if this is a "not a participant" error
+      if (err instanceof Error && err.message.includes('not a participant in this chat')) {
+        isParticipantError = true;
+        error = 'You are not a participant in this chat. Please join the chat first.';
+      } else {
+        error = err instanceof Error ? err.message : 'Failed to load chat';
+      }
+      
       isLoading = false;
       
       // Check if this is an auth error
-      if (err instanceof Error && err.message.includes('authentication') || 
-          err instanceof Error && err.message.includes('UNAUTHORIZED')) {
+      if (err instanceof Error && (
+          err.message.includes('authentication') || 
+          err.message.includes('UNAUTHORIZED')
+      )) {
         console.error('[ChatContainer] Authentication error detected');
         error = 'Authentication error. Please try logging in again.';
       }
@@ -155,7 +234,7 @@
   
   // Clean up when the component is destroyed
   onDestroy(() => {
-    if (chatId) {
+    if (chatId && !isParticipantError) {
       chatMessageStore.disconnectFromChat(chatId);
     }
   });
@@ -169,7 +248,16 @@
   {:else if error}
     <div class="error-state">
       <p>Error: {error}</p>
-      <button on:click={() => window.location.reload()}>Retry</button>
+      {#if isParticipantError}
+        <div class="action-buttons">
+          <button on:click={handleJoinChat} disabled={isJoiningChat}>
+            {isJoiningChat ? 'Joining...' : 'Join Chat'}
+          </button>
+          <button on:click={() => window.history.back()}>Go Back</button>
+        </div>
+      {:else}
+        <button on:click={() => window.location.reload()}>Retry</button>
+      {/if}
     </div>
   {:else if !userId}
     <div class="error-state">
@@ -238,5 +326,16 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
+  }
+  
+  .error-state button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
   }
 </style> 

@@ -1832,8 +1832,11 @@ type ThreadResponse struct {
 	Poll             *PollResponse          `protobuf:"bytes,9,opt,name=poll,proto3,oneof" json:"poll,omitempty"`
 	Hashtags         []string               `protobuf:"bytes,10,rep,name=hashtags,proto3" json:"hashtags,omitempty"`
 	MentionedUserIds []string               `protobuf:"bytes,11,rep,name=mentioned_user_ids,json=mentionedUserIds,proto3" json:"mentioned_user_ids,omitempty"`
-	CommunityName    *string                `protobuf:"bytes,12,opt,name=community_name,json=communityName,proto3,oneof" json:"community_name,omitempty"`
-	BookmarkCount    int64                  `protobuf:"varint,13,opt,name=bookmark_count,json=bookmarkCount,proto3" json:"bookmark_count,omitempty"`
+	// New fields for repost functionality
+	IsRepost         bool            `protobuf:"varint,12,opt,name=is_repost,json=isRepost,proto3" json:"is_repost,omitempty"`
+	OriginalThreadId *string         `protobuf:"bytes,13,opt,name=original_thread_id,json=originalThreadId,proto3,oneof" json:"original_thread_id,omitempty"`
+	OriginalThread   *ThreadResponse `protobuf:"bytes,14,opt,name=original_thread,json=originalThread,proto3,oneof" json:"original_thread,omitempty"` // For storing the original thread data
+	BookmarkCount    int64           `protobuf:"varint,15,opt,name=bookmark_count,json=bookmarkCount,proto3" json:"bookmark_count,omitempty"`         // Number of bookmarks for the thread
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1945,11 +1948,25 @@ func (x *ThreadResponse) GetMentionedUserIds() []string {
 	return nil
 }
 
-func (x *ThreadResponse) GetCommunityName() string {
-	if x != nil && x.CommunityName != nil {
-		return *x.CommunityName
+func (x *ThreadResponse) GetIsRepost() bool {
+	if x != nil {
+		return x.IsRepost
+	}
+	return false
+}
+
+func (x *ThreadResponse) GetOriginalThreadId() string {
+	if x != nil && x.OriginalThreadId != nil {
+		return *x.OriginalThreadId
 	}
 	return ""
+}
+
+func (x *ThreadResponse) GetOriginalThread() *ThreadResponse {
+	if x != nil {
+		return x.OriginalThread
+	}
+	return nil
 }
 
 func (x *ThreadResponse) GetBookmarkCount() int64 {
@@ -3509,7 +3526,7 @@ const file_proto_thread_thread_proto_rawDesc = "" +
 	"\toption_id\x18\x02 \x01(\tR\boptionId\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\"0\n" +
 	"\x15GetPollResultsRequest\x12\x17\n" +
-	"\apoll_id\x18\x01 \x01(\tR\x06pollId\"\xa9\x04\n" +
+	"\apoll_id\x18\x01 \x01(\tR\x06pollId\"\xab\x05\n" +
 	"\x0eThreadResponse\x12&\n" +
 	"\x06thread\x18\x01 \x01(\v2\x0e.thread.ThreadR\x06thread\x12 \n" +
 	"\x04user\x18\x02 \x01(\v2\f.thread.UserR\x04user\x12\x1f\n" +
@@ -3523,11 +3540,14 @@ const file_proto_thread_thread_proto_rawDesc = "" +
 	"\x04poll\x18\t \x01(\v2\x14.thread.PollResponseH\x00R\x04poll\x88\x01\x01\x12\x1a\n" +
 	"\bhashtags\x18\n" +
 	" \x03(\tR\bhashtags\x12,\n" +
-	"\x12mentioned_user_ids\x18\v \x03(\tR\x10mentionedUserIds\x12*\n" +
-	"\x0ecommunity_name\x18\f \x01(\tH\x01R\rcommunityName\x88\x01\x01\x12%\n" +
-	"\x0ebookmark_count\x18\r \x01(\x03R\rbookmarkCountB\a\n" +
-	"\x05_pollB\x11\n" +
-	"\x0f_community_name\"Y\n" +
+	"\x12mentioned_user_ids\x18\v \x03(\tR\x10mentionedUserIds\x12\x1b\n" +
+	"\tis_repost\x18\f \x01(\bR\bisRepost\x121\n" +
+	"\x12original_thread_id\x18\r \x01(\tH\x01R\x10originalThreadId\x88\x01\x01\x12D\n" +
+	"\x0foriginal_thread\x18\x0e \x01(\v2\x16.thread.ThreadResponseH\x02R\x0eoriginalThread\x88\x01\x01\x12%\n" +
+	"\x0ebookmark_count\x18\x0f \x01(\x03R\rbookmarkCountB\a\n" +
+	"\x05_pollB\x15\n" +
+	"\x13_original_thread_idB\x12\n" +
+	"\x10_original_thread\"Y\n" +
 	"\x0fThreadsResponse\x120\n" +
 	"\athreads\x18\x01 \x03(\v2\x16.thread.ThreadResponseR\athreads\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\"r\n" +
@@ -3761,88 +3781,89 @@ var file_proto_thread_thread_proto_depIdxs = []int32{
 	0,  // 18: thread.ThreadResponse.thread:type_name -> thread.Thread
 	35, // 19: thread.ThreadResponse.user:type_name -> thread.User
 	32, // 20: thread.ThreadResponse.poll:type_name -> thread.PollResponse
-	27, // 21: thread.ThreadsResponse.threads:type_name -> thread.ThreadResponse
-	4,  // 22: thread.ReplyResponse.reply:type_name -> thread.Reply
-	35, // 23: thread.ReplyResponse.user:type_name -> thread.User
-	35, // 24: thread.ReplyResponse.parent_user:type_name -> thread.User
-	30, // 25: thread.RepliesResponse.replies:type_name -> thread.ReplyResponse
-	2,  // 26: thread.PollResponse.poll:type_name -> thread.Poll
-	34, // 27: thread.PollResponse.results:type_name -> thread.PollOptionResult
-	34, // 28: thread.PollResultsResponse.results:type_name -> thread.PollOptionResult
-	36, // 29: thread.GetTrendingHashtagsResponse.hashtags:type_name -> thread.HashtagResponse
-	49, // 30: thread.GetMediaByUserResponse.media:type_name -> thread.MediaItem
-	51, // 31: thread.MediaItem.created_at:type_name -> google.protobuf.Timestamp
-	5,  // 32: thread.ThreadService.CreateThread:input_type -> thread.CreateThreadRequest
-	7,  // 33: thread.ThreadService.GetThreadById:input_type -> thread.GetThreadRequest
-	8,  // 34: thread.ThreadService.GetThreadsByUser:input_type -> thread.GetThreadsByUserRequest
-	9,  // 35: thread.ThreadService.GetAllThreads:input_type -> thread.GetAllThreadsRequest
-	10, // 36: thread.ThreadService.UpdateThread:input_type -> thread.UpdateThreadRequest
-	11, // 37: thread.ThreadService.DeleteThread:input_type -> thread.DeleteThreadRequest
-	12, // 38: thread.ThreadService.CreateReply:input_type -> thread.CreateReplyRequest
-	13, // 39: thread.ThreadService.GetRepliesByThread:input_type -> thread.GetRepliesByThreadRequest
-	14, // 40: thread.ThreadService.UpdateReply:input_type -> thread.UpdateReplyRequest
-	15, // 41: thread.ThreadService.DeleteReply:input_type -> thread.DeleteReplyRequest
-	45, // 42: thread.ThreadService.GetRepliesByUser:input_type -> thread.GetRepliesByUserRequest
-	46, // 43: thread.ThreadService.GetLikedThreadsByUser:input_type -> thread.GetLikedThreadsByUserRequest
-	47, // 44: thread.ThreadService.GetMediaByUser:input_type -> thread.GetMediaByUserRequest
-	16, // 45: thread.ThreadService.LikeThread:input_type -> thread.LikeThreadRequest
-	17, // 46: thread.ThreadService.UnlikeThread:input_type -> thread.UnlikeThreadRequest
-	18, // 47: thread.ThreadService.LikeReply:input_type -> thread.LikeReplyRequest
-	19, // 48: thread.ThreadService.UnlikeReply:input_type -> thread.UnlikeReplyRequest
-	20, // 49: thread.ThreadService.RepostThread:input_type -> thread.RepostThreadRequest
-	21, // 50: thread.ThreadService.RemoveRepost:input_type -> thread.RemoveRepostRequest
-	22, // 51: thread.ThreadService.BookmarkThread:input_type -> thread.BookmarkThreadRequest
-	23, // 52: thread.ThreadService.RemoveBookmark:input_type -> thread.RemoveBookmarkRequest
-	39, // 53: thread.ThreadService.BookmarkReply:input_type -> thread.BookmarkReplyRequest
-	40, // 54: thread.ThreadService.RemoveReplyBookmark:input_type -> thread.RemoveReplyBookmarkRequest
-	41, // 55: thread.ThreadService.PinThread:input_type -> thread.PinThreadRequest
-	42, // 56: thread.ThreadService.UnpinThread:input_type -> thread.UnpinThreadRequest
-	43, // 57: thread.ThreadService.PinReply:input_type -> thread.PinReplyRequest
-	44, // 58: thread.ThreadService.UnpinReply:input_type -> thread.UnpinReplyRequest
-	24, // 59: thread.ThreadService.CreatePoll:input_type -> thread.CreatePollRequest
-	25, // 60: thread.ThreadService.VotePoll:input_type -> thread.VotePollRequest
-	26, // 61: thread.ThreadService.GetPollResults:input_type -> thread.GetPollResultsRequest
-	37, // 62: thread.ThreadService.GetTrendingHashtags:input_type -> thread.GetTrendingHashtagsRequest
-	29, // 63: thread.ThreadService.GetRepliesByParentReply:input_type -> thread.GetRepliesByParentReplyRequest
-	50, // 64: thread.ThreadService.GetBookmarksByUser:input_type -> thread.GetBookmarksByUserRequest
-	27, // 65: thread.ThreadService.CreateThread:output_type -> thread.ThreadResponse
-	27, // 66: thread.ThreadService.GetThreadById:output_type -> thread.ThreadResponse
-	28, // 67: thread.ThreadService.GetThreadsByUser:output_type -> thread.ThreadsResponse
-	28, // 68: thread.ThreadService.GetAllThreads:output_type -> thread.ThreadsResponse
-	27, // 69: thread.ThreadService.UpdateThread:output_type -> thread.ThreadResponse
-	52, // 70: thread.ThreadService.DeleteThread:output_type -> google.protobuf.Empty
-	30, // 71: thread.ThreadService.CreateReply:output_type -> thread.ReplyResponse
-	31, // 72: thread.ThreadService.GetRepliesByThread:output_type -> thread.RepliesResponse
-	30, // 73: thread.ThreadService.UpdateReply:output_type -> thread.ReplyResponse
-	52, // 74: thread.ThreadService.DeleteReply:output_type -> google.protobuf.Empty
-	31, // 75: thread.ThreadService.GetRepliesByUser:output_type -> thread.RepliesResponse
-	28, // 76: thread.ThreadService.GetLikedThreadsByUser:output_type -> thread.ThreadsResponse
-	48, // 77: thread.ThreadService.GetMediaByUser:output_type -> thread.GetMediaByUserResponse
-	52, // 78: thread.ThreadService.LikeThread:output_type -> google.protobuf.Empty
-	52, // 79: thread.ThreadService.UnlikeThread:output_type -> google.protobuf.Empty
-	52, // 80: thread.ThreadService.LikeReply:output_type -> google.protobuf.Empty
-	52, // 81: thread.ThreadService.UnlikeReply:output_type -> google.protobuf.Empty
-	52, // 82: thread.ThreadService.RepostThread:output_type -> google.protobuf.Empty
-	52, // 83: thread.ThreadService.RemoveRepost:output_type -> google.protobuf.Empty
-	52, // 84: thread.ThreadService.BookmarkThread:output_type -> google.protobuf.Empty
-	52, // 85: thread.ThreadService.RemoveBookmark:output_type -> google.protobuf.Empty
-	52, // 86: thread.ThreadService.BookmarkReply:output_type -> google.protobuf.Empty
-	52, // 87: thread.ThreadService.RemoveReplyBookmark:output_type -> google.protobuf.Empty
-	52, // 88: thread.ThreadService.PinThread:output_type -> google.protobuf.Empty
-	52, // 89: thread.ThreadService.UnpinThread:output_type -> google.protobuf.Empty
-	52, // 90: thread.ThreadService.PinReply:output_type -> google.protobuf.Empty
-	52, // 91: thread.ThreadService.UnpinReply:output_type -> google.protobuf.Empty
-	32, // 92: thread.ThreadService.CreatePoll:output_type -> thread.PollResponse
-	52, // 93: thread.ThreadService.VotePoll:output_type -> google.protobuf.Empty
-	33, // 94: thread.ThreadService.GetPollResults:output_type -> thread.PollResultsResponse
-	38, // 95: thread.ThreadService.GetTrendingHashtags:output_type -> thread.GetTrendingHashtagsResponse
-	31, // 96: thread.ThreadService.GetRepliesByParentReply:output_type -> thread.RepliesResponse
-	28, // 97: thread.ThreadService.GetBookmarksByUser:output_type -> thread.ThreadsResponse
-	65, // [65:98] is the sub-list for method output_type
-	32, // [32:65] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	27, // 21: thread.ThreadResponse.original_thread:type_name -> thread.ThreadResponse
+	27, // 22: thread.ThreadsResponse.threads:type_name -> thread.ThreadResponse
+	4,  // 23: thread.ReplyResponse.reply:type_name -> thread.Reply
+	35, // 24: thread.ReplyResponse.user:type_name -> thread.User
+	35, // 25: thread.ReplyResponse.parent_user:type_name -> thread.User
+	30, // 26: thread.RepliesResponse.replies:type_name -> thread.ReplyResponse
+	2,  // 27: thread.PollResponse.poll:type_name -> thread.Poll
+	34, // 28: thread.PollResponse.results:type_name -> thread.PollOptionResult
+	34, // 29: thread.PollResultsResponse.results:type_name -> thread.PollOptionResult
+	36, // 30: thread.GetTrendingHashtagsResponse.hashtags:type_name -> thread.HashtagResponse
+	49, // 31: thread.GetMediaByUserResponse.media:type_name -> thread.MediaItem
+	51, // 32: thread.MediaItem.created_at:type_name -> google.protobuf.Timestamp
+	5,  // 33: thread.ThreadService.CreateThread:input_type -> thread.CreateThreadRequest
+	7,  // 34: thread.ThreadService.GetThreadById:input_type -> thread.GetThreadRequest
+	8,  // 35: thread.ThreadService.GetThreadsByUser:input_type -> thread.GetThreadsByUserRequest
+	9,  // 36: thread.ThreadService.GetAllThreads:input_type -> thread.GetAllThreadsRequest
+	10, // 37: thread.ThreadService.UpdateThread:input_type -> thread.UpdateThreadRequest
+	11, // 38: thread.ThreadService.DeleteThread:input_type -> thread.DeleteThreadRequest
+	12, // 39: thread.ThreadService.CreateReply:input_type -> thread.CreateReplyRequest
+	13, // 40: thread.ThreadService.GetRepliesByThread:input_type -> thread.GetRepliesByThreadRequest
+	14, // 41: thread.ThreadService.UpdateReply:input_type -> thread.UpdateReplyRequest
+	15, // 42: thread.ThreadService.DeleteReply:input_type -> thread.DeleteReplyRequest
+	45, // 43: thread.ThreadService.GetRepliesByUser:input_type -> thread.GetRepliesByUserRequest
+	46, // 44: thread.ThreadService.GetLikedThreadsByUser:input_type -> thread.GetLikedThreadsByUserRequest
+	47, // 45: thread.ThreadService.GetMediaByUser:input_type -> thread.GetMediaByUserRequest
+	16, // 46: thread.ThreadService.LikeThread:input_type -> thread.LikeThreadRequest
+	17, // 47: thread.ThreadService.UnlikeThread:input_type -> thread.UnlikeThreadRequest
+	18, // 48: thread.ThreadService.LikeReply:input_type -> thread.LikeReplyRequest
+	19, // 49: thread.ThreadService.UnlikeReply:input_type -> thread.UnlikeReplyRequest
+	20, // 50: thread.ThreadService.RepostThread:input_type -> thread.RepostThreadRequest
+	21, // 51: thread.ThreadService.RemoveRepost:input_type -> thread.RemoveRepostRequest
+	22, // 52: thread.ThreadService.BookmarkThread:input_type -> thread.BookmarkThreadRequest
+	23, // 53: thread.ThreadService.RemoveBookmark:input_type -> thread.RemoveBookmarkRequest
+	39, // 54: thread.ThreadService.BookmarkReply:input_type -> thread.BookmarkReplyRequest
+	40, // 55: thread.ThreadService.RemoveReplyBookmark:input_type -> thread.RemoveReplyBookmarkRequest
+	41, // 56: thread.ThreadService.PinThread:input_type -> thread.PinThreadRequest
+	42, // 57: thread.ThreadService.UnpinThread:input_type -> thread.UnpinThreadRequest
+	43, // 58: thread.ThreadService.PinReply:input_type -> thread.PinReplyRequest
+	44, // 59: thread.ThreadService.UnpinReply:input_type -> thread.UnpinReplyRequest
+	24, // 60: thread.ThreadService.CreatePoll:input_type -> thread.CreatePollRequest
+	25, // 61: thread.ThreadService.VotePoll:input_type -> thread.VotePollRequest
+	26, // 62: thread.ThreadService.GetPollResults:input_type -> thread.GetPollResultsRequest
+	37, // 63: thread.ThreadService.GetTrendingHashtags:input_type -> thread.GetTrendingHashtagsRequest
+	29, // 64: thread.ThreadService.GetRepliesByParentReply:input_type -> thread.GetRepliesByParentReplyRequest
+	50, // 65: thread.ThreadService.GetBookmarksByUser:input_type -> thread.GetBookmarksByUserRequest
+	27, // 66: thread.ThreadService.CreateThread:output_type -> thread.ThreadResponse
+	27, // 67: thread.ThreadService.GetThreadById:output_type -> thread.ThreadResponse
+	28, // 68: thread.ThreadService.GetThreadsByUser:output_type -> thread.ThreadsResponse
+	28, // 69: thread.ThreadService.GetAllThreads:output_type -> thread.ThreadsResponse
+	27, // 70: thread.ThreadService.UpdateThread:output_type -> thread.ThreadResponse
+	52, // 71: thread.ThreadService.DeleteThread:output_type -> google.protobuf.Empty
+	30, // 72: thread.ThreadService.CreateReply:output_type -> thread.ReplyResponse
+	31, // 73: thread.ThreadService.GetRepliesByThread:output_type -> thread.RepliesResponse
+	30, // 74: thread.ThreadService.UpdateReply:output_type -> thread.ReplyResponse
+	52, // 75: thread.ThreadService.DeleteReply:output_type -> google.protobuf.Empty
+	31, // 76: thread.ThreadService.GetRepliesByUser:output_type -> thread.RepliesResponse
+	28, // 77: thread.ThreadService.GetLikedThreadsByUser:output_type -> thread.ThreadsResponse
+	48, // 78: thread.ThreadService.GetMediaByUser:output_type -> thread.GetMediaByUserResponse
+	52, // 79: thread.ThreadService.LikeThread:output_type -> google.protobuf.Empty
+	52, // 80: thread.ThreadService.UnlikeThread:output_type -> google.protobuf.Empty
+	52, // 81: thread.ThreadService.LikeReply:output_type -> google.protobuf.Empty
+	52, // 82: thread.ThreadService.UnlikeReply:output_type -> google.protobuf.Empty
+	52, // 83: thread.ThreadService.RepostThread:output_type -> google.protobuf.Empty
+	52, // 84: thread.ThreadService.RemoveRepost:output_type -> google.protobuf.Empty
+	52, // 85: thread.ThreadService.BookmarkThread:output_type -> google.protobuf.Empty
+	52, // 86: thread.ThreadService.RemoveBookmark:output_type -> google.protobuf.Empty
+	52, // 87: thread.ThreadService.BookmarkReply:output_type -> google.protobuf.Empty
+	52, // 88: thread.ThreadService.RemoveReplyBookmark:output_type -> google.protobuf.Empty
+	52, // 89: thread.ThreadService.PinThread:output_type -> google.protobuf.Empty
+	52, // 90: thread.ThreadService.UnpinThread:output_type -> google.protobuf.Empty
+	52, // 91: thread.ThreadService.PinReply:output_type -> google.protobuf.Empty
+	52, // 92: thread.ThreadService.UnpinReply:output_type -> google.protobuf.Empty
+	32, // 93: thread.ThreadService.CreatePoll:output_type -> thread.PollResponse
+	52, // 94: thread.ThreadService.VotePoll:output_type -> google.protobuf.Empty
+	33, // 95: thread.ThreadService.GetPollResults:output_type -> thread.PollResultsResponse
+	38, // 96: thread.ThreadService.GetTrendingHashtags:output_type -> thread.GetTrendingHashtagsResponse
+	31, // 97: thread.ThreadService.GetRepliesByParentReply:output_type -> thread.RepliesResponse
+	28, // 98: thread.ThreadService.GetBookmarksByUser:output_type -> thread.ThreadsResponse
+	66, // [66:99] is the sub-list for method output_type
+	33, // [33:66] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_proto_thread_thread_proto_init() }
