@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,33 @@ import (
 
 	"aycom/backend/api-gateway/utils"
 )
+
+// Helper function to safely extract bookmark count using reflection
+func extractBookmarkCount(t *threadProto.ThreadResponse) int64 {
+	if t == nil {
+		return 0
+	}
+
+	// Try direct method call first if it exists
+	tValue := reflect.ValueOf(t)
+	getBookmarkCountMethod := tValue.MethodByName("GetBookmarkCount")
+	if getBookmarkCountMethod.IsValid() {
+		result := getBookmarkCountMethod.Call(nil)
+		if len(result) > 0 {
+			return result[0].Int()
+		}
+	}
+
+	// Try to access field directly with reflection as fallback
+	tElem := reflect.ValueOf(t).Elem()
+	field := tElem.FieldByName("BookmarkCount")
+	if field.IsValid() {
+		return field.Int()
+	}
+
+	// Return default if nothing works
+	return 0
+}
 
 func CreateThread(c *gin.Context) {
 
@@ -311,14 +339,15 @@ func GetThreadsByUser(c *gin.Context) {
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
 		thread := map[string]interface{}{
-			"id":             t.Thread.Id,
-			"thread_id":      t.Thread.Id,
-			"content":        t.Thread.Content,
-			"user_id":        t.Thread.UserId,
-			"likes_count":    t.LikesCount,
-			"replies_count":  t.RepliesCount,
-			"reposts_count":  t.RepostsCount,
-			"bookmark_count": 0, // TODO: fix after regenerating proto
+			"id":            t.Thread.Id,
+			"thread_id":     t.Thread.Id,
+			"content":       t.Thread.Content,
+			"user_id":       t.Thread.UserId,
+			"likes_count":   t.LikesCount,
+			"replies_count": t.RepliesCount,
+			"reposts_count": t.RepostsCount,
+			// Initialize with default value since the field is not directly accessible
+			"bookmark_count": extractBookmarkCount(t),
 			"views_count":    t.Thread.ViewCount,
 			"is_liked":       t.LikedByUser,
 			"is_reposted":    t.RepostedByUser,
@@ -671,7 +700,7 @@ func safeExtractThreadData(t *threadProto.ThreadResponse) map[string]interface{}
 		thread["likes_count"] = t.LikesCount
 		thread["replies_count"] = t.RepliesCount
 		thread["reposts_count"] = t.RepostsCount
-		thread["bookmark_count"] = 0 // TODO: fix after regenerating proto
+		thread["bookmark_count"] = extractBookmarkCount(t)
 		thread["is_liked"] = t.LikedByUser
 		thread["is_reposted"] = t.RepostedByUser
 		thread["is_bookmarked"] = t.BookmarkedByUser

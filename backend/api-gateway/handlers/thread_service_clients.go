@@ -1051,7 +1051,8 @@ func convertProtoToThread(t any) *Thread {
 			thread.LikeCount = int(tr.LikesCount)
 			thread.ReplyCount = int(tr.RepliesCount)
 			thread.RepostCount = int(tr.RepostsCount)
-			thread.BookmarkCount = 0 // TODO: fix after regenerating proto
+			// Extract bookmark count using reflection to handle field name differences
+			thread.BookmarkCount = extractBookmarkCountFromAny(tr)
 			thread.IsLiked = tr.LikedByUser
 			thread.IsReposted = tr.RepostedByUser
 			thread.IsBookmarked = tr.BookmarkedByUser
@@ -1230,4 +1231,58 @@ func convertProtoToThread(t any) *Thread {
 	}
 
 	return thread
+}
+
+// Helper function to extract bookmark count from any type using reflection
+func extractBookmarkCountFromAny(obj any) int {
+	if obj == nil {
+		return 0
+	}
+
+	// Try to access with type assertion first
+	if tr, ok := obj.(*threadProto.ThreadResponse); ok {
+		// Try direct method call if it exists
+		tValue := reflect.ValueOf(tr)
+		getBookmarkCountMethod := tValue.MethodByName("GetBookmarkCount")
+		if getBookmarkCountMethod.IsValid() {
+			result := getBookmarkCountMethod.Call(nil)
+			if len(result) > 0 {
+				return int(result[0].Int())
+			}
+		}
+
+		// Try direct field access
+		v := reflect.ValueOf(tr).Elem()
+		field := v.FieldByName("BookmarkCount")
+		if field.IsValid() {
+			return int(field.Int())
+		}
+	}
+
+	// Generic reflection approach
+	v := reflect.ValueOf(obj)
+	if v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
+	}
+
+	if v.Kind() == reflect.Struct {
+		field := v.FieldByName("BookmarkCount")
+		if field.IsValid() && field.Kind() == reflect.Int64 {
+			return int(field.Int())
+		}
+
+		// Try JSON tag matching
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Type().Field(i)
+			tag := field.Tag.Get("json")
+			if tag == "bookmark_count" || strings.HasPrefix(tag, "bookmark_count,") {
+				value := v.Field(i)
+				if value.Kind() == reflect.Int64 {
+					return int(value.Int())
+				}
+			}
+		}
+	}
+
+	return 0
 }
