@@ -361,7 +361,7 @@ func SeedDatabase(db *gorm.DB) error {
 	threadHashtags = []model.ThreadHashtag{
 
 		{
-			ThreadID:  threads[3].ThreadID, 
+			ThreadID:  threads[3].ThreadID,
 			HashtagID: hashtagMap["coding"],
 		},
 		{
@@ -422,77 +422,8 @@ func SeedDatabase(db *gorm.DB) error {
 		return result.Error
 	}
 
-	media := []model.Media{
-
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[1].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/features_preview.jpg",
-			CreatedAt: threads[1].CreatedAt,
-		},
-
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[4].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/jane_project.jpg",
-			CreatedAt: threads[4].CreatedAt,
-		},
-
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[8].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/ai_breakthrough.jpg",
-			CreatedAt: threads[8].CreatedAt,
-		},
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[9].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/smartphone_review.jpg",
-			CreatedAt: threads[9].CreatedAt,
-		},
-
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[10].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/morning_workout.jpg",
-			CreatedAt: threads[10].CreatedAt,
-		},
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[11].ThreadID,
-			Type:      "video",
-			URL:       "https://example.com/videos/beginner_workout.mp4",
-			CreatedAt: threads[11].CreatedAt,
-		},
-
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[12].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/bali_beach.jpg",
-			CreatedAt: threads[12].CreatedAt,
-		},
-
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[14].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/restaurant_food.jpg",
-			CreatedAt: threads[14].CreatedAt,
-		},
-		{
-			MediaID:   uuid.New(),
-			ThreadID:  &threads[15].ThreadID,
-			Type:      "image",
-			URL:       "https://example.com/images/pasta_carbonara.jpg",
-			CreatedAt: threads[15].CreatedAt,
-		},
-	}
+	// Remove mock media entries
+	media := []model.Media{}
 
 	result = db.Create(&media)
 	if result.Error != nil {
@@ -503,7 +434,7 @@ func SeedDatabase(db *gorm.DB) error {
 	replies := []model.Reply{
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[0].ThreadID, 
+			ThreadID:  threads[0].ThreadID,
 			UserID:    johnID,
 			Content:   "Excited to be here!",
 			CreatedAt: time.Now().Add(-47 * time.Hour),
@@ -511,7 +442,7 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[2].ThreadID, 
+			ThreadID:  threads[2].ThreadID,
 			UserID:    janeID,
 			Content:   "Welcome John! Nice to meet you.",
 			CreatedAt: time.Now().Add(-35 * time.Hour),
@@ -519,7 +450,7 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[4].ThreadID, 
+			ThreadID:  threads[4].ThreadID,
 			UserID:    johnID,
 			Content:   "That looks amazing! Great work.",
 			CreatedAt: time.Now().Add(-17 * time.Hour),
@@ -527,7 +458,7 @@ func SeedDatabase(db *gorm.DB) error {
 		},
 		{
 			ReplyID:   uuid.New(),
-			ThreadID:  threads[6].ThreadID, 
+			ThreadID:  threads[6].ThreadID,
 			UserID:    adminID,
 			Content:   "Congratulations on the new job!",
 			CreatedAt: time.Now().Add(-29 * time.Hour),

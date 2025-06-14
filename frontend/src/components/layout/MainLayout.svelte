@@ -28,9 +28,11 @@
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
 
+  export let isDarkMode = false;
+  export let isNavOpen = false;
+  export let avatar = "";
   export let username = "";
   export let displayName = "";
-  export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   export let trends: ITrend[] = [];
   export let suggestedFollows: ISuggestedFollow[] = [];
   

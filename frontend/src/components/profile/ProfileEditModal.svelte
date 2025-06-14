@@ -1,13 +1,14 @@
 <!-- ProfileEditModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { uploadProfilePicture, uploadBanner } from '../../api';
+  import { uploadFile } from '../../utils/supabase';
+  import { updateProfile } from '../../api/user';
   import { toastStore } from '../../stores/toastStore';
+  import { formatStorageUrl } from '../../utils/common';
+  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
+  import CameraIcon from 'svelte-feather-icons/src/icons/CameraIcon.svelte';
   import type { IUserProfile } from '../../interfaces/IUser';
   import { useTheme } from '../../hooks/useTheme';
-  
-  // Define default image URL for fallback
-  const DEFAULT_AVATAR = "https://secure.gravatar.com/avatar/0?d=mp";
   
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
@@ -45,7 +46,7 @@
     };
     
     // Also update preview images when profile changes
-    profilePicturePreview = profile.profile_picture_url || DEFAULT_AVATAR;
+    profilePicturePreview = profile.profile_picture_url || '';
     bannerPreview = profile.banner_url || '';
     
     console.log('[ProfileEditModal] Initializing form data from profile:', formData);
@@ -64,7 +65,7 @@
         gender: profile.gender || ''
       };
       
-      profilePicturePreview = profile.profile_picture_url || DEFAULT_AVATAR;
+      profilePicturePreview = profile.profile_picture_url || '';
       bannerPreview = profile.banner_url || '';
       
       console.log('[ProfileEditModal] Profile data on mount:', {
@@ -143,7 +144,7 @@
       // Upload profile picture if selected
       if (profilePictureFile) {
         console.log('Uploading profile picture:', profilePictureFile.name);
-        const profilePictureUrl = await uploadProfilePicture(profilePictureFile);
+        const profilePictureUrl = await uploadFile(profilePictureFile);
         if (profilePictureUrl) {
           toastStore.showToast('Profile picture updated successfully', 'success');
           console.log('Profile picture updated successfully:', profilePictureUrl);
@@ -156,7 +157,7 @@
       // Upload banner if selected
       if (bannerFile) {
         console.log('Uploading banner:', bannerFile.name);
-        const bannerUrl = await uploadBanner(bannerFile);
+        const bannerUrl = await uploadFile(bannerFile);
         if (bannerUrl) {
           toastStore.showToast('Banner updated successfully', 'success');
           console.log('Banner updated successfully:', bannerUrl);

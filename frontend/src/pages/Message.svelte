@@ -7,7 +7,7 @@
   import { toastStore } from '../stores/toastStore';
   import { authStore } from '../stores/authStore';
   import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
-  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList, testApiConnection, logAuthTokenInfo, setMessageHandler } from '../api/chat';
+  import * as chatApi from '../api/chat';
   import { getProfile, searchUsers, getUserById, getAllUsers } from '../api/user';
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
@@ -17,6 +17,20 @@
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   import Toast from '../components/common/Toast.svelte';
+  
+  // Use the imported chatApi methods
+  const { 
+    listChats, 
+    listMessages, 
+    sendMessage: apiSendMessage, 
+    unsendMessage: apiUnsendMessage, 
+    searchMessages, 
+    createChat, 
+    getChatHistoryList, 
+    testApiConnection, 
+    logAuthTokenInfo, 
+    setMessageHandler 
+  } = chatApi;
   
   import '../styles/pages/messages.css'; // Import the CSS file
   
@@ -167,7 +181,7 @@
         };
         
         logger.info(`Loaded ${processedMessages.length} messages for chat ${chat.id}`);
-        
+          
         // Scroll to bottom of messages
         setTimeout(() => {
           const messagesContainer = document.querySelector('.messages-container');
@@ -424,7 +438,7 @@
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         const newLastMessage = previousMessages[0];
-        
+          
         if (newLastMessage) {
           // Update the chat in the list
           chats = chats.map(chat => {
@@ -458,7 +472,7 @@
             return chat;
           });
         }
-      }
+        }
     } catch (error) {
       logger.error('Failed to unsend message', error);
       toastStore.showToast('Failed to unsend message', 'error');
@@ -672,7 +686,12 @@
         keysIfObject: response && typeof response === 'object' ? Object.keys(response) : []
       });
       
-      if (response && 'chats' in response && Array.isArray(response.chats)) {
+      if (!response || (typeof response === 'object' && Object.keys(response).length === 0)) {
+        // Empty response
+        logger.info('API returned empty response, no chats available');
+        chats = [];
+      }
+      else if (response && 'chats' in response && Array.isArray(response.chats)) {
         // Standard API response with chats property
         logger.info(`Processing ${response.chats.length} chats from API`);
         chats = mapApiChatsToClientFormat(response.chats);
@@ -681,26 +700,20 @@
         logger.info(`Processing ${response.length} chats from direct array`);
         chats = mapApiChatsToClientFormat(response);
       } else if (response && typeof response === 'object') {
-        // API returns unknown object structure or empty object
-        if (Object.keys(response).length === 0) {
-          logger.info('API returned empty object, no chats available');
-          chats = [];
+        // Try to find any array that might contain chats
+        logger.warn('API returned unknown response structure:', response);
+        const possibleChatArrays = Object.entries(response)
+          .filter(([_, value]) => Array.isArray(value) && value.length > 0)
+          .map(([key, value]) => ({ key, value: value as any[] }));
+        
+        if (possibleChatArrays.length > 0) {
+          // Use the first array found
+          const firstArray = possibleChatArrays[0].value;
+          logger.info(`Using ${possibleChatArrays[0].key} as chat array with ${firstArray.length} items`);
+          chats = mapApiChatsToClientFormat(firstArray);
         } else {
-          // Try to find any array that might contain chats
-          logger.warn('API returned unknown response structure:', response);
-          const possibleChatArrays = Object.entries(response)
-            .filter(([_, value]) => Array.isArray(value) && value.length > 0)
-            .map(([key, value]) => ({ key, value: value as any[] }));
-          
-          if (possibleChatArrays.length > 0) {
-            // Use the first array found
-            const firstArray = possibleChatArrays[0].value;
-            logger.info(`Using ${possibleChatArrays[0].key} as chat array with ${firstArray.length} items`);
-            chats = mapApiChatsToClientFormat(firstArray);
-          } else {
-            logger.warn('No usable arrays found in response');
-            chats = [];
-          }
+          logger.warn('No usable arrays found in response');
+          chats = [];
         }
       } else {
         logger.warn('Unrecognized API response format, no chats available');
@@ -991,8 +1004,8 @@
                         <div class="avatar-placeholder" style="background-color: {getAvatarColor(message.sender_name || 'User')}">
                           {(message.sender_name || 'User').charAt(0).toUpperCase()}
                         </div>
-                      {/if}
-                    </div>
+              {/if}
+              </div>
                   {/if}
                   
                   <div class="message-bubble">
@@ -1007,19 +1020,19 @@
                       
                       {#if message.attachments && message.attachments.length > 0}
                         <div class="attachments-container">
-                          {#each message.attachments as attachment}
+                  {#each message.attachments as attachment}
                             {#if attachment.type === 'image'}
                               <img src={attachment.url} alt="Attachment" class="image-attachment" />
                             {:else if attachment.type === 'gif'}
                               <img src={attachment.url} alt="GIF attachment" class="gif-attachment" />
-                            {:else if attachment.type === 'video'}
+                    {:else if attachment.type === 'video'}
                               <video src={attachment.url} controls class="video-attachment">
-                                Your browser does not support the video tag.
-                              </video>
-                            {/if}
-                          {/each}
-                        </div>
-                      {/if}
+                        Your browser does not support the video tag.
+                      </video>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
                       
                       <div class="message-footer">
                         <span class="timestamp">{formatTimeAgo(message.timestamp)}</span>
@@ -1030,13 +1043,13 @@
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
-                            </button>
+                  </button>
                           </div>
-                        {/if}
-                      </div>
+                {/if}
+              </div>
                     {/if}
-                  </div>
-                </div>
+            </div>
+          </div>
         {/each}
             {:else}
               <div class="empty-messages">
@@ -1046,34 +1059,34 @@
             {/if}
       </div>
       
-            <div class="message-input-container">
-        <div class="input-wrapper">
-          <textarea 
-            bind:value={newMessage}
-            placeholder="Type a message..."
-            rows="1"
-            on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-          ></textarea>
-          
-          <div class="attachment-buttons">
-            <button class="attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </button>
-            <button class="attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
-              <span class="gif-button">GIF</span>
-            </button>
-          </div>
-        </div>
-        
+      <div class="message-input-container">
+            <div class="input-wrapper">
+              <textarea 
+                bind:value={newMessage}
+                placeholder="Type a message..."
+                rows="1"
+                on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              ></textarea>
+              
+              <div class="attachment-buttons">
+                <button class="attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        </button>
+                <button class="attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
+                  <span class="gif-button">GIF</span>
+                </button>
+              </div>
+            </div>
+            
         <button
-          class="send-button {newMessage.trim() ? 'active' : ''}"
+              class="send-button {newMessage.trim() ? 'active' : ''}"
           disabled={!newMessage.trim()}
-          on:click={sendMessage}
-          aria-label="Send message"
+              on:click={sendMessage}
+              aria-label="Send message"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
         </button>

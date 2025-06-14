@@ -14,34 +14,34 @@ export function setMessageHandler(handler: (message: any) => void) {
 export function processWebSocketMessage(message: any) {
   try {
     logger.debug('Processing WebSocket message:', message);
-    
+
     // Validate the message format
-    if (!message || !message.type) {
+  if (!message || !message.type) {
       logger.warn('Invalid WebSocket message format:', message);
-      return;
-    }
+    return;
+  }
 
     // Handle different message types
-    switch (message.type) {
-      case 'text':
+  switch (message.type) {
+    case 'text':
         handleIncomingTextMessage(message);
-        break;
-      case 'typing':
+      break;
+    case 'typing':
         // Handle typing indicator
-        break;
-      case 'read':
+      break;
+    case 'read':
         // Handle read receipts
-        break;
-      case 'delete':
+      break;
+    case 'delete':
         // Handle message deletion
-        break;
-      case 'edit':
+      break;
+    case 'edit':
         // Handle message edit
-        break;
+      break;
       case 'connection_status':
         logger.info('WebSocket connection status:', message.status);
         break;
-      default:
+    default:
         logger.warn('Unknown WebSocket message type:', message.type);
     }
   } catch (error) {
@@ -54,16 +54,16 @@ function extractTempIdFromMessage(message: any): string | null {
   try {
     if (message && message.temp_id) {
       return message.temp_id;
-    }
-    
+  }
+
     if (message && message.content && typeof message.content === 'string' && message.content.startsWith('temp-')) {
       const match = message.content.match(/temp-(\d+)/);
       if (match && match[1]) {
         return `temp-${match[1]}`;
       }
-    }
-    
-    return null;
+  }
+
+  return null;
   } catch (error) {
     logger.error('Error extracting temp ID from message:', error);
     return null;
@@ -338,7 +338,7 @@ export async function listChats() {
         } else {
           return { chats: [] };
         }
-      } catch (parseError: unknown) {
+      } catch (parseError) {
         logger.error('Failed to parse JSON response for listing chats:', parseError);
         // Try to log the raw response for debugging
         if (responseText) {
@@ -940,11 +940,25 @@ export async function testApiConnection() {
         logger.debug(`API endpoint ${endpoint} response: ${status}`);
         
         // For the base /api/v1 endpoint, a 404 is expected since it's not implemented directly
-        if ((endpoint === '/api/v1' && status === 404) || apiResponse.ok) {
+        // Also prioritize the /chats endpoint even if others work
+        if (endpoint === '/api/v1/chats' && apiResponse.ok) {
           successful = true;
           testedEndpoint = endpoint;
           
-          // If we got a successful response, try to parse it
+          try {
+            responseData = await apiResponse.json();
+            logger.debug(`API response data from ${endpoint}:`, responseData);
+          } catch (e) {
+            logger.debug(`Could not parse JSON from ${endpoint} response`);
+          }
+          
+          // If we found the chats endpoint working, prioritize it
+          break;
+        }
+        else if ((endpoint === '/api/v1' && status === 404) || apiResponse.ok) {
+          successful = true;
+          testedEndpoint = endpoint;
+          
           if (apiResponse.ok) {
             try {
               responseData = await apiResponse.json();
@@ -952,7 +966,11 @@ export async function testApiConnection() {
             } catch (e) {
               logger.debug(`Could not parse JSON from ${endpoint} response`);
             }
-            // Found a working endpoint, stop trying more
+          }
+          
+          // Don't break here if it's the base endpoint with 404
+          // Keep looking for a better endpoint unless it's the last one
+          if (endpoint !== '/api/v1' || endpointsToTry.indexOf(endpoint) === endpointsToTry.length - 1) {
             break;
           }
         } else {

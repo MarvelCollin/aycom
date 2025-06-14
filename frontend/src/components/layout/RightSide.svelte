@@ -315,7 +315,7 @@
                   >
                     <div class="search-result-avatar">
                       <img 
-                        src={user.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp'} 
+                        src={user.profile_picture_url} 
                         alt={user.name || user.username} 
                       />
                     </div>
@@ -417,13 +417,12 @@
         <div class="suggestions-list">
           {#each suggestedFollows.slice(0, isTabletView ? 3 : 5) as user, i}
             <div class="suggestion-item {isDarkMode ? 'suggestion-item-dark' : ''}">
-              <div class="suggestion-avatar">
-                <a href={`/user/${user.username}`}>
-                  <img 
-                    src={user.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp'} 
-                    alt={user.name || user.username || 'User'} 
-                  />
-                </a>
+              <div class="suggested-user-avatar">
+                <img 
+                  src={user.profile_picture_url} 
+                  alt={user.name || user.username || 'User'} 
+                  class="suggested-user-img"
+                />
               </div>
               <div class="suggestion-details">
                 <a href={`/user/${user.username}`} class="suggestion-name">
@@ -899,7 +898,7 @@
     background-color: var(--dark-hover-bg);
   }
   
-  .suggestion-avatar {
+  .suggested-user-avatar {
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -908,7 +907,7 @@
     flex-shrink: 0;
   }
   
-  .suggestion-avatar img {
+  .suggested-user-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -1050,7 +1049,7 @@
       padding: var(--space-3);
     }
     
-    .suggestion-avatar {
+    .suggested-user-avatar {
       width: 40px;
       height: 40px;
     }

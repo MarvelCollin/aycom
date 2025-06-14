@@ -27,9 +27,11 @@
   import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
 
+  export let isDarkMode = false;
+  export let isNavOpen = false;
+  export let avatar = "";
   export let username = "";
   export let displayName = "";
-  export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
   export let isCollapsed = false;
   export let isMobileMenu = false;
   

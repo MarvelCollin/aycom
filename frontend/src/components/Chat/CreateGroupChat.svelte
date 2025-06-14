@@ -1,12 +1,15 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { useAuth } from '../../hooks/useAuth';
-  import { searchUsers, getAllUsers, getUserById, createChat } from '../../api';
+  import * as api from '../../api';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { toastStore } from '../../stores/toastStore';
   import { handleApiError } from '../../utils/common';
   import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
   import type { User, ApiUserResponse, CreateChatResponse } from '../../interfaces/IChat';
+
+  // Extract the API methods we need
+  const { searchUsers, getAllUsers, getUserById, createChat } = api;
 
   const logger = createLoggerWithPrefix('CreateGroupChat');
   const dispatch = createEventDispatcher();
@@ -17,7 +20,7 @@
   export let onCancel: (() => void) | undefined = undefined;   
 
   // State
-  let authState = getAuthState ? getAuthState() : { userId: null };
+  let authState = getAuthState ? getAuthState() : { user_id: null };
   let groupName = '';
   let searchQuery = '';
   let searchResults: StandardUser[] = [];
@@ -86,7 +89,7 @@
           // Transform API user results using our utility function
           const transformedUsers = transformApiUsers(users);
           searchResults = transformedUsers.filter(user => 
-            user.id !== authState.userId && 
+            user.id !== authState.user_id && 
             !selectedParticipants.some(p => p.id === user.id)
           );
           logger.info('Retrieved users from API', { count: searchResults.length });        } else {

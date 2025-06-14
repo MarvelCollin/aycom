@@ -23,7 +23,7 @@
   import type { ITweet } from '../../interfaces/ISocialMedia';
   
   export let isOpen = false;
-  export let avatar = "https://secure.gravatar.com/avatar/0?d=mp";
+  export let avatar = "";
   export let replyTo: ITweet | null = null;
   
   const { theme } = useTheme();
@@ -553,17 +553,15 @@
       
       <div class="compose-tweet-container">
         {#if replyTo}
-          <div class="compose-tweet-reply-to {isDarkMode ? 'compose-tweet-reply-to-dark' : ''}">
+          <div class="compose-tweet-reply-to">
+            <div class="compose-tweet-reply-header">
+              <span>Replying to</span>
+              <a href={`/user/${replyTo.username}`} class="compose-tweet-reply-username">@{replyTo.username}</a>
+            </div>
             <div class="compose-tweet-reply-content">
-              <div class="compose-tweet-reply-avatar-container">
-                <img src={replyTo.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"} alt={replyTo.username} class="compose-tweet-reply-avatar" />
-              </div>
-              <div class="compose-tweet-reply-info">
-                <div class="compose-tweet-reply-author">
-                  <span class="compose-tweet-reply-name">{replyTo.name || 'User'}</span>
-                  <span class="compose-tweet-reply-username">@{replyTo.username || 'user'}</span>
-                </div>
-                <p class="compose-tweet-reply-text">{replyTo.content}</p>
+              <img src={replyTo.profile_picture_url || ""} alt={replyTo.username} class="compose-tweet-reply-avatar" />
+              <div class="compose-tweet-reply-text">
+                {replyTo.content || ""}
               </div>
             </div>
           </div>
