@@ -64,7 +64,7 @@ func RefreshToken(c *gin.Context) {
 
 	userID, ok := claims["sub"].(string)
 	if !ok {
-		// Try legacy format
+
 		userID, ok = claims["user_id"].(string)
 		if !ok {
 			utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_TOKEN", "Invalid token claims")
@@ -140,7 +140,6 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Get the User object from the response
 	user := userAuthResp.User
 	if user == nil {
 		log.Printf("Login: User is nil in authentication response")
@@ -150,10 +149,9 @@ func Login(c *gin.Context) {
 
 	log.Printf("Login: User authenticated successfully: %s (ID: %s)", user.Email, user.ID)
 
-	// Add more user claims to the token
 	tokenClaims := jwt.MapClaims{
 		"sub":         user.ID,
-		"user_id":     user.ID, // For backward compatibility
+		"user_id":     user.ID,
 		"email":       user.Email,
 		"username":    user.Username,
 		"is_admin":    user.IsAdmin,
@@ -163,7 +161,6 @@ func Login(c *gin.Context) {
 
 	log.Printf("Login: Generated token claims for %s with admin status: %t", user.Email, user.IsAdmin)
 
-	// For debugging, log all claims
 	for k, v := range tokenClaims {
 		log.Printf("Login: Token claim %s: %v (type: %T)", k, v, v)
 	}
@@ -177,10 +174,10 @@ func Login(c *gin.Context) {
 
 	refreshTokenClaims := jwt.MapClaims{
 		"sub":        user.ID,
-		"user_id":    user.ID, // For backward compatibility
+		"user_id":    user.ID,
 		"token_type": "refresh",
 		"is_admin":   user.IsAdmin,
-		"exp":        time.Now().Add(time.Hour * 24 * 30).Unix(), // 30 days
+		"exp":        time.Now().Add(time.Hour * 24 * 30).Unix(),
 	}
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshTokenClaims)
 	refreshTokenString, err := refreshToken.SignedString(utils.GetJWTSecret())
@@ -408,7 +405,6 @@ func GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	// Check if user service is available, and try to reinitialize if needed
 	if UserClient == nil {
 		log.Println("GoogleLogin: User service client is nil, attempting to initialize")
 		InitGRPCServices()
@@ -428,7 +424,6 @@ func GoogleLogin(c *gin.Context) {
 	var userResp *userProto.GetUserByEmailResponse
 	var getUserErr error
 
-	// Add retry logic for getting user by email
 	maxRetries := 3
 	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
@@ -473,7 +468,6 @@ func GoogleLogin(c *gin.Context) {
 			User: user,
 		}
 
-		// Add retry logic for creating a new user
 		var createResp *userProto.CreateUserResponse
 		var createErr error
 
@@ -506,7 +500,6 @@ func GoogleLogin(c *gin.Context) {
 		userID = userResp.User.Id
 		log.Printf("GoogleLogin: Found existing user with ID: %s", userID)
 
-		// Check if user needs to complete their profile
 		user := userResp.User
 		if user.Gender == "" || user.Gender == "unknown" ||
 			user.DateOfBirth == "" ||
@@ -664,9 +657,6 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// We can't compare the old password hash with the new plain text password
-	// So we'll just update the password without checking if it's the same
-
 	updateReq := &userProto.UpdateUserRequest{
 		UserId: userResp.User.Id,
 		User: &userProto.User{
@@ -688,7 +678,6 @@ func ResetPassword(c *gin.Context) {
 	utils.GetTokenManager().Delete(req.Token)
 }
 
-// CheckAdminStatus checks if the authenticated user has admin privileges
 func CheckAdminStatus(c *gin.Context) {
 	log.Printf("CheckAdminStatus: Processing admin status check request")
 	userID, exists := c.Get("userID")
@@ -700,13 +689,11 @@ func CheckAdminStatus(c *gin.Context) {
 	userIDStr := userID.(string)
 	log.Printf("CheckAdminStatus: Processing request for user %s", userIDStr)
 
-	// First try to get from JWT claims
 	tokenString := c.GetHeader("Authorization")
 	if strings.HasPrefix(tokenString, "Bearer ") {
-		tokenString = tokenString[7:] // Remove Bearer prefix
+		tokenString = tokenString[7:]
 		log.Printf("CheckAdminStatus: Token length: %d", len(tokenString))
 
-		// Parse the token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -719,16 +706,13 @@ func CheckAdminStatus(c *gin.Context) {
 			if ok {
 				log.Printf("CheckAdminStatus: Valid JWT token parsed")
 
-				// Log all claims for debugging
 				log.Printf("CheckAdminStatus: All JWT claims:")
 				for k, v := range claims {
 					log.Printf("  %s: %v (Type: %T)", k, v, v)
 				}
 
-				// Try to get admin status from various claim formats
 				isAdmin := false
 
-				// Check common claim names for is_admin
 				if adminValue, exists := claims["is_admin"]; exists {
 					log.Printf("CheckAdminStatus: Found is_admin claim: %v (Type: %T)", adminValue, adminValue)
 					switch v := adminValue.(type) {
@@ -738,13 +722,12 @@ func CheckAdminStatus(c *gin.Context) {
 					case string:
 						isAdmin = v == "true" || v == "t" || v == "1"
 						log.Printf("CheckAdminStatus: is_admin as string: %s -> %t", v, isAdmin)
-					case float64: // JSON numbers are parsed as float64
+					case float64:
 						isAdmin = v == 1
 						log.Printf("CheckAdminStatus: is_admin as float64: %f -> %t", v, isAdmin)
 					}
 				}
 
-				// Also check for other possible formats
 				if !isAdmin {
 					if adminValue, exists := claims["admin"]; exists {
 						log.Printf("CheckAdminStatus: Found admin claim: %v (Type: %T)", adminValue, adminValue)
@@ -762,7 +745,6 @@ func CheckAdminStatus(c *gin.Context) {
 					}
 				}
 
-				// If admin status confirmed by JWT, return immediately
 				if isAdmin {
 					log.Printf("CheckAdminStatus: User %s is admin according to JWT claims", userIDStr)
 					utils.SendSuccessResponse(c, http.StatusOK, gin.H{
@@ -782,8 +764,6 @@ func CheckAdminStatus(c *gin.Context) {
 		log.Printf("CheckAdminStatus: No valid Bearer token found")
 	}
 
-	// If we get here, either the token didn't have the is_admin claim or we couldn't parse it
-	// So we'll need to check the database
 	if userServiceClient == nil {
 		log.Printf("CheckAdminStatus: User service unavailable")
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service unavailable")
@@ -800,7 +780,6 @@ func CheckAdminStatus(c *gin.Context) {
 
 	log.Printf("CheckAdminStatus: User %s has admin status from database: %t", userIDStr, user.IsAdmin)
 
-	// Generate a new token with admin claim if user is admin
 	if user.IsAdmin {
 		log.Printf("CheckAdminStatus: User %s is admin, generating new token with admin claim", userIDStr)
 	}

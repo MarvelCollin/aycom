@@ -138,67 +138,39 @@ export function isSupabaseStorageUrl(url: string): boolean {
 export function formatStorageUrl(url: string | null): string {
   if (!url) return '';
 
+  // If the URL is already complete, return it as is
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    console.log('URL already complete:', url);
     return url;
   }
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
   const storageEndpoint = `${supabaseUrl}/storage/v1/s3`;
 
-  if (!url.includes('/')) {
-    // Simple filename - use folder based on the file operation (defaulting to read folder)
-    if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-      const formatted = `${storageEndpoint}/tpaweb/1kolknj_0/${url}`;
-      console.log(`Formatted filename-only URL (image): ${url} -> ${formatted}`);
-      return formatted;
+  // Handle storage path formats and convert if needed
+  if (url.includes('storage/v1/object/public/')) {
+    const formatted = url.replace('storage/v1/object/public/', 'storage/v1/s3/');
+    
+    // Make sure we have the full URL
+    if (formatted.startsWith('storage/')) {
+      return `${supabaseUrl}/${formatted}`;
     }
-
-    const formatted = `${storageEndpoint}/tpaweb/1kolknj_0/${url}`;
-    console.log(`Formatted filename-only URL: ${url} -> ${formatted}`);
+    
     return formatted;
   }
 
-  if (url.startsWith('storage/v1/object/public/') || url.startsWith('storage/v1/s3/')) {
-    // Convert old format to new format if needed
-    if (url.startsWith('storage/v1/object/public/')) {
-      url = url.replace('storage/v1/object/public/', 'storage/v1/s3/');
+  if (url.includes('storage/v1/s3/')) {
+    // Make sure we have the full URL
+    if (url.startsWith('storage/')) {
+      return `${supabaseUrl}/${url}`;
     }
-    const formatted = `${supabaseUrl}/${url}`;
-    console.log(`Formatted storage path URL: ${url} -> ${formatted}`);
-    return formatted;
+    
+    // Already has the domain
+    return url;
   }
 
-  // Handle specific bucket path patterns
-  if (url.startsWith('profile-pictures/')) {
-    const formatted = `${storageEndpoint}/${url}`;
-    console.log(`Formatted profile URL: ${url} -> ${formatted}`);
-    return formatted;
-  }
-
-  if (url.startsWith('banners/')) {
-    const formatted = `${storageEndpoint}/${url}`;
-    console.log(`Formatted banner URL: ${url} -> ${formatted}`);
-    return formatted;
-  }
-
-  // For tpaweb paths, make sure they go to the right folder
-  if (url.startsWith('tpaweb/')) {
-    // Preserve the existing structure but ensure it points to an allowed folder
-    const parts = url.split('/');
-    if (parts.length > 1) {
-      // Replace the second part with an allowed folder name (1kolknj_0 for read)
-      parts[1] = '1kolknj_0';
-      const formatted = `${storageEndpoint}/${parts.join('/')}`;
-      console.log(`Formatted tpaweb URL: ${url} -> ${formatted}`);
-      return formatted;
-    }
-  }
-
-  // Default case - use read folder
-  const formatted = `${storageEndpoint}/tpaweb/1kolknj_0/${url}`;
-  console.log(`Formatted default URL: ${url} -> ${formatted}`);
-  return formatted;
+  // Default case - ensure we attach the full URL
+  const cleanPath = url.replace(/^\//, ''); // Remove leading slash if present
+  return `${storageEndpoint}/${cleanPath}`;
 }
 
 /**
@@ -233,3 +205,4 @@ export function formatNumber(num: number): string {
   
   return sign + formatted + abbreviations[tier];
 }
+

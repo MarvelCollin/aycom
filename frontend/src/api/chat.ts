@@ -12,112 +12,95 @@ export function setMessageHandler(handler: (message: any) => void) {
 }
 
 export function processWebSocketMessage(message: any) {
-  logger.debug('Processing WebSocket message', { messageType: message.type, messageId: message.message_id });
+  try {
+    logger.debug('Processing WebSocket message:', message);
+    
+    // Validate the message format
+    if (!message || !message.type) {
+      logger.warn('Invalid WebSocket message format:', message);
+      return;
+    }
 
-  if (!message || !message.type) {
-    logger.error('Invalid message format', { message });
-    return;
-  }
-
-  const normalizedMessage: any = {
-    type: message.type,
-    message_id: message.message_id || message.messageId || message.id,
-    chat_id: message.chat_id || message.chatId,
-    user_id: message.user_id || message.userId || message.sender_id || message.senderId,
-    timestamp: message.timestamp || message.created_at || message.createdAt || new Date().toISOString()
-  };
-
-  switch (message.type) {
-    case 'text':
-      normalizedMessage.content = message.content || message.text || '';
-      normalizedMessage.is_edited = message.is_edited || message.isEdited || false;
-      normalizedMessage.is_deleted = message.is_deleted || message.isDeleted || false;
-      normalizedMessage.attachments = message.attachments || message.media || [];
-      break;
-
-    case 'typing':
-      normalizedMessage.is_typing = message.is_typing || message.isTyping || true;
-      break;
-
-    case 'read':
-      normalizedMessage.last_read_id = message.last_read_id || message.lastReadId;
-      break;
-
-    case 'edit':
-      normalizedMessage.content = message.content || message.text || '';
-      normalizedMessage.original_message_id = message.original_message_id || message.originalMessageId;
-      break;
-
-    case 'delete':
-      normalizedMessage.target_message_id = message.target_message_id || message.targetMessageId;
-      break;
-  }
-
-  switch (normalizedMessage.type) {
-    case 'text':
-      const originalTempId = extractTempIdFromMessage(normalizedMessage);
-
-      if (originalTempId && normalizedMessage.message_id && normalizedMessage.message_id !== originalTempId) {
-        logger.debug('Updating temp message with server data', { 
-          tempId: originalTempId, 
-          serverId: normalizedMessage.message_id 
-        });
-
-        const timestamp = normalizedMessage.timestamp ? 
-          (typeof normalizedMessage.timestamp === 'number' ? 
-            new Date(normalizedMessage.timestamp * 1000) : new Date(normalizedMessage.timestamp)) 
-          : new Date();
-
-        if (messageHandler) {
-          const updateMessage = {
-            ...normalizedMessage,
-            type: 'update',
-            original_temp_id: originalTempId,
-            timestamp
-          };
-          messageHandler(updateMessage);
-        }
-      } else {
-        internalHandleIncomingMessage(normalizedMessage);
-      }
-      break;
-
-    case 'typing':
-    case 'read':
-    case 'edit':
-    case 'delete':
-      internalHandleIncomingMessage(normalizedMessage);
-      break;
-
-    default:
-      logger.warn('Unknown WebSocket message type', { type: normalizedMessage.type });
+    // Handle different message types
+    switch (message.type) {
+      case 'text':
+        handleIncomingTextMessage(message);
+        break;
+      case 'typing':
+        // Handle typing indicator
+        break;
+      case 'read':
+        // Handle read receipts
+        break;
+      case 'delete':
+        // Handle message deletion
+        break;
+      case 'edit':
+        // Handle message edit
+        break;
+      case 'connection_status':
+        logger.info('WebSocket connection status:', message.status);
+        break;
+      default:
+        logger.warn('Unknown WebSocket message type:', message.type);
+    }
+  } catch (error) {
+    logger.error('Error processing WebSocket message:', error);
   }
 }
 
+// Extract temp ID from message
 function extractTempIdFromMessage(message: any): string | null {
-  if (message.original_id && message.original_id.startsWith('temp-')) {
-    return message.original_id;
+  try {
+    if (message && message.temp_id) {
+      return message.temp_id;
+    }
+    
+    if (message && message.content && typeof message.content === 'string' && message.content.startsWith('temp-')) {
+      const match = message.content.match(/temp-(\d+)/);
+      if (match && match[1]) {
+        return `temp-${match[1]}`;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    logger.error('Error extracting temp ID from message:', error);
+    return null;
   }
-
-  if (message.client_id && message.client_id.startsWith('temp-')) {
-    return message.client_id;
-  }
-
-  if (message.message_id && message.message_id.startsWith('temp-')) {
-    return message.message_id;
-  }
-
-  return null;
 }
 
-function internalHandleIncomingMessage(message: any) {
-  if (!message || !message.chat_id) {
-    logger.error('Invalid message for processing', { message });
-    return;
-  }
-
+// Handle incoming text message
+function handleIncomingTextMessage(message: any) {
+  logger.debug('Handling incoming text message:', message);
+  
+  // Create a standardized message object
+  const processedMessage = {
+    id: message.id || message.message_id,
+    chat_id: message.chat_id,
+    content: message.content,
+    sender_id: message.user_id || message.sender_id,
+    sender_name: message.sender_name || 'User',
+    sender_avatar: message.sender_avatar,
+    timestamp: message.timestamp ? new Date(message.timestamp).toISOString() : new Date().toISOString(),
+    is_read: message.is_read || false,
+    is_edited: message.is_edited || false,
+    is_deleted: message.is_deleted || false
+  };
+  
+  // Check if this is a response to a temporary message
+  const tempId = extractTempIdFromMessage(message);
+  
+  // Notify the registered message handler
   if (messageHandler) {
-    messageHandler(message);
+    try {
+      messageHandler({
+        ...processedMessage,
+        temp_id: tempId
+      });
+    } catch (handlerError) {
+      logger.error('Error in message handler:', handlerError);
+    }
   }
 }
 
@@ -167,36 +150,17 @@ export async function createChat(data: Record<string, any>) {
     });
 
     if (!response.ok) {
-      let errorMessage = `Failed to create chat: ${response.status} ${response.statusText}`;
-      try {
-        // Try to read the response once
-        const responseText = await response.text();
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType && contentType.includes('application/json')) {
         try {
-          // Try to parse as JSON
-          const errorJson = JSON.parse(responseText);
-          logger.error('Failed to create chat:', { 
-            status: response.status, 
-            errorJson,
-            url: `${API_BASE_URL}/chats`,
-            method: 'POST'
-          });
-          errorMessage += ` - ${JSON.stringify(errorJson)}`;
-        } catch (jsonParseError) {
-          // If not JSON, use as text
-          logger.error('Failed to create chat:', { 
-            status: response.status, 
-            response: responseText,
-            url: `${API_BASE_URL}/chats`,
-            method: 'POST'
-          });
-          if (responseText) {
-            errorMessage += ` - ${responseText}`;
-          }
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to create chat');
+        } catch (parseError) {
+          throw new Error(`Failed to create chat: ${response.status} ${response.statusText}`);
         }
-      } catch (readError) {
-        logger.error('Failed to read error response:', readError);
+      } else {
+        throw new Error(`Failed to create chat: ${response.status} ${response.statusText}`);
       }
-      throw new Error(errorMessage);
     }
 
     // Check if the response is empty
@@ -318,7 +282,7 @@ export async function listChats() {
       }
 
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      if (contentType && contentType.includes('application/json')) {
         try {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Failed to list chats');
@@ -338,11 +302,6 @@ export async function listChats() {
       return { chats: [] };
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType) {
-      logger.warn('No content-type header in response');
-    }
-    
     try {
       const responseText = await response.text();
       if (!responseText || responseText.trim() === '') {
@@ -357,23 +316,34 @@ export async function listChats() {
           hasData: !!responseData,
           hasChats: responseData && 'chats' in responseData,
           isChatsArray: responseData && 'chats' in responseData && Array.isArray(responseData.chats),
+          chatsLength: responseData?.chats?.length || 0,
           responseKeys: responseData ? Object.keys(responseData) : []
         });
         
         // Handle different response formats
-        if (responseData && 'chats' in responseData) {
+        if (responseData && 'chats' in responseData && Array.isArray(responseData.chats)) {
           return responseData;
         } else if (Array.isArray(responseData)) {
           return { chats: responseData };
         } else if (responseData && typeof responseData === 'object') {
-          return { chats: [responseData] };
+          // If the response is a single chat object (has id and name)
+          if (responseData.id && (responseData.name || responseData.participants)) {
+            return { chats: [responseData] };
+          }
+          // If it's some other kind of object, try to extract chats
+          if (responseData.data && Array.isArray(responseData.data)) {
+            return { chats: responseData.data };
+          }
+          return { chats: [] };
         } else {
           return { chats: [] };
         }
       } catch (parseError: unknown) {
         logger.error('Failed to parse JSON response for listing chats:', parseError);
         // Try to log the raw response for debugging
-        logger.error('Raw response text:', responseText.substring(0, 200) + '...');
+        if (responseText) {
+          logger.error('Raw response text:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+        }
         return { chats: [] };
       }
     } catch (textError) {
@@ -400,7 +370,7 @@ export async function listChatParticipants(chatId: string) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
+      const contentType = response.headers.get('content-type') || '';
       if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to list chat participants');
@@ -409,10 +379,11 @@ export async function listChatParticipants(chatId: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type');
+    const contentType = response.headers.get('content-type') || '';
     if (contentType && contentType.includes('application/json')) {
       try {
-        return await response.json();
+        const data = await response.json();
+        return data;
       } catch (parseError: unknown) {
         logger.error(`Failed to parse JSON response for listing participants in chat ${chatId}:`, parseError);
         return { participants: [] };
@@ -442,7 +413,7 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
+      const contentType = response.headers.get('content-type') || '';
       if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to add chat participant');
@@ -451,7 +422,7 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
       }
     }
 
-    const contentType = response.headers.get('content-type');
+    const contentType = response.headers.get('content-type') || '';
     if (contentType && contentType.includes('application/json')) {
       try {
         return await response.json();
@@ -482,7 +453,7 @@ export async function removeChatParticipant(chatId: string, userId: string) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
+      const contentType = response.headers.get('content-type') || '';
       if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to remove chat participant');
@@ -491,7 +462,7 @@ export async function removeChatParticipant(chatId: string, userId: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type');
+    const contentType = response.headers.get('content-type') || '';
     if (contentType && contentType.includes('application/json')) {
       try {
         return await response.json();
@@ -544,7 +515,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
+      const contentType = response.headers.get('content-type') || '';
       if (contentType && contentType.includes('application/json')) {
         try {
           const errorData = await response.json();
@@ -606,18 +577,29 @@ export async function listMessages(chatId: string) {
     const token = getAuthToken();
     logger.debug(`Fetching messages for chat ${chatId}`);
 
+    // Log API URL to ensure it's correct
+    logger.info(`API URL for messages: ${API_BASE_URL}/chats/${chatId}/messages`);
+
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
       credentials: 'include'
     });
 
+    // Log the response status
+    logger.info(`Messages response status: ${response.status} ${response.statusText}`);
+    
+    // Log response headers to debug content-type issues
+    const contentTypeHeader = response.headers.get('content-type');
+    logger.info(`Response content type: ${contentTypeHeader || 'not provided'}`);
+
     if (!response.ok) {
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      if (contentType && contentType.includes('application/json')) {
         try {
           const errorData = await response.json();
           throw new Error(errorData.message || 'Failed to list messages');
@@ -629,18 +611,54 @@ export async function listMessages(chatId: string) {
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      try {
-        const data = await response.json();
-        logger.debug(`Received ${data.messages?.length || 0} messages for chat ${chatId}`);
-        return data;
-      } catch (parseError: unknown) {
-        logger.error(`Failed to parse JSON response for chat ${chatId}:`, parseError);
+    // Check if the response is empty
+    const contentLength = response.headers.get('content-length');
+    if (contentLength === '0') {
+      logger.warn(`Empty response received from messages endpoint for chat ${chatId}`);
+      return { messages: [] };
+    }
+
+    try {
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        logger.warn(`Empty response body from messages endpoint for chat ${chatId}`);
         return { messages: [] };
       }
-    } else {
-      logger.warn(`Non-JSON response for chat ${chatId}`);
+      
+      try {
+        const responseData = JSON.parse(responseText);
+        // Log the shape of the response data
+        logger.debug('API messages response structure:', {
+          hasData: !!responseData,
+          hasMessages: responseData && 'messages' in responseData,
+          isMessagesArray: responseData && 'messages' in responseData && Array.isArray(responseData.messages),
+          messagesLength: responseData?.messages?.length || 0,
+          responseKeys: responseData ? Object.keys(responseData) : []
+        });
+        
+        // Handle different response formats
+        if (responseData && 'messages' in responseData) {
+          return responseData;
+        } else if (Array.isArray(responseData)) {
+          return { messages: responseData };
+        } else if (responseData && typeof responseData === 'object') {
+          // If the response is an object but doesn't have a messages property,
+          // it might be a single message or an empty object
+          if (responseData.id && responseData.content) {
+            return { messages: [responseData] };
+          }
+          return { messages: [] };
+        } else {
+          return { messages: [] };
+        }
+      } catch (parseError: unknown) {
+        logger.error(`Failed to parse JSON response for chat ${chatId}:`, parseError);
+        // Try to log the raw response for debugging
+        logger.error('Raw response text:', responseText.substring(0, 200) + '...');
+        return { messages: [] };
+      }
+    } catch (textError) {
+      logger.error(`Could not read response text for chat ${chatId}:`, textError);
       return { messages: [] };
     }
   } catch (error) {
@@ -663,7 +681,7 @@ export async function deleteMessage(chatId: string, messageId: string) {
 
     if (!response.ok) {
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to delete message');
       } else {
@@ -672,7 +690,7 @@ export async function deleteMessage(chatId: string, messageId: string) {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+    if (contentType && contentType.includes('application/json')) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -703,7 +721,7 @@ export async function unsendMessage(chatId: string, messageId: string) {
 
     if (!response.ok) {
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to unsend message');
       } else {
@@ -712,7 +730,7 @@ export async function unsendMessage(chatId: string, messageId: string) {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+    if (contentType && contentType.includes('application/json')) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -744,7 +762,7 @@ export async function searchMessages(chatId: string, query: string) {
 
     if (!response.ok) {
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to search messages');
       } else {
@@ -753,7 +771,7 @@ export async function searchMessages(chatId: string, query: string) {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+    if (contentType && contentType.includes('application/json')) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -791,7 +809,7 @@ export async function getChatHistoryList() {
 
     if (!response.ok) {
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      if (contentType && contentType.includes('application/json')) {
         const errorData = await response.json();
         logger.error('Error response from chat history endpoint', errorData);
         throw new Error(errorData.message || 'Failed to get chat history');
@@ -801,7 +819,7 @@ export async function getChatHistoryList() {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+    if (contentType && contentType.includes('application/json')) {
       try {
         const data = await response.json();
         logger.debug('Chat history response data', { 

@@ -754,7 +754,7 @@
             on:error={(e) => {
               const target = e.target as HTMLImageElement;
               if (target) {
-                target.src = '/images/default-banner.png';
+                console.error("Banner image failed to load:", profileData.banner_url);
               }
             }}
           />
@@ -772,10 +772,7 @@
             alt="Profile"
             class="profile-avatar"
             on:error={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (target) {
-                target.src = '/images/default-avatar.png';
-              }
+              console.error("Profile image failed to load:", profileData.profile_picture_url);
             }}
           />
         {:else}
@@ -960,7 +957,7 @@
                   on:error={(e) => {
                     const target = e.target as HTMLImageElement;
                     if (target) {
-                      target.src = '/images/default-media.png';
+                      console.error("Media image failed to load:", item.url);
                     }
                   }}
                 />
@@ -1029,13 +1026,10 @@
                       aria-label="View profile of {user.name || user.username}">
                 <div class="user-avatar">
                   <img 
-                    src={user.profile_picture_url || '/images/default-avatar.png'} 
+                    src={user.profile_picture_url} 
                     alt={user.name || user.username}
                     on:error={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (target) {
-                        target.src = '/images/default-avatar.png';
-                      }
+                      console.error("User profile image failed to load:", user.profile_picture_url);
                     }}
                   />
                 </div>
@@ -1106,13 +1100,10 @@
                       aria-label="View profile of {user.name || user.username}">
                 <div class="user-avatar">
                   <img 
-                    src={user.profile_picture_url || '/images/default-avatar.png'} 
+                    src={user.profile_picture_url} 
                     alt={user.name || user.username}
                     on:error={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (target) {
-                        target.src = '/images/default-avatar.png';
-                      }
+                      console.error("User profile image failed to load:", user.profile_picture_url);
                     }}
                   />
                 </div>

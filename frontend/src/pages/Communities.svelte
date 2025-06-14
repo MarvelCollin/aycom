@@ -427,9 +427,7 @@
                     src={getBannerUrl(community)} 
                     alt={`${community.name || 'Community'} banner`} 
                     on:error={(e) => {
-                      if (e.target instanceof HTMLImageElement) {
-                        e.target.src = '/placeholder-banner.png';
-                      }
+                      console.error("Community banner image failed to load:", getBannerUrl(community));
                     }}
                   />
                 {:else}
@@ -443,9 +441,7 @@
                       src={getLogoUrl(community)} 
                       alt={community.name || 'Community'} 
                       on:error={(e) => {
-                        if (e.target instanceof HTMLImageElement) {
-                          e.target.src = '/placeholder-community.png';
-                        }
+                        console.error("Community logo image failed to load:", getLogoUrl(community));
                       }}
                     />
                   {:else}

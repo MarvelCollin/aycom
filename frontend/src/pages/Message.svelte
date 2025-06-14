@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import LeftSide from '../components/layout/LeftSide.svelte';
-  import { useAuth } from '../hooks/useAuth';
   import { useTheme } from '../hooks/useTheme';
   import type { IAuthStore } from '../interfaces/IAuth';
   import { createLoggerWithPrefix } from '../utils/logger';
   import { toastStore } from '../stores/toastStore';
+  import { authStore } from '../stores/authStore';
   import { checkAuth, isWithinTime, handleApiError } from '../utils/common';
-  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList, testApiConnection, logAuthTokenInfo } from '../api/chat';
+  import { listChats, listMessages, sendMessage as apiSendMessage, unsendMessage as apiUnsendMessage, searchMessages, createChat, getChatHistoryList, testApiConnection, logAuthTokenInfo, setMessageHandler } from '../api/chat';
   import { getProfile, searchUsers, getUserById, getAllUsers } from '../api/user';
   import { websocketStore } from '../stores/websocketStore';
   import type { ChatMessage, MessageType } from '../stores/websocketStore';
@@ -52,7 +52,7 @@
     content: string;
     timestamp: string | number;
     sender_id: string;
-    sender_name: string;
+    sender_name?: string;
   }
 
   interface Chat {
@@ -69,11 +69,10 @@
   
   const logger = createLoggerWithPrefix('Message');
 
-  const { getAuthState } = useAuth();
   const { theme } = useTheme();
   
   // Reactive declarations
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
+  $: authState = $authStore;
   $: isDarkMode = $theme === 'dark';
   
   // User profile data
@@ -144,10 +143,44 @@
     // Fetch messages for the selected chat
     isLoadingMessages = true;
     try {
+      logger.debug(`Fetching messages for chat ${chat.id}`);
       const response = await listMessages(chat.id);
+      
       if (response && response.messages) {
-        selectedChat.messages = response.messages;
-        logger.info(`Loaded ${response.messages.length} messages for chat ${chat.id}`);
+        // Sort messages by timestamp to ensure correct order (newest last)
+        const sortedMessages = [...response.messages].sort((a, b) => {
+          const timeA = new Date(a.timestamp).getTime();
+          const timeB = new Date(b.timestamp).getTime();
+          return timeA - timeB;
+        });
+        
+        // Process messages to add any missing properties
+        const processedMessages = sortedMessages.map(msg => ({
+          ...msg,
+          sender_name: msg.sender_name || 'User',
+          sender_avatar: msg.sender_avatar || null
+        }));
+        
+        selectedChat = {
+          ...selectedChat,
+          messages: processedMessages
+        };
+        
+        logger.info(`Loaded ${processedMessages.length} messages for chat ${chat.id}`);
+        
+        // Scroll to bottom of messages
+        setTimeout(() => {
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
+      } else {
+        logger.warn(`No messages found for chat ${chat.id}`);
+        selectedChat = {
+          ...selectedChat,
+          messages: []
+        };
       }
     } catch (error) {
       logger.error(`Error fetching messages for chat ${chat.id}:`, error);
@@ -283,7 +316,7 @@
       id: tempMessageId,
       content,
       timestamp: new Date().toISOString(),
-      sender_id: authState.user_id || '',
+      sender_id: $authStore.user_id || '',
       sender_name: displayName,
       sender_avatar: avatar,
       is_read: false,
@@ -328,7 +361,7 @@
               last_message: {
                 content,
                 timestamp: new Date().toISOString(),
-                sender_id: authState.user_id || '',
+                sender_id: $authStore.user_id || '',
                 sender_name: displayName
               }
             };
@@ -368,7 +401,7 @@
     
     // Find the message
     const message = selectedChat.messages.find(m => m.id === messageId);
-    if (!message || message.sender_id !== authState.user_id) return;
+    if (!message || message.sender_id !== $authStore.user_id) return;
     
     try {
       // Optimistically update UI
@@ -384,54 +417,57 @@
       
       // Update the chat if the deleted message was the last message
       const lastMessage = selectedChat.last_message;
-      if (lastMessage && message) {
-        // Check if this was the last message by comparing content and sender
-        const isLastMessage = lastMessage.content === message.content && 
-                             lastMessage.sender_id === message.sender_id;
-        
-        if (isLastMessage) {
-        // Find the new last message
-        const newLastMessage = selectedChat.messages
+      if (lastMessage && lastMessage.content === message.content) {
+        // Find the previous message to use as the new last message
+        const previousMessages = selectedChat.messages
           .filter(m => !m.is_deleted && m.id !== messageId)
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-          
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        const newLastMessage = previousMessages[0];
+        
         if (newLastMessage) {
-          // Update the chat list
-          const updatedChats = chats.map(c => {
-            if (c.id === selectedChat?.id) {
+          // Update the chat in the list
+          chats = chats.map(chat => {
+            if (chat.id === selectedChat?.id) {
               return {
-                ...c,
+                ...chat,
                 last_message: {
-                  content: newLastMessage.is_deleted ? 'Message deleted' : newLastMessage.content,
+                  content: newLastMessage.content,
                   timestamp: newLastMessage.timestamp,
                   sender_id: newLastMessage.sender_id,
                   sender_name: newLastMessage.sender_name
                 }
               };
             }
-            return c;
+            return chat;
           });
           
-          chats = updatedChats;
-          filteredChats = filteredChats.map(c => {
-            if (c.id === selectedChat?.id) {
-              return updatedChats.find(u => u.id === c.id) || c;
+          // Also update filtered chats
+          filteredChats = filteredChats.map(chat => {
+            if (chat.id === selectedChat?.id) {
+              return {
+                ...chat,
+                last_message: {
+                  content: newLastMessage.content,
+                  timestamp: newLastMessage.timestamp,
+                  sender_id: newLastMessage.sender_id,
+                  sender_name: newLastMessage.sender_name
+                }
+              };
             }
-            return c;
+            return chat;
           });
         }
-        }
       }
-      
     } catch (error) {
       logger.error('Failed to unsend message', error);
-      toastStore.showToast('Failed to delete message', 'error');
+      toastStore.showToast('Failed to unsend message', 'error');
       
-      // Revert optimistic update
+      // Revert the optimistic update on error
       selectedChat = {
         ...selectedChat,
         messages: selectedChat.messages.map(msg => 
-          msg.id === messageId ? { ...msg, is_deleted: false } : msg
+          msg.id === messageId ? { ...message } : msg
         )
       };
     }
@@ -456,6 +492,68 @@
     }
   }
   
+  // Handle WebSocket messages
+  function handleWebSocketMessage(message: any) {
+    logger.debug('Received WebSocket message:', message);
+    
+    // Only process messages for the currently selected chat
+    if (!selectedChat || message.chat_id !== selectedChat.id) {
+      logger.debug('Message not for current chat, ignoring');
+      return;
+    }
+    
+    // Handle text messages
+    if (message.type === 'text' || !message.type) {
+      // Create a standardized message object
+      const newMessage = {
+        id: message.id || message.message_id,
+        chat_id: message.chat_id,
+        content: message.content,
+        sender_id: message.sender_id || message.user_id,
+        sender_name: message.sender_name || 'User',
+        sender_avatar: message.sender_avatar,
+        timestamp: message.timestamp || new Date().toISOString(),
+        is_read: message.is_read || false,
+        is_edited: message.is_edited || false,
+        is_deleted: message.is_deleted || false
+      };
+      
+      // Check if this is updating a temporary message
+      if (message.temp_id) {
+        const tempIndex = selectedChat.messages.findIndex(m => m.id === message.temp_id);
+        if (tempIndex >= 0) {
+          // Replace the temporary message with the confirmed one
+          selectedChat.messages[tempIndex] = newMessage;
+          selectedChat = { ...selectedChat }; // Trigger reactivity
+          logger.debug('Updated temporary message with confirmed message');
+          return;
+        }
+      }
+      
+      // Otherwise add as a new message
+      selectedChat.messages = [...selectedChat.messages, newMessage];
+      selectedChat = { ...selectedChat }; // Trigger reactivity
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      }, 100);
+    }
+    
+    // Handle delete/unsend messages
+    if (message.type === 'delete' || message.type === 'unsend') {
+      if (message.message_id) {
+        selectedChat.messages = selectedChat.messages.map(msg => 
+          msg.id === message.message_id ? { ...msg, is_deleted: true, content: 'Message deleted' } : msg
+        );
+        selectedChat = { ...selectedChat }; // Trigger reactivity
+      }
+    }
+  }
+  
   onMount(() => {
     // Check viewport size
     const checkViewport = () => {
@@ -469,7 +567,7 @@
     testApiConfig();
     
     // Initialize user profile and chats
-    if (authState && authState.is_authenticated) {
+    if ($authStore && $authStore.is_authenticated) {
       fetchUserProfile();
       fetchChats().then(() => {
         // Initialize WebSocket connection if a chat is selected
@@ -484,6 +582,9 @@
       });
     }
     
+    // Register WebSocket message handler
+    setMessageHandler(handleWebSocketMessage);
+    
     return () => {
       window.removeEventListener('resize', checkViewport);
       
@@ -496,6 +597,11 @@
         }
       }
     };
+  });
+  
+  onDestroy(() => {
+    // Clean up WebSocket connections when component is destroyed
+    websocketStore.disconnectAll();
   });
   
   // Test API configuration and connectivity
@@ -532,7 +638,7 @@
   
   // Call this function to fetch profile data
   async function fetchUserProfile() {
-    if (!authState.is_authenticated) return;
+    if (!$authStore.is_authenticated) return;
     
     isLoadingProfile = true;
     try {
@@ -552,7 +658,7 @@
   
   // Call this function to load the chat list
   async function fetchChats() {
-    if (!authState.is_authenticated) return;
+    if (!$authStore.is_authenticated) return;
     
     isLoadingChats = true;
     try {
@@ -583,29 +689,31 @@
           // Try to find any array that might contain chats
           logger.warn('API returned unknown response structure:', response);
           const possibleChatArrays = Object.entries(response)
-            .filter(([_key, value]) => Array.isArray(value))
-            .sort(([_keyA, valueA], [_keyB, valueB]) => (valueB as any[]).length - (valueA as any[]).length);
+            .filter(([_, value]) => Array.isArray(value) && value.length > 0)
+            .map(([key, value]) => ({ key, value: value as any[] }));
           
           if (possibleChatArrays.length > 0) {
-            const [arrayName, chatArray] = possibleChatArrays[0];
-            logger.info(`Using '${arrayName}' array with ${(chatArray as any[]).length} items`);
-            chats = mapApiChatsToClientFormat(chatArray as any[]);
+            // Use the first array found
+            const firstArray = possibleChatArrays[0].value;
+            logger.info(`Using ${possibleChatArrays[0].key} as chat array with ${firstArray.length} items`);
+            chats = mapApiChatsToClientFormat(firstArray);
           } else {
-            logger.error('No usable chat data found in API response');
+            logger.warn('No usable arrays found in response');
             chats = [];
           }
         }
       } else {
-        logger.error('Invalid API response format for chats');
+        logger.warn('Unrecognized API response format, no chats available');
         chats = [];
       }
       
-      // Also update filtered chats
+      // Update filtered chats
       filteredChats = [...chats];
       
+      logger.info(`Loaded ${chats.length} chats`);
     } catch (error) {
-      logger.error('Failed to fetch chats', error);
-      toastStore.showToast('Failed to load chats. Please try refreshing.', 'error');
+      logger.error('Failed to load chats', error);
+      toastStore.showToast('Failed to load chats', 'error');
       chats = [];
       filteredChats = [];
     } finally {
@@ -874,8 +982,8 @@
               </div>
             {:else if selectedChat.messages && selectedChat.messages.length > 0}
         {#each selectedChat.messages as message}
-                <div class="message-item {message.sender_id === authState.user_id ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''}">
-              {#if message.sender_id !== authState.user_id}
+                <div class="message-item {message.sender_id === $authStore.user_id ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''}">
+              {#if message.sender_id !== $authStore.user_id}
                     <div class="message-avatar">
                       {#if message.sender_avatar}
                         <img src={message.sender_avatar} alt={message.sender_name} />
@@ -888,7 +996,7 @@
                   {/if}
                   
                   <div class="message-bubble">
-                    {#if message.sender_id !== authState.user_id && selectedChat.type === 'group'}
+                    {#if message.sender_id !== $authStore.user_id && selectedChat.type === 'group'}
                       <div class="sender-name">{message.sender_name || 'User'}</div>
                     {/if}
                     
@@ -916,7 +1024,7 @@
                       <div class="message-footer">
                         <span class="timestamp">{formatTimeAgo(message.timestamp)}</span>
                         
-                        {#if message.sender_id === authState.user_id}
+                        {#if message.sender_id === $authStore.user_id}
                           <div class="message-actions">
                             <button class="action-button" on:click={() => unsendMessage(message.id)} aria-label="Delete message">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
@@ -1420,6 +1528,32 @@
   .gif-button {
     font-weight: bold;
     font-size: 0.8rem;
+  }
+  
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    padding: 20px;
+  }
+  
+  .loading-spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    border-top-color: var(--accent-color);
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+  }
+  
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>
 

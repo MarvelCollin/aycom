@@ -21,7 +21,7 @@ import (
 )
 
 func CreateThread(c *gin.Context) {
-	// Always set CORS headers first thing
+
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -31,25 +31,21 @@ func CreateThread(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request, X-Debug-Panel, Accept, Cache-Control, X-Requested-With, X-Api-Key, X-Auth-Token, Pragma, Expires, Connection, User-Agent, Host, Referer, Cookie, Set-Cookie, *")
 
-	// Log important request headers for debugging
 	log.Printf("CreateThread: Origin: %s, Content-Type: %s, Auth header length: %d",
 		c.GetHeader("Origin"),
 		c.GetHeader("Content-Type"),
 		len(c.GetHeader("Authorization")))
 
-	// Handle OPTIONS requests immediately
 	if c.Request.Method == "OPTIONS" {
 		c.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 
-	// Add origin to response headers to support CORS
 	log.Printf("Processing CreateThread request from origin: %s", origin)
 
-	// Try both possible key names for user ID
 	userIDAny, exists := c.Get("userId")
 	if !exists {
-		// Try alternate key
+
 		userIDAny, exists = c.Get("userID")
 		if !exists {
 			log.Printf("CreateThread: No user ID found in context (tried both 'userId' and 'userID')")
@@ -68,7 +64,6 @@ func CreateThread(c *gin.Context) {
 		return
 	}
 
-	// Log user information
 	log.Printf("Creating thread for user ID: %s", userID)
 
 	var request threadProto.CreateThreadRequest
@@ -90,17 +85,14 @@ func CreateThread(c *gin.Context) {
 
 	client := threadProto.NewThreadServiceClient(conn)
 
-	// Add more time for the request
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	// Pass auth headers to gRPC context
 	md := metadata.New(map[string]string{
 		"authorization": c.GetHeader("Authorization"),
 	})
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	// Log the request data
 	log.Printf("CreateThread: Sending request to thread service. Content length: %d, Has media: %v",
 		len(request.Content), len(request.Media) > 0)
 
@@ -121,10 +113,8 @@ func CreateThread(c *gin.Context) {
 
 	log.Printf("Successfully created thread ID: %s", resp.Thread.Id)
 
-	// Set content type header explicitly
 	c.Header("Content-Type", "application/json")
 
-	// Return response with thread ID and additional info
 	c.JSON(http.StatusCreated, gin.H{
 		"id":         resp.Thread.Id,
 		"content":    resp.Thread.Content,
@@ -206,15 +196,13 @@ func GetThread(c *gin.Context) {
 }
 
 func GetThreadsByUser(c *gin.Context) {
-	// Check for authenticated user
+
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		// Instead of failing immediately, try to proceed as unauthenticated user
-		// This allows public profile viewing without authentication
+
 		log.Printf("No authenticated user for GetThreadsByUser, proceeding as guest")
 	}
 
-	// Get authenticated user ID if available
 	authenticatedUserIDStr := ""
 	if exists {
 		var ok bool
@@ -226,7 +214,6 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	// Get user ID from path parameter
 	userID := c.Param("id")
 
 	if userID == "me" {
@@ -243,7 +230,6 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	// Get pagination parameters
 	page := 1
 	limit := 20
 
@@ -261,7 +247,6 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	// Resolve username to UUID if needed
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
@@ -282,7 +267,6 @@ func GetThreadsByUser(c *gin.Context) {
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
 
-	// Connect to thread service
 	log.Printf("Connecting to thread service for user %s", userID)
 	conn, err := threadConnPool.Get()
 	if err != nil {
@@ -292,17 +276,14 @@ func GetThreadsByUser(c *gin.Context) {
 	}
 	defer threadConnPool.Put(conn)
 
-	// Create request context with metadata
 	client := threadProto.NewThreadServiceClient(conn)
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second) // Increase timeout to 10s
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	// Add authenticated user ID to context metadata if available
 	if authenticatedUserIDStr != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", authenticatedUserIDStr)
 	}
 
-	// Call the gRPC method
 	log.Printf("Requesting threads for user %s, page %d, limit %d", userID, page, limit)
 	resp, err := client.GetThreadsByUser(ctx, &threadProto.GetThreadsByUserRequest{
 		UserId: userID,
@@ -310,7 +291,6 @@ func GetThreadsByUser(c *gin.Context) {
 		Limit:  int32(limit),
 	})
 
-	// Handle errors
 	if err != nil {
 		log.Printf("Error getting threads for user %s: %v", userID, err)
 		if st, ok := status.FromError(err); ok {
@@ -327,7 +307,6 @@ func GetThreadsByUser(c *gin.Context) {
 		return
 	}
 
-	// Process response
 	log.Printf("Retrieved %d threads for user %s", len(resp.Threads), userID)
 	threads := make([]map[string]interface{}, len(resp.Threads))
 	for i, t := range resp.Threads {
@@ -351,7 +330,6 @@ func GetThreadsByUser(c *gin.Context) {
 			"profile_picture_url": "",
 		}
 
-		// Handle timestamps safely
 		if t.Thread.CreatedAt != nil {
 			thread["created_at"] = t.Thread.CreatedAt.AsTime()
 		} else {
@@ -1287,9 +1265,8 @@ func BookmarkThreadHandler(c *gin.Context) {
 		log.Printf("BookmarkThreadHandler: Verification - Thread %s for user %s: bookmark status is now %v",
 			threadID, userIDStr, thread.IsBookmarked)
 
-		// Don't send notification if user bookmarks their own thread
 		if thread.UserID != userIDStr {
-			// Get user info for a more personalized notification
+
 			var username string
 			var profilePic string
 			var displayName string
@@ -1303,7 +1280,6 @@ func BookmarkThreadHandler(c *gin.Context) {
 				}
 			}
 
-			// Create notification data
 			notificationData := map[string]interface{}{
 				"thread_id":      threadID,
 				"user_id":        userIDStr,
@@ -1315,7 +1291,6 @@ func BookmarkThreadHandler(c *gin.Context) {
 				"is_read":        false,
 			}
 
-			// Generate notification content
 			content := "bookmarked your post"
 			if displayName != "" {
 				content = displayName + " " + content
@@ -1323,7 +1298,6 @@ func BookmarkThreadHandler(c *gin.Context) {
 				content = "Someone " + content
 			}
 
-			// Send notification to thread owner - using like type since there's no specific bookmark type
 			notificationID, err := SendNotification(thread.UserID, NotificationTypeLike, content, notificationData)
 			if err != nil {
 				log.Printf("BookmarkThreadHandler: Error creating notification: %v", err)
@@ -1408,15 +1382,13 @@ func LikeThreadHandler(c *gin.Context) {
 
 	log.Printf("LikeThreadHandler: Successfully liked thread %s for user %s", threadID, userIDStr)
 
-	// Get thread details to retrieve owner information
 	thread, err := threadServiceClient.GetThreadByID(threadID, userIDStr)
 	if err == nil && thread != nil {
 		log.Printf("LikeThreadHandler: Verification - Thread %s for user %s: like status is now %v",
 			threadID, userIDStr, thread.IsLiked)
 
-		// Don't send notification if user likes their own thread
 		if thread.UserID != userIDStr {
-			// Get user info for a more personalized notification
+
 			var username string
 			var profilePic string
 			var displayName string
@@ -1430,7 +1402,6 @@ func LikeThreadHandler(c *gin.Context) {
 				}
 			}
 
-			// Create notification data
 			notificationData := map[string]interface{}{
 				"thread_id":      threadID,
 				"user_id":        userIDStr,
@@ -1442,7 +1413,6 @@ func LikeThreadHandler(c *gin.Context) {
 				"is_read":        false,
 			}
 
-			// Generate notification content
 			content := "liked your post"
 			if displayName != "" {
 				content = displayName + " " + content
@@ -1450,7 +1420,6 @@ func LikeThreadHandler(c *gin.Context) {
 				content = "Someone " + content
 			}
 
-			// Send notification to thread owner
 			notificationID, err := SendNotification(thread.UserID, NotificationTypeLike, content, notificationData)
 			if err != nil {
 				log.Printf("LikeThreadHandler: Error creating notification: %v", err)

@@ -96,7 +96,6 @@ func InitThreadServiceClient(cfg *config.Config) {
 	}
 	log.Printf("Attempting to connect to Thread service at %s", cfg.Services.ThreadService)
 
-	// Add retry logic for more robust connection
 	var conn *grpc.ClientConn
 	var err error
 	maxRetries := 5
@@ -134,7 +133,6 @@ func InitThreadServiceClient(cfg *config.Config) {
 		conn:   conn,
 	}
 
-	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -220,12 +218,10 @@ func (c *GRPCThreadServiceClient) GetThreadsByUserID(userID string, requestingUs
 	log.Printf("GetThreadsByUserID: Fetching threads for userID=%s, requestingUserID=%s, page=%d, limit=%d",
 		userID, requestingUserID, page, limit)
 
-	// Add user ID to context metadata if available
 	if requestingUserID != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", requestingUserID)
 	}
 
-	// Make the gRPC call with retry mechanism
 	var resp *threadProto.ThreadsResponse
 	var err error
 	maxRetries := 3
@@ -233,7 +229,7 @@ func (c *GRPCThreadServiceClient) GetThreadsByUserID(userID string, requestingUs
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
 			log.Printf("Retry attempt %d for GetThreadsByUser for userID=%s", attempt, userID)
-			// Short sleep before retry
+
 			time.Sleep(time.Duration(attempt*300) * time.Millisecond)
 		}
 
@@ -243,20 +239,17 @@ func (c *GRPCThreadServiceClient) GetThreadsByUserID(userID string, requestingUs
 			Limit:  int32(limit),
 		})
 
-		// If successful or context deadline exceeded, break the retry loop
 		if err == nil || status.Code(err) == codes.DeadlineExceeded {
 			break
 		}
 	}
 
-	// Handle errors
 	if err != nil {
 		log.Printf("ERROR in GetThreadsByUserID for userID=%s: %v (error code: %s)",
 			userID, err, status.Code(err))
 		return nil, err
 	}
 
-	// Convert thread proto objects to Thread structs
 	threads := make([]*Thread, len(resp.Threads))
 	for i, t := range resp.Threads {
 		threads[i] = convertProtoToThread(t)
@@ -433,16 +426,14 @@ func (c *GRPCThreadServiceClient) UnlikeThread(threadID, userID string) error {
 			return nil
 		}
 
-		// Check for rate limiting error
 		if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
 			log.Printf("Rate limiting detected when unliking thread: %v", err)
-			return err // Don't retry rate limiting errors
+			return err
 		}
 
 		lastErr = err
 		log.Printf("Error unliking thread (attempt %d): %v", attempt, err)
 
-		// Use exponential backoff for retries
 		backoffTime := time.Duration(attempt*attempt*250) * time.Millisecond
 		time.Sleep(backoffTime)
 	}
@@ -527,7 +518,6 @@ func (c *GRPCThreadServiceClient) GetThreadReplies(threadID string, userID strin
 			}
 		}
 
-		// Default reply count to 0
 		repliesCount := 0
 
 		replies[i] = &Thread{
@@ -1006,7 +996,7 @@ func (c *GRPCThreadServiceClient) GetRepliesByUser(userID string, page, limit in
 			CreatedAt:      replyVal.FieldByName("CreatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
 			UpdatedAt:      replyVal.FieldByName("UpdatedAt").Interface().(interface{ AsTime() time.Time }).AsTime(),
 			LikeCount:      int(rVal.FieldByName("LikesCount").Int()),
-			ReplyCount:     0, // Default to 0 for now
+			ReplyCount:     0,
 			IsLiked:        rVal.FieldByName("LikedByUser").Bool(),
 			IsBookmarked:   rVal.FieldByName("BookmarkedByUser").Bool(),
 			ParentID:       replyVal.FieldByName("ThreadId").String(),

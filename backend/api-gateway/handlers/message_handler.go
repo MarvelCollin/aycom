@@ -3,6 +3,7 @@ package handlers
 import (
 	"aycom/backend/api-gateway/utils"
 	communityProto "aycom/backend/proto/community"
+	userProto "aycom/backend/proto/user"
 	"context"
 	"fmt"
 	"log"
@@ -51,11 +52,9 @@ func CreateChat(c *gin.Context) {
 		return
 	}
 
-	// Ensure the current user is included in the participants list
 	currentUserID := userID.(string)
 	participants := req.Participants
 
-	// Check if current user is already in the participants list
 	userAlreadyIncluded := false
 	for _, participantID := range participants {
 		if participantID == currentUserID {
@@ -64,7 +63,6 @@ func CreateChat(c *gin.Context) {
 		}
 	}
 
-	// Add current user to participants if not already included
 	if !userAlreadyIncluded {
 		participants = append(participants, currentUserID)
 		log.Printf("CreateChat: Added current user %s to participants list", currentUserID)
@@ -84,7 +82,7 @@ func CreateChat(c *gin.Context) {
 		return
 	}
 	log.Printf("CreateChat: Chat created successfully with ID %s", chat.ID)
-	// Return a response format the frontend expects
+
 	chatType := "individual"
 	if isGroup {
 		chatType = "group"
@@ -126,15 +124,13 @@ func ListChats(c *gin.Context) {
 		return
 	}
 
-	// Get chats for the user
-	chats, err := client.GetChats(userID.(string), 100, 0) // Get up to 100 chats
+	chats, err := client.GetChats(userID.(string), 100, 0)
 	if err != nil {
 		log.Printf("ListChats: Error fetching chats: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch chats: "+err.Error())
 		return
 	}
 
-	// Format chats for frontend
 	formattedChats := make([]gin.H, 0, len(chats))
 	for _, chat := range chats {
 		formattedChats = append(formattedChats, gin.H{
@@ -161,10 +157,10 @@ func SendMessage(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
 		log.Printf("SendMessage: Missing userId in context - but allowing for testing")
-		userID = "test-user-123" // Set a default user ID for testing
+		userID = "test-user-123"
 	}
 
-	chatID := c.Param("id") // Changed from "chatId" to "id" to match route
+	chatID := c.Param("id")
 	if chatID == "" {
 		log.Printf("SendMessage: Missing chat ID parameter")
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
@@ -181,13 +177,10 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
-	// Log the request for debugging
 	log.Printf("SendMessage request: chatID=%s, userID=%v, content=%s - BYPASSING ALL SERVICE CALLS FOR TESTING", chatID, userID, req.Content)
 
-	// COMPLETELY BYPASS ALL SERVICE CHECKS - JUST RETURN MOCK DATA FOR TESTING
 	log.Printf("TESTING MODE: Returning mock message response for chat %s", chatID)
 
-	// Generate a mock message ID
 	messageID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	timestamp := time.Now().Unix()
 
@@ -213,7 +206,7 @@ func DeleteMessage(c *gin.Context) {
 		return
 	}
 
-	chatID := c.Param("id") // Changed from "chatId" to "id" to match route
+	chatID := c.Param("id")
 	if chatID == "" {
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
 		return
@@ -233,7 +226,6 @@ func DeleteMessage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Delete the message
 	_, err := CommunityClient.DeleteMessage(ctx, &communityProto.DeleteMessageRequest{
 		MessageId: messageID,
 	})
@@ -269,7 +261,6 @@ func UnsendMessage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Check if message belongs to user
 	listResp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
 		Limit: 1,
 	})
@@ -297,7 +288,6 @@ func UnsendMessage(c *gin.Context) {
 		return
 	}
 
-	// Unsend the message
 	_, err = CommunityClient.UnsendMessage(ctx, &communityProto.UnsendMessageRequest{
 		MessageId: messageID,
 	})
@@ -319,17 +309,52 @@ func ListMessages(c *gin.Context) {
 		return
 	}
 
-	chatID := c.Param("id") // Changed from "chatId" to "id" to match route
+	chatID := c.Param("id")
 	if chatID == "" {
 		log.Printf("ListMessages: Missing chat ID parameter")
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
 		return
 	}
 
-	// Log the request for debugging
 	log.Printf("ListMessages request: chatID=%s, userID=%v", chatID, userID)
 
-	// Parse query parameters
+	// Verify that the user is a participant in this chat
+	if CommunityClient == nil {
+		log.Printf("ERROR: Community service client is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	// Check if user is a participant in this chat
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	participantsResp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+		ChatId: chatID,
+	})
+
+	if err != nil {
+		log.Printf("Error checking chat participants: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat access: "+err.Error())
+		return
+	}
+
+	// Check if the user is a participant
+	userIsParticipant := false
+	for _, participant := range participantsResp.Participants {
+		if participant.UserId == userID.(string) {
+			userIsParticipant = true
+			break
+		}
+	}
+
+	if !userIsParticipant {
+		log.Printf("User %s is not a participant in chat %s", userID, chatID)
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
+		return
+	}
+
+	// Get messages
 	limit := 20
 	limitStr := c.DefaultQuery("limit", "20")
 	if limitVal, err := strconv.Atoi(limitStr); err == nil && limitVal > 0 {
@@ -342,18 +367,10 @@ func ListMessages(c *gin.Context) {
 		offset = offsetVal
 	}
 
-	// Check if community client is available
-	if CommunityClient == nil {
-		log.Printf("ERROR: Community service client is nil")
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Get messages for the chat
-	resp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
+	resp, err := CommunityClient.ListMessages(ctx2, &communityProto.ListMessagesRequest{
 		ChatId: chatID,
 		Limit:  int32(limit),
 		Offset: int32(offset),
@@ -365,7 +382,9 @@ func ListMessages(c *gin.Context) {
 		return
 	}
 
-	// Format messages for frontend
+	log.Printf("Retrieved %d messages from community service", len(resp.Messages))
+
+	// Process messages and add sender information
 	messages := make([]gin.H, 0, len(resp.Messages))
 	for _, msg := range resp.Messages {
 		timestamp := time.Now().Unix()
@@ -373,19 +392,40 @@ func ListMessages(c *gin.Context) {
 			timestamp = msg.SentAt.AsTime().Unix()
 		}
 
+		// Get sender information from user service if available
+		senderName := ""
+		senderAvatar := ""
+		if UserClient != nil {
+			userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+				UserId: msg.SenderId,
+			})
+			userCancel()
+
+			if userErr == nil && userResp.User != nil {
+				senderName = userResp.User.Name
+				if senderName == "" {
+					senderName = userResp.User.Username
+				}
+				senderAvatar = userResp.User.ProfilePictureUrl
+			}
+		}
+
 		messages = append(messages, gin.H{
-			"id":         msg.Id,
-			"chat_id":    msg.ChatId,
-			"sender_id":  msg.SenderId,
-			"content":    msg.Content,
-			"timestamp":  timestamp,
-			"is_read":    !msg.Unsent,
-			"is_edited":  false,
-			"is_deleted": msg.DeletedForAll,
+			"id":            msg.Id,
+			"chat_id":       msg.ChatId,
+			"sender_id":     msg.SenderId,
+			"sender_name":   senderName,
+			"sender_avatar": senderAvatar,
+			"content":       msg.Content,
+			"timestamp":     timestamp,
+			"is_read":       !msg.Unsent, // Using Unsent as a proxy for read status
+			"is_edited":     false,
+			"is_deleted":    msg.DeletedForAll,
 		})
 	}
 
-	log.Printf("Successfully retrieved %d messages for chat %s", len(messages), chatID)
+	log.Printf("Successfully retrieved and processed %d messages for chat %s", len(messages), chatID)
 	utils.SendSuccessResponse(c, 200, gin.H{
 		"messages": messages,
 		"pagination": gin.H{
@@ -403,7 +443,7 @@ func SearchMessages(c *gin.Context) {
 		return
 	}
 
-	chatID := c.Param("id") // Changed from "chatId" to "id" to match route
+	chatID := c.Param("id")
 	if chatID == "" {
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
 		return
@@ -435,7 +475,6 @@ func SearchMessages(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Search messages
 	resp, err := CommunityClient.SearchMessages(ctx, &communityProto.SearchMessagesRequest{
 		ChatId: chatID,
 		Query:  query,
@@ -495,15 +534,13 @@ func GetChatHistoryList(c *gin.Context) {
 		return
 	}
 
-	// Get chats for the user
-	chats, err := client.GetChats(userID.(string), 100, 0) // Get up to 100 chats
+	chats, err := client.GetChats(userID.(string), 100, 0)
 	if err != nil {
 		log.Printf("Error fetching chats: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch chats: "+err.Error())
 		return
 	}
 
-	// Format chats for frontend
 	formattedChats := make([]gin.H, 0, len(chats))
 	for _, chat := range chats {
 		formattedChats = append(formattedChats, gin.H{

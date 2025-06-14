@@ -71,7 +71,7 @@ func GetUserBookmarks(c *gin.Context) {
 			"likes_count":         thread.LikeCount,
 			"replies_count":       thread.ReplyCount,
 			"reposts_count":       thread.RepostCount,
-			"bookmark_count":      0, // Default value since we don't track this specifically
+			"bookmark_count":      0,
 			"is_liked":            thread.IsLiked,
 			"is_reposted":         thread.IsReposted,
 			"is_bookmarked":       true,
@@ -156,7 +156,6 @@ func SearchBookmarks(c *gin.Context) {
 		return
 	}
 
-	// Filter bookmarks based on search query
 	query = strings.ToLower(query)
 	filteredBookmarks := make([]gin.H, 0)
 

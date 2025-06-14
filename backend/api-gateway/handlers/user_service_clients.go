@@ -111,12 +111,10 @@ func InitUserServiceClient(cfg *config.Config) {
 		}
 		log.Println("User service client initialized successfully")
 
-		// Start background health check if not already running
 		startBackgroundHealthCheck()
 	} else {
 		log.Println("WARNING: Cannot initialize user service client - no connection to User service")
 
-		// Try to establish connection
 		maxRetries := 3
 		for i := 0; i < maxRetries; i++ {
 			if i > 0 {
@@ -135,7 +133,6 @@ func InitUserServiceClient(cfg *config.Config) {
 					client: UserClient,
 				}
 
-				// Start background health check
 				startBackgroundHealthCheck()
 				return
 			}
@@ -147,7 +144,6 @@ func InitUserServiceClient(cfg *config.Config) {
 	}
 }
 
-// startBackgroundHealthCheck starts a goroutine that periodically checks the health of the UserClient
 func startBackgroundHealthCheck() {
 	healthCheckMutex.Lock()
 	defer healthCheckMutex.Unlock()
@@ -170,7 +166,6 @@ func startBackgroundHealthCheck() {
 	}()
 }
 
-// checkUserServiceHealth verifies that the UserClient is still working
 func checkUserServiceHealth() {
 	if UserClient == nil {
 		log.Println("Health check: UserClient is nil, attempting to reconnect")
@@ -181,7 +176,6 @@ func checkUserServiceHealth() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make a simple request to check connectivity
 	_, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
 		UserId: "health-check",
 	})
@@ -435,12 +429,10 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Ensure filter is always set and not empty
 	if filter == "" {
 		filter = "all"
 	}
 
-	// Add the filter to the context metadata since it's not in the protobuf definition
 	ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
 
 	req := &userProto.SearchUsersRequest{
@@ -459,13 +451,10 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 	for _, protoUser := range resp.GetUsers() {
 		user := convertProtoToUser(protoUser)
 		if user != nil {
-			// Apply client-side filtering if needed
+
 			if filter == "verified" && !user.IsVerified {
 				continue
 			}
-
-			// For "following" filter, the server should handle this
-			// as it requires knowledge of the current user's relationships
 
 			users = append(users, user)
 		}

@@ -483,4 +483,21 @@
   .tweet-actions {
     max-width: 100%;
   }
-} 
+}
+
+/* Media error styles */
+.media-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+ 

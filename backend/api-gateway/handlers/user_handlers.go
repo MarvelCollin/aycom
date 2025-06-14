@@ -350,13 +350,11 @@ func GetUserByEmail(c *gin.Context) {
 func GetUserSuggestions(c *gin.Context) {
 	log.Printf("======= GetUserSuggestions endpoint called PATH=%s METHOD=%s =======", c.Request.URL.Path, c.Request.Method)
 
-	// Log all headers to help debug
 	log.Printf("Request Headers:")
 	for name, values := range c.Request.Header {
 		log.Printf("  %s: %s", name, values)
 	}
 
-	// Get optional user ID if authenticated
 	var userIDStr string
 	userID, exists := c.Get("userID")
 	if exists {
@@ -382,12 +380,12 @@ func GetUserSuggestions(c *gin.Context) {
 
 	if userServiceClient == nil {
 		log.Printf("ERROR: userServiceClient is nil - initializing client for this request")
-		// Try to initialize it on the fly
+
 		InitUserServiceClient(AppConfig)
 
 		if userServiceClient == nil {
 			log.Printf("ERROR: Failed to initialize userServiceClient")
-			// Instead of returning an error, return empty results
+
 			c.JSON(http.StatusOK, gin.H{
 				"success": true,
 				"users":   []gin.H{},
@@ -401,23 +399,22 @@ func GetUserSuggestions(c *gin.Context) {
 	var err error
 
 	if userIDStr != "" {
-		// If authenticated, get personalized recommendations
+
 		log.Printf("Getting personalized recommendations for user %s", userIDStr)
 		users, err = userServiceClient.GetUserRecommendations(userIDStr, limit)
 		if err != nil {
 			log.Printf("Error getting user recommendations: %v", err)
-			// Continue with fallback to all users
+
 		}
 	}
 
-	// If no recommendations (unauthenticated or error), get popular users
 	if users == nil || len(users) == 0 {
 		log.Printf("No recommendations found or user not authenticated, falling back to all users")
-		// We don't have a GetPopularUsers, so use GetAllUsers sorted by newest
-		users, totalCount, _, err := userServiceClient.GetAllUsers(1, limit, "created_at", false) // Sort by newest
+
+		users, totalCount, _, err := userServiceClient.GetAllUsers(1, limit, "created_at", false)
 		if err != nil {
 			log.Printf("Error getting all users: %v", err)
-			// Return empty array instead of error
+
 			c.JSON(http.StatusOK, gin.H{
 				"success": true,
 				"users":   []gin.H{},
@@ -438,7 +435,7 @@ func GetUserSuggestions(c *gin.Context) {
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
-			"is_following":        userIDStr != "" && user.IsFollowing, // only relevant if authenticated
+			"is_following":        userIDStr != "" && user.IsFollowing,
 		})
 	}
 
@@ -601,7 +598,6 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	// Parse pagination parameters
 	pageStr := c.DefaultQuery("page", "1")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
@@ -618,14 +614,12 @@ func GetAllUsers(c *gin.Context) {
 		limit = 100
 	}
 
-	// Parse sorting parameters
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortOrderStr := c.DefaultQuery("ascending", "false")
 	ascending := sortOrderStr == "true"
 
 	log.Printf("GetAllUsers: page=%d, limit=%d, sortBy=%s, ascending=%v", page, limit, sortBy, ascending)
 
-	// Call the service client to get users
 	users, totalCount, totalPages, err := userServiceClient.GetAllUsers(page, limit, sortBy, ascending)
 
 	if err != nil {
@@ -634,7 +628,6 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	// Transform users to the expected format
 	usersData := make([]map[string]interface{}, 0, len(users))
 	for _, user := range users {
 		usersData = append(usersData, map[string]interface{}{
@@ -701,7 +694,6 @@ func UpdateProfilePictureURLHandler(c *gin.Context) {
 	})
 }
 
-// UpdateBannerURLHandler handles requests to update a user's banner URL
 func UpdateBannerURLHandler(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -744,7 +736,6 @@ func UpdateBannerURLHandler(c *gin.Context) {
 	})
 }
 
-// GetUserByUsername handles requests to get a user by their username
 func GetUserByUsername(c *gin.Context) {
 	username := c.Param("username")
 	if username == "" {
@@ -754,7 +745,6 @@ func GetUserByUsername(c *gin.Context) {
 
 	log.Printf("GetUserByUsername Handler: Looking up user with username: %s", username)
 
-	// Get user by username
 	user, err := userServiceClient.GetUserByUsername(username)
 
 	if err != nil {
@@ -763,7 +753,6 @@ func GetUserByUsername(c *gin.Context) {
 		return
 	}
 
-	// Check if requesting user is following this user
 	if id, exists := c.Get("userID"); exists {
 		requesterID := id.(string)
 		if requesterID != "" && user.ID != requesterID {
@@ -790,7 +779,6 @@ func GetUserByUsername(c *gin.Context) {
 	})
 }
 
-// GetUserById handles requests to get a user by their ID
 func GetUserById(c *gin.Context) {
 	userIdParam := c.Param("userId")
 	if userIdParam == "" {
@@ -798,7 +786,6 @@ func GetUserById(c *gin.Context) {
 		return
 	}
 
-	// Validate UUID format
 	if _, err := uuid.Parse(userIdParam); err != nil {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_USER_ID", "Invalid user ID format")
 		return
@@ -806,7 +793,6 @@ func GetUserById(c *gin.Context) {
 
 	log.Printf("GetUserById Handler: Looking up user with ID: %s", userIdParam)
 
-	// Get user by ID
 	user, err := userServiceClient.GetUserById(userIdParam)
 
 	if err != nil {
@@ -815,7 +801,6 @@ func GetUserById(c *gin.Context) {
 		return
 	}
 
-	// Check if requesting user is following this user
 	if id, exists := c.Get("userID"); exists {
 		requesterID := id.(string)
 		if requesterID != "" && user.ID != requesterID {
@@ -1106,7 +1091,6 @@ func GetPublicUserSuggestions(c *gin.Context) {
 		}
 	}
 
-	// Get popular users without authentication
 	users, totalCount, _, err := userServiceClient.GetAllUsers(1, limit, "created_at", false)
 	if err != nil {
 		log.Printf("Error getting all users: %v", err)
@@ -1130,7 +1114,7 @@ func GetPublicUserSuggestions(c *gin.Context) {
 			"is_verified":         user.IsVerified,
 			"is_admin":            user.IsAdmin,
 			"follower_count":      user.FollowerCount,
-			"is_following":        false, // Always false for public suggestions
+			"is_following":        false,
 		})
 	}
 

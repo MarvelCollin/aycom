@@ -56,7 +56,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		log.Printf("WebSocket connection attempt from origin: %s", origin)
-		// Allow all origins for now, but log them for debugging
+
 		return true
 	},
 }

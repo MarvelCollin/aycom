@@ -1274,7 +1274,7 @@
       <div class="profile-header-container">
         <div class="profile-banner-wrapper">
           <img 
-            src={profileData.backgroundBanner || '/assets/default-banner.jpg'} 
+            src={profileData.backgroundBanner} 
             alt="Profile banner" 
             class="profile-banner"
           />

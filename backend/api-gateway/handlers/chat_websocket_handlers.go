@@ -302,7 +302,7 @@ func ProcessIncomingMessage(message []byte, userID, chatID string) ([]byte, erro
 	case "delete":
 		return processDeleteMessage(chatMessage)
 	case "connection_check":
-		// Just echo back the connection check with server timestamp
+
 		chatMessage.Timestamp = time.Now()
 		responseMsg, err := json.Marshal(map[string]interface{}{
 			"type":      "connection_ack",

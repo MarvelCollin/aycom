@@ -359,7 +359,7 @@
       'User';
   }
   
-  // Helper function to extract profile picture with fallbacks
+  // Helper function to extract profile picture
   function extractProfilePicture(rawTweet: any): string {
     const picUrl = rawTweet.profile_picture_url || 
       rawTweet.ProfilePicture || 
@@ -369,7 +369,7 @@
       rawTweet.author?.profile_picture_url ||
       rawTweet.user_data?.profile_picture_url;
       
-    if (!picUrl) return 'https://secure.gravatar.com/avatar/0?d=mp';
+    if (!picUrl) return '';
     
     // Use the formatStorageUrl utility function to handle all URL formatting
     return formatStorageUrl(picUrl);
@@ -388,27 +388,65 @@
   
   // Helper function to validate media
   function validateMedia(media: any): IMedia[] {
+    console.log("Validating media:", media);
+    
+    if (!media) {
+      console.warn("Media is null or undefined");
+      return [];
+    }
+    
     if (!Array.isArray(media)) {
+      console.warn("Media is not an array, attempting to parse:", typeof media);
       try {
         // Try to parse if it's a string
         if (typeof media === 'string') {
           const parsed = JSON.parse(media);
-          if (Array.isArray(parsed)) return parsed;
+          if (Array.isArray(parsed)) {
+            console.log("Successfully parsed media string into array:", parsed);
+            return validateMedia(parsed); // Recursively validate the parsed array
+          }
         }
+        console.warn("Could not convert media to array");
         return [];
       } catch (e) {
+        console.error("Error parsing media string:", e);
         return [];
       }
     }
     
     // Filter out invalid media items and format URLs
-    return media.filter(item => item && item.url).map(item => ({
-      id: item.id || `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
-      url: formatStorageUrl(item.url),
-      type: item.type || 'image',
-      thumbnail: item.thumbnail ? formatStorageUrl(item.thumbnail) : formatStorageUrl(item.url),
-      alt_text: item.alt_text || item.alt || 'Media attachment'
-    }));
+    const validatedMedia = media
+      .filter(item => {
+        if (!item) {
+          console.warn("Filtered out null/undefined media item");
+          return false;
+        }
+        if (!item.url) {
+          console.warn("Filtered out media item with no URL:", item);
+          return false;
+        }
+        return true;
+      })
+              .map(item => {
+        try {
+          const formattedUrl = formatStorageUrl(item.url);
+          
+          return {
+            id: item.id || `media-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+            url: formattedUrl,
+            type: item.type || 'image',
+            thumbnail: item.thumbnail ? formatStorageUrl(item.thumbnail) : formattedUrl,
+            alt_text: item.alt_text || item.alt || 'Media attachment'
+          };
+        } catch (error) {
+          console.error("Error formatting URL for media item:", error, item);
+          return null;
+        }
+      })
+      .filter(item => item !== null);
+    
+    console.log("Validated media result:", validatedMedia);
+    return validatedMedia;
   }
   
   // Helper function to format timestamp (custom implementation instead of timeago.js)
@@ -1744,27 +1782,58 @@
           {#if processedTweet.media && processedTweet.media.length > 0}
             <div class="tweet-media-container {isDarkMode ? 'tweet-media-container-dark' : ''}">
               {#if processedTweet.media.length === 1}
-                <div class="tweet-media-single">                  {#if processedTweet.media[0].type === 'image'}
-                    <img src={processedTweet.media[0].url} alt="Media" class="tweet-media-img" />
+                <!-- Single Media Display -->
+                <div class="tweet-media-single">
+                  {#if processedTweet.media[0].type === 'image'}
+                    <img 
+                      src={processedTweet.media[0].url} 
+                      alt={processedTweet.media[0].alt_text || "Media"} 
+                      class="tweet-media-img"
+                    />
                   {:else if processedTweet.media[0].type === 'video'}
-                    <video src={processedTweet.media[0].url} controls class="tweet-media-video">
+                    <video 
+                      src={processedTweet.media[0].url} 
+                      controls 
+                      class="tweet-media-video"
+                    >
                       <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
                     </video>
                   {:else}
-                    <img src={processedTweet.media[0].url} alt="GIF" class="tweet-media-img" />
+                    <img 
+                      src={processedTweet.media[0].url} 
+                      alt="GIF" 
+                      class="tweet-media-img"
+                    />
                   {/if}
                 </div>
               {:else if processedTweet.media.length > 1}
+                <!-- Multiple Media Grid -->
                 <div class="tweet-media-grid">
                   {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
-                    <div class="tweet-media-item">                      {#if media.type === 'image'}
-                        <img src={media.url} alt="Media" class="tweet-media-img" />
+                    <div class="tweet-media-item">
+                      {#if media.type === 'image'}
+                                                <img 
+                          src={media.url} 
+                          alt={media.alt_text || "Media"} 
+                          class="tweet-media-img"
+                        />
                       {:else if media.type === 'video'}
-                        <video src={media.url} class="tweet-media-video">
+                        <video 
+                          src={media.url} 
+                          controls 
+                          class="tweet-media-video"
+                        >
                           <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
                         </video>
                       {:else}
-                        <img src={media.url} alt="GIF" class="tweet-media-img" />
+                        <img 
+                          src={media.url} 
+                          alt="GIF" 
+                          class="tweet-media-img"
+                                                    on:error={(e) => {
+                            console.error("GIF failed to load:", media.url);
+                          }}
+                        />
                       {/if}
                     </div>
                   {/each}
