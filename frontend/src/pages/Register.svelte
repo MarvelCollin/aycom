@@ -124,6 +124,7 @@
       }
       
       formState.update(state => ({ ...state, loading: false }));
+      console.log("Registration failed with response:", result);
       
       if (result.success) {
         startTimer();
@@ -139,112 +140,78 @@
           "success"
         );
       } else {
-        // Handle validation errors from the backend
-        console.log("Registration failed with response:", result);
-        
-        // Check if we have structured validation errors from the backend
+        // Handle validation errors from the API response
         if (result.validation_errors) {
-          // Set field-specific errors
-          Object.entries(result.validation_errors as Record<string, string | string[]>).forEach(([field, message]) => {
+          // Clear previous validation errors
+          clearErrors();
+          
+          // Set specific field errors directly from API response
+          Object.entries(result.validation_errors).forEach(([field, message]) => {
+            // Convert field names from snake_case to camelCase
+            const camelField = field.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
+            
             if (field === 'password') {
-              setFieldError(field, Array.isArray(message) ? message : [message.toString()]);
+              setFieldError(camelField, Array.isArray(message) ? message : [String(message)]);
             } else {
-              setFieldError(field, message.toString());
+              setFieldError(camelField, String(message));
             }
           });
+          
+          // Update the form state with general error message
+          formState.update(state => ({
+            ...state,
+            error: 'Please fix the validation errors highlighted below.',
+            loading: false
+          }));
+        } 
+        // Check if we have an error object with validation errors in the message
+        else if (result.error?.fields) {
+          // Clear previous validation errors
+          clearErrors();
+          
+          // Set specific field errors from the error fields object
+          Object.entries(result.error.fields).forEach(([field, message]) => {
+            const camelField = field.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
+            
+            if (field === 'password') {
+              setFieldError(camelField, Array.isArray(message) ? message : [String(message)]);
+            } else {
+              setFieldError(camelField, String(message));
+            }
+          });
+          
+          formState.update(state => ({
+            ...state,
+            error: 'Please fix the validation errors highlighted below.',
+            loading: false
+          }));
         }
-        // Check if we have an error object with validation errors
+        // Handle cases where we just have a general error message 
         else if (result.error && result.error.message) {
-          // Parse the validation error message
           const errorMessage = result.error.message;
-          formState.update(state => ({ ...state, error: errorMessage }));
+          formState.update(state => ({ 
+            ...state, 
+            error: typeof errorMessage === 'string' ? errorMessage : 'Registration failed due to validation errors.',
+            loading: false 
+          }));
           
-          // Log the full error to help debugging
-          console.error("Backend validation error:", errorMessage);
-          
-          // Try to extract field-specific errors
-          if (errorMessage.includes("Key:") || errorMessage.includes("Validation failed:")) {
-            let errorPairs: {field: string; message: string}[] = [];
-            
-            // Check for Key:... Error:... format
-            const keyErrorRegex = /Key: '(\w+)' Error:([^,]+)/g;
-            let match;
-            while ((match = keyErrorRegex.exec(errorMessage)) !== null) {
-              errorPairs.push({ field: match[1], message: match[2].trim() });
-            }
-            
-            // Check for field: message format in "Validation failed: ..." messages
-            if (errorMessage.includes("Validation failed:")) {
-              const validationErrorsText = errorMessage.split("Validation failed:")[1].trim();
-              const validationErrors = validationErrorsText.split(";").map(err => err.trim()).filter(Boolean);
-              
-              for (const validationError of validationErrors) {
-                // Try to determine which field this error belongs to
-                if (validationError.toLowerCase().includes("name must")) {
-                  errorPairs.push({ field: "Name", message: validationError });
-                } else if (validationError.toLowerCase().includes("username")) {
-                  errorPairs.push({ field: "Username", message: validationError });
-                } else if (validationError.toLowerCase().includes("email")) {
-                  errorPairs.push({ field: "Email", message: validationError });
-                } else if (validationError.toLowerCase().includes("password") && !validationError.toLowerCase().includes("confirm")) {
-                  errorPairs.push({ field: "Password", message: validationError });
-                } else if (validationError.toLowerCase().includes("match") || 
-                           validationError.toLowerCase().includes("confirm")) {
-                  errorPairs.push({ field: "ConfirmPassword", message: validationError });
-                } else if (validationError.toLowerCase().includes("gender")) {
-                  errorPairs.push({ field: "Gender", message: validationError });
-                } else if (validationError.toLowerCase().includes("birth") || 
-                           validationError.toLowerCase().includes("age") ||
-                           validationError.toLowerCase().includes("13 year")) {
-                  errorPairs.push({ field: "DateOfBirth", message: validationError });
-                } else if (validationError.toLowerCase().includes("security question")) {
-                  errorPairs.push({ field: "SecurityQuestion", message: validationError });
-                } else if (validationError.toLowerCase().includes("security answer")) {
-                  errorPairs.push({ field: "SecurityAnswer", message: validationError });
-                }
-              }
-            }
-            
-            // Convert backend field names to frontend field names and set errors
-            for (const { field, message } of errorPairs) {
-              const fieldMapping: Record<string, string> = {
-                'Name': 'name',
-                'Username': 'username',
-                'Email': 'email',
-                'Password': 'password',
-                'ConfirmPassword': 'confirmPassword',
-                'Gender': 'gender',
-                'DateOfBirth': 'dateOfBirth',
-                'SecurityQuestion': 'securityQuestion',
-                'SecurityAnswer': 'securityAnswer'
-              };
-              
-              const frontendField = fieldMapping[field] || field.toLowerCase();
-              
-              // Set the error for the specific field
-              if (frontendField === 'password') {
-                setFieldError(frontendField, [message]);
-              } else {
-                setFieldError(frontendField, message);
-              }
-              
-              // Also update the general error message
-              formState.update(state => {
-                if (!state.error) {
-                  return { ...state, error: "Please fix the validation errors" };
-                }
-                return state;
-              });
-            }
+          // Try to extract field errors from error message string if possible
+          if (typeof errorMessage === 'string' && 
+             (errorMessage.includes('Key:') || errorMessage.includes('validation'))) {
+             
+            parseErrorMessageForFieldErrors(errorMessage);
           }
         }
         
-        const errorMessage = result.message || "Registration failed. Please check the form for errors.";
+        // Always ensure errorMessage is a string
+        const errorMessage = typeof result.message === 'string' ? result.message : 
+          (result.error && typeof result.error.message === 'string' ? result.error.message : 
+            "Registration failed. Please check the form for errors.");
+            
         formState.update(state => ({ ...state, error: errorMessage }));
         if (appConfig.ui.showErrorToasts) {
-          // Fix here: Don't use the same success message text in the error toast
-          // Make sure the error message doesn't contain the success message text
-          const toastErrorMsg = errorMessage.includes("Registration successful") ? 
+          // Ensure the errorMessage is a string before checking if it includes something
+          const toastErrorMsg = typeof errorMessage === 'string' && errorMessage.includes("Registration successful") ? 
             "Registration failed. Please check the form for errors." : errorMessage;
           toastStore.showToast(`Registration Error: ${toastErrorMsg}`, 'error');
         }
@@ -361,6 +328,45 @@
   onDestroy(() => {
     cleanupTimers();
   });
+
+  // Add this function to extract field errors from error message strings
+  function parseErrorMessageForFieldErrors(errorMessage) {
+    // Common field mappings
+    const fieldMappings = {
+      'Name': 'name',
+      'Username': 'username',
+      'Email': 'email',
+      'Password': 'password',
+      'ConfirmPassword': 'confirmPassword',
+      'Gender': 'gender',
+      'DateOfBirth': 'dateOfBirth',
+      'SecurityQuestion': 'securityQuestion',
+      'SecurityAnswer': 'securityAnswer'
+    };
+    
+    try {
+      // Extract field errors from message format: "Key: 'Field' Error:message"
+      const errorRegex = /Key:\s*'([^']+)'\s*Error:([^,;]+)/g;
+      let match;
+      
+      while ((match = errorRegex.exec(errorMessage)) !== null) {
+        const fieldName = match[1];
+        const errorDesc = match[2].trim();
+        
+        // Map the field name to our camelCase version
+        const formField = fieldMappings[fieldName] || fieldName.toLowerCase();
+        
+        // Set the field error
+        if (formField === 'password') {
+          setFieldError(formField, [errorDesc]);
+        } else {
+          setFieldError(formField, errorDesc);
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing validation message:", e);
+    }
+  }
 </script>
 
 <AuthLayout 
@@ -371,8 +377,61 @@
   onBack={() => showProfileCompletion ? showProfileCompletion = false : goBack()}
 >
   {#if $formState.error}
-    <div class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded mb-4" data-cy="error-message">
-      {$formState.error}
+    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-5 rounded shadow-sm" data-cy="error-message">
+      <div class="font-medium text-lg mb-2">Form Validation Errors</div>
+      
+      <!-- Display field-specific errors as a list -->
+      {#if Object.keys($errors).some(key => !!$errors[key] && (typeof $errors[key] === 'string' ? $errors[key].length > 0 : $errors[key].length > 0))}
+        <ul class="mt-2 list-disc list-inside text-sm space-y-1">
+          {#if $errors.name && $errors.name.length > 0}
+            <li><strong>Name:</strong> {$errors.name}</li>
+          {/if}
+          {#if $errors.username && $errors.username.length > 0}
+            <li><strong>Username:</strong> {$errors.username}</li>
+          {/if}
+          {#if $errors.email && $errors.email.length > 0}
+            <li><strong>Email:</strong> {$errors.email}</li>
+          {/if}
+          {#if $errors.password && $errors.password.length > 0}
+            <li>
+              <strong>Password:</strong>
+              {#if Array.isArray($errors.password) && $errors.password.length > 0}
+                <ul class="pl-5 list-disc">
+                  {#each $errors.password as error}
+                    <li>{error}</li>
+                  {/each}
+                </ul>
+              {:else}
+                {$errors.password}
+              {/if}
+            </li>
+          {/if}
+          {#if $errors.confirmPassword && $errors.confirmPassword.length > 0}
+            <li><strong>Confirm Password:</strong> {$errors.confirmPassword}</li>
+          {/if}
+          {#if $errors.gender && $errors.gender.length > 0}
+            <li><strong>Gender:</strong> {$errors.gender}</li>
+          {/if}
+          {#if $errors.dateOfBirth && $errors.dateOfBirth.length > 0}
+            <li><strong>Date of Birth:</strong> {$errors.dateOfBirth}</li>
+          {/if}
+          {#if $errors.securityQuestion && $errors.securityQuestion.length > 0}
+            <li><strong>Security Question:</strong> {$errors.securityQuestion}</li>
+          {/if}
+          {#if $errors.securityAnswer && $errors.securityAnswer.length > 0}
+            <li><strong>Security Answer:</strong> {$errors.securityAnswer}</li>
+          {/if}
+          {#if $errors.profilePicture && $errors.profilePicture.length > 0}
+            <li><strong>Profile Picture:</strong> {$errors.profilePicture}</li>
+          {/if}
+          {#if $errors.banner && $errors.banner.length > 0}
+            <li><strong>Banner:</strong> {$errors.banner}</li>
+          {/if}
+        </ul>
+        <div class="mt-3 text-sm">Please fix the errors above and try again.</div>
+      {:else}
+        <div>{$formState.error}</div>
+      {/if}
     </div>
   {/if}
   
@@ -409,6 +468,7 @@
         genderError={$errors.gender}
         dateOfBirthError={$errors.dateOfBirth}
         securityQuestionError={$errors.securityQuestion}
+        securityAnswerError={$errors.securityAnswer}
         profilePictureError={$errors.profilePicture}
         bannerError={$errors.banner}
         onSubmit={submitRegistration}

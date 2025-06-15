@@ -147,7 +147,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	publicWebsockets := v1.Group("/chats")
 	{
-		publicWebsockets.GET("/:id/ws", handlers.HandleCommunityChat)
+		publicWebsockets.GET("/:id/ws", handlers.HandleChatWebSocket)
 	}
 
 	users := v1.Group("/users")
@@ -181,9 +181,15 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		replies.POST("/:id/bookmark", handlers.BookmarkReply)
 		replies.DELETE("/:id/bookmark", handlers.RemoveReplyBookmark)
 		replies.POST("/:id/replies", handlers.ReplyToThread)
-		replies.GET("/:id/replies", handlers.GetRepliesByParentReply)
 		replies.POST("/:id/pin", handlers.PinReply)
 		replies.DELETE("/:id/pin", handlers.UnpinReply)
+	}
+
+	// Add a public version of replies endpoint with optional authentication
+	publicReplies := v1.Group("/replies")
+	publicReplies.Use(middleware.OptionalJWTAuth(jwtSecret))
+	{
+		publicReplies.GET("/:id/replies", handlers.GetRepliesByParentReply)
 	}
 
 	communities := v1.Group("/communities")

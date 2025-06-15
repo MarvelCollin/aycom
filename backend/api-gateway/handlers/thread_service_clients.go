@@ -53,31 +53,31 @@ type ThreadServiceClient interface {
 }
 
 type Thread struct {
-	ID             string
-	Content        string
-	UserID         string
-	Username       string
-	DisplayName    string
-	ProfilePicture string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	LikeCount      int
-	ReplyCount     int
-	RepostCount    int
-	BookmarkCount  int
-	IsLiked        bool
-	IsReposted     bool
-	IsBookmarked   bool
-	IsPinned       bool
-	Media          []Media
-	ParentID       string
+	ID             string    `json:"id"`
+	Content        string    `json:"content"`
+	UserID         string    `json:"user_id"`
+	Username       string    `json:"username"`
+	DisplayName    string    `json:"name"`
+	ProfilePicture string    `json:"profile_picture_url"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	LikeCount      int       `json:"likes_count"`
+	ReplyCount     int       `json:"replies_count"`
+	RepostCount    int       `json:"reposts_count"`
+	BookmarkCount  int       `json:"bookmark_count"`
+	IsLiked        bool      `json:"is_liked"`
+	IsReposted     bool      `json:"is_reposted"`
+	IsBookmarked   bool      `json:"is_bookmarked"`
+	IsPinned       bool      `json:"is_pinned"`
+	Media          []Media   `json:"media"`
+	ParentID       string    `json:"parent_id,omitempty"`
 }
 
 type Media struct {
-	ID        string
-	Type      string
-	URL       string
-	Thumbnail string
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	URL       string `json:"url"`
+	Thumbnail string `json:"thumbnail,omitempty"`
 }
 
 type GRPCThreadServiceClient struct {

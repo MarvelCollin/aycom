@@ -34,6 +34,7 @@ export function useRegistrationForm() {
     gender: "",
     dateOfBirth: "",
     securityQuestion: "",
+    securityAnswer: "",
     profilePicture: "",
     banner: ""
   });
@@ -92,6 +93,7 @@ export function useRegistrationForm() {
       gender: "",
       dateOfBirth: "",
       securityQuestion: "",
+      securityAnswer: "",
       profilePicture: "",
       banner: ""
     }));

@@ -63,40 +63,39 @@
   });
   
   async function handleSubmit() {
-    let errorMessage = "";
-    if (!email || !password) {
-      errorMessage = "Please enter both email and password";
-      error = errorMessage;
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
-      return;
-    }
+    if (isLoading) return;
     
-    // TEMPORARY FIX: Skip reCAPTCHA check and use a simulated token if needed
-    if (!recaptchaToken) {
-      logger.info("NOTICE: No reCAPTCHA token found, using a simulated token");
-      recaptchaToken = "simulated-login-token-" + Math.random().toString(36).substring(2, 15);
-    }
-    
+    error = '';
     isLoading = true;
-    error = "";
     
     try {
-      logger.info(`Submitting login form for email: ${email}`);
-      
-      const trimmedEmail = email.trim();
-      
-      // Log token status before login
-      if (recaptchaToken) {
-        logger.info(`Using reCAPTCHA token (length: ${recaptchaToken.length})`);
-      } else {
-        logger.info('No reCAPTCHA token available, continuing with DEV mode token');
+      // Validate inputs
+      if (!email || !password) {
+        isLoading = false;
+        error = "Please enter both email and password";
+        return;
       }
       
-      const result = await login(trimmedEmail, password, recaptchaToken);
+      // Get reCAPTCHA token if needed
+      if (!recaptchaToken && !import.meta.env.DEV) {
+        try {
+          if (recaptchaWrapper) {
+            recaptchaToken = await recaptchaWrapper.execute();
+          }
+        } catch (recaptchaError) {
+          logger.error("reCAPTCHA error:", recaptchaError);
+          // Continue anyway - we'll handle this on the backend
+        }
+      }
+      
+      const result = await login(email, password, recaptchaToken);
       isLoading = false;
       
       if (result.success) {
-        toastStore.showToast('Login successful!', 'success');
+        logger.info('Login successful');
+        toastStore.showToast('Login successful', 'success');
+        
+        // Force page refresh to update auth state
         setTimeout(() => {
           const currentPath = window.location.pathname;
           if (currentPath !== '/feed') {
@@ -110,10 +109,14 @@
         error = errorMessage; 
         toastStore.showToast(errorMessage, 'error');
         
-        // Reset reCAPTCHA on failure
-        if (recaptchaWrapper) {
-          recaptchaWrapper.reset();
-          recaptchaToken = null;
+        // Reset reCAPTCHA on failure - safely
+        try {
+          if (recaptchaWrapper && typeof recaptchaWrapper.reset === 'function') {
+            recaptchaWrapper.reset();
+            recaptchaToken = null;
+          }
+        } catch (resetError) {
+          logger.error('Error resetting reCAPTCHA:', resetError);
         }
       }
     } catch (err) {
@@ -123,10 +126,14 @@
       error = message;
       toastStore.showToast(message, 'error');
       
-      // Reset reCAPTCHA on error
-      if (recaptchaWrapper) {
-        recaptchaWrapper.reset();
-        recaptchaToken = null;
+      // Reset reCAPTCHA on error - safely
+      try {
+        if (recaptchaWrapper && typeof recaptchaWrapper.reset === 'function') {
+          recaptchaWrapper.reset();
+          recaptchaToken = null;
+        }
+      } catch (resetError) {
+        logger.error('Error resetting reCAPTCHA:', resetError);
       }
     }
   }

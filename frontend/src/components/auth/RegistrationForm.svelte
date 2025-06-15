@@ -36,6 +36,7 @@
   export let genderError = "";
   export let dateOfBirthError = "";
   export let securityQuestionError = "";
+  export let securityAnswerError = "";
   export let profilePictureError = "";
   export let bannerError = "";
 
@@ -132,7 +133,7 @@
 <!-- Name Input -->
 <div class="auth-input-group">
   <div class="flex justify-between">
-    <label for="name" class="auth-label">Name</label>
+    <label for="name" class="auth-label">Name <span class="text-red-500">*</span></label>
     <span class="text-xs text-gray-500 dark:text-gray-400" data-cy="name-char-count">{name.length} / 50</span>
   </div>
   <input 
@@ -146,12 +147,13 @@
   />
   {#if nameError}
     <p id="name-error" class="auth-error-message" data-cy="name-error" role="alert">{nameError}</p>
+    <div class="text-xs text-gray-500 mt-1">Must be at least 4 characters, no symbols or numbers.</div>
   {/if}
 </div>
 
 <!-- Username input -->
 <div class="auth-input-group">
-  <label for="username" class="auth-label">Username</label>
+  <label for="username" class="auth-label">Username <span class="text-red-500">*</span></label>
   <input 
     type="text" 
     id="username" 
@@ -162,12 +164,13 @@
   />
   {#if usernameError}
     <p id="username-error" class="auth-error-message" data-cy="username-error" role="alert">{usernameError}</p>
+    <div class="text-xs text-gray-500 mt-1">Must be unique, 3-15 characters, letters, numbers, and underscores only.</div>
   {/if}
 </div>
 
 <!-- Email input -->
 <div class="auth-input-group">
-  <label for="email" class="auth-label">Email</label>
+  <label for="email" class="auth-label">Email <span class="text-red-500">*</span></label>
   <input 
     type="email" 
     id="email" 
@@ -178,12 +181,13 @@
   />
   {#if emailError}
     <p id="email-error" class="auth-error-message" data-cy="email-error" role="alert">{emailError}</p>
+    <div class="text-xs text-gray-500 mt-1">Must be a valid email format (e.g., name@domain.com) and unique.</div>
   {/if}
 </div>
 
 <!-- Password input -->
 <div class="auth-input-group">
-  <label for="password" class="auth-label">Password</label>
+  <label for="password" class="auth-label">Password <span class="text-red-500">*</span></label>
   <input 
     type="password" 
     id="password" 
@@ -194,16 +198,17 @@
   />
   {#if passwordErrors.length > 0}
     <div id="password-error" class="auth-error-message" data-cy="password-error" role="alert">
-      {#each passwordErrors as error}
-        <p>{error}</p>
+      {#each passwordErrors as passError}
+        <p>{passError}</p>
       {/each}
     </div>
+    <div class="text-xs text-gray-500 mt-1">Must have at least 8 characters, uppercase letter, lowercase letter, number, and special character.</div>
   {/if}
 </div>
 
 <!-- Confirm Password input -->
 <div class="auth-input-group">
-  <label for="confirmPassword" class="auth-label">Confirm Password</label>
+  <label for="confirmPassword" class="auth-label">Confirm Password <span class="text-red-500">*</span></label>
   <input 
     type="password" 
     id="confirmPassword" 
@@ -214,13 +219,14 @@
   />
   {#if confirmPasswordError}
     <p id="password-match-error" class="auth-error-message" data-cy="password-match-error" role="alert">{confirmPasswordError}</p>
+    <div class="text-xs text-gray-500 mt-1">Must exactly match the password field.</div>
   {/if}
 </div>
 
 <!-- Gender selection -->
 <div class="auth-input-group">
   <fieldset>
-    <legend class="auth-label">Gender</legend>
+    <legend class="auth-label">Gender <span class="text-red-500">*</span></legend>
     <div class="auth-radio-group">
       <label class="auth-checkbox-group">
         <input 
@@ -247,6 +253,7 @@
     </div>
     {#if genderError}
       <p id="gender-error" class="auth-error-message" data-cy="gender-error" role="alert">{genderError}</p>
+      <div class="text-xs text-gray-500 mt-1">Must select either male or female.</div>
     {/if}
   </fieldset>
 </div>
@@ -254,7 +261,7 @@
 <!-- Date of birth -->
 <div class="auth-input-group">
   <fieldset>
-    <legend class="auth-label">Date of birth</legend>
+    <legend class="auth-label">Date of birth <span class="text-red-500">*</span></legend>
     <p class="auth-helper-text mb-2">This will not be shown publicly. Confirm your own age, even if this account is for a business, a pet, or something else.</p>
     
     <div class="auth-dob-container">
@@ -304,6 +311,7 @@
       </div>
       {#if dateOfBirthError}
         <p id="dob-error" class="auth-error-message" data-cy="dob-error" role="alert">{dateOfBirthError}</p>
+        <div class="text-xs text-gray-500 mt-1">You must be at least 13 years old to register.</div>
       {/if}
     </div>
   </fieldset>
@@ -311,7 +319,7 @@
 
 <!-- Security Question -->
 <div class="auth-input-group">
-  <label for="securityQuestion" class="auth-label">Security Question</label>
+  <label for="securityQuestion" class="auth-label">Security Question <span class="text-red-500">*</span></label>
   <select 
     id="securityQuestion"
     bind:value={securityQuestion}
@@ -325,20 +333,25 @@
   </select>
   {#if securityQuestionError}
     <p id="security-question-error" class="auth-error-message" data-cy="security-question-error" role="alert">{securityQuestionError}</p>
+    <div class="text-xs text-gray-500 mt-1">You must select a security question.</div>
   {/if}
 </div>
 
 <!-- Security Answer -->
 <div class="auth-input-group">
-  <label for="securityAnswer" class="auth-label">Security Answer</label>
+  <label for="securityAnswer" class="auth-label">Security Answer <span class="text-red-500">*</span></label>
   <input 
     type="text"
     id="securityAnswer"
     bind:value={securityAnswer}
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''}"
+    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {securityAnswerError ? 'auth-input-error' : ''}"
     placeholder="Your answer"
     data-cy="security-answer"
   />
+  {#if securityAnswerError}
+    <p id="security-answer-error" class="auth-error-message" data-cy="security-answer-error" role="alert">{securityAnswerError}</p>
+    <div class="text-xs text-gray-500 mt-1">You must provide an answer to your security question.</div>
+  {/if}
 </div>
 
 <!-- Profile Picture -->
@@ -508,5 +521,25 @@
 
   .aycom-auth-remove-img:hover {
     background-color: rgba(0, 0, 0, 0.7);
+  }
+  
+  /* Enhanced error styling */
+  :global(.auth-error-message) {
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+  }
+  
+  :global(.auth-error-message::before) {
+    content: "⚠️";
+    margin-right: 0.25rem;
+  }
+  
+  :global(.auth-input-error) {
+    border-color: #dc2626 !important;
+    background-color: rgba(255, 0, 0, 0.03);
   }
 </style>

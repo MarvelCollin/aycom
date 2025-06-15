@@ -50,11 +50,22 @@ function createWebSocketStore() {
   // Simplified URL building
   const buildWebSocketUrl = (chatId: string): string => {
     const token = getAuthToken();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    const port = '8083'; // Fixed port for API Gateway
     
-    let wsUrl = `${protocol}//${host}:${port}/api/v1/chats/${chatId}/ws`;
+    // Use consistent URL construction method
+    // Get base URL from config, but fallback to current location
+    let baseUrl = appConfig.api.wsUrl;
+    if (!baseUrl) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname;
+      // Use location.port if available, otherwise default to 8083
+      const port = window.location.port || '8083';
+      baseUrl = `${protocol}//${host}:${port}/api/v1`;
+    }
+    
+    // Ensure baseUrl doesn't end with a slash
+    baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    
+    let wsUrl = `${baseUrl}/chats/${chatId}/ws`;
     
     // Extract user ID from token if available
     let userId = '';
@@ -69,7 +80,7 @@ function createWebSocketStore() {
     }
     
     // Add query parameters
-    const params = [];
+    const params: string[] = [];
     if (token) params.push(`token=${encodeURIComponent(token)}`);
     if (userId) params.push(`user_id=${encodeURIComponent(userId)}`);
     
@@ -77,7 +88,7 @@ function createWebSocketStore() {
       wsUrl += `?${params.join('&')}`;
     }
     
-    logger.info('[WebSocket] Built connection URL:', wsUrl);
+    logger.info(`[WebSocket] Built connection URL: ${wsUrl}`);
     return wsUrl;
   };
 

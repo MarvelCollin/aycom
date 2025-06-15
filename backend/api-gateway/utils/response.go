@@ -63,6 +63,7 @@ func SendValidationErrorResponse(c *gin.Context, fieldErrors map[string]string) 
 			"message": "Validation failed",
 			"fields":  fieldErrors,
 		},
+		"validation_errors": fieldErrors,
 	}
 
 	c.Header("Content-Type", "application/json")

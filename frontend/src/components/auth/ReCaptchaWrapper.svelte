@@ -206,14 +206,34 @@
   }
   
   export function reset() {
-    if (recaptchaWidget) {
-      logger.info('Resetting reCAPTCHA widget');
-      recaptchaWidget.reset();
+    logger.info('Resetting reCAPTCHA widget');
+    
+    try {
+      // Check if recaptchaWidget exists and has a reset method
+      if (recaptchaWidget && typeof recaptchaWidget.reset === 'function') {
+        recaptchaWidget.reset();
+        logger.info('reCAPTCHA widget reset successful');
+      } 
+      // Try to use the global grecaptcha object as fallback
+      else if (window.grecaptcha && typeof window.grecaptcha.reset === 'function') {
+        window.grecaptcha.reset();
+        logger.info('reCAPTCHA reset using global grecaptcha object');
+      }
+      // If svelte-recaptcha-v2 recaptcha object is available
+      else if (recaptcha && typeof recaptcha.reset === 'function') {
+        recaptcha.reset();
+        logger.info('reCAPTCHA reset using svelte-recaptcha-v2 object');
+      }
+      else {
+        logger.warn('Cannot reset reCAPTCHA: no valid reset method found');
+      }
+      
+      // Always reset these values
       token = null;
       hasError = false;
       errorMessage = '';
-    } else {
-      logger.warn('Cannot reset reCAPTCHA widget: widget not initialized');
+    } catch (error) {
+      logger.error('Error resetting reCAPTCHA:', error);
     }
   }
 </script>

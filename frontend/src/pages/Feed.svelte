@@ -3,7 +3,7 @@
   import TweetCard from '../components/social/TweetCard.svelte';
   import ComposeTweetModal from '../components/social/ComposeTweetModal.svelte';
   import { onMount, tick } from 'svelte';
-  import { getAllThreads, getThreadReplies, replyToThread } from '../api/thread';
+  import { getAllThreads, getThreadReplies, replyToThread, getFollowingThreads } from '../api/thread';
   import { useTheme } from '../hooks/useTheme';
   import { formatStorageUrl } from '../utils/common';
   import type { ITweet } from '../interfaces/ISocialMedia';
@@ -41,6 +41,9 @@
   theme.subscribe(val => {
     isDarkMode = val === 'dark';
   });
+
+  // Tab selection state
+  let activeTab = 'for-you'; // 'for-you' or 'following'
 
   let threads: ExtendedTweet[] = [];
   let loading = true;
@@ -299,32 +302,167 @@
     isSubmitting = false;
   }
 
-  // Load threads function
+  // Load threads function - updated to handle different tabs
   async function loadThreads() {
-    console.log('Loading threads...');
+    console.log(`Loading threads for tab: ${activeTab}...`);
     loading = true;
     error = null;
 
     try {
-      const response = await getAllThreads(1, 20);
-      console.log('Thread API response:', response);
+      let response;
       
+      if (activeTab === 'for-you') {
+        response = await getAllThreads(1, 20);
+      } else {
+        // Only attempt following feed if user is authenticated
+        if (!authStore.isAuthenticated()) {
+          toastStore.showToast("Please sign in to see threads from people you follow", "info");
+          activeTab = 'for-you';
+          response = await getAllThreads(1, 20);
+        } else {
+          response = await getFollowingThreads(1, 20);
+        }
+      }
+      
+      console.log(`Thread API response for ${activeTab}:`, response);
+      
+      let loadedThreads: ExtendedTweet[] = [];
+      
+      // Handle different response formats
       if (response && response.success && Array.isArray(response.threads)) {
-        threads = response.threads as ExtendedTweet[];
-        console.log('Loaded threads:', threads.length);
+        loadedThreads = response.threads as ExtendedTweet[];
+        console.log(`Loaded ${loadedThreads.length} threads for ${activeTab}`);
       } else if (response && Array.isArray(response)) {
         // Handle case where API returns threads directly as array
-        threads = response as ExtendedTweet[];
-        console.log('Loaded threads directly:', threads.length);
+        loadedThreads = response as ExtendedTweet[];
+        console.log(`Loaded ${loadedThreads.length} threads directly for ${activeTab}`);
+      } else if (response && response.success && response.data && Array.isArray(response.data.threads)) {
+        // Handle nested data structure (used by Following tab)
+        loadedThreads = response.data.threads as ExtendedTweet[];
+        console.log(`Loaded ${loadedThreads.length} threads from nested data for ${activeTab}`);
       } else {
         console.error('Invalid API response format:', response);
-        threads = [];
+        loadedThreads = [];
         error = 'No threads available right now. Try again later.' as any;
       }
+      
+      // Debug the structure of the first thread if available
+      if (loadedThreads.length > 0) {
+        console.log('First thread structure:', loadedThreads[0]);
+        console.log('Thread has valid ID?', Boolean(loadedThreads[0]?.id || loadedThreads[0]?.ID));
+        console.log('Thread properties:', Object.keys(loadedThreads[0] || {}));
+      } else {
+        console.log('No threads found in response');
+        
+        // Try to extract threads from different response formats
+        if (response && typeof response === 'object') {
+          console.log('Attempting to extract threads from response:', response);
+          
+          // Check if threads might be directly in the response
+          if (response.threads && Array.isArray(response.threads)) {
+            loadedThreads = response.threads;
+            console.log(`Found ${loadedThreads.length} threads directly in response.threads`);
+          }
+        }
+      }
+      
+      // Filter out any threads without valid IDs and ensure each has a unique ID
+      threads = loadedThreads
+        .filter(thread => thread && typeof thread === 'object')
+        .map((thread, index) => {
+          // Ensure all required properties exist
+          if (typeof thread !== 'object') {
+            console.error('Invalid thread object:', thread);
+            return null;
+          }
+          
+          // Check for both lowercase and uppercase field names (Go struct fields vs JSON)
+          const id = thread.id || thread.ID || `temp-${Date.now()}-${index}`;
+          const content = thread.content || thread.Content || '';
+          const userId = thread.user_id || thread.UserID || thread.userId || thread.authorId || '';
+          const username = thread.username || thread.Username || 'unknown';
+          const name = thread.name || thread.DisplayName || thread.display_name || thread.displayName || username;
+          const profilePicture = thread.profile_picture_url || thread.ProfilePicture || thread.profilePictureUrl || '';
+          
+          // Handle dates with both formats
+          let createdAt = thread.created_at || thread.CreatedAt || new Date().toISOString();
+          if (createdAt instanceof Date) {
+            createdAt = createdAt.toISOString();
+          }
+          
+          let updatedAt = thread.updated_at || thread.UpdatedAt || createdAt;
+          if (updatedAt instanceof Date) {
+            updatedAt = updatedAt.toISOString();
+          }
+          
+          // Handle counts with both formats
+          const likesCount = thread.likes_count || thread.LikeCount || 0;
+          const repliesCount = thread.replies_count || thread.ReplyCount || 0;
+          const repostsCount = thread.reposts_count || thread.RepostCount || 0;
+          const bookmarkCount = thread.bookmark_count || thread.BookmarkCount || 0;
+          
+          // Handle boolean flags with both formats
+          const isLiked = Boolean(thread.is_liked || thread.IsLiked);
+          const isReposted = Boolean(thread.is_reposted || thread.IsReposted);
+          const isBookmarked = Boolean(thread.is_bookmarked || thread.IsBookmarked);
+          const isPinned = Boolean(thread.is_pinned || thread.IsPinned);
+          
+          // Handle media with both formats
+          let media = [];
+          if (Array.isArray(thread.media)) {
+            media = thread.media;
+          } else if (Array.isArray(thread.Media)) {
+            // Convert Go struct Media to expected format
+            media = thread.Media.map(m => ({
+              id: m.ID || m.id,
+              url: m.URL || m.url,
+              type: m.Type || m.type,
+              alt_text: ''
+            }));
+          }
+          
+          // Convert the thread to the expected format if needed
+          const processedThread: ExtendedTweet = {
+            id,
+            thread_id: thread.thread_id || id,
+            content,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            username,
+            name,
+            user_id: userId,
+            author_id: userId,
+            profile_picture_url: profilePicture,
+            likes_count: likesCount,
+            replies_count: repliesCount,
+            reposts_count: repostsCount,
+            bookmark_count: bookmarkCount,
+            views_count: thread.views_count || thread.ViewCount || 0,
+            is_liked: isLiked,
+            is_reposted: isReposted,
+            is_bookmarked: isBookmarked,
+            is_pinned: isPinned,
+            parent_id: thread.parent_id || thread.ParentID || null,
+            media,
+            community_id: thread.community_id || thread.CommunityID || null,
+            community_name: thread.community_name || thread.CommunityName || null
+          };
+          
+          return processedThread;
+        }).filter(Boolean) as ExtendedTweet[];
+      
+      console.log(`Final processed threads count: ${threads.length}`);
+      
     } catch (err) {
-      console.error('Error loading threads:', err);
+      console.error(`Error loading ${activeTab} threads:`, err);
       if (err instanceof Error && err.message.includes('401')) {
-        // If it's an auth error, don't show it to the user, just show empty state
+        // Handle authentication errors for Following tab
+        if (activeTab === 'following') {
+          activeTab = 'for-you';
+          toastStore.showToast("Please sign in to view your Following feed", "info");
+          return loadThreads(); // Retry with For You tab
+        }
+        // For other 401 errors, just show empty state
         threads = [];
         error = 'No threads available right now. Try again later.' as any;
       } else {
@@ -333,6 +471,18 @@
       }
     } finally {
       loading = false;
+    }
+  }
+
+  function handleTabChange(tab: string) {
+    if (activeTab !== tab) {
+      activeTab = tab;
+      // Reset state
+      threads = [];
+      repliesMap = new Map();
+      showRepliesMap = new Map();
+      // Load new content
+      loadThreads();
     }
   }
 
@@ -393,6 +543,24 @@
   <div class="feed-container {isDarkMode ? 'feed-container-dark' : ''}">
     <h1 class="feed-title {isDarkMode ? 'feed-title-dark' : ''}">Feed</h1>
     
+    <!-- Feed Tabs -->
+    <div class="feed-tabs {isDarkMode ? 'feed-tabs-dark' : ''}">
+      <button 
+        class="feed-tab {activeTab === 'for-you' ? 'active' : ''}" 
+        on:click={() => handleTabChange('for-you')}
+        aria-label="For You tab"
+      >
+        For You
+      </button>
+      <button 
+        class="feed-tab {activeTab === 'following' ? 'active' : ''}" 
+        on:click={() => handleTabChange('following')}
+        aria-label="Following tab"
+      >
+        Following
+      </button>
+    </div>
+    
     {#if loading}
       <div class="loading {isDarkMode ? 'loading-dark' : ''}">
         <div class="loading-spinner"></div>
@@ -404,10 +572,16 @@
         <button class="retry-button {isDarkMode ? 'retry-button-dark' : ''}" on:click={loadThreads}>Retry</button>
       </div>
     {:else if threads.length === 0}
-      <div class="empty {isDarkMode ? 'empty-dark' : ''}">No threads found</div>
+      <div class="empty {isDarkMode ? 'empty-dark' : ''}">
+        {#if activeTab === 'following'}
+          {authStore.isAuthenticated() ? 'No threads from people you follow' : 'Sign in to see threads from people you follow'}
+        {:else}
+          No threads found
+        {/if}
+      </div>
     {:else}
       <div class="threads-list">
-        {#each threads as thread (thread.id)}
+        {#each threads as thread, index (thread.id || `thread-${index}`)}
           <TweetCard 
             tweet={thread}
             isAuth={authStore.isAuthenticated()}
@@ -548,6 +722,51 @@
   
   .feed-title-dark {
     color: var(--text-primary-dark);
+  }
+  
+  /* Feed tabs styling */
+  .feed-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+  }
+  
+  .feed-tabs-dark {
+    border-bottom: 1px solid var(--border-color-dark);
+  }
+  
+  .feed-tab {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s ease;
+    font-size: 16px;
+  }
+  
+  .feed-tab:hover {
+    color: var(--text-primary);
+  }
+  
+  .feed-tab.active {
+    color: var(--color-primary);
+    font-weight: 700;
+  }
+  
+  .feed-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 25%;
+    width: 50%;
+    height: 4px;
+    background-color: var(--color-primary);
+    border-radius: 4px 4px 0 0;
   }
 
   .loading, .error, .empty {

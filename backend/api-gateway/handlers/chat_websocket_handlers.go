@@ -47,80 +47,63 @@ type ChatMessage struct {
 	IsRead    bool      `json:"is_read,omitempty"`
 }
 
-func HandleCommunityChat(c *gin.Context) {
+// HandleChatWebSocket handles WebSocket connections for chat messaging
+func HandleChatWebSocket(c *gin.Context) {
+	userID := ""
 
-	userID := "anonymous"
-
-	directUserID := c.Query("user_id")
-	if directUserID != "" {
-		userID = directUserID
-		log.Printf("Using directly provided user_id: %s", userID)
-	} else {
-
-		token := c.GetHeader("Authorization")
-		if token == "" {
-
-			token = c.Query("token")
-			if token != "" {
-				log.Printf("DEBUG: Got token from query parameter: %s... (length: %d)", token[:min(len(token), 20)]+"...", len(token))
-
-				token = "Bearer " + token
-				log.Printf("DEBUG: Added Bearer prefix: %s... (length: %d)", token[:min(len(token), 27)]+"...", len(token))
-			} else {
-				log.Printf("DEBUG: No token found in query parameter")
-			}
+	// Extract token from query parameter first
+	token := c.Query("token")
+	if token == "" {
+		// If not found in query, try to get from auth header
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
 		}
+	}
 
-		if token != "" && strings.HasPrefix(token, "Bearer ") {
+	// Also check userID in query parameter as a fallback
+	if userIDParam := c.Query("user_id"); userIDParam != "" {
+		userID = userIDParam
+		log.Printf("User ID from query parameter: %s", userID)
+	}
 
-			tokenString := token[7:]
-			log.Printf("DEBUG: Parsing token string: %s... (length: %d)", tokenString[:min(len(tokenString), 20)]+"...", len(tokenString))
-
-			jwtSecret := string(utils.GetJWTSecret())
-
-			parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					log.Printf("DEBUG: Unexpected signing method: %v", token.Header["alg"])
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
-				return []byte(jwtSecret), nil
-			})
-
-			if err != nil {
-				log.Printf("DEBUG: JWT parse error: %v", err)
-			} else {
-				log.Printf("DEBUG: Token parsed successfully, valid: %v", parsedToken.Valid)
+	// Validate JWT token if provided
+	if token != "" {
+		// Get JWT secret from utils
+		jwtSecret := string(utils.GetJWTSecret())
+		parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
+			return []byte(jwtSecret), nil
+		})
 
-			if err == nil && parsedToken.Valid {
+		if err == nil && parsedToken.Valid {
+			if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
+				log.Printf("DEBUG: Token claims: %+v", claims)
 
-				if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
-					log.Printf("DEBUG: Token claims: %+v", claims)
+				var uid string
 
-					var uid string
+				if userIDFromToken, ok := claims["user_id"].(string); ok {
+					uid = userIDFromToken
+				} else if sub, ok := claims["sub"].(string); ok {
+					uid = sub
+				}
 
-					if userIDFromToken, ok := claims["user_id"].(string); ok {
-						uid = userIDFromToken
-					} else if sub, ok := claims["sub"].(string); ok {
-						uid = sub
-					}
-
-					if uid != "" {
-						userID = uid
-						log.Printf("Authenticated WebSocket connection for user %s", userID)
-					} else {
-						log.Printf("DEBUG: user_id/sub claim not found or not a string")
-					}
+				if uid != "" {
+					userID = uid
+					log.Printf("Authenticated WebSocket connection for user %s", userID)
 				} else {
-					log.Printf("DEBUG: Failed to get claims from token")
+					log.Printf("DEBUG: user_id/sub claim not found or not a string")
 				}
 			} else {
-				log.Printf("Invalid token: %v", err)
+				log.Printf("DEBUG: Failed to get claims from token")
 			}
 		} else {
-			log.Printf("DEBUG: No valid Bearer token found, using anonymous user")
+			log.Printf("Invalid token: %v", err)
 		}
+	} else {
+		log.Printf("DEBUG: No valid Bearer token found, using anonymous user")
 	}
 
 	chatID := c.Param("id")
@@ -386,6 +369,7 @@ func processTypingIndicator(message ChatMessage) ([]byte, error) {
 }
 
 func processReadReceipt(message ChatMessage) ([]byte, error) {
+	log.Printf("Marking message as read: %s by user %s", message.MessageID, message.UserID)
 
 	client := GetCommunityServiceClient()
 	err := client.MarkMessageAsRead(
@@ -393,19 +377,15 @@ func processReadReceipt(message ChatMessage) ([]byte, error) {
 		message.UserID,
 		message.MessageID,
 	)
-
 	if err != nil {
 		return createErrorResponse("server_error", "Failed to mark message as read"), err
 	}
 
-	responseMsg, err := json.Marshal(message)
-	if err != nil {
-		return createErrorResponse("server_error", "Failed to process read receipt"), err
-	}
-	return responseMsg, nil
+	return json.Marshal(message)
 }
 
 func processEditMessage(message ChatMessage) ([]byte, error) {
+	log.Printf("Editing message: %s by user %s", message.MessageID, message.UserID)
 
 	client := GetCommunityServiceClient()
 	err := client.EditMessage(
@@ -416,28 +396,14 @@ func processEditMessage(message ChatMessage) ([]byte, error) {
 	)
 
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			switch st.Code() {
-			case codes.NotFound:
-				return createErrorResponse("not_found", "Message not found"), err
-			case codes.PermissionDenied:
-				return createErrorResponse("permission_denied", "Not allowed to edit this message"), err
-			default:
-				return createErrorResponse("server_error", "Failed to edit message"), err
-			}
-		}
 		return createErrorResponse("server_error", "Failed to edit message"), err
 	}
 
-	message.IsEdited = true
-	responseMsg, err := json.Marshal(message)
-	if err != nil {
-		return createErrorResponse("server_error", "Failed to process edit"), err
-	}
-	return responseMsg, nil
+	return json.Marshal(message)
 }
 
 func processDeleteMessage(message ChatMessage) ([]byte, error) {
+	log.Printf("Deleting message: %s by user %s", message.MessageID, message.UserID)
 
 	client := GetCommunityServiceClient()
 	err := client.DeleteMessage(
@@ -447,26 +413,10 @@ func processDeleteMessage(message ChatMessage) ([]byte, error) {
 	)
 
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			switch st.Code() {
-			case codes.NotFound:
-				return createErrorResponse("not_found", "Message not found"), err
-			case codes.PermissionDenied:
-				return createErrorResponse("permission_denied", "Not allowed to delete this message"), err
-			default:
-				return createErrorResponse("server_error", "Failed to delete message"), err
-			}
-		}
 		return createErrorResponse("server_error", "Failed to delete message"), err
 	}
 
-	message.IsDeleted = true
-	message.Content = ""
-	responseMsg, err := json.Marshal(message)
-	if err != nil {
-		return createErrorResponse("server_error", "Failed to process deletion"), err
-	}
-	return responseMsg, nil
+	return json.Marshal(message)
 }
 
 func createErrorResponse(code, message string) []byte {

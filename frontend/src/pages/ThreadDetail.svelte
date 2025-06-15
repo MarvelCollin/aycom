@@ -32,24 +32,24 @@
       console.log('Formatting thread data from API response:', responseData);
       
       // Create standardized thread object using the API fields directly
-      return {
-        id: responseData.id || threadId,
-        content: responseData.content || '',
-        created_at: responseData.created_at || new Date().toISOString(),
-        updated_at: responseData.updated_at,
+        return {
+          id: responseData.id || threadId,
+          content: responseData.content || '',
+          created_at: responseData.created_at || new Date().toISOString(),
+          updated_at: responseData.updated_at,
         user_id: responseData.user_id || '',
         username: responseData.username || 'anonymous',
         name: responseData.name || 'User',
-        profile_picture_url: responseData.profile_picture_url || '',
-        likes_count: responseData.likes_count || 0,
-        replies_count: responseData.replies_count || 0,
-        reposts_count: responseData.reposts_count || 0,
-        bookmark_count: responseData.bookmark_count || 0,
+          profile_picture_url: responseData.profile_picture_url || '',
+          likes_count: responseData.likes_count || 0,
+          replies_count: responseData.replies_count || 0,
+          reposts_count: responseData.reposts_count || 0,
+          bookmark_count: responseData.bookmark_count || 0,
         views_count: responseData.views_count || 0,
         is_liked: responseData.is_liked || false,
         is_bookmarked: responseData.is_bookmarked || false,
         is_reposted: responseData.is_reposted || false,
-        is_pinned: responseData.is_pinned || false,
+          is_pinned: responseData.is_pinned || false,
         is_verified: responseData.is_verified || false,
         media: Array.isArray(responseData.media) ? responseData.media.map(m => ({
           id: m.id,
@@ -57,7 +57,7 @@
           type: m.type,
           thumbnail_url: m.thumbnail_url || m.url
         })) : []
-      };
+        };
     } catch (error) {
       console.error('Error formatting thread data:', error);
       // Return a minimal safe object
@@ -340,7 +340,7 @@
     }
     
     // Always load fresh thread data from API to ensure it's up-to-date
-    loadThreadWithReplies();
+      loadThreadWithReplies();
   });
   
   // Clean up subscription on component destruction

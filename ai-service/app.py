@@ -5,7 +5,7 @@ import time
 import numpy as np
 import re
 
-# Fix for protobuf compatibility issues with TensorFlow
+
 os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 
 from flask import Flask, request, jsonify
@@ -15,7 +15,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
 
-# Configure logging
+
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
     format="%(asctime)s [%(levelname)s] - %(message)s",
@@ -23,16 +23,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-# Configure CORS
+
 CORS(app, resources={r"/*": {"origins": os.environ.get("CORS_ORIGIN", "http://localhost:3000")}})
 
-# Global variables for models
+
 thread_model = None
 tokenizer = None
 max_sequence_length = 100
 using_fresh_model = False
 
-# Category definitions
+
 categories = {
     "technology": "Technology",
     "health": "Health",
@@ -47,14 +47,14 @@ categories = {
     "other": "Other"
 }
 
-# Mapping from numeric output to category names
+
 label_mapping = {
     0: "technology", 1: "health", 2: "education", 3: "entertainment",
     4: "science", 5: "sports", 6: "politics", 7: "business",
     8: "lifestyle", 9: "travel", 10: "other"
 }
 
-# Keyword to category mapping for basic prediction
+
 category_keywords = {
     "technology": ["technology", "tech", "computer", "software", "hardware", "app", "code", "program", "internet", "smartphone", "device", "iphone", "android", "web", "digital", "online", "system", "electronic", "gadget", "mobile", "laptop", "tablet", "ai", "artificial intelligence", "machine learning"],
     "health": ["health", "medical", "doctor", "hospital", "disease", "treatment", "medicine", "patient", "cure", "symptom", "healthcare", "fitness", "workout", "exercise", "diet", "nutrition", "wellness", "therapy", "drug", "vaccine", "virus", "covid", "pandemic", "mental health"],
@@ -93,11 +93,11 @@ def create_fresh_tokenizer(num_words=20000):
     """Create a new tokenizer if we can't load the saved one"""
     logger.info(f"Creating a fresh tokenizer with num_words={num_words}")
     
-    # Create a basic tokenizer
+    
     new_tokenizer = Tokenizer(num_words=num_words, oov_token="<OOV>")
     
-    # Add some common words to the tokenizer to make it minimally functional
-    # This is a very basic approach - in a real system we'd need real data
+    
+    
     common_words = [
         "the", "be", "to", "of", "and", "a", "in", "that", "have", "I",
         "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
@@ -105,7 +105,7 @@ def create_fresh_tokenizer(num_words=20000):
         "sports", "politics", "business", "lifestyle", "travel"
     ]
     
-    # Fit the tokenizer on some basic words
+    
     new_tokenizer.fit_on_texts([" ".join(common_words)])
     
     logger.info(f"Fresh tokenizer created with {len(new_tokenizer.word_index)} words")
@@ -116,7 +116,7 @@ def load_models():
     global thread_model, tokenizer, using_fresh_model
 
     try:
-        # Try all possible model locations
+        
         possible_model_paths = [
             "/app/models/thread_category_model.h5",
             "/app/thread_category_model.h5",
@@ -131,13 +131,13 @@ def load_models():
             "./models/tokenizer.pickle"
         ]
 
-        # Try to load the model from any location
+        
         model_loaded = False
         for model_path in possible_model_paths:
             try:
                 if os.path.exists(model_path):
                     logger.info(f"Found model at {model_path}, attempting to load")
-                    # Try with different load options
+                    
                     try:
                         thread_model = load_model(model_path, compile=False)
                     except:
@@ -150,16 +150,16 @@ def load_models():
                 logger.info(f"Error loading model from {model_path}: {e}")
                 continue
                 
-        # If we couldn't load the model, create a fresh one
+        
         if not model_loaded:
             logger.info("Could not load model from disk, creating a fresh model")
             thread_model = create_fresh_model()
             using_fresh_model = True
                 
-        # Compile the model
+        
         thread_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-        # Try to load tokenizer from any location
+        
         tokenizer_loaded = False
         for tokenizer_path in possible_tokenizer_paths:
             try:
@@ -174,7 +174,7 @@ def load_models():
                 logger.info(f"Error loading tokenizer from {tokenizer_path}: {e}")
                 continue
                 
-        # If tokenizer couldn't be loaded, create a fresh one
+        
         if not tokenizer_loaded:
             logger.info("Could not load tokenizer from any location, creating a fresh one")
             tokenizer = create_fresh_tokenizer()
@@ -191,23 +191,23 @@ def predict_by_keywords(content):
     logger.info(f"Using keyword-based prediction for: {content}")
     content = content.lower()
     
-    # Count keyword matches for each category
+    
     category_scores = {}
     for category, keywords in category_keywords.items():
         match_count = 0
         for keyword in keywords:
-            # Look for whole word match
+            
             if re.search(r'\b' + re.escape(keyword) + r'\b', content):
                 match_count += 1
         
-        # Calculate score based on match count
-        # Using a score formula that gives high values for matches and small but non-zero values for no matches
+        
+        
         if match_count > 0:
             category_scores[category] = float(match_count) / len(keywords) * 0.8 + 0.1
         else:
-            category_scores[category] = 0.02  # Small default value
+            category_scores[category] = 0.02  
     
-    # Find highest scoring category
+    
     if not category_scores:
         return {"category": "other", "confidence": 0.1}
     
@@ -255,29 +255,29 @@ def predict_category():
 
         content = data['content']
 
-        # Check if models are loaded
+        
         if thread_model is None or tokenizer is None:
             success = load_models()
             if not success:
                 return jsonify({"error": "Failed to load prediction models"}), 500
 
-        # If using a fresh untrained model, use keyword matching instead
+        
         if using_fresh_model:
             result = predict_by_keywords(content)
             return jsonify(result)
 
-        # Otherwise use the trained model
-        # Preprocess the input text
+        
+        
         sequence = tokenizer.texts_to_sequences([content])
         padded = pad_sequences(sequence, maxlen=max_sequence_length, padding='post')
 
-        # Make prediction
+        
         prediction = thread_model.predict(padded)[0]
 
-        # Create dictionary of category confidences
+        
         category_scores = {label_mapping[i]: float(score) for i, score in enumerate(prediction)}
 
-        # Find highest scoring category
+        
         top_category = max(category_scores, key=category_scores.get)
         top_confidence = category_scores[top_category]
 
@@ -293,10 +293,10 @@ def predict_category():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    # Load models at startup
+    
     load_models()
 
-    # Get configuration from environment
+    
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_ENV") == "development"
 

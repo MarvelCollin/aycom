@@ -14,13 +14,28 @@ async function handleApiResponse(response: Response, errorMessage: string = 'Ope
       const errorData = await response.json();
       logger.error('Error data:', errorData);
       
-      // Check if the error contains validation error details
-      let errorDetails = errorData.message || errorData.error || errorMessage;
-      let errorCode = errorData.code || errorData.error_code || 'ERROR';
+      // Check for structured validation errors
+      let validationErrors = errorData.validation_errors || {};
       
-      // Parse validation errors if present
-      let validationErrors = {};
-      if (errorCode === 'VALIDATION_ERROR' && errorDetails.includes('Validation failed:')) {
+      // If we have fields in the error object, use them as validation errors
+      if (errorData.error && errorData.error.fields && Object.keys(errorData.error.fields).length > 0) {
+        validationErrors = { ...validationErrors, ...errorData.error.fields };
+      }
+      
+      // Get error details from the response
+      let errorDetails = errorData.message || 
+                        (errorData.error ? errorData.error.message : null) || 
+                        errorMessage;
+      
+      let errorCode = errorData.code || 
+                     (errorData.error ? errorData.error.code : null) || 
+                     'ERROR';
+      
+      // If we have a string error message that contains validation info but no structured errors
+      if (typeof errorDetails === 'string' && 
+          Object.keys(validationErrors).length === 0 &&
+          (errorDetails.includes('Validation failed:') || errorDetails.includes('Key:'))) {
+        
         // Extract individual validation errors
         const validationMessages = errorDetails
           .replace('Validation failed: ', '')
@@ -30,15 +45,18 @@ async function handleApiResponse(response: Response, errorMessage: string = 'Ope
         
         // Map common validation errors to fields
         validationMessages.forEach(msg => {
-          if (msg.includes('name ')) validationErrors['name'] = msg;
-          else if (msg.includes('username ')) validationErrors['username'] = msg;
-          else if (msg.includes('email ')) validationErrors['email'] = msg;
-          else if (msg.includes('password ') && !msg.includes('confirmation')) validationErrors['password'] = msg;
-          else if (msg.includes('Password and confirmation')) validationErrors['confirmPassword'] = msg;
-          else if (msg.includes('gender ')) validationErrors['gender'] = msg;
-          else if (msg.includes('date of birth') || msg.includes('User must be at least')) validationErrors['dateOfBirth'] = msg;
-          else if (msg.includes('security question')) validationErrors['securityQuestion'] = msg;
-          else if (msg.includes('security answer')) validationErrors['securityAnswer'] = msg;
+          if (msg.toLowerCase().includes('name ')) validationErrors['name'] = msg;
+          else if (msg.toLowerCase().includes('username ')) validationErrors['username'] = msg;
+          else if (msg.toLowerCase().includes('email ')) validationErrors['email'] = msg;
+          else if (msg.toLowerCase().includes('password ') && !msg.toLowerCase().includes('confirmation')) 
+            validationErrors['password'] = msg;
+          else if (msg.toLowerCase().includes('password') && msg.toLowerCase().includes('match')) 
+            validationErrors['confirm_password'] = msg;
+          else if (msg.toLowerCase().includes('gender ')) validationErrors['gender'] = msg;
+          else if (msg.toLowerCase().includes('date of birth') || msg.toLowerCase().includes('13 year')) 
+            validationErrors['date_of_birth'] = msg;
+          else if (msg.toLowerCase().includes('security question')) validationErrors['security_question'] = msg;
+          else if (msg.toLowerCase().includes('security answer')) validationErrors['security_answer'] = msg;
         });
       }
       

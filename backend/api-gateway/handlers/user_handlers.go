@@ -217,26 +217,42 @@ func RegisterUser(c *gin.Context) {
 		return
 	}
 
-	validationErrors := []string{}
+	validationErrors := map[string]string{}
 
-	if len(req.Name) < 4 {
-		validationErrors = append(validationErrors, "Name must be at least 4 characters")
+	// Name validation
+	if req.Name == "" {
+		validationErrors["name"] = "Name field is required"
+	} else if len(req.Name) < 4 {
+		validationErrors["name"] = "Name must be at least 4 characters"
 	} else if len(req.Name) > 50 {
-		validationErrors = append(validationErrors, "Name cannot exceed 50 characters")
+		validationErrors["name"] = "Name cannot exceed 50 characters"
 	} else if !regexp.MustCompile(`^[a-zA-Z\s]+$`).MatchString(req.Name) {
-		validationErrors = append(validationErrors, "Name must not contain symbols or numbers")
+		validationErrors["name"] = "Name must not contain symbols or numbers"
 	}
 
-	if len(req.Username) < 3 {
-		validationErrors = append(validationErrors, "Username must be at least 3 characters")
+	// Username validation
+	if req.Username == "" {
+		validationErrors["username"] = "Username field is required"
+	} else if len(req.Username) < 3 {
+		validationErrors["username"] = "Username must be at least 3 characters"
 	} else if len(req.Username) > 15 {
-		validationErrors = append(validationErrors, "Username cannot exceed 15 characters")
+		validationErrors["username"] = "Username cannot exceed 15 characters"
 	} else if !regexp.MustCompile(`^[a-zA-Z0-9_]+$`).MatchString(req.Username) {
-		validationErrors = append(validationErrors, "Username can only contain letters, numbers, and underscores")
+		validationErrors["username"] = "Username can only contain letters, numbers, and underscores"
 	}
 
-	if len(req.Password) < 8 {
-		validationErrors = append(validationErrors, "Password must be at least 8 characters")
+	// Email validation
+	if req.Email == "" {
+		validationErrors["email"] = "Email field is required"
+	}
+
+	// Password validation
+	passwordErrors := []string{}
+
+	if req.Password == "" {
+		validationErrors["password"] = "Password field is required"
+	} else if len(req.Password) < 8 {
+		passwordErrors = append(passwordErrors, "Password must be at least 8 characters")
 	}
 
 	hasUpper := false
@@ -257,58 +273,79 @@ func RegisterUser(c *gin.Context) {
 	}
 
 	if !hasUpper {
-		validationErrors = append(validationErrors, "Password must contain at least one uppercase letter")
+		passwordErrors = append(passwordErrors, "Password must contain at least one uppercase letter")
 	}
 	if !hasLower {
-		validationErrors = append(validationErrors, "Password must contain at least one lowercase letter")
+		passwordErrors = append(passwordErrors, "Password must contain at least one lowercase letter")
 	}
 	if !hasNumber {
-		validationErrors = append(validationErrors, "Password must contain at least one number")
+		passwordErrors = append(passwordErrors, "Password must contain at least one number")
 	}
 	if !hasSpecial {
-		validationErrors = append(validationErrors, "Password must contain at least one special character")
+		passwordErrors = append(passwordErrors, "Password must contain at least one special character")
 	}
 
-	if req.Password != req.ConfirmPassword {
-		validationErrors = append(validationErrors, "Password and confirmation password do not match")
+	if len(passwordErrors) > 0 {
+		validationErrors["password"] = strings.Join(passwordErrors, "; ")
 	}
 
-	parts := strings.Split(req.DateOfBirth, "-")
-	if len(parts) != 3 {
-		validationErrors = append(validationErrors, "Invalid date of birth format")
+	// Confirm password validation
+	if req.ConfirmPassword == "" {
+		validationErrors["confirm_password"] = "Confirm Password field is required"
+	} else if req.Password != req.ConfirmPassword {
+		validationErrors["confirm_password"] = "Password and confirmation password do not match"
+	}
+
+	// Gender validation
+	if req.Gender == "" {
+		validationErrors["gender"] = "Gender field is required"
+	} else if req.Gender != "male" && req.Gender != "female" {
+		validationErrors["gender"] = "Gender must be either 'male' or 'female'"
+	}
+
+	// Date of birth validation
+	if req.DateOfBirth == "" {
+		validationErrors["date_of_birth"] = "Date of birth field is required"
 	} else {
-		monthIdx, _ := strconv.Atoi(parts[0])
-		day, _ := strconv.Atoi(parts[1])
-		year, _ := strconv.Atoi(parts[2])
-
-		if monthIdx < 0 || monthIdx > 11 || day < 1 || day > 31 || year < 1900 || year > time.Now().Year() {
-			validationErrors = append(validationErrors, "Invalid date of birth value")
+		parts := strings.Split(req.DateOfBirth, "-")
+		if len(parts) != 3 {
+			validationErrors["date_of_birth"] = "Invalid date of birth format"
 		} else {
-			birthDate := time.Date(year, time.Month(monthIdx+1), day, 0, 0, 0, 0, time.UTC)
-			age := time.Now().Year() - birthDate.Year()
+			monthIdx, _ := strconv.Atoi(parts[0])
+			day, _ := strconv.Atoi(parts[1])
+			year, _ := strconv.Atoi(parts[2])
 
-			if time.Now().YearDay() < birthDate.YearDay() {
-				age--
-			}
+			if monthIdx < 0 || monthIdx > 11 || day < 1 || day > 31 || year < 1900 || year > time.Now().Year() {
+				validationErrors["date_of_birth"] = "Invalid date of birth value"
+			} else {
+				birthDate := time.Date(year, time.Month(monthIdx+1), day, 0, 0, 0, 0, time.UTC)
+				age := time.Now().Year() - birthDate.Year()
 
-			if age < 13 {
-				validationErrors = append(validationErrors, "User must be at least 13 years old")
+				if time.Now().YearDay() < birthDate.YearDay() {
+					age--
+				}
+
+				if age < 13 {
+					validationErrors["date_of_birth"] = "User must be at least 13 years old"
+				}
 			}
 		}
 	}
 
+	// Security question validation
 	if req.SecurityQuestion == "" {
-		validationErrors = append(validationErrors, "Security question is required")
+		validationErrors["security_question"] = "Security question field is required"
 	}
+
+	// Security answer validation
 	if req.SecurityAnswer == "" {
-		validationErrors = append(validationErrors, "Security answer is required")
+		validationErrors["security_answer"] = "Security answer field is required"
 	} else if len(req.SecurityAnswer) < 3 {
-		validationErrors = append(validationErrors, "Security answer must be at least 3 characters")
+		validationErrors["security_answer"] = "Security answer must be at least 3 characters"
 	}
 
 	if len(validationErrors) > 0 {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR",
-			"Validation failed: "+strings.Join(validationErrors, "; "))
+		utils.SendValidationErrorResponse(c, validationErrors)
 		return
 	}
 

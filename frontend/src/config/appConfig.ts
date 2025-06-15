@@ -38,7 +38,7 @@ const appConfig = {
 
 // Log the configuration for debugging
 console.log('[Config] Environment:', appConfig.environment);
-console.log('[Config] API Base URL:', appConfig.api.baseUrl);
+console.log('[Config] API URL:', appConfig.api.baseUrl);
 console.log('[Config] WebSocket URL:', appConfig.api.wsUrl);
 console.log('[Config] AI Service URL:', appConfig.api.aiServiceUrl);
 

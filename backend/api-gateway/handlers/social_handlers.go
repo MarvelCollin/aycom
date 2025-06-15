@@ -541,7 +541,7 @@ func GetThreadReplies(c *gin.Context) {
 
 	// Standardize the response format
 	standardizedReplies := make([]map[string]interface{}, 0)
-	
+
 	if resp != nil && resp.Replies != nil && len(resp.Replies) > 0 {
 		for _, reply := range resp.Replies {
 			if reply.Reply != nil {
@@ -567,12 +567,12 @@ func GetThreadReplies(c *gin.Context) {
 					"name":                reply.User.Name,
 					"profile_picture_url": reply.User.ProfilePictureUrl,
 				}
-				
+
 				// Handle parent reply ID if available
 				if reply.Reply.ParentId != "" {
 					standardizedReply["parent_id"] = reply.Reply.ParentId
 				}
-				
+
 				// Handle media if available
 				if reply.Reply.Media != nil && len(reply.Reply.Media) > 0 {
 					mediaList := make([]map[string]interface{}, 0)
@@ -587,12 +587,12 @@ func GetThreadReplies(c *gin.Context) {
 				} else {
 					standardizedReply["media"] = []map[string]interface{}{}
 				}
-				
+
 				standardizedReplies = append(standardizedReplies, standardizedReply)
 			}
 		}
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"replies": standardizedReplies,
 		"total":   len(standardizedReplies),
@@ -826,7 +826,6 @@ func GetThreadsFromFollowing(c *gin.Context) {
 	startIdx := (page - 1) * limit
 	endIdx := startIdx + limit
 	if startIdx >= len(allThreads) {
-
 		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"threads": []gin.H{},
 			"pagination": gin.H{
@@ -844,8 +843,48 @@ func GetThreadsFromFollowing(c *gin.Context) {
 
 	pagedThreads := allThreads[startIdx:endIdx]
 
+	// Convert Thread structs to proper JSON format with lowercase field names
+	formattedThreads := make([]gin.H, len(pagedThreads))
+	for i, thread := range pagedThreads {
+		formattedThreads[i] = gin.H{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"user_id":             thread.UserID,
+			"username":            thread.Username,
+			"name":                thread.DisplayName,
+			"display_name":        thread.DisplayName,
+			"profile_picture_url": thread.ProfilePicture,
+			"created_at":          thread.CreatedAt,
+			"updated_at":          thread.UpdatedAt,
+			"likes_count":         thread.LikeCount,
+			"replies_count":       thread.ReplyCount,
+			"reposts_count":       thread.RepostCount,
+			"bookmark_count":      thread.BookmarkCount,
+			"is_liked":            thread.IsLiked,
+			"is_reposted":         thread.IsReposted,
+			"is_bookmarked":       thread.IsBookmarked,
+			"is_pinned":           thread.IsPinned,
+			"parent_id":           thread.ParentID,
+		}
+
+		// Add media if available
+		if len(thread.Media) > 0 {
+			mediaList := make([]gin.H, len(thread.Media))
+			for j, media := range thread.Media {
+				mediaList[j] = gin.H{
+					"id":   media.ID,
+					"type": media.Type,
+					"url":  media.URL,
+				}
+			}
+			formattedThreads[i]["media"] = mediaList
+		} else {
+			formattedThreads[i]["media"] = []gin.H{}
+		}
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"threads": pagedThreads,
+		"threads": formattedThreads,
 		"pagination": gin.H{
 			"total_count":  len(allThreads),
 			"current_page": page,
@@ -1302,7 +1341,59 @@ func GetRepliesByParentReply(c *gin.Context) {
 
 	c.Header("Cache-Control", "public, max-age=10")
 
-	c.JSON(http.StatusOK, resp)
+	// Standardize the response format
+	standardizedReplies := make([]map[string]interface{}, 0)
+
+	if resp != nil && resp.Replies != nil && len(resp.Replies) > 0 {
+		for _, reply := range resp.Replies {
+			if reply.Reply != nil {
+				standardizedReply := map[string]interface{}{
+					"id":                  reply.Reply.Id,
+					"content":             reply.Reply.Content,
+					"created_at":          reply.Reply.CreatedAt.AsTime(),
+					"updated_at":          reply.Reply.UpdatedAt.AsTime(),
+					"thread_id":           reply.Reply.ThreadId,
+					"parent_id":           parentReplyID, // Set parent_id to the parent reply ID
+					"likes_count":         reply.LikesCount,
+					"replies_count":       reply.RepliesCount,
+					"reposts_count":       0, // Default value if not available
+					"bookmark_count":      reply.BookmarkCount,
+					"views_count":         0, // Default value if not available
+					"is_liked":            reply.LikedByUser,
+					"is_bookmarked":       reply.BookmarkedByUser,
+					"is_reposted":         false, // Default value if not available
+					"is_pinned":           false, // Default value if not available
+					"is_verified":         false, // Default value if not available
+					"user_id":             reply.Reply.UserId,
+					"username":            reply.User.Username,
+					"name":                reply.User.Name,
+					"profile_picture_url": reply.User.ProfilePictureUrl,
+				}
+
+				// Handle media if available
+				if reply.Reply.Media != nil && len(reply.Reply.Media) > 0 {
+					mediaList := make([]map[string]interface{}, 0)
+					for _, m := range reply.Reply.Media {
+						mediaList = append(mediaList, map[string]interface{}{
+							"id":   m.Id,
+							"url":  m.Url,
+							"type": m.Type,
+						})
+					}
+					standardizedReply["media"] = mediaList
+				} else {
+					standardizedReply["media"] = []map[string]interface{}{}
+				}
+
+				standardizedReplies = append(standardizedReplies, standardizedReply)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"replies": standardizedReplies,
+		"total":   len(standardizedReplies),
+	})
 }
 
 func CheckFollowStatus(c *gin.Context) {

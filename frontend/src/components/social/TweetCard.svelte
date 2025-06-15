@@ -224,11 +224,11 @@
 
   function processTweetContent(rawTweet: any): ExtendedTweet {
     try {
-      if (!rawTweet) {
+    if (!rawTweet) {
         console.error('Null or undefined tweet data passed to TweetCard');
-        return createPlaceholderTweet();
-      }
-      
+      return createPlaceholderTweet();
+    }
+    
       // Log the raw tweet data for debugging
       console.debug('Processing tweet data:', JSON.stringify(rawTweet).substring(0, 200));
       

@@ -893,12 +893,41 @@ export async function getFollowingThreads(page = 1, limit = 20) {
   try {
     const url = `${API_BASE_URL}/threads/following?page=${page}&limit=${limit}`;
 
-    return await makeApiRequest(
+    const response = await makeApiRequest(
       url, 
       'GET', 
       null, 
       'Failed to fetch following threads'
     );
+    
+    // Handle the response format from the backend
+    if (response && response.data) {
+      // The backend wraps the response in a data field
+      return {
+        success: true,
+        threads: response.data.threads || [],
+        total_count: response.data.pagination?.total_count || 0,
+        pagination: response.data.pagination || { total_count: 0, current_page: page, per_page: limit }
+      };
+    }
+    
+    // Direct format (threads directly in response)
+    if (response && response.threads) {
+      return {
+        success: true,
+        threads: response.threads,
+        total_count: response.total || response.pagination?.total_count || response.threads.length,
+        pagination: response.pagination || { total_count: response.threads.length, current_page: page, per_page: limit }
+      };
+    }
+    
+    // Empty response fallback
+    return {
+      success: true,
+      threads: [],
+      total_count: 0,
+      pagination: { total_count: 0, current_page: page, per_page: limit }
+    };
   } catch (error) {
     logger.error('Get following threads failed:', error);
     throw error;
@@ -1034,46 +1063,57 @@ export async function getThreadsByHashtag(
 export async function getReplyReplies(replyId: string, page = 1, limit = 20): Promise<{ replies: any[], total_count: number, cached?: boolean, error?: string }> {
   try {
     console.log(`Fetching replies for reply ID: ${replyId}`);
-    const token = getAuthToken();
-
+    
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString()
     });
 
-    const response = await fetch(`${API_BASE_URL}/replies/${replyId}/replies?${params.toString()}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": token ? `Bearer ${token}` : ''
-      },
-      credentials: "include"
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error(`Error fetching replies for reply ${replyId}:`, errorData);
-      return { replies: [], total_count: 0, error: errorData.message || 'Failed to fetch replies' };
-    }
-
-    const data = await response.json();
+    const data = await makeApiRequest(
+      `${API_BASE_URL}/replies/${replyId}/replies?${params.toString()}`,
+      'GET',
+      null,
+      'Failed to fetch reply replies'
+    );
     
-    // Process replies to ensure they have replies_count set
-    if (data.replies && Array.isArray(data.replies)) {
+    // Process replies to ensure they have consistent field structure
+    if (data && data.replies && Array.isArray(data.replies)) {
       data.replies = data.replies.map(reply => {
         // Make sure replies_count is set to 0 if not present
         if (reply.replies_count === undefined && reply.repliesCount === undefined) {
           reply.replies_count = 0;
         }
-        return reply;
+        
+        // Ensure other required fields exist
+        return {
+          id: reply.id,
+          content: reply.content || '',
+          created_at: reply.created_at,
+          updated_at: reply.updated_at,
+          thread_id: reply.thread_id,
+          parent_id: reply.parent_id || null,
+          user_id: reply.user_id,
+          username: reply.username || '',
+          name: reply.name || '',
+          profile_picture_url: reply.profile_picture_url || '',
+          likes_count: reply.likes_count || 0,
+          replies_count: reply.replies_count || reply.repliesCount || 0,
+          reposts_count: reply.reposts_count || 0,
+          bookmark_count: reply.bookmark_count || 0,
+          is_liked: Boolean(reply.is_liked),
+          is_bookmarked: Boolean(reply.is_bookmarked),
+          is_reposted: Boolean(reply.is_reposted),
+          is_pinned: Boolean(reply.is_pinned),
+          media: Array.isArray(reply.media) ? reply.media : []
+        };
       });
     }
     
     console.log(`Successfully fetched ${data.replies?.length || 0} replies for reply ${replyId}`);
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error fetching replies for reply ${replyId}:`, error);
-    return { replies: [], total_count: 0, error: 'Network error fetching replies' };
+    return { replies: [], total_count: 0, error: error.message || 'Network error fetching replies' };
   }
 }
 
