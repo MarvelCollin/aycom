@@ -270,6 +270,34 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		return nil, fmt.Errorf("community service client not initialized")
 	}
 
+	// Validate inputs
+	if len(participantIDs) == 0 {
+		return nil, fmt.Errorf("at least one participant is required")
+	}
+
+	// For group chats, name is required
+	if isGroup && (name == "" || len(name) == 0) {
+		return nil, fmt.Errorf("name is required for group chats")
+	}
+
+	// Make sure the creator is included in participants
+	creatorIncluded := false
+	for _, id := range participantIDs {
+		if id == createdBy {
+			creatorIncluded = true
+			break
+		}
+	}
+
+	// If creator is not in the participants list, add them
+	if !creatorIncluded {
+		participantIDs = append(participantIDs, createdBy)
+	}
+
+	// Log the request details
+	log.Printf("Creating chat: isGroup=%v, name=%s, participants=%v, createdBy=%s",
+		isGroup, name, participantIDs, createdBy)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -280,8 +308,11 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		CreatedBy:      createdBy,
 	})
 	if err != nil {
+		log.Printf("Error creating chat: %v", err)
 		return nil, err
 	}
+
+	log.Printf("Chat created successfully: %s", resp.Chat.Id)
 
 	chat := &Chat{
 		ID:           resp.Chat.Id,
@@ -290,7 +321,7 @@ func (c *communityCommunicationClient) CreateChat(isGroup bool, name string, par
 		CreatedBy:    resp.Chat.CreatedBy,
 		CreatedAt:    resp.Chat.CreatedAt.AsTime(),
 		UpdatedAt:    resp.Chat.UpdatedAt.AsTime(),
-		Participants: participantIDs, // Include the participants that were provided
+		Participants: participantIDs,
 	}
 
 	return chat, nil

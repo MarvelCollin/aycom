@@ -1,6 +1,6 @@
 import { createLoggerWithPrefix } from '../utils/logger';
 import appConfig from '../config/appConfig';
-import { getAuthToken } from '../utils/auth';
+import { getAuthToken, getUserId } from '../utils/auth';
 
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('ChatAPI');
@@ -96,7 +96,8 @@ function handleIncomingTextMessage(message: any) {
     try {
       messageHandler({
         ...processedMessage,
-        temp_id: tempId
+        temp_id: tempId,
+        type: 'text'
       });
     } catch (handlerError) {
       logger.error('Error in message handler:', handlerError);
@@ -106,25 +107,66 @@ function handleIncomingTextMessage(message: any) {
 
 export async function createChat(data: Record<string, any>) {
   try {
+    if (!data || (!data.participants && !data.name)) {
+      logger.error('Cannot create chat: Missing required data');
+      throw new Error('Missing required data: participants or name is required to create a chat');
+    }
+    
+    // Validate participant IDs if present
+    if (data.participants && Array.isArray(data.participants)) {
+      for (const participantId of data.participants) {
+        if (typeof participantId === 'string' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId)) {
+          logger.error(`Cannot create chat: Invalid UUID format for participant ID: ${participantId}`);
+          throw new Error(`Invalid participant ID format: ${participantId} must be a valid UUID`);
+        }
+      }
+    }
+
     const token = getAuthToken();
     logger.debug('Creating chat with data', { data, apiUrl: `${API_BASE_URL}/chats` });
 
     // Check for individual chat type and see if chat already exists
     if (data.type === 'individual' && data.participants && data.participants.length === 1) {
       const participantId = data.participants[0];
+      const currentUserId = getUserId();
 
       try {
+        // Get existing chats
         const existingChats = await getChatHistoryList();
-        logger.debug('Checking existing chats for participant', { participantId, chatsCount: existingChats.chats?.length || 0 });
+        logger.debug('Checking existing chats for participant', { 
+          participantId, 
+          currentUserId,
+          chatsCount: existingChats.chats?.length || 0 
+        });
 
+        // Look for an existing individual chat with exactly these two participants
         const existingChat = existingChats.chats?.find(chat => {
-          if (chat.is_group_chat || !chat.participants || chat.participants.length !== 2) {
+          // Skip group chats
+          if (chat.is_group_chat === true) {
             return false;
           }
 
-          return chat.participants.some(p => 
+          // Check if participants array exists
+          if (!chat.participants || !Array.isArray(chat.participants)) {
+            return false;
+          }
+
+          // For individual chats, we should have exactly 2 participants
+          if (chat.participants.length !== 2) {
+            return false;
+          }
+
+          // Check if the participants are the current user and the target participant
+          const hasCurrentUser = chat.participants.some(p => 
+            (p.id === currentUserId || p.user_id === currentUserId)
+          );
+          
+          const hasTargetUser = chat.participants.some(p => 
             (p.id === participantId || p.user_id === participantId)
           );
+          
+          // Return true if both users are in this chat
+          return hasCurrentUser && hasTargetUser;
         });
 
         if (existingChat) {
@@ -139,7 +181,7 @@ export async function createChat(data: Record<string, any>) {
       }
     }
 
-    // Send the request
+    // Send the request to create a new chat
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'POST',
       headers: {
@@ -482,89 +524,172 @@ export async function removeChatParticipant(chatId: string, userId: string) {
 
 export async function sendMessage(chatId: string, data: Record<string, any>) {
   try {
-    // TEMPORARY: Return mock data for testing UI
-    logger.debug(`TESTING MODE: Returning mock send message response for chat ${chatId}`, { content: data.content });
+    // Validate chat ID first
+    if (!chatId || chatId.trim() === '') {
+      logger.error('Cannot send message: Invalid or missing chat ID');
+      throw new Error('Invalid chat ID: A valid chat ID is required to send messages');
+    }
     
-    const mockMessage = {
-      message_id: `msg-${Date.now()}`,
-      message: {
-        id: `msg-${Date.now()}`,
-        chat_id: chatId,
-        sender_id: "test-user-123",
-        content: data.content,
-        timestamp: Date.now() / 1000,
-        is_read: false,
-        is_edited: false,
-        is_deleted: false,
-      }
-    };
-    
-    return mockMessage;
+    // Validate that the chat ID is a valid UUID
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
+      logger.error(`Cannot send message: Invalid UUID format for chat ID: ${chatId}`);
+      throw new Error('Invalid chat ID format: Must be a valid UUID');
+    }
 
+    // Validate user ID before sending
+    const currentUserId = getUserId();
+    if (!currentUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId)) {
+      logger.error(`Cannot send message: Invalid or missing user ID: ${currentUserId}`);
+      throw new Error('Invalid user ID: Please try logging in again');
+    }
+
+    // Send the message to the API
     const token = getAuthToken();
     logger.debug(`Sending message to chat ${chatId}`, { content: data.content });
 
-    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      body: JSON.stringify(data),
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
-        try {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to send message');
-        } catch (parseError) {
-          throw new Error(`Failed to send message: ${response.status} ${response.statusText}`);
-        }
-      } else {
-        throw new Error(`Failed to send message: ${response.status} ${response.statusText}`);
-      }
-    }
-
-    const responseText = await response.text();
-    if (!responseText || responseText.trim() === '') {
-      logger.warn(`Empty response for sending message to chat ${chatId}`);
-      return { 
-        message: { 
-          id: data.message_id || 'temp-' + Date.now(),
-          chat_id: chatId,
-          original_id: data.message_id,
-          timestamp: Date.now() / 1000
-        } 
-      };
-    }
+    // Make sure we're sending the right format
+    const messageData = {
+      content: data.content,
+      // Include any attachments if present
+      ...(data.attachments && data.attachments.length > 0 ? { attachments: data.attachments } : {})
+    };
 
     try {
-      const responseData = JSON.parse(responseText);
-      logger.debug(`Message sent successfully to chat ${chatId}`, { 
-        messageId: responseData.message?.id || responseData.message?.message_id,
-        responseData
+      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(messageData),
+        credentials: 'include'
       });
-      return responseData;
-    } catch (parseError) {
-      logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
-      return { 
-        success: true,
-        message: { 
-          id: data.message_id || 'temp-' + Date.now(),
-          chat_id: chatId,
-          content: data.content,
-          timestamp: Date.now() / 1000,
-          original_id: data.message_id
-        } 
-      };
+
+      if (!response.ok) {
+        let errorMessage = `Server error when sending message: ${response.status} ${response.statusText}`;
+        logger.warn(errorMessage);
+        
+        // Try to get more detailed error information from the response
+        try {
+          const errorResponse = await response.json();
+          if (errorResponse && errorResponse.error) {
+            // Handle structured error responses
+            if (typeof errorResponse.error === 'string') {
+              errorMessage = errorResponse.error;
+            } else if (errorResponse.error.message) {
+              errorMessage = errorResponse.error.message;
+            }
+          } else if (errorResponse && errorResponse.message) {
+            errorMessage = errorResponse.message;
+          }
+          
+          logger.error(`API error details:`, errorResponse);
+        } catch (parseError) {
+          // If we can't parse the error response, just use the status code
+          logger.error(`Could not parse error response: ${parseError}`);
+        }
+
+        // Handle specific error codes
+        if (response.status === 404) {
+          throw new Error('Chat not found. It may have been deleted or you may not have access.');
+        } else if (response.status === 403) {
+          throw new Error('You do not have permission to send messages in this chat.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication required. Please log in again.');
+        } else if (response.status === 400) {
+          throw new Error(`Invalid message: ${errorMessage}`);
+        } else if (response.status === 500) {
+          // For server errors related to invalid user ID, suggest logging in again
+          if (errorMessage.includes('user ID') || errorMessage.includes('UUID')) {
+            logger.error(`User ID validation error detected: ${errorMessage}`);
+            throw new Error('Session error: Please log out and log in again.');
+          }
+          
+          // Use a fallback for other server errors
+          logger.warn(`Using local fallback due to server error: ${errorMessage}`);
+          return createFallbackMessage(chatId, data);
+        } else {
+          throw new Error(errorMessage);
+        }
+      }
+
+      // Parse the response
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        logger.warn(`Empty response for sending message to chat ${chatId}`);
+        return createFallbackMessage(chatId, data);
+      }
+
+      try {
+        const responseData = JSON.parse(responseText);
+        logger.debug(`Message sent successfully to chat ${chatId}`, { 
+          messageId: responseData.message?.id || responseData.message?.message_id,
+          responseData
+        });
+        return responseData;
+      } catch (parseError) {
+        logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
+        return createFallbackMessage(chatId, data);
+      }
+    } catch (apiError) {
+      // Handle network errors or other exceptions
+      if (apiError instanceof Error) {
+        logger.error(`API error when sending message to ${chatId}:`, apiError);
+        throw apiError;
+      } else {
+        logger.error(`Unknown API error when sending message to ${chatId}:`, apiError);
+        throw new Error('Failed to send message due to a network error');
+      }
     }
   } catch (error) {
     logger.error(`Send message to chat ${chatId} failed:`, error);
     throw error;
   }
+}
+
+// Helper function to create a fallback message when the API fails
+function createFallbackMessage(chatId: string, data: Record<string, any>) {
+  const currentUserId = getUserId();
+  const messageTimestamp = Date.now();
+  const tempMessageId = `temp-${messageTimestamp}`;
+  
+  // Log the user ID for debugging
+  logger.debug(`Creating fallback message with user ID: ${currentUserId}`);
+  
+  // Generate a proper UUID for sender_id if needed
+  let senderId = "";
+  if (currentUserId) {
+    // Check if user ID is already a valid UUID
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId);
+    
+    if (isValidUUID) {
+      senderId = currentUserId;
+    } else {
+      // If not a valid UUID, log it and use a temporary formatted value
+      logger.warn(`Invalid UUID format detected for user ID: ${currentUserId}, using temp ID`);
+      // We'll use a placeholder formatted as 'local-{timestamp}' for client-side only
+      senderId = `local-${messageTimestamp}`;
+    }
+  } else {
+    // If there's no user ID at all, use a temporary ID
+    logger.warn("No user ID available, using temp ID");
+    senderId = `local-${messageTimestamp}`;
+  }
+  
+  return {
+    message_id: tempMessageId,
+    message: {
+      id: tempMessageId,
+      chat_id: chatId,
+      sender_id: senderId,
+      content: data.content,
+      timestamp: messageTimestamp / 1000,
+      is_read: false,
+      is_edited: false,
+      is_deleted: false,
+      is_local: true, // Mark this as a local message that hasn't been saved to the server
+    }
+  };
 }
 
 export async function listMessages(chatId: string) {

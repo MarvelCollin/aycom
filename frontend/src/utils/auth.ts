@@ -68,8 +68,33 @@ export function getUserId(): string | null {
           logger.warn("Token exists but is expired when retrieving user ID");
           return null;
         }
-        logger.debug(`Retrieved user ID from auth: ${auth.user_id.substring(0, 8)}...`);
-        return auth.user_id;
+        
+        // Extract user ID from auth data
+        const userId = auth.user_id;
+        
+        // Verify that the user ID is in a valid UUID format
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+        
+        if (isValidUUID) {
+          logger.debug(`Retrieved valid UUID user ID from auth: ${userId.substring(0, 8)}...`);
+          return userId;
+        } else if (userId.length === 36 && userId.replace(/-/g, '').length === 32) {
+          // UUID has correct length but might have invalid format, try to normalize it
+          let normalized = userId.toLowerCase();
+          // Replace any non-hex characters in the UUID with valid hex
+          normalized = normalized.replace(/[^0-9a-f-]/g, '0');
+          // Ensure hyphens are in the correct positions
+          if (normalized.charAt(8) !== '-') normalized = normalized.substring(0, 8) + '-' + normalized.substring(9);
+          if (normalized.charAt(13) !== '-') normalized = normalized.substring(0, 13) + '-' + normalized.substring(14);
+          if (normalized.charAt(18) !== '-') normalized = normalized.substring(0, 18) + '-' + normalized.substring(19);
+          if (normalized.charAt(23) !== '-') normalized = normalized.substring(0, 23) + '-' + normalized.substring(24);
+          
+          logger.warn(`Fixed invalid UUID format for user ID: ${userId} → ${normalized}`);
+          return normalized;
+        } else {
+          logger.warn(`Retrieved user ID is not in valid UUID format: ${userId}`);
+          return null;
+        }
       }
       logger.warn("Auth data exists but missing user_id or access_token");
     } else {

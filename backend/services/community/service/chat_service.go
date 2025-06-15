@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"aycom/backend/services/community/model"
+	"crypto/md5"
 )
 
 type Message struct {
@@ -340,13 +341,64 @@ func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error 
 }
 
 func (s *chatService) SendMessage(chatID, userID, content string) (string, error) {
+	// Validate input parameters
+	if chatID == "" {
+		return "", fmt.Errorf("chat ID cannot be empty")
+	}
+	if userID == "" {
+		return "", fmt.Errorf("user ID cannot be empty")
+	}
+	if content == "" {
+		return "", fmt.Errorf("message content cannot be empty")
+	}
+
+	// Log the operation
+	log.Printf("Sending message to chat %s from user %s", chatID, userID)
+
+	// Validate UUID format for chat ID
+	_, err := uuid.Parse(chatID)
+	if err != nil {
+		log.Printf("Invalid chat ID format: %v", err)
+		return "", fmt.Errorf("invalid chat ID format: %v", err)
+	}
+
+	// Validate UUID format for user ID
+	var parsedUserID uuid.UUID
+	parsedUserID, err = uuid.Parse(userID)
+	if err != nil {
+		// Log the issue
+		log.Printf("Invalid user ID format: %v. Raw userID: %s (length: %d)", err, userID, len(userID))
+
+		// Try to create a UUID from the string if it's too short
+		if len(userID) < 36 {
+			// Generate a deterministic UUID from the user ID string
+			// This will ensure the same input always produces the same UUID
+			h := md5.New()
+			h.Write([]byte(userID))
+			sum := h.Sum(nil)
+			parsedUserID, err = uuid.FromBytes(sum[:16])
+			if err != nil {
+				// If we still can't create a valid UUID, return error
+				return "", fmt.Errorf("invalid user ID format and could not convert: %v", err)
+			}
+
+			log.Printf("Created UUID from user ID string: %s", parsedUserID.String())
+			userID = parsedUserID.String()
+		} else {
+			// If it's not a length issue, return the error
+			return "", fmt.Errorf("invalid user ID format: %v", err)
+		}
+	}
+
 	// Check if the user is a participant
 	isParticipant, err := s.participantRepo.IsUserInChat(chatID, userID)
 	if err != nil {
+		log.Printf("Error checking if user %s is in chat %s: %v", userID, chatID, err)
 		return "", fmt.Errorf("failed to check if user is in chat: %v", err)
 	}
 
 	if !isParticipant {
+		log.Printf("User %s is not a participant in chat %s", userID, chatID)
 		return "", fmt.Errorf("user is not a participant in this chat")
 	}
 
@@ -363,10 +415,13 @@ func (s *chatService) SendMessage(chatID, userID, content string) (string, error
 		IsDeleted: false,
 	}
 
+	// Save the message with error handling
 	if err := s.messageRepo.SaveMessage(message); err != nil {
+		log.Printf("Failed to save message: %v", err)
 		return "", fmt.Errorf("failed to save message: %v", err)
 	}
 
+	log.Printf("Message sent successfully: ID=%s, ChatID=%s, SenderID=%s", messageID, chatID, userID)
 	return messageID, nil
 }
 

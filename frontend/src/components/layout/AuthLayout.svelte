@@ -57,7 +57,7 @@
     <div class="auth-left-bg"></div>
   </div>
   
-  <div class="auth-right">
+  <div class="auth-right aycom-auth-scroll-container">
     <div class="auth-form">
       <div class="auth-header">
         {#if showBackButton}
@@ -88,7 +88,9 @@
         {/if}
       </div>
       
-      <slot />
+      <div class="auth-scrollable-content">
+        <slot />
+      </div>
     </div>
   </div>
 </div>

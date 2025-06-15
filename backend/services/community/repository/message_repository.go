@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 
 	"aycom/backend/services/community/model"
 )
-
 
 type MessageDBModel struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;column:message_id"`
@@ -23,44 +23,82 @@ type MessageDBModel struct {
 	DeletedAt *time.Time `gorm:"index"`
 }
 
-
 func (MessageDBModel) TableName() string {
 	return "messages"
 }
-
 
 type GormMessageRepository struct {
 	db *gorm.DB
 }
 
-
 func NewMessageRepository(db *gorm.DB) model.MessageRepository {
 	return &GormMessageRepository{db: db}
 }
-
 
 func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 	log.Printf("Saving message to database: ID=%s, ChatID=%s, SenderID=%s",
 		message.ID, message.ChatID, message.SenderID)
 
+	// Validate inputs
+	if message.ID == "" {
+		log.Printf("Error: Message ID is empty")
+		return fmt.Errorf("message ID cannot be empty")
+	}
+	if message.ChatID == "" {
+		log.Printf("Error: Chat ID is empty")
+		return fmt.Errorf("chat ID cannot be empty")
+	}
+	if message.SenderID == "" {
+		log.Printf("Error: Sender ID is empty")
+		return fmt.Errorf("sender ID cannot be empty")
+	}
+
+	// Parse UUIDs with error handling
 	msgID, err := uuid.Parse(message.ID)
 	if err != nil {
 		log.Printf("Error parsing message ID: %v", err)
-		return err
+		return fmt.Errorf("invalid message ID format: %v", err)
 	}
 
 	chatID, err := uuid.Parse(message.ChatID)
 	if err != nil {
 		log.Printf("Error parsing chat ID: %v", err)
-		return err
+		return fmt.Errorf("invalid chat ID format: %v", err)
 	}
 
 	senderID, err := uuid.Parse(message.SenderID)
 	if err != nil {
 		log.Printf("Error parsing sender ID: %v", err)
-		return err
+		return fmt.Errorf("invalid sender ID format: %v", err)
 	}
 
+	// Verify chat exists
+	var chatCount int64
+	err = r.db.Table("chats").Where("chat_id = ?", chatID).Count(&chatCount).Error
+	if err != nil {
+		log.Printf("Error checking if chat exists: %v", err)
+		return fmt.Errorf("failed to verify chat: %v", err)
+	}
+	if chatCount == 0 {
+		log.Printf("Error: Chat with ID %s does not exist", message.ChatID)
+		return fmt.Errorf("chat with ID %s does not exist", message.ChatID)
+	}
+
+	// Verify sender is a participant
+	var participantCount int64
+	err = r.db.Table("chat_participants").
+		Where("chat_id = ? AND user_id = ?", chatID, senderID).
+		Count(&participantCount).Error
+	if err != nil {
+		log.Printf("Error checking if sender is a participant: %v", err)
+		return fmt.Errorf("failed to verify sender participation: %v", err)
+	}
+	if participantCount == 0 {
+		log.Printf("Error: User %s is not a participant in chat %s", message.SenderID, message.ChatID)
+		return fmt.Errorf("user %s is not a participant in chat %s", message.SenderID, message.ChatID)
+	}
+
+	// Create the message
 	dbMessage := &MessageDBModel{
 		ID:        msgID,
 		ChatID:    chatID,
@@ -72,16 +110,37 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 		IsDeleted: message.IsDeleted,
 	}
 
-	err = r.db.Create(dbMessage).Error
+	// Use a transaction to ensure data integrity
+	tx := r.db.Begin()
+	if tx.Error != nil {
+		log.Printf("Error starting transaction: %v", tx.Error)
+		return fmt.Errorf("failed to start transaction: %v", tx.Error)
+	}
+
+	err = tx.Create(dbMessage).Error
 	if err != nil {
+		tx.Rollback()
 		log.Printf("Error saving message to database: %v", err)
-		return err
+		return fmt.Errorf("failed to save message: %v", err)
+	}
+
+	// Update chat's updated_at timestamp
+	err = tx.Table("chats").Where("chat_id = ?", chatID).
+		Update("updated_at", time.Now()).Error
+	if err != nil {
+		tx.Rollback()
+		log.Printf("Error updating chat timestamp: %v", err)
+		return fmt.Errorf("failed to update chat timestamp: %v", err)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return fmt.Errorf("failed to commit transaction: %v", err)
 	}
 
 	log.Printf("Message saved successfully to database with ID: %s", message.ID)
 	return nil
 }
-
 
 func (r *GormMessageRepository) FindMessageByID(messageID string) (*model.MessageDTO, error) {
 	msgID, err := uuid.Parse(messageID)
@@ -107,7 +166,6 @@ func (r *GormMessageRepository) FindMessageByID(messageID string) (*model.Messag
 	}, nil
 }
 
-
 func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offset int) ([]*model.MessageDTO, error) {
 	log.Printf("Finding messages for chat ID: %s (limit: %d, offset: %d)", chatID, limit, offset)
 
@@ -120,10 +178,8 @@ func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offse
 	var dbMessages []MessageDBModel
 	query := r.db.Where("chat_id = ?", chatUUID)
 
-	
 	query = query.Order("sent_at DESC")
 
-	
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -131,7 +187,6 @@ func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offse
 		query = query.Offset(offset)
 	}
 
-	
 	err = query.Find(&dbMessages).Error
 	if err != nil {
 		log.Printf("Database error retrieving messages: %v", err)
@@ -157,7 +212,6 @@ func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offse
 	return messages, nil
 }
 
-
 func (r *GormMessageRepository) MarkMessageAsRead(messageID, userID string) error {
 	msgID, err := uuid.Parse(messageID)
 	if err != nil {
@@ -170,7 +224,6 @@ func (r *GormMessageRepository) MarkMessageAsRead(messageID, userID string) erro
 		Error
 }
 
-
 func (r *GormMessageRepository) DeleteMessage(messageID string) error {
 	msgID, err := uuid.Parse(messageID)
 	if err != nil {
@@ -179,7 +232,6 @@ func (r *GormMessageRepository) DeleteMessage(messageID string) error {
 
 	return r.db.Delete(&MessageDBModel{}, "message_id = ?", msgID).Error
 }
-
 
 func (r *GormMessageRepository) UnsendMessage(messageID string) error {
 	msgID, err := uuid.Parse(messageID)
@@ -192,7 +244,6 @@ func (r *GormMessageRepository) UnsendMessage(messageID string) error {
 		Update("is_deleted", true).
 		Error
 }
-
 
 func (r *GormMessageRepository) SearchMessages(chatID, query string, limit, offset int) ([]*model.MessageDTO, error) {
 	chatUUID, err := uuid.Parse(chatID)
@@ -227,14 +278,12 @@ func (r *GormMessageRepository) SearchMessages(chatID, query string, limit, offs
 	return messages, nil
 }
 
-
 func (r *GormMessageRepository) UpdateMessage(message *model.MessageDTO) error {
 	msgID, err := uuid.Parse(message.ID)
 	if err != nil {
 		return err
 	}
 
-	
 	updateData := map[string]interface{}{
 		"content":    message.Content,
 		"is_edited":  message.IsEdited,
@@ -242,7 +291,6 @@ func (r *GormMessageRepository) UpdateMessage(message *model.MessageDTO) error {
 		"is_deleted": message.IsDeleted,
 	}
 
-	
 	return r.db.Model(&MessageDBModel{}).
 		Where("message_id = ?", msgID).
 		Updates(updateData).

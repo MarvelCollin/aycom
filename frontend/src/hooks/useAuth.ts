@@ -88,11 +88,11 @@ const createAuthStore = () => {
   
   const persistAuth = (authState: AuthState) => {
     try {
-      if (authState.access_token && authState.userId) {
+      if (authState.access_token && authState.user_id) {
         setAuthData({
           accessToken: authState.access_token,
           refreshToken: authState.refresh_token || undefined,
-          userId: authState.userId,
+          userId: authState.user_id,
           expiresAt: authState.expires_at || undefined,
           is_admin: authState.is_admin
         });
@@ -230,10 +230,10 @@ export function useAuth() {
         }
       }
       
-      const enrichedUserData: IUserRegistration = {
+      const enrichedUserData = {
         ...userData,
-        profile_picture_url: profilePictureUrl || '',
-        banner_url: bannerUrl || ''
+        ...(profilePictureUrl ? { profile_picture_url: profilePictureUrl } : {}),
+        ...(bannerUrl ? { banner_url: bannerUrl } : {})
       };
       
       console.log('Registering user with data:', JSON.stringify(enrichedUserData, null, 2));
@@ -306,12 +306,12 @@ export function useAuth() {
   // Alias for getCurrentUser for clarity and consistency with API
   const getProfile = getCurrentUser;
   
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, recaptchaToken: string | null = null) => {
     try {
       // Clear any existing auth data before login to prevent token issues
       clearAuthData();
       
-      const data = await authApi.login(email, password);
+      const data = await authApi.login(email, password, recaptchaToken);
       
       logger.info(`Login response received with token: ${data.access_token ? 'yes' : 'no'}`);
       
@@ -333,7 +333,11 @@ export function useAuth() {
         const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
         let isAdmin = false;
         
-        if (data.is_admin === true || data.user?.is_admin === true || data.user_data?.is_admin === true) {
+        // Safely check for is_admin property in various locations
+        const userData = data.user || {};
+        const userDataObj = (data as any).user_data || {};
+        
+        if ((data as any).is_admin === true || userData.is_admin === true || userDataObj.is_admin === true) {
           isAdmin = true;
         }
         
@@ -344,8 +348,8 @@ export function useAuth() {
           refresh_token: data.refresh_token || null,
           expires_at: expiresAt,
           is_admin: isAdmin,
-          username: data.user?.username,
-          display_name: data.user?.name || data.user?.display_name
+          username: userData.username,
+          display_name: userData.name || userData.display_name
         };
         
         logger.info(`Setting auth state with user_id=${data.user_id}, expires_at=${new Date(expiresAt).toISOString()}`);
@@ -373,12 +377,12 @@ export function useAuth() {
         
         return {
           success: true,
-          message: 'Login successful!'
+          message: (data as any).message || 'Login successful!'
         };
       } else {
         return {
           success: false,
-          message: data.message || 'Login failed. Please check your credentials.'
+          message: (data as any).message || 'Login failed. Please check your credentials.'
         };
       }
     } catch (error) {
@@ -393,67 +397,107 @@ export function useAuth() {
         throw new Error('No Google credential provided');
       }
       
+      // Log attempt to authenticate with Google
+      console.log('Attempting to authenticate with Google token');
       const data = await authApi.googleLogin(response.credential);
+      console.log('Google login API response:', { 
+        success: data.success, 
+        has_token: !!data.access_token,
+        user_id: data.user_id,
+        is_new_user: (data as any).is_new_user
+      });
       
       if (data.success && data.access_token) {
+        // Calculate token expiration time
         const expiresAt = data.expires_in 
           ? Date.now() + (data.expires_in * 1000) 
           : Date.now() + (3600 * 1000);
         
+        // Get user data from the most appropriate source
+        const userData = data.user || (data as any).user_data || {};
+        
+        // Construct and set authentication state
         const authState: AuthState = {
           is_authenticated: true,
           user_id: data.user_id,
           access_token: data.access_token,
-          refresh_token: data.refresh_token,
+          refresh_token: data.refresh_token || null,
           expires_at: expiresAt,
-          is_admin: data.user_data?.is_admin || false,
-          username: data.user_data?.username,
-          display_name: data.user_data?.name || data.user_data?.display_name
+          is_admin: userData.is_admin || false,
+          username: userData.username,
+          display_name: userData.name || userData.display_name
         };
         
+        console.log('Setting auth state with token and user info');
         authStore.set(authState);
         
         // Check if profile information is complete
         let requiredFields = ['gender', 'date_of_birth', 'security_question', 'security_answer'];
         let missingFields: string[] = [];
         
-        if (data.is_new_user === true || data.requires_profile_completion === true) {
-          // For new users or users with incomplete profiles, determine missing fields
+        // Always check for missing profile fields, regardless of what the server says
+        // This ensures we catch any incomplete fields even if the server doesn't flag it
           try {
+          const logger = createLoggerWithPrefix('ProfileCheck');
+          logger.info('Fetching profile to check for missing information');
             const userProfile = await getProfile();
+          
             if (userProfile?.user) {
-              const userData = userProfile.user;
+            const profileData = userProfile.user;
               
               // Check for missing required fields
-              if (!userData.gender || userData.gender === 'unknown') missingFields.push('gender');
-              if (!userData.date_of_birth || userData.date_of_birth === '') missingFields.push('date_of_birth');
-              if (!userData.security_question) missingFields.push('security_question');
-              if (!userData.security_answer) missingFields.push('security_answer');
+            if (!profileData.gender || profileData.gender === 'unknown') {
+              missingFields.push('gender');
+              logger.info('Missing gender information');
+            }
+            
+            if (!profileData.date_of_birth || profileData.date_of_birth === '') {
+              missingFields.push('date_of_birth');
+              logger.info('Missing date of birth information');
+            }
+            
+            if (!profileData.security_question) {
+              missingFields.push('security_question');
+              logger.info('Missing security question');
+            }
+            
+            if (!profileData.security_answer) {
+              missingFields.push('security_answer');
+              logger.info('Missing security answer');
+            }
+            
+            logger.info(`Profile check complete. Missing fields: ${missingFields.length > 0 ? missingFields.join(', ') : 'None'}`);
               
               // Update auth store with any available information
               authStore.update(state => ({
                 ...state,
-                username: userData?.username || state.username,
-                display_name: userData?.name || userData?.display_name || state.display_name,
-                is_admin: userData?.is_admin === true || state.is_admin
+              username: profileData.username || state.username,
+              display_name: profileData.name || profileData.display_name || state.display_name,
+              is_admin: profileData.is_admin === true || state.is_admin
               }));
+          } else {
+            logger.warn('User profile data not available');
+            // If we can't get profile data, assume we need to complete profile
+            missingFields = requiredFields;
             }
           } catch (profileError) {
             console.error('Failed to get user profile after Google login:', profileError);
-          }
+          // If we can't fetch the profile, assume we need to complete it
+          missingFields = requiredFields;
         }
         
         return {
           success: true,
-          message: data.message || 'Google login successful!',
-          is_new_user: data.is_new_user || false,
+          message: (data as any).message || 'Google login successful!',
+          is_new_user: (data as any).is_new_user || false,
           missing_fields: missingFields,
           requires_profile_completion: missingFields.length > 0
         };
       } else {
+        console.error('Google login response lacks access token:', data);
         return {
           success: false,
-          message: data.message || 'Google login failed.'
+          message: (data as any).message || 'Google login failed.'
         };
       }
     } catch (error) {
@@ -565,4 +609,13 @@ export function useAuth() {
     checkAndRefreshTokenIfNeeded,
     updateProfile
   };
+}
+
+// Add this helper function to handle API responses
+async function handleApiResponse(response: Response, errorMessage: string) {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || errorMessage || 'API request failed');
+  }
+  return await response.json();
 }

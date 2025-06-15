@@ -5,18 +5,21 @@ import { createLoggerWithPrefix } from '../utils/logger';
 
 const logger = createLoggerWithPrefix('WebSocketStore');
 
-export type MessageType = 'text' | 'typing' | 'read' | 'edit' | 'delete';
+export type MessageType = 'text' | 'typing' | 'read' | 'edit' | 'delete' | 'system';
 
 export interface ChatMessage {
   type: MessageType;
   content?: string;
-  user_id: string;
+  user_id?: string;
+  sender_id?: string;
   chat_id: string;
-  timestamp?: Date;
+  timestamp?: Date | string;
   message_id?: string;
   is_edited?: boolean;
   is_deleted?: boolean;
   is_read?: boolean;
+  is_system?: boolean;
+  is_fallback?: boolean;
 }
 
 export interface WebSocketState {
@@ -35,7 +38,7 @@ const initialState: WebSocketState = {
   connectionStatus: {}
 };
 
-type MessageHandler = (message: any) => void;
+type MessageHandler = (message: ChatMessage) => void;
 const messageHandlers: MessageHandler[] = [];
 
 function createWebSocketStore() {
@@ -111,8 +114,29 @@ function createWebSocketStore() {
       logger.info(`Attempting to connect to WebSocket: ${wsUrl}`);
       console.log(`[WebSocket] Attempting connection with URL: ${wsUrl}`);
       
+      // Set a connection timeout
+      const connectionTimeout = setTimeout(() => {
+        logger.warn(`WebSocket connection timeout for chat ${chatId}`);
+        console.warn(`[WebSocket] Connection timeout for chat ${chatId}`);
+        
+        update(s => ({ 
+          ...s, 
+          lastError: 'Connection timeout',
+          connectionStatus: {
+            ...s.connectionStatus,
+            [chatId]: 'error'
+          }
+        }));
+        
+        // Use fallback mode
+        useLocalFallback(chatId);
+      }, 5000); // 5 second timeout
+      
       const ws = new WebSocket(wsUrl);
       ws.onopen = () => {
+        // Clear the timeout since we connected successfully
+        clearTimeout(connectionTimeout);
+        
         logger.info(`WebSocket connection established for chat ${chatId}`);
         console.log(`[WebSocket] Connection established successfully for chat ${chatId}`);
         update(s => ({ 
@@ -165,7 +189,15 @@ function createWebSocketStore() {
           logger.debug(`WebSocket message received for chat ${chatId}:`, event.data);
           const message = JSON.parse(event.data);
           
-          messageHandlers.forEach(handler => handler(message));
+          messageHandlers.forEach(handler => {
+            // Ensure message has the required properties for ChatMessage
+            const chatMessage: ChatMessage = {
+              ...message,
+              type: message.type || 'text',
+              chat_id: message.chat_id || chatId
+            };
+            handler(chatMessage);
+          });
         } catch (e) {
           logger.error(`Error parsing WebSocket message for chat ${chatId}:`, e);
           console.error(`[WebSocket] Failed to parse message for chat ${chatId}:`, e, 'Raw data:', event.data);
@@ -173,6 +205,9 @@ function createWebSocketStore() {
       };
       
       ws.onerror = (error) => {
+        // Clear the timeout
+        clearTimeout(connectionTimeout);
+        
         logger.error(`WebSocket error for chat ${chatId}:`, error);
         console.error(`[WebSocket] Error in connection for chat ${chatId}:`, error);
         console.log(`[WebSocket] Error details:`, {
@@ -190,9 +225,15 @@ function createWebSocketStore() {
             [chatId]: 'error'
           }
         }));
+        
+        // Use fallback mode
+        useLocalFallback(chatId);
       };
       
       ws.onclose = (event) => {
+        // Clear the timeout
+        clearTimeout(connectionTimeout);
+        
         logger.info(`WebSocket closed for chat ${chatId}: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
         console.log(`[WebSocket] Connection closed for chat ${chatId}:`, {
           code: event.code,
@@ -251,22 +292,46 @@ function createWebSocketStore() {
           [chatId]: ws 
         } 
       }));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Connection creation failed';
+      logger.error(`Failed to create WebSocket connection for chat ${chatId}:`, error);
+      console.error(`[WebSocket] Connection creation error for chat ${chatId}:`, error);
       
-    } catch (error) {
-      logger.error('Failed to establish WebSocket connection:', error);
-      console.error(`[WebSocket] Failed to establish connection for chat ${chatId}:`, error);
-      
-      update(state => ({
-        ...state,
-        lastError: 'Failed to connect',
+      update(state => ({ 
+        ...state, 
+        lastError: errorMessage,
         connectionStatus: {
           ...state.connectionStatus,
           [chatId]: 'error'
         }
       }));
       
-      attemptReconnect(chatId);
+      // Use fallback mode
+      useLocalFallback(chatId);
     }
+  };
+
+  // Add a function to handle fallback mode when WebSocket is not available
+  const useLocalFallback = (chatId: string) => {
+    logger.info(`Using fallback mode for chat ${chatId}`);
+    console.log(`[WebSocket] Using fallback mode for chat ${chatId}`);
+    
+    // Notify handlers that we're in fallback mode
+    messageHandlers.forEach(handler => {
+      try {
+        const fallbackMessage: ChatMessage = {
+          type: 'system',
+          content: 'Using local mode due to connection issues. Messages may not be delivered to other users.',
+          chat_id: chatId,
+          timestamp: new Date().toISOString(),
+          is_system: true,
+          is_fallback: true
+        };
+        handler(fallbackMessage);
+      } catch (e) {
+        logger.error('Error notifying handler about fallback mode:', e);
+      }
+    });
   };
 
   const disconnect = (chatId: string) => {
@@ -400,15 +465,18 @@ function createWebSocketStore() {
   };
   
   const isConnected = (chatId: string) => {
-    let connected = false;
+    let result = false;
     
     update(state => {
-      connected = !!state.chatConnections[chatId] && 
-                  state.chatConnections[chatId].readyState === WebSocket.OPEN;
+      // Check if we have a connection for this chat
+      const connection = state.chatConnections[chatId];
+      if (connection && connection.readyState === WebSocket.OPEN) {
+        result = true;
+      }
       return state;
     });
     
-    return connected;
+    return result;
   };
 
   return {

@@ -5,6 +5,7 @@
   display: flex;
   min-height: 100vh;
   background-color: var(--bg-primary);
+  overflow: hidden; /* Prevent overflow from affecting the whole page */
 }
 
 .auth-container-dark {
@@ -40,29 +41,36 @@
   opacity: 0.1;
 }
 
-/* Right side with form - IMPROVED */
+/* Right side with form - IMPROVED for scrollability */
 .auth-right {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start; /* Changed from center to allow scrolling */
   padding: var(--space-4);
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
   position: relative;
-  overflow-y: auto;
+  overflow-y: auto; /* Enable vertical scrolling */
+  max-height: 100vh; /* Full viewport height */
 }
 
 .auth-form {
   width: 100%;
-  max-width: 400px;
+  max-width: 450px; /* Increased from 400px for more breathing room */
   margin: 0 auto;
-  padding: var(--space-4);
+  padding: var(--space-6); /* Increased padding from var(--space-4) */
   background-color: var(--bg-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   transition: background-color var(--transition-normal), box-shadow var(--transition-normal);
+  overflow-y: visible; /* Allow content to extend beyond the form */
+}
+
+.auth-scrollable-content {
+  width: 100%;
+  padding-bottom: var(--space-8); /* Add extra padding at the bottom */
 }
 
 .auth-header {
@@ -81,7 +89,7 @@
 .auth-title {
   font-size: var(--font-size-2xl);
   font-weight: 800;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
   color: var(--text-primary);
 }
 
@@ -92,7 +100,8 @@
 
 /* Form elements */
 .auth-input-group {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6); /* Increased from var(--space-4) */
+  width: 100%;
 }
 
 .auth-label {
@@ -105,12 +114,14 @@
 
 .auth-input {
   width: 100%;
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4); /* Added horizontal padding */
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+  box-sizing: border-box; /* Ensure padding is included in width */
+  font-size: var(--font-size-sm); /* Adjusted font size */
 }
 
 .auth-input:focus {
@@ -155,6 +166,7 @@
   text-align: center;
   cursor: pointer;
   transition: background-color var(--transition-fast);
+  margin-top: var(--space-6); /* Added margin top */
 }
 
 .auth-btn:hover {
@@ -169,6 +181,7 @@
 
 .auth-social-btn-container {
   margin-bottom: var(--space-4);
+  width: 100%;
 }
 
 .auth-social-btn {
@@ -210,7 +223,7 @@
 .auth-divider {
   display: flex;
   align-items: center;
-  margin: var(--space-4) 0;
+  margin: var(--space-6) 0; /* Increased from var(--space-4) */
   color: var(--text-tertiary);
 }
 
@@ -229,7 +242,7 @@
 }
 
 .auth-divider-text {
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-4); /* Increased from var(--space-2) */
   font-size: var(--font-size-sm);
 }
 
@@ -266,12 +279,37 @@
   color: var(--text-primary);
 }
 
+/* Gender selection styling */
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+fieldset legend {
+  padding: 0;
+}
+
+.auth-radio-group {
+  display: flex;
+  gap: var(--space-6);
+  margin: var(--space-3) 0;
+}
+
+/* Date of birth styling */
+.auth-dob-container {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-top: var(--space-2);
+}
+
 /* Forgot password link */
 .auth-forgot-password {
   display: block;
   text-align: right;
   font-size: var(--font-size-sm);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-1);
   color: var(--color-primary);
   text-decoration: none;
 }
@@ -339,27 +377,47 @@
   .auth-right {
     max-width: 50%;
     padding: var(--space-6);
+    overflow-y: auto; /* Ensure scrolling works on bigger screens */
   }
   
   .auth-form {
-    padding: var(--space-6);
+    padding: var(--space-8); /* Increased from var(--space-6) */
     box-shadow: var(--shadow-md);
+    margin: auto; /* Center vertically when possible */
+  }
+  
+  /* Make select dropdowns look good on larger screens */
+  .auth-dob-select-group {
+    display: flex;
+    gap: var(--space-2);
+  }
+  
+  .auth-dob-select-group > div {
+    flex: 1;
   }
 }
 
 @media (max-width: 767px) {
   .auth-right {
     padding: var(--space-4);
+    overflow-y: auto; /* Ensure scrolling on mobile */
+    height: 100vh; /* Full height on mobile */
   }
   
   .auth-form {
     max-width: 100%;
     box-shadow: none;
-    padding: var(--space-2);
+    padding: var(--space-4); /* Increased from var(--space-2) */
+    margin-top: var(--space-4);
   }
   
   .auth-logo {
     margin-bottom: var(--space-4);
+  }
+  
+  /* Ensure small screens can scroll */
+  .aycom-auth-scroll-container {
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   }
 }
 
@@ -372,4 +430,46 @@
 .dark-theme .auth-btn:disabled {
   background-color: var(--dark-disabled-bg);
   color: var(--dark-disabled-text);
+}
+
+/* File input styling */
+.aycom-auth-file-input {
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.aycom-auth-file-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-color);
+  background-color: var(--bg-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.aycom-auth-file-label:hover {
+  background-color: var(--bg-hover);
+}
+
+.aycom-auth-file-input input[type="file"] {
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.aycom-auth-file-name {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 } 

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,23 +93,41 @@ func (r *GormParticipantRepository) ListParticipantsByChatID(chatID string, limi
 }
 
 func (r *GormParticipantRepository) IsUserInChat(chatID, userID string) (bool, error) {
+	// Validate input parameters
+	if chatID == "" {
+		return false, fmt.Errorf("chat ID cannot be empty")
+	}
+	if userID == "" {
+		return false, fmt.Errorf("user ID cannot be empty")
+	}
+
+	// Log the received IDs for debugging
+	log.Printf("IsUserInChat check with chatID=%s, userID=%s", chatID, userID)
+
+	// Validate UUID format for chat ID
 	chatUUID, err := uuid.Parse(chatID)
 	if err != nil {
-		return false, err
+		log.Printf("Error parsing chat ID: %v", err)
+		return false, fmt.Errorf("invalid chat ID format: %v", err)
 	}
 
+	// Validate UUID format for user ID
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return false, err
+		log.Printf("Error parsing user ID: %v", err)
+		return false, fmt.Errorf("invalid user ID format: %v", err)
 	}
 
+	// Query the database
 	var count int64
 	err = r.db.Model(&ParticipantModel{}).
 		Where("chat_id = ? AND user_id = ?", chatUUID, userUUID).
 		Count(&count).Error
 	if err != nil {
-		return false, err
+		log.Printf("Database error in IsUserInChat: %v", err)
+		return false, fmt.Errorf("database error: %v", err)
 	}
 
+	log.Printf("IsUserInChat result: user %s in chat %s = %v", userID, chatID, count > 0)
 	return count > 0, nil
 }

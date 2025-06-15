@@ -9,6 +9,7 @@
   import { useAuth } from '../hooks/useAuth';
   import type { IUserRegistration } from '../interfaces/IAuth';
   import { toastStore } from '../stores/toastStore';
+  import { createLoggerWithPrefix } from '../utils/logger';
   import appConfig from '../config/appConfig';
   import DebugPanel from '../components/common/DebugPanel.svelte';
   
@@ -140,14 +141,24 @@
   }
   
   function handleGoogleAuthSuccess(result: any) {
-    console.log('Google auth success in Register page');
+    const logger = createLoggerWithPrefix('GoogleRegister');
+    logger.info('Google auth success in Register page with result:', result);
     
-    if (result.requires_profile_completion && result.missing_fields?.length > 0) {
-      console.log('User needs to complete profile information:', result.missing_fields);
+    // Check if the user needs to complete their profile
+    if (result.missing_fields && result.missing_fields.length > 0) {
+      logger.info(`User needs to complete profile information: ${result.missing_fields.join(', ')}`);
       missingProfileFields = result.missing_fields;
       showProfileCompletion = true;
+      toastStore.showToast('Please complete your profile information', 'info');
+    } else if (result.is_new_user) {
+      // Even if no missing fields were detected but it's a new user, show profile completion
+      logger.info('New user detected, showing profile completion form');
+      missingProfileFields = ['gender', 'date_of_birth', 'security_question', 'security_answer'];
+      showProfileCompletion = true;
+      toastStore.showToast('Welcome! Please complete your profile information', 'info');
     } else {
       toastStore.showToast('Google registration successful', 'success'); 
+      logger.info('Redirecting to feed after successful Google registration');
       window.location.href = '/feed';
     }
   }
@@ -216,14 +227,18 @@
   }
   
   function handleProfileCompleted() {
-    console.log('Profile completion successful');
+    const logger = createLoggerWithPrefix('ProfileCompletion');
+    logger.info('Profile completion successful');
     toastStore.showToast('Profile updated successfully', 'success');
+    logger.info('Redirecting to feed after profile completion');
     window.location.href = '/feed';
   }
   
   function handleProfileSkipped() {
-    console.log('Profile completion skipped');
+    const logger = createLoggerWithPrefix('ProfileCompletion');
+    logger.info('Profile completion skipped');
     toastStore.showToast('You can complete your profile later in account settings', 'info');
+    logger.info('Redirecting to feed after skipping profile completion');
     window.location.href = '/feed';
   }
   
@@ -252,7 +267,7 @@
       onSkip={handleProfileSkipped}
     />
   {:else if $formState.step === 1}
-    <div data-cy="google-login-button">
+    <div data-cy="google-login-button" class="aycom-register-form">
       <RegistrationForm
         bind:name={$formData.name}
         bind:username={$formData.username}
@@ -312,3 +327,9 @@
 </AuthLayout>
 
 <DebugPanel />
+
+<style>
+  :global(.aycom-register-form) {
+    width: 100%;
+  }
+</style>

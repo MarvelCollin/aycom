@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useTheme } from '../../hooks/useTheme';
   import GoogleSignInButton from './GoogleSignInButton.svelte';
+  import ReCaptchaWrapper from './ReCaptchaWrapper.svelte';
   import type { IDateOfBirth, ICustomWindow } from '../../interfaces/IAuth';
 
   const { theme } = useTheme();
@@ -51,6 +52,22 @@
   export let onSubmit: (token: string | null) => void; 
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
+  
+  // reCAPTCHA variables
+  let recaptchaToken: string | null = null;
+  let recaptchaWrapper: ReCaptchaWrapper;
+  
+  function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
+    recaptchaToken = event.detail.token;
+  }
+
+  function handleRecaptchaError() {
+    recaptchaToken = null;
+  }
+
+  function handleRecaptchaExpired() {
+    recaptchaToken = null;
+  }
 
   // Check if we're in development mode
   const isDevelopment = import.meta.env.DEV;
@@ -62,23 +79,8 @@
       return;
     }
     
-    // In production, use the reCAPTCHA API if available
-    if (typeof window !== 'undefined') {
-      const customWindow = window as ICustomWindow;
-      if (customWindow.grecaptcha) {
-        try {
-          // Using empty string as site key since it's likely already configured when the reCAPTCHA script loaded
-          const token = await customWindow.grecaptcha.execute('', { action: 'register' });
-          onSubmit(token);
-        } catch (error) {
-          console.error('reCAPTCHA error:', error);
-          onSubmit(null);
-        }
-      } else {
-        console.warn('reCAPTCHA not loaded');
-        onSubmit(null);
-      }
-    }
+    // Use reCAPTCHA token if available
+    onSubmit(recaptchaToken);
   }
 
   // Type-safe event handlers for file inputs
@@ -213,7 +215,7 @@
 <div class="auth-input-group">
   <fieldset>
     <legend class="auth-label">Gender</legend>
-    <div class="flex space-x-4">
+    <div class="auth-radio-group">
       <label class="auth-checkbox-group">
         <input 
           type="radio" 
@@ -255,62 +257,64 @@
     <legend class="auth-label">Date of birth</legend>
     <p class="auth-helper-text mb-2">This will not be shown publicly. Confirm your own age, even if this account is for a business, a pet, or something else.</p>
     
-    <div class="flex space-x-2" role="group" aria-labelledby="dob-label">
-      <div class="w-1/3">
-        <label for="dob-month" class="sr-only">Month</label>
-        <select 
-          id="dob-month"
-          bind:value={dateOfBirth.month} 
-          on:change={onDateOfBirthChange}
-          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
-          data-cy="dob-month"
-          aria-invalid={dateOfBirthError ? "true" : "false"}
-          aria-describedby={dateOfBirthError ? "dob-error" : undefined}
-        >
-          <option value="">Month</option>
-          {#each months as month}
-            <option value={month}>{month}</option>
-          {/each}
-        </select>
+    <div class="auth-dob-container">
+      <div class="auth-dob-select-group" role="group" aria-labelledby="dob-label">
+        <div>
+          <label for="dob-month" class="sr-only">Month</label>
+          <select 
+            id="dob-month"
+            bind:value={dateOfBirth.month} 
+            on:change={onDateOfBirthChange}
+            class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+            data-cy="dob-month"
+            aria-invalid={dateOfBirthError ? "true" : "false"}
+            aria-describedby={dateOfBirthError ? "dob-error" : undefined}
+          >
+            <option value="">Month</option>
+            {#each months as month}
+              <option value={month}>{month}</option>
+            {/each}
+          </select>
+        </div>
+        <div>
+          <label for="dob-day" class="sr-only">Day</label>
+          <select 
+            id="dob-day"
+            bind:value={dateOfBirth.day}
+            on:change={onDateOfBirthChange}
+            class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+            data-cy="dob-day"
+            aria-invalid={dateOfBirthError ? "true" : "false"}
+            aria-describedby={dateOfBirthError ? "dob-error" : undefined}
+          >
+            <option value="">Day</option>
+            {#each days as day}
+              <option value={day}>{day}</option>
+            {/each}
+          </select>
+        </div>
+        <div>
+          <label for="dob-year" class="sr-only">Year</label>
+          <select 
+            id="dob-year"
+            bind:value={dateOfBirth.year}
+            on:change={onDateOfBirthChange}
+            class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+            data-cy="dob-year"
+            aria-invalid={dateOfBirthError ? "true" : "false"}
+            aria-describedby={dateOfBirthError ? "dob-error" : undefined}
+          >
+            <option value="">Year</option>
+            {#each years as year}
+              <option value={year}>{year}</option>
+            {/each}
+          </select>
+        </div>
       </div>
-      <div class="w-1/3">
-        <label for="dob-day" class="sr-only">Day</label>
-        <select 
-          id="dob-day"
-          bind:value={dateOfBirth.day}
-          on:change={onDateOfBirthChange}
-          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
-          data-cy="dob-day"
-          aria-invalid={dateOfBirthError ? "true" : "false"}
-          aria-describedby={dateOfBirthError ? "dob-error" : undefined}
-        >
-          <option value="">Day</option>
-          {#each days as day}
-            <option value={day}>{day}</option>
-          {/each}
-        </select>
-      </div>
-      <div class="w-1/3">
-        <label for="dob-year" class="sr-only">Year</label>
-        <select 
-          id="dob-year"
-          bind:value={dateOfBirth.year}
-          on:change={onDateOfBirthChange}
-          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
-          data-cy="dob-year"
-          aria-invalid={dateOfBirthError ? "true" : "false"}
-          aria-describedby={dateOfBirthError ? "dob-error" : undefined}
-        >
-          <option value="">Year</option>
-          {#each years as year}
-            <option value={year}>{year}</option>
-          {/each}
-        </select>
-      </div>
+      {#if dateOfBirthError}
+        <p id="dob-error" class="auth-error-message" data-cy="dob-error" role="alert">{dateOfBirthError}</p>
+      {/if}
     </div>
-    {#if dateOfBirthError}
-      <p id="dob-error" class="auth-error-message" data-cy="dob-error" role="alert">{dateOfBirthError}</p>
-    {/if}
   </fieldset>
 </div>
 
@@ -354,16 +358,25 @@
 <!-- Profile Picture -->
 <div class="auth-input-group">
   <label for="profilePicture" class="auth-label">Profile Picture (optional)</label>
-  <input 
-    type="file"
-    id="profilePicture"
-    accept="image/*"
-    on:change={handleProfilePictureChange}
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''}"
-    data-cy="profile-picture"
-    aria-invalid={profilePictureError ? "true" : "false"}
-    aria-describedby={profilePictureError ? "profile-picture-error" : undefined}
-  />
+  <div class="aycom-auth-file-input">
+    <label class="aycom-auth-file-label" for="profilePicture">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+      </svg>
+      <span class="aycom-auth-file-name">
+        {profilePicture instanceof File ? profilePicture.name : 'Choose profile picture'}
+      </span>
+    </label>
+    <input 
+      type="file"
+      id="profilePicture"
+      accept="image/*"
+      on:change={handleProfilePictureChange}
+      data-cy="profile-picture"
+      aria-invalid={profilePictureError ? "true" : "false"}
+      aria-describedby={profilePictureError ? "profile-picture-error" : undefined}
+    />
+  </div>
   {#if profilePictureError}
     <p id="profile-picture-error" class="auth-error-message" data-cy="profile-picture-error" role="alert">{profilePictureError}</p>
   {/if}
@@ -372,16 +385,25 @@
 <!-- Banner Picture -->
 <div class="auth-input-group">
   <label for="banner" class="auth-label">Banner Image (optional)</label>
-  <input 
-    type="file"
-    id="banner"
-    accept="image/*"
-    on:change={handleBannerChange}
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''}"
-    data-cy="banner"
-    aria-invalid={bannerError ? "true" : "false"}
-    aria-describedby={bannerError ? "banner-error" : undefined}
-  />
+  <div class="aycom-auth-file-input">
+    <label class="aycom-auth-file-label" for="banner">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+      </svg>
+      <span class="aycom-auth-file-name">
+        {banner instanceof File ? banner.name : 'Choose banner image'}
+      </span>
+    </label>
+    <input 
+      type="file"
+      id="banner"
+      accept="image/*"
+      on:change={handleBannerChange}
+      data-cy="banner"
+      aria-invalid={bannerError ? "true" : "false"}
+      aria-describedby={bannerError ? "banner-error" : undefined}
+    />
+  </div>
   {#if bannerError}
     <p id="banner-error" class="auth-error-message" data-cy="banner-error" role="alert">{bannerError}</p>
   {/if}
@@ -403,6 +425,19 @@
   <span id="newsletter-description" class="sr-only">Receive news and updates about our platform via email</span>
 </div>
 
+<!-- reCAPTCHA -->
+<div class="recaptcha-wrapper">
+  <ReCaptchaWrapper
+    bind:this={recaptchaWrapper}
+    theme={isDarkMode ? 'dark' : 'light'}
+    size="normal"
+    position="inline"
+    on:success={handleRecaptchaSuccess}
+    on:error={handleRecaptchaError}
+    on:expired={handleRecaptchaExpired}
+  />
+</div>
+
 <button 
   type="button"
   on:click={triggerSubmit}
@@ -417,3 +452,10 @@
   By signing up, you agree to the <a href="/terms" class="text-blue-500 hover:underline">Terms of Service</a> and 
   <a href="/privacy" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="/cookies" class="text-blue-500 hover:underline">Cookie Use</a>.
 </p>
+
+<style>
+  .recaptcha-wrapper {
+    margin: 1.5rem 0;
+    width: 100%;
+  }
+</style>

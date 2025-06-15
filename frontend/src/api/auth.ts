@@ -54,14 +54,18 @@ function standardizeUserResponse(data: any) {
   return standardized;
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, recaptchaToken: string | null = null) {
   logger.info(`Attempting to login with email: ${email.substring(0, 3)}...${email.split('@')[1]}`);
 
   try {
     const response = await fetch(`${API_BASE_URL}/users/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ 
+        email, 
+        password, 
+        recaptcha_token: recaptchaToken || (import.meta.env.DEV ? "dev-mode-token" : "")
+      }),
       credentials: "include",
     });
 
@@ -133,7 +137,9 @@ export async function resendVerification(email: string) {
 
 export async function googleLogin(tokenId: string) {
   try {
-    console.log('Sending Google token to backend API for verification');
+    const logger = createLoggerWithPrefix('GoogleLogin');
+    logger.info(`Sending Google token to backend API for verification (token length: ${tokenId.length})`);
+    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
@@ -146,11 +152,34 @@ export async function googleLogin(tokenId: string) {
     });
 
     clearTimeout(timeoutId);
+    
+    logger.info(`Google API response status: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      // Try to get error details from response
+      try {
+        const errorData = await response.json();
+        logger.error('Google login error response:', errorData);
+        throw new Error(errorData.message || `Google login failed with status: ${response.status}`);
+      } catch (parseError) {
+        logger.error('Failed to parse error response:', parseError);
+        throw new Error(`Google login failed with status: ${response.status}`);
+      }
+    }
 
     const data = await handleApiResponse(response, 'Google login failed');
-    console.log('Google login successful');
+    logger.info('Google login raw response keys:', Object.keys(data));
+    
+    // Add success flag to ensure consistency with other auth responses
+    const standardizedData = {
+      ...standardizeUserResponse(data),
+      success: response.ok,
+      is_new_user: data.is_new_user || false,
+      message: data.message || (response.ok ? 'Google login successful' : 'Google login failed')
+    };
 
-    return standardizeUserResponse(data);
+    logger.info('Google login processed with standardized response');
+    return standardizedData;
   } catch (error) {
     console.error('Google login request error:', error);
     if (error instanceof Error && error.name === 'AbortError') {

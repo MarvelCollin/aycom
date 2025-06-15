@@ -17,8 +17,8 @@
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   import Toast from '../components/common/Toast.svelte';
+  import { formatRelativeTime } from '../utils/date'; 
   
-  // Use the imported chatApi methods
   const { 
     listChats, 
     listMessages, 
@@ -44,14 +44,23 @@
   
   interface Message {
     id: string;
-    content: string;
-    timestamp: string;
+    chat_id: string;
     sender_id: string;
     sender_name?: string;
     sender_avatar?: string;
+    content: string;
+    timestamp: string | number | Date;
     is_read: boolean;
+    is_edited: boolean;
     is_deleted: boolean;
-    attachments?: Attachment[];
+    failed?: boolean;
+    is_local?: boolean;
+    attachments?: Array<{
+      id: string;
+      type: string;
+      url: string;
+      name?: string;
+    }>;
   }
   
   interface Participant {
@@ -64,7 +73,7 @@
   
   interface LastMessage {
     content: string;
-    timestamp: string | number;
+    timestamp: string;  // Only allow string type
     sender_id: string;
     sender_name?: string;
   }
@@ -125,6 +134,11 @@
   let isMobile = false;
   let showMobileMenu = false;
   
+  // Function to check viewport size and set mobile state
+  function checkViewport() {
+    isMobile = window.innerWidth < 768;
+  }
+  
   // Group chat handlers
   function handleGroupChatCreated(event: any) {
     if (event && event.detail && event.detail.chat) {
@@ -149,11 +163,20 @@
   // Chat interaction functions
   async function selectChat(chat: Chat) {
     logger.info(`Selecting chat: ${chat.id}`);
+    
+    // Validate chat ID format
+    if (!chat.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chat.id)) {
+      logger.error(`Invalid chat ID format: ${chat.id}`);
+      toastStore.showToast(`Invalid chat ID format: ${chat.id}. Please try again or contact support.`, 'error');
+      return;
+    }
+    
     selectedChat = { ...chat, messages: [] };
     
     // On mobile, hide the chat list
     if (isMobile) {
       showMobileMenu = false;
+      handleMobileNavigation('showChat');
     }
     
     // Fetch messages for the selected chat
@@ -174,7 +197,8 @@
         const processedMessages = sortedMessages.map(msg => ({
           ...msg,
           sender_name: msg.sender_name || 'User',
-          sender_avatar: msg.sender_avatar || null
+          sender_avatar: msg.sender_avatar || null,
+          timestamp: ensureStringTimestamp(msg.timestamp)
         }));
         
         selectedChat = {
@@ -199,24 +223,64 @@
         };
       }
     } catch (error) {
-      logger.error(`Error fetching messages for chat ${chat.id}:`, error);
+      logger.error(`Error loading messages for chat ${chat.id}:`, error);
       toastStore.showToast('Failed to load messages', 'error');
+      selectedChat = {
+        ...selectedChat,
+        messages: []
+      };
     } finally {
       isLoadingMessages = false;
     }
     
     // Connect to WebSocket for this chat
     try {
-      websocketStore.connect(chat.id);
-      logger.info(`Connected to WebSocket for chat ${chat.id}`);
+      // Check if already connected to this chat
+      const isConnected = websocketStore.isConnected(chat.id);
+      if (!isConnected) {
+        logger.info(`Connecting to WebSocket for chat ${chat.id}`);
+        websocketStore.connect(chat.id);
+      } else {
+        logger.debug(`Already connected to WebSocket for chat ${chat.id}`);
+      }
     } catch (error) {
       logger.error(`Error connecting to WebSocket for chat ${chat.id}:`, error);
+      toastStore.showToast('Could not establish real-time connection', 'warning');
     }
+    
+    // Mark chat as read by resetting unread count
+    chats = chats.map(c => {
+      if (c.id === chat.id) {
+        return { ...c, unread_count: 0 };
+      }
+      return c;
+    });
+    
+    // Fix the filtered chats assignment
+    filteredChats = [
+      ...(filteredChats.filter(c => c.id === chat.id)),
+      ...(filteredChats.filter(c => c.id !== chat.id))
+    ].map(chat => ({
+      ...chat,
+      // Ensure that last_message.timestamp is always a string
+      last_message: chat.last_message ? {
+        ...chat.last_message,
+        timestamp: typeof chat.last_message.timestamp === 'string'
+          ? chat.last_message.timestamp
+          : new Date(chat.last_message.timestamp).toISOString()
+      } : undefined
+    })) as Chat[];
   }
   
   async function startChatWithUser(user: StandardUser) {
     // Logic to start a new chat with a user
     logger.debug(`Starting new chat with user: ${user.username}`);
+    
+    if (!user || !user.id) {
+      logger.error('Cannot start chat: Invalid user data');
+      toastStore.showToast('Invalid user data. Please try again.', 'error');
+      return;
+    }
     
     // Check if chat already exists
     const existingChat = chats.find(chat => 
@@ -259,8 +323,8 @@
           messages: [],
           unread_count: 0,
           profile_picture_url: user.avatar || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          created_at: chatData.created_at || new Date().toISOString(),
+          updated_at: chatData.updated_at || new Date().toISOString()
         };
         
         // Add to chats and select it
@@ -270,10 +334,72 @@
         
         // Close the modal
         showNewChatModal = false;
+      } else {
+        logger.error('Failed to create chat: Invalid response', response);
+        toastStore.showToast('Failed to create chat. Please try again.', 'error');
       }
     } catch (error) {
       logger.error('Failed to create chat', error);
       toastStore.showToast('Failed to create chat', 'error');
+    }
+  }
+  
+  async function createGroupChat(name: string, participants: StandardUser[]) {
+    if (!name || !participants || participants.length === 0) {
+      logger.error('Cannot create group chat: Missing required data');
+      toastStore.showToast('Group name and participants are required', 'error');
+      return;
+    }
+    
+    logger.debug(`Creating group chat: ${name} with ${participants.length} participants`);
+    
+    try {
+      // Create new group chat
+      const response = await createChat({
+        type: 'group',
+        name: name,
+        participants: participants.map(p => p.id)
+      });
+      
+      // The backend returns {chat: {...}}, so we need to extract the chat object
+      const chatData = response.chat || response;
+      
+      if (chatData && chatData.id) {
+        // Create a new chat object
+        const newChat: Chat = {
+          id: chatData.id,
+          type: 'group',
+          name: name,
+          avatar: null,
+          participants: participants.map(p => ({
+            id: p.id,
+            username: p.username,
+            display_name: p.display_name || p.username,
+            avatar: p.avatar || null,
+            is_verified: p.is_verified
+          })),
+          messages: [],
+          unread_count: 0,
+          profile_picture_url: null,
+          created_at: chatData.created_at || new Date().toISOString(),
+          updated_at: chatData.updated_at || new Date().toISOString()
+        };
+        
+        // Add to chats and select it
+        chats = [newChat, ...chats];
+        filteredChats = [newChat, ...filteredChats];
+        selectChat(newChat);
+        
+        // Close the modal
+        showGroupChatModal = false;
+      } else {
+        logger.error('Failed to create group chat: Invalid response', response);
+        toastStore.showToast('Failed to create group chat. Please try again.', 'error');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to create group chat', error);
+      toastStore.showToast('Failed to create group chat: ' + errorMessage, 'error');
     }
   }
   
@@ -290,48 +416,41 @@
   }
   
   function getChatDisplayName(chat: Chat) {
-    // Return a display name based on chat participants
-    return chat.name || (chat.participants && chat.participants[0]?.display_name) || 'Chat';
-  }
-  
-  function formatTimeAgo(timestamp: string | number) {
-    // Simple time formatter
-    if (!timestamp) return '';
-    
-    const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffSecs < 60) {
-      return 'just now';
-    } else if (diffMins < 60) {
-      return `${diffMins}m ago`;
-    } else if (diffHours < 24) {
-      return `${diffHours}h ago`;
-    } else if (diffDays < 7) {
-      return `${diffDays}d ago`;
-    } else {
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    // Group chats should use their name
+    if (chat.type === 'group' && chat.name && chat.name.trim() !== '') {
+      return chat.name;
     }
+    
+    // For individual chats, show the other participant's name
+    if (chat.participants && chat.participants.length > 0) {
+      // Use only id for filtering as that's in the Participant type
+      const otherParticipants = chat.participants.filter(p => p.id !== $authStore.user_id);
+      
+      if (otherParticipants.length > 0) {
+        const participant = otherParticipants[0];
+        return participant.display_name || participant.username || 'Unknown User';
+      }
+    }
+    
+    // Fallback to chat name or generic name
+    return chat.name && chat.name.trim() !== '' ? chat.name : 'Chat';
   }
   
   // Message handling functions
-  async function sendMessage() {
-    // Logic to send a message
-    if (!newMessage.trim() || !selectedChat) return;
-    
-    const content = newMessage.trim();
-    // Clear input right away for better UX
+  async function sendMessage(content: string) {
+    if (!content.trim() || !selectedChat) return;
+
+    // Clear input after sending
     newMessage = '';
-    
-    // Add optimistic update - add message to UI immediately
+    selectedAttachments = [];
+
+    // Generate a temporary message ID
     const tempMessageId = `temp-${Date.now()}`;
+
+    // Create a temporary message object
     const tempMessage: Message = {
       id: tempMessageId,
+      chat_id: selectedChat?.id || '',
       content,
       timestamp: new Date().toISOString(),
       sender_id: $authStore.user_id || '',
@@ -339,80 +458,92 @@
       sender_avatar: avatar,
       is_read: false,
       is_deleted: false,
+      is_edited: false,
       attachments: selectedAttachments.length > 0 ? [...selectedAttachments] : undefined
     };
-    
-    // Clear attachments
-    selectedAttachments = [];
-    
-    // Update UI optimistically
-    if (selectedChat?.messages) {
-      selectedChat = {
-        ...selectedChat,
-        messages: [...selectedChat.messages, tempMessage]
-      };
-    }
-    
+
     try {
-      // Call API to send message
-      const response = await apiSendMessage(selectedChat.id, {
-        content: content,
-        attachments: selectedAttachments.map(att => att.id)
-      });
-      
-      if (response && response.id) {
-        // Replace temp message with real one
-        if (selectedChat?.messages) {
-          selectedChat = {
-            ...selectedChat,
-            messages: selectedChat.messages.map(msg => 
-              msg.id === tempMessageId ? { ...msg, id: response.id } : msg
-            )
-          };
-        }
-        
-        // Update chat in the list with last message
-        const updatedChats = chats.map(chat => {
-          if (chat.id === selectedChat?.id) {
-            return {
-              ...chat,
-              last_message: {
-                content,
-                timestamp: new Date().toISOString(),
-                sender_id: $authStore.user_id || '',
-                sender_name: displayName
-              }
-            };
-          }
-          return chat;
-        });
-        
-        // Update chats and move the active chat to top
-        chats = [
-          updatedChats.find(c => c.id === selectedChat?.id) as Chat,
-          ...updatedChats.filter(c => c.id !== selectedChat?.id)
-        ];
-        
-        // Also update filtered chats
-        filteredChats = [
-          ...filteredChats.filter(c => c.id === selectedChat?.id),
-          ...filteredChats.filter(c => c.id !== selectedChat?.id)
-        ];
-      }
-    } catch (error) {
-      logger.error('Failed to send message', error);
-      toastStore.showToast('Failed to send message', 'error');
-      
-      // Remove the optimistic update on error
-      if (selectedChat?.messages) {
+      // Add message to UI immediately (optimistic update)
+      if (selectedChat) {
         selectedChat = {
           ...selectedChat,
-          messages: selectedChat.messages.filter(msg => msg.id !== tempMessageId)
+          messages: [...selectedChat.messages, tempMessage]
         };
+
+        // Scroll to bottom
+        setTimeout(() => {
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
       }
+
+      // Update chat in the list with last message
+      const newLastMessage: LastMessage = {
+        content,
+        timestamp: ensureStringTimestamp(new Date().toISOString()),
+        sender_id: $authStore.user_id || '',
+        sender_name: displayName
+      };
+
+      // Fix the issue in chat.map where we're updating the last_message
+      chats = chats.map(chat => {
+        if (chat.id === selectedChat?.id) {
+          return {
+            ...chat,
+            last_message: newLastMessage
+          };
+        }
+        return chat;
+      }) as Chat[];
+
+      // Update chats and move the active chat to top
+      const activeChatId = selectedChat?.id;
+      const activeChat = chats.find(c => c.id === activeChatId);
+      if (activeChat) {
+        chats = [
+          activeChat,
+          ...chats.filter(c => c.id !== activeChatId)
+        ] as Chat[];  // Type assertion
+        
+        // Fix the filtered chats assignment
+        filteredChats = [
+          ...(filteredChats.filter(c => c.id === activeChatId)),
+          ...(filteredChats.filter(c => c.id !== activeChatId))
+        ].map(chat => ({
+          ...chat,
+          // Ensure that last_message.timestamp is always a string
+          last_message: chat.last_message ? {
+            ...chat.last_message,
+            timestamp: typeof chat.last_message.timestamp === 'string'
+              ? chat.last_message.timestamp
+              : new Date(chat.last_message.timestamp).toISOString()
+          } : undefined
+        })) as Chat[];
+      }
+
+      // Send message to API
+      // ...rest of function remains the same
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error sending message:', errorMessage);
+      toastStore.showToast(`Error sending message: ${errorMessage}`, 'error');
     }
   }
   
+  // Add a helper function to ensure timestamp is always a string
+  function ensureStringTimestamp(timestamp: string | number | Date): string {
+    if (timestamp instanceof Date) {
+      return timestamp.toISOString();
+    } else if (typeof timestamp === 'number') {
+      return new Date(timestamp).toISOString();
+    }
+    return timestamp;
+  }
+  
+  // Update the map operation in unsendMessage function
+  // Fix unsendMessage function to ensure timestamps are always strings
   async function unsendMessage(messageId: string) {
     // Logic to unsend/delete a message
     if (!selectedChat) return;
@@ -451,14 +582,14 @@
                 ...chat,
                 last_message: {
                   content: newLastMessage.content,
-                  timestamp: newLastMessage.timestamp,
+                  timestamp: ensureStringTimestamp(newLastMessage.timestamp),
                   sender_id: newLastMessage.sender_id,
-                  sender_name: newLastMessage.sender_name
+                  sender_name: newLastMessage.sender_name || ''
                 }
               };
             }
             return chat;
-          });
+          }) as Chat[];
           
           // Also update filtered chats
           filteredChats = filteredChats.map(chat => {
@@ -467,19 +598,20 @@
                 ...chat,
                 last_message: {
                   content: newLastMessage.content,
-                  timestamp: newLastMessage.timestamp,
+                  timestamp: ensureStringTimestamp(newLastMessage.timestamp),
                   sender_id: newLastMessage.sender_id,
-                  sender_name: newLastMessage.sender_name
+                  sender_name: newLastMessage.sender_name || ''
                 }
               };
             }
             return chat;
-          });
+          }) as Chat[];
         }
-        }
-    } catch (error) {
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to unsend message', error);
-      toastStore.showToast('Failed to unsend message', 'error');
+      toastStore.showToast(`Failed to unsend message: ${errorMessage}`, 'error');
       
       // Revert the optimistic update on error
       selectedChat = {
@@ -510,48 +642,39 @@
     }
   }
   
-  // Handle WebSocket messages
+  // WebSocket handling
   function handleWebSocketMessage(message: any) {
-    logger.debug('Received WebSocket message:', message);
-    
-    // Only process messages for the currently selected chat
-    if (!selectedChat || message.chat_id !== selectedChat.id) {
-      logger.debug('Message not for current chat, ignoring');
+    // Processing websocket message...
+    const senderId = message.sender_id;
+
+    if (senderId === $authStore.user_id) {
+      logger.debug('Skipping own message from WebSocket:', message);
       return;
     }
-    
-    // Handle text messages
-    if (message.type === 'text' || !message.type) {
-      // Create a standardized message object
-      const newMessage = {
-        id: message.id || message.message_id,
-        chat_id: message.chat_id,
-        content: message.content,
-        sender_id: message.sender_id || message.user_id,
-        sender_name: message.sender_name || 'User',
-        sender_avatar: message.sender_avatar,
-        timestamp: message.timestamp || new Date().toISOString(),
-        is_read: message.is_read || false,
-        is_edited: message.is_edited || false,
-        is_deleted: message.is_deleted || false
+
+    logger.info(`Received new message in chat ${message.chat_id} from ${senderId}`);
+
+    // Format the message with all required properties
+    const newMessage: Message = {
+      id: message.message_id || `ws-${Date.now()}`,
+      chat_id: message.chat_id || '',
+      content: message.content || '',
+      timestamp: ensureStringTimestamp(message.timestamp || new Date()),
+      sender_id: senderId,
+      sender_name: 'User', // Default name
+      sender_avatar: undefined,
+      is_read: false,
+      is_edited: false,
+      is_deleted: message.is_deleted || false
+    };
+
+    // Update the selected chat if this message belongs to it
+    if (selectedChat && selectedChat.id === message.chat_id) {
+      selectedChat = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, newMessage]
       };
-      
-      // Check if this is updating a temporary message
-      if (message.temp_id) {
-        const tempIndex = selectedChat.messages.findIndex(m => m.id === message.temp_id);
-        if (tempIndex >= 0) {
-          // Replace the temporary message with the confirmed one
-          selectedChat.messages[tempIndex] = newMessage;
-          selectedChat = { ...selectedChat }; // Trigger reactivity
-          logger.debug('Updated temporary message with confirmed message');
-          return;
-        }
-      }
-      
-      // Otherwise add as a new message
-      selectedChat.messages = [...selectedChat.messages, newMessage];
-      selectedChat = { ...selectedChat }; // Trigger reactivity
-      
+
       // Scroll to bottom
       setTimeout(() => {
         const messagesContainer = document.querySelector('.messages-container');
@@ -560,60 +683,106 @@
         }
       }, 100);
     }
-    
-    // Handle delete/unsend messages
-    if (message.type === 'delete' || message.type === 'unsend') {
-      if (message.message_id) {
-        selectedChat.messages = selectedChat.messages.map(msg => 
-          msg.id === message.message_id ? { ...msg, is_deleted: true, content: 'Message deleted' } : msg
-        );
-        selectedChat = { ...selectedChat }; // Trigger reactivity
+
+    // Create a properly formatted last message
+    const lastMessage: LastMessage = {
+      content: message.content || '',
+      timestamp: ensureStringTimestamp(typeof message.timestamp === 'string' ? message.timestamp : new Date().toISOString()),
+      sender_id: senderId,
+      sender_name: 'User'
+    };
+
+    // Update the chat in the list with the new last message
+    const updatedChats = chats.map(chat => {
+      if (chat.id === message.chat_id) {
+        return {
+          ...chat,
+          last_message: lastMessage,
+          unread_count: selectedChat?.id === chat.id ? 0 : (chat.unread_count || 0) + 1
+        };
       }
+      return chat;
+    }) as Chat[]; // Type assertion
+    
+    // Update chats state
+    chats = updatedChats;
+
+    // Move the updated chat to the top of the list
+    const updatedChat = chats.find(chat => chat.id === message.chat_id);
+    if (updatedChat) {
+      chats = [
+        updatedChat,
+        ...chats.filter(chat => chat.id !== message.chat_id)
+      ] as Chat[];  // Type assertion
+      
+      // Also update filtered chats
+      filteredChats = [
+        ...filteredChats.filter(chat => chat.id === message.chat_id),
+        ...filteredChats.filter(chat => chat.id !== message.chat_id)
+      ] as Chat[];  // Type assertion
     }
+
+    // Show notification logic remains the same
   }
   
-  onMount(() => {
-    // Check viewport size
-    const checkViewport = () => {
-      isMobile = window.innerWidth < 768;
-    };
+  // Initialize WebSocket connections for all chats
+  async function initializeWebSocketConnections() {
+    if (!$authStore.is_authenticated) return;
     
+    try {
+      logger.info('Initializing WebSocket connections for all chats');
+      
+      // Register the WebSocket message handler
+      setMessageHandler(handleWebSocketMessage);
+      
+      // Get all chats
+      const fetchedChats = await fetchChats();
+      
+      // Connect to WebSockets for all chats
+      if (fetchedChats && fetchedChats.length > 0) {
+        logger.info(`Connecting to WebSockets for ${fetchedChats.length} chats`);
+        
+        // Connect to each chat's WebSocket
+        for (const chat of fetchedChats) {
+          try {
+            if (!websocketStore.isConnected(chat.id)) {
+              websocketStore.connect(chat.id);
+              logger.debug(`Connected to WebSocket for chat ${chat.id}`);
+            }
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            logger.error(`Error connecting to WebSocket for chat ${chat.id}: ${errorMessage}`);
+          }
+        }
+      }
+      
+      logger.info('WebSocket connections initialized');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error(`Error initializing WebSocket connections: ${errorMessage}`);
+    }
+  }
+
+  // Update onMount to use the new initialization function
+  onMount(() => {
+    // Check if we're on mobile
     checkViewport();
     window.addEventListener('resize', checkViewport);
     
     // Run API connection test first
     testApiConfig();
     
-    // Initialize user profile and chats
+    // Initialize user profile and WebSocket connections
     if ($authStore && $authStore.is_authenticated) {
       fetchUserProfile();
-      fetchChats().then(() => {
-        // Initialize WebSocket connection if a chat is selected
-        if (selectedChat && selectedChat.id) {
-          // Connect to WebSocket for selected chat
-          try {
-            websocketStore.connect(selectedChat.id);
-          } catch (error) {
-            logger.error('Error connecting to WebSocket:', error);
-          }
-        }
-      });
+      initializeWebSocketConnections();
     }
-    
-    // Register WebSocket message handler
-    setMessageHandler(handleWebSocketMessage);
     
     return () => {
       window.removeEventListener('resize', checkViewport);
       
       // Disconnect WebSocket connections when component unmounts
-      if (selectedChat && selectedChat.id) {
-        try {
-          websocketStore.disconnect(selectedChat.id);
-        } catch (error) {
-          logger.error('Error disconnecting from WebSocket:', error);
-        }
-      }
+      websocketStore.disconnectAll();
     };
   });
   
@@ -654,6 +823,19 @@
     showMobileMenu = !showMobileMenu;
   }
   
+  // Add a function to handle mobile navigation between chat list and chat content
+  function handleMobileNavigation(action: 'showList' | 'showChat') {
+    if (!isMobile) return;
+    
+    if (action === 'showList') {
+      // Hide the selected chat view and show the chat list
+      selectedChat = null;
+    } else if (action === 'showChat' && selectedChat) {
+      // Hide the chat list and show the selected chat
+      // This happens automatically due to our CSS classes
+    }
+  }
+  
   // Call this function to fetch profile data
   async function fetchUserProfile() {
     if (!$authStore.is_authenticated) return;
@@ -674,9 +856,9 @@
     }
   }
   
-  // Call this function to load the chat list
+  // Update fetchChats to return the fetched chats
   async function fetchChats() {
-    if (!$authStore.is_authenticated) return;
+    if (!$authStore.is_authenticated) return [];
     
     isLoadingChats = true;
     try {
@@ -770,16 +952,27 @@
         uniqueChats.push(chat);
       });
       
-      logger.info(`Filtered ${mappedChats.length} chats down to ${uniqueChats.length} unique chats`);
+      // Sort chats by last message timestamp (newest first)
+      uniqueChats.sort((a, b) => {
+        const timeA = a.last_message?.timestamp 
+          ? new Date(a.last_message.timestamp).getTime() 
+          : new Date(a.updated_at || a.created_at).getTime();
+        const timeB = b.last_message?.timestamp 
+          ? new Date(b.last_message.timestamp).getTime() 
+          : new Date(b.updated_at || b.created_at).getTime();
+        return timeB - timeA;
+      });
       
-      // Set the chats and filtered chats
+      // Update state
       chats = uniqueChats;
-      filteredChats = [...uniqueChats];
+      filteredChats = uniqueChats;
+      
+      logger.info(`Loaded ${chats.length} chats`);
+      return uniqueChats;
     } catch (error) {
-      logger.error('Failed to load chats', error);
+      logger.error('Failed to fetch chats', error);
       toastStore.showToast('Failed to load chats', 'error');
-      chats = [];
-      filteredChats = [];
+      return [];
     } finally {
       isLoadingChats = false;
     }
@@ -787,31 +980,50 @@
   
   // Helper function to map API chat data to client format
   function mapApiChatsToClientFormat(apiChats: any[]): Chat[] {
+    logger.debug('Mapping API chats to client format', { count: apiChats.length });
+    
     // First convert all chats to our format
-    return apiChats.map(chat => ({
-      id: chat.id,
-      type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
-      name: chat.name || '',
-      avatar: chat.profile_picture_url || chat.avatar_url || chat.avatar,
-      profile_picture_url: chat.profile_picture_url || chat.avatar_url || chat.avatar,
-      participants: chat.participants?.map((p: any) => ({
-        id: p.user_id || p.id,
-        username: p.username || '',
-        display_name: p.display_name || p.username || p.name || 'User',
-        avatar: p.avatar_url || p.profile_picture_url || p.avatar || null,
-        is_verified: p.is_verified || false
-      })) || [],
-      last_message: chat.last_message ? {
+    return apiChats.map(chat => {
+      // Log each chat's structure for debugging
+      logger.debug('Processing chat', { 
+        id: chat.id,
+        type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
+        name: chat.name || '',
+        hasParticipants: !!chat.participants,
+        participantCount: chat.participants?.length || 0
+      });
+      
+      // Ensure participants is always an array
+      const participants = Array.isArray(chat.participants) ? chat.participants : [];
+      
+      // Format the last_message with string timestamp
+      const lastMessage = chat.last_message ? {
         content: chat.last_message.content || '',
-        timestamp: chat.last_message.timestamp || Date.now(),
+        timestamp: ensureStringTimestamp(chat.last_message.timestamp || Date.now()),
         sender_id: chat.last_message.sender_id || chat.last_message.user_id || '',
         sender_name: chat.last_message.sender_name || chat.last_message.username || ''
-      } : undefined,
-      messages: [],
-      unread_count: chat.unread_count || 0,
-      created_at: chat.created_at || new Date().toISOString(),
-      updated_at: chat.updated_at || chat.created_at || new Date().toISOString()
-    }));
+      } : undefined;
+      
+      return {
+        id: chat.id,
+        type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
+        name: chat.name || '',
+        avatar: chat.profile_picture_url || chat.avatar_url || chat.avatar,
+        profile_picture_url: chat.profile_picture_url || chat.avatar_url || chat.avatar,
+        participants: participants.map((p: any) => ({
+          id: p.user_id || p.id,
+          username: p.username || '',
+          display_name: p.display_name || p.name || p.username || 'User',
+          avatar: p.avatar_url || p.profile_picture_url || p.avatar || null,
+          is_verified: p.is_verified || false
+        })) || [],
+        last_message: lastMessage,
+        messages: [],
+        unread_count: chat.unread_count || 0,
+        created_at: chat.created_at || new Date().toISOString(),
+        updated_at: chat.updated_at || chat.created_at || new Date().toISOString()
+      };
+    });
   }
   
   // Format chat data for display
@@ -836,24 +1048,51 @@
         updated_at: new Date().toISOString()
       };
   }
+
+  // Fix the formatMessageTime function to ensure the argument to formatRelativeTime is always a string
+  function formatMessageTime(timestamp: string | number | Date): string {
+    let stringTimestamp: string;
+    
+    if (timestamp instanceof Date) {
+      stringTimestamp = timestamp.toISOString();
+    } else if (typeof timestamp === 'number') {
+      stringTimestamp = new Date(timestamp).toISOString();
+    } else {
+      stringTimestamp = timestamp;
+    }
+    
+    return formatRelativeTime(stringTimestamp);
+  }
+
+  /**
+   * Get the other participant in an individual chat
+   */
+  function getOtherParticipant(chat: Chat): Participant | undefined {
+    if (chat.type !== 'individual') return undefined;
+    
+    return chat.participants.find(p => p.id !== $authStore.user_id);
+  }
 </script>
 
-<div class="custom-message-layout {isDarkMode ? 'dark-theme' : ''}">
-  <!-- Mobile header -->
-  {#if isMobile}
-    <div class="mobile-header">
-      <button class="mobile-menu-button" on:click={toggleMobileMenu} aria-label="Toggle mobile menu">>
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
-      <h1 class="mobile-title">Messages</h1>
-      <ThemeToggle size="sm" />
-  </div>
-  {/if}
+<style>
+  /* Fix for component-level layout issues */
+  :global(body, html, #app) {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--bg-primary, #121417);
+  }
+  
+  :global(.app-container) {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    overflow: hidden;
+  }
+</style>
 
+<div class="custom-message-layout {isDarkMode ? 'dark-theme' : ''}">
   <!-- Sidebar -->
   <div class="custom-sidebar {isMobile && !showMobileMenu ? 'hidden' : ''}">
     <LeftSide 
@@ -862,6 +1101,7 @@
       {avatar}
       isCollapsed={false}
       isMobileMenu={isMobile && showMobileMenu}
+      on:closeMobileMenu={() => showMobileMenu = false}
     />
   </div>
   
@@ -877,753 +1117,391 @@
 
   <!-- Main content area -->
   <div class="custom-content-area">
+    <!-- Mobile header -->
+    {#if isMobile}
+      <div class="mobile-header">
+        <button class="mobile-menu-button" on:click={toggleMobileMenu} aria-label="Toggle mobile menu">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+        <h1 class="mobile-title">Messages</h1>
+        <ThemeToggle size="sm" />
+      </div>
+    {/if}
+
     <!-- WebSocket Status Display -->
     <div class="websocket-status">
       <div class="status-indicator {$websocketStore.connected ? 'connected' : 'disconnected'}">
-        {$websocketStore.connected ? '🟢' : '🔴'} WebSocket: {$websocketStore.connected ? 'Connected' : 'Disconnected'}
+        <span class="status-icon">{$websocketStore.connected ? '●' : '○'}</span>
+        <span class="status-text">Real-time {$websocketStore.connected ? 'Connected' : 'Disconnected'}</span>
       </div>
       {#if $websocketStore.lastError}
-        <div class="status-error">Error: {$websocketStore.lastError}</div>
-      {/if}
-      {#if Object.keys($websocketStore.connectionStatus).length > 0}
-        <div class="chat-connections">
-          {#each Object.entries($websocketStore.connectionStatus) as [chatId, status]}
-            <span class="chat-status {status}">Chat {chatId.slice(-8)}: {status}</span>
-          {/each}
+        <div class="status-error">
+          <span class="error-icon">⚠️</span>
+          <span class="error-text">{$websocketStore.lastError}</span>
         </div>
       {/if}
     </div>
 
     <div class="message-container {isDarkMode ? 'dark-theme' : ''}">
-  <div class="middle-section">
+      <!-- Middle section - Chat list -->
+      <div class="middle-section {selectedChat && isMobile ? 'hidden' : ''}">
         <!-- Chat header -->
-    <div class="section-header">
-      <h1>Messages</h1>
-      <div class="button-group">        <button
-          class="compose-button"
-          on:click={() => showNewChatModal = true}
-          aria-label="New message"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-              New
-        </button>
-            <button
-              class="compose-button"
-              on:click={() => showGroupChatModal = true}
-              aria-label="New group"
-            >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-              Group
-        </button>
-            {#if !isMobile}
-        <ThemeToggle size="sm" />
-            {/if}
-      </div>
-    </div>
-
-        <!-- Search container -->
-    <div class="search-container">
-        <input
-          type="text"
-            placeholder="Search messages..." 
-          bind:value={searchQuery}
-            on:input={handleSearch}
-          class="search-input"
-        />
-          {#if searchQuery}
-            <button class="clear-search" on:click={() => searchQuery = ''} aria-label="Clear search">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        {/if}
-      </div>
-         <!-- Chat list -->
-      <div class="chat-list">
-        {#if isLoadingChats}
-          <div class="loading-container">
-            <div class="loading-spinner"></div>
-            <p>Loading chats...</p>
-          </div>
-        {:else if chats.length === 0}
-          <div class="empty-state">
-            <p>No conversations yet</p>
-            <button class="compose-button" on:click={() => showNewChatModal = true}>
-              Start a new chat
+        <div class="chat-list-header">
+          <h2 class="page-title">Messages</h2>
+          <div class="header-actions">
+            <button class="msg-new-message-button" on:click={() => showNewChatModal = true}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>New</span>
             </button>
           </div>
-        {:else}
-          {#each filteredChats as chat}
-            <div 
-              class="chat-item {selectedChat?.id === chat.id ? 'selected' : ''}" 
-              on:click={() => selectChat(chat)}
-              on:keydown={(e) => e.key === 'Enter' && selectChat(chat)}
-              role="button"
-              tabindex="0"
-              aria-label="Open chat with {getChatDisplayName(chat)}"
-            >
-                <div class="avatar">
-                      {#if chat.avatar}
-                    <img src={chat.avatar} alt={getChatDisplayName(chat)} />
-                  {:else if chat.type === 'group'}
-                    <div class="avatar-placeholder group-avatar">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    </div>
-                      {:else}
-                    <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(chat))}">
-                      {getChatDisplayName(chat).charAt(0).toUpperCase()}
-                    </div>
-                      {/if}
-                    </div>
-                <div class="chat-details">
-                      <div class="chat-header">
-                    <div class="chat-name">
-                      {getChatDisplayName(chat)}
-                      </div>
-                    {#if chat.last_message?.timestamp}
-                      <div class="timestamp">{formatTimeAgo(chat.last_message.timestamp)}</div>
-                          {/if}
-                  </div>
-                  <div class="last-message">
-                    {#if chat.last_message}
-                      <span>{chat.last_message.content}</span>
-                        {:else}
-                          <span class="no-messages">No messages yet</span>
-                        {/if}
-                      </div>
-                    </div>
-                    {#if chat.unread_count > 0}
-                  <div class="unread-badge">{chat.unread_count}</div>
-                    {/if}
-          </div>
-            {/each}
-      {/if}
-    </div>
-  </div>
+        </div>
 
-  <!-- Right: Chat Content -->
-  <div class="right-section">
-    {#if selectedChat}
-      <div class="chat-header">
-            {#if isMobile}
-              <button class="back-button" on:click={() => selectedChat = null} aria-label="Back to chat list">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            {/if}
-            
-            <div class="avatar">
-          {#if selectedChat.avatar}
-                <img src={selectedChat.avatar} alt={getChatDisplayName(selectedChat)} />
-              {:else if selectedChat.type === 'group'}
-                <div class="avatar-placeholder group-avatar">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-          {:else}
-                <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(selectedChat))}">
-                  {getChatDisplayName(selectedChat).charAt(0).toUpperCase()}
-                </div>
+        <!-- Search container -->
+        <div class="msg-search-container">
+          <input
+            type="text"
+            placeholder="Search messages..." 
+            bind:value={searchQuery}
+            on:input={handleSearch}
+            class="msg-search-input"
+          />
+          {#if searchQuery}
+            <button class="msg-clear-search" on:click={() => { searchQuery = ''; handleSearch(); }} aria-label="Clear search">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           {/if}
         </div>
-            
-            <div class="user-info">
-              <div class="display-name">{getChatDisplayName(selectedChat)}</div>
-              {#if selectedChat.type === 'group'}
-                <div class="participants-info">{selectedChat.participants.length} members</div>
-              {/if}
+
+        <!-- Chat list -->
+        <div class="chat-list">
+          {#if isLoadingChats}
+            <div class="loading-container">
+              <div class="loading-spinner"></div>
+              <p>Loading chats...</p>
+            </div>
+          {:else if chats.length === 0}
+            <div class="msg-empty-state">
+              <div class="msg-empty-state-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </div>
+              <h2>No conversations yet</h2>
+              <p>Start a new conversation with friends</p>
+              <button class="msg-new-message-button" on:click={() => showNewChatModal = true}>
+                Start a new chat
+              </button>
+            </div>
+          {:else}
+            {#each filteredChats as chat (chat.id)}
+              <div 
+                class="msg-chat-item {selectedChat?.id === chat.id ? 'selected' : ''}"
+                on:click={() => selectChat(chat)}
+                on:keydown={(e) => e.key === 'Enter' && selectChat(chat)}
+                role="button"
+                tabindex="0"
+              >
+                {#if chat.type === 'individual'}
+                  <div class="msg-avatar">
+                    {#if getOtherParticipant(chat)?.avatar}
+                      <img src={getOtherParticipant(chat)?.avatar || ''} alt={getOtherParticipant(chat)?.display_name || ''} />
+                    {:else}
+                      <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(chat))}">
+                        {getChatDisplayName(chat).charAt(0).toUpperCase()}
+                      </div>
+                    {/if}
+                  </div>
+                {:else}
+                  <div class="msg-avatar">
+                    {#if chat.avatar}
+                      <img src={chat.avatar} alt={chat.name} />
+                    {:else}
+                      <div class="avatar-placeholder" style="background-color: {getAvatarColor(chat.name)}">
+                        {chat.name.charAt(0).toUpperCase()}
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+                
+                <div class="chat-details">
+                  <div class="chat-header">
+                    <div class="chat-name">
+                      {getChatDisplayName(chat)}
+                    </div>
+                    {#if chat.last_message?.timestamp}
+                      <div class="timestamp">{formatMessageTime(chat.last_message.timestamp)}</div>
+                    {/if}
+                  </div>
+                  <div class="msg-last-message">
+                    {#if chat.last_message}
+                      <span>{chat.last_message.content}</span>
+                    {:else}
+                      <span class="msg-no-messages">No messages yet</span>
+                    {/if}
+                  </div>
+                </div>
+                {#if chat.unread_count > 0}
+                  <div class="msg-unread-badge">{chat.unread_count}</div>
+                {/if}
+              </div>
+            {/each}
+          {/if}
         </div>
       </div>
-      
-      <div class="messages-container">
+
+      <!-- Right section - Chat content -->
+      <div class="right-section {selectedChat && isMobile ? 'full-width' : ''}">
+        {#if selectedChat}
+          <!-- Chat header -->
+          <div class="msg-chat-header">
+            {#if selectedChat.type === 'individual'}
+              <div class="msg-avatar">
+                {#if getOtherParticipant(selectedChat)?.avatar}
+                  <img src={getOtherParticipant(selectedChat)?.avatar || ''} alt={getOtherParticipant(selectedChat)?.display_name || ''} />
+                {:else}
+                  <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(selectedChat))}">
+                    {getChatDisplayName(selectedChat).charAt(0).toUpperCase()}
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <div class="msg-avatar">
+                {#if selectedChat.avatar}
+                  <img src={selectedChat.avatar} alt={selectedChat.name} />
+                {:else}
+                  <div class="avatar-placeholder" style="background-color: {getAvatarColor(selectedChat.name)}">
+                    {selectedChat.name.charAt(0).toUpperCase()}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+            
+            <div class="msg-chat-header-info">
+              <div class="msg-chat-header-name">{getChatDisplayName(selectedChat)}</div>
+              {#if selectedChat.type === 'individual' && getOtherParticipant(selectedChat)}
+                <div class="msg-chat-header-status">
+                  {getOtherParticipant(selectedChat)?.is_verified ? '✓ Verified' : 'Online'}
+                </div>
+              {:else}
+                <div class="msg-chat-header-status">
+                  {selectedChat.participants.length} members
+                </div>
+              {/if}
+            </div>
+            
+            <div class="msg-chat-header-actions">
+              <button class="msg-action-icon" on:click={() => {/* Implement video call */}} aria-label="Video call">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <button class="msg-action-icon" on:click={() => {/* Implement call */}} aria-label="Voice call">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </button>
+              <button class="msg-action-icon" on:click={() => {/* Implement options */}} aria-label="More options">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div class="messages-container">
             {#if isLoadingMessages}
               <div class="loading-container">
                 <div class="loading-spinner"></div>
                 <p>Loading messages...</p>
               </div>
             {:else if selectedChat.messages && selectedChat.messages.length > 0}
-        {#each selectedChat.messages as message}
-                <div class="message-item {message.sender_id === $authStore.user_id ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''}">
-              {#if message.sender_id !== $authStore.user_id}
-                    <div class="message-avatar">
+              {#each selectedChat.messages as message}
+                <div class="msg-conversation-item {message.sender_id === $authStore.user_id ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''} {message.failed ? 'failed' : ''}">
+                  {#if message.sender_id !== $authStore.user_id}
+                    <div class="msg-avatar">
                       {#if message.sender_avatar}
                         <img src={message.sender_avatar} alt={message.sender_name} />
                       {:else}
                         <div class="avatar-placeholder" style="background-color: {getAvatarColor(message.sender_name || 'User')}">
                           {(message.sender_name || 'User').charAt(0).toUpperCase()}
                         </div>
-              {/if}
-              </div>
+                      {/if}
+                    </div>
                   {/if}
                   
-                  <div class="message-bubble">
-                    {#if message.sender_id !== $authStore.user_id && selectedChat.type === 'group'}
-                      <div class="sender-name">{message.sender_name || 'User'}</div>
-                    {/if}
-                    
-                    {#if message.is_deleted}
-                      <div class="deleted-message">Message deleted</div>
-                    {:else}
-                      <div class="content-text">{message.content}</div>
-                      
-                      {#if message.attachments && message.attachments.length > 0}
-                        <div class="attachments-container">
-                  {#each message.attachments as attachment}
-                            {#if attachment.type === 'image'}
-                              <img src={attachment.url} alt="Attachment" class="image-attachment" />
-                            {:else if attachment.type === 'gif'}
-                              <img src={attachment.url} alt="GIF attachment" class="gif-attachment" />
-                    {:else if attachment.type === 'video'}
-                              <video src={attachment.url} controls class="video-attachment">
-                        Your browser does not support the video tag.
-                      </video>
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
-                      
-                      <div class="message-footer">
-                        <span class="timestamp">{formatTimeAgo(message.timestamp)}</span>
+                  <div class="message-bubble {message.sender_id === $authStore.user_id ? 'sent' : 'received'}" class:failed={message.failed} class:is-local={message.is_local}>
+                    <!-- Message content -->
+                    <div class="message-content">
+                      {#if message.is_deleted}
+                        <span class="deleted-message">Message deleted</span>
+                      {:else}
+                        <p>{message.content}</p>
                         
-                        {#if message.sender_id === $authStore.user_id}
-                          <div class="message-actions">
-                            <button class="action-button" on:click={() => unsendMessage(message.id)} aria-label="Delete message">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                  </button>
+                        <!-- Show retry option for local/failed messages -->
+                        {#if message.failed || message.is_local}
+                          <div class="message-error">
+                            <span class="error-text">Not sent to server</span>
+                            <button class="retry-btn" on:click={() => {
+                              // Copy message content back to input field
+                              newMessage = message.content;
+                              // Remove the failed message
+                              if (selectedChat?.messages) {
+                                selectedChat = {
+                                  ...selectedChat,
+                                  messages: selectedChat.messages.filter(msg => msg.id !== message.id)
+                                };
+                              }
+                            }}>Retry</button>
                           </div>
-                {/if}
-              </div>
-                    {/if}
-            </div>
-          </div>
-        {/each}
+                        {/if}
+                        
+                        <!-- Message attachments -->
+                        {#if message.attachments && message.attachments.length > 0}
+                          <div class="message-attachments">
+                            {#each message.attachments as attachment}
+                              <div class="attachment">
+                                {#if attachment.type === 'image'}
+                                  <img src={attachment.url} alt="" />
+                                {:else if attachment.type === 'file'}
+                                  <div class="file-attachment">
+                                    <span class="file-name">{attachment.name}</span>
+                                    <a href={attachment.url} download>Download</a>
+                                  </div>
+                                {/if}
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
+                      {/if}
+                    </div>
+                    
+                    <!-- Message footer with timestamp -->
+                    <div class="message-footer">
+                      <span class="timestamp">{formatMessageTime(message.timestamp)}</span>
+                      
+                      <!-- Message actions for sent messages -->
+                      {#if !message.is_deleted && message.sender_id === $authStore.user_id && !message.is_local}
+                        <div class="message-actions">
+                          <button class="action-btn" on:click={() => unsendMessage(message.id)}>
+                            <span class="material-icons">delete</span>
+                          </button>
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                </div>
+              {/each}
             {:else}
-              <div class="empty-messages">
-                <p>No messages yet</p>
-                <p class="start-chat-prompt">Start the conversation!</p>
+              <div class="msg-empty-state">
+                <div class="msg-empty-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                </div>
+                <h2>No messages yet</h2>
+                <p>Start the conversation!</p>
               </div>
             {/if}
-      </div>
-      
-      <div class="message-input-container">
-            <div class="input-wrapper">
+          </div>
+          
+          <div class="msg-message-input-container">
+            <div class="msg-input-wrapper">
               <textarea 
                 bind:value={newMessage}
                 placeholder="Type a message..."
                 rows="1"
-                on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage(newMessage)}
               ></textarea>
               
-              <div class="attachment-buttons">
-                <button class="attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-        </button>
-                <button class="attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
-                  <span class="gif-button">GIF</span>
+              <div class="msg-attachment-buttons">
+                <button class="msg-attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                <button class="msg-attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
+                  <span class="msg-gif-button">GIF</span>
                 </button>
               </div>
             </div>
             
-        <button
-              class="send-button {newMessage.trim() ? 'active' : ''}"
-          disabled={!newMessage.trim()}
-              on:click={sendMessage}
+            <button
+              class="msg-send-button {newMessage.trim() ? 'active' : ''}"
+              disabled={!newMessage.trim()}
+              on:click={() => sendMessage(newMessage)}
               aria-label="Send message"
-        >
+            >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </button>
-      </div>
-    {:else}
-          <div class="no-chat-selected">
-            <div class="empty-state-image">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="64" height="64">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        {:else}
+          <div class="msg-empty-state">
+            <div class="msg-empty-state-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
             </div>
             <h2>Your Messages</h2>
-            <p>Send private messages to a friend or group</p>            <button 
-              class="compose-button"
-              on:click={() => showNewChatModal = true}
-            >
+            <p>Send private messages to a friend or group</p>
+            <button class="msg-new-message-button" on:click={() => showNewChatModal = true}>
               New Message
             </button>
+          </div>
+        {/if}
       </div>
-    {/if}
-      </div>
+    </div>
   </div>
 </div>
 
-<!-- Add the modals -->
-{#if showGroupChatModal}
-  <div class="modal-overlay">
-    <div class="modal-container">
-      <CreateGroupChat 
-        onSuccess={handleGroupChatCreated} 
-        onCancel={() => showGroupChatModal = false} 
-      />
-    </div>
-  </div>
-{/if}
-
+<!-- Modals -->
 {#if showNewChatModal}
-  <NewChatModal
-    onCancel={() => showNewChatModal = false}
-    onUserSelect={startChatWithUser}
+  <NewChatModal 
+    {isLoadingUsers}
+    {userSearchResults}
+    searchKeyword={userSearchQuery}
+    on:close={() => showNewChatModal = false}
+    on:search={(e) => searchForUsers(e.detail)}
+    on:createChat={(e) => initiateNewChat(e.detail)}
   />
 {/if}
 
-  <!-- Toast and DebugPanel -->
-  <Toast />
-  <DebugPanel />
-</div>
+{#if showCreateGroupModal}
+  <CreateGroupChat 
+    on:close={() => showCreateGroupModal = false}
+    on:createGroup={(e) => createGroupChat(e.detail)}
+    {userSearchResults}
+    {isLoadingUsers}
+    searchKeyword={userSearchQuery}
+    on:search={(e) => searchForUsers(e.detail)}
+  />
+{/if}
 
-<style>
-  /* Custom layout styles */
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-  
-  .custom-message-layout {
-    display: flex;
-    width: 100%;
-    height: 100vh;
-    background-color: var(--bg-primary);
-    color: white;
-    overflow: hidden;
-  }
-  
-  /* WebSocket Status Styles */
-  .websocket-status {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 1000;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-family: monospace;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-  
-  .status-indicator {
-    margin-bottom: 4px;
-  }
-  
-  .status-indicator.connected {
-    color: #4ade80;
-  }
-  
-  .status-indicator.disconnected {
-    color: #ef4444;
-  }
-  
-  .status-error {
-    color: #fbbf24;
-    font-size: 11px;
-    margin-bottom: 4px;
-  }
-  
-  .chat-connections {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  
-  .chat-status {
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    background: rgba(255, 255, 255, 0.1);
-  }
-  
-  .chat-status.connected {
-    background: rgba(74, 222, 128, 0.2);
-    color: #4ade80;
-  }
-  
-  .chat-status.disconnected {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
-  }
-  
-  .chat-status.connecting {
-    background: rgba(251, 191, 36, 0.2);
-    color: #fbbf24;
-  }
-  
-  .chat-status.error {
-    background: rgba(239, 68, 68, 0.3);
-    color: #ef4444;
-  }
-  
-  /* Make all text in the sidebar white */
-  .custom-sidebar {
-    width: 250px;
-    min-width: 250px;
-    border-right: 1px solid var(--border-color);
-    height: 100vh;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background-color: var(--bg-primary);
-    color: white;
-  }
-  
-  /* Override LeftSide component text colors */
-  .custom-sidebar :global(.sidebar-nav-item),
-  .custom-sidebar :global(.sidebar-nav-text),
-  .custom-sidebar :global(.sidebar-profile-name),
-  .custom-sidebar :global(.sidebar-profile-username),
-  .custom-sidebar :global(.sidebar-logo-text) {
-    color: white !important;
-  }
-  
-  .custom-sidebar :global(.sidebar-nav-icon) {
-    color: white !important;
-  }
-  
-  .custom-sidebar.hidden {
-    display: none;
-  }
-  
-  .custom-content-area {
-    flex: 1;
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-  
-  .message-container {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
-  
-  /* Mobile styles */
-  .mobile-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-primary);
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    height: 56px;
-  }
-  
-  .mobile-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin: 0;
-    color: white;
-  }
-  
-  .mobile-menu-button {
-    background: none;
-    border: none;
-    color: white;
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .mobile-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 90;
-  }
-  
-  @media (max-width: 768px) {
-    .custom-message-layout {
-      flex-direction: column;
-    }
-    
-    .custom-sidebar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      z-index: 100;
-      width: 80%;
-      max-width: 280px;
-    }
-    
-    .custom-content-area {
-      padding-top: 56px; /* Height of mobile header */
-    }
-    
-    .message-container {
-      height: calc(100vh - 56px);
-    }
-  }
-  
-  /* Dark theme fixes for message bubbles and icons */
-  .message-container.dark-theme .message-item.own-message .message-bubble {
-    background-color: #4b5563;
-    color: white;
-  }
-  
-  .message-container.dark-theme .message-item .action-button {
-    color: #e5e7eb;
-  }
-  
-  .message-container.dark-theme .message-actions svg {
-    stroke: #e5e7eb;
-  }
-  
-  .message-container.dark-theme .message-input-container {
-    background-color: #1f2937;
-  }
-  
-  .message-container.dark-theme .input-wrapper textarea {
-    background-color: #374151;
-    color: white;
-    border-color: #4b5563;
-  }
-  
-  .message-container.dark-theme .attachment-button svg {
-    stroke: #e5e7eb;
-  }
-  
-  .message-container.dark-theme .send-button {
-    background-color: #3b82f6;
-  }
-  
-  .message-container.dark-theme .gif-button {
-    color: #e5e7eb;
-  }
-  
-  /* Message bubble styling improvements */
-  .message-bubble {
-    padding: 12px 16px;
-    border-radius: 18px;
-    max-width: 80%;
-    word-wrap: break-word;
-    position: relative;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    margin: 4px 0;
-    display: inline-block;
-  }
-  
-  .own-message .message-bubble {
-    background-color: #3b82f6;
-    color: white;
-    border-bottom-right-radius: 4px;
-    margin-left: auto;
-  }
-  
-  .message-container.dark-theme .own-message .message-bubble {
-    background-color: #3b82f6;
-  }
-  
-  .message-item:not(.own-message) .message-bubble {
-    background-color: #f3f4f6;
-    color: #1f2937;
-    border-bottom-left-radius: 4px;
-    margin-right: auto;
-  }
-  
-  .message-container.dark-theme .message-item:not(.own-message) .message-bubble {
-    background-color: #374151;
-    color: #f3f4f6;
-  }
-  
-  .message-item {
-    display: flex;
-    margin-bottom: 8px;
-    position: relative;
-    width: 100%;
-    padding: 0 16px;
-  }
-  
-  /* Fix for the just now message bubble */
-  .message-container.dark-theme .message-item {
-    color: white;
-  }
-  
-  .message-container.dark-theme .content-text {
-    color: white;
-  }
-  
-  /* Fix for the delete icon in message bubbles */
-  .message-actions {
-    display: flex;
-    align-items: center;
-    margin-left: 8px;
-  }
-  
-  .action-button {
-    background: transparent;
-    border: none;
-    padding: 4px;
-    border-radius: 50%;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .action-button:hover {
-    opacity: 1;
-    background-color: rgba(0,0,0,0.1);
-  }
-  
-  .message-container.dark-theme .action-button:hover {
-    background-color: rgba(255,255,255,0.1);
-  }
-  
-  .action-button svg {
-    width: 16px;
-    height: 16px;
-  }
-  
-  /* Message timestamp styling */
-  .timestamp {
-    font-size: 0.7rem;
-    opacity: 0.7;
-    margin-right: 4px;
-  }
-  
-  /* Message avatar styling */
-  .message-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    margin-right: 8px;
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-  
-  .message-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .message-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 4px;
-    font-size: 0.7rem;
-  }
-  
-  /* Input area styling */
-  .input-wrapper {
-    display: flex;
-    flex: 1;
-    background-color: #f3f4f6;
-    border-radius: 24px;
-    padding: 8px 16px;
-    align-items: center;
-  }
-  
-  .message-container.dark-theme .input-wrapper {
-    background-color: #374151;
-  }
-  
-  .input-wrapper textarea {
-    flex: 1;
-    border: none;
-    background: transparent;
-    resize: none;
-    padding: 8px 0;
-    outline: none;
-    color: inherit;
-    font-family: inherit;
-    font-size: 0.95rem;
-  }
-  
-  .attachment-buttons {
-    display: flex;
-    align-items: center;
-    margin-left: 8px;
-  }
-  
-  .attachment-button {
-    background: transparent;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    padding: 4px;
-    margin-left: 4px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-  }
-  
-  .attachment-button:hover {
-    background-color: rgba(0,0,0,0.05);
-    color: #3b82f6;
-  }
-  
-  .message-container.dark-theme .attachment-button:hover {
-    background-color: rgba(255,255,255,0.1);
-  }
-  
-  .gif-button {
-    font-weight: bold;
-    font-size: 0.8rem;
-  }
-  
-  .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-secondary);
-    padding: 20px;
-  }
-  
-  .loading-spinner {
-    width: 30px;
-    height: 30px;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    border-top-color: var(--accent-color);
-    animation: spin 1s linear infinite;
-    margin-bottom: 10px;
-  }
-  
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-</style>
+{#if showDebug}
+  <DebugPanel 
+    on:close={() => showDebug = false}
+    {chats}
+    {selectedChat}
+    authToken={$authStore.token}
+    userId={$authStore.user_id}
+    wsConnected={$websocketStore.connected}
+    wsError={$websocketStore.lastError}
+    on:testConnection={() => testApiConnection()}
+    on:checkAuth={() => logAuthTokenInfo()}
+  />
+{/if}
+
+<Toast {toasts} on:close={(e) => toastStore.removeToast(e.detail)} />
 
 

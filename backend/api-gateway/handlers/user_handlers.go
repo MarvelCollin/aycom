@@ -268,12 +268,57 @@ func RegisterUser(c *gin.Context) {
 
 func LoginUser(c *gin.Context) {
 	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email          string `json:"email"`
+		Password       string `json:"password"`
+		RecaptchaToken string `json:"recaptcha_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request: "+err.Error())
 		return
+	}
+
+	// Skip reCAPTCHA verification in development mode
+	devMode := utils.IsDevelopmentMode()
+
+	log.Printf("Login request received for email: %s (dev mode: %v, has recaptcha: %v)",
+		req.Email, devMode, req.RecaptchaToken != "")
+
+	if !devMode && req.RecaptchaToken == "" {
+		log.Println("reCAPTCHA token missing in production mode")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success":    false,
+			"error_code": "RECAPTCHA_REQUIRED",
+			"message":    "reCAPTCHA verification is required",
+		})
+		return
+	}
+
+	if !devMode && req.RecaptchaToken != "" {
+		// Verify reCAPTCHA token
+		log.Printf("Verifying reCAPTCHA token with length: %d", len(req.RecaptchaToken))
+
+		success, err := utils.VerifyRecaptcha(req.RecaptchaToken)
+		if err != nil {
+			log.Printf("reCAPTCHA verification error: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success":    false,
+				"error_code": "RECAPTCHA_ERROR",
+				"message":    "reCAPTCHA verification failed: " + err.Error(),
+			})
+			return
+		} else if !success {
+			log.Printf("reCAPTCHA verification failed: token invalid")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success":    false,
+				"error_code": "RECAPTCHA_FAILED",
+				"message":    "reCAPTCHA verification failed: invalid token",
+			})
+			return
+		}
+
+		log.Printf("reCAPTCHA verification successful for login request from: %s", req.Email)
+	} else if devMode {
+		log.Printf("Skipping reCAPTCHA verification in development mode for: %s", req.Email)
 	}
 
 	if UserClient == nil {
@@ -290,6 +335,7 @@ func LoginUser(c *gin.Context) {
 	}
 	loginResp, err := UserClient.LoginUser(ctx, loginReq)
 	if err != nil || loginResp.User == nil {
+		log.Printf("Login failed for email: %s, error: %v", req.Email, err)
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid credentials")
 		return
 	}
@@ -306,6 +352,8 @@ func LoginUser(c *gin.Context) {
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "TOKEN_GENERATION_FAILED", "Failed to generate refresh token")
 		return
 	}
+
+	log.Printf("Login successful for user: %s (id: %s)", loginResp.User.Email, loginResp.User.Id)
 
 	response := AuthServiceResponse{
 		Success:      true,

@@ -14,7 +14,8 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - VITE_GOOGLE_CLIENT_ID=161144128362-3jdhmpm3kfr253crkmv23jfqa9ubs2o8.apps.googleusercontent.com
       - VITE_GOOGLE_REDIRECT_URI=http://localhost:3000/register
-      - VITE_RECAPTCHA_SITE_KEY=6Ld6UysrAAAAAPW3XRLe-M9bGDgOPJ2kml1yCozA
+      - VITE_RECAPTCHA_SITE_KEY=6LcrtmErAAAAACQuNOe_Zck_KLZm3QpZ-yrXCOoU
+      - VITE_RECAPTCHA_SECRET_KEY=6LcrtmErAAAAAI0TIp3ZflJJgEXiNFEOhuGQKF61
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -77,6 +78,9 @@ services:
       # Supabase configuration
       - SUPABASE_URL=https://sdhtnvlmuywinhcglfsu.supabase.co
       - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTkwMTg3NSwiZXhwIjoyMDYxNDc3ODc1fQ.KNuEFpwiuSIt3rgaJDSO-BOhYnqlRyR1uIcHAenIthw
+      # reCAPTCHA configuration
+      - RECAPTCHA_SECRET_KEY=6LcrtmErAAAAAI0TIp3ZflJJgEXiNFEOhuGQKF61
+      - RECAPTCHA_SITE_KEY=6LcrtmErAAAAACQuNOe_Zck_KLZm3QpZ-yrXCOoU
     volumes:
       - ./backend:/app
       - api_gateway_go_mod_cache:/go/pkg/mod

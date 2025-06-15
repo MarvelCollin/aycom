@@ -5,7 +5,6 @@ import (
 	communityProto "aycom/backend/proto/community"
 	userProto "aycom/backend/proto/user"
 	"context"
-	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -407,43 +406,29 @@ func SendMessage(c *gin.Context) {
 	log.Printf("SendMessage request: chatID=%s, userID=%v, content=%s", chatID, userID, req.Content)
 
 	// Get the community service client
-	if CommunityClient == nil {
+	client := GetCommunityServiceClient()
+	if client == nil {
 		log.Printf("SendMessage: Community service client is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
 	// Check if user is a participant in this chat
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	participantsResp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
-		ChatId: chatID,
-	})
-
+	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
 	if err != nil {
-		log.Printf("SendMessage: Error checking chat participants: %v", err)
+		log.Printf("SendMessage: Error checking if user is participant: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat access: "+err.Error())
 		return
 	}
 
-	// Check if the user is a participant
-	userIsParticipant := false
-	for _, participant := range participantsResp.Participants {
-		if participant.UserId == userID.(string) {
-			userIsParticipant = true
-			break
-		}
-	}
-
-	if !userIsParticipant {
+	if !isParticipant {
 		log.Printf("SendMessage: User %s is not a participant in chat %s", userID, chatID)
 
-		// Auto-add the user as a participant if they're trying to send a message
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel2()
+		// Try to add the user as a participant
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-		_, addErr := CommunityClient.AddChatParticipant(ctx2, &communityProto.AddChatParticipantRequest{
+		_, addErr := CommunityClient.AddChatParticipant(ctx, &communityProto.AddChatParticipantRequest{
 			ChatId:  chatID,
 			UserId:  userID.(string),
 			IsAdmin: false,
@@ -456,61 +441,29 @@ func SendMessage(c *gin.Context) {
 		}
 
 		log.Printf("SendMessage: Auto-added user %s as participant to chat %s", userID, chatID)
+		isParticipant = true
 	}
 
-	// Send the message
-	ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel3()
-
-	messageResp, err := CommunityClient.SendMessage(ctx3, &communityProto.SendMessageRequest{
-		ChatId:   chatID,
-		SenderId: userID.(string),
-		Content:  req.Content,
-	})
-
+	// Send the message using the community service client
+	msgID, err := client.SendMessage(chatID, userID.(string), req.Content)
 	if err != nil {
-		log.Printf("SendMessage: Error sending message: %v", err)
+		log.Printf("SendMessage: Error from community service: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to send message: "+err.Error())
 		return
 	}
 
-	// If community client is unavailable or for testing, use mock response
-	if messageResp == nil || messageResp.Message == nil {
-		log.Printf("SendMessage: Using mock response for chat %s", chatID)
+	log.Printf("SendMessage: Message sent successfully with ID %s", msgID)
 
-		messageID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
-		timestamp := time.Now().Unix()
-
-		utils.SendSuccessResponse(c, 201, gin.H{
-			"message_id": messageID,
-			"message": gin.H{
-				"id":         messageID,
-				"chat_id":    chatID,
-				"sender_id":  userID,
-				"content":    req.Content,
-				"timestamp":  timestamp,
-				"is_read":    false,
-				"is_edited":  false,
-				"is_deleted": false,
-			},
-		})
-		return
-	}
-
-	// Format the response
-	message := messageResp.Message
+	// Return the message ID and details
 	timestamp := time.Now().Unix()
-	if message.SentAt != nil {
-		timestamp = message.SentAt.AsTime().Unix()
-	}
 
 	utils.SendSuccessResponse(c, 201, gin.H{
-		"message_id": message.Id,
+		"message_id": msgID,
 		"message": gin.H{
-			"id":         message.Id,
-			"chat_id":    message.ChatId,
-			"sender_id":  message.SenderId,
-			"content":    message.Content,
+			"id":         msgID,
+			"chat_id":    chatID,
+			"sender_id":  userID,
+			"content":    req.Content,
 			"timestamp":  timestamp,
 			"is_read":    false,
 			"is_edited":  false,

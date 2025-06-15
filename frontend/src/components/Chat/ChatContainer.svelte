@@ -267,9 +267,13 @@
     <div class="chat-header">
       {#if participants.length > 0}
         <div class="participant-info">
-          <h3>Chat with: {participants.filter(p => p.user_id !== userId && p.id !== userId)
-            .map(p => p.display_name || p.username || 'Unknown User')
-            .join(', ')}</h3>
+          {#if chatId.startsWith('group_') || participants.length > 2}
+            <h3>Group Chat</h3>
+          {:else}
+            <h3>Chat with: {participants.filter(p => p.user_id !== userId && p.id !== userId)
+              .map(p => p.display_name || p.username || 'Unknown User')
+              .join(', ') || 'Unknown User'}</h3>
+          {/if}
         </div>
       {/if}
     </div>
