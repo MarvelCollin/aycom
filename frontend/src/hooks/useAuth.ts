@@ -188,8 +188,21 @@ export function useAuth() {
   const register = async (userData: IUserRegistration) => {
     try {
       const data = await authApi.register(userData);
+      
+      // Check if there's an error response
+      if (!data.success || data.error) {
+        // Return the error with proper success flag set to false
+        return {
+          success: false,
+          message: data.error?.message || data.message || 'Registration failed. Please check your information.',
+          error: data.error,
+          validation_errors: data.validation_errors
+        };
+      }
+      
+      // Success case
       return {
-        success: data.success,
+        success: true,
         message: data.message || 'Registration successful! Check your email for verification code.'
       };
     } catch (error) {
@@ -240,13 +253,25 @@ export function useAuth() {
       
       const data = await authApi.register(enrichedUserData);
       
+      // Check if there's an error response
+      if (!data.success || data.error) {
+        // Return the error with proper success flag set to false
+        return {
+          success: false,
+          message: data.error?.message || data.message || 'Registration failed. Please check your information.',
+          error: data.error,
+          validation_errors: data.validation_errors
+        };
+      }
+      
+      // Success case
       let message = data.message || 'Registration successful! Check your email for verification code.';
       if (profileUploadError || bannerUploadError) {
         message += ' Note: Some media uploads failed. You can update your profile later.';
       }
       
       return {
-        success: data.success,
+        success: true,
         message: message
       };
     } catch (error) {

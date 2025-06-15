@@ -117,6 +117,19 @@
   let selectedAttachments: Attachment[] = [];
   let isLoadingUsers = false;
   let userSearchResults: StandardUser[] = [];
+  let userSearchQuery = '';
+  
+  // Mobile view state
+  let isMobile = false;
+  let showMobileMenu = false;
+  
+  // Modal visibility flags
+  let showNewChatModal = false;
+  let showCreateGroupModal = false;
+  let showDebug = false;
+  
+  // Toast notifications
+  let toasts = [];
   
   // Handle attachment selection - placeholder function for now
   function handleAttachment(type: 'image' | 'gif') {
@@ -128,11 +141,6 @@
   
   // Group chat modal state
   let showGroupChatModal = false;
-  let showNewChatModal = false;
-
-  // Mobile detection
-  let isMobile = false;
-  let showMobileMenu = false;
   
   // Function to check viewport size and set mobile state
   function checkViewport() {
@@ -161,13 +169,30 @@
   }
   
   // Chat interaction functions
-  async function selectChat(chat: Chat) {
-    logger.info(`Selecting chat: ${chat.id}`);
+  async function selectChat(chat: Chat | string) {
+    let chatId: string;
+    
+    // Handle both string ID and Chat object
+    if (typeof chat === 'string') {
+      chatId = chat;
+      // Find the chat in our list
+      const chatObj = chats.find(c => c.id === chatId);
+      if (!chatObj) {
+        logger.error(`Chat with ID ${chatId} not found in chats list`);
+        toastStore.showToast(`Chat not found. Please try again.`, 'error');
+        return;
+      }
+      chat = chatObj;
+    } else {
+      chatId = chat.id;
+    }
+    
+    logger.info(`Selecting chat: ${chatId}`);
     
     // Validate chat ID format
-    if (!chat.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chat.id)) {
-      logger.error(`Invalid chat ID format: ${chat.id}`);
-      toastStore.showToast(`Invalid chat ID format: ${chat.id}. Please try again or contact support.`, 'error');
+    if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
+      logger.error(`Invalid chat ID format: ${chatId}`);
+      toastStore.showToast(`Invalid chat ID format: ${chatId}. Please try again or contact support.`, 'error');
       return;
     }
     
@@ -182,8 +207,8 @@
     // Fetch messages for the selected chat
     isLoadingMessages = true;
     try {
-      logger.debug(`Fetching messages for chat ${chat.id}`);
-      const response = await listMessages(chat.id);
+      logger.debug(`Fetching messages for chat ${chatId}`);
+      const response = await listMessages(chatId);
       
       if (response && response.messages) {
         // Sort messages by timestamp to ensure correct order (newest last)
@@ -206,7 +231,7 @@
           messages: processedMessages
         };
         
-        logger.info(`Loaded ${processedMessages.length} messages for chat ${chat.id}`);
+        logger.info(`Loaded ${processedMessages.length} messages for chat ${chatId}`);
           
         // Scroll to bottom of messages
         setTimeout(() => {
@@ -216,14 +241,14 @@
           }
         }, 100);
       } else {
-        logger.warn(`No messages found for chat ${chat.id}`);
+        logger.warn(`No messages found for chat ${chatId}`);
         selectedChat = {
           ...selectedChat,
           messages: []
         };
       }
     } catch (error) {
-      logger.error(`Error loading messages for chat ${chat.id}:`, error);
+      logger.error(`Error loading messages for chat ${chatId}:`, error);
       toastStore.showToast('Failed to load messages', 'error');
       selectedChat = {
         ...selectedChat,
@@ -236,30 +261,30 @@
     // Connect to WebSocket for this chat
     try {
       // Check if already connected to this chat
-      const isConnected = websocketStore.isConnected(chat.id);
+      const isConnected = websocketStore.isConnected(chatId);
       if (!isConnected) {
-        logger.info(`Connecting to WebSocket for chat ${chat.id}`);
-        websocketStore.connect(chat.id);
+        logger.info(`Connecting to WebSocket for chat ${chatId}`);
+        websocketStore.connect(chatId);
       } else {
-        logger.debug(`Already connected to WebSocket for chat ${chat.id}`);
+        logger.debug(`Already connected to WebSocket for chat ${chatId}`);
       }
     } catch (error) {
-      logger.error(`Error connecting to WebSocket for chat ${chat.id}:`, error);
+      logger.error(`Error connecting to WebSocket for chat ${chatId}:`, error);
       toastStore.showToast('Could not establish real-time connection', 'warning');
     }
     
     // Mark chat as read by resetting unread count
     chats = chats.map(c => {
-      if (c.id === chat.id) {
+      if (c.id === chatId) {
         return { ...c, unread_count: 0 };
       }
       return c;
-    });
+    }) as Chat[];
     
     // Fix the filtered chats assignment
     filteredChats = [
-      ...(filteredChats.filter(c => c.id === chat.id)),
-      ...(filteredChats.filter(c => c.id !== chat.id))
+      ...(filteredChats.filter(c => c.id === chatId)),
+      ...(filteredChats.filter(c => c.id !== chatId))
     ].map(chat => ({
       ...chat,
       // Ensure that last_message.timestamp is always a string
@@ -439,11 +464,11 @@
   // Message handling functions
   async function sendMessage(content: string) {
     if (!content.trim() || !selectedChat) return;
-
+    
     // Clear input after sending
     newMessage = '';
     selectedAttachments = [];
-
+    
     // Generate a temporary message ID
     const tempMessageId = `temp-${Date.now()}`;
 
@@ -461,14 +486,14 @@
       is_edited: false,
       attachments: selectedAttachments.length > 0 ? [...selectedAttachments] : undefined
     };
-
+    
     try {
       // Add message to UI immediately (optimistic update)
       if (selectedChat) {
-        selectedChat = {
-          ...selectedChat,
-          messages: [...selectedChat.messages, tempMessage]
-        };
+      selectedChat = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, tempMessage]
+      };
 
         // Scroll to bottom
         setTimeout(() => {
@@ -477,14 +502,14 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
           }
         }, 100);
-      }
-
-      // Update chat in the list with last message
+        }
+        
+        // Update chat in the list with last message
       const newLastMessage: LastMessage = {
-        content,
+                content,
         timestamp: ensureStringTimestamp(new Date().toISOString()),
-        sender_id: $authStore.user_id || '',
-        sender_name: displayName
+                sender_id: $authStore.user_id || '',
+                sender_name: displayName
       };
 
       // Fix the issue in chat.map where we're updating the last_message
@@ -493,12 +518,12 @@
           return {
             ...chat,
             last_message: newLastMessage
-          };
-        }
-        return chat;
+            };
+          }
+          return chat;
       }) as Chat[];
-
-      // Update chats and move the active chat to top
+        
+        // Update chats and move the active chat to top
       const activeChatId = selectedChat?.id;
       const activeChat = chats.find(c => c.id === activeChatId);
       if (activeChat) {
@@ -607,7 +632,7 @@
             return chat;
           }) as Chat[];
         }
-      }
+        }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to unsend message', error);
@@ -646,12 +671,12 @@
   function handleWebSocketMessage(message: any) {
     // Processing websocket message...
     const senderId = message.sender_id;
-
+    
     if (senderId === $authStore.user_id) {
       logger.debug('Skipping own message from WebSocket:', message);
       return;
     }
-
+    
     logger.info(`Received new message in chat ${message.chat_id} from ${senderId}`);
 
     // Format the message with all required properties
@@ -665,16 +690,16 @@
       sender_avatar: undefined,
       is_read: false,
       is_edited: false,
-      is_deleted: message.is_deleted || false
-    };
-
+        is_deleted: message.is_deleted || false
+      };
+      
     // Update the selected chat if this message belongs to it
     if (selectedChat && selectedChat.id === message.chat_id) {
       selectedChat = {
         ...selectedChat,
         messages: [...selectedChat.messages, newMessage]
       };
-
+      
       // Scroll to bottom
       setTimeout(() => {
         const messagesContainer = document.querySelector('.messages-container');
@@ -683,7 +708,7 @@
         }
       }, 100);
     }
-
+    
     // Create a properly formatted last message
     const lastMessage: LastMessage = {
       content: message.content || '',
@@ -1005,20 +1030,20 @@
       } : undefined;
       
       return {
-        id: chat.id,
-        type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
-        name: chat.name || '',
-        avatar: chat.profile_picture_url || chat.avatar_url || chat.avatar,
-        profile_picture_url: chat.profile_picture_url || chat.avatar_url || chat.avatar,
+      id: chat.id,
+      type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
+      name: chat.name || '',
+      avatar: chat.profile_picture_url || chat.avatar_url || chat.avatar,
+      profile_picture_url: chat.profile_picture_url || chat.avatar_url || chat.avatar,
         participants: participants.map((p: any) => ({
-          id: p.user_id || p.id,
-          username: p.username || '',
+        id: p.user_id || p.id,
+        username: p.username || '',
           display_name: p.display_name || p.name || p.username || 'User',
-          avatar: p.avatar_url || p.profile_picture_url || p.avatar || null,
-          is_verified: p.is_verified || false
-        })) || [],
+        avatar: p.avatar_url || p.profile_picture_url || p.avatar || null,
+        is_verified: p.is_verified || false
+      })) || [],
         last_message: lastMessage,
-        messages: [],
+      messages: [],
         unread_count: chat.unread_count || 0,
         created_at: chat.created_at || new Date().toISOString(),
         updated_at: chat.updated_at || chat.created_at || new Date().toISOString()
@@ -1065,8 +1090,76 @@
   }
 
   /**
-   * Get the other participant in an individual chat
+   * Search for users to add to chats
    */
+  async function searchForUsers(query: string) {
+    if (!query || query.length < 2) {
+      userSearchResults = [];
+      return;
+    }
+    
+    userSearchQuery = query;
+    isLoadingUsers = true;
+    
+    try {
+      const results = await searchUsers(query);
+      userSearchResults = transformApiUsers(results);
+    } catch (error) {
+      handleApiError(error, 'Failed to search for users');
+      userSearchResults = [];
+    } finally {
+      isLoadingUsers = false;
+    }
+  }
+  
+  /**
+   * Initialize a new chat with a user
+   */
+  async function initiateNewChat(userId: string) {
+    try {
+      isLoadingChats = true;
+      const response = await createChat({
+        type: 'individual',
+        participant_ids: [userId]
+      });
+      
+      if (response && response.chat_id) {
+        showNewChatModal = false;
+        await fetchChats(); // Use fetchChats instead of loadChats
+        selectChat(response.chat_id);
+      }
+    } catch (error) {
+      handleApiError(error, 'Failed to create chat');
+    } finally {
+      isLoadingChats = false;
+    }
+  }
+  
+  /**
+   * Handle creating a group chat
+   */
+  async function handleCreateGroupChat(data: { name: string; participants: string[] }) {
+    try {
+      isLoadingChats = true;
+      const response = await createChat({
+        type: 'group',
+        name: data.name,
+        participants: data.participants // Use 'participants' instead of 'participant_ids'
+      });
+      
+      if (response && response.chat_id) {
+        showCreateGroupModal = false;
+        await fetchChats(); // Use fetchChats instead of loadChats
+        selectChat(response.chat_id);
+        toastStore.showToast(`Group chat "${data.name}" created successfully`, 'success');
+      }
+    } catch (error) {
+      handleApiError(error, 'Failed to create group chat');
+    } finally {
+      isLoadingChats = false;
+    }
+  }
+
   function getOtherParticipant(chat: Chat): Participant | undefined {
     if (chat.type !== 'individual') return undefined;
     
@@ -1157,38 +1250,38 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+          </svg>
               <span>New</span>
-            </button>
-          </div>
-        </div>
+        </button>
+      </div>
+    </div>
 
         <!-- Search container -->
         <div class="msg-search-container">
-          <input
-            type="text"
+        <input
+          type="text"
             placeholder="Search messages..." 
-            bind:value={searchQuery}
+          bind:value={searchQuery}
             on:input={handleSearch}
             class="msg-search-input"
-          />
+        />
           {#if searchQuery}
             <button class="msg-clear-search" on:click={() => { searchQuery = ''; handleSearch(); }} aria-label="Clear search">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          {/if}
-        </div>
+            </svg>
+          </button>
+        {/if}
+      </div>
 
-        <!-- Chat list -->
-        <div class="chat-list">
-          {#if isLoadingChats}
-            <div class="loading-container">
-              <div class="loading-spinner"></div>
-              <p>Loading chats...</p>
-            </div>
-          {:else if chats.length === 0}
+         <!-- Chat list -->
+      <div class="chat-list">
+        {#if isLoadingChats}
+          <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading chats...</p>
+          </div>
+        {:else if chats.length === 0}
             <div class="msg-empty-state">
               <div class="msg-empty-state-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
@@ -1198,28 +1291,28 @@
               <h2>No conversations yet</h2>
               <p>Start a new conversation with friends</p>
               <button class="msg-new-message-button" on:click={() => showNewChatModal = true}>
-                Start a new chat
-              </button>
-            </div>
-          {:else}
+              Start a new chat
+            </button>
+          </div>
+        {:else}
             {#each filteredChats as chat (chat.id)}
-              <div 
+            <div 
                 class="msg-chat-item {selectedChat?.id === chat.id ? 'selected' : ''}"
-                on:click={() => selectChat(chat)}
-                on:keydown={(e) => e.key === 'Enter' && selectChat(chat)}
-                role="button"
-                tabindex="0"
+              on:click={() => selectChat(chat)}
+              on:keydown={(e) => e.key === 'Enter' && selectChat(chat)}
+              role="button"
+              tabindex="0"
               >
                 {#if chat.type === 'individual'}
                   <div class="msg-avatar">
                     {#if getOtherParticipant(chat)?.avatar}
                       <img src={getOtherParticipant(chat)?.avatar || ''} alt={getOtherParticipant(chat)?.display_name || ''} />
-                    {:else}
-                      <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(chat))}">
-                        {getChatDisplayName(chat).charAt(0).toUpperCase()}
-                      </div>
-                    {/if}
-                  </div>
+                      {:else}
+                    <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(chat))}">
+                      {getChatDisplayName(chat).charAt(0).toUpperCase()}
+                    </div>
+                      {/if}
+                    </div>
                 {:else}
                   <div class="msg-avatar">
                     {#if chat.avatar}
@@ -1233,46 +1326,46 @@
                 {/if}
                 
                 <div class="chat-details">
-                  <div class="chat-header">
+                      <div class="chat-header">
                     <div class="chat-name">
                       {getChatDisplayName(chat)}
-                    </div>
+                      </div>
                     {#if chat.last_message?.timestamp}
                       <div class="timestamp">{formatMessageTime(chat.last_message.timestamp)}</div>
-                    {/if}
+                          {/if}
                   </div>
                   <div class="msg-last-message">
                     {#if chat.last_message}
                       <span>{chat.last_message.content}</span>
-                    {:else}
+                        {:else}
                       <span class="msg-no-messages">No messages yet</span>
-                    {/if}
-                  </div>
-                </div>
-                {#if chat.unread_count > 0}
+                        {/if}
+                      </div>
+                    </div>
+                    {#if chat.unread_count > 0}
                   <div class="msg-unread-badge">{chat.unread_count}</div>
-                {/if}
-              </div>
+                    {/if}
+          </div>
             {/each}
-          {/if}
-        </div>
-      </div>
+      {/if}
+    </div>
+  </div>
 
       <!-- Right section - Chat content -->
       <div class="right-section {selectedChat && isMobile ? 'full-width' : ''}">
-        {#if selectedChat}
+    {#if selectedChat}
           <!-- Chat header -->
           <div class="msg-chat-header">
             {#if selectedChat.type === 'individual'}
               <div class="msg-avatar">
                 {#if getOtherParticipant(selectedChat)?.avatar}
                   <img src={getOtherParticipant(selectedChat)?.avatar || ''} alt={getOtherParticipant(selectedChat)?.display_name || ''} />
-                {:else}
-                  <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(selectedChat))}">
-                    {getChatDisplayName(selectedChat).charAt(0).toUpperCase()}
-                  </div>
-                {/if}
-              </div>
+          {:else}
+                <div class="avatar-placeholder" style="background-color: {getAvatarColor(getChatDisplayName(selectedChat))}">
+                  {getChatDisplayName(selectedChat).charAt(0).toUpperCase()}
+                </div>
+          {/if}
+        </div>
             {:else}
               <div class="msg-avatar">
                 {#if selectedChat.avatar}
@@ -1296,7 +1389,7 @@
                   {selectedChat.participants.length} members
                 </div>
               {/if}
-            </div>
+        </div>
             
             <div class="msg-chat-header-actions">
               <button class="msg-action-icon" on:click={() => {/* Implement video call */}} aria-label="Video call">
@@ -1315,18 +1408,18 @@
                 </svg>
               </button>
             </div>
-          </div>
-          
-          <div class="messages-container">
+      </div>
+      
+      <div class="messages-container">
             {#if isLoadingMessages}
               <div class="loading-container">
                 <div class="loading-spinner"></div>
                 <p>Loading messages...</p>
               </div>
             {:else if selectedChat.messages && selectedChat.messages.length > 0}
-              {#each selectedChat.messages as message}
+        {#each selectedChat.messages as message}
                 <div class="msg-conversation-item {message.sender_id === $authStore.user_id ? 'own-message' : ''} {message.is_deleted ? 'deleted' : ''} {message.failed ? 'failed' : ''}">
-                  {#if message.sender_id !== $authStore.user_id}
+              {#if message.sender_id !== $authStore.user_id}
                     <div class="msg-avatar">
                       {#if message.sender_avatar}
                         <img src={message.sender_avatar} alt={message.sender_name} />
@@ -1334,16 +1427,16 @@
                         <div class="avatar-placeholder" style="background-color: {getAvatarColor(message.sender_name || 'User')}">
                           {(message.sender_name || 'User').charAt(0).toUpperCase()}
                         </div>
-                      {/if}
-                    </div>
+              {/if}
+              </div>
                   {/if}
                   
                   <div class="message-bubble {message.sender_id === $authStore.user_id ? 'sent' : 'received'}" class:failed={message.failed} class:is-local={message.is_local}>
                     <!-- Message content -->
                     <div class="message-content">
-                      {#if message.is_deleted}
+                    {#if message.is_deleted}
                         <span class="deleted-message">Message deleted</span>
-                      {:else}
+                    {:else}
                         <p>{message.content}</p>
                         
                         <!-- Show retry option for local/failed messages -->
@@ -1365,41 +1458,41 @@
                         {/if}
                         
                         <!-- Message attachments -->
-                        {#if message.attachments && message.attachments.length > 0}
+                      {#if message.attachments && message.attachments.length > 0}
                           <div class="message-attachments">
-                            {#each message.attachments as attachment}
+                  {#each message.attachments as attachment}
                               <div class="attachment">
-                                {#if attachment.type === 'image'}
+                            {#if attachment.type === 'image'}
                                   <img src={attachment.url} alt="" />
                                 {:else if attachment.type === 'file'}
                                   <div class="file-attachment">
                                     <span class="file-name">{attachment.name}</span>
                                     <a href={attachment.url} download>Download</a>
                                   </div>
-                                {/if}
+                    {/if}
                               </div>
-                            {/each}
-                          </div>
-                        {/if}
+                  {/each}
+                </div>
+              {/if}
                       {/if}
                     </div>
-                    
-                    <!-- Message footer with timestamp -->
-                    <div class="message-footer">
-                      <span class="timestamp">{formatMessageTime(message.timestamp)}</span>
                       
+                    <!-- Message footer with timestamp -->
+                      <div class="message-footer">
+                      <span class="timestamp">{formatMessageTime(message.timestamp)}</span>
+                        
                       <!-- Message actions for sent messages -->
                       {#if !message.is_deleted && message.sender_id === $authStore.user_id && !message.is_local}
-                        <div class="message-actions">
+                          <div class="message-actions">
                           <button class="action-btn" on:click={() => unsendMessage(message.id)}>
                             <span class="material-icons">delete</span>
-                          </button>
-                        </div>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
-              {/each}
+                  </button>
+                          </div>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/each}
             {:else}
               <div class="msg-empty-state">
                 <div class="msg-empty-state-icon">
@@ -1412,8 +1505,8 @@
                 <p>Start the conversation!</p>
               </div>
             {/if}
-          </div>
-          
+      </div>
+      
           <div class="msg-message-input-container">
             <div class="msg-input-wrapper">
               <textarea 
@@ -1425,49 +1518,49 @@
               
               <div class="msg-attachment-buttons">
                 <button class="msg-attachment-button" on:click={() => handleAttachment('image')} aria-label="Add image">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        </button>
                 <button class="msg-attachment-button" on:click={() => handleAttachment('gif')} aria-label="Add GIF">
                   <span class="msg-gif-button">GIF</span>
                 </button>
               </div>
             </div>
             
-            <button
+        <button
               class="msg-send-button {newMessage.trim() ? 'active' : ''}"
-              disabled={!newMessage.trim()}
+          disabled={!newMessage.trim()}
               on:click={() => sendMessage(newMessage)}
               aria-label="Send message"
-            >
+        >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </div>
-        {:else}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </button>
+      </div>
+    {:else}
           <div class="msg-empty-state">
             <div class="msg-empty-state-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
+        </svg>
             </div>
             <h2>Your Messages</h2>
             <p>Send private messages to a friend or group</p>
             <button class="msg-new-message-button" on:click={() => showNewChatModal = true}>
               New Message
             </button>
-          </div>
-        {/if}
       </div>
-    </div>
+    {/if}
+      </div>
   </div>
 </div>
+    </div>
 
 <!-- Modals -->
 {#if showNewChatModal}
-  <NewChatModal 
+  <NewChatModal
     {isLoadingUsers}
     {userSearchResults}
     searchKeyword={userSearchQuery}
@@ -1480,7 +1573,7 @@
 {#if showCreateGroupModal}
   <CreateGroupChat 
     on:close={() => showCreateGroupModal = false}
-    on:createGroup={(e) => createGroupChat(e.detail)}
+    on:createGroup={(e) => handleCreateGroupChat(e.detail)}
     {userSearchResults}
     {isLoadingUsers}
     searchKeyword={userSearchQuery}

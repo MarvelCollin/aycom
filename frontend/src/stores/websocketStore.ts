@@ -297,8 +297,8 @@ function createWebSocketStore() {
       logger.error(`Failed to create WebSocket connection for chat ${chatId}:`, error);
       console.error(`[WebSocket] Connection creation error for chat ${chatId}:`, error);
       
-      update(state => ({ 
-        ...state, 
+      update(state => ({
+        ...state,
         lastError: errorMessage,
         connectionStatus: {
           ...state.connectionStatus,

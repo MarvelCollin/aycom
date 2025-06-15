@@ -21,8 +21,9 @@
     days,
     years,
     securityQuestions,
-    validateFormField,
-    validateStep1,
+    setFieldError,
+    setServerErrors,
+    clearErrors,
     startTimer,
     formatTimeLeft,
     cleanupTimers
@@ -39,107 +40,222 @@
   let missingProfileFields: string[] = [];
   
   function validateNameAndUpdate() {
-    $formData.name && validateFormField('name', $formData.name);
+    // Removed client-side validation
   }
   
   function validateUsernameAndUpdate() {
-    $formData.username && validateFormField('username', $formData.username);
+    // Removed client-side validation
   }
   
   function validateEmailAndUpdate() {
-    $formData.email && validateFormField('email', $formData.email);
+    // Removed client-side validation
   }
   
   function validatePasswordAndUpdate() {
-    $formData.password && validateFormField('password', $formData.password);
+    // Removed client-side validation
   }
   
   function validateConfirmPasswordAndUpdate() {
-    $formData.confirmPassword && validateFormField('confirmPassword', $formData.confirmPassword);
+    // Removed client-side validation
   }
   
   function validateGenderAndUpdate() {
-    $formData.gender && validateFormField('gender', $formData.gender);
+    // Removed client-side validation
   }
   
   function validateDateOfBirthAndUpdate() {
-    validateFormField('dateOfBirth', $formData.dateOfBirth);
+    // Removed client-side validation
   }
   
   function validateSecurityQuestionAndUpdate() {
-    validateFormField('securityQuestion', $formData.securityQuestion);
+    // Removed client-side validation
   }
   
   function validateSecurityAnswerAndUpdate() {
-    validateFormField('securityAnswer', $formData.securityAnswer);
+    // Removed client-side validation
   }
   
-  async function submitRegistration(recaptchaToken: string | null) {
+  let recaptchaToken: string | null = null;
+  
+  async function submitRegistration(token: string | null) {
+    recaptchaToken = token;
+    
     if (!recaptchaToken && !import.meta.env.DEV) {
-      const errorMessage = "reCAPTCHA verification failed. Please try again.";
+      const errorMessage = "Please complete the reCAPTCHA verification";
       formState.update(state => ({ ...state, error: errorMessage }));
       if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
       return;
     }
     
-    let errorMessage = "";
-    if (validateStep1()) {
-      formState.update(state => ({ ...state, loading: true }));
-      const userData: IUserRegistration = {
-        name: $formData.name,
-        username: $formData.username,
-        email: $formData.email,
-        password: $formData.password,
-        confirm_password: $formData.confirmPassword,
-        gender: $formData.gender,
-        date_of_birth: months.indexOf($formData.dateOfBirth.month) + '-' + $formData.dateOfBirth.day + '-' + $formData.dateOfBirth.year,
-        security_question: $formData.securityQuestion,
-        security_answer: $formData.securityAnswer,
-        subscribe_to_newsletter: $formData.subscribeToNewsletter,
-        recaptcha_token: recaptchaToken || (import.meta.env.DEV ? "dev-mode-token" : "")
-      };
-      try {
-        let result;
-        if ($formData.profilePicture instanceof File || $formData.banner instanceof File) {
-          result = await registerWithMedia(
-            userData, 
-            $formData.profilePicture instanceof File ? $formData.profilePicture : null,
-            $formData.banner instanceof File ? $formData.banner : null
-          );
-        } else {
-          result = await register(userData);
+    // Clear any previous errors before submission
+    clearErrors();
+    
+    formState.update(state => ({ ...state, loading: true }));
+    
+    // Format date of birth in the expected backend format: month_index-day-year
+    // Where month_index starts from 0 (January = 0, February = 1, etc.)
+    const monthIndex = months.indexOf($formData.dateOfBirth.month);
+    const formattedDateOfBirth = `${monthIndex}-${$formData.dateOfBirth.day}-${$formData.dateOfBirth.year}`;
+    
+    const userData: IUserRegistration = {
+      name: $formData.name,
+      username: $formData.username,
+      email: $formData.email,
+      password: $formData.password,
+      confirm_password: $formData.confirmPassword,
+      gender: $formData.gender,
+      date_of_birth: formattedDateOfBirth,
+      security_question: $formData.securityQuestion,
+      security_answer: $formData.securityAnswer,
+      subscribe_to_newsletter: $formData.subscribeToNewsletter,
+      recaptcha_token: recaptchaToken || (import.meta.env.DEV ? "dev-mode-token" : "")
+    };
+    
+    try {
+      let result;
+      if ($formData.profilePicture instanceof File || $formData.banner instanceof File) {
+        result = await registerWithMedia(
+          userData, 
+          $formData.profilePicture instanceof File ? $formData.profilePicture : null,
+          $formData.banner instanceof File ? $formData.banner : null
+        );
+      } else {
+        result = await register(userData);
+      }
+      
+      formState.update(state => ({ ...state, loading: false }));
+      
+      if (result.success) {
+        startTimer();
+        formState.update(state => ({ ...state, step: 2, error: "" }));
+        const successEl = document.createElement('div');
+        successEl.textContent = "Registration successful";
+        successEl.setAttribute('data-cy', 'success-message');
+        successEl.style.position = 'absolute';
+        successEl.style.left = '-9999px';
+        document.body.appendChild(successEl);
+        toastStore.showToast(
+          "Registration successful. Please check your email to verify your account.", 
+          "success"
+        );
+      } else {
+        // Handle validation errors from the backend
+        console.log("Registration failed with response:", result);
+        
+        // Check if we have structured validation errors from the backend
+        if (result.validation_errors) {
+          // Set field-specific errors
+          Object.entries(result.validation_errors as Record<string, string | string[]>).forEach(([field, message]) => {
+            if (field === 'password') {
+              setFieldError(field, Array.isArray(message) ? message : [message.toString()]);
+            } else {
+              setFieldError(field, message.toString());
+            }
+          });
+        }
+        // Check if we have an error object with validation errors
+        else if (result.error && result.error.message) {
+          // Parse the validation error message
+          const errorMessage = result.error.message;
+          formState.update(state => ({ ...state, error: errorMessage }));
+          
+          // Log the full error to help debugging
+          console.error("Backend validation error:", errorMessage);
+          
+          // Try to extract field-specific errors
+          if (errorMessage.includes("Key:") || errorMessage.includes("Validation failed:")) {
+            let errorPairs: {field: string; message: string}[] = [];
+            
+            // Check for Key:... Error:... format
+            const keyErrorRegex = /Key: '(\w+)' Error:([^,]+)/g;
+            let match;
+            while ((match = keyErrorRegex.exec(errorMessage)) !== null) {
+              errorPairs.push({ field: match[1], message: match[2].trim() });
+            }
+            
+            // Check for field: message format in "Validation failed: ..." messages
+            if (errorMessage.includes("Validation failed:")) {
+              const validationErrorsText = errorMessage.split("Validation failed:")[1].trim();
+              const validationErrors = validationErrorsText.split(";").map(err => err.trim()).filter(Boolean);
+              
+              for (const validationError of validationErrors) {
+                // Try to determine which field this error belongs to
+                if (validationError.toLowerCase().includes("name must")) {
+                  errorPairs.push({ field: "Name", message: validationError });
+                } else if (validationError.toLowerCase().includes("username")) {
+                  errorPairs.push({ field: "Username", message: validationError });
+                } else if (validationError.toLowerCase().includes("email")) {
+                  errorPairs.push({ field: "Email", message: validationError });
+                } else if (validationError.toLowerCase().includes("password") && !validationError.toLowerCase().includes("confirm")) {
+                  errorPairs.push({ field: "Password", message: validationError });
+                } else if (validationError.toLowerCase().includes("match") || 
+                           validationError.toLowerCase().includes("confirm")) {
+                  errorPairs.push({ field: "ConfirmPassword", message: validationError });
+                } else if (validationError.toLowerCase().includes("gender")) {
+                  errorPairs.push({ field: "Gender", message: validationError });
+                } else if (validationError.toLowerCase().includes("birth") || 
+                           validationError.toLowerCase().includes("age") ||
+                           validationError.toLowerCase().includes("13 year")) {
+                  errorPairs.push({ field: "DateOfBirth", message: validationError });
+                } else if (validationError.toLowerCase().includes("security question")) {
+                  errorPairs.push({ field: "SecurityQuestion", message: validationError });
+                } else if (validationError.toLowerCase().includes("security answer")) {
+                  errorPairs.push({ field: "SecurityAnswer", message: validationError });
+                }
+              }
+            }
+            
+            // Convert backend field names to frontend field names and set errors
+            for (const { field, message } of errorPairs) {
+              const fieldMapping: Record<string, string> = {
+                'Name': 'name',
+                'Username': 'username',
+                'Email': 'email',
+                'Password': 'password',
+                'ConfirmPassword': 'confirmPassword',
+                'Gender': 'gender',
+                'DateOfBirth': 'dateOfBirth',
+                'SecurityQuestion': 'securityQuestion',
+                'SecurityAnswer': 'securityAnswer'
+              };
+              
+              const frontendField = fieldMapping[field] || field.toLowerCase();
+              
+              // Set the error for the specific field
+              if (frontendField === 'password') {
+                setFieldError(frontendField, [message]);
+              } else {
+                setFieldError(frontendField, message);
+              }
+              
+              // Also update the general error message
+              formState.update(state => {
+                if (!state.error) {
+                  return { ...state, error: "Please fix the validation errors" };
+                }
+                return state;
+              });
+            }
+          }
         }
         
-        formState.update(state => ({ ...state, loading: false }));
-        if (result.success) {
-          startTimer();
-          formState.update(state => ({ ...state, step: 2, error: "" }));
-          const successEl = document.createElement('div');
-          successEl.textContent = "Registration successful";
-          successEl.setAttribute('data-cy', 'success-message');
-          successEl.style.position = 'absolute';
-          successEl.style.left = '-9999px';
-          document.body.appendChild(successEl);
-          toastStore.showToast(
-            "Registration successful. Please check your email to verify your account.", 
-            "success"
-          );
-        } else {
-          errorMessage = result.message || "Registration failed. Please try again.";
-          formState.update(state => ({ ...state, error: errorMessage }));
-          if (appConfig.ui.showErrorToasts) toastStore.showToast(`Registration Error: ${errorMessage}`);
+        const errorMessage = result.message || "Registration failed. Please check the form for errors.";
+        formState.update(state => ({ ...state, error: errorMessage }));
+        if (appConfig.ui.showErrorToasts) {
+          // Fix here: Don't use the same success message text in the error toast
+          // Make sure the error message doesn't contain the success message text
+          const toastErrorMsg = errorMessage.includes("Registration successful") ? 
+            "Registration failed. Please check the form for errors." : errorMessage;
+          toastStore.showToast(`Registration Error: ${toastErrorMsg}`, 'error');
         }
-      } catch (err) {
-        formState.update(state => ({ ...state, loading: false }));
-        console.error("Registration Exception:", err);
-        toastStore.showToast('Registration failed. Please try again.', 'error');
       }
-    } else {
-      errorMessage = "Please correct the errors in the form.";
-      if (appConfig.ui.showErrorToasts) toastStore.showToast(errorMessage);
+    } catch (err) {
+      formState.update(state => ({ ...state, loading: false }));
+      console.error("Registration Exception:", err);
+      toastStore.showToast('Registration failed. Please try again.', 'error');
     }
   }
-  
+
   function handleGoogleAuthSuccess(result: any) {
     const logger = createLoggerWithPrefix('GoogleRegister');
     logger.info('Google auth success in Register page with result:', result);
@@ -295,15 +411,6 @@
         securityQuestionError={$errors.securityQuestion}
         profilePictureError={$errors.profilePicture}
         bannerError={$errors.banner}
-        onNameBlur={validateNameAndUpdate}
-        onUsernameBlur={validateUsernameAndUpdate}
-        onEmailBlur={validateEmailAndUpdate}
-        onPasswordBlur={validatePasswordAndUpdate}
-        onConfirmPasswordBlur={validateConfirmPasswordAndUpdate}
-        onGenderChange={validateGenderAndUpdate}
-        onDateOfBirthChange={validateDateOfBirthAndUpdate}
-        onSecurityQuestionChange={validateSecurityQuestionAndUpdate}
-        onSecurityAnswerBlur={validateSecurityAnswerAndUpdate}
         onSubmit={submitRegistration}
         onGoogleAuthSuccess={handleGoogleAuthSuccess}
         onGoogleAuthError={handleGoogleAuthError}

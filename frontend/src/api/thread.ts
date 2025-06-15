@@ -277,14 +277,61 @@ export async function createThread(data: Record<string, any>) {
 
 export async function getThread(id: string) {
   try {
-    return await makeApiRequest(
+    logger.debug(`Fetching thread with ID: ${id}`);
+    
+    const response = await makeApiRequest(
       `${API_BASE_URL}/threads/${id}`, 
       'GET', 
       null, 
       'Failed to fetch thread'
     );
+    
+    // Log the raw API response for debugging
+    logger.debug(`Thread API response for ID ${id}:`, response);
+    
+    if (!response || (typeof response === 'object' && Object.keys(response).length === 0)) {
+      logger.warn(`Empty thread response for ID ${id}`);
+      throw new Error(`Thread with ID ${id} not found or returned empty response`);
+    }
+    
+    // Ensure response has all required fields with consistent naming
+    const standardizedResponse = {
+      id: response.id,
+      content: response.content,
+      created_at: response.created_at,
+      updated_at: response.updated_at,
+      user_id: response.user_id,
+      username: response.username,
+      name: response.name,
+      profile_picture_url: response.profile_picture_url,
+      likes_count: response.likes_count || 0,
+      replies_count: response.replies_count || 0,
+      reposts_count: response.reposts_count || 0,
+      bookmark_count: response.bookmark_count || 0,
+      views_count: response.views_count || 0,
+      is_liked: Boolean(response.is_liked),
+      is_bookmarked: Boolean(response.is_bookmarked),
+      is_reposted: Boolean(response.is_reposted),
+      is_pinned: Boolean(response.is_pinned),
+      is_verified: Boolean(response.is_verified),
+      media: Array.isArray(response.media) ? response.media : []
+    };
+    
+    logger.debug(`Thread data standardized for ID: ${id}`);
+    return standardizedResponse;
   } catch (error) {
     logger.error(`Get thread ${id} failed:`, error);
+    
+    // Provide more detailed error information
+    if (error instanceof Response) {
+      try {
+        const errorText = await error.text();
+        logger.error(`API error response for thread ${id}:`, errorText);
+      } catch (e) {
+        logger.error(`Could not read API error response:`, e);
+      }
+    }
+    
     throw error;
   }
 }
@@ -652,18 +699,37 @@ export async function getThreadReplies(threadId: string) {
       'Failed to get thread replies'
     );
     
-    // Process replies to ensure they have replies_count set
+    let standardizedReplies = [];
+    
+    // Process replies to ensure they have consistent field structure
     if (response && response.replies && Array.isArray(response.replies)) {
-      response.replies = response.replies.map(reply => {
-        // Make sure replies_count is set to 0 if not present
-        if (reply.replies_count === undefined && reply.repliesCount === undefined) {
-          reply.replies_count = 0;
-        }
-        return reply;
-      });
+      standardizedReplies = response.replies.map(reply => ({
+        id: reply.id,
+        content: reply.content || '',
+        created_at: reply.created_at,
+        updated_at: reply.updated_at,
+        thread_id: reply.thread_id || threadId,
+        parent_id: reply.parent_id || reply.parent_reply_id || null,
+        user_id: reply.user_id,
+        username: reply.username,
+        name: reply.name,
+        profile_picture_url: reply.profile_picture_url,
+        likes_count: reply.likes_count || 0,
+        replies_count: reply.replies_count || 0,
+        reposts_count: reply.reposts_count || 0,
+        bookmark_count: reply.bookmark_count || 0,
+        is_liked: Boolean(reply.is_liked),
+        is_bookmarked: Boolean(reply.is_bookmarked),
+        is_reposted: Boolean(reply.is_reposted),
+        is_pinned: Boolean(reply.is_pinned),
+        media: Array.isArray(reply.media) ? reply.media : []
+      }));
     }
     
-    return response;
+    return {
+      replies: standardizedReplies,
+      total: response.total || standardizedReplies.length
+    };
   } catch (error) {
     logger.error(`Get replies for thread ${threadId} failed:`, error);
     throw error;

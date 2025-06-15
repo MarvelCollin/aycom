@@ -223,67 +223,61 @@
   }
 
   function processTweetContent(rawTweet: any): ExtendedTweet {
-    if (!rawTweet) {
-      console.error('Invalid tweet data provided to processTweetContent:', rawTweet);
-      return createPlaceholderTweet();
-    }
-    
     try {
-      // Log verification fields from the API response
-      console.debug('TWEET VERIFICATION CHECK:', {
-        id: rawTweet.id || 'unknown',
-        username: rawTweet.username,
-        isVerifiedDirect: rawTweet.is_verified,
-        userIsVerified: rawTweet.user?.is_verified,
-        authorIsVerified: rawTweet.author?.is_verified
-      });
+      if (!rawTweet) {
+        console.error('Null or undefined tweet data passed to TweetCard');
+        return createPlaceholderTweet();
+      }
       
-      // Log admin status fields from API response
-      console.debug('TWEET ADMIN CHECK:', {
-        id: rawTweet.id || 'unknown',
-        username: rawTweet.username,
-        isAdminDirect: rawTweet.is_admin,
-        userIsAdmin: rawTweet.user?.is_admin,
-        authorIsAdmin: rawTweet.author?.is_admin
-      });
+      // Log the raw tweet data for debugging
+      console.debug('Processing tweet data:', JSON.stringify(rawTweet).substring(0, 200));
       
-      // Make a deep copy to avoid modifying the original
+      // Make a deep copy with standardized field names
       const processed: ExtendedTweet = {
-        ...rawTweet,
-        // Ensure all required ITweet fields exist with fallbacks
-        id: rawTweet.id || rawTweet.thread_id || rawTweet.threadId || `unknown-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        content: rawTweet.content || rawTweet.Content || '',
-        created_at: rawTweet.created_at || rawTweet.CreatedAt || new Date().toISOString(),
-        updated_at: rawTweet.updated_at || rawTweet.UpdatedAt,
+        id: rawTweet.id || rawTweet.thread_id || '',
+        content: rawTweet.content !== undefined ? rawTweet.content : '',
+        created_at: rawTweet.created_at || new Date().toISOString(),
+        updated_at: rawTweet.updated_at,
         
-        // User information with extensive fallbacks
-        user_id: extractUserId(rawTweet),
-        username: extractUsername(rawTweet),
-        name: extractDisplayName(rawTweet),
-        profile_picture_url: extractProfilePicture(rawTweet),
+        // User information
+        user_id: rawTweet.user_id || '',
+        username: rawTweet.username || 'anonymous',
+        name: rawTweet.name || 'User',
+        profile_picture_url: rawTweet.profile_picture_url ? formatStorageUrl(rawTweet.profile_picture_url) : '',
         
-        // Interaction metrics with fallbacks
-        likes_count: safeParseNumber(rawTweet.likes_count || rawTweet.LikesCount || rawTweet.LikeCount || rawTweet.like_count || rawTweet.metrics?.likes),
-        replies_count: safeParseNumber(rawTweet.replies_count || rawTweet.RepliesCount || rawTweet.ReplyCount || rawTweet.reply_count || rawTweet.repliesCount || rawTweet.replyCount || rawTweet.replies || rawTweet.metrics?.replies || 0),
-        reposts_count: safeParseNumber(rawTweet.reposts_count || rawTweet.RepostsCount || rawTweet.RepostCount || rawTweet.repost_count || rawTweet.metrics?.reposts),
-        bookmark_count: safeParseNumber(rawTweet.bookmark_count || rawTweet.BookmarkCount || rawTweet.bookmarks_count || rawTweet.metrics?.bookmarks),
+        // Interaction metrics
+        likes_count: typeof rawTweet.likes_count === 'number' ? rawTweet.likes_count : 0,
+        replies_count: typeof rawTweet.replies_count === 'number' ? rawTweet.replies_count : 0,
+        reposts_count: typeof rawTweet.reposts_count === 'number' ? rawTweet.reposts_count : 0,
+        bookmark_count: typeof rawTweet.bookmark_count === 'number' ? rawTweet.bookmark_count : 0,
+        views_count: typeof rawTweet.views_count === 'number' ? rawTweet.views_count : 0,
         
-        // Interaction states with fallbacks
-        is_liked: Boolean(rawTweet.is_liked || rawTweet.IsLiked || rawTweet.liked_by_user || rawTweet.LikedByUser || false),
-        is_reposted: Boolean(rawTweet.is_reposted || rawTweet.IsReposted || rawTweet.reposted_by_user || rawTweet.RepostedByUser || rawTweet.is_repost || false),
-        is_bookmarked: Boolean(rawTweet.is_bookmarked || rawTweet.IsBookmarked || rawTweet.bookmarked_by_user || rawTweet.BookmarkedByUser || false),
-        is_pinned: Boolean(rawTweet.is_pinned || rawTweet.IsPinned || rawTweet.pinned || false),
+        // State flags
+        is_liked: Boolean(rawTweet.is_liked),
+        is_reposted: Boolean(rawTweet.is_reposted),
+        is_bookmarked: Boolean(rawTweet.is_bookmarked),
+        is_pinned: Boolean(rawTweet.is_pinned),
         is_verified: isVerified(rawTweet),
-        is_admin: Boolean(rawTweet.is_admin || rawTweet.IsAdmin || rawTweet.user?.is_admin || rawTweet.author?.is_admin || false),
         
-        // Media with validation
-        media: validateMedia(rawTweet.media || rawTweet.Media || []),
+        // Community information
+        community_id: rawTweet.community_id || null,
+        community_name: rawTweet.community_name || null,
+        
+        // Thread relationship
+        parent_id: rawTweet.parent_id || null,
+        
+        // Media
+        media: Array.isArray(rawTweet.media) ? rawTweet.media.map(m => ({
+          id: m.id || '',
+          url: m.url ? formatStorageUrl(m.url) : '',
+          type: m.type || 'image',
+          thumbnail_url: m.thumbnail_url ? formatStorageUrl(m.thumbnail_url) : 
+                       (m.url ? formatStorageUrl(m.url) : '')
+        })) : [],
+        
+        // Computed properties
+        timestamp: String(new Date(rawTweet.created_at || Date.now()).getTime())
       };
-      
-      console.log(`Tweet processed - verified status: ${processed.is_verified}, admin status: ${processed.is_admin} (${processed.name || processed.displayName})`);
-      
-      // Before the return statement, make sure is_verified is set
-      processed.is_verified = isVerified(rawTweet);
       
       return processed;
     } catch (error) {
@@ -1560,9 +1554,14 @@
       // Dispatch click event for any parent components that need to know
       dispatch('click', tweet);
       
-      // Navigate directly to the thread detail page with just the ID
-      // No need to store in the store since we'll load from the API in ThreadDetail
+      // Use proper navigation to ensure data loading
       const threadId = processedTweet.id;
+      // Save thread data to sessionStorage for retrieval in the ThreadDetail page
+      // This prevents the "no content" issue when navigating
+      const threadData = JSON.stringify(processedTweet);
+      sessionStorage.setItem('lastViewedThread', threadData);
+      
+      // Navigate to the thread page
       window.location.href = `/thread/${threadId}`;
     }
   }

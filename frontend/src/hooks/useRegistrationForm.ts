@@ -1,5 +1,4 @@
 import { writable } from 'svelte/store';
-import { useValidation } from './useValidation';
 import type { IDateOfBirth } from '../interfaces/IAuth';
 
 export function useRegistrationForm() {
@@ -25,7 +24,7 @@ export function useRegistrationForm() {
     recaptchaToken: ""
   });
 
-  // Validation errors
+  // Server validation errors store
   const errors = writable({
     name: "",
     username: "",
@@ -72,99 +71,30 @@ export function useRegistrationForm() {
   // Generate years for the last 100 years
   const years = Array.from({ length: 100 }, (_, i) => (currentYear - i).toString());
 
-  // Get validation functions
-  const validation = useValidation();
-
-  // Validation methods
-  const validateFormField = (field: string, value: any): boolean => {
-    const updateErrors = (key: string, value: string | string[]) => {
-      errors.update((e) => ({ ...e, [key]: value }));
-    };
-
-    switch (field) {
-      case 'name':
-        updateErrors('name', validation.validateName(value));
-        break;
-      case 'username':
-        updateErrors('username', validation.validateUsername(value));
-        break;
-      case 'email':
-        updateErrors('email', validation.validateEmail(value));
-        break;
-      case 'password':
-        updateErrors('password', validation.validatePassword(value));
-        // Also validate confirm password if it exists
-        formData.update(data => {
-          if (data.confirmPassword) {
-            updateErrors('confirmPassword', validation.validateConfirmPassword(value, data.confirmPassword));
-          }
-          return data;
-        });
-        break;
-      case 'confirmPassword':
-        formData.update(data => {
-          updateErrors('confirmPassword', validation.validateConfirmPassword(data.password, value));
-          return data;
-        });
-        break;
-      case 'gender':
-        updateErrors('gender', validation.validateGender(value));
-        break;
-      case 'dateOfBirth':
-        updateErrors('dateOfBirth', validation.validateDateOfBirth(value, months));
-        break;
-      case 'securityQuestion':
-      case 'securityAnswer':
-        formData.update(data => {
-          updateErrors('securityQuestion', validation.validateSecurityQuestion(data.securityQuestion, data.securityAnswer));
-          return data;
-        });
-        break;
-      case 'profilePicture':
-        updateErrors('profilePicture', value ? "" : "Profile picture is required");
-        break;
-      case 'banner':
-        updateErrors('banner', value ? "" : "Banner image is required");
-        break;
-    }
-
-    let isValid = false;
-    errors.update(e => {
-      if (field === 'password') {
-        isValid = e[field].length === 0;
-      } else if (field === 'securityQuestion' || field === 'securityAnswer') {
-        isValid = !e.securityQuestion;
-      } else {
-        isValid = !e[field];
-      }
-      return e;
-    });
-
-    return isValid;
+  // Helper to update specific field error
+  const setFieldError = (field: string, errorMessage: string | string[]) => {
+    errors.update(e => ({ ...e, [field]: errorMessage }));
   };
 
-  const validateStep1 = (): boolean => {
-    let isFormValid = true;
-    
-    formData.update(data => {
-      // Validate all form fields
-      const fieldsToValidate = [
-        'name', 'username', 'email', 'password', 'confirmPassword', 
-        'gender', 'dateOfBirth', 'securityQuestion', 'profilePicture', 'banner'
-      ];
+  // Set errors from server response
+  const setServerErrors = (serverErrors: Record<string, string | string[]>) => {
+    errors.update(e => ({ ...e, ...serverErrors }));
+  };
 
-      fieldsToValidate.forEach(field => {
-        const fieldValue = field === 'dateOfBirth' ? data.dateOfBirth : data[field];
-        const isFieldValid = validateFormField(field, fieldValue);
-        if (!isFieldValid) {
-          isFormValid = false;
-        }
-      });
-
-      return data;
-    });
-    
-    return isFormValid;
+  // Clear all errors
+  const clearErrors = () => {
+    errors.update(() => ({
+      name: "",
+      username: "",
+      email: "",
+      password: [] as string[],
+      confirmPassword: "",
+      gender: "",
+      dateOfBirth: "",
+      securityQuestion: "",
+      profilePicture: "",
+      banner: ""
+    }));
   };
 
   // Timer functions for verification code
@@ -226,8 +156,9 @@ export function useRegistrationForm() {
     days,
     years,
     securityQuestions,
-    validateFormField,
-    validateStep1,
+    setFieldError,
+    setServerErrors,
+    clearErrors,
     startTimer,
     formatTimeLeft,
     cleanupTimers

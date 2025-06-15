@@ -7,8 +7,11 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -214,13 +217,98 @@ func RegisterUser(c *gin.Context) {
 		return
 	}
 
+	validationErrors := []string{}
+
+	if len(req.Name) < 4 {
+		validationErrors = append(validationErrors, "Name must be at least 4 characters")
+	} else if len(req.Name) > 50 {
+		validationErrors = append(validationErrors, "Name cannot exceed 50 characters")
+	} else if !regexp.MustCompile(`^[a-zA-Z\s]+$`).MatchString(req.Name) {
+		validationErrors = append(validationErrors, "Name must not contain symbols or numbers")
+	}
+
+	if len(req.Username) < 3 {
+		validationErrors = append(validationErrors, "Username must be at least 3 characters")
+	} else if len(req.Username) > 15 {
+		validationErrors = append(validationErrors, "Username cannot exceed 15 characters")
+	} else if !regexp.MustCompile(`^[a-zA-Z0-9_]+$`).MatchString(req.Username) {
+		validationErrors = append(validationErrors, "Username can only contain letters, numbers, and underscores")
+	}
+
 	if len(req.Password) < 8 {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_PASSWORD", "Password must be at least 8 characters")
-		return
+		validationErrors = append(validationErrors, "Password must be at least 8 characters")
+	}
+
+	hasUpper := false
+	hasLower := false
+	hasNumber := false
+	hasSpecial := false
+	for _, char := range req.Password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsDigit(char):
+			hasNumber = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper {
+		validationErrors = append(validationErrors, "Password must contain at least one uppercase letter")
+	}
+	if !hasLower {
+		validationErrors = append(validationErrors, "Password must contain at least one lowercase letter")
+	}
+	if !hasNumber {
+		validationErrors = append(validationErrors, "Password must contain at least one number")
+	}
+	if !hasSpecial {
+		validationErrors = append(validationErrors, "Password must contain at least one special character")
 	}
 
 	if req.Password != req.ConfirmPassword {
-		utils.SendErrorResponse(c, http.StatusBadRequest, "PASSWORD_MISMATCH", "Password and confirmation password do not match")
+		validationErrors = append(validationErrors, "Password and confirmation password do not match")
+	}
+
+	parts := strings.Split(req.DateOfBirth, "-")
+	if len(parts) != 3 {
+		validationErrors = append(validationErrors, "Invalid date of birth format")
+	} else {
+		monthIdx, _ := strconv.Atoi(parts[0])
+		day, _ := strconv.Atoi(parts[1])
+		year, _ := strconv.Atoi(parts[2])
+
+		if monthIdx < 0 || monthIdx > 11 || day < 1 || day > 31 || year < 1900 || year > time.Now().Year() {
+			validationErrors = append(validationErrors, "Invalid date of birth value")
+		} else {
+			birthDate := time.Date(year, time.Month(monthIdx+1), day, 0, 0, 0, 0, time.UTC)
+			age := time.Now().Year() - birthDate.Year()
+
+			if time.Now().YearDay() < birthDate.YearDay() {
+				age--
+			}
+
+			if age < 13 {
+				validationErrors = append(validationErrors, "User must be at least 13 years old")
+			}
+		}
+	}
+
+	if req.SecurityQuestion == "" {
+		validationErrors = append(validationErrors, "Security question is required")
+	}
+	if req.SecurityAnswer == "" {
+		validationErrors = append(validationErrors, "Security answer is required")
+	} else if len(req.SecurityAnswer) < 3 {
+		validationErrors = append(validationErrors, "Security answer must be at least 3 characters")
+	}
+
+	if len(validationErrors) > 0 {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR",
+			"Validation failed: "+strings.Join(validationErrors, "; "))
 		return
 	}
 

@@ -196,14 +196,20 @@ func GetThread(c *gin.Context) {
 		"likes_count":         thread.LikeCount,
 		"replies_count":       thread.ReplyCount,
 		"reposts_count":       thread.RepostCount,
+		"bookmark_count":      thread.BookmarkCount,
+		"views_count":         0,
 		"is_liked":            thread.IsLiked,
 		"is_reposted":         thread.IsReposted,
 		"is_bookmarked":       thread.IsBookmarked,
 		"is_pinned":           thread.IsPinned,
+		"is_verified":         false,
 		"user_id":             thread.UserID,
 		"username":            thread.Username,
 		"name":                thread.DisplayName,
 		"profile_picture_url": thread.ProfilePicture,
+		"community_id":        nil,
+		"community_name":      nil,
+		"parent_id":           nil,
 	}
 
 	if len(thread.Media) > 0 {
@@ -1727,4 +1733,46 @@ func UpdateThreadMediaURLsHandler(c *gin.Context) {
 		"thread":     threadData,
 		"media_urls": request.MediaUrls,
 	})
+}
+
+// standardizeReplyResponse creates a standardized reply response object
+func standardizeReplyResponse(reply *Thread) map[string]interface{} {
+	replyData := map[string]interface{}{
+		"id":                  reply.ID,
+		"content":             reply.Content,
+		"created_at":          reply.CreatedAt,
+		"updated_at":          reply.UpdatedAt,
+		"thread_id":           reply.ParentID, // Parent thread ID
+		"parent_id":           nil,            // Default null for top-level replies
+		"likes_count":         reply.LikeCount,
+		"replies_count":       reply.ReplyCount,
+		"reposts_count":       reply.RepostCount,
+		"bookmark_count":      reply.BookmarkCount,
+		"views_count":         0, // Default value if not available
+		"is_liked":            reply.IsLiked,
+		"is_reposted":         reply.IsReposted,
+		"is_bookmarked":       reply.IsBookmarked,
+		"is_pinned":           reply.IsPinned,
+		"is_verified":         false, // Default value if not available
+		"user_id":             reply.UserID,
+		"username":            reply.Username,
+		"name":                reply.DisplayName,
+		"profile_picture_url": reply.ProfilePicture,
+	}
+
+	if len(reply.Media) > 0 {
+		mediaList := make([]map[string]interface{}, len(reply.Media))
+		for i, m := range reply.Media {
+			mediaList[i] = map[string]interface{}{
+				"id":   m.ID,
+				"url":  m.URL,
+				"type": m.Type,
+			}
+		}
+		replyData["media"] = mediaList
+	} else {
+		replyData["media"] = []map[string]interface{}{}
+	}
+
+	return replyData
 }

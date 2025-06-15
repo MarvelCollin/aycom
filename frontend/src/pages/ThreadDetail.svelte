@@ -31,86 +31,33 @@
     try {
       console.log('Formatting thread data from API response:', responseData);
       
-      // Check if response has nested structure (thread + user) or flat structure
-      if (responseData.thread && responseData.user) {
-        // Handle nested structure
-        const threadData = responseData.thread || {};
-        const userData = responseData.user || {};
-        
-        return {
-          // Thread data
-          id: threadData.id || responseData.id || threadId,
-          content: threadData.content || '',
-          created_at: threadData.created_at || new Date().toISOString(),
-          updated_at: threadData.updated_at,
-          
-          // User data
-          user_id: userData.id || threadData.user_id,
-          username: userData.username || '',
-          name: userData.name || '',
-          display_name: userData.display_name || userData.name || '',
-          profile_picture_url: userData.profile_picture_url || '',
-          is_verified: userData.is_verified || false,
-          
-          // Interaction data
-          likes_count: responseData.likes_count || threadData.likes_count || 0,
-          replies_count: responseData.replies_count || threadData.replies_count || 0,
-          reposts_count: responseData.reposts_count || threadData.reposts_count || 0,
-          bookmark_count: responseData.bookmark_count || threadData.bookmark_count || 0,
-          views: responseData.views || threadData.views || 0,
-          
-          // Status flags
-          is_liked: responseData.liked_by_user || threadData.is_liked || false,
-          is_bookmarked: responseData.bookmarked_by_user || threadData.is_bookmarked || false,
-          is_reposted: responseData.reposted_by_user || threadData.is_reposted || false,
-          is_pinned: threadData.is_pinned || false,
-          
-          // Media
-          media: (threadData.media || []).map(m => {
-            return {
-              ...m,
-              url: m.url || m.media_url,
-              thumbnail_url: m.thumbnail_url || m.url || m.media_url
-            };
-          }),
-          
-          // Keep original data for reference
-          _originalThread: responseData
-        };
-      } else {
-        // Assume flat structure or handle accordingly
-        return {
-          id: responseData.id || threadId,
-          content: responseData.content || '',
-          created_at: responseData.created_at || new Date().toISOString(),
-          updated_at: responseData.updated_at,
-          user_id: responseData.user_id,
-          username: responseData.username || '',
-          name: responseData.name || '',
-          display_name: responseData.display_name || responseData.name || '',
-          profile_picture_url: responseData.profile_picture_url || '',
-          is_verified: responseData.is_verified || false,
-          likes_count: responseData.likes_count || 0,
-          replies_count: responseData.replies_count || 0,
-          reposts_count: responseData.reposts_count || 0,
-          bookmark_count: responseData.bookmark_count || 0,
-          views: responseData.views || 0,
-          is_liked: responseData.is_liked || responseData.liked_by_user || false,
-          is_bookmarked: responseData.is_bookmarked || responseData.bookmarked_by_user || false,
-          is_reposted: responseData.is_reposted || responseData.reposted_by_user || false,
-          is_pinned: responseData.is_pinned || false,
-          media: (responseData.media || []).map(m => {
-            return {
-              ...m,
-              url: m.url || m.media_url,
-              thumbnail_url: m.thumbnail_url || m.url || m.media_url
-            };
-          }),
-          
-          // Keep original data for reference
-          _originalThread: responseData
-        };
-      }
+      // Create standardized thread object using the API fields directly
+      return {
+        id: responseData.id || threadId,
+        content: responseData.content || '',
+        created_at: responseData.created_at || new Date().toISOString(),
+        updated_at: responseData.updated_at,
+        user_id: responseData.user_id || '',
+        username: responseData.username || 'anonymous',
+        name: responseData.name || 'User',
+        profile_picture_url: responseData.profile_picture_url || '',
+        likes_count: responseData.likes_count || 0,
+        replies_count: responseData.replies_count || 0,
+        reposts_count: responseData.reposts_count || 0,
+        bookmark_count: responseData.bookmark_count || 0,
+        views_count: responseData.views_count || 0,
+        is_liked: responseData.is_liked || false,
+        is_bookmarked: responseData.is_bookmarked || false,
+        is_reposted: responseData.is_reposted || false,
+        is_pinned: responseData.is_pinned || false,
+        is_verified: responseData.is_verified || false,
+        media: Array.isArray(responseData.media) ? responseData.media.map(m => ({
+          id: m.id,
+          url: m.url,
+          type: m.type,
+          thumbnail_url: m.thumbnail_url || m.url
+        })) : []
+      };
     } catch (error) {
       console.error('Error formatting thread data:', error);
       // Return a minimal safe object
@@ -121,18 +68,18 @@
         user_id: '',
         username: 'user',
         name: 'User',
-        display_name: 'User',
         profile_picture_url: '',
         likes_count: 0,
         replies_count: 0,
         reposts_count: 0,
         bookmark_count: 0,
+        views_count: 0,
         is_liked: false,
         is_bookmarked: false,
         is_reposted: false,
         is_pinned: false,
-        media: [],
-        _originalThread: responseData
+        is_verified: false,
+        media: []
       };
     }
   }
@@ -140,64 +87,48 @@
   // Format reply data to a consistent structure
   function formatReplyData(replyData) {
     try {
-      // Check if reply has nested structure
-      if (replyData.reply && replyData.user) {
-        const reply = replyData.reply || {};
-        const user = replyData.user || {};
-        
-        return {
-          id: replyData.id || reply.id,
-          content: reply.content || '',
-          created_at: reply.created_at || new Date().toISOString(),
-          updated_at: reply.updated_at,
-          thread_id: reply.thread_id || threadId,
-          user_id: user.id || reply.user_id,
-          username: user.username || '',
-          name: user.name || '',
-          display_name: user.display_name || user.name || '',
-          profile_picture_url: user.profile_picture_url || '',
-          is_verified: user.is_verified || false,
-          likes_count: replyData.likes_count || reply.likes_count || 0,
-          replies_count: replyData.replies_count || reply.replies_count || 0,
-          reposts_count: replyData.reposts_count || reply.reposts_count || 0,
-          bookmark_count: replyData.bookmark_count || reply.bookmark_count || 0,
-          views: replyData.views || reply.views || 0,
-          is_liked: replyData.liked_by_user || reply.is_liked || false,
-          is_bookmarked: replyData.bookmarked_by_user || reply.is_bookmarked || false,
-          is_reposted: replyData.reposted_by_user || reply.is_reposted || false,
-          parent_id: reply.parent_id,
-          media: (reply.media || []).map(m => {
-            return {
-              ...m,
-              url: m.url || m.media_url,
-              thumbnail_url: m.thumbnail_url || m.url || m.media_url
-            };
-          }),
-          _originalReply: replyData
-        };
-      }
-      
-      // If not a nested structure, return as is with safe defaults
       return {
-        ...replyData,
+        id: replyData.id,
         content: replyData.content || '',
         created_at: replyData.created_at || new Date().toISOString(),
+        updated_at: replyData.updated_at,
+        thread_id: replyData.thread_id || threadId,
+        user_id: replyData.user_id || '',
+        username: replyData.username || 'anonymous',
+        name: replyData.name || 'User',
+        profile_picture_url: replyData.profile_picture_url || '',
+        is_verified: replyData.is_verified || false,
         likes_count: replyData.likes_count || 0,
         replies_count: replyData.replies_count || 0,
         reposts_count: replyData.reposts_count || 0,
         bookmark_count: replyData.bookmark_count || 0,
-        media: (replyData.media || []).map(m => {
-          return {
-            ...m,
-            url: m.url || m.media_url,
-            thumbnail_url: m.thumbnail_url || m.url || m.media_url
-          };
-        }),
+        is_liked: replyData.is_liked || false,
+        is_bookmarked: replyData.is_bookmarked || false,
+        is_reposted: replyData.is_reposted || false,
+        parent_id: replyData.parent_id,
+        media: Array.isArray(replyData.media) ? replyData.media.map(m => ({
+          id: m.id,
+          url: m.url,
+          type: m.type,
+          thumbnail_url: m.thumbnail_url || m.url
+        })) : []
       };
     } catch (error) {
       console.error('Error formatting reply data:', error);
-      // Return a safe object
-      return replyData;
+      // Return a basic object with required fields
+      return {
+        id: replyData.id || '',
+        content: replyData.content || '',
+        created_at: replyData.created_at || new Date().toISOString(),
+        thread_id: replyData.thread_id || threadId,
+        user_id: replyData.user_id || '',
+        username: replyData.username || 'anonymous',
+        name: replyData.name || 'User',
+        profile_picture_url: replyData.profile_picture_url || '',
+        likes_count: 0,
+        replies_count: 0,
+        media: []
+      };
     }
   }
 
@@ -393,8 +324,23 @@
   
   // Initialize component
   onMount(() => {
-    // Always load thread on mount
-      loadThreadWithReplies();
+    // Check if we have thread data in sessionStorage from TweetCard navigation
+    try {
+      const storedThread = sessionStorage.getItem('lastViewedThread');
+      if (storedThread) {
+        const parsedThread = JSON.parse(storedThread);
+        // Use the stored thread data as a quick initial render
+        thread = formatThreadData(parsedThread);
+        console.log('Using thread data from sessionStorage:', thread);
+        // Remove from sessionStorage to avoid stale data on page refresh
+        sessionStorage.removeItem('lastViewedThread');
+      }
+    } catch (error) {
+      console.error('Error parsing stored thread data:', error);
+    }
+    
+    // Always load fresh thread data from API to ensure it's up-to-date
+    loadThreadWithReplies();
   });
   
   // Clean up subscription on component destruction

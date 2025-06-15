@@ -27,7 +27,7 @@
   export let years: string[] = [];
   export let securityQuestions: string[] = [];
 
-  // Validation errors
+  // Server-side validation errors
   export let nameError = "";
   export let usernameError = "";
   export let emailError = "";
@@ -39,16 +39,7 @@
   export let profilePictureError = "";
   export let bannerError = "";
 
-  export let onNameBlur: () => void;
-  export let onUsernameBlur: () => void;
-  export let onEmailBlur: () => void;
-  export let onPasswordBlur: () => void;
-  export let onConfirmPasswordBlur: () => void;
-  export let onGenderChange: () => void;
-  export let onDateOfBirthChange: () => void;
-  export let onSecurityQuestionChange: () => void;
-  export let onSecurityAnswerBlur: () => void;
-
+  // Form submission and auth handlers
   export let onSubmit: (token: string | null) => void; 
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
@@ -56,6 +47,10 @@
   // reCAPTCHA variables
   let recaptchaToken: string | null = null;
   let recaptchaWrapper: ReCaptchaWrapper;
+  
+  // Image preview URLs
+  let profilePicturePreview: string | null = null;
+  let bannerPreview: string | null = null;
   
   function handleRecaptchaSuccess(event: CustomEvent<{ token: string }>) {
     recaptchaToken = event.detail.token;
@@ -83,16 +78,42 @@
     onSubmit(recaptchaToken);
   }
 
-  // Type-safe event handlers for file inputs
+  // Type-safe event handlers for file inputs with preview generation
   function handleProfilePictureChange(e: Event) {
     const target = e.target as HTMLInputElement;
-    profilePicture = target.files ? target.files[0] : null;
+    const file = target.files?.[0] || null;
+    
+    if (file) {
+      profilePicture = file;
+      // Create object URL for preview
+      profilePicturePreview = URL.createObjectURL(file);
+    } else {
+      profilePicture = null;
+      profilePicturePreview = null;
+    }
   }
 
   function handleBannerChange(e: Event) {
     const target = e.target as HTMLInputElement;
-    banner = target.files ? target.files[0] : null;
+    const file = target.files?.[0] || null;
+    
+    if (file) {
+      banner = file;
+      // Create object URL for preview
+      bannerPreview = URL.createObjectURL(file);
+    } else {
+      banner = null;
+      bannerPreview = null;
+    }
   }
+  
+  // Clean up object URLs when component is destroyed
+  import { onDestroy } from 'svelte';
+  
+  onDestroy(() => {
+    if (profilePicturePreview) URL.revokeObjectURL(profilePicturePreview);
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+  });
 </script>
 
 <div class="auth-social-btn-container">
@@ -118,13 +139,10 @@
     type="text" 
     id="name" 
     bind:value={name} 
-    on:blur={onNameBlur}
     maxlength="50"
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {nameError ? 'auth-input-error' : ''}"
     placeholder="Name"
     data-cy="name-input"
-    aria-invalid={nameError ? "true" : "false"}
-    aria-describedby={nameError ? "name-error" : undefined}
   />
   {#if nameError}
     <p id="name-error" class="auth-error-message" data-cy="name-error" role="alert">{nameError}</p>
@@ -138,12 +156,9 @@
     type="text" 
     id="username" 
     bind:value={username} 
-    on:blur={onUsernameBlur}
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {usernameError ? 'auth-input-error' : ''}"
     placeholder="Username"
     data-cy="username-input"
-    aria-invalid={usernameError ? "true" : "false"}
-    aria-describedby={usernameError ? "username-error" : undefined}
   />
   {#if usernameError}
     <p id="username-error" class="auth-error-message" data-cy="username-error" role="alert">{usernameError}</p>
@@ -157,12 +172,9 @@
     type="email" 
     id="email" 
     bind:value={email} 
-    on:blur={onEmailBlur}
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {emailError ? 'auth-input-error' : ''}"
     placeholder="Email"
     data-cy="email-input"
-    aria-invalid={emailError ? "true" : "false"}
-    aria-describedby={emailError ? "email-error" : undefined}
   />
   {#if emailError}
     <p id="email-error" class="auth-error-message" data-cy="email-error" role="alert">{emailError}</p>
@@ -176,12 +188,9 @@
     type="password" 
     id="password" 
     bind:value={password} 
-    on:blur={onPasswordBlur}
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {passwordErrors.length > 0 ? 'auth-input-error' : ''}"
     placeholder="Password"
     data-cy="password-input"
-    aria-invalid={passwordErrors.length > 0 ? "true" : "false"}
-    aria-describedby={passwordErrors.length > 0 ? "password-error" : undefined}
   />
   {#if passwordErrors.length > 0}
     <div id="password-error" class="auth-error-message" data-cy="password-error" role="alert">
@@ -199,12 +208,9 @@
     type="password" 
     id="confirmPassword" 
     bind:value={confirmPassword} 
-    on:blur={onConfirmPasswordBlur}
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {confirmPasswordError ? 'auth-input-error' : ''}"
     placeholder="Confirm Password"
     data-cy="confirm-password-input"
-    aria-invalid={confirmPasswordError ? "true" : "false"}
-    aria-describedby={confirmPasswordError ? "password-match-error" : undefined}
   />
   {#if confirmPasswordError}
     <p id="password-match-error" class="auth-error-message" data-cy="password-match-error" role="alert">{confirmPasswordError}</p>
@@ -222,11 +228,8 @@
           name="gender" 
           value="male" 
           bind:group={gender} 
-          on:change={onGenderChange}
           class="auth-checkbox"
           data-cy="gender-male"
-          aria-invalid={genderError ? "true" : "false"}
-          aria-describedby={genderError ? "gender-error" : undefined}
         />
         <span class="auth-checkbox-label">Male</span>
       </label>
@@ -236,11 +239,8 @@
           name="gender" 
           value="female" 
           bind:group={gender} 
-          on:change={onGenderChange}
           class="auth-checkbox"
           data-cy="gender-female"
-          aria-invalid={genderError ? "true" : "false"}
-          aria-describedby={genderError ? "gender-error" : undefined}
         />
         <span class="auth-checkbox-label">Female</span>
       </label>
@@ -264,11 +264,8 @@
           <select 
             id="dob-month"
             bind:value={dateOfBirth.month} 
-            on:change={onDateOfBirthChange}
             class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
             data-cy="dob-month"
-            aria-invalid={dateOfBirthError ? "true" : "false"}
-            aria-describedby={dateOfBirthError ? "dob-error" : undefined}
           >
             <option value="">Month</option>
             {#each months as month}
@@ -281,11 +278,8 @@
           <select 
             id="dob-day"
             bind:value={dateOfBirth.day}
-            on:change={onDateOfBirthChange}
             class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
             data-cy="dob-day"
-            aria-invalid={dateOfBirthError ? "true" : "false"}
-            aria-describedby={dateOfBirthError ? "dob-error" : undefined}
           >
             <option value="">Day</option>
             {#each days as day}
@@ -298,11 +292,8 @@
           <select 
             id="dob-year"
             bind:value={dateOfBirth.year}
-            on:change={onDateOfBirthChange}
             class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
             data-cy="dob-year"
-            aria-invalid={dateOfBirthError ? "true" : "false"}
-            aria-describedby={dateOfBirthError ? "dob-error" : undefined}
           >
             <option value="">Year</option>
             {#each years as year}
@@ -324,11 +315,8 @@
   <select 
     id="securityQuestion"
     bind:value={securityQuestion}
-    on:change={onSecurityQuestionChange}
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {securityQuestionError ? 'auth-input-error' : ''}"
     data-cy="security-question"
-    aria-invalid={securityQuestionError ? "true" : "false"}
-    aria-describedby={securityQuestionError ? "security-question-error" : undefined}
   >
     <option value="">Select a security question</option>
     {#each securityQuestions as question}
@@ -347,11 +335,9 @@
     type="text"
     id="securityAnswer"
     bind:value={securityAnswer}
-    on:blur={onSecurityAnswerBlur}
     class="auth-input {isDarkMode ? 'auth-input-dark' : ''}"
     placeholder="Your answer"
     data-cy="security-answer"
-    aria-required="true"
   />
 </div>
 
@@ -359,22 +345,33 @@
 <div class="auth-input-group">
   <label for="profilePicture" class="auth-label">Profile Picture (optional)</label>
   <div class="aycom-auth-file-input">
-    <label class="aycom-auth-file-label" for="profilePicture">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
-      </svg>
-      <span class="aycom-auth-file-name">
-        {profilePicture instanceof File ? profilePicture.name : 'Choose profile picture'}
-      </span>
-    </label>
+    {#if profilePicturePreview}
+      <div class="aycom-auth-image-preview">
+        <img src={profilePicturePreview} alt="Profile preview" class="aycom-auth-preview-img" />
+        <button type="button" class="aycom-auth-remove-img" 
+          on:click={() => {
+            profilePicture = null;
+            profilePicturePreview = null;
+          }} aria-label="Remove image">
+          ×
+        </button>
+      </div>
+    {:else}
+      <label class="aycom-auth-file-label" for="profilePicture">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+        </svg>
+        <span class="aycom-auth-file-name">
+          Choose profile picture
+        </span>
+      </label>
+    {/if}
     <input 
       type="file"
       id="profilePicture"
       accept="image/*"
       on:change={handleProfilePictureChange}
       data-cy="profile-picture"
-      aria-invalid={profilePictureError ? "true" : "false"}
-      aria-describedby={profilePictureError ? "profile-picture-error" : undefined}
     />
   </div>
   {#if profilePictureError}
@@ -386,22 +383,33 @@
 <div class="auth-input-group">
   <label for="banner" class="auth-label">Banner Image (optional)</label>
   <div class="aycom-auth-file-input">
-    <label class="aycom-auth-file-label" for="banner">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
-      </svg>
-      <span class="aycom-auth-file-name">
-        {banner instanceof File ? banner.name : 'Choose banner image'}
-      </span>
-    </label>
+    {#if bannerPreview}
+      <div class="aycom-auth-image-preview">
+        <img src={bannerPreview} alt="Banner preview" class="aycom-auth-preview-img aycom-auth-banner-preview" />
+        <button type="button" class="aycom-auth-remove-img" 
+          on:click={() => {
+            banner = null;
+            bannerPreview = null;
+          }} aria-label="Remove image">
+          ×
+        </button>
+      </div>
+    {:else}
+      <label class="aycom-auth-file-label" for="banner">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+        </svg>
+        <span class="aycom-auth-file-name">
+          Choose banner image
+        </span>
+      </label>
+    {/if}
     <input 
       type="file"
       id="banner"
       accept="image/*"
       on:change={handleBannerChange}
       data-cy="banner"
-      aria-invalid={bannerError ? "true" : "false"}
-      aria-describedby={bannerError ? "banner-error" : undefined}
     />
   </div>
   {#if bannerError}
@@ -457,5 +465,48 @@
   .recaptcha-wrapper {
     margin: 1.5rem 0;
     width: 100%;
+  }
+
+  .aycom-auth-image-preview {
+    position: relative;
+    margin-bottom: var(--space-2);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    max-width: 100%;
+  }
+
+  .aycom-auth-preview-img {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    display: block;
+    border-radius: var(--radius-md);
+  }
+  
+  .aycom-auth-banner-preview {
+    height: 100px;
+  }
+
+  .aycom-auth-remove-img {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .aycom-auth-remove-img:hover {
+    background-color: rgba(0, 0, 0, 0.7);
   }
 </style>

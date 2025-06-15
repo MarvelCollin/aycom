@@ -46,11 +46,10 @@ func FollowUser(c *gin.Context) {
 		return
 	}
 
-	// Check if already following before making the request
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
 		log.Printf("FollowUser: Error checking follow status: %v", err)
-		// Continue anyway - we'll handle this during the FollowUser call
+
 	}
 
 	if isFollowing {
@@ -85,7 +84,7 @@ func FollowUser(c *gin.Context) {
 				log.Printf("FollowUser: User not found: %v", err)
 				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User not found: %v", err))
 			case codes.AlreadyExists:
-				// Handle case where user is already following
+
 				log.Printf("FollowUser: Already following (from error): %v", err)
 				utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 					"success":               true,
@@ -151,7 +150,7 @@ func UnfollowUser(c *gin.Context) {
 	isFollowing, err := utils.CheckFollowStatus(ctx, UserClient, currentUserID, resolvedUserID)
 	if err != nil {
 		log.Printf("Error checking follow status: %v", err)
-		// Continue anyway - we'll handle this during the UnfollowUser call
+
 	}
 
 	if !isFollowing {
@@ -373,7 +372,6 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
-	// Always succeed - mock like feature without authentication
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":      "Thread liked successfully",
 		"thread_id":    threadID,
@@ -388,7 +386,6 @@ func UnlikeThread(c *gin.Context) {
 		return
 	}
 
-	// Always succeed - mock unlike feature without authentication
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":      "Thread unliked successfully",
 		"thread_id":    threadID,
@@ -396,16 +393,14 @@ func UnlikeThread(c *gin.Context) {
 	})
 }
 
-// Helper function to standardize userID extraction from context
 func getUserIDFromContext(c *gin.Context) (string, bool) {
-	// Try "userId" first (newer convention)
+
 	if userID, exists := c.Get("userId"); exists {
 		if userIDStr, ok := userID.(string); ok && userIDStr != "" {
 			return userIDStr, true
 		}
 	}
 
-	// Fall back to "userID" (older convention)
 	if userID, exists := c.Get("userID"); exists {
 		if userIDStr, ok := userID.(string); ok && userIDStr != "" {
 			return userIDStr, true
@@ -544,7 +539,64 @@ func GetThreadReplies(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	// Standardize the response format
+	standardizedReplies := make([]map[string]interface{}, 0)
+	
+	if resp != nil && resp.Replies != nil && len(resp.Replies) > 0 {
+		for _, reply := range resp.Replies {
+			if reply.Reply != nil {
+				standardizedReply := map[string]interface{}{
+					"id":                  reply.Reply.Id,
+					"content":             reply.Reply.Content,
+					"created_at":          reply.Reply.CreatedAt.AsTime(),
+					"updated_at":          reply.Reply.UpdatedAt.AsTime(),
+					"thread_id":           threadID,
+					"parent_id":           nil, // Default to null for top-level replies
+					"likes_count":         reply.LikesCount,
+					"replies_count":       reply.RepliesCount,
+					"reposts_count":       0, // Default value if not available
+					"bookmark_count":      0, // Default value if not available
+					"views_count":         0, // Default value if not available
+					"is_liked":            reply.LikedByUser,
+					"is_bookmarked":       reply.BookmarkedByUser,
+					"is_reposted":         false, // Default value if not available
+					"is_pinned":           false, // Default value if not available
+					"is_verified":         false, // Default value if not available
+					"user_id":             reply.Reply.UserId,
+					"username":            reply.User.Username,
+					"name":                reply.User.Name,
+					"profile_picture_url": reply.User.ProfilePictureUrl,
+				}
+				
+				// Handle parent reply ID if available
+				if reply.Reply.ParentId != "" {
+					standardizedReply["parent_id"] = reply.Reply.ParentId
+				}
+				
+				// Handle media if available
+				if reply.Reply.Media != nil && len(reply.Reply.Media) > 0 {
+					mediaList := make([]map[string]interface{}, 0)
+					for _, m := range reply.Reply.Media {
+						mediaList = append(mediaList, map[string]interface{}{
+							"id":   m.Id,
+							"url":  m.Url,
+							"type": m.Type,
+						})
+					}
+					standardizedReply["media"] = mediaList
+				} else {
+					standardizedReply["media"] = []map[string]interface{}{}
+				}
+				
+				standardizedReplies = append(standardizedReplies, standardizedReply)
+			}
+		}
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"replies": standardizedReplies,
+		"total":   len(standardizedReplies),
+	})
 }
 
 func RepostThread(c *gin.Context) {
@@ -673,7 +725,6 @@ func BookmarkThread(c *gin.Context) {
 		return
 	}
 
-	// Always succeed - mock bookmark feature without authentication
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Thread bookmarked successfully",
 	})
@@ -686,7 +737,6 @@ func RemoveBookmark(c *gin.Context) {
 		return
 	}
 
-	// Always succeed - mock remove bookmark feature without authentication
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Bookmark removed successfully",
 	})
@@ -1045,14 +1095,10 @@ func SearchSocialUsers(c *gin.Context) {
 
 	query := c.Query("query")
 	if query == "" {
-		// Try the "q" parameter as a fallback for backward compatibility
+
 		query = c.Query("q")
 	}
 
-	// No need to check if query is empty - we want to support empty queries
-	// for filter-only searches like verified users or following
-
-	// Validate query length only if provided
 	if query != "" {
 		const MAX_QUERY_LENGTH = 50
 		if len(query) > MAX_QUERY_LENGTH {

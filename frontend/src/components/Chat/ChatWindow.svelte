@@ -132,7 +132,7 @@
       if (error.message && error.message.includes('not a participant in this chat')) {
         errorMessage = 'You are not a participant in this chat. Please join the chat first.';
       } else {
-        errorMessage = 'Failed to load messages. Please try refreshing.';
+      errorMessage = 'Failed to load messages. Please try refreshing.';
       }
       
       console.error('[ChatWindow] Error loading messages:', error?.message || error);

@@ -6,22 +6,82 @@ const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('AuthAPI');
 
 async function handleApiResponse(response: Response, errorMessage: string = 'Operation failed') {
-  logger.debug(`Response status: ${response.status}`);
-
+  // For non-OK responses, always ensure we handle properly as an error
   if (!response.ok) {
+    logger.error(`Error status: ${response.status} ${response.statusText}`);
+    
     try {
       const errorData = await response.json();
       logger.error('Error data:', errorData);
-      throw new Error(errorData.message || `${errorMessage} with status: ${response.status}`);
+      
+      // Check if the error contains validation error details
+      let errorDetails = errorData.message || errorData.error || errorMessage;
+      let errorCode = errorData.code || errorData.error_code || 'ERROR';
+      
+      // Parse validation errors if present
+      let validationErrors = {};
+      if (errorCode === 'VALIDATION_ERROR' && errorDetails.includes('Validation failed:')) {
+        // Extract individual validation errors
+        const validationMessages = errorDetails
+          .replace('Validation failed: ', '')
+          .split(';')
+          .map(msg => msg.trim())
+          .filter(msg => msg);
+        
+        // Map common validation errors to fields
+        validationMessages.forEach(msg => {
+          if (msg.includes('name ')) validationErrors['name'] = msg;
+          else if (msg.includes('username ')) validationErrors['username'] = msg;
+          else if (msg.includes('email ')) validationErrors['email'] = msg;
+          else if (msg.includes('password ') && !msg.includes('confirmation')) validationErrors['password'] = msg;
+          else if (msg.includes('Password and confirmation')) validationErrors['confirmPassword'] = msg;
+          else if (msg.includes('gender ')) validationErrors['gender'] = msg;
+          else if (msg.includes('date of birth') || msg.includes('User must be at least')) validationErrors['dateOfBirth'] = msg;
+          else if (msg.includes('security question')) validationErrors['securityQuestion'] = msg;
+          else if (msg.includes('security answer')) validationErrors['securityAnswer'] = msg;
+        });
+      }
+      
+      // Structured error response - ALWAYS use success: false for non-OK responses
+      return {
+        success: false, // Force this to false for non-OK responses
+        error: {
+          code: errorCode,
+          message: errorDetails
+        },
+        validation_errors: Object.keys(validationErrors).length > 0 ? validationErrors : undefined
+      };
     } catch (parseError) {
       logger.error('Failed to parse error response:', parseError);
-      throw new Error(`${errorMessage} with status: ${response.status}`);
+      // Still return a structured error response even if we fail to parse
+      return {
+        success: false,
+        error: {
+          code: 'PARSE_ERROR',
+          message: `${errorMessage} with status: ${response.status}`
+        }
+      };
     }
   }
 
-  const data = await response.json();
-  logger.debug('Successful response with keys:', Object.keys(data));
-  return data;
+  try {
+    const data = await response.json();
+    logger.debug('Successful response with keys:', Object.keys(data));
+    
+    // Add success flag if not present
+    if (data.success === undefined) {
+      data.success = true;
+    }
+    
+    return data;
+  } catch (parseError) {
+    logger.error('Failed to parse successful response:', parseError);
+    // If we can't parse the JSON, return a simple success object
+    return { 
+      success: true,
+      message: 'Operation completed successfully'
+    };
+  }
 }
 
 function standardizeUserResponse(data: any) {
@@ -87,14 +147,31 @@ export async function login(email: string, password: string, recaptchaToken: str
 }
 
 export async function register(data: Record<string, any>) {
-  const response = await fetch(`${API_BASE_URL}/users/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-    credentials: "include",
-  });
-
-  return handleApiResponse(response, 'Registration failed');
+  logger.info("Sending registration request...");
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      credentials: "include",
+    });
+    
+    logger.info(`Registration response status: ${response.status} ${response.statusText}`);
+    
+    const result = await handleApiResponse(response, 'Registration failed');
+    
+    // Make sure we explicitly check and set the success flag based on HTTP status
+    if (!response.ok && result.success === true) {
+      logger.warn("Correcting inconsistent success flag: API reported success but HTTP status indicates failure");
+      result.success = false;
+    }
+    
+    return result;
+  } catch (error) {
+    logger.error("Registration request error:", error);
+    throw error;
+  }
 }
 
 export async function refreshToken(refreshToken: string) {

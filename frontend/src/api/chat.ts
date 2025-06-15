@@ -555,17 +555,17 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
         body: JSON.stringify(messageData),
-        credentials: 'include'
-      });
+      credentials: 'include'
+    });
 
-      if (!response.ok) {
+    if (!response.ok) {
         let errorMessage = `Server error when sending message: ${response.status} ${response.statusText}`;
         logger.warn(errorMessage);
         
@@ -608,27 +608,27 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           // Use a fallback for other server errors
           logger.warn(`Using local fallback due to server error: ${errorMessage}`);
           return createFallbackMessage(chatId, data);
-        } else {
+      } else {
           throw new Error(errorMessage);
-        }
       }
+    }
 
       // Parse the response
-      const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
-        logger.warn(`Empty response for sending message to chat ${chatId}`);
+    const responseText = await response.text();
+    if (!responseText || responseText.trim() === '') {
+      logger.warn(`Empty response for sending message to chat ${chatId}`);
         return createFallbackMessage(chatId, data);
-      }
+    }
 
-      try {
-        const responseData = JSON.parse(responseText);
-        logger.debug(`Message sent successfully to chat ${chatId}`, { 
-          messageId: responseData.message?.id || responseData.message?.message_id,
-          responseData
-        });
-        return responseData;
-      } catch (parseError) {
-        logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
+    try {
+      const responseData = JSON.parse(responseText);
+      logger.debug(`Message sent successfully to chat ${chatId}`, { 
+        messageId: responseData.message?.id || responseData.message?.message_id,
+        responseData
+      });
+      return responseData;
+    } catch (parseError) {
+      logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
         return createFallbackMessage(chatId, data);
       }
     } catch (apiError) {
@@ -998,7 +998,7 @@ export async function getChatHistoryList() {
           };
         } else if (data && data.chats) {
           // Format: { chats: [...] }
-          return data;
+        return data;
         } else if (data && Array.isArray(data)) {
           // Format: [...]
           return {
