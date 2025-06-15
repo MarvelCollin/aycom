@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"aycom/backend/api-gateway/config"
+	"aycom/backend/api-gateway/utils"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -435,10 +436,12 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
 
+	// Request a larger number of users to have enough for fuzzy matching
+	// We'll apply fuzzy matching and pagination on our side
 	req := &userProto.SearchUsersRequest{
 		Query: query,
-		Page:  int32(page),
-		Limit: int32(limit),
+		Page:  1,   // Get first page with larger limit
+		Limit: 100, // Get more users for fuzzy matching
 	}
 
 	resp, err := c.client.SearchUsers(ctx, req)
@@ -447,23 +450,64 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 		return nil, 0, err
 	}
 
-	users := make([]*User, 0, len(resp.GetUsers()))
-	for _, protoUser := range resp.GetUsers() {
-		user := convertProtoToUser(protoUser)
-		if user != nil {
+	allUsers := make([]*User, 0)
 
-			if filter == "verified" && !user.IsVerified {
+	// If query is empty, just use the server's results
+	if query == "" {
+		for _, protoUser := range resp.GetUsers() {
+			user := convertProtoToUser(protoUser)
+			if user != nil && (filter != "verified" || user.IsVerified) {
+				allUsers = append(allUsers, user)
+			}
+		}
+	} else {
+		// Apply Damerau-Levenshtein fuzzy matching
+		queryLower := strings.ToLower(query)
+
+		// Define fuzzy matching threshold (0.0 to 1.0, where 1.0 is exact match)
+		const similarityThreshold = 0.6
+
+		for _, protoUser := range resp.GetUsers() {
+			user := convertProtoToUser(protoUser)
+			if user == nil || (filter == "verified" && !user.IsVerified) {
 				continue
 			}
 
-			users = append(users, user)
+			// Check username
+			usernameMatch := utils.IsFuzzyMatch(strings.ToLower(user.Username), queryLower, similarityThreshold)
+
+			// Check display name/real name
+			nameMatch := utils.IsFuzzyMatch(strings.ToLower(user.Name), queryLower, similarityThreshold)
+
+			// Check email (partial match is enough)
+			emailMatch := strings.Contains(strings.ToLower(user.Email), queryLower)
+
+			// Include user if any field matches
+			if usernameMatch || nameMatch || emailMatch {
+				allUsers = append(allUsers, user)
+			}
 		}
 	}
 
-	totalCount := int(resp.GetTotalCount())
-	log.Printf("SearchUsers found %d users (total count: %d) with filter %s", len(users), totalCount, filter)
+	// Get total count for pagination
+	totalCount := len(allUsers)
 
-	return users, totalCount, nil
+	// Apply pagination to the final results
+	startIndex := (page - 1) * limit
+	endIndex := startIndex + limit
+
+	if startIndex >= len(allUsers) {
+		return []*User{}, totalCount, nil
+	}
+	if endIndex > len(allUsers) {
+		endIndex = len(allUsers)
+	}
+
+	paginatedUsers := allUsers[startIndex:endIndex]
+	log.Printf("SearchUsers found %d users (total count: %d) with filter %s after fuzzy matching",
+		len(paginatedUsers), totalCount, filter)
+
+	return paginatedUsers, totalCount, nil
 }
 
 func (c *GRPCUserServiceClient) GetUserRecommendations(userID string, limit int) ([]*User, error) {

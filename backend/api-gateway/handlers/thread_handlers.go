@@ -188,6 +188,10 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
+	// Log the thread data we received from the service
+	log.Printf("Thread data from service - ID: %s, UserID: %s, Username: %s, DisplayName: %s",
+		thread.ID, thread.UserID, thread.Username, thread.DisplayName)
+
 	threadData := gin.H{
 		"id":                  thread.ID,
 		"content":             thread.Content,
@@ -225,6 +229,10 @@ func GetThread(c *gin.Context) {
 	}
 
 	log.Printf("Thread %s bookmark status for user %s: %v", threadID, userID, thread.IsBookmarked)
+
+	// Log the final response data being sent
+	log.Printf("Sending thread response - ID: %s, UserID: %s, Username: %s, Name: %s",
+		threadData["id"], threadData["user_id"], threadData["username"], threadData["name"])
 
 	utils.SendSuccessResponse(c, http.StatusOK, threadData)
 }
@@ -1775,4 +1783,136 @@ func standardizeReplyResponse(reply *Thread) map[string]interface{} {
 	}
 
 	return replyData
+}
+
+func GetRepliesByThread(c *gin.Context) {
+	threadID := c.Param("id")
+	if threadID == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Thread ID is required")
+		return
+	}
+
+	page := 1
+	limit := 20
+
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		if val, err := strconv.Atoi(pageStr); err == nil && val > 0 {
+			page = val
+		}
+	}
+
+	limitStr := c.Query("limit")
+	if limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 && val <= 100 {
+			limit = val
+		}
+	}
+
+	var userID string
+	if userIDAny, exists := c.Get("userId"); exists {
+		if userIDStr, ok := userIDAny.(string); ok {
+			userID = userIDStr
+		}
+	}
+
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	client := threadProto.NewThreadServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
+
+	resp, err := client.GetRepliesByThread(ctx, &threadProto.GetRepliesByThreadRequest{
+		ThreadId: threadID,
+		Page:     int32(page),
+		Limit:    int32(limit),
+	})
+
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			}
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get replies: "+err.Error())
+		}
+		return
+	}
+
+	// Convert proto replies to our Reply struct
+	replies := make([]map[string]interface{}, 0, len(resp.Replies))
+	for _, r := range resp.Replies {
+		if r == nil || r.Reply == nil {
+			continue
+		}
+
+		reply := map[string]interface{}{
+			"id":            r.Reply.Id,
+			"content":       r.Reply.Content,
+			"thread_id":     r.Reply.ThreadId,
+			"user_id":       r.Reply.UserId,
+			"likes_count":   r.LikesCount,
+			"replies_count": r.RepliesCount,
+			"is_liked":      r.LikedByUser,
+			"is_bookmarked": r.BookmarkedByUser,
+		}
+
+		if r.Reply.CreatedAt != nil {
+			reply["created_at"] = r.Reply.CreatedAt.AsTime()
+		} else {
+			reply["created_at"] = time.Now()
+		}
+
+		if r.Reply.UpdatedAt != nil {
+			reply["updated_at"] = r.Reply.UpdatedAt.AsTime()
+		} else {
+			reply["updated_at"] = time.Now()
+		}
+
+		if r.Reply.ParentId != "" {
+			reply["parent_id"] = r.Reply.ParentId
+		}
+
+		if r.User != nil {
+			reply["username"] = r.User.Username
+			reply["name"] = r.User.Name
+			reply["profile_picture_url"] = r.User.ProfilePictureUrl
+			reply["is_verified"] = r.User.IsVerified
+		}
+
+		// Include parent information if available
+		if r.ParentContent != nil {
+			reply["parent_content"] = *r.ParentContent
+		}
+
+		if r.ParentUser != nil {
+			reply["parent_user"] = map[string]interface{}{
+				"id":                  r.ParentUser.Id,
+				"username":            r.ParentUser.Username,
+				"name":                r.ParentUser.Name,
+				"profile_picture_url": r.ParentUser.ProfilePictureUrl,
+				"is_verified":         r.ParentUser.IsVerified,
+			}
+		}
+
+		replies = append(replies, reply)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"replies": replies,
+		"total":   len(replies),
+		"success": true,
+	})
 }

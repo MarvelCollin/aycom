@@ -955,17 +955,56 @@ export async function searchThreads(
     if (options?.category) params.append('category', options.category);
     if (options?.sort_by) params.append('sort_by', options.sort_by);
 
-    console.log(`Searching threads with query: ${query}, filter: ${options?.filter || 'all'}, URL: ${API_BASE_URL}/threads/search?${params}`);
+    logger.debug(`Searching threads with query: ${query}, filter: ${options?.filter || 'all'}`);
 
-    return await makeApiRequest(
-      `${API_BASE_URL}/threads/search?${params}`, 
-      'GET', 
-      null, 
-      'Thread search failed'
-    );
+    const response = await fetch(`${API_BASE_URL}/threads/search?${params}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error(`Thread search failed with status ${response.status}: ${errorText}`);
+      return {
+        threads: [],
+        pagination: {
+          total_count: 0,
+          current_page: page,
+          per_page: limit,
+          total_pages: 0
+        }
+      };
+    }
+
+    const data = await response.json();
+    logger.debug('Search threads response:', data);
+    
+    return {
+      threads: data.threads || [],
+      pagination: data.pagination || {
+        total_count: data.threads?.length || 0,
+        current_page: page,
+        per_page: limit,
+        total_pages: Math.ceil((data.threads?.length || 0) / limit)
+      }
+    };
   } catch (error) {
     logger.error('Search threads failed:', error);
-    throw error;
+    
+    // Return empty result set on error instead of throwing
+    return {
+      threads: [],
+      pagination: {
+        total_count: 0,
+        current_page: page,
+        per_page: limit,
+        total_pages: 0
+      }
+    };
   }
 }
 
@@ -1104,7 +1143,10 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
           is_bookmarked: Boolean(reply.is_bookmarked),
           is_reposted: Boolean(reply.is_reposted),
           is_pinned: Boolean(reply.is_pinned),
-          media: Array.isArray(reply.media) ? reply.media : []
+          media: Array.isArray(reply.media) ? reply.media : [],
+          // Include parent information
+          parent_content: reply.parent_content || null,
+          parent_user: reply.parent_user || null
         };
       });
     }

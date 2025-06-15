@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"aycom/backend/api-gateway/config"
+	"aycom/backend/api-gateway/utils"
 )
 
 type ThreadServiceClient interface {
@@ -52,25 +53,54 @@ type ThreadServiceClient interface {
 	GetTrendingHashtags(limit int) ([]string, error)
 }
 
+// Thread represents a thread in the system
 type Thread struct {
-	ID             string    `json:"id"`
-	Content        string    `json:"content"`
-	UserID         string    `json:"user_id"`
-	Username       string    `json:"username"`
-	DisplayName    string    `json:"name"`
-	ProfilePicture string    `json:"profile_picture_url"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	LikeCount      int       `json:"likes_count"`
-	ReplyCount     int       `json:"replies_count"`
-	RepostCount    int       `json:"reposts_count"`
-	BookmarkCount  int       `json:"bookmark_count"`
-	IsLiked        bool      `json:"is_liked"`
-	IsReposted     bool      `json:"is_reposted"`
-	IsBookmarked   bool      `json:"is_bookmarked"`
-	IsPinned       bool      `json:"is_pinned"`
-	Media          []Media   `json:"media"`
-	ParentID       string    `json:"parent_id,omitempty"`
+	ID               string    `json:"id"`
+	Content          string    `json:"content"`
+	UserID           string    `json:"user_id"`
+	Username         string    `json:"username"`
+	DisplayName      string    `json:"name"`
+	ProfilePicture   string    `json:"profile_picture_url"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	LikeCount        int       `json:"likes_count"`
+	ReplyCount       int       `json:"replies_count"`
+	RepostCount      int       `json:"reposts_count"`
+	BookmarkCount    int       `json:"bookmark_count"`
+	ViewCount        int64     `json:"views_count"`
+	IsLiked          bool      `json:"is_liked"`
+	IsReposted       bool      `json:"is_reposted"`
+	IsBookmarked     bool      `json:"is_bookmarked"`
+	IsPinned         bool      `json:"is_pinned"`
+	IsVerified       bool      `json:"is_verified"`
+	Media            []Media   `json:"media"`
+	Hashtags         []string  `json:"hashtags"`
+	MentionedUsers   []string  `json:"mentioned_user_ids"`
+	IsRepost         bool      `json:"is_repost"`
+	OriginalThreadID string    `json:"original_thread_id,omitempty"`
+	OriginalThread   *Thread   `json:"original_thread,omitempty"`
+	ParentID         string    `json:"parent_id,omitempty"`
+}
+
+// Reply represents a reply to a thread or another reply
+type Reply struct {
+	ID                string                 `json:"id"`
+	Content           string                 `json:"content"`
+	ThreadID          string                 `json:"thread_id"`
+	UserID            string                 `json:"user_id"`
+	ParentID          string                 `json:"parent_id,omitempty"`
+	Username          string                 `json:"username"`
+	Name              string                 `json:"name"`
+	ProfilePictureURL string                 `json:"profile_picture_url"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+	LikesCount        int                    `json:"likes_count"`
+	RepliesCount      int                    `json:"replies_count"`
+	IsLiked           bool                   `json:"is_liked"`
+	IsBookmarked      bool                   `json:"is_bookmarked"`
+	IsVerified        bool                   `json:"is_verified"`
+	ParentContent     string                 `json:"parent_content,omitempty"`
+	ParentUser        map[string]interface{} `json:"parent_user,omitempty"`
 }
 
 type Media struct {
@@ -323,25 +353,167 @@ func (c *GRPCThreadServiceClient) DeleteThread(threadID, userID string) error {
 }
 
 func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
 
-	threads, err := c.GetAllThreads(userID, page, limit)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Add user ID to context metadata if provided
+	if userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "user_id", userID)
+	}
+
+	// Call the GetAllThreads method but use it for search functionality
+	// This is a temporary solution until a dedicated SearchThreads RPC is added to the proto
+	resp, err := c.client.GetAllThreads(ctx, &threadProto.GetAllThreadsRequest{
+		// Request a larger number of threads to have enough for fuzzy matching
+		Page:  1,
+		Limit: 100, // Fetch more threads to apply fuzzy matching and then paginate
+	})
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to search threads: %w", err)
 	}
 
+	var allThreads []*Thread
+
+	// If query is empty, return all threads without filtering
 	if query == "" {
-		return threads, nil
-	}
+		allThreads = make([]*Thread, 0, len(resp.Threads))
+		for _, t := range resp.Threads {
+			thread := convertProtoThreadToThread(t)
+			if thread != nil {
+				allThreads = append(allThreads, thread)
+			}
+		}
+	} else {
+		// If query is provided, use Damerau-Levenshtein fuzzy matching
+		queryLower := strings.ToLower(query)
+		allThreads = make([]*Thread, 0)
 
-	var filteredThreads []*Thread
-	queryLower := strings.ToLower(query)
-	for _, thread := range threads {
-		if strings.Contains(strings.ToLower(thread.Content), queryLower) {
-			filteredThreads = append(filteredThreads, thread)
+		// Define fuzzy matching threshold (0.0 to 1.0, where 1.0 is exact match)
+		// Adjust this value as needed for desired fuzziness level
+		const similarityThreshold = 0.6
+
+		for _, t := range resp.Threads {
+			if t.Thread == nil {
+				continue
+			}
+
+			thread := convertProtoThreadToThread(t)
+			if thread == nil {
+				continue
+			}
+
+			// Check content
+			contentMatch := false
+			if thread.Content != "" {
+				words := strings.Fields(strings.ToLower(thread.Content))
+				for _, word := range words {
+					if utils.IsFuzzyMatch(word, queryLower, similarityThreshold) {
+						contentMatch = true
+						break
+					}
+				}
+			}
+
+			// Check hashtags
+			hashtagMatch := false
+			if t.Hashtags != nil && len(t.Hashtags) > 0 {
+				for _, hashtag := range t.Hashtags {
+					if utils.IsFuzzyMatch(strings.ToLower(hashtag), queryLower, similarityThreshold) {
+						hashtagMatch = true
+						break
+					}
+				}
+			}
+
+			// Include thread if either content or hashtags match
+			if contentMatch || hashtagMatch {
+				allThreads = append(allThreads, thread)
+			}
 		}
 	}
 
-	return filteredThreads, nil
+	// Apply pagination to the final results
+	startIndex := (page - 1) * limit
+	endIndex := startIndex + limit
+
+	if startIndex >= len(allThreads) {
+		return []*Thread{}, nil
+	}
+	if endIndex > len(allThreads) {
+		endIndex = len(allThreads)
+	}
+
+	return allThreads[startIndex:endIndex], nil
+}
+
+// Helper function to convert proto thread response to Thread model
+func convertProtoThreadToThread(t *threadProto.ThreadResponse) *Thread {
+	if t == nil || t.Thread == nil {
+		return nil
+	}
+
+	thread := &Thread{
+		ID:            t.Thread.Id,
+		Content:       t.Thread.Content,
+		UserID:        t.Thread.UserId,
+		LikeCount:     int(t.LikesCount),
+		ReplyCount:    int(t.RepliesCount),
+		RepostCount:   int(t.RepostsCount),
+		BookmarkCount: int(t.BookmarkCount),
+		IsLiked:       t.LikedByUser,
+		IsReposted:    t.RepostedByUser,
+		IsBookmarked:  t.BookmarkedByUser,
+	}
+
+	// Set creation time
+	if t.Thread.CreatedAt != nil {
+		thread.CreatedAt = t.Thread.CreatedAt.AsTime()
+	}
+
+	// Set update time
+	if t.Thread.UpdatedAt != nil {
+		thread.UpdatedAt = t.Thread.UpdatedAt.AsTime()
+	}
+
+	// Set media
+	if len(t.Thread.Media) > 0 {
+		media := make([]Media, len(t.Thread.Media))
+		for i, m := range t.Thread.Media {
+			media[i] = Media{
+				ID:   m.Id,
+				URL:  m.Url,
+				Type: m.Type,
+			}
+		}
+		thread.Media = media
+	}
+
+	// Set user information
+	if t.User != nil {
+		// Only set username if it's not empty
+		if t.User.Username != "" {
+			thread.Username = t.User.Username
+		}
+
+		// Only set display name if it's not empty
+		if t.User.Name != "" {
+			thread.DisplayName = t.User.Name
+		}
+
+		thread.ProfilePicture = t.User.ProfilePictureUrl
+	}
+
+	// Set IsPinned if available
+	if t.Thread.IsPinned != nil {
+		thread.IsPinned = *t.Thread.IsPinned
+	}
+
+	return thread
 }
 
 func (c *GRPCThreadServiceClient) LikeThread(threadID, userID string) error {
@@ -1031,7 +1203,7 @@ func convertProtoToThread(t any) *Thread {
 		ID:          "unknown",
 		Content:     "",
 		UserID:      "",
-		Username:    "anonymous",
+		Username:    "",
 		DisplayName: "User",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -1074,8 +1246,16 @@ func convertProtoToThread(t any) *Thread {
 		}
 
 		if tr.User != nil {
-			thread.Username = tr.User.Username
-			thread.DisplayName = tr.User.Name
+			// Only set username if it's not empty
+			if tr.User.Username != "" {
+				thread.Username = tr.User.Username
+			}
+
+			// Only set display name if it's not empty
+			if tr.User.Name != "" {
+				thread.DisplayName = tr.User.Name
+			}
+
 			thread.ProfilePicture = tr.User.ProfilePictureUrl
 		}
 
@@ -1214,18 +1394,18 @@ func convertProtoToThread(t any) *Thread {
 			userVal := userField.Elem()
 
 			usernameField := userVal.FieldByName("Username")
-			if usernameField.IsValid() {
+			if usernameField.IsValid() && usernameField.String() != "" {
 				thread.Username = usernameField.String()
 			}
 
 			nameField := userVal.FieldByName("Name")
-			if nameField.IsValid() {
+			if nameField.IsValid() && nameField.String() != "" {
 				thread.DisplayName = nameField.String()
 			}
 
-			profilePicField := userVal.FieldByName("ProfilePictureUrl")
-			if profilePicField.IsValid() {
-				thread.ProfilePicture = profilePicField.String()
+			profilePictureField := userVal.FieldByName("ProfilePictureUrl")
+			if profilePictureField.IsValid() {
+				thread.ProfilePicture = profilePictureField.String()
 			}
 		}
 	}
@@ -1285,4 +1465,59 @@ func extractBookmarkCountFromAny(obj any) int {
 	}
 
 	return 0
+}
+
+func convertProtoReplyToReply(r *threadProto.ReplyResponse) *Reply {
+	if r == nil || r.Reply == nil {
+		return nil
+	}
+
+	reply := &Reply{
+		ID:           r.Reply.Id,
+		Content:      r.Reply.Content,
+		ThreadID:     r.Reply.ThreadId,
+		UserID:       r.Reply.UserId,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		LikesCount:   int(r.LikesCount),
+		RepliesCount: int(r.RepliesCount),
+		IsLiked:      r.LikedByUser,
+		IsBookmarked: r.BookmarkedByUser,
+	}
+
+	if r.Reply.CreatedAt != nil {
+		reply.CreatedAt = r.Reply.CreatedAt.AsTime()
+	}
+
+	if r.Reply.UpdatedAt != nil {
+		reply.UpdatedAt = r.Reply.UpdatedAt.AsTime()
+	}
+
+	if r.Reply.ParentId != "" {
+		reply.ParentID = r.Reply.ParentId
+	}
+
+	if r.User != nil {
+		reply.Username = r.User.Username
+		reply.Name = r.User.Name
+		reply.ProfilePictureURL = r.User.ProfilePictureUrl
+		reply.IsVerified = r.User.IsVerified
+	}
+
+	// Include parent information if available
+	if r.ParentContent != nil {
+		reply.ParentContent = *r.ParentContent
+	}
+
+	if r.ParentUser != nil {
+		reply.ParentUser = map[string]interface{}{
+			"id":                  r.ParentUser.Id,
+			"username":            r.ParentUser.Username,
+			"name":                r.ParentUser.Name,
+			"profile_picture_url": r.ParentUser.ProfilePictureUrl,
+			"is_verified":         r.ParentUser.IsVerified,
+		}
+	}
+
+	return reply
 }

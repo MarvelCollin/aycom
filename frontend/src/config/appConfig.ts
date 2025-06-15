@@ -98,6 +98,33 @@ export const checkApiHealth = async () => {
       }
     }
     
+    // Also check WebSocket connectivity
+    console.log('[Config] Testing WebSocket connectivity...');
+    try {
+      const wsUrl = appConfig.api.wsUrl.replace('/api/v1', '') + '/api/v1/health/ws';
+      console.log(`[Config] Attempting WebSocket connection to: ${wsUrl}`);
+      
+      const ws = new WebSocket(wsUrl);
+      const wsTimeout = setTimeout(() => {
+        console.warn('[Config] WebSocket connection test timed out');
+        ws.close();
+      }, 5000);
+      
+      ws.onopen = () => {
+        clearTimeout(wsTimeout);
+        console.log('[Config] WebSocket connection test successful');
+        ws.close();
+      };
+      
+      ws.onerror = (error) => {
+        clearTimeout(wsTimeout);
+        console.error('[Config] WebSocket connection test failed:', error);
+        ws.close();
+      };
+    } catch (wsError) {
+      console.error('[Config] Error testing WebSocket connection:', wsError);
+    }
+    
     // Also check chats endpoint specifically
     console.log('[Config] Testing chats endpoint...');
     try {

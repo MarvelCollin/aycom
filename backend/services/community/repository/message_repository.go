@@ -12,15 +12,24 @@ import (
 )
 
 type MessageDBModel struct {
-	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;column:message_id"`
-	ChatID    uuid.UUID  `gorm:"type:uuid;not null;column:chat_id"`
-	SenderID  uuid.UUID  `gorm:"type:uuid;not null;column:sender_id"`
-	Content   string     `gorm:"type:text;not null"`
-	SentAt    time.Time  `gorm:"not null;autoCreateTime"`
-	IsRead    bool       `gorm:"default:false"`
-	IsEdited  bool       `gorm:"default:false"`
-	IsDeleted bool       `gorm:"default:false"`
-	DeletedAt *time.Time `gorm:"index"`
+	ID               uuid.UUID  `gorm:"type:uuid;primaryKey;column:message_id"`
+	ChatID           uuid.UUID  `gorm:"type:uuid;not null;column:chat_id"`
+	SenderID         uuid.UUID  `gorm:"type:uuid;not null;column:sender_id"`
+	Content          string     `gorm:"type:text;column:content"`
+	MediaURL         string     `gorm:"type:varchar(512);column:media_url"`
+	MediaType        string     `gorm:"type:varchar(10);column:media_type"`
+	SentAt           time.Time  `gorm:"column:sent_at;not null"`
+	Unsent           bool       `gorm:"default:false;not null;column:unsent"`
+	UnsentAt         *time.Time `gorm:"column:unsent_at"`
+	DeletedForSender bool       `gorm:"default:false;not null;column:deleted_for_sender"`
+	DeletedForAll    bool       `gorm:"default:false;not null;column:deleted_for_all"`
+	ReplyToMessageID *uuid.UUID `gorm:"type:uuid;column:reply_to_message_id"`
+	IsRead           bool       `gorm:"default:false;column:is_read"`
+	IsEdited         bool       `gorm:"default:false;column:is_edited"`
+	IsDeleted        bool       `gorm:"default:false;column:is_deleted"`
+	CreatedAt        time.Time  `gorm:"column:created_at"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at"`
+	DeletedAt        *time.Time `gorm:"index;column:deleted_at"`
 }
 
 func (MessageDBModel) TableName() string {
@@ -100,14 +109,19 @@ func (r *GormMessageRepository) SaveMessage(message *model.MessageDTO) error {
 
 	// Create the message
 	dbMessage := &MessageDBModel{
-		ID:        msgID,
-		ChatID:    chatID,
-		SenderID:  senderID,
-		Content:   message.Content,
-		SentAt:    message.Timestamp,
-		IsRead:    message.IsRead,
-		IsEdited:  message.IsEdited,
-		IsDeleted: message.IsDeleted,
+		ID:               msgID,
+		ChatID:           chatID,
+		SenderID:         senderID,
+		Content:          message.Content,
+		SentAt:           message.Timestamp,
+		Unsent:           false,
+		DeletedForSender: false,
+		DeletedForAll:    false,
+		IsRead:           message.IsRead,
+		IsEdited:         message.IsEdited,
+		IsDeleted:        message.IsDeleted,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 
 	// Use a transaction to ensure data integrity
@@ -155,14 +169,17 @@ func (r *GormMessageRepository) FindMessageByID(messageID string) (*model.Messag
 	}
 
 	return &model.MessageDTO{
-		ID:        dbMessage.ID.String(),
-		ChatID:    dbMessage.ChatID.String(),
-		SenderID:  dbMessage.SenderID.String(),
-		Content:   dbMessage.Content,
-		Timestamp: dbMessage.SentAt,
-		IsRead:    dbMessage.IsRead,
-		IsEdited:  dbMessage.IsEdited,
-		IsDeleted: dbMessage.IsDeleted,
+		ID:               dbMessage.ID.String(),
+		ChatID:           dbMessage.ChatID.String(),
+		SenderID:         dbMessage.SenderID.String(),
+		Content:          dbMessage.Content,
+		Timestamp:        dbMessage.SentAt,
+		IsRead:           dbMessage.IsRead,
+		IsEdited:         dbMessage.IsEdited,
+		IsDeleted:        dbMessage.IsDeleted,
+		Unsent:           dbMessage.Unsent,
+		DeletedForSender: dbMessage.DeletedForSender,
+		DeletedForAll:    dbMessage.DeletedForAll,
 	}, nil
 }
 
@@ -198,14 +215,25 @@ func (r *GormMessageRepository) FindMessagesByChatID(chatID string, limit, offse
 	messages := make([]*model.MessageDTO, len(dbMessages))
 	for i, dbMessage := range dbMessages {
 		messages[i] = &model.MessageDTO{
-			ID:        dbMessage.ID.String(),
-			ChatID:    dbMessage.ChatID.String(),
-			SenderID:  dbMessage.SenderID.String(),
-			Content:   dbMessage.Content,
-			Timestamp: dbMessage.SentAt,
-			IsRead:    dbMessage.IsRead,
-			IsEdited:  dbMessage.IsEdited,
-			IsDeleted: dbMessage.IsDeleted,
+			ID:               dbMessage.ID.String(),
+			ChatID:           dbMessage.ChatID.String(),
+			SenderID:         dbMessage.SenderID.String(),
+			Content:          dbMessage.Content,
+			MediaURL:         dbMessage.MediaURL,
+			MediaType:        dbMessage.MediaType,
+			Timestamp:        dbMessage.SentAt,
+			Unsent:           dbMessage.Unsent,
+			UnsentAt:         dbMessage.UnsentAt,
+			DeletedForSender: dbMessage.DeletedForSender,
+			DeletedForAll:    dbMessage.DeletedForAll,
+			IsRead:           dbMessage.IsRead,
+			IsEdited:         dbMessage.IsEdited,
+			IsDeleted:        dbMessage.IsDeleted,
+			CreatedAt:        dbMessage.CreatedAt,
+			UpdatedAt:        dbMessage.UpdatedAt,
+		}
+		if dbMessage.ReplyToMessageID != nil {
+			messages[i].ReplyToMessageID = dbMessage.ReplyToMessageID.String()
 		}
 	}
 

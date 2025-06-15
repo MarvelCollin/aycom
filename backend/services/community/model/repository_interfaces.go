@@ -2,7 +2,6 @@ package model
 
 import "time"
 
-
 type ChatDTO struct {
 	ID          string
 	Name        string
@@ -14,18 +13,25 @@ type ChatDTO struct {
 	UpdatedAt   time.Time
 }
 
-
 type MessageDTO struct {
-	ID        string
-	ChatID    string
-	SenderID  string
-	Content   string
-	Timestamp time.Time
-	IsRead    bool
-	IsEdited  bool
-	IsDeleted bool
+	ID               string
+	ChatID           string
+	SenderID         string
+	Content          string
+	MediaURL         string
+	MediaType        string
+	Timestamp        time.Time
+	Unsent           bool
+	UnsentAt         *time.Time
+	DeletedForSender bool
+	DeletedForAll    bool
+	ReplyToMessageID string
+	IsRead           bool
+	IsEdited         bool
+	IsDeleted        bool
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
-
 
 type ParticipantDTO struct {
 	ChatID   string
@@ -34,13 +40,11 @@ type ParticipantDTO struct {
 	IsAdmin  bool
 }
 
-
 type DeletedChatDTO struct {
 	ChatID    string
 	UserID    string
 	DeletedAt time.Time
 }
-
 
 type ChatRepository interface {
 	CreateChat(chat *ChatDTO) error
@@ -49,7 +53,6 @@ type ChatRepository interface {
 	UpdateChat(chat *ChatDTO) error
 	DeleteChat(chatID string) error
 }
-
 
 type MessageRepository interface {
 	SaveMessage(message *MessageDTO) error
@@ -62,14 +65,12 @@ type MessageRepository interface {
 	UpdateMessage(message *MessageDTO) error
 }
 
-
 type ParticipantRepository interface {
 	AddParticipant(participant *ParticipantDTO) error
 	RemoveParticipant(chatID, userID string) error
 	ListParticipantsByChatID(chatID string, limit, offset int) ([]*ParticipantDTO, error)
 	IsUserInChat(chatID, userID string) (bool, error)
 }
-
 
 type DeletedChatRepository interface {
 	MarkChatAsDeleted(chatID, userID string) error

@@ -38,8 +38,8 @@
           created_at: responseData.created_at || new Date().toISOString(),
           updated_at: responseData.updated_at,
         user_id: responseData.user_id || '',
-        username: responseData.username || 'anonymous',
-        name: responseData.name || 'User',
+        username: responseData.username || responseData.author_username || '',
+        name: responseData.name || responseData.display_name || 'User',
           profile_picture_url: responseData.profile_picture_url || '',
           likes_count: responseData.likes_count || 0,
           replies_count: responseData.replies_count || 0,
@@ -66,7 +66,7 @@
         content: '',
         created_at: new Date().toISOString(),
         user_id: '',
-        username: 'user',
+        username: '',
         name: 'User',
         profile_picture_url: '',
         likes_count: 0,
@@ -94,8 +94,8 @@
         updated_at: replyData.updated_at,
         thread_id: replyData.thread_id || threadId,
         user_id: replyData.user_id || '',
-        username: replyData.username || 'anonymous',
-        name: replyData.name || 'User',
+        username: replyData.username || replyData.author_username || '',
+        name: replyData.name || replyData.display_name || 'User',
         profile_picture_url: replyData.profile_picture_url || '',
         is_verified: replyData.is_verified || false,
         likes_count: replyData.likes_count || 0,
@@ -106,6 +106,13 @@
         is_bookmarked: replyData.is_bookmarked || false,
         is_reposted: replyData.is_reposted || false,
         parent_id: replyData.parent_id,
+        parent_content: replyData.parent_content || null,
+        parent_user: replyData.parent_user ? {
+          id: replyData.parent_user.id || '',
+          username: replyData.parent_user.username || '',
+          name: replyData.parent_user.name || '',
+          profile_picture_url: replyData.parent_user.profile_picture_url || ''
+        } : null,
         media: Array.isArray(replyData.media) ? replyData.media.map(m => ({
           id: m.id,
           url: m.url,
@@ -122,9 +129,9 @@
         created_at: replyData.created_at || new Date().toISOString(),
         thread_id: replyData.thread_id || threadId,
         user_id: replyData.user_id || '',
-        username: replyData.username || 'anonymous',
-        name: replyData.name || 'User',
-        profile_picture_url: replyData.profile_picture_url || '',
+        username: '',
+        name: 'User',
+        profile_picture_url: '',
         likes_count: 0,
         replies_count: 0,
         media: []
@@ -143,6 +150,8 @@
         return;
       }
       
+      console.log('Loading thread with ID:', threadId);
+      
       // Always load fresh thread data from API
       const response = await getThread(threadId);
       console.log('Thread data from API:', response);
@@ -155,12 +164,47 @@
       thread = formatThreadData(response);
       console.log('Processed thread:', thread);
       
+      // If username is empty or undefined, try to get it from sessionStorage
+      if (!thread.username) {
+        try {
+          const storedThread = sessionStorage.getItem('lastViewedThread');
+          if (storedThread) {
+            const parsedThread = JSON.parse(storedThread);
+            if (parsedThread.id === threadId && parsedThread.username) {
+              console.log('Using username from stored thread data:', parsedThread.username);
+              thread.username = parsedThread.username;
+              thread.name = parsedThread.name || thread.name;
+            }
+          }
+        } catch (storageError) {
+          console.error('Error accessing stored thread data for username:', storageError);
+        }
+      }
+      
       // Load replies
       await loadReplies(threadId);
       
     } catch (error) {
       console.error('Error loading thread:', error);
       toastStore.showToast('Failed to load thread details', 'error');
+      
+      // If API fails but we have thread data in sessionStorage, use that as fallback
+      try {
+        const storedThread = sessionStorage.getItem('lastViewedThread');
+        if (storedThread) {
+          const parsedThread = JSON.parse(storedThread);
+          
+          // Verify this is the correct thread
+          if (parsedThread.id === threadId) {
+            console.log('Using stored thread data as fallback:', parsedThread);
+            thread = formatThreadData(parsedThread);
+          } else {
+            console.log('Stored thread ID does not match current threadId, ignoring stored data');
+          }
+        }
+      } catch (storageError) {
+        console.error('Error parsing stored thread data:', storageError);
+      }
     } finally {
       isLoading = false;
     }
@@ -329,9 +373,16 @@
       const storedThread = sessionStorage.getItem('lastViewedThread');
       if (storedThread) {
         const parsedThread = JSON.parse(storedThread);
-        // Use the stored thread data as a quick initial render
-        thread = formatThreadData(parsedThread);
-        console.log('Using thread data from sessionStorage:', thread);
+        
+        // Verify this is the correct thread for the current page
+        if (parsedThread.id === threadId) {
+          // Use the stored thread data as a quick initial render
+          thread = formatThreadData(parsedThread);
+          console.log('Using thread data from sessionStorage:', thread);
+        } else {
+          console.log('Stored thread ID does not match current threadId, ignoring stored data');
+        }
+        
         // Remove from sessionStorage to avoid stale data on page refresh
         sessionStorage.removeItem('lastViewedThread');
       }
@@ -340,7 +391,7 @@
     }
     
     // Always load fresh thread data from API to ensure it's up-to-date
-      loadThreadWithReplies();
+    loadThreadWithReplies();
   });
   
   // Clean up subscription on component destruction

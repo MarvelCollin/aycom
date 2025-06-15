@@ -199,22 +199,42 @@
     try {
       logger.debug('Sending message to chat', { chatId });
       
-      // Use chat store to handle optimistic updates and WebSocket
-      chatMessageStore.sendMessage(chatId, content, userId);
+      // Generate a temporary ID for the message
+      const tempId = `temp-${Date.now()}`;
       
-      // Also send via REST API for redundancy
+      // Create message data
       const messageData = {
         content: content,
-        message_id: `temp-${Date.now()}` // Include temp ID for tracking
+        message_id: tempId // Include temp ID for tracking
       };
       
-      const response = await sendMessageApi(chatId, messageData);
-      logger.debug('Message sent via API', { response });
-      
-      // No need to manually add the message as the WebSocket handler will do that
+      // First try to send via REST API
+      try {
+        const response = await sendMessageApi(chatId, messageData);
+        logger.debug('Message sent successfully via API', { response });
+        
+        // If REST API call succeeds, we don't need to rely on WebSocket for sending
+        // but we still try to use the WebSocket for real-time updates
+        chatMessageStore.sendMessage(chatId, content, userId);
+        
+      } catch (apiError) {
+        logger.error('Failed to send message via API, falling back to WebSocket only', apiError);
+        
+        // Use chat store as fallback if API fails
+        chatMessageStore.sendMessage(chatId, content, userId);
+        
+        // Show temporary error
+        errorMessage = 'Network issue detected. Message may not be delivered.';
+        setTimeout(() => {
+          errorMessage = '';
+        }, 3000);
+      }
     } catch (error) {
       logger.error('Failed to send message', error);
       errorMessage = 'Failed to send message. Please try again.';
+      setTimeout(() => {
+        errorMessage = '';
+      }, 3000);
     }
   }
   

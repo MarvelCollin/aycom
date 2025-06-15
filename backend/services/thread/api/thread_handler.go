@@ -1293,5 +1293,29 @@ func (h *ThreadHandler) convertReplyToResponse(ctx context.Context, reply *model
 		}
 	}
 
+	// Add parent information if this is a reply to another reply
+	if reply.ParentReplyID != nil && h.replyService != nil {
+		parentReply, err := h.replyService.GetReplyByID(ctx, reply.ParentReplyID.String())
+		if err == nil && parentReply != nil {
+			// Add parent content
+			parentContent := parentReply.Content
+			response.ParentContent = &parentContent
+
+			// Get parent user information
+			if h.userClient != nil {
+				parentUserInfo, err := h.userClient.GetUserById(ctx, parentReply.UserID.String())
+				if err == nil && parentUserInfo != nil {
+					response.ParentUser = &thread.User{
+						Id:                parentUserInfo.Id,
+						Name:              parentUserInfo.DisplayName,
+						Username:          parentUserInfo.Username,
+						ProfilePictureUrl: parentUserInfo.ProfilePictureUrl,
+						IsVerified:        parentUserInfo.IsVerified,
+					}
+				}
+			}
+		}
+	}
+
 	return response, nil
 }

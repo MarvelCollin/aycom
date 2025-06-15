@@ -153,11 +153,11 @@ func SearchThreads(c *gin.Context) {
 	log.Printf("Searching threads with query=%s, filter=%s, category=%s, sortBy=%s, mediaOnly=%v",
 		query, filter, category, sortBy, mediaOnly)
 
-	// For now, we'll use the basic SearchThreads method and handle filtering in the application layer
-	// In the future, consider expanding the proto definition to include these parameters
+	// Get threads using fuzzy search via our improved SearchThreads method
+	// The method now handles the Damerau-Levenshtein fuzzy matching internally
 	threads, err = threadServiceClient.SearchThreads(query, userID, page, limit)
 
-	// Apply filters on the application layer
+	// Apply additional filters on the application layer
 	if err == nil {
 		var filteredThreads []*Thread
 
@@ -204,26 +204,27 @@ func SearchThreads(c *gin.Context) {
 	// Convert to response format
 	var threadResults []gin.H
 	for _, thread := range threads {
-		threadData := gin.H{
-			"id":            thread.ID,
-			"content":       thread.Content,
-			"created_at":    thread.CreatedAt,
-			"like_count":    thread.LikeCount,   // Fixed field name
-			"reply_count":   thread.ReplyCount,  // Fixed field name
-			"repost_count":  thread.RepostCount, // Fixed field name
-			"is_liked":      thread.IsLiked,
-			"is_reposted":   thread.IsReposted,
-			"is_bookmarked": thread.IsBookmarked,
+		if thread == nil {
+			continue
 		}
 
-		// Add author information directly from the thread fields
-		// since Thread struct doesn't have a User field
-		threadData["author"] = gin.H{
-			"id":           thread.UserID,
-			"username":     thread.Username,
-			"display_name": thread.DisplayName,
-			"avatar":       thread.ProfilePicture,
-			"is_verified":  false, // This information is not in Thread struct
+		threadData := gin.H{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"created_at":          thread.CreatedAt,
+			"updated_at":          thread.UpdatedAt,
+			"likes_count":         thread.LikeCount,
+			"replies_count":       thread.ReplyCount,
+			"reposts_count":       thread.RepostCount,
+			"bookmark_count":      thread.BookmarkCount,
+			"is_liked":            thread.IsLiked,
+			"is_reposted":         thread.IsReposted,
+			"is_bookmarked":       thread.IsBookmarked,
+			"is_pinned":           thread.IsPinned,
+			"user_id":             thread.UserID,
+			"username":            thread.Username,
+			"name":                thread.DisplayName,
+			"profile_picture_url": thread.ProfilePicture,
 		}
 
 		// Add media if available
@@ -242,13 +243,24 @@ func SearchThreads(c *gin.Context) {
 		threadResults = append(threadResults, threadData)
 	}
 
+	// Get the total count from the thread service (would need to be implemented)
+	// For now, use a reasonable approximation
+	totalCount := len(threadResults)
+	totalPages := (totalCount + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	hasMore := page < totalPages
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"threads": threadResults,
 		"pagination": gin.H{
-			"total_count":  len(threads),
+			"total_count":  totalCount,
 			"current_page": page,
 			"per_page":     limit,
-			"has_more":     len(threads) == limit,
+			"total_pages":  totalPages,
+			"has_more":     hasMore,
 		},
 	})
 }

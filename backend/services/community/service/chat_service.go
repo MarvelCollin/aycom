@@ -10,18 +10,26 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"aycom/backend/services/community/model"
-	"crypto/md5"
 )
 
 type Message struct {
-	ID        string
-	ChatID    string
-	SenderID  string
-	Content   string
-	Timestamp time.Time
-	IsRead    bool
-	IsEdited  bool
-	IsDeleted bool
+	ID               string
+	ChatID           string
+	SenderID         string
+	Content          string
+	MediaURL         string
+	MediaType        string
+	Timestamp        time.Time
+	Unsent           bool
+	UnsentAt         *time.Time
+	DeletedForSender bool
+	DeletedForAll    bool
+	ReplyToMessageID string
+	IsRead           bool
+	IsEdited         bool
+	IsDeleted        bool
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type Chat struct {
@@ -85,7 +93,7 @@ type ChatService interface {
 	AddParticipant(chatID, userID, addedBy string) error
 	RemoveParticipant(chatID, userID, removedBy string) error
 	ListParticipants(chatID string, limit, offset int) ([]*community.ChatParticipant, error)
-	SendMessage(chatID, userID, content string) (string, error)
+	SendMessage(chatID string, userID string, content string) (string, error)
 	GetMessages(chatID string, limit, offset int) ([]*community.Message, error)
 	DeleteMessage(chatID, messageID, userID string) error
 	UnsendMessage(chatID, messageID, userID string) error
@@ -141,27 +149,45 @@ func fromModelChatDTO(c *model.ChatDTO) *Chat {
 
 func toModelMessageDTO(m *Message) *model.MessageDTO {
 	return &model.MessageDTO{
-		ID:        m.ID,
-		ChatID:    m.ChatID,
-		SenderID:  m.SenderID,
-		Content:   m.Content,
-		Timestamp: m.Timestamp,
-		IsRead:    m.IsRead,
-		IsEdited:  m.IsEdited,
-		IsDeleted: m.IsDeleted,
+		ID:               m.ID,
+		ChatID:           m.ChatID,
+		SenderID:         m.SenderID,
+		Content:          m.Content,
+		MediaURL:         m.MediaURL,
+		MediaType:        m.MediaType,
+		Timestamp:        m.Timestamp,
+		Unsent:           m.Unsent,
+		UnsentAt:         m.UnsentAt,
+		DeletedForSender: m.DeletedForSender,
+		DeletedForAll:    m.DeletedForAll,
+		ReplyToMessageID: m.ReplyToMessageID,
+		IsRead:           m.IsRead,
+		IsEdited:         m.IsEdited,
+		IsDeleted:        m.IsDeleted,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
 	}
 }
 
 func fromModelMessageDTO(m *model.MessageDTO) *Message {
 	return &Message{
-		ID:        m.ID,
-		ChatID:    m.ChatID,
-		SenderID:  m.SenderID,
-		Content:   m.Content,
-		Timestamp: m.Timestamp,
-		IsRead:    m.IsRead,
-		IsEdited:  m.IsEdited,
-		IsDeleted: m.IsDeleted,
+		ID:               m.ID,
+		ChatID:           m.ChatID,
+		SenderID:         m.SenderID,
+		Content:          m.Content,
+		MediaURL:         m.MediaURL,
+		MediaType:        m.MediaType,
+		Timestamp:        m.Timestamp,
+		Unsent:           m.Unsent,
+		UnsentAt:         m.UnsentAt,
+		DeletedForSender: m.DeletedForSender,
+		DeletedForAll:    m.DeletedForAll,
+		ReplyToMessageID: m.ReplyToMessageID,
+		IsRead:           m.IsRead,
+		IsEdited:         m.IsEdited,
+		IsDeleted:        m.IsDeleted,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
 	}
 }
 
@@ -340,61 +366,26 @@ func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error 
 	return nil
 }
 
-func (s *chatService) SendMessage(chatID, userID, content string) (string, error) {
-	// Validate input parameters
-	if chatID == "" {
-		return "", fmt.Errorf("chat ID cannot be empty")
-	}
-	if userID == "" {
-		return "", fmt.Errorf("user ID cannot be empty")
-	}
-	if content == "" {
-		return "", fmt.Errorf("message content cannot be empty")
+func (s *chatService) SendMessage(chatID string, userID string, content string) (string, error) {
+	log.Printf("Sending message: ChatID=%s, UserID=%s", chatID, userID)
+
+	// Validate chat ID
+	if _, err := uuid.Parse(chatID); err != nil {
+		log.Printf("Invalid chat ID: %s", chatID)
+		return "", fmt.Errorf("invalid chat ID: %v", err)
 	}
 
-	// Log the operation
-	log.Printf("Sending message to chat %s from user %s", chatID, userID)
-
-	// Validate UUID format for chat ID
-	_, err := uuid.Parse(chatID)
-	if err != nil {
-		log.Printf("Invalid chat ID format: %v", err)
-		return "", fmt.Errorf("invalid chat ID format: %v", err)
+	// Validate user ID
+	if _, err := uuid.Parse(userID); err != nil {
+		log.Printf("Invalid user ID: %s", userID)
+		return "", fmt.Errorf("invalid user ID: %v", err)
 	}
 
-	// Validate UUID format for user ID
-	var parsedUserID uuid.UUID
-	parsedUserID, err = uuid.Parse(userID)
-	if err != nil {
-		// Log the issue
-		log.Printf("Invalid user ID format: %v. Raw userID: %s (length: %d)", err, userID, len(userID))
-
-		// Try to create a UUID from the string if it's too short
-		if len(userID) < 36 {
-			// Generate a deterministic UUID from the user ID string
-			// This will ensure the same input always produces the same UUID
-			h := md5.New()
-			h.Write([]byte(userID))
-			sum := h.Sum(nil)
-			parsedUserID, err = uuid.FromBytes(sum[:16])
-			if err != nil {
-				// If we still can't create a valid UUID, return error
-				return "", fmt.Errorf("invalid user ID format and could not convert: %v", err)
-			}
-
-			log.Printf("Created UUID from user ID string: %s", parsedUserID.String())
-			userID = parsedUserID.String()
-		} else {
-			// If it's not a length issue, return the error
-			return "", fmt.Errorf("invalid user ID format: %v", err)
-		}
-	}
-
-	// Check if the user is a participant
+	// Check if user is a participant in the chat
 	isParticipant, err := s.participantRepo.IsUserInChat(chatID, userID)
 	if err != nil {
-		log.Printf("Error checking if user %s is in chat %s: %v", userID, chatID, err)
-		return "", fmt.Errorf("failed to check if user is in chat: %v", err)
+		log.Printf("Error checking if user is a participant: %v", err)
+		return "", fmt.Errorf("could not verify chat membership: %v", err)
 	}
 
 	if !isParticipant {
@@ -404,19 +395,33 @@ func (s *chatService) SendMessage(chatID, userID, content string) (string, error
 
 	// Create the message
 	messageID := uuid.New().String()
-	message := &model.MessageDTO{
-		ID:        messageID,
-		ChatID:    chatID,
-		SenderID:  userID,
-		Content:   content,
-		Timestamp: time.Now(),
-		IsRead:    false,
-		IsEdited:  false,
-		IsDeleted: false,
+	now := time.Now()
+
+	message := &Message{
+		ID:               messageID,
+		ChatID:           chatID,
+		SenderID:         userID,
+		Content:          content,
+		MediaURL:         "",
+		MediaType:        "",
+		Timestamp:        now,
+		Unsent:           false,
+		UnsentAt:         nil,
+		DeletedForSender: false,
+		DeletedForAll:    false,
+		ReplyToMessageID: "",
+		IsRead:           false,
+		IsEdited:         false,
+		IsDeleted:        false,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
+	// Convert to MessageDTO and save
+	messageDTO := toModelMessageDTO(message)
+
 	// Save the message with error handling
-	if err := s.messageRepo.SaveMessage(message); err != nil {
+	if err := s.messageRepo.SaveMessage(messageDTO); err != nil {
 		log.Printf("Failed to save message: %v", err)
 		return "", fmt.Errorf("failed to save message: %v", err)
 	}
@@ -433,14 +438,29 @@ func (s *chatService) GetMessages(chatID string, limit, offset int) ([]*communit
 
 	protoMessages := make([]*community.Message, len(messages))
 	for i, message := range messages {
-		protoMessages[i] = &community.Message{
-			Id:       message.ID,
-			ChatId:   message.ChatID,
-			SenderId: message.SenderID,
-			Content:  message.Content,
-			SentAt:   timestamppb.New(message.Timestamp),
-			Unsent:   message.IsDeleted,
+		// Create a proto message with all relevant fields
+		protoMessage := &community.Message{
+			Id:               message.ID,
+			ChatId:           message.ChatID,
+			SenderId:         message.SenderID,
+			Content:          message.Content,
+			MediaUrl:         message.MediaURL,
+			MediaType:        message.MediaType,
+			SentAt:           timestamppb.New(message.Timestamp),
+			Unsent:           message.Unsent,
+			DeletedForSender: message.DeletedForSender,
+			DeletedForAll:    message.DeletedForAll,
 		}
+
+		// Handle optional fields with null checks
+		if message.UnsentAt != nil {
+			protoMessage.UnsentAt = timestamppb.New(*message.UnsentAt)
+		}
+		if message.ReplyToMessageID != "" {
+			protoMessage.ReplyToMessageId = message.ReplyToMessageID
+		}
+
+		protoMessages[i] = protoMessage
 	}
 
 	return protoMessages, nil

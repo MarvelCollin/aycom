@@ -1239,24 +1239,6 @@ export async function searchCommunities(
       totalCount = data.total_count || 0;
     }
     
-    // If clientFuzzy option is true and there's a search query, further filter results on client side
-    if (options?.clientFuzzy && cleanQuery && communities.length > 0) {
-      logger.debug(`Performing client-side fuzzy search for "${cleanQuery}"`);
-      const lowerQuery = cleanQuery.toLowerCase();
-      communities = communities.filter((community: any) => {
-        if (!community) return false;
-        
-        const name = (community.name || '').toLowerCase();
-        const description = (community.description || '').toLowerCase();
-        
-        // Simple fuzzy matching (more advanced implementations would use Damerau-Levenshtein)
-        return name.includes(lowerQuery) || description.includes(lowerQuery);
-      });
-      
-      totalCount = communities.length;
-      logger.debug(`Client-side filtering found ${communities.length} matches`);
-    }
-    
     logger.debug(`Found ${communities.length} communities${cleanQuery ? ' matching search' : ''}`);
     
     return {

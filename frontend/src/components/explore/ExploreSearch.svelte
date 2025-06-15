@@ -91,12 +91,14 @@
     
     <input 
       type="text" 
-      placeholder="Search" 
+      placeholder="Search (typo-friendly)" 
       value={searchQuery}
       on:input={handleSearchInput}
       on:focus={handleFocus}
       on:keydown={handleKeydown}
       class="search-input {isDarkMode ? 'search-input-dark' : ''}"
+      aria-label="Search with typo tolerance"
+      title="Search with fuzzy matching - tolerates misspellings"
     />
     
     {#if searchQuery}

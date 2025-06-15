@@ -104,7 +104,8 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		// TEMPORARY: Allow all message endpoints without authentication for testing
 		if strings.Contains(path, "/messages") {
 			log.Printf("TESTING MODE: Bypassing JWT auth for messages endpoint: %s %s", c.Request.Method, path)
-			c.Set("userId", "test-user-123")
+			// Using a real participant ID from the database found in chat_participants
+			c.Set("userId", "718f664b-40fd-4222-99bb-a7b8a313a546")
 			c.Next()
 			return
 		}

@@ -90,40 +90,44 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	v1.OPTIONS("/threads", CORSPreflightHandler())
 	v1.OPTIONS("/threads/*path", CORSPreflightHandler())
 
+	// Add thread related endpoints
+	threads := v1.Group("/threads")
+	threads.Use(middleware.JWTAuth(jwtSecret))
+	{
+		threads.POST("", handlers.CreateThread)
+		threads.GET("/:id", handlers.GetThread)
+		threads.PUT("/:id", handlers.UpdateThread)
+		threads.DELETE("/:id", handlers.DeleteThread)
+		threads.POST("/:id/like", handlers.LikeThread)
+		threads.DELETE("/:id/like", handlers.UnlikeThread)
+		threads.POST("/:id/bookmark", handlers.BookmarkThread)
+		threads.DELETE("/:id/bookmark", handlers.RemoveBookmark)
+		threads.GET("/:id/replies", handlers.GetThreadReplies)
+		threads.POST("/:id/replies", handlers.ReplyToThread)
+		threads.POST("/:id/repost", handlers.RepostThread)
+		threads.DELETE("/:id/repost", handlers.RemoveRepost)
+		threads.POST("/:id/pin", handlers.PinThread)
+		threads.DELETE("/:id/pin", handlers.UnpinThread)
+	}
+
+	// Public thread routes with optional authentication
 	publicThreads := v1.Group("/threads")
 	publicThreads.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
 		publicThreads.GET("", handlers.GetAllThreads)
 		publicThreads.GET("/search", handlers.SearchThreads)
-		publicThreads.GET("/:id", handlers.GetThread)
-		publicThreads.GET("/:id/replies", handlers.GetThreadReplies)
+		publicThreads.GET("/trending", handlers.GetTrends)
+		publicThreads.GET("/following", handlers.GetThreadsFromFollowing)
+	}
 
-		publicThreads.POST("", middleware.JWTAuth(jwtSecret), handlers.CreateThread)
-
-		authPublicThreads := publicThreads.Group("/")
-		authPublicThreads.Use(CORSPreflightHandler())
-		authPublicThreads.Use(middleware.JWTAuth(jwtSecret))
-		{
-			authPublicThreads.POST("/:id/like", handlers.LikeThreadHandler)
-			authPublicThreads.DELETE("/:id/like", handlers.UnlikeThreadHandler)
-			authPublicThreads.POST("/:id/bookmark", handlers.BookmarkThreadHandler)
-			authPublicThreads.DELETE("/:id/bookmark", handlers.RemoveBookmarkHandler)
-			authPublicThreads.PUT("/:id", handlers.UpdateThread)
-			authPublicThreads.DELETE("/:id", handlers.DeleteThread)
-			authPublicThreads.POST("/media", handlers.UploadThreadMedia)
-			authPublicThreads.POST("/:id/media/update", handlers.UpdateThreadMediaURLsHandler)
-			authPublicThreads.POST("/:id/pin", handlers.PinThread)
-			authPublicThreads.DELETE("/:id/pin", handlers.UnpinThread)
-			authPublicThreads.POST("/:id/replies", handlers.ReplyToThread)
-			authPublicThreads.POST("/:id/repost", handlers.RepostThread)
-			authPublicThreads.DELETE("/:id/repost", handlers.RemoveRepost)
-			authPublicThreads.GET("/user/me", handlers.GetThreadsByUser)
-			authPublicThreads.GET("/user/:id", handlers.GetThreadsByUser)
-			authPublicThreads.GET("/user/:id/replies", handlers.GetUserReplies)
-			authPublicThreads.GET("/user/:id/likes", handlers.GetUserLikedThreads)
-			authPublicThreads.GET("/user/:id/media", handlers.GetUserMedia)
-			authPublicThreads.GET("/following", handlers.GetThreadsFromFollowing)
-		}
+	// Public search routes with optional authentication
+	search := v1.Group("/search")
+	search.Use(middleware.OptionalJWTAuth(jwtSecret))
+	{
+		search.GET("/threads", handlers.SearchThreads)
+		search.GET("/users", handlers.SearchUsers)
+		search.GET("/communities", handlers.OldSearchCommunities)
+		search.GET("/media", handlers.SearchMedia)
 	}
 
 	trendsGroup := v1.Group("/trends")

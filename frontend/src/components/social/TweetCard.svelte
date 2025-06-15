@@ -65,6 +65,13 @@
     bookmarked_reply?: any;
     parent_reply?: any;
     parent_thread?: any;
+    parent_content?: string | null;
+    parent_user?: {
+      id?: string;
+      username?: string;
+      name?: string;
+      profile_picture_url?: string;
+    } | null;
     isComment?: boolean;
     
     // User data
@@ -184,6 +191,9 @@
   $: hasReplies = effectiveReplies > 0 || parseCount(processedTweet.replies_count) > 0;
     $: processedReplies = replies.map(reply => processTweetContent(reply));
   $: tweetId = typeof processedTweet.id === 'number' ? String(processedTweet.id) : processedTweet.id;
+  
+  // Check if this tweet is a reply to another tweet
+  $: isReply = Boolean(processedTweet.parent_id || processedTweet.parent_content || processedTweet.parent_user);
   
   // Initialize the tweet in the store on mount
   onMount(() => {
@@ -1552,13 +1562,38 @@
     
     if (processedTweet && processedTweet.id) {
       // Dispatch click event for any parent components that need to know
-      dispatch('click', tweet);
+      dispatch('click', processedTweet);
       
       // Use proper navigation to ensure data loading
       const threadId = processedTweet.id;
+      
       // Save thread data to sessionStorage for retrieval in the ThreadDetail page
       // This prevents the "no content" issue when navigating
-      const threadData = JSON.stringify(processedTweet);
+      // Create a clean object with all required fields
+      const threadDataObj = {
+        id: threadId,
+        thread_id: threadId,
+        user_id: processedTweet.user_id || processedTweet.userId || processedTweet.author_id || processedTweet.authorId,
+        username: processedTweet.username || processedTweet.author_username || processedTweet.authorUsername || 'user',
+        name: processedTweet.name || processedTweet.displayName || processedTweet.display_name || 'User',
+        profile_picture_url: processedTweet.profile_picture_url,
+        content: processedTweet.content,
+        created_at: processedTweet.created_at,
+        updated_at: processedTweet.updated_at,
+        likes_count: processedTweet.likes_count || 0,
+        replies_count: processedTweet.replies_count || 0,
+        reposts_count: processedTweet.reposts_count || 0,
+        is_liked: Boolean(processedTweet.is_liked),
+        is_bookmarked: Boolean(processedTweet.is_bookmarked),
+        is_reposted: Boolean(processedTweet.is_reposted),
+        is_verified: Boolean(processedTweet.is_verified),
+        media: processedTweet.media || []
+      };
+      
+      // Log the data being stored to help with debugging
+      console.log('Storing thread data in sessionStorage:', threadDataObj);
+      
+      const threadData = JSON.stringify(threadDataObj);
       sessionStorage.setItem('lastViewedThread', threadData);
       
       // Navigate to the thread page
@@ -1767,6 +1802,28 @@
                   <span>This is admin</span>
                 </div>
               {/if}
+            {/if}
+            
+            <!-- Display parent information if this is a reply -->
+            {#if isReply && processedTweet.parent_user}
+              <div class="tweet-parent-info {isDarkMode ? 'tweet-parent-info-dark' : ''}">
+                <div class="tweet-parent-indicator">
+                  <CornerUpRightIcon size="14" />
+                  <span>Replying to</span>
+                  <a 
+                    href={`/user/${processedTweet.parent_user.username || processedTweet.parent_user.id}`}
+                    class="tweet-parent-username"
+                    on:click|stopPropagation
+                  >
+                    @{processedTweet.parent_user.username || 'user'}
+                  </a>
+                </div>
+                {#if processedTweet.parent_content}
+                  <div class="tweet-parent-content">
+                    <p>{processedTweet.parent_content}</p>
+                  </div>
+                {/if}
+              </div>
             {/if}
             
             {#if processedTweet.content}
@@ -3025,6 +3082,34 @@
 
   .tweet-admin-indicator-dark {
     color: #4da3ff;
+  }
+
+  /* Parent information styles */
+  .tweet-parent-info {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--border-color);
+  }
+
+  .tweet-parent-info-dark {
+    border-left-color: var(--border-color-dark);
+  }
+
+  .tweet-parent-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-secondary);
+  }
+
+  .tweet-parent-username {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .tweet-parent-content {
+    margin-top: 0.25rem;
+    color: var(--text-secondary);
   }
 </style>
 

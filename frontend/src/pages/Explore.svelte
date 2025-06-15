@@ -12,7 +12,7 @@
   import { searchUsers, getAllUsers, getFollowing } from '../api/user';
   import { searchThreads, searchThreadsWithMedia, getThreadsByHashtag } from '../api/thread';
   import { searchCommunities, getCommunities } from '../api/community';
-  import { debounce, stringSimilarity } from '../utils/helpers';
+  import { debounce } from '../utils/helpers';
   import { formatTimeAgo } from '../utils/common';
   
   // Import newly created components
@@ -358,50 +358,24 @@
     isLoadingRecommendations = true;
     try {
       const { users } = await searchUsers(query.trim(), 1, 10, {
-        clientFuzzy: true, // Enable client-side fuzzy matching
         sort: 'follower_count' // Sort by follower count
       });
       
-      // Apply Damerau-Levenshtein distance for fuzzy matching
-      // Filter and sort users based on relevance
-      const relevantUsers = users
-        .map(user => {
-          // Calculate similarity based on username and display name
-          const usernameSimilarity = stringSimilarity(
-            query.toLowerCase(),
-            user.username.toLowerCase()
-          );
-          
-          const displayNameSimilarity = stringSimilarity(
-            query.toLowerCase(),
-            (user.display_name || '').toLowerCase()
-          );
-          
-          // Use the better match of the two
-          const similarity = Math.max(usernameSimilarity, displayNameSimilarity);
-          
-          return {
-            user,
-            similarity
-          };
-        })
-        .filter(item => item.similarity > 0.15) // Only include relevant matches (lower threshold for better fuzzy matching)
-        .sort((a, b) => b.similarity - a.similarity) // Sort by similarity (highest first)
-        .slice(0, 3); // Take top 3 matches
-      
-      searchResults.top.profiles = relevantUsers.map(item => ({
-        id: item.user.id,
-        username: item.user.username,
-        displayName: item.user.display_name || item.user.username,
-        avatar: item.user.avatar,
-        bio: item.user.bio,
-        isVerified: item.user.is_verified || false,
-        followerCount: item.user.follower_count || 0,
-        isFollowing: item.user.is_following || false
+      // Backend now handles fuzzy matching with Damerau-Levenshtein algorithm
+      // Just map the results directly
+      searchResults.top.profiles = users.slice(0, 3).map(user => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.display_name || user.username,
+        avatar: user.avatar,
+        bio: user.bio,
+        isVerified: user.is_verified || false,
+        followerCount: user.follower_count || 0,
+        isFollowing: user.is_following || false
       }));
       
     } catch (error) {
-      console.error('Error searching profiles:', error);
+      logger.error('Error searching profiles:', error);
       searchResults.top.profiles = [];
     } finally {
       isLoadingRecommendations = false;
@@ -531,7 +505,6 @@
         // People tab data (also used for top profiles)
         safeApiCall(searchUsers, searchQuery, 1, peoplePerPage, { 
           filter: filterOption,
-          clientFuzzy: true,
           sort: 'follower_count'
         }),
         
@@ -539,42 +512,24 @@
         safeApiCall(searchThreads, searchQuery, 1, 10, {
           filter: filterOption,
           category: categoryOption,
-          sort_by: 'popular',
-          clientFuzzy: true
+          sort_by: 'popular'
         }),
         
         // Latest threads
         safeApiCall(searchThreads, searchQuery, 1, 20, {
           filter: filterOption,
           category: categoryOption,
-          sort_by: 'recent',
-          clientFuzzy: true
+          sort_by: 'recent'
         }),
         
         // Media tab data
         safeApiCall(searchThreadsWithMedia, searchQuery, 1, 12, {
           filter: filterOption,
-          category: categoryOption,
-          clientFuzzy: true
+          category: categoryOption
         }),
         
         // Communities tab data
-        safeApiCall(searchCommunities, searchQuery, 1, communitiesPerPage, {
-          clientFuzzy: true
-        })
-          .catch(error => {
-            logger.error('Failed to search communities:', error);
-            return {
-              communities: [],
-              total_count: 0,
-              pagination: {
-                total_count: 0,
-                current_page: 1,
-                per_page: communitiesPerPage,
-                total_pages: 0
-              }
-            };
-          })
+        safeApiCall(searchCommunities, searchQuery, 1, communitiesPerPage)
       ]);
       
       // Process people results
@@ -996,7 +951,7 @@
         peoplePerPage, 
         { 
           filter: filterOption,
-          clientFuzzy: true
+          sort: 'follower_count'
         }
       );
       
