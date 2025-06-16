@@ -174,6 +174,9 @@
   // For tracking reply loading states
   let isLoadingReplies = false;
   let repliesErrorState = false;
+  
+  // Skeleton loading state
+  let isLoading = true;
     // For loading nested replies
   let isLoadingNestedReplies = new Map<string, boolean>();
   let nestedRepliesErrorState = new Map<string, boolean>();
@@ -200,6 +203,11 @@
     if (processedTweet) {
       tweetInteractionStore.initTweet(processedTweet);
     }
+    
+    // Add timer to hide skeleton after 500ms
+    setTimeout(() => {
+      isLoading = false;
+    }, 500);
   });
 
   // When processedTweet changes, make sure it's initialized in the store
@@ -1712,286 +1720,322 @@
   }
 </script>
 
+<!-- Add skeleton loading in the template -->
 <div class="tweet-card {isDarkMode ? 'tweet-card-dark' : ''}" id="tweet-{processedTweet.id}">
-  <div 
-    class="tweet-card-container" 
-    on:click|preventDefault={navigateToThreadDetail}
-    on:keydown={(e) => e.key === 'Enter' && navigateToThreadDetail(e)}
-    role="button"
-    tabindex="0"
-    aria-label="View thread details">
-    <div class="tweet-card-content">
-      <div class="tweet-card-header">
-        <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
-          class="tweet-avatar"
-          on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-          on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
-          {#if processedTweet.profile_picture_url}
-            <img src={processedTweet.profile_picture_url} alt={processedTweet.username} class="tweet-avatar-image" />
-          {:else}
-            <div class="tweet-avatar-placeholder">
-              <div class="tweet-avatar-text">{processedTweet.username ? processedTweet.username[0].toUpperCase() : 'U'}</div>
-            </div>
-          {/if}
-        </a>
-        <div class="tweet-content-container">
-          <div class="tweet-author-info">
-            <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
-              class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
-              on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-              on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
-              {#if !processedTweet.name && !processedTweet.displayName}
-                {console.warn('❌ MISSING DISPLAY NAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, username: processedTweet.username})}
-                <span class="tweet-error-text">User</span>
-              {:else}
-                <span class="display-name-text">{processedTweet.name || processedTweet.displayName}</span>
-                {#if processedTweet.is_verified}
-                  <span class="user-verified-badge">
-                    <CheckCircleIcon size="14" />
-                  </span>
-                {/if}
-              {/if}
-            </a>
-            <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
-              class="tweet-author-username {isDarkMode ? 'tweet-author-username-dark' : ''}"
-              on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
-              on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
-              {#if processedTweet.username === 'user'}
-                {console.warn('❌ MISSING USERNAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, displayName: processedTweet.displayName})}
-                <span class="tweet-error-text">@user</span>
-              {:else}
-                @{processedTweet.username}
-              {/if}
-            </a>
-            <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
-            <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(processedTweet.timestamp)}</span>
-            
-            <!-- Settings button for tweet owner -->
-            {#if isCurrentUserAuthor}
-              <div class="tweet-settings-container">
-                <button 
-                  class="tweet-settings-btn {isDarkMode ? 'tweet-settings-btn-dark' : ''}" 
-                  on:click|stopPropagation={toggleSettingsDropdown}
-                  aria-label="Tweet settings"
-                >
-                  <MoreHorizontalIcon size="18" />
-                </button>
-                
-                {#if isSettingsDropdownOpen}
-                  <div class="tweet-settings-dropdown {isDarkMode ? 'tweet-settings-dropdown-dark' : ''}">
-                    <button 
-                      class="tweet-settings-option tweet-delete-option {isDarkMode ? 'tweet-settings-option-dark' : ''}" 
-                      on:click|stopPropagation={handleDeleteTweet}
-                    >
-                      <TrashIcon size="16" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                {/if}
+  <!-- Skeleton loader -->
+  {#if isLoading}
+    <div class="tweet-card-skeleton">
+      <div class="tweet-card-container">
+        <div class="tweet-card-content">
+          <div class="tweet-card-header">
+            <div class="tweet-avatar skeleton"></div>
+            <div class="tweet-content-container">
+              <div class="tweet-author-info">
+                <div class="tweet-author-name-skeleton skeleton"></div>
+                <div class="tweet-author-username-skeleton skeleton"></div>
               </div>
-            {/if}
+              <div class="tweet-text">
+                <div class="tweet-text-skeleton skeleton"></div>
+                <div class="tweet-text-skeleton skeleton"></div>
+              </div>
+            </div>
           </div>
           
-          <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
-            {#if processedTweet.is_advertisement || isAdminTweet(processedTweet)}
-              <div class="tweet-ad-badge {isDarkMode ? 'tweet-ad-badge-dark' : ''}">
-                <span class="ad-label">AD</span>
-              </div>
-              {#if isAdminTweet(processedTweet)}
-                <div class="tweet-admin-indicator {isDarkMode ? 'tweet-admin-indicator-dark' : ''}">
-                  <span>This is admin</span>
-                </div>
-              {/if}
-            {/if}
-            
-            <!-- Display parent information if this is a reply -->
-            {#if isReply && processedTweet.parent_user}
-              <div class="tweet-parent-info {isDarkMode ? 'tweet-parent-info-dark' : ''}">
-                <div class="tweet-parent-indicator">
-                  <CornerUpRightIcon size="14" />
-                  <span>Replying to</span>
-                  <a 
-                    href={`/user/${processedTweet.parent_user.username || processedTweet.parent_user.id}`}
-                    class="tweet-parent-username"
-                    on:click|stopPropagation
-                  >
-                    @{processedTweet.parent_user.username || 'user'}
-                  </a>
-                </div>
-                {#if processedTweet.parent_content}
-                  <div class="tweet-parent-content">
-                    <p>{processedTweet.parent_content}</p>
-                  </div>
-                {/if}
-              </div>
-            {/if}
-            
-            {#if processedTweet.content}
-              <p>{processedTweet.content}</p>
+          <!-- Media skeleton -->
+          <div class="tweet-media-skeleton skeleton"></div>
+          
+          <!-- Action buttons skeleton -->
+          <div class="tweet-actions">
+            <div class="tweet-action-item-skeleton skeleton"></div>
+            <div class="tweet-action-item-skeleton skeleton"></div>
+            <div class="tweet-action-item-skeleton skeleton"></div>
+            <div class="tweet-action-item-skeleton skeleton"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else}
+    <!-- Regular tweet card content -->
+    <div 
+      class="tweet-card-container" 
+      on:click|preventDefault={navigateToThreadDetail}
+      on:keydown={(e) => e.key === 'Enter' && navigateToThreadDetail(e)}
+      role="button"
+      tabindex="0"
+      aria-label="View thread details">
+      <div class="tweet-card-content">
+        <div class="tweet-card-header">
+          <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+            class="tweet-avatar"
+            on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+            on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
+            {#if processedTweet.profile_picture_url}
+              <img src={processedTweet.profile_picture_url} alt={processedTweet.username} class="tweet-avatar-image" />
             {:else}
-              <p class="tweet-empty-content">{processedTweet.is_reposted ? 'Reposted' : 'This post has no content'}</p>
+              <div class="tweet-avatar-placeholder">
+                <div class="tweet-avatar-text">{processedTweet.username ? processedTweet.username[0].toUpperCase() : 'U'}</div>
+              </div>
             {/if}
-          </div>
-          
-          <!-- Community information -->
-          {#if processedTweet.community_id && processedTweet.community_name}
-            <div class="tweet-community-info {isDarkMode ? 'tweet-community-info-dark' : ''}">
-              <UsersIcon size="16" />
-              <span class="tweet-community-name">Posted in {processedTweet.community_name}</span>
-            </div>
-          {/if}
-          
-          {#if processedTweet.media && processedTweet.media.length > 0}
-            <div class="tweet-media-container {isDarkMode ? 'tweet-media-container-dark' : ''}">
-              {#if processedTweet.media.length === 1}
-                <!-- Single Media Display -->
-                <div class="tweet-media-single">
-                  {#if processedTweet.media[0].type === 'image'}
-                    <img 
-                      src={processedTweet.media[0].url} 
-                      alt={processedTweet.media[0].alt_text || "Media"} 
-                      class="tweet-media-img"
-                    />
-                  {:else if processedTweet.media[0].type === 'video'}
-                    <video 
-                      src={processedTweet.media[0].url} 
-                      controls 
-                      class="tweet-media-video"
-                    >
-                      <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
-                    </video>
-                  {:else}
-                    <img 
-                      src={processedTweet.media[0].url} 
-                      alt="GIF" 
-                      class="tweet-media-img"
-                    />
-                  {/if}
-                </div>
-              {:else if processedTweet.media.length > 1}
-                <!-- Multiple Media Grid -->
-                <div class="tweet-media-grid">
-                  {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
-                    <div class="tweet-media-item">
-                      {#if media.type === 'image'}
-                                                <img 
-                          src={media.url} 
-                          alt={media.alt_text || "Media"} 
-                          class="tweet-media-img"
-                        />
-                      {:else if media.type === 'video'}
-                        <video 
-                          src={media.url} 
-                          controls 
-                          class="tweet-media-video"
-                        >
-                          <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
-                        </video>
-                      {:else}
-                        <img 
-                          src={media.url} 
-                          alt="GIF" 
-                          class="tweet-media-img"
-                                                    on:error={(e) => {
-                            console.error("GIF failed to load:", media.url);
-                          }}
-                        />
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          {/if}
-          
-          <div class="tweet-actions {isDarkMode ? 'tweet-actions-dark' : ''}">
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-reply-btn {hasReplies ? 'has-replies' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleReply} 
-                aria-label="Reply to tweet"
-              >
-                <MessageCircleIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count {hasReplies ? 'tweet-reply-count-highlight' : ''}">{effectiveReplies}</span>
-              </button>
-              {#if !showReplies}
-                <button 
-                  class="view-replies-btn" 
-                  on:click|stopPropagation={toggleReplies}
-                  aria-label="View all replies"
-                >
-                  {#if hasReplies}
-                    View {effectiveReplies} {effectiveReplies === 1 ? 'reply' : 'replies'}
-                  {:else}
-                    View replies
-                  {/if}
-                </button>
-              {/if}
-            </div>
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-repost-btn {effectiveIsReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleRepostClick}
-                aria-label="{effectiveIsReposted ? 'Undo repost' : 'Repost'}"
-              >
-                <RefreshCwIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count">{effectiveReposts}</span>
-              </button>
-            </div>
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isLikeLoading ? 'loading' : ''} {heartAnimating ? 'animating' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={handleLikeClick}
-                aria-label="{effectiveIsLiked ? 'Unlike this post' : 'Like this post'}"
-                aria-pressed={effectiveIsLiked}
-                disabled={isLikeLoading}
-                data-testid="like-button"
-                aria-live="polite"
-                tabindex="0"
-              >
-                <div class="tweet-like-icon-wrapper">
-                  {#if isLikeLoading}
-                    <div class="tweet-action-loading"></div>
-                    <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
-                  {:else}
-                    <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon {heartAnimating ? 'heart-animation' : ''}" />
-                  {/if}
-                </div>
-                <span class="tweet-action-count" aria-live="polite">{effectiveLikes}</span>
-                <span class="like-status-text">{effectiveIsLiked ? 'Liked' : 'Like'}</span>
-              </button>
-            </div>
-            <div class="tweet-action-item">
-              <button 
-                class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isBookmarkLoading ? 'loading' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
-                on:click|stopPropagation={toggleBookmarkStatus}
-                aria-label="{effectiveIsBookmarked ? 'Remove bookmark' : 'Bookmark'}"
-                disabled={isBookmarkLoading}
-              >
-                {#if isBookmarkLoading}
-                  <div class="tweet-action-loading"></div>
-                  <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
+          </a>
+          <div class="tweet-content-container">
+            <div class="tweet-author-info">
+              <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+                class="tweet-author-name {isDarkMode ? 'tweet-author-name-dark' : ''}"
+                on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+                on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
+                {#if !processedTweet.name && !processedTweet.displayName}
+                  {console.warn('❌ MISSING DISPLAY NAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, username: processedTweet.username})}
+                  <span class="tweet-error-text">User</span>
                 {:else}
-                  <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
+                  <span class="display-name-text">{processedTweet.name || processedTweet.displayName}</span>
+                  {#if processedTweet.is_verified}
+                    <span class="user-verified-badge">
+                      <CheckCircleIcon size="14" />
+                    </span>
+                  {/if}
                 {/if}
-                <span class="tweet-action-count">{effectiveBookmarks}</span>
-              </button>
+              </a>
+              <a href={`/user/${processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id || processedTweet.username}`}
+                class="tweet-author-username {isDarkMode ? 'tweet-author-username-dark' : ''}"
+                on:click|preventDefault={(e) => navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}
+                on:keydown={(e) => e.key === 'Enter' && navigateToUserProfile(e, processedTweet.username, processedTweet.userId || processedTweet.authorId || processedTweet.author_id || processedTweet.user_id)}>
+                {#if processedTweet.username === 'user'}
+                  {console.warn('❌ MISSING USERNAME:', {id: processedTweet.id, tweetId: processedTweet.tweetId, displayName: processedTweet.displayName})}
+                  <span class="tweet-error-text">@user</span>
+                {:else}
+                  @{processedTweet.username}
+                {/if}
+              </a>
+              <span class="tweet-dot-separator {isDarkMode ? 'tweet-dot-separator-dark' : ''}">·</span>
+              <span class="tweet-timestamp {isDarkMode ? 'tweet-timestamp-dark' : ''}">{formatTimeAgo(processedTweet.timestamp)}</span>
+              
+              <!-- Settings button for tweet owner -->
+              {#if isCurrentUserAuthor}
+                <div class="tweet-settings-container">
+                  <button 
+                    class="tweet-settings-btn {isDarkMode ? 'tweet-settings-btn-dark' : ''}" 
+                    on:click|stopPropagation={toggleSettingsDropdown}
+                    aria-label="Tweet settings"
+                  >
+                    <MoreHorizontalIcon size="18" />
+                  </button>
+                  
+                  {#if isSettingsDropdownOpen}
+                    <div class="tweet-settings-dropdown {isDarkMode ? 'tweet-settings-dropdown-dark' : ''}">
+                      <button 
+                        class="tweet-settings-option tweet-delete-option {isDarkMode ? 'tweet-settings-option-dark' : ''}" 
+                        on:click|stopPropagation={handleDeleteTweet}
+                      >
+                        <TrashIcon size="16" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
             </div>
-            <div class="tweet-action-item">
-              <button
-                class="tweet-action-btn tweet-views-btn {isDarkMode ? 'tweet-action-btn-dark' : ''}"
-                on:click|stopPropagation={navigateToThreadDetail}
-                aria-label="View thread details"
-              >
-                <EyeIcon size="20" class="tweet-action-icon" />
-                <span class="tweet-action-count">{processedTweet.views || '0'}</span>
-              </button>
+            
+            <div class="tweet-text {isDarkMode ? 'tweet-text-dark' : ''}">
+              {#if processedTweet.is_advertisement || isAdminTweet(processedTweet)}
+                <div class="tweet-ad-badge {isDarkMode ? 'tweet-ad-badge-dark' : ''}">
+                  <span class="ad-label">AD</span>
+                </div>
+                {#if isAdminTweet(processedTweet)}
+                  <div class="tweet-admin-indicator {isDarkMode ? 'tweet-admin-indicator-dark' : ''}">
+                    <span>This is admin</span>
+                  </div>
+                {/if}
+              {/if}
+              
+              <!-- Display parent information if this is a reply -->
+              {#if isReply && processedTweet.parent_user}
+                <div class="tweet-parent-info {isDarkMode ? 'tweet-parent-info-dark' : ''}">
+                  <div class="tweet-parent-indicator">
+                    <CornerUpRightIcon size="14" />
+                    <span>Replying to</span>
+                    <a 
+                      href={`/user/${processedTweet.parent_user.username || processedTweet.parent_user.id}`}
+                      class="tweet-parent-username"
+                      on:click|stopPropagation
+                    >
+                      @{processedTweet.parent_user.username || 'user'}
+                    </a>
+                  </div>
+                  {#if processedTweet.parent_content}
+                    <div class="tweet-parent-content">
+                      <p>{processedTweet.parent_content}</p>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+              
+              {#if processedTweet.content}
+                <p>{processedTweet.content}</p>
+              {:else}
+                <p class="tweet-empty-content">{processedTweet.is_reposted ? 'Reposted' : 'This post has no content'}</p>
+              {/if}
+            </div>
+            
+            <!-- Community information -->
+            {#if processedTweet.community_id && processedTweet.community_name}
+              <div class="tweet-community-info {isDarkMode ? 'tweet-community-info-dark' : ''}">
+                <UsersIcon size="16" />
+                <span class="tweet-community-name">Posted in {processedTweet.community_name}</span>
+              </div>
+            {/if}
+            
+            {#if processedTweet.media && processedTweet.media.length > 0}
+              <div class="tweet-media-container {isDarkMode ? 'tweet-media-container-dark' : ''}">
+                {#if processedTweet.media.length === 1}
+                  <!-- Single Media Display -->
+                  <div class="tweet-media-single">
+                    {#if processedTweet.media[0].type === 'image'}
+                      <img 
+                        src={processedTweet.media[0].url} 
+                        alt={processedTweet.media[0].alt_text || "Media"} 
+                        class="tweet-media-img"
+                      />
+                    {:else if processedTweet.media[0].type === 'video'}
+                      <video 
+                        src={processedTweet.media[0].url} 
+                        controls 
+                        class="tweet-media-video"
+                      >
+                        <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
+                      </video>
+                    {:else}
+                      <img 
+                        src={processedTweet.media[0].url} 
+                        alt="GIF" 
+                        class="tweet-media-img"
+                      />
+                    {/if}
+                  </div>
+                {:else if processedTweet.media.length > 1}
+                  <!-- Multiple Media Grid -->
+                  <div class="tweet-media-grid">
+                    {#each processedTweet.media.slice(0, 4) as media, index (media.url || index)}
+                      <div class="tweet-media-item">
+                        {#if media.type === 'image'}
+                                                  <img 
+                            src={media.url} 
+                            alt={media.alt_text || "Media"} 
+                            class="tweet-media-img"
+                          />
+                        {:else if media.type === 'video'}
+                          <video 
+                            src={media.url} 
+                            controls 
+                            class="tweet-media-video"
+                          >
+                            <track kind="captions" src="/captions/en.vtt" srclang="en" label="English" />
+                          </video>
+                        {:else}
+                          <img 
+                            src={media.url} 
+                            alt="GIF" 
+                            class="tweet-media-img"
+                                                      on:error={(e) => {
+                              console.error("GIF failed to load:", media.url);
+                            }}
+                          />
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+            
+            <div class="tweet-actions {isDarkMode ? 'tweet-actions-dark' : ''}">
+              <div class="tweet-action-item">
+                <button 
+                  class="tweet-action-btn tweet-reply-btn {hasReplies ? 'has-replies' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                  on:click|stopPropagation={handleReply} 
+                  aria-label="Reply to tweet"
+                >
+                  <MessageCircleIcon size="20" class="tweet-action-icon" />
+                  <span class="tweet-action-count {hasReplies ? 'tweet-reply-count-highlight' : ''}">{effectiveReplies}</span>
+                </button>
+                {#if !showReplies}
+                  <button 
+                    class="view-replies-btn" 
+                    on:click|stopPropagation={toggleReplies}
+                    aria-label="View all replies"
+                  >
+                    {#if hasReplies}
+                      View {effectiveReplies} {effectiveReplies === 1 ? 'reply' : 'replies'}
+                    {:else}
+                      View replies
+                    {/if}
+                  </button>
+                {/if}
+              </div>
+              <div class="tweet-action-item">
+                <button 
+                  class="tweet-action-btn tweet-repost-btn {effectiveIsReposted ? 'active' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                  on:click|stopPropagation={handleRepostClick}
+                  aria-label="{effectiveIsReposted ? 'Undo repost' : 'Repost'}"
+                >
+                  <RefreshCwIcon size="20" class="tweet-action-icon" />
+                  <span class="tweet-action-count">{effectiveReposts}</span>
+                </button>
+              </div>
+              <div class="tweet-action-item">
+                <button 
+                  class="tweet-action-btn tweet-like-btn {effectiveIsLiked ? 'active' : ''} {isLikeLoading ? 'loading' : ''} {heartAnimating ? 'animating' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                  on:click|stopPropagation={handleLikeClick}
+                  aria-label="{effectiveIsLiked ? 'Unlike this post' : 'Like this post'}"
+                  aria-pressed={effectiveIsLiked}
+                  disabled={isLikeLoading}
+                  data-testid="like-button"
+                  aria-live="polite"
+                  tabindex="0"
+                >
+                  <div class="tweet-like-icon-wrapper">
+                    {#if isLikeLoading}
+                      <div class="tweet-action-loading"></div>
+                      <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
+                    {:else}
+                      <HeartIcon size="20" fill={effectiveIsLiked ? "currentColor" : "none"} class="tweet-action-icon {heartAnimating ? 'heart-animation' : ''}" />
+                    {/if}
+                  </div>
+                  <span class="tweet-action-count" aria-live="polite">{effectiveLikes}</span>
+                  <span class="like-status-text">{effectiveIsLiked ? 'Liked' : 'Like'}</span>
+                </button>
+              </div>
+              <div class="tweet-action-item">
+                <button 
+                  class="tweet-action-btn tweet-bookmark-btn {effectiveIsBookmarked ? 'active' : ''} {isBookmarkLoading ? 'loading' : ''} {isDarkMode ? 'tweet-action-btn-dark' : ''}" 
+                  on:click|stopPropagation={toggleBookmarkStatus}
+                  aria-label="{effectiveIsBookmarked ? 'Remove bookmark' : 'Bookmark'}"
+                  disabled={isBookmarkLoading}
+                >
+                  {#if isBookmarkLoading}
+                    <div class="tweet-action-loading"></div>
+                    <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon hidden" />
+                  {:else}
+                    <BookmarkIcon size="20" fill={effectiveIsBookmarked ? "currentColor" : "none"} class="tweet-action-icon" />
+                  {/if}
+                  <span class="tweet-action-count">{effectiveBookmarks}</span>
+                </button>
+              </div>
+              <div class="tweet-action-item">
+                <button
+                  class="tweet-action-btn tweet-views-btn {isDarkMode ? 'tweet-action-btn-dark' : ''}"
+                  on:click|stopPropagation={navigateToThreadDetail}
+                  aria-label="View thread details"
+                >
+                  <EyeIcon size="20" class="tweet-action-icon" />
+                  <span class="tweet-action-count">{processedTweet.views || '0'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  {/if}
 </div>
 
 {#if nestingLevel === 0}
@@ -3110,6 +3154,73 @@
   .tweet-parent-content {
     margin-top: 0.25rem;
     color: var(--text-secondary);
+  }
+
+  /* Add skeleton loading styles */
+  .skeleton {
+    background-color: var(--bg-secondary);
+    background-image: linear-gradient(90deg, 
+      var(--bg-secondary) 25%, 
+      var(--bg-hover) 50%, 
+      var(--bg-secondary) 75%);
+    background-size: 200% 100%;
+    animation: loading-skeleton 1.5s ease-in-out infinite;
+    border-radius: var(--radius-md);
+  }
+  
+  @keyframes loading-skeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  
+  .tweet-card-skeleton {
+    padding: var(--space-3) var(--space-4);
+    width: 100%;
+  }
+  
+  .tweet-avatar.skeleton {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: var(--space-3);
+  }
+  
+  .tweet-author-name-skeleton {
+    width: 120px;
+    height: 18px;
+    margin-right: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+  
+  .tweet-author-username-skeleton {
+    width: 80px;
+    height: 14px;
+  }
+  
+  .tweet-text-skeleton {
+    height: 16px;
+    margin-bottom: var(--space-2);
+  }
+  
+  .tweet-text-skeleton:first-child {
+    width: 90%;
+  }
+  
+  .tweet-text-skeleton:nth-child(2) {
+    width: 70%;
+  }
+  
+  .tweet-media-skeleton {
+    height: 180px;
+    width: 100%;
+    margin-top: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+  
+  .tweet-action-item-skeleton {
+    height: 20px;
+    width: 60px;
+    border-radius: var(--radius-md);
   }
 </style>
 

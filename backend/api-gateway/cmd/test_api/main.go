@@ -9,13 +9,11 @@ import (
 )
 
 func main() {
-	// Define the search query
 	searchQuery := "kolnb"
 	if len(os.Args) > 1 {
 		searchQuery = os.Args[1]
 	}
 
-	// Create the URL with parameters
 	params := url.Values{}
 	params.Add("query", searchQuery)
 	params.Add("page", "1")
