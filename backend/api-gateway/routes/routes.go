@@ -291,6 +291,8 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	})
 
 	adminGroup := v1.Group("/admin")
+	adminGroup.Use(middleware.JWTAuth(jwtSecret))
+	adminGroup.Use(middleware.AdminOnly())
 	{
 		adminGroup.GET("/dashboard/statistics", handlers.GetDashboardStatistics)
 		adminGroup.POST("/users/:userId/ban", handlers.BanUser)

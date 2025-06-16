@@ -197,11 +197,14 @@
         const syncData = result.data;
         logger.info('Community sync completed successfully:', syncData);
         
-        const message = `Sync completed: ${syncData.newly_synced} new entries created, ${syncData.already_synced} already in sync, ${syncData.failed} failed`;
+        const message = `Sync completed: Found ${syncData.total_pending_communities} pending communities`;
         toastStore.showToast(message, 'success');
         
         // Reload community requests to show the newly synced ones
         await loadCommunityRequests();
+        
+        // Debug the community requests after loading
+        logger.info('After sync, community requests:', communityRequests);
       } else {
         logger.error('Failed to sync community requests:', result);
         toastStore.showToast('Failed to sync community requests', 'error');
@@ -406,7 +409,7 @@
           communityRequestsTotal = 0;
         }
         
-        logger.info(`Processed ${communityRequests.length} community requests`);
+        logger.info(`Processed ${communityRequests.length} community requests:`, communityRequests);
       } else {
         logger.error('Failed to load community requests:', result);
         toastStore.showToast('Failed to load community requests', 'error');

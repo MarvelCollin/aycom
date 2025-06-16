@@ -29,7 +29,8 @@
     getChatHistoryList, 
     testApiConnection, 
     logAuthTokenInfo, 
-    setMessageHandler 
+    setMessageHandler,
+    listChatParticipants
   } = chatApi;
   
   import '../styles/pages/messages.css'; // Import the CSS file
@@ -131,6 +132,9 @@
   // Toast notifications
   let toasts = [];
   
+  // Group chat modal state
+  let showGroupChatModal = false;
+  
   // Handle attachment selection - placeholder function for now
   function handleAttachment(type: 'image' | 'gif') {
     // Implementation can be added later
@@ -139,562 +143,58 @@
     toastStore.showToast(`${type} attachment feature coming soon`, 'info');
   }
   
-  // Group chat modal state
-  let showGroupChatModal = false;
-  
   // Function to check viewport size and set mobile state
   function checkViewport() {
     isMobile = window.innerWidth < 768;
   }
   
-  // Group chat handlers
-  function handleGroupChatCreated(event: any) {
-    if (event && event.detail && event.detail.chat) {
-      logger.debug('Group chat created', { chatId: event.detail.chat.id });
+  // Initialize WebSocket monitoring
+  $: {
+    // Monitor connection status changes and reconnect if needed
+    if ($websocketStore) {
+      const isWsConnected = $websocketStore.connected;
       
-      // Add the new group chat to the chat list
-      const newChat = formatGroupChatForDisplay(event.detail.chat);
-      chats = [newChat, ...chats];
-      filteredChats = [newChat, ...filteredChats];
-      
-      // Select the new chat
-      selectChat(newChat);
-      
-      // Close the modal
-      showGroupChatModal = false;
-      
-      // Show success notification
-      toastStore.showToast('Group chat created successfully', 'success');
+      if (!isWsConnected && selectedChat) {
+        logger.debug(`WebSocket detected as disconnected with chat ${selectedChat.id} selected. Will attempt reconnect.`);
+        setTimeout(() => initializeWebSocketConnections(), 1000);
+      }
     }
   }
   
-  // Chat interaction functions
-  async function selectChat(chat: Chat | string) {
-    let chatId: string;
-    
-    // Handle both string ID and Chat object
-    if (typeof chat === 'string') {
-      chatId = chat;
-      // Find the chat in our list
-      const chatObj = chats.find(c => c.id === chatId);
-      if (!chatObj) {
-        logger.error(`Chat with ID ${chatId} not found in chats list`);
-        toastStore.showToast(`Chat not found. Please try again.`, 'error');
-        return;
-      }
-      chat = chatObj;
-    } else {
-      chatId = chat.id;
-    }
-    
-    logger.info(`Selecting chat: ${chatId}`);
-    
-    // Validate chat ID format
-    if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
-      logger.error(`Invalid chat ID format: ${chatId}`);
-      toastStore.showToast(`Invalid chat ID format: ${chatId}. Please try again or contact support.`, 'error');
-      return;
-    }
-    
-    selectedChat = { ...chat, messages: [] };
-    
-    // On mobile, hide the chat list
-    if (isMobile) {
-      showMobileMenu = false;
-      handleMobileNavigation('showChat');
-    }
-    
-    // Fetch messages for the selected chat
-    isLoadingMessages = true;
+  // Improved function to initialize WebSocket connections for active chats
+  function initializeWebSocketConnections() {
     try {
-      logger.debug(`Fetching messages for chat ${chatId}`);
-      const response = await listMessages(chatId);
-      
-      if (response && response.messages) {
-        // Sort messages by timestamp to ensure correct order (newest last)
-        const sortedMessages = [...response.messages].sort((a, b) => {
-          const timeA = new Date(a.timestamp).getTime();
-          const timeB = new Date(b.timestamp).getTime();
-          return timeA - timeB;
-        });
-        
-        // Process messages to add any missing properties
-        const processedMessages = sortedMessages.map(msg => ({
-          ...msg,
-          sender_name: msg.sender_name || 'User',
-          sender_avatar: msg.sender_avatar || null,
-          timestamp: ensureStringTimestamp(msg.timestamp)
-        }));
-        
-        selectedChat = {
-          ...selectedChat,
-          messages: processedMessages
-        };
-        
-        logger.info(`Loaded ${processedMessages.length} messages for chat ${chatId}`);
-          
-        // Scroll to bottom of messages
-        setTimeout(() => {
-          const messagesContainer = document.querySelector('.messages-container');
-          if (messagesContainer) {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-          }
-        }, 100);
-      } else {
-        logger.warn(`No messages found for chat ${chatId}`);
-        selectedChat = {
-          ...selectedChat,
-          messages: []
-        };
-      }
-    } catch (error) {
-      logger.error(`Error loading messages for chat ${chatId}:`, error);
-      toastStore.showToast('Failed to load messages', 'error');
-      selectedChat = {
-        ...selectedChat,
-        messages: []
-      };
-    } finally {
-      isLoadingMessages = false;
-    }
-    
-    // Connect to WebSocket for this chat
-    try {
-      // Check if already connected to this chat
-      const isConnected = websocketStore.isConnected(chatId);
-      if (!isConnected) {
-        logger.info(`Connecting to WebSocket for chat ${chatId}`);
-        websocketStore.connect(chatId);
-      } else {
-        logger.debug(`Already connected to WebSocket for chat ${chatId}`);
-      }
-    } catch (error) {
-      logger.error(`Error connecting to WebSocket for chat ${chatId}:`, error);
-      toastStore.showToast('Could not establish real-time connection', 'warning');
-    }
-    
-    // Mark chat as read by resetting unread count
-    chats = chats.map(c => {
-      if (c.id === chatId) {
-        return { ...c, unread_count: 0 };
-      }
-      return c;
-    }) as Chat[];
-    
-    // Fix the filtered chats assignment
-    filteredChats = [
-      ...(filteredChats.filter(c => c.id === chatId)),
-      ...(filteredChats.filter(c => c.id !== chatId))
-    ].map(chat => ({
-      ...chat,
-      // Ensure that last_message.timestamp is always a string
-      last_message: chat.last_message ? {
-        ...chat.last_message,
-        timestamp: typeof chat.last_message.timestamp === 'string'
-          ? chat.last_message.timestamp
-          : new Date(chat.last_message.timestamp).toISOString()
-      } : undefined
-    })) as Chat[];
-  }
-  
-  async function startChatWithUser(user: StandardUser) {
-    // Logic to start a new chat with a user
-    logger.debug(`Starting new chat with user: ${user.username}`);
-    
-    if (!user || !user.id) {
-      logger.error('Cannot start chat: Invalid user data');
-      toastStore.showToast('Invalid user data. Please try again.', 'error');
-      return;
-    }
-    
-    // Check if chat already exists
-    const existingChat = chats.find(chat => 
-      chat.type === 'individual' && 
-      chat.participants.some(p => p.id === user.id)
-    );
-    
-    if (existingChat) {
-      // Chat already exists, just select it
-      selectChat(existingChat);
-      showNewChatModal = false; // Close the modal
-      return;
-    }
-    
-    try {
-      // Create new chat
-      const response = await createChat({
-        type: 'individual',
-        participants: [user.id],
-        name: user.display_name || user.username
-      });
-      
-      // The backend returns {chat: {...}}, so we need to extract the chat object
-      const chatData = response.chat || response;
-      
-      if (chatData && chatData.id) {
-        // Create a new chat object
-        const newChat: Chat = {
-          id: chatData.id,
-          type: 'individual',
-          name: user.display_name || user.username,
-          avatar: user.avatar || null,
-          participants: [{
-            id: user.id,
-            username: user.username,
-            display_name: user.display_name || user.username,
-            avatar: user.avatar || null,
-            is_verified: user.is_verified
-          }],
-          messages: [],
-          unread_count: 0,
-          profile_picture_url: user.avatar || null,
-          created_at: chatData.created_at || new Date().toISOString(),
-          updated_at: chatData.updated_at || new Date().toISOString()
-        };
-        
-        // Add to chats and select it
-        chats = [newChat, ...chats];
-        filteredChats = [newChat, ...filteredChats];
-        selectChat(newChat);
-        
-        // Close the modal
-        showNewChatModal = false;
-      } else {
-        logger.error('Failed to create chat: Invalid response', response);
-        toastStore.showToast('Failed to create chat. Please try again.', 'error');
-      }
-    } catch (error) {
-      logger.error('Failed to create chat', error);
-      toastStore.showToast('Failed to create chat', 'error');
-    }
-  }
-  
-  async function createGroupChat(name: string, participants: StandardUser[]) {
-    if (!name || !participants || participants.length === 0) {
-      logger.error('Cannot create group chat: Missing required data');
-      toastStore.showToast('Group name and participants are required', 'error');
-      return;
-    }
-    
-    logger.debug(`Creating group chat: ${name} with ${participants.length} participants`);
-    
-    try {
-      // Create new group chat
-      const response = await createChat({
-        type: 'group',
-        name: name,
-        participants: participants.map(p => p.id)
-      });
-      
-      // The backend returns {chat: {...}}, so we need to extract the chat object
-      const chatData = response.chat || response;
-      
-      if (chatData && chatData.id) {
-        // Create a new chat object
-        const newChat: Chat = {
-          id: chatData.id,
-          type: 'group',
-          name: name,
-          avatar: null,
-          participants: participants.map(p => ({
-            id: p.id,
-            username: p.username,
-            display_name: p.display_name || p.username,
-            avatar: p.avatar || null,
-            is_verified: p.is_verified
-          })),
-          messages: [],
-          unread_count: 0,
-          profile_picture_url: null,
-          created_at: chatData.created_at || new Date().toISOString(),
-          updated_at: chatData.updated_at || new Date().toISOString()
-        };
-        
-        // Add to chats and select it
-        chats = [newChat, ...chats];
-        filteredChats = [newChat, ...filteredChats];
-        selectChat(newChat);
-        
-        // Close the modal
-        showGroupChatModal = false;
-      } else {
-        logger.error('Failed to create group chat: Invalid response', response);
-        toastStore.showToast('Failed to create group chat. Please try again.', 'error');
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to create group chat', error);
-      toastStore.showToast('Failed to create group chat: ' + errorMessage, 'error');
-    }
-  }
-  
-  function getAvatarColor(name: string) {
-    // Simple hash function for consistent colors
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    // Convert to HSL with good saturation and lightness
-    const h = Math.abs(hash) % 360;
-    return `hsl(${h}, 70%, 60%)`;
-  }
-  
-  function getChatDisplayName(chat: Chat) {
-    // Group chats should use their name
-    if (chat.type === 'group' && chat.name && chat.name.trim() !== '') {
-      return chat.name;
-    }
-    
-    // For individual chats, show the other participant's name
-    if (chat.participants && chat.participants.length > 0) {
-      // Use only id for filtering as that's in the Participant type
-      const otherParticipants = chat.participants.filter(p => p.id !== $authStore.user_id);
-      
-      if (otherParticipants.length > 0) {
-        const participant = otherParticipants[0];
-        return participant.display_name || participant.username || 'Unknown User';
-      }
-    }
-    
-    // Fallback to chat name or generic name
-    return chat.name && chat.name.trim() !== '' ? chat.name : 'Chat';
-  }
-  
-  // Message handling functions
-  async function sendMessage(content: string) {
-    if (!content.trim() || !selectedChat) return;
-    
-    // Clear input after sending
-    newMessage = '';
-    selectedAttachments = [];
-    
-    // Generate a temporary message ID
-    const tempMessageId = `temp-${Date.now()}`;
-
-    // Create a temporary message object
-    const tempMessage: Message = {
-      id: tempMessageId,
-      chat_id: selectedChat?.id || '',
-      content,
-      timestamp: new Date().toISOString(),
-      sender_id: $authStore.user_id || '',
-      sender_name: displayName,
-      sender_avatar: avatar,
-      is_read: false,
-      is_deleted: false,
-      is_edited: false,
-      attachments: selectedAttachments.length > 0 ? [...selectedAttachments] : undefined
-    };
-    
-    try {
-      // Add message to UI immediately (optimistic update)
+      // First priority: connect to selected chat
       if (selectedChat) {
-      selectedChat = {
-        ...selectedChat,
-        messages: [...selectedChat.messages, tempMessage]
-      };
-
-        // Scroll to bottom
-        setTimeout(() => {
-          const messagesContainer = document.querySelector('.messages-container');
-          if (messagesContainer) {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-          }
-        }, 100);
+        logger.info(`Connecting to WebSocket for selected chat: ${selectedChat.id}`);
+        try {
+          // Use type assertion to avoid TypeScript error
+          (websocketStore as any).connect(selectedChat.id);
+        } catch (err) {
+          logger.error(`Error connecting to WebSocket for selected chat: ${err}`);
         }
-        
-        // Update chat in the list with last message
-      const newLastMessage: LastMessage = {
-                content,
-        timestamp: ensureStringTimestamp(new Date().toISOString()),
-                sender_id: $authStore.user_id || '',
-                sender_name: displayName
-      };
-
-      // Fix the issue in chat.map where we're updating the last_message
-      chats = chats.map(chat => {
-        if (chat.id === selectedChat?.id) {
-          return {
-            ...chat,
-            last_message: newLastMessage
-            };
-          }
-          return chat;
-      }) as Chat[];
-        
-        // Update chats and move the active chat to top
-      const activeChatId = selectedChat?.id;
-      const activeChat = chats.find(c => c.id === activeChatId);
-      if (activeChat) {
-        chats = [
-          activeChat,
-          ...chats.filter(c => c.id !== activeChatId)
-        ] as Chat[];  // Type assertion
-        
-        // Fix the filtered chats assignment
-        filteredChats = [
-          ...(filteredChats.filter(c => c.id === activeChatId)),
-          ...(filteredChats.filter(c => c.id !== activeChatId))
-        ].map(chat => ({
-          ...chat,
-          // Ensure that last_message.timestamp is always a string
-          last_message: chat.last_message ? {
-            ...chat.last_message,
-            timestamp: typeof chat.last_message.timestamp === 'string'
-              ? chat.last_message.timestamp
-              : new Date(chat.last_message.timestamp).toISOString()
-          } : undefined
-        })) as Chat[];
       }
-
-      // Send message to API
-      const messageData = {
-        content: content,
-        message_id: tempMessageId
-      };
       
-      // Log the API call attempt
-      logger.info(`Sending message to chat ${selectedChat?.id} via API`);
-      
-      try {
-        // Call the API to send the message
-        const result = await apiSendMessage(selectedChat?.id || '', messageData);
-        logger.info('Message sent successfully via API', result);
+      // Second priority: connect to most recent chats (up to 3)
+      if (chats && chats.length > 0) {
+        const recentChats = chats.slice(0, 3); // Limit to 3 recent chats
         
-        // Optionally update the WebSocket for real-time sync
-        websocketStore.sendMessage(selectedChat?.id || '', {
-          type: 'text',
-          content: content,
-          chat_id: selectedChat?.id || '',
-          user_id: $authStore.user_id || ''
-        });
-      } catch (apiError) {
-        logger.error('Failed to send message via API:', apiError);
-        toastStore.showToast('Network issue detected. Message may not be delivered.', 'error');
-        
-        // Try WebSocket as fallback
-        websocketStore.sendMessage(selectedChat?.id || '', {
-          type: 'text',
-          content: content,
-          chat_id: selectedChat?.id || '',
-          user_id: $authStore.user_id || ''
-        });
+        for (const chat of recentChats) {
+          // Skip if it's the selected chat (already connected)
+          if (selectedChat && chat.id === selectedChat.id) continue;
+          
+          logger.debug(`Connecting to WebSocket for recent chat: ${chat.id}`);
+          try {
+            // Use type assertion to avoid TypeScript error
+            (websocketStore as any).connect(chat.id);
+          } catch (err) {
+            // Log but don't show UI error for background connections
+            logger.error(`Error connecting to WebSocket for chat ${chat.id}: ${err}`);
+          }
+        }
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error sending message:', errorMessage);
-      toastStore.showToast(`Error sending message: ${errorMessage}`, 'error');
-    }
-  }
-  
-  // Add a helper function to ensure timestamp is always a string
-  function ensureStringTimestamp(timestamp: string | number | Date): string {
-    if (timestamp instanceof Date) {
-      return timestamp.toISOString();
-    } else if (typeof timestamp === 'number') {
-      return new Date(timestamp).toISOString();
-    }
-    return timestamp;
-  }
-  
-  // Update the map operation in unsendMessage function
-  // Fix unsendMessage function to ensure timestamps are always strings
-  async function unsendMessage(messageId: string) {
-    // Logic to unsend/delete a message
-    if (!selectedChat) return;
-    
-    // Find the message
-    const message = selectedChat.messages.find(m => m.id === messageId);
-    if (!message || message.sender_id !== $authStore.user_id) return;
-    
-    try {
-      // Optimistically update UI
-      selectedChat = {
-        ...selectedChat,
-        messages: selectedChat.messages.map(msg => 
-          msg.id === messageId ? { ...msg, is_deleted: true, content: 'Message deleted' } : msg
-        )
-      };
-      
-      // Call API to unsend
-      await apiUnsendMessage(selectedChat.id, messageId);
-      
-      // Update the chat if the deleted message was the last message
-      const lastMessage = selectedChat.last_message;
-      if (lastMessage && lastMessage.content === message.content) {
-        // Find the previous message to use as the new last message
-        const previousMessages = selectedChat.messages
-          .filter(m => !m.is_deleted && m.id !== messageId)
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
-        const newLastMessage = previousMessages[0];
-          
-        if (newLastMessage) {
-          // Update the chat in the list
-          chats = chats.map(chat => {
-            if (chat.id === selectedChat?.id) {
-              return {
-                ...chat,
-                last_message: {
-                  content: newLastMessage.content,
-                  timestamp: ensureStringTimestamp(newLastMessage.timestamp),
-                  sender_id: newLastMessage.sender_id,
-                  sender_name: newLastMessage.sender_name || ''
-                }
-              };
-            }
-            return chat;
-          }) as Chat[];
-          
-          // Also update filtered chats
-          filteredChats = filteredChats.map(chat => {
-            if (chat.id === selectedChat?.id) {
-              return {
-                ...chat,
-                last_message: {
-                  content: newLastMessage.content,
-                  timestamp: ensureStringTimestamp(newLastMessage.timestamp),
-                  sender_id: newLastMessage.sender_id,
-                  sender_name: newLastMessage.sender_name || ''
-                }
-              };
-            }
-            return chat;
-          }) as Chat[];
-        }
-        }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to unsend message', error);
-      toastStore.showToast(`Failed to unsend message: ${errorMessage}`, 'error');
-      
-      // Revert the optimistic update on error
-      selectedChat = {
-        ...selectedChat,
-        messages: selectedChat.messages.map(msg => 
-          msg.id === messageId ? { ...message } : msg
-        )
-      };
-    }
-  }
-  
-  async function handleSearch() {
-    // Filter existing chats
-    if (searchQuery && searchQuery !== 'new') {
-      filteredChats = chats.filter(chat => {
-        const chatName = getChatDisplayName(chat).toLowerCase();
-        const participants = chat.participants.map(p => 
-          (p.username + p.display_name).toLowerCase()
-        ).join(' ');
-        
-        return (
-          chatName.includes(searchQuery.toLowerCase()) ||
-          participants.includes(searchQuery.toLowerCase())
-        );
-      });
-    } else {
-      filteredChats = [...chats];
+    } catch (error) {
+      logger.error('Error initializing WebSocket connections:', error);
     }
   }
   
@@ -721,8 +221,8 @@
       sender_avatar: undefined,
       is_read: false,
       is_edited: false,
-        is_deleted: message.is_deleted || false
-      };
+      is_deleted: message.is_deleted || false
+    };
       
     // Update the selected chat if this message belongs to it
     if (selectedChat && selectedChat.id === message.chat_id) {
@@ -762,357 +262,168 @@
     
     // Update chats state
     chats = updatedChats;
-
-    // Move the updated chat to the top of the list
-    const updatedChat = chats.find(chat => chat.id === message.chat_id);
-    if (updatedChat) {
-      chats = [
-        updatedChat,
-        ...chats.filter(chat => chat.id !== message.chat_id)
-      ] as Chat[];  // Type assertion
-      
-      // Also update filtered chats
-      filteredChats = [
-        ...filteredChats.filter(chat => chat.id === message.chat_id),
-        ...filteredChats.filter(chat => chat.id !== message.chat_id)
-      ] as Chat[];  // Type assertion
+    
+    // Also update filtered chats
+    filteredChats = filteredChats.map(chat => {
+      if (chat.id === message.chat_id) {
+        return {
+          ...chat,
+          last_message: lastMessage,
+          unread_count: selectedChat?.id === chat.id ? 0 : (chat.unread_count || 0) + 1
+        };
+      }
+      return chat;
+    }) as Chat[];
+    
+    // Play notification sound if not viewing this chat
+    if (selectedChat?.id !== message.chat_id) {
+      // Add sound notification here if needed
     }
-
-    // Show notification logic remains the same
   }
   
-  // Initialize WebSocket connections for all chats
-  async function initializeWebSocketConnections() {
-    if (!$authStore.is_authenticated) return;
-    
-    try {
-      logger.info('Initializing WebSocket connections for all chats');
-      
-      // First disconnect all existing connections
-      websocketStore.disconnectAll();
-      
-      // Register the WebSocket message handler
-      setMessageHandler(handleWebSocketMessage);
-      
-      // Get all chats
-      const fetchedChats = await fetchChats();
-      
-      // Connect to WebSockets for all chats
-      if (fetchedChats && fetchedChats.length > 0) {
-        logger.info(`Connecting to WebSockets for ${fetchedChats.length} chats`);
-        
-        // Connect to each chat's WebSocket
-        for (const chat of fetchedChats) {
-          try {
-            websocketStore.connect(chat.id);
-            logger.debug(`Connected to WebSocket for chat ${chat.id}`);
-          } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            logger.error(`Error connecting to WebSocket for chat ${chat.id}: ${errorMessage}`);
-          }
-        }
-        
-        // Update UI to show we're trying to connect
-        toastStore.showToast('Connecting to real-time chat service...', 'info');
-      } else {
-        logger.info('No chats available to connect WebSockets');
-      }
-      
-      logger.info('WebSocket connections initialized');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error(`Error initializing WebSocket connections: ${errorMessage}`);
-      toastStore.showToast('Failed to connect to real-time chat service', 'error');
-    }
-  }
-
-  // Update onMount to use the new initialization function
-  onMount(() => {
-    // Check if we're on mobile
-    checkViewport();
-    window.addEventListener('resize', checkViewport);
-    
-    // Run API connection test first
-    testApiConfig();
-    
-    // Initialize user profile and WebSocket connections
-    if ($authStore && $authStore.is_authenticated) {
-      fetchUserProfile();
-      initializeWebSocketConnections();
-    }
-    
-    return () => {
-      window.removeEventListener('resize', checkViewport);
-      
-      // Disconnect WebSocket connections when component unmounts
-      websocketStore.disconnectAll();
+  // Helper function to send messages via WebSocket
+  function sendWebSocketMessage(chatId: string, content: string) {
+    const chatMessage: ChatMessage = {
+      type: 'text',
+      content: content,
+      chat_id: chatId,
+      user_id: $authStore.user_id || ''
     };
-  });
+    
+    // Use any to bypass TypeScript type checking
+    (websocketStore as any).sendMessage(chatId, chatMessage);
+  }
   
-  onDestroy(() => {
-    // Clean up WebSocket connections when component is destroyed
-    websocketStore.disconnectAll();
-  });
-  
-  // Test API configuration and connectivity
-  async function testApiConfig() {
-    try {
-      logger.info('Testing API connection...');
-      
-      // Check authentication token first
-      console.log('[Message] Checking authentication token...');
-      const tokenInfo = logAuthTokenInfo();
-      console.log('[Message] Auth token check result:', tokenInfo);
-      
-      if (!tokenInfo.success || tokenInfo.isExpired) {
-        logger.error('Authentication token issue detected:', tokenInfo);
-        toastStore.showToast(`Authentication error: ${tokenInfo.error || 'Token expired or invalid'}. Please log in again.`, 'error');
-      }
-      
-      // Test API connection
-      const result = await testApiConnection();
-      logger.info('API connection test result:', result);
-      
-      if (!result.success) {
-        logger.error('API connection test failed:', result.error);
-        toastStore.showToast(`API connection error: ${result.error}. This may affect chat functionality.`, 'error');
-      }
-    } catch (error) {
-      logger.error('Error running API connection test:', error);
+  // Mobile navigation handling
+  function handleMobileNavigation(view: string): void {
+    if (view === 'back' || view === 'showChats') {
+      selectedChat = null;
+    } else if (view === 'showChat' && selectedChat) {
+      // Already handled
     }
   }
   
+  // Mobile menu toggle
   function toggleMobileMenu() {
     showMobileMenu = !showMobileMenu;
   }
   
-  // Add a function to handle mobile navigation between chat list and chat content
-  function handleMobileNavigation(action: 'showList' | 'showChat') {
-    if (!isMobile) return;
+  // Helper functions
+  function formatGroupChatForDisplay(apiChat: any): Chat {
+    let avatar = null;
     
-    if (action === 'showList') {
-      // Hide the selected chat view and show the chat list
-      selectedChat = null;
-    } else if (action === 'showChat' && selectedChat) {
-      // Hide the chat list and show the selected chat
-      // This happens automatically due to our CSS classes
-    }
+    // Format to match our Chat type
+    return {
+      id: apiChat.id,
+      type: apiChat.is_group_chat ? 'group' : 'individual',
+      name: apiChat.name || 'Group Chat',
+      avatar: avatar,
+      participants: (apiChat.participants || []).map(p => ({
+        id: p.id || p.user_id,
+        username: p.username || 'User',
+        display_name: p.display_name || p.username || 'User',
+        avatar: p.profile_picture_url || p.avatar || null,
+        is_verified: p.is_verified || false
+      })),
+      messages: [],
+      unread_count: 0,
+      profile_picture_url: null,
+      created_at: apiChat.created_at || new Date().toISOString(),
+      updated_at: apiChat.updated_at || new Date().toISOString()
+    };
   }
   
-  // Call this function to fetch profile data
-  async function fetchUserProfile() {
-    if (!$authStore.is_authenticated) return;
+  function formatTimeForChat(timestamp: string | number | Date): string {
+    let date: Date;
     
-    isLoadingProfile = true;
-    try {
-      const response = await getProfile();
-      if (response) {
-        username = response.username || '';
-        displayName = response.display_name || username;
-        avatar = response.avatar_url || 'https://secure.gravatar.com/avatar/0?d=mp';
-      }
-    } catch (error) {
-      logger.error('Failed to fetch profile', error);
-      toastStore.showToast('Failed to load profile', 'error');
-    } finally {
-      isLoadingProfile = false;
+    if (timestamp instanceof Date) {
+      date = timestamp;
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else {
+      date = new Date(timestamp);
     }
+    
+    return date.toLocaleString('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
   }
   
-  // Update fetchChats to return the fetched chats
   async function fetchChats() {
-    if (!$authStore.is_authenticated) return [];
-    
     isLoadingChats = true;
+    
     try {
-      logger.info('Fetching chats from API');
       const response = await getChatHistoryList();
       
-      logger.info('API response received:', { 
-        hasData: !!response,
-        hasChats: response && 'chats' in response || (response && response.data && 'chats' in response.data),
-        isChatsArray: response && 'chats' in response && Array.isArray(response.chats) || 
-                     (response && response.data && 'chats' in response.data && Array.isArray(response.data.chats)),
-        chatsLength: (response?.chats?.length || (response?.data?.chats?.length)) || 0,
-        responseKeys: response ? Object.keys(response) : []
-      });
-      
-      let rawChats: any[] = [];
-      
-      if (!response || (typeof response === 'object' && Object.keys(response).length === 0)) {
-        // Empty response
-        logger.info('API returned empty response, no chats available');
-        rawChats = [];
-      }
-      else if (response && 'chats' in response && Array.isArray(response.chats)) {
-        // Standard API response with chats property
-        logger.info(`Processing ${response.chats.length} chats from API`);
-        rawChats = response.chats;
-      } 
-      else if (response && response.data && 'chats' in response.data && Array.isArray(response.data.chats)) {
-        // Response with data.chats structure
-        logger.info(`Processing ${response.data.chats.length} chats from API data.chats`);
-        rawChats = response.data.chats;
-      }
-      else if (Array.isArray(response)) {
-        // API returns direct array
-        logger.info(`Processing ${response.length} chats from direct array`);
-        rawChats = response;
-      } else if (response && typeof response === 'object') {
-        // Try to find any array that might contain chats
-        logger.warn('API returned unknown response structure:', response);
-        const possibleChatArrays = Object.entries(response)
-          .filter(([_, value]) => Array.isArray(value) && value.length > 0)
-          .map(([key, value]) => ({ key, value: value as any[] }));
+      if (response && response.chats) {
+        // Process chats
+        const processedChats = response.chats.map(chat => {
+          // Format the chat to match our Chat interface
+          const chatObj: Chat = {
+            id: chat.id,
+            type: chat.is_group_chat ? 'group' : 'individual',
+            name: chat.name || '',
+            avatar: null,
+            participants: (chat.participants || []).map(p => {
+              // Ensure we have proper participant data
+              return {
+                id: p.id || p.user_id || '',
+                username: p.username || '',
+                display_name: p.display_name || p.name || p.username || '',
+                avatar: p.profile_picture_url || p.avatar || null,
+                is_verified: p.is_verified || false
+              };
+            }),
+            messages: [],
+            unread_count: chat.unread_count || 0,
+            profile_picture_url: null,
+            created_at: chat.created_at || new Date().toISOString(),
+            updated_at: chat.updated_at || new Date().toISOString()
+          };
+          
+          // Add last message if available
+          if (chat.last_message) {
+            chatObj.last_message = {
+              content: chat.last_message.content || '',
+              timestamp: ensureStringTimestamp(chat.last_message.timestamp || chat.last_message.sent_at || new Date()),
+              sender_id: chat.last_message.sender_id || '',
+              sender_name: chat.last_message.sender_name || 'User'
+            };
+          }
+          
+          return chatObj;
+        });
         
-        if (possibleChatArrays.length > 0) {
-          // Use the first array found
-          const firstArray = possibleChatArrays[0].value;
-          logger.info(`Using ${possibleChatArrays[0].key} as chat array with ${firstArray.length} items`);
-          rawChats = firstArray;
-        } else {
-          logger.warn('No usable arrays found in response');
-          rawChats = [];
+        // Sort chats by update time, newest first
+        processedChats.sort((a, b) => {
+          const timeA = new Date(a.updated_at).getTime();
+          const timeB = new Date(b.updated_at).getTime();
+          return timeB - timeA;
+        });
+        
+        chats = processedChats;
+        filteredChats = [...processedChats];
+        
+        // If no chat is selected yet and we have chats, select the first one
+        if (!selectedChat && processedChats.length > 0) {
+          selectChat(processedChats[0]);
         }
       } else {
-        logger.warn('Unrecognized API response format, no chats available');
-        rawChats = [];
+        logger.warn('No chats found in response', response);
+        chats = [];
+        filteredChats = [];
       }
-      
-      // Map raw chats to client format
-      const mappedChats = mapApiChatsToClientFormat(rawChats);
-      
-      // Filter out duplicate non-group chats with the same name
-      const uniqueChats: Chat[] = [];
-      const nameMap: Record<string, Chat> = {};
-      
-      // First pass: collect the most recent chat for each name
-      mappedChats.forEach(chat => {
-        // For group chats, always keep them
-        if (chat.type === 'group') {
-          uniqueChats.push(chat);
-          return;
-        }
-        
-        // For non-group chats with a name, keep only the most recent one
-        if (chat.name && chat.name.trim() !== '') {
-          const existingChat = nameMap[chat.name];
-          if (!existingChat || 
-              (chat.last_message && existingChat.last_message && 
-               new Date(chat.last_message.timestamp) > new Date(existingChat.last_message.timestamp)) || 
-              (!existingChat.last_message && chat.last_message) ||
-              (!existingChat.last_message && !chat.last_message && new Date(chat.updated_at || chat.created_at) > new Date(existingChat.updated_at || existingChat.created_at))) {
-            nameMap[chat.name] = chat;
-          }
-        } else {
-          // Chats without names are always kept
-          uniqueChats.push(chat);
-        }
-      });
-      
-      // Add the most recent chat for each name
-      Object.values(nameMap).forEach(chat => {
-        uniqueChats.push(chat);
-      });
-      
-      // Sort chats by last message timestamp (newest first)
-      uniqueChats.sort((a, b) => {
-        const timeA = a.last_message?.timestamp 
-          ? new Date(a.last_message.timestamp).getTime() 
-          : new Date(a.updated_at || a.created_at).getTime();
-        const timeB = b.last_message?.timestamp 
-          ? new Date(b.last_message.timestamp).getTime() 
-          : new Date(b.updated_at || b.created_at).getTime();
-        return timeB - timeA;
-      });
-      
-      // Update state
-      chats = uniqueChats;
-      filteredChats = uniqueChats;
-      
-      logger.info(`Loaded ${chats.length} chats`);
-      return uniqueChats;
     } catch (error) {
-      logger.error('Failed to fetch chats', error);
-      toastStore.showToast('Failed to load chats', 'error');
-      return [];
+      handleApiError(error, 'Failed to load chats');
+      chats = [];
+      filteredChats = [];
     } finally {
       isLoadingChats = false;
     }
   }
   
-  // Helper function to map API chat data to client format
-  function mapApiChatsToClientFormat(apiChats: any[]): Chat[] {
-    logger.debug('Mapping API chats to client format', { count: apiChats.length });
-    
-    // First convert all chats to our format
-    return apiChats.map(chat => {
-      // Log each chat's structure for debugging
-      logger.debug('Processing chat', { 
-        id: chat.id,
-        type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
-        name: chat.name || '',
-        hasParticipants: !!chat.participants,
-        participantCount: chat.participants?.length || 0
-      });
-      
-      // Ensure participants is always an array
-      const participants = Array.isArray(chat.participants) ? chat.participants : [];
-      
-      // Format the last_message with string timestamp
-      const lastMessage = chat.last_message ? {
-        content: chat.last_message.content || '',
-        timestamp: ensureStringTimestamp(chat.last_message.timestamp || Date.now()),
-        sender_id: chat.last_message.sender_id || chat.last_message.user_id || '',
-        sender_name: chat.last_message.sender_name || chat.last_message.username || ''
-      } : undefined;
-      
-      return {
-      id: chat.id,
-      type: chat.is_group_chat || chat.type === 'group' ? 'group' : 'individual',
-      name: chat.name || '',
-      avatar: chat.profile_picture_url || chat.avatar_url || chat.avatar,
-      profile_picture_url: chat.profile_picture_url || chat.avatar_url || chat.avatar,
-        participants: participants.map((p: any) => ({
-        id: p.user_id || p.id,
-        username: p.username || '',
-          display_name: p.display_name || p.name || p.username || 'User',
-        avatar: p.avatar_url || p.profile_picture_url || p.avatar || null,
-        is_verified: p.is_verified || false
-      })) || [],
-        last_message: lastMessage,
-      messages: [],
-        unread_count: chat.unread_count || 0,
-        created_at: chat.created_at || new Date().toISOString(),
-        updated_at: chat.updated_at || chat.created_at || new Date().toISOString()
-      };
-    });
-  }
-  
-  // Format chat data for display
-  function formatGroupChatForDisplay(chatData: any): Chat {
-                return {
-      id: chatData.id,
-      name: chatData.name || 'New Group Chat',
-      type: 'group' as const,  // Use const assertion to fix the type
-      last_message: undefined,
-      avatar: null,
-      participants: chatData.participants?.map((p: any) => ({
-        id: p.id || p.user_id,
-          username: p.username || '',
-        display_name: p.display_name || p.username || `User`,
-        avatar: p.avatar_url || p.avatar || null,
-          is_verified: p.is_verified || false
-      })) || [],
-        messages: [],
-        unread_count: 0,
-        profile_picture_url: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-  }
-
-  // Fix the formatMessageTime function to ensure the argument to formatRelativeTime is always a string
   function formatMessageTime(timestamp: string | number | Date): string {
     let stringTimestamp: string;
     
@@ -1195,35 +506,85 @@
     }
   }
   
-  /**
-   * Handle creating a group chat
-   */
-  async function handleCreateGroupChat(data: { name: string; participants: string[] }) {
-    try {
-      isLoadingChats = true;
-      const response = await createChat({
-        type: 'group',
-        name: data.name,
-        participants: data.participants
-      });
-      
-      if (response && response.chat_id) {
-        showCreateGroupModal = false;
-        await fetchChats(); // Use fetchChats instead of loadChats
-        selectChat(response.chat_id);
-        toastStore.showToast(`Group chat "${data.name}" created successfully`, 'success');
-      }
-    } catch (error) {
-      handleApiError(error, 'Failed to create group chat');
-    } finally {
-      isLoadingChats = false;
+  function getUserDisplayName(userId: string): string {
+    // Check if this is the current user
+    if (userId === $authStore.user_id) {
+      return displayName || 'You';
     }
+    
+    // Check if the user is in the participants list of any chat
+    for (const chat of chats) {
+      const participant = chat.participants.find(p => p.id === userId);
+      if (participant) {
+        return participant.display_name || participant.username || 'Unknown User';
+      }
+    }
+    
+    // If we can't find the user, return a generic name with the ID
+    const shortId = userId.substring(0, 4);
+    return `User ${shortId}`;
   }
-
+  
   function getOtherParticipant(chat: Chat): Participant | undefined {
     if (chat.type !== 'individual') return undefined;
     
     return chat.participants.find(p => p.id !== $authStore.user_id);
+  }
+
+  // Initialize connections when component mounts
+  onMount(async () => {
+    // Check viewport size
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    
+    // Fetch user profile
+    try {
+      const profileData = await getProfile();
+      if (profileData) {
+        username = profileData.username || '';
+        displayName = profileData.display_name || profileData.username || 'User';
+        avatar = profileData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+      }
+    } catch (error) {
+      logger.error('Failed to load profile:', error);
+    } finally {
+      isLoadingProfile = false;
+    }
+    
+    // Load chats
+    await fetchChats();
+    
+    // Register WebSocket message handler
+    setMessageHandler(handleWebSocketMessage);
+    
+    // Initialize WebSockets with 500ms delay to ensure chats are loaded
+    setTimeout(initializeWebSocketConnections, 500);
+    
+    logger.info('Message component mounted');
+  });
+  
+  // Clean up when component unmounts
+  onDestroy(() => {
+    window.removeEventListener('resize', checkViewport);
+    logger.info('Disconnecting from all WebSocket connections');
+    websocketStore.disconnectAll();
+  });
+
+  // Add a helper function to ensure timestamp is always a string
+  function ensureStringTimestamp(timestamp: string | number | Date): string {
+    if (timestamp instanceof Date) {
+      return timestamp.toISOString();
+    } else if (typeof timestamp === 'number') {
+      return new Date(timestamp).toISOString();
+    }
+    return timestamp;
+  }
+
+  // Mark as active in URL
+  if (typeof window !== 'undefined') {
+    const url = new URL(window.location.href);
+    url.searchParams.set('chat', targetChat.id);
+    window.history.replaceState({}, '', url.toString());
   }
 </script>
 
@@ -1253,6 +614,17 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 5px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .websocket-status.attention {
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
   }
   
   .status-indicator {
@@ -1264,18 +636,30 @@
     font-size: 12px;
     background-color: rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(5px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
   }
   
   .status-indicator.connected {
     color: #4caf50;
+    background-color: rgba(76, 175, 80, 0.1);
   }
   
   .status-indicator.disconnected {
     color: #f44336;
+    background-color: rgba(244, 67, 54, 0.2);
+    border: 1px solid rgba(244, 67, 54, 0.4);
   }
   
   .status-icon {
     font-size: 14px;
+    animation: blink 2s infinite;
+  }
+  
+  @keyframes blink {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
   }
   
   .status-error {
@@ -1285,9 +669,12 @@
     padding: 5px 10px;
     border-radius: 20px;
     font-size: 12px;
-    background-color: rgba(244, 67, 54, 0.1);
+    background-color: rgba(244, 67, 54, 0.2);
     color: #f44336;
     backdrop-filter: blur(5px);
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.25);
+    border: 1px solid rgba(244, 67, 54, 0.4);
+    max-width: 300px;
   }
   
   .reconnect-button {
@@ -1295,17 +682,37 @@
     color: white;
     border: none;
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 4px 10px;
     margin-left: 8px;
     font-size: 12px;
+    font-weight: bold;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
   }
   
   .reconnect-button:hover {
     background-color: #d32f2f;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  }
+  
+  .error-dismiss {
+    background: none;
+    border: none;
+    color: #f44336;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    margin-left: 5px;
+    font-weight: bold;
+  }
+  
+  .error-dismiss:hover {
+    color: #d32f2f;
   }
 </style>
 
@@ -1350,16 +757,19 @@
     {/if}
 
     <!-- WebSocket Status Display -->
-    <div class="websocket-status">
+    <div class="websocket-status {!$websocketStore.connected ? 'attention' : ''}">
       <div class="status-indicator {$websocketStore.connected ? 'connected' : 'disconnected'}">
         <span class="status-icon">{$websocketStore.connected ? '●' : '○'}</span>
         <span class="status-text">Real-time {$websocketStore.connected ? 'Connected' : 'Disconnected'}</span>
         {#if !$websocketStore.connected}
-          <button class="reconnect-button" on:click={initializeWebSocketConnections}>
+          <button class="reconnect-button" on:click={() => {
+            toastStore.showToast('Reconnecting to chat servers...', 'info');
+            initializeWebSocketConnections();
+          }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
             </svg>
-            Reconnect
+            Reconnect Now
           </button>
         {/if}
       </div>
@@ -1367,6 +777,7 @@
         <div class="status-error">
           <span class="error-icon">⚠️</span>
           <span class="error-text">{$websocketStore.lastError}</span>
+          <button class="error-dismiss" on:click={() => (websocketStore as any).resetError()}>×</button>
         </div>
       {/if}
     </div>
@@ -1705,24 +1116,16 @@
 
 {#if showCreateGroupModal}
   <CreateGroupChat 
+    onCancel={() => showCreateGroupModal = false}
+    onSuccess={(e) => handleCreateGroupChat(e.detail)}
     on:close={() => showCreateGroupModal = false}
     on:createGroup={(e) => handleCreateGroupChat(e.detail)}
-    {userSearchResults}
-    {isLoadingUsers}
-    searchKeyword={userSearchQuery}
-    on:search={(e) => searchForUsers(e.detail)}
   />
 {/if}
 
 {#if showDebug}
   <DebugPanel 
     on:close={() => showDebug = false}
-    {chats}
-    {selectedChat}
-    authToken={$authStore.token}
-    userId={$authStore.user_id}
-    wsConnected={$websocketStore.connected}
-    wsError={$websocketStore.lastError}
     on:testConnection={() => testApiConnection()}
     on:checkAuth={() => logAuthTokenInfo()}
   />

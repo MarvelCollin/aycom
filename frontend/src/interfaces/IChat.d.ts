@@ -31,6 +31,9 @@ export interface Participant {
   name: string;
   profile_picture_url: string | null;
   is_verified: boolean;
+  display_name?: string;
+  user_id?: string;
+  avatar?: string | null;
 }
 
 /**

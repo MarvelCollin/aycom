@@ -15,28 +15,22 @@ export function processWebSocketMessage(message: any) {
   try {
     logger.debug('Processing WebSocket message:', message);
 
-    // Validate the message format
   if (!message || !message.type) {
       logger.warn('Invalid WebSocket message format:', message);
     return;
   }
 
-    // Handle different message types
   switch (message.type) {
     case 'text':
         handleIncomingTextMessage(message);
       break;
     case 'typing':
-        // Handle typing indicator
       break;
     case 'read':
-        // Handle read receipts
       break;
     case 'delete':
-        // Handle message deletion
       break;
     case 'edit':
-        // Handle message edit
       break;
       case 'connection_status':
         logger.info('WebSocket connection status:', message.status);
@@ -49,7 +43,6 @@ export function processWebSocketMessage(message: any) {
   }
 }
 
-// Extract temp ID from message
 function extractTempIdFromMessage(message: any): string | null {
   try {
     if (message && message.temp_id) {
@@ -70,11 +63,9 @@ function extractTempIdFromMessage(message: any): string | null {
   }
 }
 
-// Handle incoming text message
 function handleIncomingTextMessage(message: any) {
   logger.debug('Handling incoming text message:', message);
   
-  // Create a standardized message object
   const processedMessage = {
     id: message.id || message.message_id,
     chat_id: message.chat_id,
@@ -88,10 +79,8 @@ function handleIncomingTextMessage(message: any) {
     is_deleted: message.is_deleted || false
   };
   
-  // Check if this is a response to a temporary message
   const tempId = extractTempIdFromMessage(message);
   
-  // Notify the registered message handler
   if (messageHandler) {
     try {
       messageHandler({
@@ -112,7 +101,6 @@ export async function createChat(data: Record<string, any>) {
       throw new Error('Missing data: chat creation data is required');
     }
     
-    // Check for required fields based on chat type
     if (data.type === 'individual' && (!data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
       logger.error('Cannot create chat: Missing participants for individual chat');
       throw new Error('Missing required data: participants array is required for individual chat');
@@ -123,7 +111,6 @@ export async function createChat(data: Record<string, any>) {
       throw new Error('Missing required data: name and participants are required for group chat');
     }
     
-    // Validate participant IDs if present
     if (data.participants && Array.isArray(data.participants)) {
       for (const participantId of data.participants) {
         if (typeof participantId === 'string' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId)) {
@@ -136,13 +123,11 @@ export async function createChat(data: Record<string, any>) {
     const token = getAuthToken();
     logger.debug('Creating chat with data', { data, apiUrl: `${API_BASE_URL}/chats` });
 
-    // Check for individual chat type and see if chat already exists
     if (data.type === 'individual' && data.participants && data.participants.length === 1) {
       const participantId = data.participants[0];
       const currentUserId = getUserId();
 
       try {
-        // Get existing chats
         const existingChats = await getChatHistoryList();
         logger.debug('Checking existing chats for participant', { 
           participantId, 
@@ -150,24 +135,19 @@ export async function createChat(data: Record<string, any>) {
           chatsCount: existingChats.chats?.length || 0 
         });
 
-        // Look for an existing individual chat with exactly these two participants
         const existingChat = existingChats.chats?.find(chat => {
-          // Skip group chats
           if (chat.is_group_chat === true) {
             return false;
           }
 
-          // Check if participants array exists
           if (!chat.participants || !Array.isArray(chat.participants)) {
             return false;
           }
 
-          // For individual chats, we should have exactly 2 participants
           if (chat.participants.length !== 2) {
             return false;
           }
 
-          // Check if the participants are the current user and the target participant
           const hasCurrentUser = chat.participants.some(p => 
             (p.id === currentUserId || p.user_id === currentUserId)
           );
@@ -176,7 +156,6 @@ export async function createChat(data: Record<string, any>) {
             (p.id === participantId || p.user_id === participantId)
           );
           
-          // Return true if both users are in this chat
           return hasCurrentUser && hasTargetUser;
         });
 
@@ -192,7 +171,6 @@ export async function createChat(data: Record<string, any>) {
       }
     }
 
-    // Send the request to create a new chat
     const response = await fetch(`${API_BASE_URL}/chats`, {
       method: 'POST',
       headers: {
@@ -216,7 +194,6 @@ export async function createChat(data: Record<string, any>) {
       }
     }
 
-    // Check if the response is empty
     const contentLength = response.headers.get('content-length');
     if (contentLength === '0') {
       logger.warn('Empty response received from create chat endpoint');
@@ -251,7 +228,6 @@ export async function createChat(data: Record<string, any>) {
       const jsonResponse = JSON.parse(responseText);
       logger.debug('Chat creation response', { jsonResponse });
       
-      // Enhanced logging to debug response format
       logger.debug('Chat response analysis', { 
         hasSuccess: jsonResponse && typeof jsonResponse.success === 'boolean',
         successValue: jsonResponse?.success,
@@ -262,21 +238,16 @@ export async function createChat(data: Record<string, any>) {
         responseKeys: jsonResponse ? Object.keys(jsonResponse) : [] 
       });
       
-      // Check for the standardized response format
       if (jsonResponse && jsonResponse.success === true && jsonResponse.data) {
-        // Server returns {"success": true, "data": { "chat": { ... } }}
         logger.debug('Using success+data response format');
         return jsonResponse.data;
       } else if (jsonResponse && jsonResponse.chat) {
-        // Direct chat object in response
         logger.debug('Using direct chat object response format');
         return jsonResponse;
       } else if (jsonResponse && typeof jsonResponse === 'object') {
-        // Just return whatever we got if it's an object
         logger.debug('Using generic object response format');
         return jsonResponse;
       } else {
-        // Create a fallback response if format doesn't match any expected pattern
         logger.warn('Unexpected chat response format, creating fallback', { jsonResponse });
         return {
           chat: {
@@ -305,7 +276,6 @@ export async function listChats() {
     const token = getAuthToken();
     logger.debug('Fetching chat list');
     
-    // Log API URL to ensure it's correct
     logger.info(`API URL for chats: ${API_BASE_URL}/chats`);
 
     const response = await fetch(`${API_BASE_URL}/chats`, {
@@ -318,15 +288,12 @@ export async function listChats() {
       credentials: 'include'
     });
 
-    // Log the response status
     logger.info(`Chat list response status: ${response.status} ${response.statusText}`);
     
-    // Log response headers to debug content-type issues
     const contentTypeHeader = response.headers.get('content-type');
     logger.info(`Response content type: ${contentTypeHeader || 'not provided'}`);
 
     if (!response.ok) {
-      // Try to log the error body for more context
       try {
         const errorText = await response.text();
         logger.error(`Error response body: ${errorText}`);
@@ -348,7 +315,6 @@ export async function listChats() {
       }
     }
 
-    // Check if the response is empty
     const contentLength = response.headers.get('content-length');
     if (contentLength === '0') {
       logger.warn('Empty response received from list chats endpoint');
@@ -364,7 +330,6 @@ export async function listChats() {
       
       try {
         const responseData = JSON.parse(responseText);
-        // Log the shape of the response data
         logger.debug('API response structure:', {
           hasData: !!responseData,
           hasChats: responseData && 'chats' in responseData,
@@ -373,17 +338,14 @@ export async function listChats() {
           responseKeys: responseData ? Object.keys(responseData) : []
         });
         
-        // Handle different response formats
         if (responseData && 'chats' in responseData && Array.isArray(responseData.chats)) {
           return responseData;
         } else if (Array.isArray(responseData)) {
           return { chats: responseData };
         } else if (responseData && typeof responseData === 'object') {
-          // If the response is a single chat object (has id and name)
           if (responseData.id && (responseData.name || responseData.participants)) {
             return { chats: [responseData] };
           }
-          // If it's some other kind of object, try to extract chats
           if (responseData.data && Array.isArray(responseData.data)) {
             return { chats: responseData.data };
           }
@@ -393,7 +355,6 @@ export async function listChats() {
         }
       } catch (parseError) {
         logger.error('Failed to parse JSON response for listing chats:', parseError);
-        // Try to log the raw response for debugging
         if (responseText) {
           logger.error('Raw response text:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
         }
@@ -535,37 +496,30 @@ export async function removeChatParticipant(chatId: string, userId: string) {
 
 export async function sendMessage(chatId: string, data: Record<string, any>) {
   try {
-    // Validate chat ID first
     if (!chatId || chatId.trim() === '') {
       logger.error('Cannot send message: Invalid or missing chat ID');
       throw new Error('Invalid chat ID: A valid chat ID is required to send messages');
     }
     
-    // Validate that the chat ID is a valid UUID
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
       logger.error(`Cannot send message: Invalid UUID format for chat ID: ${chatId}`);
       throw new Error('Invalid chat ID format: Must be a valid UUID');
     }
 
-    // Validate user ID before sending
     const currentUserId = getUserId();
     if (!currentUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId)) {
       logger.error(`Cannot send message: Invalid or missing user ID: ${currentUserId}`);
       throw new Error('Invalid user ID: Please try logging in again');
     }
 
-    // Send the message to the API
     const token = getAuthToken();
     logger.debug(`Sending message to chat ${chatId}`, { content: data.content });
 
-    // Make sure we're sending the right format
     const messageData = {
       content: data.content,
-      // Include any attachments if present
       ...(data.attachments && data.attachments.length > 0 ? { attachments: data.attachments } : {})
     };
 
-    // Log the full request details for debugging
     const requestUrl = `${API_BASE_URL}/chats/${chatId}/messages`;
     logger.info(`Making API request to: ${requestUrl}`);
     logger.debug('Request payload:', messageData);
@@ -582,7 +536,6 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         credentials: 'include'
       });
       
-      // Log full response details
       logger.debug(`Response status: ${response.status} ${response.statusText}`);
       const responseHeaders = {};
       response.headers.forEach((value, key) => {
@@ -594,12 +547,10 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         let errorMessage = `Server error when sending message: ${response.status} ${response.statusText}`;
         logger.warn(errorMessage);
         
-        // Try to get more detailed error information from the response
         try {
           const errorResponse = await response.json();
           logger.debug('Error response body:', errorResponse);
           if (errorResponse && errorResponse.error) {
-            // Handle structured error responses
             if (typeof errorResponse.error === 'string') {
               errorMessage = errorResponse.error;
             } else if (errorResponse.error.message) {
@@ -611,9 +562,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           
           logger.error(`API error details:`, errorResponse);
         } catch (parseError) {
-          // If we can't parse the error response, just use the status code
           logger.error(`Could not parse error response: ${parseError}`);
-          // Try to read the raw text response
           try {
             const rawErrorText = await response.text();
             logger.debug('Raw error response:', rawErrorText);
@@ -622,7 +571,6 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           }
         }
 
-        // Handle specific error codes
         if (response.status === 404) {
           throw new Error('Chat not found. It may have been deleted or you may not have access.');
         } else if (response.status === 403) {
@@ -632,13 +580,11 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         } else if (response.status === 400) {
           throw new Error(`Invalid message: ${errorMessage}`);
         } else if (response.status === 500) {
-          // For server errors related to invalid user ID, suggest logging in again
           if (errorMessage.includes('user ID') || errorMessage.includes('UUID')) {
             logger.error(`User ID validation error detected: ${errorMessage}`);
             throw new Error('Session error: Please log out and log in again.');
           }
           
-          // Use a fallback for other server errors
           logger.warn(`Using local fallback due to server error: ${errorMessage}`);
           return createFallbackMessage(chatId, data);
         } else {
@@ -646,7 +592,6 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         }
       }
 
-      // Parse the response
       const responseText = await response.text();
       logger.debug('Raw response text:', responseText);
       
@@ -667,7 +612,6 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         return createFallbackMessage(chatId, data);
       }
     } catch (apiError) {
-      // Handle network errors or other exceptions
       if (apiError instanceof Error) {
         logger.error(`API error when sending message to ${chatId}:`, apiError);
         throw apiError;
@@ -682,31 +626,24 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
   }
 }
 
-// Helper function to create a fallback message when the API fails
 function createFallbackMessage(chatId: string, data: Record<string, any>) {
   const currentUserId = getUserId();
   const messageTimestamp = Date.now();
   const tempMessageId = `temp-${messageTimestamp}`;
   
-  // Log the user ID for debugging
   logger.debug(`Creating fallback message with user ID: ${currentUserId}`);
   
-  // Generate a proper UUID for sender_id if needed
   let senderId = "";
   if (currentUserId) {
-    // Check if user ID is already a valid UUID
     const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId);
     
     if (isValidUUID) {
       senderId = currentUserId;
     } else {
-      // If not a valid UUID, log it and use a temporary formatted value
       logger.warn(`Invalid UUID format detected for user ID: ${currentUserId}, using temp ID`);
-      // We'll use a placeholder formatted as 'local-{timestamp}' for client-side only
       senderId = `local-${messageTimestamp}`;
     }
   } else {
-    // If there's no user ID at all, use a temporary ID
     logger.warn("No user ID available, using temp ID");
     senderId = `local-${messageTimestamp}`;
   }
@@ -722,7 +659,7 @@ function createFallbackMessage(chatId: string, data: Record<string, any>) {
       is_read: false,
       is_edited: false,
       is_deleted: false,
-      is_local: true, // Mark this as a local message that hasn't been saved to the server
+      is_local: true,
     }
   };
 }
@@ -737,7 +674,6 @@ export async function listMessages(chatId: string) {
     const token = getAuthToken();
     logger.debug(`Fetching messages for chat ${chatId}`);
 
-    // Log API URL to ensure it's correct
     logger.info(`API URL for messages: ${API_BASE_URL}/chats/${chatId}/messages`);
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
@@ -750,10 +686,8 @@ export async function listMessages(chatId: string) {
       credentials: 'include'
     });
 
-    // Log the response status
     logger.info(`Messages response status: ${response.status} ${response.statusText}`);
     
-    // Log response headers to debug content-type issues
     const contentTypeHeader = response.headers.get('content-type');
     logger.info(`Response content type: ${contentTypeHeader || 'not provided'}`);
 
@@ -764,25 +698,20 @@ export async function listMessages(chatId: string) {
           const errorData = await response.json();
           logger.error('Error response from message list endpoint', errorData);
           
-          // Check for standard error formats
           if (errorData.error && errorData.error.message) {
-            // Format: { success: false, error: { code: 'ERROR_CODE', message: 'Error message' } }
             throw new Error(errorData.error.message);
           } else if (errorData.message) {
-            // Format: { message: 'Error message' }
             throw new Error(errorData.message);
           } else if (errorData.error && typeof errorData.error === 'string') {
-            // Format: { error: 'Error message' }
             throw new Error(errorData.error);
           } else if (errorData.success === false) {
-            // Format: { success: false, ... }
             throw new Error('Failed to list messages: Request failed');
           } else {
             throw new Error('Failed to list messages: Unknown error');
           }
         } catch (parseError) {
           if (parseError instanceof Error && parseError.message !== 'Failed to list messages: Unknown error') {
-            throw parseError; // Re-throw if it's our custom error with message
+            throw parseError;
           }
           throw new Error(`Failed to list messages: ${response.status} ${response.statusText}`);
         }
@@ -791,7 +720,6 @@ export async function listMessages(chatId: string) {
       }
     }
 
-    // Check if the response is empty
     const contentLength = response.headers.get('content-length');
     if (contentLength === '0') {
       logger.warn(`Empty response received from messages endpoint for chat ${chatId}`);
@@ -807,7 +735,6 @@ export async function listMessages(chatId: string) {
       
       try {
         const responseData = JSON.parse(responseText);
-        // Log the shape of the response data
         logger.debug('API messages response structure:', {
           hasData: !!responseData,
           hasSuccess: responseData && 'success' in responseData,
@@ -818,22 +745,15 @@ export async function listMessages(chatId: string) {
           responseKeys: responseData ? Object.keys(responseData) : []
         });
         
-        // Handle different response formats
         if (responseData && responseData.success && responseData.data && responseData.data.messages) {
-          // Format: { success: true, data: { messages: [...] } }
           return responseData.data;
         } else if (responseData && 'messages' in responseData) {
-          // Format: { messages: [...] }
           return responseData;
         } else if (responseData && responseData.data && Array.isArray(responseData.data)) {
-          // Format: { data: [...] } - array might be messages
           return { messages: responseData.data };
         } else if (Array.isArray(responseData)) {
-          // Format: [...] - direct array of messages
           return { messages: responseData };
         } else if (responseData && typeof responseData === 'object') {
-          // If the response is an object but doesn't have a messages property,
-          // it might be a single message or an empty object
           if (responseData.id && responseData.content) {
             return { messages: [responseData] };
           }
@@ -843,7 +763,6 @@ export async function listMessages(chatId: string) {
         }
       } catch (parseError: unknown) {
         logger.error(`Failed to parse JSON response for chat ${chatId}:`, parseError);
-        // Try to log the raw response for debugging
         logger.error('Raw response text:', responseText.substring(0, 200) + '...');
         return { messages: [] };
       }
@@ -1013,7 +932,6 @@ export async function getChatHistoryList() {
       try {
         const data = await response.json();
         
-        // Enhanced logging to debug response structure
         logger.debug('API response structure:', { 
           hasData: !!data,
           hasSuccess: data && 'success' in data,
@@ -1025,22 +943,17 @@ export async function getChatHistoryList() {
           responseKeys: data ? Object.keys(data) : []
         });
         
-        // Handle different response formats
         if (data && data.data && data.data.chats) {
-          // Format: { success: true, data: { chats: [...] } }
           return {
             chats: data.data.chats
           };
         } else if (data && data.chats) {
-          // Format: { chats: [...] }
         return data;
         } else if (data && Array.isArray(data)) {
-          // Format: [...]
           return {
             chats: data
           };
         } else {
-          // Default empty response
           logger.warn('Unexpected response format from chat history endpoint', data);
           return { chats: [] };
         }
@@ -1058,12 +971,10 @@ export async function getChatHistoryList() {
   }
 }
 
-// Adding API test function to check server connection
 export async function testApiConnection() {
   try {
     logger.debug('Testing API connection');
     
-    // Check API URL format
     const baseUrlComponents = API_BASE_URL.split('/');
     if (baseUrlComponents.length < 3) {
       logger.error('Invalid API URL format:', API_BASE_URL);
@@ -1075,7 +986,6 @@ export async function testApiConnection() {
     
     logger.debug(`API Protocol: ${protocol}, Host: ${host}`);
     
-    // First check if the server is reachable with a basic request
     try {
       const basicResponse = await fetch(`${protocol}//${host}/`, {
         method: 'GET',
@@ -1087,10 +997,8 @@ export async function testApiConnection() {
       logger.debug(`Basic server response: ${basicResponse.status}`);
     } catch (err) {
       logger.warn('Basic connectivity check failed:', err);
-      // Continue with other tests even if this fails
     }
     
-    // Try the authenticated chats endpoint first (most important for this page)
     const token = getAuthToken();
     
     if (token) {
@@ -1108,7 +1016,6 @@ export async function testApiConnection() {
         logger.debug(`Chats endpoint response: ${chatResponse.status}`);
         
         if (chatResponse.ok) {
-          // Successfully tested the endpoint we actually need
           return {
             success: true,
             status: chatResponse.status,
@@ -1118,17 +1025,15 @@ export async function testApiConnection() {
         }
       } catch (chatErr) {
         logger.debug('Failed to test authenticated chats endpoint:', chatErr);
-        // Continue to try other endpoints
       }
     }
     
-    // Define endpoints to try in order
     const endpointsToTry = [
-      '/api/v1/chats',     // Try chats endpoint first (what we actually need)
-      '/api/v1/users/me',  // Try user profile endpoint next
-      '/api/v1/trends',    // Try trends endpoint
-      '/api/v1/health',    // Try health endpoint
-      '/api/v1'            // Try base API path last
+      '/api/v1/chats',
+      '/api/v1/users/me',
+      '/api/v1/trends',
+      '/api/v1/health',
+      '/api/v1'
     ];
     
     let successful = false;
@@ -1137,7 +1042,6 @@ export async function testApiConnection() {
     let errorMessage = '';
     let testedEndpoint = '';
     
-    // Try each endpoint until one works
     for (const endpoint of endpointsToTry) {
       try {
         logger.debug(`Testing API endpoint: ${endpoint}`);
@@ -1153,8 +1057,6 @@ export async function testApiConnection() {
         status = apiResponse.status;
         logger.debug(`API endpoint ${endpoint} response: ${status}`);
         
-        // For the base /api/v1 endpoint, a 404 is expected since it's not implemented directly
-        // Also prioritize the /chats endpoint even if others work
         if (endpoint === '/api/v1/chats' && apiResponse.ok) {
           successful = true;
           testedEndpoint = endpoint;
@@ -1166,7 +1068,6 @@ export async function testApiConnection() {
             logger.debug(`Could not parse JSON from ${endpoint} response`);
           }
           
-          // If we found the chats endpoint working, prioritize it
           break;
         }
         else if ((endpoint === '/api/v1' && status === 404) || apiResponse.ok) {
@@ -1182,8 +1083,6 @@ export async function testApiConnection() {
             }
           }
           
-          // Don't break here if it's the base endpoint with 404
-          // Keep looking for a better endpoint unless it's the last one
           if (endpoint !== '/api/v1' || endpointsToTry.indexOf(endpoint) === endpointsToTry.length - 1) {
             break;
           }
@@ -1218,7 +1117,6 @@ export async function testApiConnection() {
   }
 }
 
-// Adding a function to help diagnose auth token issues
 export function logAuthTokenInfo() {
   try {
     const token = getAuthToken();
@@ -1229,14 +1127,12 @@ export function logAuthTokenInfo() {
     
     logger.info('Auth token found, checking format');
     
-    // Check token format
     const parts = token.split('.');
     if (parts.length !== 3) {
       logger.error('Invalid JWT format - expected 3 parts separated by periods');
       return { success: false, error: 'Invalid JWT format', tokenLength: token.length };
     }
     
-    // Check header
     try {
       const headerJson = atob(parts[0]);
       const header = JSON.parse(headerJson);
@@ -1253,7 +1149,6 @@ export function logAuthTokenInfo() {
       logger.error('Failed to parse token header:', e);
     }
     
-    // Check payload
     try {
       const base64Url = parts[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -1263,14 +1158,12 @@ export function logAuthTokenInfo() {
       
       const payload = JSON.parse(payloadJson);
       
-      // Log useful information but redact sensitive data
       const safePayload = { ...payload };
       delete safePayload.password;
       delete safePayload.secret;
       
       logger.info('Token payload:', safePayload);
       
-      // Check for important claims
       if (!payload.exp) {
         logger.warn('Token missing expiration (exp) claim');
       } else {
@@ -1305,7 +1198,6 @@ export function logAuthTokenInfo() {
   }
 }
 
-// Adding a function to join a chat as a participant
 export async function joinChat(chatId: string) {
   try {
     const token = getAuthToken();
@@ -1317,7 +1209,7 @@ export async function joinChat(chatId: string) {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
-      body: JSON.stringify({ is_admin: false }), // Join as a regular participant
+      body: JSON.stringify({ is_admin: false }),
       credentials: 'include'
     });
 

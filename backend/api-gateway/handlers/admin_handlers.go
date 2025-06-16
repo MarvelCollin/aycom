@@ -148,7 +148,7 @@ func SendNewsletter(c *gin.Context) {
 }
 
 func GetCommunityRequests(c *gin.Context) {
-	log.Printf("GetCommunityRequests: Handling community requests endpoint")
+	log.Printf("GetCommunityRequests: Handling get community requests endpoint")
 
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
@@ -161,7 +161,6 @@ func GetCommunityRequests(c *gin.Context) {
 
 	page := 1
 	limit := 10
-	status := ""
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
@@ -175,176 +174,66 @@ func GetCommunityRequests(c *gin.Context) {
 		}
 	}
 
-	if statusStr := c.Query("status"); statusStr != "" {
-		status = statusStr
-	}
-
-	if UserClient == nil {
-		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
-		Page:   int32(page),
-		Limit:  int32(limit),
-		Status: status,
+	// Get unapproved communities directly from the community service
+	isApproved := false
+	communitiesResponse, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+		Query:      "",
+		Limit:      int32(limit),
+		Offset:     int32((page - 1) * limit),
+		IsApproved: isApproved,
 	})
 
 	if err != nil {
-		log.Printf("GetCommunityRequests Handler: gRPC error: %v", err)
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get community requests")
+		log.Printf("Error getting pending communities: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get pending communities")
 		return
 	}
 
-	for i, req := range response.Requests {
-		if req.Requester == nil && req.UserId != "" {
-			log.Printf("Request %s missing requester info, fetching user data for ID: %s", req.Id, req.UserId)
+	// Convert communities to community requests format
+	communityRequests := make([]*userProto.CommunityRequest, 0, len(communitiesResponse.Communities))
+	for _, community := range communitiesResponse.Communities {
+		// Get creator info if available
+		var requester *userProto.User
+		if UserClient != nil && community.CreatorId != "" {
 			userResp, userErr := UserClient.GetUser(ctx, &userProto.GetUserRequest{
-				UserId: req.UserId,
+				UserId: community.CreatorId,
 			})
 			if userErr == nil && userResp != nil && userResp.User != nil {
-				response.Requests[i].Requester = userResp.User
-				log.Printf("Added missing requester %s for community request %s", userResp.User.Name, req.Name)
+				requester = userResp.User
+				log.Printf("Found creator %s for community %s", requester.Name, community.Name)
 			} else {
-				log.Printf("Warning: Could not find user %s for adding to community request: %v", req.UserId, userErr)
-			}
-		} else if req.Requester != nil {
-			log.Printf("Request %s already has requester info: %s", req.Id, req.Requester.Name)
-		} else {
-			log.Printf("Request %s has no user_id to fetch requester for", req.Id)
-		}
-	}
-
-	if CommunityClient != nil {
-		communitiesResponse, commErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-			Query:      "",
-			Limit:      int32(limit),
-			Offset:     int32((page - 1) * limit),
-			IsApproved: false,
-		})
-
-		if commErr == nil && communitiesResponse != nil && len(communitiesResponse.Communities) > 0 {
-			log.Printf("Found %d communities from community service", len(communitiesResponse.Communities))
-
-			// Create a map to track existing requests by name for faster lookup
-			existingRequests := make(map[string]bool)
-			for _, req := range response.Requests {
-				existingRequests[req.Name] = true
-			}
-
-			for _, community := range communitiesResponse.Communities {
-				// Check if we already have a request with this name using our map
-				if !existingRequests[community.Name] && community.CreatorId != "" {
-					log.Printf("Adding community %s with creator ID: %s", community.Name, community.CreatorId)
-
-					var requester *userProto.User
-					if UserClient != nil {
-						log.Printf("Fetching user info for creator ID: %s", community.CreatorId)
-
-						userResp, userErr := UserClient.GetUser(ctx, &userProto.GetUserRequest{
-							UserId: community.CreatorId,
-						})
-
-						if userErr != nil {
-							log.Printf("ERROR fetching creator info: %v", userErr)
-						} else if userResp == nil {
-							log.Printf("ERROR: GetUser returned nil response for ID: %s", community.CreatorId)
-						} else if userResp.User == nil {
-							log.Printf("ERROR: GetUser returned nil user for ID: %s", community.CreatorId)
-						} else {
-							requester = userResp.User
-							log.Printf("SUCCESS: Found creator %s (%s) for community %s",
-								requester.Name, requester.Username, community.Name)
-						}
-					} else {
-						log.Printf("ERROR: UserClient is nil when trying to fetch creator info")
-					}
-
-					// Add the community as a pending request
-					communityRequest := &userProto.CommunityRequest{
-						Id:          community.Id,
-						UserId:      community.CreatorId,
-						Name:        community.Name,
-						Description: community.Description,
-						Status:      "pending",
-						CreatedAt:   community.CreatedAt.AsTime().Format(time.RFC3339),
-						UpdatedAt:   community.UpdatedAt.AsTime().Format(time.RFC3339),
-						Requester:   requester,
-						LogoUrl:     community.LogoUrl,
-						BannerUrl:   community.BannerUrl,
-					}
-
-					if requester != nil {
-						log.Printf("Added community request with requester: %s (%s)", requester.Name, requester.Username)
-					} else {
-						log.Printf("WARNING: Added community request WITHOUT requester for ID: %s", community.CreatorId)
-					}
-
-					response.Requests = append(response.Requests, communityRequest)
-					response.TotalCount++
-				}
-			}
-		} else if commErr != nil {
-			log.Printf("ERROR: Failed to get communities: %v", commErr)
-		}
-	}
-
-	for i, req := range response.Requests {
-		if req.Requester == nil && req.UserId != "" {
-			log.Printf("Final check: Request %s for community %s is missing requester info, fetching user data for ID: %s",
-				req.Id, req.Name, req.UserId)
-
-			if UserClient == nil {
-				log.Printf("ERROR: UserClient is nil during final requester check")
-				continue
-			}
-
-			retryCount := 2
-			var userResp *userProto.GetUserResponse
-			var userErr error
-
-			for attempt := 0; attempt <= retryCount; attempt++ {
-				if attempt > 0 {
-					log.Printf("Retry attempt %d for fetching user %s", attempt, req.UserId)
-				}
-
-				userResp, userErr = UserClient.GetUser(ctx, &userProto.GetUserRequest{
-					UserId: req.UserId,
-				})
-
-				if userErr == nil && userResp != nil && userResp.User != nil {
-					response.Requests[i].Requester = userResp.User
-					log.Printf("SUCCESS: Added requester %s (%s) for community %s",
-						userResp.User.Name, userResp.User.Username, req.Name)
-					break
-				}
-
-				if attempt < retryCount {
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-
-			if userErr != nil || userResp == nil || userResp.User == nil {
-
-				if userErr != nil {
-					log.Printf("ERROR: Failed to fetch user %s after %d attempts: %v", req.UserId, retryCount+1, userErr)
-				} else if userResp == nil {
-					log.Printf("ERROR: Empty response when fetching user %s after %d attempts", req.UserId, retryCount+1)
-				} else {
-					log.Printf("ERROR: User object is nil in response for ID %s after %d attempts", req.UserId, retryCount+1)
-				}
+				log.Printf("Could not find creator info for ID %s: %v", community.CreatorId, userErr)
 			}
 		}
+
+		communityRequest := &userProto.CommunityRequest{
+			Id:          community.Id,
+			UserId:      community.CreatorId,
+			Name:        community.Name,
+			Description: community.Description,
+			Status:      "pending",
+			CreatedAt:   community.CreatedAt.AsTime().Format(time.RFC3339),
+			UpdatedAt:   community.UpdatedAt.AsTime().Format(time.RFC3339),
+			Requester:   requester,
+			LogoUrl:     community.LogoUrl,
+			BannerUrl:   community.BannerUrl,
+		}
+		communityRequests = append(communityRequests, communityRequest)
 	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"requests":    response.Requests,
-		"total_count": response.TotalCount,
-		"page":        response.Page,
-		"limit":       response.Limit,
+		"requests":    communityRequests,
+		"total_count": communitiesResponse.TotalCount,
+		"page":        int32(page),
+		"limit":       int32(limit),
 	})
 }
 
@@ -377,56 +266,59 @@ func ProcessCommunityRequest(c *gin.Context) {
 		return
 	}
 
-	if UserClient == nil {
-		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
+	// The community ID is the same as the request ID
+	communityID := requestID
+
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := UserClient.ProcessCommunityRequest(ctx, &userProto.ProcessCommunityRequestRequest{
-		RequestId: requestID,
-		Approve:   req.Approve,
-	})
-
-	if err != nil {
-		st, ok := status.FromError(err)
-		if ok {
-			switch st.Code() {
-			case codes.NotFound:
-				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community request not found")
-			default:
-				log.Printf("ProcessCommunityRequest Handler: gRPC error: %v", err)
-				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
-			}
-		} else {
-			log.Printf("ProcessCommunityRequest Handler: Unknown error: %v", err)
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
-		}
-		return
-	}
-
-	// If the request was approved, also update the community in the community service
-	if req.Approve && CommunityClient != nil && response.Success {
-		// The request ID should be the same as the community ID
-		communityID := requestID
-
-		// Call the ApproveCommunity endpoint to update the community's approval status
+	// Directly update the community approval status in the community service
+	if req.Approve {
 		_, approveErr := CommunityClient.ApproveCommunity(ctx, &communityProto.ApproveCommunityRequest{
 			CommunityId: communityID,
 		})
 
 		if approveErr != nil {
-			log.Printf("Warning: Failed to approve community in community service: %v", approveErr)
+			log.Printf("Error approving community %s: %v", communityID, approveErr)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to approve community")
+			return
+		}
+
+		log.Printf("Successfully approved community %s", communityID)
+	} else {
+		// For rejection, we could implement a delete or mark as rejected in the future
+		log.Printf("Community %s was rejected", communityID)
+	}
+
+	// Also update the community request status in the user service if it exists
+	// This is for backward compatibility
+	if UserClient != nil {
+		_, err := UserClient.ProcessCommunityRequest(ctx, &userProto.ProcessCommunityRequestRequest{
+			RequestId: requestID,
+			Approve:   req.Approve,
+		})
+
+		if err != nil {
+			log.Printf("Warning: Failed to update community request in user service: %v", err)
+			// Continue even if this fails, as we've already updated the main community record
 		} else {
-			log.Printf("Successfully approved community %s in community service", communityID)
+			log.Printf("Successfully updated community request in user service")
 		}
 	}
 
+	action := "rejected"
+	if req.Approve {
+		action = "approved"
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"success": response.Success,
-		"message": response.Message,
+		"success": true,
+		"message": "Community has been " + action,
 	})
 }
 
@@ -1250,31 +1142,10 @@ func AdminGetAllUsers(c *gin.Context) {
 }
 
 // SyncPendingCommunities fetches communities from the community service that are not approved
-// and ensures they exist in the user service's community_requests table
+// and returns statistics about them
 func SyncPendingCommunities(c *gin.Context) {
-	// Verify admin permissions
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	// Check if user is admin
-	if UserClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "User service is unavailable")
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	userResp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
-		UserId: userID.(string),
-	})
-	if err != nil || !userResp.User.IsAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Admin privileges required")
-		return
-	}
 
 	// Get all pending communities from community service
 	if CommunityClient == nil {
@@ -1298,70 +1169,20 @@ func SyncPendingCommunities(c *gin.Context) {
 
 	pendingCommunities := searchResp.Communities
 
-	// Get existing community requests from user service
-	communityReqsResp, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
-		Limit: 1000, // High limit to get as many as possible
-		Page:  1,
-	})
-
-	if err != nil {
-		log.Printf("Error getting existing community requests: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get existing community requests")
-		return
-	}
-
-	// Create a map of existing community request IDs for quick lookup
-	existingRequestsMap := make(map[string]bool)
-	for _, req := range communityReqsResp.Requests {
-		existingRequestsMap[req.Id] = true
-	}
-
 	// Track results
 	var syncResults struct {
 		TotalPendingCommunities int      `json:"total_pending_communities"`
-		AlreadySynced           int      `json:"already_synced"`
-		NewlySynced             int      `json:"newly_synced"`
-		Failed                  int      `json:"failed"`
-		FailedCommunityIds      []string `json:"failed_community_ids,omitempty"`
+		PendingCommunityIds     []string `json:"pending_community_ids,omitempty"`
+		CreatorIds              []string `json:"creator_ids,omitempty"`
 	}
 
 	syncResults.TotalPendingCommunities = len(pendingCommunities)
 
-	// For each pending community not already in the user service, create a request
+	// Collect IDs for debugging
 	for _, community := range pendingCommunities {
-		// Skip if already exists in user service
-		if existingRequestsMap[community.Id] {
-			syncResults.AlreadySynced++
-			continue
-		}
-
-		// Get detailed community info if needed
-		communityDetail, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: community.Id,
-		})
-
-		if err != nil {
-			log.Printf("Error getting community details for ID %s: %v", community.Id, err)
-			syncResults.Failed++
-			syncResults.FailedCommunityIds = append(syncResults.FailedCommunityIds, community.Id)
-			continue
-		}
-
-		// Create community request in user service
-		_, err = UserClient.CreateCommunityRequest(ctx, &userProto.CreateCommunityRequestRequest{
-			CommunityId: community.Id,
-			UserId:      communityDetail.Community.CreatorId,
-			Name:        community.Name,
-			Description: community.Description,
-		})
-
-		if err != nil {
-			log.Printf("Error creating community request for community %s: %v", community.Id, err)
-			syncResults.Failed++
-			syncResults.FailedCommunityIds = append(syncResults.FailedCommunityIds, community.Id)
-		} else {
-			log.Printf("Successfully synced community request for community ID: %s", community.Id)
-			syncResults.NewlySynced++
+		syncResults.PendingCommunityIds = append(syncResults.PendingCommunityIds, community.Id)
+		if community.CreatorId != "" {
+			syncResults.CreatorIds = append(syncResults.CreatorIds, community.CreatorId)
 		}
 	}
 

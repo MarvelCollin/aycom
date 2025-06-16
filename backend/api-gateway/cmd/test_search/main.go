@@ -99,25 +99,51 @@ func max(a, b float64) float64 {
 }
 
 func main() {
-	// Test cases from the user
-	searchText := "kolnb"
-	actualName := "kolinb"
+	fmt.Println("**** FUZZY SEARCH DEBUGGING TOOL ****")
 
-	// Test with different thresholds
-	thresholds := []float64{0.5, 0.6, 0.7, 0.8, 0.9}
+	// The specific issue we're investigating
+	searchQueries := []string{"kolnb", "koln", "kolb"}
+	actualNames := []string{"kolinb", "kolin", "kolina", "kolingg", "kolinf", "kolinc"}
 
-	fmt.Printf("Comparing '%s' with '%s':\n", searchText, actualName)
-	fmt.Printf("Distance: %d\n", DamerauLevenshteinDistance(searchText, actualName))
-	similarity := DamerauLevenshteinSimilarity(searchText, actualName)
-	fmt.Printf("Similarity: %.2f (%.0f%%)\n", similarity, similarity*100)
+	fmt.Println("\n== Critical Test Case ==")
+	// Test with different thresholds for the critical case
+	criticalSearch := "kolnb"
+	criticalName := "kolinb"
+	fmt.Printf("Comparing '%s' with '%s':\n", criticalSearch, criticalName)
+	fmt.Printf("Distance: %d\n", DamerauLevenshteinDistance(criticalSearch, criticalName))
+	similarity := DamerauLevenshteinSimilarity(criticalSearch, criticalName)
+	fmt.Printf("Similarity: %.4f (%.1f%%)\n", similarity, similarity*100)
+
+	// Also check direct substring match
+	directMatch := strings.Contains(strings.ToLower(criticalName), strings.ToLower(criticalSearch))
+	fmt.Printf("Direct substring match: %v\n", directMatch)
+
+	// Also check the reverse
+	reverseMatch := strings.Contains(strings.ToLower(criticalSearch), strings.ToLower(criticalName))
+	fmt.Printf("Reverse substring match: %v\n", reverseMatch)
 
 	fmt.Println("\nMatching with different thresholds:")
+	thresholds := []float64{0.3, 0.5, 0.6, 0.7, 0.8, 0.9}
 	for _, threshold := range thresholds {
-		match := IsFuzzyMatch(strings.ToLower(searchText), strings.ToLower(actualName), threshold)
+		match := IsFuzzyMatch(strings.ToLower(criticalSearch), strings.ToLower(criticalName), threshold)
 		fmt.Printf("  Threshold %.1f: %v\n", threshold, match)
 	}
 
+	// Test all combinations
+	fmt.Println("\n== All Possible Test Combinations ==")
+	for _, query := range searchQueries {
+		for _, name := range actualNames {
+			similarity := DamerauLevenshteinSimilarity(strings.ToLower(query), strings.ToLower(name))
+			match := IsFuzzyMatch(strings.ToLower(query), strings.ToLower(name), 0.3)
+			directMatch := strings.Contains(strings.ToLower(name), strings.ToLower(query))
+
+			fmt.Printf("Query '%s' vs Name '%s': %.4f (%.1f%%) - Match at 0.3 threshold: %v, Direct contains: %v\n",
+				query, name, similarity, similarity*100, match, directMatch)
+		}
+	}
+
 	// Test a few more examples
+	fmt.Println("\n== Additional Test Cases ==")
 	testCases := []struct {
 		search string
 		actual string
@@ -128,11 +154,12 @@ func main() {
 		{"mickel", "michael"},
 	}
 
-	fmt.Println("\nAdditional test cases:")
 	for _, tc := range testCases {
 		similarity := DamerauLevenshteinSimilarity(strings.ToLower(tc.search), strings.ToLower(tc.actual))
-		match := IsFuzzyMatch(strings.ToLower(tc.search), strings.ToLower(tc.actual), 0.6)
-		fmt.Printf("  '%s' vs '%s': %.2f (%.0f%%) - Match at 0.6 threshold: %v\n",
-			tc.search, tc.actual, similarity, similarity*100, match)
+		match := IsFuzzyMatch(strings.ToLower(tc.search), strings.ToLower(tc.actual), 0.3)
+		directMatch := strings.Contains(strings.ToLower(tc.actual), strings.ToLower(tc.search))
+
+		fmt.Printf("'%s' vs '%s': %.4f (%.1f%%) - Match at 0.3: %v, Direct contains: %v\n",
+			tc.search, tc.actual, similarity, similarity*100, match, directMatch)
 	}
 }

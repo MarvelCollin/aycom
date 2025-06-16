@@ -14,6 +14,7 @@
   import { searchCommunities, getCommunities } from '../api/community';
   import { debounce } from '../utils/helpers';
   import { formatTimeAgo } from '../utils/common';
+  import { searchUsers as improvedSearchUsers } from '../api/userApi';
   
   // Import newly created components
   import ExploreSearch from '../components/explore/ExploreSearch.svelte';
@@ -450,11 +451,12 @@
       const filterOption = searchFilter === 'following' ? 'following' : (searchFilter === 'verified' ? 'verified' : 'all');
       const categoryOption = selectedCategory !== 'all' ? selectedCategory : undefined;
       
-      logger.debug('Starting search', {
+      logger.debug('Starting search with Damerau-Levenshtein fuzzy matching', {
         query: searchQuery || '(empty - showing all)',
         filter: filterOption,
         category: categoryOption,
-        sortBy: 'popular' 
+        sortBy: 'popular',
+        fuzzyThreshold: '0.3 (modified for better matching)'
       });
       
       // Safely execute each API call with error handling
@@ -503,10 +505,7 @@
       // Fetch data for all tabs in parallel with error handling
       const [peopleData, topThreadsData, latestThreadsData, mediaData, communitiesData] = await Promise.all([
         // People tab data (also used for top profiles)
-        safeApiCall(searchUsers, searchQuery, 1, peoplePerPage, { 
-          filter: filterOption,
-          sort: 'follower_count'
-        }),
+        safeApiCall(improvedSearchUsers, searchQuery, filterOption, 1, peoplePerPage),
         
         // Top threads
         safeApiCall(searchThreads, searchQuery, 1, 10, {
@@ -945,64 +944,37 @@
       
       console.log(`Fetching people page ${page} with filter ${filterOption}, query: '${searchQuery}'`);
       
-      const response = await searchUsers(
-        searchQuery, 
-        page, 
-        peoplePerPage, 
-        { 
-          filter: filterOption,
-          sort: 'follower_count'
-        }
-      );
+      const response = await improvedSearchUsers(searchQuery, filterOption, page, peoplePerPage);
       
       console.log('People pagination response:', response);
       
-      // Safety check for users array
-      if (!response || !response.users) {
-        console.error("Invalid response format from searchUsers:", response);
-        searchResults.people.isLoading = false;
-        return;
+      // Process the search results
+      if (response && response.success) {
+        // Update people results
+        const peopleResults = response.data?.users || [];
+        const peopleCount = peopleResults.length;
+        const totalPeopleCount = response.data?.pagination?.total_count || 0;
+        
+        // Set the people data for display
+        searchResults.people.users = peopleResults.map(user => ({
+          ...user,
+          // Add any additional properties needed for display
+        }));
+        
+        // Update pagination for people tab
+        searchResults.people.pagination = {
+          current_page: page,
+          total_pages: response.data?.pagination?.total_pages || 1,
+          has_more: response.data?.pagination?.has_more || false
+        };
+        
+        logger.debug(`Found ${peopleCount} people, total: ${totalPeopleCount}`);
       }
       
-      // Map the API response to the format expected by the component
-      const mappedUsers = response.users.map(user => {
-        console.log('Mapping user:', user);
-        
-        if (!user || typeof user !== 'object') {
-          console.error("Invalid user object:", user);
-          return null;
-        }
-        
-        return {
-          id: user.id || '',
-          username: user.username || '',
-          displayName: user.name || user.display_name || user.username || '',
-          avatar: user.profile_picture_url || user.avatar || null,
-          bio: user.bio || '',
-          isVerified: user.is_verified || false,
-          followerCount: user.follower_count || 0,
-          isFollowing: user.is_following || false
-        };
-      }).filter(user => user !== null); // Filter out any null entries from invalid data
-      
-      console.log('Mapped users:', mappedUsers);
-      
-      // Update the displayed users
-      searchResults.people = {
-        users: mappedUsers,
-        totalCount: response.totalCount || response.total || 0,
-        pagination: response.pagination || {
-          total_count: response.totalCount || response.total || 0,
-          current_page: page,
-          total_pages: Math.ceil((response.totalCount || response.total || 0) / peoplePerPage)
-        },
-        isLoading: false
-      };
-      
       // Also update the main users display array
-      usersToDisplay = mappedUsers;
+      usersToDisplay = peopleResults;
       
-      console.log(`Updated people results: ${mappedUsers.length} users, total: ${response.totalCount || response.total || 0}`);
+      console.log(`Updated people results: ${peopleResults.length} users, total: ${totalPeopleCount}`);
     } catch (error) {
       console.error('Error loading people page:', error);
       toastStore.showToast('Failed to load more profiles', 'error');

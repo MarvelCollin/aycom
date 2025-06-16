@@ -177,8 +177,12 @@
     
     // Then check participants array as fallback
     const participant = participants.find(p => p.id === userId || p.user_id === userId);
-    if (participant && (participant.display_name || participant.username)) {
-      return participant.display_name || participant.username;
+    if (participant) {
+      // Try different possible name fields
+      const displayName = participant.display_name || participant.name || participant.username;
+      if (displayName) {
+        return displayName;
+      }
     }
     
     // Generate a basic name if nothing else is available

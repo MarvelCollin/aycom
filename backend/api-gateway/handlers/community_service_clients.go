@@ -295,7 +295,7 @@ func (c *communityCommunicationClient) GetChats(userID string, limit, offset int
 
 	chats := make([]Chat, len(resp.Chats))
 	for i, protoChat := range resp.Chats {
-		chats[i] = Chat{
+		chat := Chat{
 			ID:          protoChat.Id,
 			Name:        protoChat.Name,
 			IsGroupChat: protoChat.IsGroup,
@@ -303,6 +303,42 @@ func (c *communityCommunicationClient) GetChats(userID string, limit, offset int
 			CreatedAt:   protoChat.CreatedAt.AsTime(),
 			UpdatedAt:   protoChat.UpdatedAt.AsTime(),
 		}
+
+		// Get participants for this chat
+		participantResp, err := c.grpcClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+			ChatId: protoChat.Id,
+		})
+
+		if err == nil && participantResp != nil && len(participantResp.Participants) > 0 {
+			participantIDs := make([]string, len(participantResp.Participants))
+			for j, participant := range participantResp.Participants {
+				participantIDs[j] = participant.UserId
+			}
+			chat.Participants = participantIDs
+		}
+
+		// Get last message if available
+		messagesResp, err := c.grpcClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
+			ChatId: protoChat.Id,
+			Limit:  1,
+			Offset: 0,
+		})
+
+		if err == nil && messagesResp != nil && len(messagesResp.Messages) > 0 {
+			lastMsg := messagesResp.Messages[0]
+			chat.LastMessage = &Message{
+				ID:        lastMsg.Id,
+				ChatID:    lastMsg.ChatId,
+				SenderID:  lastMsg.SenderId,
+				Content:   lastMsg.Content,
+				Timestamp: lastMsg.SentAt.AsTime(),
+				IsRead:    !lastMsg.Unsent,
+				IsEdited:  false,
+				IsDeleted: lastMsg.DeletedForAll,
+			}
+		}
+
+		chats[i] = chat
 	}
 
 	return chats, nil

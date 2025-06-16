@@ -417,8 +417,8 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 		allThreads = make([]*Thread, 0)
 
 		// Define fuzzy matching threshold (0.0 to 1.0, where 1.0 is exact match)
-		// Adjust this value as needed for desired fuzziness level
-		const similarityThreshold = 0.6
+		// Using a lower threshold to catch more potential matches
+		const similarityThreshold = 0.3
 
 		for _, t := range resp.Threads {
 			if t.Thread == nil {
@@ -430,32 +430,76 @@ func (c *GRPCThreadServiceClient) SearchThreads(query string, userID string, pag
 				continue
 			}
 
-			// Check content
+			// Check content with improved logging
 			contentMatch := false
+			var bestWordScore float64 = 0
+			var bestWord string = ""
+
 			if thread.Content != "" {
 				words := strings.Fields(strings.ToLower(thread.Content))
 				for _, word := range words {
-					if utils.IsFuzzyMatch(word, queryLower, similarityThreshold) {
+					score := utils.DamerauLevenshteinSimilarity(word, queryLower)
+					if score > bestWordScore {
+						bestWordScore = score
+						bestWord = word
+					}
+
+					// Check for both fuzzy matching and direct substring matches
+					directMatch := strings.Contains(word, queryLower)
+					if score >= similarityThreshold || directMatch {
 						contentMatch = true
+						log.Printf("Thread content matched: '%s' (%.2f similarity with '%s', direct match: %v)",
+							word, score, queryLower, directMatch)
 						break
 					}
 				}
 			}
 
-			// Check hashtags
+			// Check hashtags with improved logging
 			hashtagMatch := false
+			var bestHashtagScore float64 = 0
+			var bestHashtag string = ""
+
 			if t.Hashtags != nil && len(t.Hashtags) > 0 {
 				for _, hashtag := range t.Hashtags {
-					if utils.IsFuzzyMatch(strings.ToLower(hashtag), queryLower, similarityThreshold) {
+					hashtagLower := strings.ToLower(hashtag)
+					score := utils.DamerauLevenshteinSimilarity(hashtagLower, queryLower)
+
+					if score > bestHashtagScore {
+						bestHashtagScore = score
+						bestHashtag = hashtag
+					}
+
+					// Check for both fuzzy matching and direct substring matches
+					directMatch := strings.Contains(hashtagLower, queryLower)
+					if score >= similarityThreshold || directMatch {
 						hashtagMatch = true
+						log.Printf("Thread hashtag matched: '%s' (%.2f similarity with '%s', direct match: %v)",
+							hashtag, score, queryLower, directMatch)
 						break
 					}
+				}
+			}
+
+			// Additional direct content check on the full content
+			directContentMatch := false
+			if thread.Content != "" {
+				directContentMatch = strings.Contains(strings.ToLower(thread.Content), queryLower)
+				if directContentMatch && !contentMatch {
+					log.Printf("Thread full content contains search query '%s'", queryLower)
+					contentMatch = true
 				}
 			}
 
 			// Include thread if either content or hashtags match
 			if contentMatch || hashtagMatch {
+				log.Printf("---> MATCHED thread ID=%s (content=%.2f, hashtag=%.2f, query='%s')",
+					thread.ID, bestWordScore, bestHashtagScore, queryLower)
 				allThreads = append(allThreads, thread)
+			} else if bestWordScore > 0 || bestHashtagScore > 0 {
+				// Log near misses for debugging
+				log.Printf("NEAR MISS thread ID=%s - best content word: '%s' (%.2f), best hashtag: '%s' (%.2f), query='%s'",
+					thread.ID, bestWord, bestWordScore, bestHashtag, bestHashtagScore, queryLower)
 			}
 		}
 	}

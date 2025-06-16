@@ -838,6 +838,42 @@ func GetChatHistoryList(c *gin.Context) {
 
 	formattedChats := make([]gin.H, 0, len(chats))
 	for _, chat := range chats {
+		// Get participants with user details
+		enrichedParticipants := make([]gin.H, 0)
+
+		// Get participant IDs from the chat
+		participantIDs, err := client.GetChatParticipants(chat.ID)
+		if err != nil {
+			log.Printf("Error fetching participants for chat %s: %v", chat.ID, err)
+			// Continue with empty participants list
+		} else {
+			// Fetch user details for each participant
+			for _, participantID := range participantIDs {
+				participantData := gin.H{
+					"id":      participantID,
+					"user_id": participantID,
+				}
+
+				// Get user details if user service is available
+				if UserClient != nil {
+					userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
+					userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+						UserId: participantID,
+					})
+					userCancel()
+
+					if userErr == nil && userResp.User != nil {
+						participantData["username"] = userResp.User.Username
+						participantData["display_name"] = userResp.User.Name
+						participantData["profile_picture_url"] = userResp.User.ProfilePictureUrl
+						participantData["is_verified"] = userResp.User.IsVerified
+					}
+				}
+
+				enrichedParticipants = append(enrichedParticipants, participantData)
+			}
+		}
+
 		formattedChats = append(formattedChats, gin.H{
 			"id":            chat.ID,
 			"name":          chat.Name,
@@ -845,7 +881,7 @@ func GetChatHistoryList(c *gin.Context) {
 			"created_by":    chat.CreatedBy,
 			"created_at":    chat.CreatedAt,
 			"updated_at":    chat.UpdatedAt,
-			"participants":  chat.Participants,
+			"participants":  enrichedParticipants,
 			"last_message":  chat.LastMessage,
 		})
 	}

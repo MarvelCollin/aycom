@@ -26,8 +26,6 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
       credentials: 'include'
     });
     
-    // For public endpoints, if we get a 401 error when a token was provided,
-    // try again without the token
     if (!response.ok && response.status === 401 && token) {
       logger.debug('Got 401, retrying without auth token');
       
@@ -49,12 +47,10 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
         return data.trends;
       }
       
-      // If the second request also fails, fall through to the empty array return
       logger.error(`Failed to fetch trends without auth: ${publicResponse.status}`);
       return [];
     }
     
-    // Handle any other error case
     if (!response.ok) {
       logger.error(`Failed to fetch trends: ${response.status}`);
       return [];
@@ -62,12 +58,9 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
     
     const data = await response.json();
     
-    // Handle different API response formats
     if (data && data.data && Array.isArray(data.data.trends)) {
-      // Format: { data: { trends: [...] } }
       return data.data.trends;
     } else if (data && Array.isArray(data.trends)) {
-      // Format: { trends: [...] }
       return data.trends;
     } else {
       logger.warn('Invalid data format from trends API', { data });

@@ -7,9 +7,6 @@ import { uploadFile, SUPABASE_BUCKETS, uploadCommunityLogo, uploadCommunityBanne
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('CommunityAPI');
 
-/**
- * Wrapper function for API calls to handle errors consistently
- */
 async function safeApiCall<T>(
   apiFunction: (...args: any[]) => Promise<T>, 
   defaultValue: T, 
@@ -24,7 +21,6 @@ async function safeApiCall<T>(
   }
 }
 
-// Define the params interface for better type checking
 interface CommunitiesParams {
   page?: number;
   limit?: number;
@@ -35,13 +31,11 @@ interface CommunitiesParams {
   [key: string]: any;
 }
 
-// Get properly filtered user communities (joined, pending, discover)
 export async function getUserCommunities(params: CommunitiesParams = {}) {
   try {
     const token = getAuthToken();
     console.log(`Getting user communities with token: ${token ? 'present' : 'missing'}`);
 
-    // Build query parameters
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (Array.isArray(value)) {
@@ -52,7 +46,6 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
     });
 
     try {
-      // If no token, return empty results to avoid 401 errors
       if (!token) {
         logger.warn('No auth token available for getUserCommunities, returning empty results');
         return {
@@ -68,7 +61,6 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
         };
       }
       
-      // First try the new endpoint
       const response = await fetch(`${API_BASE_URL}/communities/user?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
@@ -96,7 +88,6 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
       } else {
         logger.warn(`New endpoint failed with ${response.status}, falling back to old endpoint`);
         
-        // If we get a 401 or 500, return empty results instead of falling back
         if (response.status === 401 || response.status === 500) {
           logger.warn(`Server returned ${response.status}, returning empty results`);
           return {
@@ -112,21 +103,17 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
           };
         }
         
-        // If error, fall back to the old endpoint
         if (params.filter === 'joined') {
-          // For joined communities, use filter=joined
           return await getCommunities({
             ...params,
             filter: 'joined'
           });
         } else if (params.filter === 'pending') {
-          // For pending communities, use filter=pending
           return await getCommunities({
             ...params,
             filter: 'pending'
           });
         } else {
-          // For discover, use is_approved=true
           return await getCommunities({
             ...params,
             is_approved: true
@@ -136,7 +123,6 @@ export async function getUserCommunities(params: CommunitiesParams = {}) {
     } catch (error) {
       logger.warn('Error using new endpoint, returning empty results:', error);
       
-      // Return empty results instead of falling back on error
       return {
         success: true,
         communities: [],
@@ -160,11 +146,8 @@ export async function getCommunities(params: CommunitiesParams = {}) {
     const token = getAuthToken();
     console.log(`Getting communities with token: ${token ? 'present' : 'missing'}`);
 
-    // Only use pagination and search parameters for the backend query
-    // We'll filter by is_approved on the frontend
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      // Skip is_approved parameter as we'll filter in the frontend
       if (key === 'is_approved') {
         return;
       } 
@@ -188,7 +171,6 @@ export async function getCommunities(params: CommunitiesParams = {}) {
     if (!response.ok) {
       logger.error(`Communities API responded with ${response.status}: ${response.statusText}`);
 
-      // Handle 401 Unauthorized gracefully
       if (response.status === 401) {
         logger.warn('Unauthorized access to communities API - returning empty results');
         return { 
@@ -238,20 +220,17 @@ export async function getCommunities(params: CommunitiesParams = {}) {
       const data = JSON.parse(text);
       console.log('Raw API response data:', data);
       
-      // Handle different response formats
       let success = true;
       let communities = [];
-      let pagination: any = {}; // Use any type for now to avoid TypeScript errors
+      let pagination: any = {};
       let limitOptions = [25, 30, 35];
       
       if (data.data && data.data.communities) {
-        // Format: { data: { communities: [...], pagination: {...} } }
         communities = data.data.communities;
         pagination = data.data.pagination || {};
         success = data.success !== false;
         limitOptions = data.data.limit_options || limitOptions;
       } else if (data.communities) {
-        // Format: { communities: [...], pagination: {...} }
         communities = data.communities;
         pagination = data.pagination || {};
         success = data.success !== false;
@@ -263,11 +242,9 @@ export async function getCommunities(params: CommunitiesParams = {}) {
       
       console.log('Extracted data:', { success, communities, pagination, limitOptions });
       
-      // Ensure communities is always an array
       const communitiesArray = Array.isArray(communities) ? communities : [];
       console.log('Communities array to normalize:', communitiesArray);
       
-      // Define a type for the community objects
       interface ApiCommunity {
         id?: string;
         name?: string;
@@ -306,7 +283,6 @@ export async function getCommunities(params: CommunitiesParams = {}) {
         };
       });
       
-      // Apply frontend filtering for is_approved if the parameter was provided
       let filteredCommunities = normalizedCommunities;
       console.log('is_approved parameter:', params.is_approved);
       
@@ -317,7 +293,6 @@ export async function getCommunities(params: CommunitiesParams = {}) {
         console.log('Filtered communities after is_approved check:', filteredCommunities);
       }
       
-      // Define a type for the pagination object
       interface ApiPagination {
         current_page?: number;
         page?: number;
@@ -332,7 +307,6 @@ export async function getCommunities(params: CommunitiesParams = {}) {
         [key: string]: any;
       }
       
-      // Cast pagination to the correct type
       const paginationData = pagination as ApiPagination;
       
       const paginationResult = {
@@ -386,7 +360,6 @@ export async function checkUserCommunityMembership(communityId) {
     const token = getAuthToken();
     
     if (!token) {
-      // If user is not logged in, they're definitely not a member
       return {
         success: true,
         status: 'none',
@@ -410,25 +383,20 @@ export async function checkUserCommunityMembership(communityId) {
       console.log(`Membership API response status: ${response.status}`);
 
       if (!response.ok) {
-        // Handle specific error codes
         if (response.status === 404) {
           return { success: true, status: 'none', is_member: false };
         } else if (response.status === 401 || response.status === 403) {
-          // Unauthorized or forbidden - user is not logged in or doesn't have access
           return { success: true, status: 'none', is_member: false };
         } else if (response.status >= 500) {
-          // Server error - don't throw, just return a default value
           console.warn(`Server error (${response.status}) checking membership for community ${communityId}`);
           return { success: true, status: 'none', is_member: false };
         }
         
-        // For other errors
         throw new Error(`Failed to check membership (${response.status})`);
       }
 
       const text = await response.text();
       
-      // Handle empty response
       if (!text || text.trim() === "") {
         return { success: true, status: 'none', is_member: false };
       }
@@ -437,9 +405,7 @@ export async function checkUserCommunityMembership(communityId) {
         const data = JSON.parse(text);
         console.log('Parsed membership data:', data);
         
-        // Handle different response formats
         if (data.data) {
-          // Format: { data: { status: '...', is_member: true|false } }
           const membershipData = data.data;
           
           if (membershipData.is_member === true || membershipData.status === 'member') {
@@ -463,7 +429,6 @@ export async function checkUserCommunityMembership(communityId) {
             };
           }
         } else {
-          // Direct format: { status: '...', is_member: true|false }
           if (data.is_member === true || data.status === 'member') {
             return {
               success: true,
@@ -480,7 +445,6 @@ export async function checkUserCommunityMembership(communityId) {
           }
         }
         
-        // Default to not a member
         return {
           success: true,
           status: 'none',
@@ -495,7 +459,6 @@ export async function checkUserCommunityMembership(communityId) {
         };
       }
     } catch (fetchError) {
-      // Handle network errors or other fetch issues gracefully
       console.warn(`Error fetching membership status: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
       return {
         success: true,
@@ -504,11 +467,9 @@ export async function checkUserCommunityMembership(communityId) {
       };
     }
   } catch (error) {
-    // This catch block may not be needed anymore since we're already catching fetch errors,
-    // but we'll keep it for any other unexpected errors
     logger.error('Check membership failed:', error);
     return {
-      success: true, // Return success true to prevent further error propagation
+      success: true,
       status: 'none',
       is_member: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -524,7 +485,6 @@ export async function createCommunity(data: Record<string, any>) {
       throw new Error('Authentication required');
     }
     
-    // Upload media files first if provided
     if (data.icon && data.icon instanceof File) {
       const logoUrl = await uploadCommunityLogo(data.icon, '');
       if (logoUrl) {
@@ -541,7 +501,6 @@ export async function createCommunity(data: Record<string, any>) {
       delete data.banner;
     }
     
-    // Now create the community with the uploaded media URLs
     const response = await fetch(`${API_BASE_URL}/communities`, {
       method: 'POST',
       headers: {
@@ -633,11 +592,9 @@ export async function getCommunityById(id: string) {
     console.log(`API response status: ${response.status}`);
 
     if (!response.ok) {
-      // Handle unauthorized access gracefully
       if (response.status === 401) {
         console.warn(`Unauthorized access to community ${id} - trying to fetch as public resource`);
         
-        // Try again without auth header as the endpoint should be public
         const publicResponse = await fetch(`${API_BASE_URL}/communities/${id}`, {
           method: 'GET',
           headers: {
@@ -755,7 +712,6 @@ export async function updateCommunity(id: string, data: Record<string, any>) {
       throw new Error('Authentication required');
     }
 
-    // Upload media files first if provided
     if (data.icon && data.icon instanceof File) {
       const logoUrl = await uploadCommunityLogo(data.icon, '');
       if (logoUrl) {
@@ -889,38 +845,33 @@ export async function listMembers(communityId: string) {
     
     const data = await response.json();
     console.log("Raw members data:", data);
-      // Extract members
     let members = data.members || [];
     
     if (members.length === 0) {
       console.log("No members found in response");
-      return data; // Return empty data as is
+      return data;
     }
     
     console.log(`Processing ${members.length} community members`);
     console.log("Sample member data from backend:", members[0]);
     
-    // The backend now returns enhanced user data, so we only need minimal fallback logic
     const processedMembers = members.map((member) => {
-      // If backend provided real user data, use it
       if (member.username && member.username !== 'user_' + member.user_id) {
         console.log(`Using backend user data for member ${member.user_id}: ${member.username}`);
         return {
           ...member,
-          // Ensure we have reasonable fallbacks only for missing fields
           name: member.name || member.username || 'Unknown User',
           avatar_url: member.avatar_url || member.profile_picture_url || ''
         };
       }
       
-      // Minimal fallback for cases where backend data is incomplete
       const shortId = member.user_id ? member.user_id.substring(0, 8) : 'unknown';
       return {
         ...member,
         username: member.username || `user_${shortId}`,
         name: member.name || `User ${shortId}`,
         avatar_url: member.avatar_url || member.profile_picture_url || '',
-        needs_enrichment: true // Flag to indicate this needs enrichment
+        needs_enrichment: true
       };
     });
     
@@ -1090,38 +1041,33 @@ export async function listJoinRequests(communityId: string) {
     
     const data = await response.json();
     console.log("Raw join requests data:", data);
-      // Extract join requests
     let joinRequests = data.join_requests || [];
     
     if (joinRequests.length === 0) {
       console.log("No join requests found in response");
-      return data; // Return empty data as is
+      return data;
     }
     
     console.log(`Processing ${joinRequests.length} join requests`);
     console.log("Sample join request data from backend:", joinRequests[0]);
     
-    // The backend now returns enhanced user data, so we only need minimal fallback logic
     const processedRequests = joinRequests.map((request) => {
-      // If backend provided real user data, use it
       if (request.username && request.username !== 'user_' + request.user_id) {
         console.log(`Using backend user data for join request ${request.user_id}: ${request.username}`);
         return {
           ...request,
-          // Ensure we have reasonable fallbacks only for missing fields
           name: request.name || request.username || 'Unknown User',
           avatar_url: request.avatar_url || request.profile_picture_url || ''
         };
       }
       
-      // Minimal fallback for cases where backend data is incomplete
       const shortId = request.user_id ? request.user_id.substring(0, 8) : 'unknown';
       return {
         ...request,
         username: request.username || `user_${shortId}`,
         name: request.name || `User ${shortId}`,
         avatar_url: request.avatar_url || request.profile_picture_url || '',
-        needs_enrichment: true // Flag to indicate this needs enrichment
+        needs_enrichment: true
       };
     });
     
@@ -1184,20 +1130,16 @@ export async function searchCommunities(
   try {
     logger.info(`Searching communities with query: ${query}, page: ${page}, limit: ${limit}, options:`, options);
     
-    // Clean up the query string
     const cleanQuery = query ? query.trim() : '';
     
-    // Set up params for API call
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
     
-    // Add search query if provided
     if (cleanQuery) {
       params.append('q', cleanQuery);
     }
     
-    // Add any filter options passed in
     if (options && typeof options === 'object') {
       Object.entries(options).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -1208,7 +1150,6 @@ export async function searchCommunities(
     
     logger.debug(`Search params: ${params.toString()}`);
     
-    // Use the communities search endpoint
     const response = await fetch(`${API_BASE_URL}/communities/search?${params.toString()}`, {
       method: 'GET',
       headers: {
@@ -1223,11 +1164,9 @@ export async function searchCommunities(
       return getEmptyCommunityResult(page, limit);
     }
     
-    // Parse the response
     const data = await response.json();
     logger.debug('Communities search API response:', data);
     
-    // Get communities from response
     let communities = [];
     let totalCount = 0;
     
@@ -1257,24 +1196,19 @@ export async function searchCommunities(
   }
 }
 
-// Helper function to handle community response 
 async function handleCommunityResponse(response: Response, page: number, limit: number) {
   try {
-    // Handle empty response gracefully
     const text = await response.text();
     if (!text || text.trim() === "") {
       logger.warn("Communities endpoint returned empty response");
       return getEmptyCommunityResult(page, limit);
     }
     
-    // Parse the response data
     const data = JSON.parse(text);
     
-    // Extract communities from API response
     let communities = [];
     let totalCount = 0;
     
-    // Handle different response formats
     if (data.data && data.data.communities) {
       communities = data.data.communities || [];
       totalCount = data.data.pagination?.total_count || 0;
@@ -1283,7 +1217,6 @@ async function handleCommunityResponse(response: Response, page: number, limit: 
       totalCount = data.total_count || 0;
     }
     
-    // Format response to match expected structure
     return {
       communities: communities,
       total_count: totalCount,
@@ -1300,7 +1233,6 @@ async function handleCommunityResponse(response: Response, page: number, limit: 
   }
 }
 
-// Helper function to get an empty community search result
 function getEmptyCommunityResult(page: number, limit: number) {
   return {
     communities: [],
@@ -1314,12 +1246,10 @@ function getEmptyCommunityResult(page: number, limit: number) {
   };
 }
 
-// Get communities the user has joined
 export async function getJoinedCommunities(userId: string, params: CommunitiesParams = {}) {
   try {
     console.log(`Getting communities joined by user: ${userId}`);
 
-    // Build query parameters
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (Array.isArray(value)) {
@@ -1329,7 +1259,6 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
       }
     });
 
-    // Add retry logic
     let attempts = 0;
     const maxAttempts = 2;
     let response;
@@ -1353,7 +1282,7 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
         attempts++;
         
         if (attempts < maxAttempts) {
-          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retrying
+          await new Promise(r => setTimeout(r, 1000));
         }
       } catch (err) {
         logger.error('Network error in getJoinedCommunities:', err);
@@ -1365,12 +1294,10 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
       }
     }
 
-    // If we got a valid response
     if (response && response.ok) {
       const result = await response.json();
       console.log('Joined communities raw response:', result);
       
-      // Handle the new direct response format
       return {
         success: true,
         communities: result.communities || [],
@@ -1381,7 +1308,6 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
       };
     }
 
-    // Last resort: return a valid empty response
     return {
       success: true,
       communities: [],
@@ -1402,12 +1328,10 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
   }
 }
 
-// Get communities the user has pending join requests for
 export async function getPendingCommunities(userId: string, params: CommunitiesParams = {}) {
   try {
     console.log(`Getting communities with pending requests by user: ${userId}`);
 
-    // Build query parameters
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (Array.isArray(value)) {
@@ -1417,7 +1341,6 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
       }
     });
 
-    // Add retry logic
     let attempts = 0;
     const maxAttempts = 3;
     let response;
@@ -1441,7 +1364,7 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
         attempts++;
         
         if (attempts < maxAttempts) {
-          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retrying
+          await new Promise(r => setTimeout(r, 1000));
         }
       } catch (err) {
         logger.error('Network error in getPendingCommunities:', err);
@@ -1453,12 +1376,10 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
       }
     }
 
-    // If we got a valid response
     if (response && response.ok) {
       const result = await response.json();
       console.log('Pending communities raw response:', result);
       
-      // Handle the new direct response format
       return {
         success: true,
         communities: result.communities || [],
@@ -1469,7 +1390,6 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
       };
     }
 
-    // Last resort: return a valid empty response
     return {
       success: true,
       communities: [],
@@ -1490,16 +1410,14 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
   }
 }
 
-// Get communities the user hasn't joined or requested to join
 export async function getDiscoverCommunities(userId: string, params: CommunitiesParams = {}) {
   try {
-    console.log(`Getting discover communities for user: ${userId}`);    // Ensure we only get non-approved communities (for admin review)
+    console.log(`Getting discover communities for user: ${userId}`);
     const paramsWithApproval = {
       ...params,
       is_approved: false
     };
 
-    // Build query parameters
     const queryParams = new URLSearchParams();
     Object.entries(paramsWithApproval).forEach(([key, value]) => {
       if (Array.isArray(value)) {
@@ -1509,7 +1427,6 @@ export async function getDiscoverCommunities(userId: string, params: Communities
       }
     });
 
-    // Add retry logic
     let attempts = 0;
     const maxAttempts = 2;
     let response;
@@ -1533,7 +1450,7 @@ export async function getDiscoverCommunities(userId: string, params: Communities
         attempts++;
         
         if (attempts < maxAttempts) {
-          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retrying
+          await new Promise(r => setTimeout(r, 1000));
         }
       } catch (err) {
         logger.error('Network error in getDiscoverCommunities:', err);
@@ -1545,12 +1462,10 @@ export async function getDiscoverCommunities(userId: string, params: Communities
       }
     }
 
-    // If we got a valid response
     if (response && response.ok) {
       const result = await response.json();
       console.log('Discover communities raw response:', result);
       
-      // Handle the new direct response format
       return {
         success: true,
         communities: result.communities || [],
@@ -1561,7 +1476,6 @@ export async function getDiscoverCommunities(userId: string, params: Communities
       };
     }
 
-    // Last resort: return a valid empty response
     return {
       success: true,
       communities: [],

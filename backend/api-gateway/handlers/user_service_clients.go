@@ -436,8 +436,7 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
 
-	// Request a larger number of users to have enough for fuzzy matching
-	// We'll apply fuzzy matching and pagination on our side
+	// Send the search query as-is to the user service
 	req := &userProto.SearchUsersRequest{
 		Query: query,
 		Page:  1,   // Get first page with larger limit
@@ -450,6 +449,9 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 		return nil, 0, err
 	}
 
+	// Log the number of users returned by the user service
+	log.Printf("User service returned %d users for query '%s'", len(resp.GetUsers()), query)
+
 	allUsers := make([]*User, 0)
 
 	// If query is empty, just use the server's results
@@ -461,11 +463,13 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 			}
 		}
 	} else {
-		// Apply Damerau-Levenshtein fuzzy matching
+		// Apply Damerau-Levenshtein fuzzy matching on top of the results
+		// This adds an extra layer of filtering
 		queryLower := strings.ToLower(query)
 
 		// Define fuzzy matching threshold (0.0 to 1.0, where 1.0 is exact match)
-		const similarityThreshold = 0.6
+		// Using a much lower threshold to catch more potential matches
+		const similarityThreshold = 0.3
 
 		for _, protoUser := range resp.GetUsers() {
 			user := convertProtoToUser(protoUser)
@@ -473,17 +477,31 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 				continue
 			}
 
-			// Check username
-			usernameMatch := utils.IsFuzzyMatch(strings.ToLower(user.Username), queryLower, similarityThreshold)
+			// Check username with fuzzy matching
+			usernameScore := utils.DamerauLevenshteinSimilarity(strings.ToLower(user.Username), queryLower)
+			usernameMatch := usernameScore >= similarityThreshold
 
-			// Check display name/real name
-			nameMatch := utils.IsFuzzyMatch(strings.ToLower(user.Name), queryLower, similarityThreshold)
+			// Also check for direct substring match
+			usernameContains := strings.Contains(strings.ToLower(user.Username), queryLower)
+
+			// Check display name/real name with fuzzy matching
+			nameScore := utils.DamerauLevenshteinSimilarity(strings.ToLower(user.Name), queryLower)
+			nameMatch := nameScore >= similarityThreshold
+
+			// Also check for direct substring match in name
+			nameContains := strings.Contains(strings.ToLower(user.Name), queryLower)
 
 			// Check email (partial match is enough)
 			emailMatch := strings.Contains(strings.ToLower(user.Email), queryLower)
 
+			// Log the fuzzy match scores for debugging
+			log.Printf("Fuzzy match for user '%s': username=%.2f (match=%v), name=%.2f (match=%v), query='%s', direct contains=%v",
+				user.Username, usernameScore, usernameMatch, nameScore, nameMatch, queryLower, usernameContains || nameContains)
+
 			// Include user if any field matches
-			if usernameMatch || nameMatch || emailMatch {
+			if usernameMatch || nameMatch || emailMatch || usernameContains || nameContains {
+				log.Printf("---> MATCHED user '%s' with query '%s' (username=%.2f, name=%.2f, direct contains=%v)",
+					user.Username, queryLower, usernameScore, nameScore, usernameContains || nameContains)
 				allUsers = append(allUsers, user)
 			}
 		}

@@ -128,10 +128,9 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // Increase timeout to 15 seconds
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      // Log request info
       console.log(`Making API request to ${API_BASE_URL}/users/${userId}/follow with Auth token: ${token.substring(0, 10)}...`);
       
       const response = await fetch(`${API_BASE_URL}/users/${userId}/follow`, {
@@ -140,7 +139,7 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        credentials: 'include', // Include credentials for CORS
+        credentials: 'include',
         signal: controller.signal
       });
 
@@ -164,7 +163,6 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
 
       console.log('Follow API parsed response:', responseData);
 
-      // Handle successful non-JSON responses
       if (responseText.trim() === 'OK' || responseText.trim() === 'Success') {
         return {
           success: true,
@@ -174,13 +172,11 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
         };
       }
 
-      // Extract data from the correct response structure
       const dataObj = responseData.data || responseData;
 
       if (!response.ok) {
         console.error(`Failed to follow user: ${response.status}`, responseData);
         
-        // Check if we're getting a success indicator deeply nested
         if (dataObj && typeof dataObj === 'object') {
           if (dataObj.is_now_following === true) {
             return {
@@ -211,7 +207,7 @@ export async function followUser(userId: string): Promise<FollowUserResponse> {
       return standardizedResponse;
     } catch (fetchError) {
       clearTimeout(timeoutId);
-      throw fetchError; // Re-throw to be caught by the outer try/catch
+      throw fetchError;
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -250,10 +246,9 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // Increase timeout to 15 seconds
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      // Log request info
       console.log(`Making API request to ${API_BASE_URL}/users/${userId}/unfollow with Auth token: ${token.substring(0, 10)}...`);
       
       const response = await fetch(`${API_BASE_URL}/users/${userId}/unfollow`, {
@@ -262,7 +257,7 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        credentials: 'include', // Include credentials for CORS
+        credentials: 'include',
         signal: controller.signal
       });
 
@@ -286,7 +281,6 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
 
       console.log('Unfollow API parsed response:', responseData);
 
-      // Handle successful non-JSON responses
       if (responseText.trim() === 'OK' || responseText.trim() === 'Success') {
         return {
           success: true,
@@ -296,13 +290,11 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
         };
       }
 
-      // Extract data from the correct response structure
       const dataObj = responseData.data || responseData;
 
       if (!response.ok) {
         console.error(`Failed to unfollow user: ${response.status}`, responseData);
         
-        // Check if we're getting a success indicator deeply nested
         if (dataObj && typeof dataObj === 'object') {
           if (dataObj.is_now_following === false) {
             return {
@@ -333,7 +325,7 @@ export async function unfollowUser(userId: string): Promise<UnfollowUserResponse
       return standardizedResponse;
     } catch (fetchError) {
       clearTimeout(timeoutId);
-      throw fetchError; // Re-throw to be caught by the outer try/catch
+      throw fetchError;
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -653,13 +645,11 @@ export async function checkFollowStatus(userId: string): Promise<boolean> {
       return false;
     }
 
-    // Validate the user ID format or convert username to ID if needed
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
       console.log(`User ID ${userId} is not a valid UUID format, attempting to resolve username`);
       const userData = await getUserByUsername(userId);
       if (userData?.data?.user?.id) {
         console.log(`Resolved username ${userId} to user ID ${userData.data.user.id}`);
-        // If we got user data that includes follow status, use it directly
         if (userData.data.user.is_following !== undefined) {
           console.log(`Found follow status in user data: ${userData.data.user.is_following}`);
           return userData.data.user.is_following === true;
@@ -673,9 +663,8 @@ export async function checkFollowStatus(userId: string): Promise<boolean> {
     
     console.log(`Making follow-status API request with token: ${token.substring(0, 10)}...`);
     
-    // Set a timeout for the request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     
     try {
       const response = await fetch(`${API_BASE_URL}/users/${userId}/follow-status`, {
@@ -684,7 +673,7 @@ export async function checkFollowStatus(userId: string): Promise<boolean> {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        credentials: 'include', // Include credentials for CORS
+        credentials: 'include',
         signal: controller.signal
       });
       
@@ -698,7 +687,6 @@ export async function checkFollowStatus(userId: string): Promise<boolean> {
       const responseText = await response.text();
       console.log(`Follow status API raw response: ${responseText}`);
       
-      // Handle non-JSON responses
       if (responseText.trim() === 'true' || responseText.trim() === 'yes' || responseText.trim() === '1') {
         return true;
       }
@@ -716,7 +704,6 @@ export async function checkFollowStatus(userId: string): Promise<boolean> {
         return false;
       }
       
-      // Try multiple paths where the data might be located
       if (data?.is_following !== undefined) {
         return data.is_following === true;
       } else if (data?.data?.is_following !== undefined) {
@@ -842,7 +829,6 @@ export async function getAllUsers(
 
     const data = await response.json();
     
-    // Process the response to ensure consistent structure
     return {
       success: true,
       users: data.users || [],
@@ -875,7 +861,6 @@ export async function searchUsers(
     
     console.log('searchUsers called with query:', query, 'page:', page, 'limit:', limit, 'options:', options);
 
-    // Validate and truncate search query if too long
     const MAX_QUERY_LENGTH = 30;
     let validatedQuery = query || '';
     if (validatedQuery.length > MAX_QUERY_LENGTH) {
@@ -883,31 +868,24 @@ export async function searchUsers(
       validatedQuery = validatedQuery.substring(0, MAX_QUERY_LENGTH);
     }
     
-    // If query is empty but we need to search, use a single space character
-    // This works around backend validation requiring a query
     if (!validatedQuery || validatedQuery.trim() === '') {
       validatedQuery = " ";
       console.log('Using space character as query placeholder for empty search');
     }
 
-    // Function to make a search request with or without auth
     const makeSearchRequest = async (withAuth: boolean) => {
-      // Set up query parameters
       const params = new URLSearchParams();
       
-      // Always set query and filter parameters
       params.append('query', validatedQuery);
       params.append('page', page.toString());
       params.append('limit', limit.toString());
   
-      // Extract filter from options or use default
       let filter = 'all';
       if (options && options.filter) {
         filter = options.filter;
       }
       params.append('filter', filter);
       
-      // Add remaining options as query parameters
       if (options) {
         Object.keys(options).forEach(key => {
           if (key !== 'filter' && options[key] !== undefined) {
@@ -934,18 +912,15 @@ export async function searchUsers(
       });
     };
 
-    // First try with authentication if we have a token
     let response = await makeSearchRequest(!!token);
     console.log('Search response status:', response.status);
     
-    // If we get a 401 error and tried with auth, retry without auth
     if (response.status === 401 && token) {
       console.log('Search API returned 401, retrying without authentication');
       response = await makeSearchRequest(false);
     }
 
     if (!response.ok) {
-      // For certain error codes, return empty results instead of throwing
       if (response.status === 401 || response.status === 403 || response.status === 400) {
         const errorText = await response.text();
         console.warn(`Search users returned ${response.status}: ${errorText}`);
@@ -958,11 +933,9 @@ export async function searchUsers(
       throw new Error(`Search users failed (${response.status})`);
     }
 
-    // Parse the response JSON
-    const responseText = await response.text(); // Get raw text first for inspection
+    const responseText = await response.text();
     console.log('Search results raw text:', responseText);
     
-    // Try to parse the JSON
     let responseJson;
     try {
       responseJson = JSON.parse(responseText);
@@ -977,12 +950,9 @@ export async function searchUsers(
       };
     }
     
-    // The API response structure is { "data": { "users": [...], "pagination": {...} }, "success": true }
-    // We need to properly unwrap this structure
     const data = responseJson.data || responseJson;
     console.log('Search results unwrapped data:', data);
     
-    // Extract users array and pagination info
     const users = data.users || [];
     const pagination = data.pagination || {};
     const totalCount = pagination.total_count || 0;
@@ -991,7 +961,6 @@ export async function searchUsers(
     console.log('Parsed pagination:', pagination);
     console.log('User count:', users.length);
     
-    // If we got users, log the first one to see its structure
     if (users.length > 0) {
       console.log('First user structure:', users[0]);
     }
@@ -1005,7 +974,6 @@ export async function searchUsers(
     };
   } catch (error) {
     console.error('Search users failed:', error);
-    // Always return a valid response object even when an error occurs
     return {
       success: false,
       users: [],

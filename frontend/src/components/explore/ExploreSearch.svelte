@@ -91,14 +91,14 @@
     
     <input 
       type="text" 
-      placeholder="Search (typo-friendly)" 
+      placeholder="Search with Fuzzy Matching (typo-friendly)" 
       value={searchQuery}
       on:input={handleSearchInput}
       on:focus={handleFocus}
       on:keydown={handleKeydown}
       class="search-input {isDarkMode ? 'search-input-dark' : ''}"
-      aria-label="Search with typo tolerance"
-      title="Search with fuzzy matching - tolerates misspellings"
+      aria-label="Fuzzy search with Damerau-Levenshtein distance (0.3 threshold)"
+      title="Search using Damerau-Levenshtein fuzzy matching - tolerates misspellings (now with 0.3 threshold)"
     />
     
     {#if searchQuery}

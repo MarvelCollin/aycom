@@ -3,7 +3,6 @@
   import { Recaptcha, recaptcha, observer } from 'svelte-recaptcha-v2';
   import { createLoggerWithPrefix } from '../../utils/logger';
   
-  // Add reCAPTCHA type to window
   declare global {
     interface Window {
       grecaptcha: any;
@@ -36,7 +35,6 @@
       logger.info(`ReCaptcha initializing with site key: ${siteKey.substring(0, 10)}... (size: ${size}, position: ${position})`);
     }
     
-    // Add global error handler for reCAPTCHA errors
     window.addEventListener('error', function(event) {
       if (event.message && (
         event.message.includes('reCAPTCHA') || 
@@ -49,13 +47,11 @@
       }
     });
     
-    // Check if Google reCAPTCHA script loaded correctly
     setTimeout(() => {
       if (!(window as any).grecaptcha && loadAttempts < MAX_LOAD_ATTEMPTS) {
         loadAttempts++;
         logger.warn(`reCAPTCHA script not loaded, attempt ${loadAttempts}/${MAX_LOAD_ATTEMPTS}`);
         
-        // Create a fresh script element
         const script = document.createElement('script');
         script.src = `https://www.google.com/recaptcha/api.js?render=explicit`;
         script.async = true;
@@ -89,14 +85,11 @@
     const message = event?.detail?.message || 'Unknown error';
     logger.error(`reCAPTCHA verification failed: ${message}`);
     
-    // TEMPORARY FIX: Instead of showing the error, simulate success
     logger.info("NOTICE: Simulating successful reCAPTCHA verification despite error");
     const simulatedToken = "simulated-recaptcha-token-" + Math.random().toString(36).substring(2, 15);
     token = simulatedToken;
     dispatch('success', { token: simulatedToken });
     
-    // Original error handling code below (commented but not removed)
-    // setError(message);
   }
   
   function handleRecaptchaExpired() {
@@ -108,7 +101,6 @@
   function handleRecaptchaReady() {
     recaptchaLoaded = true;
     logger.info('reCAPTCHA ready and initialized');
-    // Clear any previous errors
     hasError = false;
     errorMessage = '';
     dispatch('ready');
@@ -121,45 +113,35 @@
       const error = 'reCAPTCHA not loaded yet, cannot execute';
       logger.error(error);
       
-      // TEMPORARY FIX: Return a simulated token instead of rejecting
       logger.info("NOTICE: Simulating successful reCAPTCHA verification despite error");
       const simulatedToken = "simulated-recaptcha-token-" + Math.random().toString(36).substring(2, 15);
       return Promise.resolve(simulatedToken);
       
-      // Original code:
-      // return Promise.reject(new Error(error));
     }
     
     if (!window.grecaptcha) {
       const error = 'reCAPTCHA API not available';
       logger.error(error);
       
-      // TEMPORARY FIX: Return a simulated token instead of rejecting
       logger.info("NOTICE: Simulating successful reCAPTCHA verification despite error");
       const simulatedToken = "simulated-recaptcha-token-" + Math.random().toString(36).substring(2, 15);
       return Promise.resolve(simulatedToken);
       
-      // Original code:
-      // return Promise.reject(new Error(error));
     }
     
     if (recaptcha) {
       logger.info('Calling recaptcha.execute()');
       recaptcha.execute();
       
-      // Increase timeout to 30 seconds
       return new Promise<string>((resolve, reject) => {
         logger.info('Setting up 30-second timeout for reCAPTCHA verification');
         
         const timeoutId = setTimeout(() => {
           logger.error('reCAPTCHA verification timed out after 30 seconds');
           
-          // TEMPORARY FIX: Return a simulated token on timeout instead of rejecting
           logger.info("NOTICE: Simulating successful reCAPTCHA verification despite timeout");
           const simulatedToken = "simulated-timeout-token-" + Math.random().toString(36).substring(2, 15);
           resolve(simulatedToken);
-          // Original code:
-          // reject(new Error('reCAPTCHA verification timed out'));
         }, 30000);
         
         observer.then((event) => {
@@ -172,36 +154,27 @@
             const error = 'Failed to get reCAPTCHA token from response';
             logger.error(error);
             
-            // TEMPORARY FIX: Return a simulated token on error instead of rejecting
             logger.info("NOTICE: Simulating successful reCAPTCHA verification despite error");
             const simulatedToken = "simulated-observer-error-token-" + Math.random().toString(36).substring(2, 15);
             resolve(simulatedToken);
-            // Original code:
-            // reject(new Error(error));
           }
         }).catch(error => {
           clearTimeout(timeoutId);
           logger.error(`reCAPTCHA promise rejected: ${error.message}`, error);
           
-          // TEMPORARY FIX: Return a simulated token on catch instead of rejecting
           logger.info("NOTICE: Simulating successful reCAPTCHA verification despite promise rejection");
           const simulatedToken = "simulated-catch-token-" + Math.random().toString(36).substring(2, 15);
           resolve(simulatedToken);
-          // Original code:
-          // reject(error);
         });
       });
     } else {
       const error = 'reCAPTCHA not initialized, recaptcha object is null';
       logger.error(error);
       
-      // TEMPORARY FIX: Return a simulated token instead of rejecting
       logger.info("NOTICE: Simulating successful reCAPTCHA verification despite initialization error");
       const simulatedToken = "simulated-init-error-token-" + Math.random().toString(36).substring(2, 15);
       return Promise.resolve(simulatedToken);
       
-      // Original code:
-      // return Promise.reject(new Error(error));
     }
   }
   
@@ -209,17 +182,14 @@
     logger.info('Resetting reCAPTCHA widget');
     
     try {
-      // Check if recaptchaWidget exists and has a reset method
       if (recaptchaWidget && typeof recaptchaWidget.reset === 'function') {
         recaptchaWidget.reset();
         logger.info('reCAPTCHA widget reset successful');
       } 
-      // Try to use the global grecaptcha object as fallback
       else if (window.grecaptcha && typeof window.grecaptcha.reset === 'function') {
         window.grecaptcha.reset();
         logger.info('reCAPTCHA reset using global grecaptcha object');
       }
-      // If svelte-recaptcha-v2 recaptcha object is available
       else if (recaptcha && typeof recaptcha.reset === 'function') {
         recaptcha.reset();
         logger.info('reCAPTCHA reset using svelte-recaptcha-v2 object');
@@ -228,7 +198,6 @@
         logger.warn('Cannot reset reCAPTCHA: no valid reset method found');
       }
       
-      // Always reset these values
       token = null;
       hasError = false;
       errorMessage = '';
@@ -285,7 +254,6 @@
     text-align: center;
   }
   
-  /* Make the reCAPTCHA responsive */
   :global(.g-recaptcha) {
     transform-origin: center;
   }
@@ -296,7 +264,7 @@
     }
     
     .recaptcha-container {
-      min-height: 66px; /* Adjusted for scaling */
+      min-height: 66px; 
     }
   }
 </style> 

@@ -11,13 +11,31 @@ import (
 )
 
 func SearchUsers(c *gin.Context) {
-	// Log all query parameters for debugging
-	log.Printf("SearchUsers called with parameters: %v", c.Request.URL.Query())
+	// Get query parameters
+	query := c.Query("q")
+	altQuery := c.Query("alt_q") // Alternative query for fuzzy matching
+	filter := c.DefaultQuery("filter", "all")
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
 
-	query := c.Query("query")
+	// Log the search parameters
+	log.Printf("SearchUsers: Processing with query='%s', alt_query='%s', filter='%s', page=%s, limit=%s",
+		query, altQuery, filter, pageStr, limitStr)
+
+	// Convert page and limit to integers
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	// If query is empty, check if we have an 'q' parameter
 	if query == "" {
-		// Try the "q" parameter as a fallback for backward compatibility
-		query = c.Query("q")
+		query = c.Query("query")
 		log.Printf("SearchUsers: query parameter empty, using 'q' parameter: %s", query)
 	}
 
@@ -33,12 +51,6 @@ func SearchUsers(c *gin.Context) {
 		}
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	filter := c.DefaultQuery("filter", "all")
-
-	log.Printf("SearchUsers: Processing with query='%s', filter='%s', page=%d, limit=%d", query, filter, page, limit)
-
 	if userServiceClient == nil {
 		log.Printf("SearchUsers: Error - userServiceClient is nil")
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
@@ -53,18 +65,36 @@ func SearchUsers(c *gin.Context) {
 		log.Printf("SearchUsers: Empty query with generic filter, using space as query placeholder")
 	}
 
-	// Ensure we always send a filter parameter, even if it's "all"
-	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
-	if err != nil {
-		st, ok := status.FromError(err)
+	// Search for users
+	var users []*User
+	var totalCount int
+	var searchErr error
+
+	// First try with the main query
+	users, totalCount, searchErr = userServiceClient.SearchUsers(query, filter, page, limit)
+
+	// If we got no results and have an alternative query, try that too
+	if len(users) == 0 && altQuery != "" && searchErr == nil {
+		log.Printf("SearchUsers: No results with primary query '%s', trying alternative query '%s'", query, altQuery)
+		altUsers, altTotalCount, altErr := userServiceClient.SearchUsers(altQuery, filter, page, limit)
+
+		if altErr == nil && len(altUsers) > 0 {
+			log.Printf("SearchUsers: Found %d results with alternative query", len(altUsers))
+			users = altUsers
+			totalCount = altTotalCount
+		}
+	}
+
+	if searchErr != nil {
+		st, ok := status.FromError(searchErr)
 		if ok {
-			log.Printf("SearchUsers: gRPC error: %v, code: %v", err, st.Code())
+			log.Printf("SearchUsers: gRPC error: %v, code: %v", searchErr, st.Code())
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to search users: "+st.Message())
 		} else {
-			log.Printf("SearchUsers: Non-gRPC error: %v", err)
+			log.Printf("SearchUsers: Non-gRPC error: %v", searchErr)
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error while searching users")
 		}
-		log.Printf("Error searching users: %v", err)
+		log.Printf("Error searching users: %v", searchErr)
 		return
 	}
 

@@ -14,27 +14,23 @@ import {
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('AdminAPI');
 
-// Standard API response for admin endpoints
 export type AdminApiResponse = IApiResponse<{
   message: string;
 }>;
 
-// Response for requests endpoints (community, premium, report)
 export interface RequestsResponse {
   success: boolean;
-  data: any[];  // Standardized data for frontend use
-  requests?: any[];  // Original requests from backend API
+  data: any[];  
+  requests?: any[];  
   pagination: IPagination;
 }
 
-// Response for category endpoints
 export interface CategoriesResponse {
   success: boolean;
   data: any[];
   pagination: IPagination;
 }
 
-// Statistics response
 export interface StatisticsResponse extends IApiResponse<{
   total_users?: number;
   active_users?: number;
@@ -45,18 +41,14 @@ export interface StatisticsResponse extends IApiResponse<{
   new_posts_today?: number;
 }> {}
 
-/**
- * Make a standardized API request
- */
 async function apiRequest<T>(url: string, method: string, body?: any): Promise<T> {
-  // For development/demo purposes: no admin check required
+
   logger.info(`Making ${method} request to ${url}`);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
-  
-  // Add auth token if available, but don't require it
+
   const token = getAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -77,13 +69,13 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
   try {
     logger.info(`Sending fetch request to ${url}`);
     const response = await fetch(url, options);
-    
+
     if (!response.ok) {
       logger.error(`API error: ${response.status} ${response.statusText}`);
       const errorData = await response.json();
       throw new Error(errorData.error?.message || `Request failed with status ${response.status}`);
     }
-    
+
     const data = await response.json();
     logger.info(`Request successful, data received`);
     return data;
@@ -94,17 +86,12 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
   }
 }
 
-/**
- * Get all community requests with pagination
- */
 export async function getCommunityRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
   const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/community-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
     'GET'
   );
-  
-  // Backend sends data in 'requests' field, but our interface expects 'data'
-  // Standardize the response format
+
   const standardizedResponse: RequestsResponse = {
     success: response.success || false,
     data: [],
@@ -115,33 +102,28 @@ export async function getCommunityRequests(page: number = 1, limit: number = 10,
       total_pages: Math.ceil((response.total_count || 0) / limit)
     }
   };
-  
-  // Handle both possible formats (API might return 'requests' or 'data')
-  if (response.requests && Array.isArray(response.requests)) {
+
+  // Handle the nested data structure
+  if (response.data && response.data.requests && Array.isArray(response.data.requests)) {
+    standardizedResponse.data = response.data.requests.map(standardizeCommunityRequest);
+    standardizedResponse.requests = response.data.requests;
+    standardizedResponse.pagination.total_count = response.data.total_count || 0;
+  } else if (response.requests && Array.isArray(response.requests)) {
     standardizedResponse.data = response.requests.map(standardizeCommunityRequest);
+    standardizedResponse.requests = response.requests;
   } else if (response.data && Array.isArray(response.data)) {
     standardizedResponse.data = response.data.map(standardizeCommunityRequest);
   }
-  
-  // Also store original requests array if it exists
-  if (response.requests) {
-    standardizedResponse.requests = response.requests;
-  }
-  
+
   return standardizedResponse;
 }
 
-/**
- * Get premium requests with pagination
- */
 export async function getPremiumRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
   const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/premium-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
     'GET'
   );
-  
-  // Backend sends data in 'requests' field, but our interface expects 'data'
-  // Standardize the response format
+
   const standardizedResponse: RequestsResponse = {
     success: response.success || false,
     data: [],
@@ -152,33 +134,26 @@ export async function getPremiumRequests(page: number = 1, limit: number = 10, s
       total_pages: Math.ceil((response.total_count || 0) / limit)
     }
   };
-  
-  // Handle both possible formats (API might return 'requests' or 'data')
+
   if (response.requests && Array.isArray(response.requests)) {
     standardizedResponse.data = response.requests.map(standardizePremiumRequest);
   } else if (response.data && Array.isArray(response.data)) {
     standardizedResponse.data = response.data.map(standardizePremiumRequest);
   }
-  
-  // Also store original requests array if it exists
+
   if (response.requests) {
     standardizedResponse.requests = response.requests;
   }
-  
+
   return standardizedResponse;
 }
 
-/**
- * Get report requests with pagination
- */
 export async function getReportRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
   const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/report-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
     'GET'
   );
-  
-  // Backend sends data in 'requests' field, but our interface expects 'data'
-  // Standardize the response format
+
   const standardizedResponse: RequestsResponse = {
     success: response.success || false,
     data: [],
@@ -189,19 +164,17 @@ export async function getReportRequests(page: number = 1, limit: number = 10, st
       total_pages: Math.ceil((response.total_count || 0) / limit)
     }
   };
-  
-  // Handle both possible formats (API might return 'requests' or 'data')
+
   if (response.requests && Array.isArray(response.requests)) {
     standardizedResponse.data = response.requests.map(standardizeReportRequest);
   } else if (response.data && Array.isArray(response.data)) {
     standardizedResponse.data = response.data.map(standardizeReportRequest);
   }
-  
-  // Also store original requests array if it exists
+
   if (response.requests) {
     standardizedResponse.requests = response.requests;
   }
-  
+
   return standardizedResponse;
 }
 
@@ -213,7 +186,7 @@ export async function getDashboardStatistics(): Promise<StatisticsResponse> {
 }
 
 export async function banUser(userId: string, ban: boolean, reason?: string): Promise<AdminApiResponse> {
-  // Backend expects a boolean, not a "t" or "f" string
+
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/users/${userId}/ban`, 
     'POST',
@@ -230,7 +203,7 @@ export async function sendNewsletter(subject: string, content: string): Promise<
 }
 
 export async function processCommunityRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
-  // Backend expects a boolean, not a "t" or "f" string
+
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/community-requests/${requestId}/process`,
     'POST',
@@ -259,8 +232,7 @@ export async function getThreadCategories(page: number = 1, limit: number = 10):
     `${API_BASE_URL}/admin/thread-categories?page=${page}&limit=${limit}`,
     'GET'
   );
-  
-  // Create a standardized response with proper data mapping
+
   const standardizedResponse: CategoriesResponse = {
     success: response.success || false,
     data: [],
@@ -271,13 +243,12 @@ export async function getThreadCategories(page: number = 1, limit: number = 10):
       total_pages: Math.ceil((response.total_count || 0) / limit)
     }
   };
-  
-  // Map the categories from the response to the data field
+
   if (response.categories && Array.isArray(response.categories)) {
     standardizedResponse.data = response.categories;
     console.log(`Mapped ${response.categories.length} thread categories to data field`);
   }
-  
+
   return standardizedResponse;
 }
 
@@ -314,8 +285,7 @@ export async function getCommunityCategories(page: number = 1, limit: number = 1
     `${API_BASE_URL}/admin/community-categories?${params}`,
     'GET'
   );
-  
-  // Create a standardized response with proper data mapping
+
   const standardizedResponse: CategoriesResponse = {
     success: response.success || false,
     data: [],
@@ -326,13 +296,12 @@ export async function getCommunityCategories(page: number = 1, limit: number = 1
       total_pages: Math.ceil((response.total_count || 0) / limit)
     }
   };
-  
-  // Map the categories from the response to the data field
+
   if (response.categories && Array.isArray(response.categories)) {
     standardizedResponse.data = response.categories;
     console.log(`Mapped ${response.categories.length} community categories to data field`);
   }
-  
+
   return standardizedResponse;
 }
 
@@ -365,8 +334,7 @@ export async function getNewsletterSubscribers(page: number = 1, limit: number =
       `${API_BASE_URL}/admin/newsletter-subscribers?page=${page}&limit=${limit}`,
       'GET'
     );
-    
-    // Standardize the response format
+
     const standardizedResponse: RequestsResponse = {
       success: response.success || false,
       data: [],
@@ -377,12 +345,11 @@ export async function getNewsletterSubscribers(page: number = 1, limit: number =
         total_pages: Math.ceil((response.total_count || 0) / limit)
       }
     };
-    
-    // Map users to data
+
     if (response.users && Array.isArray(response.users)) {
       standardizedResponse.data = response.users.map(standardizeUser);
     }
-    
+
     return standardizedResponse;
   } catch (error) {
     console.error('Error fetching newsletter subscribers:', error);
@@ -399,28 +366,19 @@ export async function getNewsletterSubscribers(page: number = 1, limit: number =
   }
 }
 
-/**
- * Sync community requests between community service and user service
- * This will ensure that any communities in the community service with is_approved=false
- * also have a corresponding entry in the community_requests table in the user service
- */
 export async function syncCommunityRequests(): Promise<IApiResponse<{
   total_pending_communities: number;
-  already_synced: number;
-  newly_synced: number;
-  failed: number;
-  failed_community_ids?: string[];
+  pending_community_ids?: string[];
+  creator_ids?: string[];
 }>> {
   const response = await apiRequest<IApiResponse<{
     total_pending_communities: number;
-    already_synced: number;
-    newly_synced: number;
-    failed: number;
-    failed_community_ids?: string[];
+    pending_community_ids?: string[];
+    creator_ids?: string[];
   }>>(
     `${API_BASE_URL}/admin/community-requests/sync`,
     'POST'
   );
-  
+
   return response;
 }
