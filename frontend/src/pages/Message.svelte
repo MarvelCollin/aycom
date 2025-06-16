@@ -206,7 +206,7 @@
     }
     
     // Log detailed message info for debugging
-    console.log(`[WebSocket] Message received for chat ${message.chat_id}:`, {
+    logger.debug(`[WebSocket] Message received for chat ${message.chat_id}:`, {
       type: message.type,
       content: message.content,
       sender: message.user_id || message.sender_id,
@@ -233,6 +233,17 @@
       
       // Update the messages in the selected chat
       if (message.type === 'text' && message.content) {
+        // Check if message already exists (to avoid duplicates)
+        const messageExists = selectedChat.messages.some(msg => 
+          (msg.id === message.message_id) || 
+          (message.message_id && msg.id === message.message_id)
+        );
+
+        if (messageExists) {
+          logger.debug('Message already exists in chat, skipping');
+          return;
+        }
+
         // Create a properly formatted message object
         const newMessage: Message = {
           id: message.message_id || `ws-${Date.now()}`,
@@ -250,6 +261,8 @@
           sender_name: message.sender_name || 'User',
           sender_avatar: message.sender_avatar
         };
+        
+        logger.info(`Adding new message from WebSocket to chat ${message.chat_id}:`, newMessage);
         
         // Add the message to the selected chat
         selectedChat = {
@@ -323,9 +336,10 @@
         
         // Play notification sound if this is not the selected chat
         if (selectedChat?.id !== message.chat_id) {
-          // TODO: Add sound notification
           logger.debug('Would play notification sound for new message');
         }
+      } else {
+        logger.warn(`Chat with ID ${message.chat_id} not found in chat list`);
       }
     }
   }
@@ -582,35 +596,46 @@
   }
 
   // Initialize connections when component mounts
-  onMount(async () => {
+  onMount(() => {
     // Check viewport size
     checkViewport();
     window.addEventListener('resize', checkViewport);
     
-    // Fetch user profile
-    try {
-      const profileData = await getProfile();
-      if (profileData) {
-        username = profileData.username || '';
-        displayName = profileData.display_name || profileData.username || 'User';
-        avatar = profileData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+    // Function to initialize everything
+    const initialize = async () => {
+      // Fetch user profile
+      try {
+        const profileData = await getProfile();
+        if (profileData) {
+          username = profileData.username || '';
+          displayName = profileData.display_name || profileData.username || 'User';
+          avatar = profileData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
+        }
+      } catch (error) {
+        logError('Failed to load profile', error);
+      } finally {
+        isLoadingProfile = false;
       }
-    } catch (error) {
-      logError('Failed to load profile', error);
-    } finally {
-      isLoadingProfile = false;
-    }
+      
+      // Load chats
+      await fetchChats();
+    };
     
-    // Load chats
-    await fetchChats();
+    // Start initialization
+    initialize();
     
     // Register WebSocket message handler
+    const unregisterHandler = websocketStore.registerMessageHandler(handleWebSocketMessage);
+    
+    // Also set the handler in the chatApi for backward compatibility
     setMessageHandler(handleWebSocketMessage);
     
-    // Note: WebSocket connections will be initialized when a chat is selected
-    // This prevents establishing connections to chats that may not be active
-    
     logger.info('Message component mounted');
+    
+    // Return cleanup function
+    return () => {
+      if (unregisterHandler) unregisterHandler();
+    };
   });
   
   // Clean up when component unmounts
@@ -837,68 +862,67 @@
     });
   }
   
-  // Message handling functions
+  // Function to send a message
   async function sendMessage(content: string) {
-    if (!content.trim() || !selectedChat) return;
-    
-    // Clear input after sending
-    newMessage = '';
-    selectedAttachments = [];
-    
-    // Generate a temporary message ID
-    const tempMessageId = `temp-${Date.now()}`;
-
-    // Create a temporary message object
-    const tempMessage: Message = {
-      id: tempMessageId,
-      chat_id: selectedChat?.id || '',
-      content,
-      timestamp: new Date().toISOString(),
-      sender_id: $authStore.user_id || '',
-      sender_name: displayName,
-      sender_avatar: avatar,
-      is_read: false,
-      is_deleted: false,
-      is_edited: false,
-      attachments: selectedAttachments.length > 0 ? [...selectedAttachments] : [],
-      is_local: true // Mark as local until confirmed by server
-    };
+    if (!content || !content.trim() || !selectedChat) {
+      return;
+    }
     
     try {
-      // Add message to UI immediately (optimistic update)
-      if (selectedChat) {
+      // Generate a unique temporary ID for this message
+      const tempMessageId = `temp-${Date.now()}`;
+      
+      // Trim content and prevent empty messages
+      content = content.trim();
+      newMessage = '';
+      
+      // Create message object
+      const message: Message = {
+        id: tempMessageId,
+        chat_id: selectedChat.id,
+        sender_id: $authStore.user_id || '',
+        content: content,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+        is_edited: false,
+        is_deleted: false,
+        sender_name: displayName || 'You',
+        sender_avatar: avatar,
+        is_local: true
+      };
+      
+      // Optimistically add message to UI
       selectedChat = {
         ...selectedChat,
-        messages: [...selectedChat.messages, tempMessage]
+        messages: [...selectedChat.messages, message]
       };
-
-        // Scroll to bottom
-        setTimeout(() => {
-          const messagesContainer = document.querySelector('.messages-container');
-          if (messagesContainer) {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-          }
-        }, 100);
+      
+      // Scroll to bottom after message is added
+      setTimeout(() => {
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
-        
-        // Update chat in the list with last message
+      }, 50);
+      
+      // Create a last message object for the chat list
       const newLastMessage: LastMessage = {
-                content,
+        content: content,
         timestamp: new Date().toISOString(),
-                sender_id: $authStore.user_id || '',
-                sender_name: displayName
+        sender_id: $authStore.user_id || '',
+        sender_name: displayName || 'You'
       };
-
-      // Update all chats with the new last message
+      
+      // Update chat list with the new message
       chats = chats.map(chat => {
         if (chat.id === selectedChat?.id) {
           return {
             ...chat,
             last_message: newLastMessage
-            };
-          }
-          return chat;
-      });
+          };
+        }
+        return chat;
+      }) as Chat[];
         
       // Move the active chat to the top
       const activeChatId = selectedChat?.id;
@@ -941,7 +965,7 @@
         chat_id: selectedChat?.id || '',
         user_id: $authStore.user_id || '',
         sender_id: $authStore.user_id || '',
-        sender_name: displayName,
+        sender_name: displayName || username || 'User',
         sender_avatar: avatar,
         message_id: tempMessageId,
         timestamp: new Date().toISOString()
@@ -949,11 +973,12 @@
       
       // Send via WebSocket first for real-time delivery
       websocketStore.sendMessage(selectedChat?.id || '', wsMessage);
+      logger.info(`Message sent via WebSocket to chat ${selectedChat?.id}`);
       
       // Then send via API for persistence
       try {
         const result = await apiSendMessage(selectedChat?.id || '', messageData);
-        logInfo('Message sent successfully via API');
+        logInfo('Message sent successfully via API:', result);
         
         // Update the message to mark it as confirmed by the server
         if (selectedChat) {
@@ -961,7 +986,11 @@
             ...selectedChat,
             messages: selectedChat.messages.map(msg => 
               msg.id === tempMessageId 
-                ? { ...msg, is_local: false } 
+                ? { 
+                    ...msg, 
+                    is_local: false,
+                    id: result?.message?.id || result?.message_id || msg.id
+                  } 
                 : msg
             )
           };
@@ -1264,10 +1293,11 @@
     logger.warn(message);
   }
   
-  function logError(message: string, error?: any) {
+  async function logError(message: string, error?: any) {
     if (error) {
-      logger.error(`${message}: ${error}`);
-        } else {
+      console.error(message, error);
+      logger.error(message);
+    } else {
       logger.error(message);
     }
   }

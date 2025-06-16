@@ -341,28 +341,69 @@ function createWebSocketStore() {
 
   const sendMessage = (chatId: string, message: ChatMessage) => {
     update(state => {
-      if (!state.chatConnections[chatId] || state.chatConnections[chatId].readyState !== WebSocket.OPEN) {
-        logger.warn(`Cannot send message to chat ${chatId}: not connected. Attempting to connect...`);
+      if (!state.chatConnections[chatId]) {
+        logger.warn(`No WebSocket connection for chat ${chatId}. Attempting to connect...`);
         connect(chatId);
         return {
           ...state,
-          lastError: 'Not connected to chat. Attempting to reconnect...'
+          lastError: `Not connected to chat ${chatId}. Attempting to connect...`
+        };
+      }
+
+      if (state.chatConnections[chatId].readyState !== WebSocket.OPEN) {
+        logger.warn(`WebSocket for chat ${chatId} is not in OPEN state (current state: ${state.chatConnections[chatId].readyState}). Attempting to reconnect...`);
+        
+        // Close the existing connection
+        try {
+          state.chatConnections[chatId].close(1000, 'Reconnecting due to non-OPEN state');
+        } catch (e) {
+          logger.error(`Error closing existing connection for chat ${chatId}:`, e);
+        }
+        
+        // Remove from state
+        const connections = { ...state.chatConnections };
+        delete connections[chatId];
+        
+        // Schedule reconnection
+        setTimeout(() => connect(chatId), 500);
+        
+        return {
+          ...state,
+          chatConnections: connections,
+          lastError: 'Connection not ready. Attempting to reconnect...',
+          connectionStatus: {
+            ...state.connectionStatus,
+            [chatId]: 'connecting'
+          }
         };
       }
       
       try {
         const ws = state.chatConnections[chatId];
-        ws.send(JSON.stringify(message));
+        const serializedMessage = JSON.stringify(message);
+        ws.send(serializedMessage);
         logger.debug(`Message sent to chat ${chatId}:`, message);
+        
+        // Log detailed information for debugging
+        logger.info(`WebSocket message sent to chat ${chatId}:`, {
+          type: message.type,
+          content: message.content ? message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '') : '',
+          user_id: message.user_id,
+          message_id: message.message_id
+        });
+        
+        return state;
       } catch (e) {
-        logger.error(`Error sending message to chat ${chatId}:`, e);
+        logger.error(`Error sending WebSocket message to chat ${chatId}:`, e);
+        
+        // Schedule reconnection
+        setTimeout(() => connect(chatId), 1000);
+        
         return {
           ...state,
-          lastError: 'Failed to send message'
+          lastError: `Failed to send message to chat ${chatId}: ${e instanceof Error ? e.message : 'Unknown error'}`
         };
       }
-      
-      return state;
     });
   };
   
@@ -470,14 +511,14 @@ export function setWebSocketHandlers(setup: (ws: any) => void) {
 const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEvent) => {
   try {
     // Log raw data for debugging
-    console.log(`[WebSocket] Raw message received for chat ${chatId}:`, event.data);
+    logger.debug(`[WebSocket] Raw message received for chat ${chatId}`);
     
     // Try to parse the message as JSON
     let message: any;
     try {
       message = JSON.parse(event.data);
     } catch (parseError) {
-      console.error(`[WebSocket] Failed to parse message as JSON:`, parseError);
+      logger.debug(`Failed to parse message as JSON`);
       // Try to handle as plain text
       message = {
         type: 'text',
@@ -504,19 +545,28 @@ const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEve
       is_system: message.is_system || false
     };
     
+    // Convert Unix timestamp to ISO string if needed
+    if (typeof chatMessage.timestamp === 'number') {
+      chatMessage.timestamp = new Date(chatMessage.timestamp * 1000).toISOString();
+    }
+    
     // Log the processed message
-    console.log(`[WebSocket] Processed message:`, chatMessage);
+    logger.debug(`[WebSocket] Processed message for chat ${chatId}`);
     
     // Notify all registered handlers
+    if (messageHandlers.length === 0) {
+      logger.warn('[WebSocket] No message handlers registered to process message');
+    }
+    
     messageHandlers.forEach(handler => {
       try {
+        logger.debug(`[WebSocket] Calling message handler for chat ${chatId}`);
         handler(chatMessage);
       } catch (handlerError) {
-        console.error(`[WebSocket] Handler error:`, handlerError);
+        logger.debug(`Handler error occurred`);
       }
     });
   } catch (e) {
-    logger.error(`Error handling WebSocket message for chat ${chatId}:`, e);
-    console.error(`[WebSocket] Failed to process message:`, e);
+    logger.error(`Error handling WebSocket message`, e);
   }
 }; 

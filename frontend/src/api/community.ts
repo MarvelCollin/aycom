@@ -1263,7 +1263,7 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
 
     while (attempts < maxAttempts) {
       try {
-        response = await fetch(`${API_BASE_URL}/communities/joined/${userId}?${queryParams.toString()}`, {
+        response = await fetch(`${API_BASE_URL}/communities/user/${userId}/joined?${queryParams.toString()}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -1345,7 +1345,7 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
 
     while (attempts < maxAttempts) {
       try {
-        response = await fetch(`${API_BASE_URL}/communities/pending/${userId}?${queryParams.toString()}`, {
+        response = await fetch(`${API_BASE_URL}/communities/user/${userId}/pending?${queryParams.toString()}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

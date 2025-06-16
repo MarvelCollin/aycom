@@ -117,6 +117,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicThreads.GET("/search", handlers.SearchThreads)
 		publicThreads.GET("/trending", handlers.GetTrends)
 		publicThreads.GET("/following", handlers.GetThreadsFromFollowing)
+		publicThreads.GET("/hashtag/:hashtag", handlers.GetThreadsByHashtag)
 		publicThreads.GET("/:id", handlers.GetThread)
 	}
 

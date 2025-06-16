@@ -44,6 +44,7 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
           return [];
         }
         
+        logger.info(`Successfully fetched ${data.trends.length} trends from API`);
         return data.trends;
       }
       
@@ -59,17 +60,15 @@ export async function getTrends(limit: number = 5): Promise<ITrend[]> {
     const data = await response.json();
     
     if (data && data.data && Array.isArray(data.data.trends)) {
+      logger.info(`Successfully fetched ${data.data.trends.length} trends from API`);
       return data.data.trends;
     } else if (data && Array.isArray(data.trends)) {
+      logger.info(`Successfully fetched ${data.trends.length} trends from API`);
       return data.trends;
     } else {
       logger.warn('Invalid data format from trends API', { data });
       return [];
     }
-    
-    logger.info(`Successfully fetched ${data.trends.length} trends from API`);
-    
-    return data.trends;
   } catch (error: any) {
     logger.error('Failed to fetch trends', { error: error.message });
     return [];
