@@ -55,31 +55,33 @@ type ThreadServiceClient interface {
 
 // Thread represents a thread in the system
 type Thread struct {
-	ID               string    `json:"id"`
-	Content          string    `json:"content"`
-	UserID           string    `json:"user_id"`
-	Username         string    `json:"username"`
-	DisplayName      string    `json:"name"`
-	ProfilePicture   string    `json:"profile_picture_url"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	LikeCount        int       `json:"likes_count"`
-	ReplyCount       int       `json:"replies_count"`
-	RepostCount      int       `json:"reposts_count"`
-	BookmarkCount    int       `json:"bookmark_count"`
-	ViewCount        int64     `json:"views_count"`
-	IsLiked          bool      `json:"is_liked"`
-	IsReposted       bool      `json:"is_reposted"`
-	IsBookmarked     bool      `json:"is_bookmarked"`
-	IsPinned         bool      `json:"is_pinned"`
-	IsVerified       bool      `json:"is_verified"`
-	Media            []Media   `json:"media"`
-	Hashtags         []string  `json:"hashtags"`
-	MentionedUsers   []string  `json:"mentioned_user_ids"`
-	IsRepost         bool      `json:"is_repost"`
-	OriginalThreadID string    `json:"original_thread_id,omitempty"`
-	OriginalThread   *Thread   `json:"original_thread,omitempty"`
-	ParentID         string    `json:"parent_id,omitempty"`
+	ID               string                 `json:"id"`
+	Content          string                 `json:"content"`
+	UserID           string                 `json:"user_id"`
+	Username         string                 `json:"username"`
+	DisplayName      string                 `json:"name"`
+	ProfilePicture   string                 `json:"profile_picture_url"`
+	CreatedAt        time.Time              `json:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at"`
+	LikeCount        int                    `json:"likes_count"`
+	ReplyCount       int                    `json:"replies_count"`
+	RepostCount      int                    `json:"reposts_count"`
+	BookmarkCount    int                    `json:"bookmark_count"`
+	ViewCount        int64                  `json:"views_count"`
+	IsLiked          bool                   `json:"is_liked"`
+	IsReposted       bool                   `json:"is_reposted"`
+	IsBookmarked     bool                   `json:"is_bookmarked"`
+	IsPinned         bool                   `json:"is_pinned"`
+	IsVerified       bool                   `json:"is_verified"`
+	Media            []Media                `json:"media"`
+	Hashtags         []string               `json:"hashtags"`
+	MentionedUsers   []string               `json:"mentioned_user_ids"`
+	IsRepost         bool                   `json:"is_repost"`
+	OriginalThreadID string                 `json:"original_thread_id,omitempty"`
+	OriginalThread   *Thread                `json:"original_thread,omitempty"`
+	ParentID         string                 `json:"parent_id,omitempty"`
+	ParentContent    string                 `json:"parent_content,omitempty"`
+	ParentUser       map[string]interface{} `json:"parent_user,omitempty"`
 }
 
 // Reply represents a reply to a thread or another reply
@@ -232,6 +234,27 @@ func (c *GRPCThreadServiceClient) GetThreadByID(threadID string, userID string) 
 
 	if resp.BookmarkedByUser {
 		thread.IsBookmarked = true
+	}
+
+	// If this thread has a parent ID, fetch the parent thread information
+	if thread.ParentID != "" {
+		parentResp, parentErr := c.client.GetThreadById(ctx, &threadProto.GetThreadRequest{
+			ThreadId: thread.ParentID,
+		})
+
+		if parentErr == nil && parentResp != nil && parentResp.Thread != nil {
+			parentThread := convertProtoToThread(parentResp.Thread)
+			if parentThread != nil {
+				// Add parent thread information
+				thread.ParentContent = parentThread.Content
+				thread.ParentUser = map[string]interface{}{
+					"id":                  parentThread.UserID,
+					"username":            parentThread.Username,
+					"name":                parentThread.DisplayName,
+					"profile_picture_url": parentThread.ProfilePicture,
+				}
+			}
+		}
 	}
 
 	return thread, nil

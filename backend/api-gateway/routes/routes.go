@@ -95,7 +95,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	threads.Use(middleware.JWTAuth(jwtSecret))
 	{
 		threads.POST("", handlers.CreateThread)
-		threads.GET("/:id", handlers.GetThread)
 		threads.PUT("/:id", handlers.UpdateThread)
 		threads.DELETE("/:id", handlers.DeleteThread)
 		threads.POST("/:id/like", handlers.LikeThread)
@@ -118,6 +117,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		publicThreads.GET("/search", handlers.SearchThreads)
 		publicThreads.GET("/trending", handlers.GetTrends)
 		publicThreads.GET("/following", handlers.GetThreadsFromFollowing)
+		publicThreads.GET("/:id", handlers.GetThread)
 	}
 
 	// Public search routes with optional authentication

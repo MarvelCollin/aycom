@@ -160,7 +160,12 @@ func GetThread(c *gin.Context) {
 		return
 	}
 
+	// Check for both userID and userId keys to handle different middleware implementations
 	userIDAny, exists := c.Get("userID")
+	if !exists {
+		userIDAny, exists = c.Get("userId")
+	}
+
 	var userID string
 	if exists {
 		userIDStr, ok := userIDAny.(string)
@@ -192,6 +197,21 @@ func GetThread(c *gin.Context) {
 	log.Printf("Thread data from service - ID: %s, UserID: %s, Username: %s, DisplayName: %s",
 		thread.ID, thread.UserID, thread.Username, thread.DisplayName)
 
+	// Ensure username is never anonymous
+	if thread.Username == "" || thread.Username == "anonymous" {
+		// Try to fetch user info if we have a valid UserID
+		if thread.UserID != "" && userServiceClient != nil {
+			user, err := userServiceClient.GetUserById(thread.UserID)
+			if err == nil && user != nil {
+				thread.Username = user.Username
+				thread.DisplayName = user.DisplayName
+				thread.ProfilePicture = user.ProfilePictureURL
+				log.Printf("Retrieved user info for thread %s: username=%s, displayName=%s",
+					threadID, thread.Username, thread.DisplayName)
+			}
+		}
+	}
+
 	threadData := gin.H{
 		"id":                  thread.ID,
 		"content":             thread.Content,
@@ -211,9 +231,16 @@ func GetThread(c *gin.Context) {
 		"username":            thread.Username,
 		"name":                thread.DisplayName,
 		"profile_picture_url": thread.ProfilePicture,
-		"community_id":        nil,
-		"community_name":      nil,
-		"parent_id":           nil,
+		"parent_id":           thread.ParentID,
+	}
+
+	// Include parent content and user if available
+	if thread.ParentContent != "" {
+		threadData["parent_content"] = thread.ParentContent
+	}
+
+	if thread.ParentUser != nil {
+		threadData["parent_user"] = thread.ParentUser
 	}
 
 	if len(thread.Media) > 0 {
