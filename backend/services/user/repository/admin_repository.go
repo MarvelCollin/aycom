@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -23,8 +24,21 @@ func (r *AdminRepository) BanUser(userID string, ban bool) error {
 		return errors.New("user ID is required")
 	}
 
+	log.Printf("BanUser: Attempting to set user %s ban status to %v", userID, ban)
+
+	// First check if the user exists
+	var user model.User
+	if err := r.db.Where("id = ?", userID).First(&user).Error; err != nil {
+		log.Printf("BanUser: Error checking if user exists: %v", err)
+		return fmt.Errorf("failed to check if user exists: %w", err)
+	}
+
+	log.Printf("BanUser: Found user %s (ID: %s) with current ban status: %v", user.Username, userID, user.IsBanned)
+
+	// Update the user's ban status
 	result := r.db.Model(&model.User{}).Where("id = ?", userID).Update("is_banned", ban)
 	if result.Error != nil {
+		log.Printf("BanUser: Database error updating ban status for user %s: %v", userID, result.Error)
 		return result.Error
 	}
 
@@ -33,6 +47,7 @@ func (r *AdminRepository) BanUser(userID string, ban bool) error {
 		return errors.New("no user found with the given ID")
 	}
 
+	log.Printf("BanUser: Successfully updated ban status for user %s to %v", userID, ban)
 	return nil
 }
 

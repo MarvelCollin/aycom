@@ -136,6 +136,13 @@ func Login(c *gin.Context) {
 	userAuthResp, err := userServiceClient.Login(req.Email, req.Password)
 	if err != nil {
 		log.Printf("Login: Failed to authenticate user: %v", err)
+
+		// Check if it's a permission denied error (banned user)
+		if st, ok := status.FromError(err); ok && st.Code() == codes.PermissionDenied {
+			utils.SendErrorResponse(c, http.StatusForbidden, "ACCOUNT_BANNED", st.Message())
+			return
+		}
+
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid email or password")
 		return
 	}
@@ -463,10 +470,10 @@ func GoogleLogin(c *gin.Context) {
 
 		currentDate := fmt.Sprintf("%02d-%02d-%04d", int(now.Month())-1, now.Day(), birthYear)
 
-		gender := "male" 
+		gender := "male"
 
 		securityQuestion := "What is your favorite color?"
-		securityAnswer := "blue" 
+		securityAnswer := "blue"
 
 		log.Printf("GoogleLogin: Creating new user with username: %s, date: %s, gender: %s",
 			newUsername, currentDate, gender)

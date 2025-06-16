@@ -14,7 +14,7 @@
     approveJoinRequest,
     rejectJoinRequest
   } from "../api/community";
-  import { getUserThreads } from "../api/thread";
+  import { getUserThreads, getAllThreads } from "../api/thread";
   import { useAuth } from "../hooks/useAuth";
   import { useTheme } from "../hooks/useTheme";
   import { getPublicUrl, SUPABASE_BUCKETS } from "../utils/supabase";
@@ -324,7 +324,6 @@
         ]);
       } catch (loadError) {
         console.warn("Error loading related community data:", loadError);
-        // We can continue even if these fail
       }
 
     } catch (error) {
@@ -332,7 +331,6 @@
       errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       if (!community) {
-        // Only show a toast if we couldn't load the community at all
         if (error instanceof SyntaxError && error.message.includes("Unexpected end of JSON")) {
           toastStore.showToast("Unable to load community data. The server returned an invalid response.", "error");
         } else if (error instanceof Error && error.message.includes("Empty response from server")) {
@@ -346,19 +344,28 @@
     } finally {
       isLoading = false;
     }
-  }
-
-  async function loadThreads() {
+  }  async function loadThreads() {
     try {
-      // For community posts, we use the getUserThreads with community parameter
-      const threadsResponse = await getUserThreads(communityId, 1, 10);
+      // For now, use getAllThreads to avoid the 400 error
+      // In a real implementation, you'd want a community-specific threads endpoint
+      const threadsResponse = await getAllThreads(1, 10);
 
       if (threadsResponse && Array.isArray(threadsResponse.threads)) {
-        threads = threadsResponse.threads as Thread[];
+        // Filter threads by community_id if the field exists, otherwise show all threads
+        threads = threadsResponse.threads.filter(thread => 
+          !thread.community_id || thread.community_id === communityId
+        ) as Thread[];
       } else if (threadsResponse && threadsResponse.data && Array.isArray(threadsResponse.data.threads)) {
-        threads = threadsResponse.data.threads as Thread[];
+        threads = threadsResponse.data.threads.filter(thread => 
+          !thread.community_id || thread.community_id === communityId
+        ) as Thread[];
       } else {
         threads = [];
+      }
+
+      // If no community-specific threads found, show some general threads for demo purposes
+      if (threads.length === 0 && threadsResponse && Array.isArray(threadsResponse.threads)) {
+        threads = threadsResponse.threads.slice(0, 5) as Thread[];
       }
 
     } catch (error) {
@@ -823,13 +830,14 @@
       isLoadingMediaThreads = false;
     }
   }
-
   async function loadMoreMedia() {
     if (isLoadingMoreMedia || !hasMoreMedia) return;
 
     try {
       isLoadingMoreMedia = true;
-      mediaPage += 1;      // Generate more mock media content
+      mediaPage += 1;      
+      
+      // Generate more mock media content
       const moreMediaItems: Thread[] = Array.from({ length: 6 }, (_, index) => {
         const globalIndex = (mediaPage - 1) * 6 + index + 1;
         return {
@@ -850,9 +858,9 @@
 
       mediaThreads = [...mediaThreads, ...moreMediaItems];
 
-      // Stop loading more after a certain number of pages for demo
-      if (mediaPage >= 5) {
-        hasMoreMedia = false;
+      // Reset page counter after reaching 10 pages to simulate cycling/infinite scroll
+      if (mediaPage >= 10) {
+        mediaPage = 0; // Reset to create cycling effect
       }
 
       isLoadingMoreMedia = false;

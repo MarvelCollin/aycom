@@ -182,19 +182,36 @@
     dispatch("close");
   }
 
-  // Keyboard event handler for modal
-  function handleKeyDown(e: KeyboardEvent) {
+  function handleModalClick(e: MouseEvent) {
+    // Only close if the overlay itself was clicked (not its children)
+    if ((e.currentTarget as HTMLElement) === e.target) {
+      handleClose();
+    }
+  }
+
+  function handleModalKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
       handleClose();
     }
+  }
+
+  function handleInput(event: Event) {
+    const target = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+    const field = target.id;
+    const value = target.value;
+    
+    formData = {
+      ...formData,
+      [field]: value
+    };
   }
 </script>
 
 {#if isOpen}
 <div
   class="modal-overlay"
-  on:click={handleClose}
-  on:keydown={handleKeyDown}
+  on:click={handleModalClick}
+  on:keydown={handleModalKeydown}
   role="dialog"
   aria-modal="true"
   aria-labelledby="modal-title"
@@ -202,8 +219,6 @@
 >
   <div
     class="modal-container"
-    on:click|stopPropagation
-    on:keydown|stopPropagation
     role="document"
   >
     <!-- Header -->
@@ -314,7 +329,8 @@
         <input
           type="text"
           id="name"
-          bind:value={formData.name}
+          value={formData.name}
+          on:input={handleInput}
           maxlength="50"
           class="form-input"
           placeholder="Your display name"
@@ -331,7 +347,8 @@
         </label>
         <textarea
           id="bio"
-          bind:value={formData.bio}
+          value={formData.bio}
+          on:input={handleInput}
           maxlength="160"
           rows="3"
           class="form-textarea"
@@ -350,7 +367,8 @@
         <input
           type="email"
           id="email"
-          bind:value={formData.email}
+          value={formData.email}
+          on:input={handleInput}
           class="form-input"
           placeholder="Your email address"
         />
@@ -364,7 +382,8 @@
         <input
           type="date"
           id="date_of_birth"
-          bind:value={formData.date_of_birth}
+          value={formData.date_of_birth}
+          on:input={handleInput}
           class="form-input"
         />
       </div>
@@ -376,7 +395,8 @@
         </label>
         <select
           id="gender"
-          bind:value={formData.gender}
+          value={formData.gender}
+          on:input={handleInput}
           class="form-select"
         >
           <option value="">Prefer not to say</option>

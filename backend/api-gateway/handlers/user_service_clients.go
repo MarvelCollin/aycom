@@ -47,6 +47,8 @@ type UserServiceClient interface {
 	UnblockUser(blockerID, blockedID string) error
 	GetBlockedUsers(userID string, page, limit int) ([]*User, error)
 	ReportUser(reporterID, reportedID, reason string) error
+
+	UserExists(userID string) (bool, error)
 }
 
 type User struct {
@@ -960,4 +962,26 @@ func (c *GRPCUserServiceClient) ReportUser(reporterID, reportedID, reason string
 	}
 
 	return nil
+}
+
+func (c *GRPCUserServiceClient) UserExists(userID string) (bool, error) {
+	if c.client == nil {
+		return false, fmt.Errorf("user service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.client.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: userID,
+	})
+
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return resp.User != nil, nil
 }

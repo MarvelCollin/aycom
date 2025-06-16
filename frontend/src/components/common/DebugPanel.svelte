@@ -12,10 +12,8 @@
   import { websocketStore } from "../../stores/websocketStore";
   import { getAllUsers, searchUsers, updateUserAdminStatus } from "../../api/user";
 
-  // API URL from app config
   const apiUrl = appConfig.api.baseUrl;
 
-  // Add debug logger for this component
   const debugLogger = createLoggerWithPrefix("DebugPanel");
 
   // WebSocket debug state

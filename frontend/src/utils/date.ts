@@ -7,10 +7,8 @@ export function formatRelativeTime(dateString: string): string {
   if (!dateString) return "Unknown date";
 
   try {
-    // Parse the date and ensure it's valid
     const date = new Date(dateString);
 
-    // Check if the date is valid
     if (isNaN(date.getTime())) {
       console.warn("Invalid date string:", dateString);
       return "Invalid date";
@@ -18,7 +16,6 @@ export function formatRelativeTime(dateString: string): string {
 
     const now = new Date();
 
-    // Check if the date is in the future
     if (date > now) {
       console.warn("Date is in the future:", dateString);
       return "Just now";
@@ -26,8 +23,7 @@ export function formatRelativeTime(dateString: string): string {
 
     const seconds = Math.round((now.getTime() - date.getTime()) / 1000);
 
-    // Check if the time difference is unreasonably large (more than 10 years)
-    if (seconds > 315360000) { // 10 years in seconds
+    if (seconds > 315360000) {
       console.warn("Date is too far in the past:", dateString);
       return formatTimeForDisplay(date);
     }
@@ -45,10 +41,8 @@ export function formatRelativeTime(dateString: string): string {
     } else if (hours < 24) {
       return hours === 1 ? "1h ago" : `${hours}h ago`;
     } else if (days < 3) {
-      // Show time for recent days
       return days === 1 ? "Yesterday" : `${days}d ago`;
     } else {
-      // Use the actual date/time for older messages
       return formatTimeForDisplay(date);
     }
   } catch (error) {
@@ -64,11 +58,9 @@ export function formatRelativeTime(dateString: string): string {
  */
 export function formatTimeForDisplay(date: Date): string {
   try {
-    // For dates within the current year, omit the year
     const now = new Date();
     const isCurrentYear = now.getFullYear() === date.getFullYear();
 
-    // Create a unique timestamp with milliseconds for testing
     return date.toLocaleString("en-US", {
       month: "short",
       day: "numeric",

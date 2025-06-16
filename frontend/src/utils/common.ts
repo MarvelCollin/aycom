@@ -164,7 +164,6 @@ export function formatStorageUrl(url: string | null): string {
         return url.replace("/storage/v1/object/public/", "/storage/v1/s3/");
       }
 
-      // Check for CORS issues - add crossorigin attribute to images in the component
       console.log("URL hostname:", urlObj.hostname);
     } catch (e) {
       console.error("Error parsing URL:", e);
@@ -175,19 +174,15 @@ export function formatStorageUrl(url: string | null): string {
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sdhtnvlmuywinhcglfsu.supabase.co";
 
-  // Handle relative paths starting with /
   if (url.startsWith("/")) {
-    // If it's a simple relative path without storage indicators
     if (!url.includes("storage/")) {
-      return `${supabaseUrl}/storage/v1/s3/${url.slice(1)}`;
+      return `${supabaseUrl}/storage/v1/s3${url.slice(1)}`;
     }
   }
 
-  // Handle storage path formats and convert if needed
   if (url.includes("storage/v1/object/public/")) {
     const formatted = url.replace("storage/v1/object/public/", "storage/v1/s3/");
 
-    // Make sure we have the full URL
     if (formatted.startsWith("storage/")) {
       return `${supabaseUrl}/${formatted}`;
     }
@@ -196,16 +191,13 @@ export function formatStorageUrl(url: string | null): string {
   }
 
   if (url.includes("storage/v1/s3/")) {
-    // Make sure we have the full URL
     if (url.startsWith("storage/")) {
       return `${supabaseUrl}/${url}`;
     }
 
-    // Already has the domain
     return url;
   }
 
-  // Handle URLs with bucket name directly (like profile-pictures/, banners/, etc.)
   const knownBuckets = ["profile-pictures", "banners", "thread-media", "user-media", "media", "tpaweb", "test", "uploads"];
   for (const bucket of knownBuckets) {
     if (url.startsWith(`${bucket}/`)) {

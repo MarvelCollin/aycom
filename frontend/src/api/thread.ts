@@ -1287,18 +1287,45 @@ function isUuid(str: string): boolean {
 }
 
 async function resolveUserIdIfNeeded(userId: string): Promise<string> {
+  if (!userId) {
+    logger.error("resolveUserIdIfNeeded: userId is empty or undefined");
+    throw new Error("User ID is required");
+  }
+
+  logger.debug(`resolveUserIdIfNeeded: Processing userId "${userId}"`);
 
   if (isUuid(userId)) {
+    logger.debug(`userId "${userId}" is already a valid UUID, using as is`);
     return userId;
   }
 
   if (userId === "me") {
     const token = getAuthToken();
-    const currentUserId = token ? JSON.parse(atob(token.split(".")[1])).sub : null;
-    return currentUserId || userId;
+    if (!token) {
+      logger.error("No auth token available to resolve 'me' user ID");
+      throw new Error("Authentication required to access your profile");
+    }
+
+    try {
+      const tokenPayload = JSON.parse(atob(token.split(".")[1]));
+      const currentUserId = tokenPayload.sub;
+      
+      if (!currentUserId) {
+        logger.error("Token does not contain a subject (sub) claim");
+        throw new Error("Invalid authentication token");
+      }
+      
+      logger.debug(`Resolved 'me' to user ID: ${currentUserId}`);
+      return currentUserId;
+    } catch (error) {
+      logger.error("Failed to parse JWT token:", error);
+      throw new Error("Invalid authentication token");
+    }
   }
 
+  // If it's not a UUID and not 'me', assume it's a username
   try {
+    logger.debug(`Attempting to resolve username: ${userId}`);
     const response = await fetch(`${API_BASE_URL}/users/username/${encodeURIComponent(userId)}`, {
       method: "GET",
       headers: {
@@ -1308,15 +1335,21 @@ async function resolveUserIdIfNeeded(userId: string): Promise<string> {
     });
 
     if (!response.ok) {
-      console.error(`Failed to resolve username: ${response.status}`);
-      return userId;
+      logger.error(`Failed to resolve username '${userId}': ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to resolve username: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.user?.id || userId;
+    if (!data.user?.id) {
+      logger.error(`User ID not found in response for username '${userId}'`, data);
+      throw new Error("User not found");
+    }
+
+    logger.debug(`Successfully resolved username '${userId}' to ID: ${data.user.id}`);
+    return data.user.id;
   } catch (error) {
-    console.error("Error resolving user ID:", error);
-    return userId;
+    logger.error(`Error resolving username '${userId}':`, error);
+    throw error;
   }
 }
 
@@ -1327,7 +1360,41 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
 
   while (retryCount <= maxRetries) {
     try {
-      const resolvedUserId = await resolveUserIdIfNeeded(userId);
+      if (!userId) {
+        logger.error("getUserThreads: userId is undefined or empty");
+        return {
+          threads: [],
+          total: 0,
+          error: "User ID is required",
+          success: false
+        };
+      }
+
+      let resolvedUserId;
+      try {
+        resolvedUserId = await resolveUserIdIfNeeded(userId);
+        logger.debug(`getUserThreads: Resolved userId from ${userId} to ${resolvedUserId}`);
+      } catch (resolveError: any) {
+        logger.error(`getUserThreads: Failed to resolve user ID: ${resolveError.message}`, resolveError);
+        return {
+          threads: [],
+          total: 0,
+          error: `Failed to resolve user ID: ${resolveError.message}`,
+          success: false
+        };
+      }
+
+      // Check again that we have a valid userId after resolution
+      if (!resolvedUserId) {
+        logger.error("getUserThreads: Resolved userId is empty");
+        return {
+          threads: [],
+          total: 0,
+          error: "Invalid user ID after resolution",
+          success: false
+        };
+      }
+
       logger.debug(`Fetching threads for user ${resolvedUserId} (original: ${userId}), page: ${page}, limit: ${limit}, attempt: ${retryCount + 1}/${maxRetries + 1}`);
 
       // Create an AbortController to handle timeout
@@ -1352,14 +1419,32 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
 
         if (!response.ok) {
           let errorMessage = `Failed to get user threads: ${response.status}`;
+          let errorDetails = {};
+          
           try {
             const errorData = await response.json();
             logger.error("Error getting user threads:", errorData);
+            errorDetails = errorData;
+            
             if (errorData.message) {
               errorMessage += ` - ${errorData.message}`;
             }
+            if (errorData.error) {
+              errorMessage += ` - ${errorData.error}`;
+            }
           } catch (parseError) {
             logger.error("Could not parse error response:", parseError);
+          }
+
+          // For 400 errors, check if it might be a UUID validation issue
+          if (response.status === 400) {
+            logger.error(`Bad Request (400) when fetching threads for user ID: ${resolvedUserId}`);
+            
+            // Try to refresh the auth token and get the current user ID again
+            if (userId === "me") {
+              logger.debug("Attempting to refresh auth token...");
+              // Optional: implement auth token refresh logic here
+            }
           }
 
           // For 500 errors, we'll retry
@@ -1371,6 +1456,7 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
               threads: [],
               total: 0,
               error: errorMessage,
+              errorDetails,
               success: false
             };
           }
@@ -1405,8 +1491,8 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
 
       // If this was a timeout or network error, log and retry
       const isNetworkError = error.name === "AbortError" ||
-                             error.message?.includes("network") ||
-                             error.message?.includes("timeout");
+                            error.message?.includes("network") ||
+                            error.message?.includes("timeout");
 
       if (isNetworkError || error.message?.includes("500")) {
         logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);

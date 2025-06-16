@@ -17,7 +17,7 @@
   const { theme } = useTheme();
 
   export let threadId: string;
-  export const passedThread: any = null; // Accept thread data passed from TweetCard
+  export const passedThread: any = null;  
 
   let thread: ExtendedTweet | null = null;
   let replies: ExtendedTweet[] = [];
@@ -26,13 +26,11 @@
   let showRepliesMap = new Map<string, boolean>();
   let repliesMap = new Map<string, ExtendedTweet[]>();
   
-  // Reply modal state
   let showReplyModal = false;
   let replyToTweet: ITweet | null = null;
   let replyText = '';
   let isSubmitting = false;
   
-  // Media overlay state
   let showMediaOverlay = false;
   let currentMediaIndex = 0;
   let currentMediaArray: any[] = [];
@@ -40,10 +38,8 @@
   
   let isDarkMode = false;
 
-  // Update isDarkMode based on theme
   $: isDarkMode = $theme === "dark";
 
-  // Normalize reply structure like in Feed.svelte
   function normalizeReplyStructure(replies) {
     if (!Array.isArray(replies)) return [];
     
@@ -58,11 +54,9 @@
           }
         });
         
-        // Create a normalized reply object merging the data
         const normalizedReply = {
           ...replyItem.reply,
           id: replyItem.reply.id || replyItem.id,
-          // Preserve any user data that's at the root level
           user: replyItem.user || replyItem.reply.user,
           user_data: replyItem.user_data || replyItem.reply.user_data,
           author: replyItem.author || replyItem.reply.author
@@ -76,12 +70,10 @@
         return normalizedReply;
       }
       
-      // If the structure is already flat, return as is
       return replyItem;
     });
   }
 
-  // Function to handle loading replies for a thread (copied from Feed.svelte)
   async function handleLoadReplies(event: CustomEvent<string>) {
     const threadId = event.detail;
     console.log(`Loading replies for thread ${threadId}`);
@@ -91,17 +83,14 @@
       return;
     }
     
-    // Toggle showing replies
     const isCurrentlyShowing = showRepliesMap.get(threadId) || false;
     showRepliesMap.set(threadId, !isCurrentlyShowing);
     
-    // If we're hiding replies, just update and return
     if (isCurrentlyShowing) {
       showRepliesMap = new Map(showRepliesMap);
       return;
     }
     
-    // If we already have replies, just show them
     if (repliesMap.has(threadId)) {
       showRepliesMap = new Map(showRepliesMap);
       return;
@@ -113,7 +102,6 @@
       if (response && response.replies) {
         console.log(`DEBUG: Received ${response.replies.length} replies for thread ${threadId}`);
         
-        // Inspect structure of the first reply if available
         if (response.replies.length > 0) {
           console.log('DEBUG: First reply structure:', {
             direct: response.replies[0],
@@ -132,12 +120,9 @@
           });
         }
         
-        // Normalize the reply structure if needed
         const normalizedReplies = normalizeReplyStructure(response.replies);
         
-        // Store the normalized replies in our map
         repliesMap.set(threadId, normalizedReplies);
-        // Force reactivity
         repliesMap = new Map(repliesMap);
       }
     } catch (err: unknown) {
@@ -145,17 +130,14 @@
       console.error(`Error loading replies for thread ${threadId}:`, err);
       toastStore.showToast(`Failed to load replies: ${errorMessage}`, 'error');
     } finally {
-      // Force reactivity update
       showRepliesMap = new Map(showRepliesMap);
     }
   }
 
-  // Handle reply to thread (copied from Feed.svelte)
   async function handleReply(event) {
     const threadId = event.detail;
     console.log(`Handling reply to thread: ${threadId}`);
     
-    // Find the tweet to reply to
     const targetTweet = thread;
     if (!targetTweet) {
       console.error(`Tweet with ID ${threadId} not found`);
@@ -163,26 +145,20 @@
       return;
     }
     
-    // Set the reply target and show the modal
     replyToTweet = targetTweet;
     showReplyModal = true;
   }
   
-  // Handle reply submission from the modal (copied from Feed.svelte)
   async function submitReply() {
-    // Proper null check before accessing properties
     if (!replyToTweet || !replyText.trim()) return;
     
-    // Type assertion for replyToTweet after the null check
     const typedReplyToTweet = replyToTweet as ExtendedTweet;
     if (!typedReplyToTweet.id) return;
     
     try {
-      // Set submitting state
       isSubmitting = true;
       toastStore.showToast('Posting reply...', 'info');
       
-      // Debug info
       console.log("Attempting to post reply to thread:", typedReplyToTweet.id);
       console.log("Reply content:", replyText);
       
@@ -190,46 +166,38 @@
         throw new Error('Authentication required. Please log in.');
       }
       
-      // Use the imported replyToThread function instead of direct fetch
       const response = await replyToThread(typedReplyToTweet.id, {
         content: replyText.trim()
       });
       
       console.log("Reply API response:", response);
       
-      // Close the modal immediately to improve perceived performance
       showReplyModal = false;
       toastStore.showToast('Reply posted successfully!', 'success');
       
-      // Reset state
       replyToTweet = null;
       replyText = '';
       isSubmitting = false;
       
-      // Refresh data
       try {
-        // Store the ID before nulling out replyToTweet
         const replyId = typedReplyToTweet.id;
         if (replyId) {
           const updatedReplies = await getThreadReplies(replyId);
           
           if (updatedReplies && updatedReplies.replies) {
-            // Update the replies in our state
             repliesMap.set(replyId, updatedReplies.replies);
             showRepliesMap.set(replyId, true);
             repliesMap = new Map(repliesMap);
             showRepliesMap = new Map(showRepliesMap);
             
-            // Update the thread's reply count in the UI
             if (thread) {
               thread.replies_count += 1;
-              thread = { ...thread }; // Trigger reactivity
+              thread = { ...thread }; 
             }
           }
         }
       } catch (refreshErr) {
         console.warn("Error refreshing replies after posting:", refreshErr);
-        // Don't fail the whole operation if just the refresh failed
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -239,7 +207,6 @@
     }
   }
   
-  // Handle modal close
   function handleReplyModalClose() {
     showReplyModal = false;
     replyToTweet = null;
@@ -247,7 +214,6 @@
     isSubmitting = false;
   }
 
-  // Function to format thread data from the API response to a consistent structure (improved)
   function formatThreadData(responseData): ExtendedTweet {
     try {
       console.log("Formatting thread data from API response:", responseData);
@@ -257,7 +223,6 @@
         return createEmptyThreadData();
       }
 
-      // Ensure ID is a string for consistent comparison
       const formattedId = String(responseData.id || responseData.thread_id || threadId || "");
       
       if (!formattedId) {
@@ -265,7 +230,6 @@
         return createEmptyThreadData();
       }
 
-      // Create standardized thread object using the API fields directly
       return {
         id: formattedId,
         content: responseData.content || "",
@@ -294,7 +258,6 @@
               alt_text: ""
             })) 
           : [],
-        // Required ExtendedTweet fields
         thread_id: formattedId,
         author_id: String(responseData.user_id || responseData.userId || responseData.author_id || ""),
         parent_id: responseData.parent_id || null,
@@ -303,12 +266,10 @@
       };
     } catch (error) {
       console.error("Error formatting thread data:", error);
-      // Return a minimal safe object
       return createEmptyThreadData();
     }
   }
   
-  // Helper function to create empty thread data structure
   function createEmptyThreadData(): ExtendedTweet {
     return {
       id: String(threadId || ""),
@@ -330,7 +291,6 @@
       is_pinned: false,
       is_verified: false,
       media: [],
-      // Required ExtendedTweet fields
       thread_id: String(threadId || ""),
       author_id: "",
       parent_id: null,
@@ -339,7 +299,6 @@
     };
   }
 
-  // Format reply data to a consistent structure
   function formatReplyData(replyData): ExtendedTweet | null {
     try {
       if (!replyData) {
@@ -347,7 +306,6 @@
         return null;
       }
       
-      // Ensure ID is a string
       const formattedId = String(replyData.id || "");
       
       if (!formattedId) {
@@ -392,25 +350,21 @@
               alt_text: ""
             })) 
           : [],
-        // Required ExtendedTweet fields
         author_id: String(replyData.user_id || replyData.userId || replyData.author_id || ""),
         community_id: replyData.community_id || null,
         community_name: replyData.community_name || null
       };
     } catch (error) {
       console.error("Error formatting reply data:", error);
-      // Return null to filter out invalid replies
       return null;
     }
   }
 
-  // Function to load the thread and its replies
   async function loadThreadWithReplies() {
-    isLoading = !thread; // Only show loading if we don't have thread data yet
+    isLoading = !thread; 
     let apiDataLoaded = false;
     
     try {
-      // Check if we have threadId
       if (!threadId) {
         console.error("No thread ID available");
         isLoading = false;
@@ -419,7 +373,6 @@
 
       console.log("Loading thread with ID:", threadId);
 
-      // Get the existing sessionStorage data for comparison
       let sessionData = null;
       try {
         const storedThread = sessionStorage.getItem("lastViewedThread");
@@ -433,7 +386,6 @@
         console.error("Error accessing sessionStorage:", e);
       }
 
-      // Always load fresh thread data from API
       const response = await getThread(threadId);
       console.log("Thread data from API:", response);
 
@@ -441,17 +393,13 @@
         throw new Error("Failed to load thread data");
       }
 
-      // Process the response using our formatter
       const apiThread = formatThreadData(response);
       console.log("Processed API thread:", apiThread);
       apiDataLoaded = true;
 
-      // Merge API data with session data, prioritizing session data for interaction metrics
-      // but API data for most other fields
       if (sessionData) {
         thread = {
           ...apiThread,
-          // Keep these interaction values from sessionStorage if present
           likes_count: (sessionData as any).likes_count !== undefined ? (sessionData as any).likes_count : apiThread.likes_count,
           is_liked: (sessionData as any).is_liked !== undefined ? (sessionData as any).is_liked : apiThread.is_liked,
           is_bookmarked: (sessionData as any).is_bookmarked !== undefined ? (sessionData as any).is_bookmarked : apiThread.is_bookmarked,
@@ -463,23 +411,19 @@
         thread = apiThread;
       }
 
-      // If username is empty or undefined, try to get it from sessionStorage
       if (!thread.username && (sessionData as any)?.username) {
         thread.username = (sessionData as any).username;
         thread.name = (sessionData as any).name || thread.name;
       }
 
-      // If content is missing but exists in sessionStorage, use that
       if ((!thread.content || thread.content.trim() === "") && (sessionData as any)?.content) {
         thread.content = (sessionData as any).content;
       }
 
       console.log("Final merged thread data:", thread);
 
-      // Load replies
       await loadReplies(threadId);
 
-      // Now that API data is loaded successfully, we can clear sessionStorage
       if (apiDataLoaded) {
         sessionStorage.removeItem("lastViewedThread");
       }
@@ -488,17 +432,14 @@
       console.error("Error loading thread:", error);
       toastStore.showToast("Failed to load thread details", "error");
 
-      // If API fails but we have thread data in sessionStorage, use that as fallback
       try {
         const storedThread = sessionStorage.getItem("lastViewedThread");
         if (storedThread && !apiDataLoaded) {
           const parsedThread = JSON.parse(storedThread);
 
-          // Verify this is the correct thread
           if (String(parsedThread.id) === String(threadId)) {
             console.log("Using stored thread data as fallback:", parsedThread);
             thread = formatThreadData(parsedThread);
-            // Don't remove from sessionStorage in this case so it can be used if page is refreshed
           }
         }
       } catch (storageError) {
@@ -510,39 +451,31 @@
     }
   }
 
-  // Load replies for a thread (improved)
   async function loadReplies(threadId: string) {
     try {
-      // Get the replies from the API
       const response = await getThreadReplies(threadId);
       console.log("Replies data:", response);
 
       if (response && response.replies && Array.isArray(response.replies)) {
         console.log(`DEBUG: Received ${response.replies.length} replies for thread ${threadId}`);
         
-        // Inspect structure of the first reply if available
         if (response.replies.length > 0) {
           console.log('DEBUG: First reply structure:', response.replies[0]);
         }
         
-        // Normalize the reply structure if needed
         const normalizedReplies = normalizeReplyStructure(response.replies);
         
-        // Process replies to make them compatible with TweetCard
         replies = normalizedReplies
           .map(formatReplyData)
-          .filter(reply => reply !== null); // Filter out null replies
+          .filter(reply => reply !== null); 
 
-        // Store replies in repliesMap for consistency with Feed.svelte
         repliesMap.set(threadId, replies);
         showRepliesMap.set(threadId, true);
         
-        // Check structure of first reply to validate
         if (replies.length > 0) {
           console.log("Processed reply structure:", replies[0]);
         }
 
-        // Pre-load nested replies for each reply that has them
         for (const reply of replies) {
           if (reply && reply.replies_count && reply.replies_count > 0) {
             await loadNestedReplies(reply.id);
@@ -554,92 +487,72 @@
     }
   }
 
-  // Load nested replies
   async function loadNestedReplies(replyId: string) {
     try {
       const response = await getReplyReplies(replyId);
       console.log(`Nested replies for ${replyId}:`, response);
 
-      if (response && response.replies && Array.isArray(response.replies)) {
-        // Process nested replies using the same formatter
+      if (response && response.replies && Array.isArray(response.replies)) {    
         const processedReplies = response.replies
           .map(formatReplyData)
-          .filter(reply => reply !== null); // Filter out null replies
+          .filter(reply => reply !== null); 
 
         nestedRepliesMap.set(replyId, processedReplies);
-        nestedRepliesMap = new Map(nestedRepliesMap); // Force reactivity update
+        nestedRepliesMap = new Map(nestedRepliesMap); 
       }
     } catch (error) {
       console.error(`Error loading nested replies for ${replyId}:`, error);
     }
   }
 
-  // Handle refresh replies from ComposeTweet component (improved)
   function handleRefreshReplies(event: any) {
     const { threadId, parentReplyId, newReply } = event.detail;
 
     if (!newReply) return;
 
-    // Process the new reply using the formatter
     const processedReply = formatReplyData(newReply);
     if (!processedReply) return;
 
-    // If refreshing replies for a thread
     if (threadId === thread?.id && !parentReplyId) {
-      // Add the new reply to our replies array
       replies = [processedReply, ...replies];
 
-      // Update reply count on thread
       if (thread) {
         thread.replies_count = (thread.replies_count || 0) + 1;
       }
       
-      // Update repliesMap as well
       const currentReplies = repliesMap.get(threadId) || [];
       repliesMap.set(threadId, [processedReply, ...currentReplies]);
       repliesMap = new Map(repliesMap);
     }
-    // If refreshing replies for a specific reply (nested reply)
     else if (parentReplyId) {
-      // Get current nested replies or empty array if none exist
       const currentNestedReplies = nestedRepliesMap.get(parentReplyId) || [];
-      // Add the new reply to the nested replies
       nestedRepliesMap.set(parentReplyId, [processedReply, ...currentNestedReplies]);
-      // Update the map to trigger reactivity
       nestedRepliesMap = new Map(nestedRepliesMap);
 
-      // Find the parent reply and update its reply count
       const parentReplyIndex = replies.findIndex(r => r.id === parentReplyId);
       if (parentReplyIndex >= 0) {
         replies[parentReplyIndex].replies_count = (replies[parentReplyIndex].replies_count || 0) + 1;
-        replies = [...replies]; // Force reactivity update
+        replies = [...replies];
       }
     }
 
-    // Close the reply form after a successful reply
     showReplyModal = false;
   }
 
-  // Handle like, unlike, bookmark, unbookmark events by forwarding them
   function handleLike(event) { 
     console.log('Like thread:', event.detail); 
-    // Implement like functionality here if needed
   }
   function handleUnlike(event) { 
     console.log('Unlike thread:', event.detail); 
-    // Implement unlike functionality here if needed
   }
   function handleBookmark(event) { 
     console.log('Bookmark thread:', event.detail); 
-    // Implement bookmark functionality here if needed
   }
   function handleRemoveBookmark(event) { 
     console.log('Remove bookmark from thread:', event.detail); 
-    // Implement remove bookmark functionality here if needed
   }
   function handleRepost(event) { 
     console.log('Repost thread:', event.detail); 
-    // Implement repost functionality here if needed
   }
 
   // Handle media overlay functionality

@@ -631,48 +631,31 @@
   async function handleBanUser(userId: string, isBanned: boolean) {
     try {
       const ban = !isBanned;
-      logger.info(`Processing ban for user ${userId} with current ban status=${isBanned}, setting to ${ban}`);
+      logger.info(`Processing ${ban ? "ban" : "unban"} for user ${userId} with current ban status=${isBanned}`);
 
       // Show loading state
-      const actionText = isBanned ? "unbanning" : "banning";
+      const actionText = ban ? "Banning" : "Unbanning";
       toastStore.showToast(`${actionText} user...`, "info");
 
-      // Use both lowercase and uppercase versions to ensure compatibility
-      const requestBody = {
-        ban: ban,
-        Ban: ban,
-        reason: isBanned ? "Admin unban action" : "Admin ban action",
-        Reason: isBanned ? "Admin unban action" : "Admin ban action"
-      };
+      // Call the API with improved logging
+      const response = await adminAPI.banUser(userId, ban, ban ? "Admin ban action" : "Admin unban action");
+      logger.info("Ban/unban API response:", response);
 
-      logger.info("Sending ban request with payload:", requestBody);
-
-      const response = await adminAPI.banUser(userId, ban, isBanned ? "Admin unban action" : "Admin ban action");
-
-      logger.info("Ban response received:", response);
-
+      // Handle the response
       if (response.success) {
-        toastStore.showToast(`User ${isBanned ? "unbanned" : "banned"} successfully`, "success");
-
+        const actionCompleted = ban ? "banned" : "unbanned";
+        toastStore.showToast(`User ${actionCompleted} successfully`, "success");
+        
         // Force reload users to reflect the latest changes
+        logger.info("Reloading users list to reflect updated ban status");
         await loadUsers();
-
-        // Verify the change took effect
-        const updatedUser = users.find(u => u.id === userId);
-        if (updatedUser) {
-          logger.info(`Updated user ban status: ${updatedUser.is_banned}`);
-          if (updatedUser.is_banned === isBanned) {
-            logger.warn("Ban status did not change as expected. Refreshing data...");
-            await loadUsers(); // Try loading again if the status didn't update
-          }
-        }
       } else {
-        throw new Error(response.message || "Failed to update user status");
+        throw new Error(response.message || `Failed to ${ban ? "ban" : "unban"} user`);
       }
     } catch (error) {
       logger.error("Error updating user ban status:", error);
       toastStore.showToast(`Failed to update user status: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-
+      
       // Reload users to ensure we have the latest data
       await loadUsers();
     }
@@ -1680,8 +1663,10 @@
         <Button
           variant="primary"
           on:click={() => {
-            if (editingCategory) {
-              handleUpdateCategory(editingCategory.id, editingCategory.name, editingCategory.description, categoryType);
+            // Ensure editingCategory is not null before using it
+            const category = editingCategory;
+            if (category) {
+              handleUpdateCategory(category.id, category.name, category.description, categoryType);
             }
           }}
         >

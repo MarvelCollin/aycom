@@ -1,17 +1,27 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
+	"aycom/backend/api-gateway/handlers"
 	"aycom/backend/api-gateway/utils"
+	userpb "aycom/backend/proto/user"
 )
+
+// Claims represents the JWT claims used for authentication
+type Claims struct {
+	UserID string `json:"user_id"`
+	jwt.RegisteredClaims
+}
 
 func isDevelopment() bool {
 	return os.Getenv("GIN_MODE") != "release"
@@ -90,195 +100,69 @@ func (w *corsResponseWriter) ensureCORSHeaders() {
 	w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Powered-By")
 }
 
-func JWTAuth(secret string) gin.HandlerFunc {
+func JWTAuth(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-
-		isBookmarksEndpoint := strings.Contains(path, "/bookmarks")
-		isThreadsEndpoint := strings.Contains(path, "/threads")
-
-		if isBookmarksEndpoint {
-			log.Printf("JWTAuth: Processing auth for bookmarks endpoint: %s %s", c.Request.Method, path)
-		} else if isThreadsEndpoint {
-			log.Printf("JWTAuth: Processing auth for threads endpoint: %s %s", c.Request.Method, path)
-		} else {
-			log.Printf("Processing JWT authentication for: %s %s", c.Request.Method, c.Request.URL.Path)
-		}
+		log.Printf("JWTAuth: Processing request path: %s", c.Request.URL.Path)
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			log.Printf("No Authorization header found for %s %s", c.Request.Method, c.Request.URL.Path)
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "User not authenticated",
-				"code":    "UNAUTHORIZED",
-			})
+			log.Printf("JWTAuth: No Authorization header found")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization header is required")
 			c.Abort()
 			return
 		}
 
-		if isBookmarksEndpoint {
-			log.Printf("JWTAuth (bookmarks): Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
-		} else if isThreadsEndpoint {
-			log.Printf("JWTAuth (threads): Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
-		} else {
-			log.Printf("Auth header found: %s...", authHeader[:min(len(authHeader), 15)])
-		}
+		log.Printf("JWTAuth: Found Authorization header (length: %d)", len(authHeader))
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			log.Printf("Invalid Authorization header format: %s", authHeader[:min(len(authHeader), 30)])
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Authorization header format must be Bearer {token}",
-				"code":    "UNAUTHORIZED",
-			})
+		bearerToken := strings.Split(authHeader, " ")
+		if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
+			log.Printf("JWTAuth: Invalid Authorization format: %s", authHeader)
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token format")
 			c.Abort()
 			return
 		}
 
-		token := parts[1]
-		if isBookmarksEndpoint {
-			log.Printf("JWTAuth (bookmarks): Token length: %d chars", len(token))
-
-			log.Printf("JWTAuth (bookmarks): Full token: %s", token)
-		} else if isThreadsEndpoint {
-			log.Printf("JWTAuth (threads): Token length: %d chars", len(token))
-
-			log.Printf("JWTAuth (threads): Full token: %s", token)
-		} else {
-			log.Printf("Token length: %d chars", len(token))
-		}
-
-		if token == "" {
-			log.Printf("Empty token provided")
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "User not authenticated",
-				"code":    "UNAUTHORIZED",
-			})
+		tokenStr := bearerToken[1]
+		if tokenStr == "" {
+			log.Printf("JWTAuth: Empty token")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token")
 			c.Abort()
 			return
 		}
 
-		claims := jwt.MapClaims{}
-
-		parsedToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-
+		// Verify token
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				log.Printf("JWTAuth: Unexpected signing method: %v", token.Header["alg"])
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(secret), nil
+			return []byte(jwtSecret), nil
 		})
 
 		if err != nil {
-			if isBookmarksEndpoint {
-				log.Printf("JWTAuth (bookmarks): JWT parse error: %v", err)
-			} else if isThreadsEndpoint {
-				log.Printf("JWTAuth (threads): JWT parse error: %v", err)
+			log.Printf("JWTAuth: Error parsing token: %v", err)
+			if err == jwt.ErrSignatureInvalid {
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token signature")
 			} else {
-				log.Printf("JWT parse error: %v", err)
+				utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
 			}
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "User not authenticated",
-				"code":    "UNAUTHORIZED",
-			})
 			c.Abort()
 			return
 		}
 
-		if !parsedToken.Valid {
-			if isBookmarksEndpoint {
-				log.Printf("JWTAuth (bookmarks): Invalid JWT token")
-			} else if isThreadsEndpoint {
-				log.Printf("JWTAuth (threads): Invalid JWT token")
-			} else {
-				log.Printf("Invalid JWT token")
-			}
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "User not authenticated",
-				"code":    "UNAUTHORIZED",
-			})
+		if !token.Valid {
+			log.Printf("JWTAuth: Invalid token")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid token")
 			c.Abort()
 			return
 		}
 
-		userIdClaim := claims["sub"]
-		if isBookmarksEndpoint {
-			log.Printf("JWTAuth (bookmarks): Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
-		} else if isThreadsEndpoint {
-			log.Printf("JWTAuth (threads): Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
-		} else {
-			log.Printf("JWT Middleware: Extracted sub claim: %v (Type: %T)", userIdClaim, userIdClaim)
-		}
-
-		userIdStr, ok := userIdClaim.(string)
-		if !ok {
-
-			userIdClaim = claims["user_id"]
-			if isBookmarksEndpoint {
-				log.Printf("JWTAuth (bookmarks): No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
-			} else if isThreadsEndpoint {
-				log.Printf("JWTAuth (threads): No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
-			} else {
-				log.Printf("JWT Middleware: No valid sub claim, trying user_id claim: %v (Type: %T)", userIdClaim, userIdClaim)
-			}
-
-			userIdStr, ok = userIdClaim.(string)
-			if !ok {
-				if isBookmarksEndpoint {
-					log.Printf("JWTAuth (bookmarks): No valid user identifier in token claims")
-
-					log.Printf("JWTAuth (bookmarks): Available claims:")
-					for key, value := range claims {
-						log.Printf("  %s: %v (Type: %T)", key, value, value)
-					}
-				} else if isThreadsEndpoint {
-					log.Printf("JWTAuth (threads): No valid user identifier in token claims")
-
-					log.Printf("JWTAuth (threads): Available claims:")
-					for key, value := range claims {
-						log.Printf("  %s: %v (Type: %T)", key, value, value)
-					}
-				} else {
-					log.Printf("JWT Middleware: No valid user identifier in token claims")
-
-					log.Printf("JWT Middleware: Available claims:")
-					for key, value := range claims {
-						log.Printf("  %s: %v (Type: %T)", key, value, value)
-					}
-				}
-
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"success": false,
-					"message": "Invalid token claims",
-					"code":    "UNAUTHORIZED",
-				})
-				c.Abort()
-				return
-			}
-		}
-
-		if isBookmarksEndpoint {
-			log.Printf("JWTAuth (bookmarks): Successfully extracted user ID: %s from token", userIdStr)
-		} else if isThreadsEndpoint {
-			log.Printf("JWTAuth (threads): Successfully extracted user ID: %s from token", userIdStr)
-		} else {
-			log.Printf("JWT Middleware: Successfully extracted user ID: %s from token", userIdStr)
-		}
-
-		c.Set("userId", userIdStr)
-		c.Set("userID", userIdStr)
-
-		if isBookmarksEndpoint {
-			log.Printf("JWTAuth (bookmarks): Successfully validated token for user %s", userIdStr)
-		} else if isThreadsEndpoint {
-			log.Printf("JWTAuth (threads): Successfully validated token for user %s", userIdStr)
-		} else {
-			log.Printf("JWT Middleware: Successfully validated token for user %s", userIdStr)
-		}
+		log.Printf("JWTAuth: Valid token for user ID: %s", claims.Subject)
+		// Set claims in context for later use
+		c.Set("userID", claims.Subject)
+		c.Set("userId", claims.Subject) // For backward compatibility
+		c.Set("userClaims", claims)
 
 		c.Next()
 	}
@@ -347,140 +231,55 @@ func OptionalJWTAuth(secret string) gin.HandlerFunc {
 
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Printf("AdminOnly middleware processing request for path: %s", c.Request.URL.Path)
+		userID, exists := c.Get("userID")
+		log.Printf("AdminOnly: Processing request path: %s for user ID: %v", c.Request.URL.Path, userID)
 
-		if isDevelopment() {
-			log.Printf("AdminOnly: Development mode detected, bypassing admin check")
-			c.Next()
-			return
-		}
-
-		_, exists := c.Get("userID")
 		if !exists {
-			log.Printf("AdminOnly: No userID in context")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Unauthorized, missing user identity",
-				"code":    "UNAUTHORIZED",
-			})
+			log.Printf("AdminOnly: No userID found in context")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+			c.Abort()
 			return
 		}
 
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
-			log.Printf("AdminOnly: No Authorization header")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Unauthorized, missing token",
-				"code":    "UNAUTHORIZED",
-			})
+		// Get user from user service
+		if handlers.UserClient == nil {
+			log.Printf("AdminOnly: UserClient is nil")
+			utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service is unavailable")
+			c.Abort()
 			return
 		}
 
-		if !strings.HasPrefix(tokenString, "Bearer ") {
-			log.Printf("AdminOnly: Invalid token format (no Bearer prefix)")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Unauthorized, invalid token format",
-				"code":    "UNAUTHORIZED",
-			})
-			return
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-		tokenString = tokenString[7:]
-		log.Printf("AdminOnly: Token length: %d", len(tokenString))
+		log.Printf("AdminOnly: Checking if user %v is admin", userID)
 
-		claims := jwt.MapClaims{}
-		secret := utils.GetJWTSecret()
-
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return secret, nil
+		response, err := handlers.UserClient.GetUser(ctx, &userpb.GetUserRequest{
+			UserId: userID.(string),
 		})
 
 		if err != nil {
-			log.Printf("AdminOnly: JWT parse error: %v", err)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Unauthorized, invalid token",
-				"code":    "UNAUTHORIZED",
-			})
+			log.Printf("AdminOnly: Error getting user: %v", err)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to verify user")
+			c.Abort()
 			return
 		}
 
-		if !token.Valid {
-			log.Printf("AdminOnly: Invalid token")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "Unauthorized, invalid token",
-				"code":    "UNAUTHORIZED",
-			})
+		if response == nil || response.User == nil {
+			log.Printf("AdminOnly: User not found or nil response")
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not found")
+			c.Abort()
 			return
 		}
 
-		_, userOk := claims["sub"].(string)
-		if !userOk {
-
-			_, userOk = claims["user_id"].(string)
-			if !userOk {
-				log.Printf("AdminOnly: No valid user ID in claims")
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"success": false,
-					"message": "Unauthorized, invalid token claims",
-					"code":    "UNAUTHORIZED",
-				})
-				return
-			}
-		}
-
-		isAdmin := false
-
-		log.Printf("AdminOnly: Token claims:")
-		for k, v := range claims {
-			log.Printf("  %s: %v (Type: %T)", k, v, v)
-		}
-
-		if adminValue, exists := claims["is_admin"]; exists {
-			log.Printf("AdminOnly: Found is_admin claim: %v (Type: %T)", adminValue, adminValue)
-			switch v := adminValue.(type) {
-			case bool:
-				isAdmin = v
-			case string:
-				isAdmin = v == "true" || v == "t" || v == "1"
-			case float64:
-				isAdmin = v == 1
-			}
-		}
-
-		if !isAdmin {
-			if adminValue, exists := claims["admin"]; exists {
-				log.Printf("AdminOnly: Found admin claim: %v (Type: %T)", adminValue, adminValue)
-				switch v := adminValue.(type) {
-				case bool:
-					isAdmin = v
-				case string:
-					isAdmin = v == "true" || v == "t" || v == "1"
-				case float64:
-					isAdmin = v == 1
-				}
-			}
-		}
-
-		log.Printf("AdminOnly: User is admin: %t", isAdmin)
-
-		if !isAdmin {
-			log.Printf("AdminOnly: Access denied - user is not an admin")
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": "Forbidden, admin access required",
-				"code":    "FORBIDDEN",
-			})
+		if !response.User.IsAdmin {
+			log.Printf("AdminOnly: User %v is not an admin", userID)
+			utils.SendErrorResponse(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+			c.Abort()
 			return
 		}
 
-		log.Printf("AdminOnly: Access granted - user is admin")
+		log.Printf("AdminOnly: User %v is authenticated as admin", userID)
 		c.Next()
 	}
 }

@@ -65,28 +65,47 @@ func NewAdminService(adminRepo *repository.AdminRepository, userRepo repository.
 }
 
 func (s *AdminService) BanUser(ctx context.Context, req *user.BanUserRequest) (*user.BanUserResponse, error) {
+	var action string
+	if req.Ban {
+		action = "ban"
+	} else {
+		action = "unban"
+	}
+	log.Printf("AdminService.BanUser: Received request to %s user %s by admin %s",
+		action, req.UserId, req.AdminId)
 
 	if req.UserId == "" {
+		log.Printf("AdminService.BanUser: Missing user ID")
 		return nil, status.Error(codes.InvalidArgument, "User ID is required")
 	}
 
 	existingUser, err := s.userRepo.FindUserByID(req.UserId)
 	if err != nil {
-		log.Printf("Error finding user by ID %s: %v", req.UserId, err)
+		log.Printf("AdminService.BanUser: Error finding user by ID %s: %v", req.UserId, err)
 		return nil, status.Error(codes.NotFound, "User not found")
 	}
 
-	err = s.adminRepo.BanUser(req.UserId, req.Ban)
-	if err != nil {
-		log.Printf("Error updating ban status for user %s: %v", req.UserId, err)
-		return nil, status.Error(codes.Internal, "Failed to update user ban status")
+	log.Printf("AdminService.BanUser: Found user %s (ID: %s) with current ban status: %v",
+		existingUser.Username, req.UserId, existingUser.IsBanned)
+
+	// Only proceed with update if the ban status is different
+	if existingUser.IsBanned != req.Ban {
+		log.Printf("AdminService.BanUser: Updating ban status from %v to %v", existingUser.IsBanned, req.Ban)
+		err = s.adminRepo.BanUser(req.UserId, req.Ban)
+		if err != nil {
+			log.Printf("AdminService.BanUser: Error updating ban status for user %s: %v", req.UserId, err)
+			return nil, status.Error(codes.Internal, "Failed to update user ban status")
+		}
+	} else {
+		log.Printf("AdminService.BanUser: User already has ban status of %v, no change needed", req.Ban)
 	}
 
-	action := "unbanned"
+	action = "unbanned"
 	if req.Ban {
 		action = "banned"
 	}
 
+	log.Printf("AdminService.BanUser: Successfully %s user %s", action, existingUser.Username)
 	return &user.BanUserResponse{
 		Success: true,
 		Message: "User " + existingUser.Username + " has been " + action,
@@ -658,7 +677,7 @@ func (s *AdminService) CreateCommunityRequest(ctx context.Context, req *user.Cre
 	}
 
 	request := &model.CommunityRequest{
-		ID:          communityID, 
+		ID:          communityID,
 		UserID:      userID,
 		Name:        req.Name,
 		Description: req.Description,

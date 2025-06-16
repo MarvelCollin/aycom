@@ -3,7 +3,9 @@ package handlers
 import (
 	communityProto "aycom/backend/proto/community"
 	userProto "aycom/backend/proto/user"
+	"bytes"
 	"context"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -30,9 +32,23 @@ func BanUser(c *gin.Context) {
 
 	userID := c.Param("userId")
 	if userID == "" {
+		log.Printf("BanUser Handler: Missing user ID in URL parameter")
 		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "User ID is required")
 		return
 	}
+
+	log.Printf("BanUser Handler: Processing request for user ID: %s", userID)
+
+	// Print full request body for debugging
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Printf("BanUser Handler: Failed to read request body: %v", err)
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Failed to read request body")
+		return
+	}
+	// Re-set the body to be read again
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+	log.Printf("BanUser Handler: Raw request body: %s", string(body))
 
 	var rawData map[string]interface{}
 	if err := c.ShouldBindJSON(&rawData); err != nil {
@@ -41,21 +57,71 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
+	log.Printf("BanUser Handler: Request body received: %+v", rawData)
+
 	var ban bool
 	var banFound bool
 
 	if banValue, exists := rawData["ban"]; exists {
-		if boolValue, ok := banValue.(bool); ok {
-			ban = boolValue
+		log.Printf("BanUser Handler: Found 'ban' field with value type: %T, value: %v", banValue, banValue)
+
+		switch v := banValue.(type) {
+		case bool:
+			ban = v
 			banFound = true
+			log.Printf("BanUser Handler: Parsed 'ban' as bool: %v", ban)
+		case string:
+			if v == "true" {
+				ban = true
+				banFound = true
+			} else if v == "false" {
+				ban = false
+				banFound = true
+			}
+			log.Printf("BanUser Handler: Parsed 'ban' as string: %v -> %v", v, ban)
+		case float64:
+			if v == 1.0 {
+				ban = true
+				banFound = true
+			} else if v == 0.0 {
+				ban = false
+				banFound = true
+			}
+			log.Printf("BanUser Handler: Parsed 'ban' as float64: %v -> %v", v, ban)
+		default:
+			log.Printf("BanUser Handler: Unsupported 'ban' type: %T", banValue)
 		}
 	}
 
 	if !banFound {
 		if banValue, exists := rawData["Ban"]; exists {
-			if boolValue, ok := banValue.(bool); ok {
-				ban = boolValue
+			log.Printf("BanUser Handler: Found 'Ban' field with value type: %T, value: %v", banValue, banValue)
+
+			switch v := banValue.(type) {
+			case bool:
+				ban = v
 				banFound = true
+				log.Printf("BanUser Handler: Parsed 'Ban' as bool: %v", ban)
+			case string:
+				if v == "true" {
+					ban = true
+					banFound = true
+				} else if v == "false" {
+					ban = false
+					banFound = true
+				}
+				log.Printf("BanUser Handler: Parsed 'Ban' as string: %v -> %v", v, ban)
+			case float64:
+				if v == 1.0 {
+					ban = true
+					banFound = true
+				} else if v == 0.0 {
+					ban = false
+					banFound = true
+				}
+				log.Printf("BanUser Handler: Parsed 'Ban' as float64: %v -> %v", v, ban)
+			default:
+				log.Printf("BanUser Handler: Unsupported 'Ban' type: %T", banValue)
 			}
 		}
 	}
@@ -68,22 +134,28 @@ func BanUser(c *gin.Context) {
 
 	adminID, exists := c.Get("userID")
 	if !exists {
+		log.Printf("BanUser Handler: Admin ID not found in token")
 		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Admin ID not found in token")
 		return
 	}
+
+	log.Printf("BanUser Handler: Request initiated by admin ID: %v", adminID)
 
 	var reason string
 	if reasonValue, exists := rawData["reason"]; exists {
 		if strValue, ok := reasonValue.(string); ok {
 			reason = strValue
+			log.Printf("BanUser Handler: Found 'reason' field with value: %s", reason)
 		}
 	} else if reasonValue, exists := rawData["Reason"]; exists {
 		if strValue, ok := reasonValue.(string); ok {
 			reason = strValue
+			log.Printf("BanUser Handler: Found 'Reason' field with value: %s", reason)
 		}
 	}
 
 	if UserClient == nil {
+		log.Printf("BanUser Handler: User service client is not initialized")
 		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "User service client not initialized")
 		return
 	}
@@ -92,6 +164,47 @@ func BanUser(c *gin.Context) {
 	defer cancel()
 
 	log.Printf("BanUser Handler: Sending request to user service with ban=%v for user ID %s, reason: %s", ban, userID, reason)
+
+	// First, get the user to check if the ban status needs to be changed
+	userResp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: userID,
+	})
+
+	if err != nil {
+		log.Printf("BanUser Handler: Error getting user: %v", err)
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.NotFound {
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user")
+		}
+		return
+	}
+
+	if userResp == nil || userResp.User == nil {
+		log.Printf("BanUser Handler: User not found or nil response")
+		utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+		return
+	}
+
+	currentBanStatus := userResp.User.IsBanned
+	log.Printf("BanUser Handler: Current ban status for user %s: %v, requested ban status: %v", userID, currentBanStatus, ban)
+
+	// Only update if the status is different
+	if currentBanStatus == ban {
+		log.Printf("BanUser Handler: User %s ban status is already %v, no change needed", userID, ban)
+		var message string
+		if ban {
+			message = "User is already banned"
+		} else {
+			message = "User is already unbanned"
+		}
+		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+			"message": message,
+		})
+		return
+	}
+
 	response, err := UserClient.BanUser(ctx, &userProto.BanUserRequest{
 		UserId:  userID,
 		Ban:     ban,
@@ -104,8 +217,10 @@ func BanUser(c *gin.Context) {
 		if ok {
 			switch st.Code() {
 			case codes.NotFound:
+				log.Printf("BanUser Handler: User not found error: %v", err)
 				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 			case codes.InvalidArgument:
+				log.Printf("BanUser Handler: Invalid argument error: %v", err)
 				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("BanUser Handler: gRPC error: %v", err)
@@ -118,6 +233,7 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
+	log.Printf("BanUser Handler: Success response from user service: %+v", response)
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})

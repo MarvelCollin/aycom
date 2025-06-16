@@ -317,24 +317,48 @@ func GetThreadsByUser(c *gin.Context) {
 		}
 	}
 
-	_, uuidErr := uuid.Parse(userID)
+	// Try to parse the userID as UUID first to validate format
+	userUUID, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
+		log.Printf("UserID '%s' is not a valid UUID format: %v", userID, uuidErr)
 
+		// If there's no userServiceClient initialized, we can't do username resolution
 		if userServiceClient == nil {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "User service client not initialized")
 			return
 		}
 
+		// Try to resolve as username instead
+		log.Printf("Attempting to resolve '%s' as username", userID)
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
+			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			return
 		}
 
 		userID = user.ID
-		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("userId"), userID)
+
+		// Double-check the resolved ID is a valid UUID
+		if _, err := uuid.Parse(userID); err != nil {
+			log.Printf("ERROR: Resolved user ID '%s' is not a valid UUID", userID)
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get valid user ID")
+			return
+		}
+	} else {
+		// UUID is valid, check if the user exists to provide a better error message
+		if userServiceClient != nil {
+			exists, err := userServiceClient.UserExists(userUUID.String())
+			if err != nil {
+				log.Printf("Error checking if user exists: %v", err)
+				// Not returning here as we'll try to proceed with the request anyway
+			} else if !exists {
+				log.Printf("User with ID %s does not exist", userID)
+				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with ID %s not found", userID))
+				return
+			}
+		}
 	}
 
 	log.Printf("Connecting to thread service for user %s", userID)
@@ -860,7 +884,7 @@ func GetUserReplies(c *gin.Context) {
 		}
 	}
 
-	userID := c.Param("id")
+	userID := c.Param("userId")
 
 	if userID == "me" {
 		if authenticatedUserIDStr == "" {
@@ -917,7 +941,7 @@ func GetUserReplies(c *gin.Context) {
 		}
 
 		userID = user.ID
-		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
+		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("userId"), userID)
 	}
 
 	replies, err := threadServiceClient.GetRepliesByUser(userID, page, limit)

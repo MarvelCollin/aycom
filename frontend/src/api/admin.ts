@@ -195,23 +195,67 @@ export async function banUser(userId: string, ban: boolean, reason?: string): Pr
   logger.info("Ban user request body:", requestBody);
 
   try {
-    // Make the API request
-    const response = await apiRequest<AdminApiResponse>(
-      `${API_BASE_URL}/admin/users/${userId}/ban`,
-      "POST",
-      requestBody
-    );
+    // Construct URL explicitly
+    const url = `${API_BASE_URL}/admin/users/${encodeURIComponent(userId)}/ban`;
+    logger.info(`Making POST request to ${url}`);
 
-    logger.info("Ban user API response:", response);
+    // Get auth token with detailed logging
+    let token;
+    try {
+      const authData = localStorage.getItem('auth');
+      if (!authData) {
+        logger.warn('No auth data found in localStorage');
+        return {
+          success: false,
+          message: "No authentication token available",
+          data: { message: "No authentication token available" }
+        };
+      }
+      
+      const parsedAuth = JSON.parse(authData);
+      
+      if (parsedAuth && parsedAuth.access_token) {
+        token = parsedAuth.access_token;
+        logger.info(`Auth token retrieved successfully, length: ${token.length}`);
+      } else {
+        logger.warn('Auth data exists but no access_token found', parsedAuth);
+        return {
+          success: false,
+          message: "Invalid authentication token",
+          data: { message: "Invalid authentication token" }
+        };
+      }
+    } catch (error) {
+      logger.error('Error retrieving auth token:', error);
+      return {
+        success: false,
+        message: "Error retrieving authentication token",
+        data: { message: "Error retrieving authentication token" }
+      };
+    }
+    
+    // Make the API request with explicit headers and body formatting
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include",
+      body: JSON.stringify(requestBody)
+    });
 
-    // Validate the response structure
-    if (!response) {
-      throw new Error("Empty response received from server");
+    logger.info(`Ban user response status: ${response.status}`);
+    const data = await response.json();
+    logger.info("Ban user API raw response:", data);
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || data.message || `Request failed with status ${response.status}`);
     }
 
     // Handle different response formats
-    const success = response.success === true;
-    const message = response.message || response.data?.message || (success ?
+    const success = data.success !== false; // Assume success unless explicitly marked as false
+    const message = data.message || data.data?.message || (success ?
       `User successfully ${ban ? "banned" : "unbanned"}` :
       `Failed to ${ban ? "ban" : "unban"} user`);
 
