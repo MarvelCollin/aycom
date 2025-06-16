@@ -1,12 +1,12 @@
-import { writable, derived } from 'svelte/store';
-import { toastStore } from './toastStore';
-import { createLoggerWithPrefix } from '../utils/logger';
+import { writable, derived } from "svelte/store";
+import { toastStore } from "./toastStore";
+import { createLoggerWithPrefix } from "../utils/logger";
 
-const logger = createLoggerWithPrefix('NotificationStore');
+const logger = createLoggerWithPrefix("NotificationStore");
 
 export interface Notification {
   id: string;
-  type: 'like' | 'reply' | 'repost' | 'follow' | 'mention';
+  type: "like" | "reply" | "repost" | "follow" | "mention";
   actor_id: string;
   actor_username: string;
   actor_profile_pic: string;
@@ -19,29 +19,26 @@ export interface Notification {
 function createNotificationStore() {
   const { subscribe, update, set } = writable<Notification[]>([]);
 
-  // Show badge for unread notifications
   const unreadCount = derived({ subscribe }, $notifications => {
     return $notifications.filter(notification => !notification.read).length;
   });
-  
-  // Show new notification toast
+
   const showNotificationToast = (notification: Notification) => {
     const message = getNotificationMessage(notification);
-    toastStore.showToast(message, 'info');
+    toastStore.showToast(message, "info");
   };
-  
-  // Get human-readable notification message
+
   const getNotificationMessage = (notification: Notification): string => {
     switch (notification.type) {
-      case 'like':
+      case "like":
         return `${notification.actor_username} liked your post`;
-      case 'reply':
+      case "reply":
         return `${notification.actor_username} replied to your post`;
-      case 'repost':
+      case "repost":
         return `${notification.actor_username} reposted your post`;
-      case 'follow':
+      case "follow":
         return `${notification.actor_username} followed you`;
-      case 'mention':
+      case "mention":
         return `${notification.actor_username} mentioned you`;
       default:
         return `New notification from ${notification.actor_username}`;
@@ -53,13 +50,13 @@ function createNotificationStore() {
     unreadCount: { subscribe: unreadCount.subscribe },
 
     addNotification: (notification: Notification) => {
-      logger.debug('Adding notification', notification);
-      
+      logger.debug("Adding notification", notification);
+
       update(notifications => {
-        // Check if notification already exists
+
         const exists = notifications.some(n => n.id === notification.id);
         if (!exists) {
-          // Show toast for new notifications
+
           showNotificationToast(notification);
           return [notification, ...notifications];
         }

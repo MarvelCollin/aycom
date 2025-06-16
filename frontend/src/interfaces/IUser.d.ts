@@ -1,5 +1,5 @@
-import type { IMediaUpdateRequest } from './IMedia';
-import type { IPagination } from './ICommon';
+import type { IMediaUpdateRequest } from "./IMedia";
+import type { IPagination } from "./ICommon";
 
 export interface IUser {
   id: string;
@@ -157,4 +157,4 @@ export interface IBlockedUsersResponse {
 
 export interface IAdminStatusUpdateRequest {
   is_admin: boolean;
-} 
+}

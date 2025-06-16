@@ -13,10 +13,10 @@
 </script>
 
 <div class="about-container">
-  <h2 class="section-title">About {community?.name || 'Community'}</h2>
+  <h2 class="section-title">About {community?.name || "Community"}</h2>
 
   <div class="community-description">
-    <p>{community?.description || 'No description provided'}</p>
+    <p>{community?.description || "No description provided"}</p>
   </div>
 
   {#if community?.categories && community.categories.length > 0}

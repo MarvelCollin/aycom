@@ -18,4 +18,4 @@ export interface IPredictCategoryResponse {
     category: string;
     confidence: number;
   };
-} 
+}

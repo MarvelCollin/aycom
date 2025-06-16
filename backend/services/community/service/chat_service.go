@@ -91,13 +91,16 @@ type ChatService interface {
 	ListChats(userID string, limit, offset int) ([]*community.Chat, error)
 	CreateChat(name string, description string, creatorID string, isGroupChat bool, participantIDs []string) (*community.Chat, error)
 	AddParticipant(chatID, userID, addedBy string) error
+	AddParticipantDirect(participant *model.ParticipantDTO) error
 	RemoveParticipant(chatID, userID, removedBy string) error
+	RemoveParticipantDirect(chatID, userID string) error
 	ListParticipants(chatID string, limit, offset int) ([]*community.ChatParticipant, error)
 	SendMessage(chatID string, userID string, content string) (string, error)
 	GetMessages(chatID string, limit, offset int) ([]*community.Message, error)
 	DeleteMessage(chatID, messageID, userID string) error
 	UnsendMessage(chatID, messageID, userID string) error
 	SearchMessages(chatID, query string, limit, offset int) ([]*community.Message, error)
+	DeleteChatForUser(chatID, userID string) error
 }
 
 type chatService struct {
@@ -167,7 +170,7 @@ func (s *chatService) CreateChat(name string, description string, creatorID stri
 		participant := &model.ParticipantDTO{
 			ChatID:   chatID,
 			UserID:   userID,
-			IsAdmin:  userID == creatorID, 
+			IsAdmin:  userID == creatorID,
 			JoinedAt: now,
 		}
 
@@ -268,6 +271,32 @@ func (s *chatService) AddParticipant(chatID, userID, addedBy string) error {
 	return nil
 }
 
+// AddParticipantDirect adds a participant directly without admin checks
+// This is used by the API gateway when the admin check is handled at a higher level
+func (s *chatService) AddParticipantDirect(participant *model.ParticipantDTO) error {
+	// Verify chat exists
+	_, err := s.chatRepo.FindChatByID(participant.ChatID)
+	if err != nil {
+		return fmt.Errorf("chat not found: %v", err)
+	}
+
+	// Check if user is already a participant
+	isParticipant, err := s.participantRepo.IsUserInChat(participant.ChatID, participant.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to check if user is already a participant: %v", err)
+	}
+
+	if isParticipant {
+		return fmt.Errorf("user is already a participant in this chat")
+	}
+
+	if err := s.participantRepo.AddParticipant(participant); err != nil {
+		return fmt.Errorf("failed to add participant: %v", err)
+	}
+
+	return nil
+}
+
 func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error {
 
 	_, err := s.chatRepo.FindChatByID(chatID)
@@ -282,6 +311,32 @@ func (s *chatService) RemoveParticipant(chatID, userID, removedBy string) error 
 
 	if !isAdmin && removedBy != userID {
 		return fmt.Errorf("only admins can remove other participants")
+	}
+
+	if err := s.participantRepo.RemoveParticipant(chatID, userID); err != nil {
+		return fmt.Errorf("failed to remove participant: %v", err)
+	}
+
+	return nil
+}
+
+// RemoveParticipantDirect removes a participant directly without admin checks
+// This is used by the API gateway when the admin check is handled at a higher level
+func (s *chatService) RemoveParticipantDirect(chatID, userID string) error {
+	// Verify chat exists
+	_, err := s.chatRepo.FindChatByID(chatID)
+	if err != nil {
+		return fmt.Errorf("chat not found: %v", err)
+	}
+
+	// Check if user is a participant
+	isParticipant, err := s.participantRepo.IsUserInChat(chatID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check if user is a participant: %v", err)
+	}
+
+	if !isParticipant {
+		return fmt.Errorf("user is not a participant in this chat")
 	}
 
 	if err := s.participantRepo.RemoveParticipant(chatID, userID); err != nil {
@@ -440,6 +495,36 @@ func (s *chatService) SearchMessages(chatID, query string, limit, offset int) ([
 	}
 
 	return protoMessages, nil
+}
+
+func (s *chatService) DeleteChatForUser(chatID, userID string) error {
+	log.Printf("Deleting chat %s for user %s", chatID, userID)
+
+	chat, err := s.chatRepo.FindChatByID(chatID)
+	if err != nil {
+		return fmt.Errorf("failed to find chat: %v", err)
+	}
+
+	if chat == nil {
+		return fmt.Errorf("chat not found")
+	}
+
+	isParticipant, err := s.IsParticipant(chatID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check participation: %v", err)
+	}
+
+	if !isParticipant {
+		return fmt.Errorf("user is not a participant in this chat")
+	}
+
+	err = s.deletedChatRepo.MarkChatAsDeleted(chatID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to mark chat as deleted: %v", err)
+	}
+
+	log.Printf("Successfully marked chat %s as deleted for user %s", chatID, userID)
+	return nil
 }
 
 func (s *chatService) isUserChatAdmin(chatID, userID string) (bool, error) {

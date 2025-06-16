@@ -1,16 +1,16 @@
-import { createLoggerWithPrefix } from './logger';
-import appConfig from '../config/appConfig';
+import { createLoggerWithPrefix } from "./logger";
+import appConfig from "../config/appConfig";
 
-const logger = createLoggerWithPrefix('Auth');
+const logger = createLoggerWithPrefix("Auth");
 const TOKEN_VALIDATION_INTERVAL = 1000 * 60 * 5;
 let tokenValidationTimer: number | null = null;
 
 const roleCache: Record<string, {role: string, timestamp: number}> = {};
-const ROLE_CACHE_TTL = 5 * 60 * 1000; 
+const ROLE_CACHE_TTL = 5 * 60 * 1000;
 
 export function getAuthToken(): string {
   try {
-    const authData = localStorage.getItem('auth');
+    const authData = localStorage.getItem("auth");
     if (authData) {
       const auth = JSON.parse(authData);
       logger.debug(`Auth data found in localStorage: ${JSON.stringify({
@@ -22,13 +22,12 @@ export function getAuthToken(): string {
       if (auth.access_token) {
         if (auth.expires_at && Date.now() >= auth.expires_at) {
           logger.warn("Token exists but is expired");
-          return '';
+          return "";
         }
-        
-        // Log partial token for debugging
-        const tokenPreview = auth.access_token.substring(0, 10) + '...' + auth.access_token.substring(auth.access_token.length - 5);
+
+        const tokenPreview = auth.access_token.substring(0, 10) + "..." + auth.access_token.substring(auth.access_token.length - 5);
         logger.debug(`Retrieved valid token: ${tokenPreview}`);
-        
+
         return auth.access_token;
       }
     } else {
@@ -37,12 +36,12 @@ export function getAuthToken(): string {
   } catch (err) {
     logger.error("Error parsing auth data:", err);
   }
-  return '';
+  return "";
 }
 
 export function isAuthenticated(): boolean {
   try {
-    const authData = localStorage.getItem('auth');
+    const authData = localStorage.getItem("auth");
     if (authData) {
       const auth = JSON.parse(authData);
       if (auth.is_authenticated && auth.access_token) {
@@ -60,7 +59,7 @@ export function isAuthenticated(): boolean {
 
 export function getUserId(): string | null {
   try {
-    const authData = localStorage.getItem('auth');
+    const authData = localStorage.getItem("auth");
     if (authData) {
       const auth = JSON.parse(authData);
       if (auth.user_id && auth.access_token) {
@@ -68,27 +67,25 @@ export function getUserId(): string | null {
           logger.warn("Token exists but is expired when retrieving user ID");
           return null;
         }
-        
-        // Extract user ID from auth data
+
         const userId = auth.user_id;
-        
-        // Verify that the user ID is in a valid UUID format
+
         const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-        
+
         if (isValidUUID) {
           logger.debug(`Retrieved valid UUID user ID from auth: ${userId.substring(0, 8)}...`);
           return userId;
-        } else if (userId.length === 36 && userId.replace(/-/g, '').length === 32) {
-          // UUID has correct length but might have invalid format, try to normalize it
+        } else if (userId.length === 36 && userId.replace(/-/g, "").length === 32) {
+
           let normalized = userId.toLowerCase();
-          // Replace any non-hex characters in the UUID with valid hex
-          normalized = normalized.replace(/[^0-9a-f-]/g, '0');
-          // Ensure hyphens are in the correct positions
-          if (normalized.charAt(8) !== '-') normalized = normalized.substring(0, 8) + '-' + normalized.substring(9);
-          if (normalized.charAt(13) !== '-') normalized = normalized.substring(0, 13) + '-' + normalized.substring(14);
-          if (normalized.charAt(18) !== '-') normalized = normalized.substring(0, 18) + '-' + normalized.substring(19);
-          if (normalized.charAt(23) !== '-') normalized = normalized.substring(0, 23) + '-' + normalized.substring(24);
-          
+
+          normalized = normalized.replace(/[^0-9a-f-]/g, "0");
+
+          if (normalized.charAt(8) !== "-") normalized = normalized.substring(0, 8) + "-" + normalized.substring(9);
+          if (normalized.charAt(13) !== "-") normalized = normalized.substring(0, 13) + "-" + normalized.substring(14);
+          if (normalized.charAt(18) !== "-") normalized = normalized.substring(0, 18) + "-" + normalized.substring(19);
+          if (normalized.charAt(23) !== "-") normalized = normalized.substring(0, 23) + "-" + normalized.substring(24);
+
           logger.warn(`Fixed invalid UUID format for user ID: ${userId} → ${normalized}`);
           return normalized;
         } else {
@@ -111,7 +108,7 @@ export function ensureTokenFreshness(): boolean {
     const authData = getAuthData();
     if (!authData || !authData.expires_at) return false;
 
-    const refreshBuffer = appConfig.auth.tokenRefreshBuffer || 5 * 60 * 1000; // Default to 5 minutes
+    const refreshBuffer = appConfig.auth.tokenRefreshBuffer || 5 * 60 * 1000; 
     const timeUntilExpiry = authData.expires_at - Date.now();
     const isNearExpiry = timeUntilExpiry < refreshBuffer;
 
@@ -121,7 +118,7 @@ export function ensureTokenFreshness(): boolean {
 
     return isNearExpiry;
   } catch (error) {
-    logger.error('Error checking token freshness:', error);
+    logger.error("Error checking token freshness:", error);
     return false;
   }
 }
@@ -141,7 +138,7 @@ export function setAuthData(userData: {
     }
 
     const expiresAt = userData.expiresAt || (Date.now() + 3600 * 1000);
-    
+
     const authData = {
       is_authenticated: true,
       user_id: userData.userId,
@@ -151,12 +148,11 @@ export function setAuthData(userData: {
       is_admin: userData.is_admin || false
     };
 
-    // Log that we're saving the token
-    const tokenPreview = userData.accessToken.substring(0, 10) + '...' + userData.accessToken.substring(userData.accessToken.length - 5);
+    const tokenPreview = userData.accessToken.substring(0, 10) + "..." + userData.accessToken.substring(userData.accessToken.length - 5);
     logger.info(`Saving auth data to localStorage: user_id=${userData.userId}, token=${tokenPreview}, expires_at=${new Date(expiresAt).toLocaleString()}`);
-    
-    localStorage.setItem('auth', JSON.stringify(authData));
-    
+
+    localStorage.setItem("auth", JSON.stringify(authData));
+
     setupTokenValidation();
   } catch (err) {
     logger.error("Error setting auth data:", err);
@@ -165,8 +161,8 @@ export function setAuthData(userData: {
 
 export function clearAuthData(): void {
   try {
-    localStorage.removeItem('auth');
-    
+    localStorage.removeItem("auth");
+
     if (tokenValidationTimer !== null) {
       window.clearInterval(tokenValidationTimer);
       tokenValidationTimer = null;
@@ -178,7 +174,7 @@ export function clearAuthData(): void {
 
 export function getAuthData() {
   try {
-    const authData = localStorage.getItem('auth');
+    const authData = localStorage.getItem("auth");
     if (authData) {
       const auth = JSON.parse(authData);
       if (auth.expires_at && Date.now() >= auth.expires_at) {
@@ -200,14 +196,14 @@ function setupTokenValidation() {
   }
 
   tokenValidationTimer = window.setInterval(() => {
-    logger.debug('Running periodic token validation');
+    logger.debug("Running periodic token validation");
     const isValid = isAuthenticated();
     if (!isValid) {
-      logger.warn('Token validation failed during periodic check');
+      logger.warn("Token validation failed during periodic check");
     }
   }, TOKEN_VALIDATION_INTERVAL);
 
-  logger.debug('Token validation interval setup');
+  logger.debug("Token validation interval setup");
 }
 
 export function updateTokenExpiry(newExpiresAt: number): void {
@@ -215,8 +211,8 @@ export function updateTokenExpiry(newExpiresAt: number): void {
     const authData = getAuthData();
     if (authData) {
       authData.expires_at = newExpiresAt;
-      authData.expiresAt = newExpiresAt; // For backward compatibility
-      localStorage.setItem('auth', JSON.stringify(authData));
+      authData.expiresAt = newExpiresAt; 
+      localStorage.setItem("auth", JSON.stringify(authData));
       logger.debug(`Token expiry updated to ${new Date(newExpiresAt).toLocaleString()}`);
     }
   } catch (err) {
@@ -231,8 +227,8 @@ export async function getUserRole(): Promise<string> {
     const userId = getUserId();
 
     if (!userId) {
-      logger.warn('Cannot get user role - not logged in');
-      return 'user';
+      logger.warn("Cannot get user role - not logged in");
+      return "user";
     }
 
     const now = Date.now();
@@ -254,30 +250,30 @@ export async function getUserRole(): Promise<string> {
 
     const token = getAuthToken();
     if (!token) {
-      logger.warn('Cannot get user role - no auth token');
-      return 'user';
+      logger.warn("Cannot get user role - no auth token");
+      return "user";
     }
 
     const API_BASE_URL = appConfig.api.baseUrl;
-    logger.debug('Fetching user role from API');
+    logger.debug("Fetching user role from API");
 
     try {
       const response = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
         },
-        credentials: 'include'
+        credentials: "include"
       });
 
       if (response.status === 404) {
-        const defaultRole = 'user';
-        logger.warn('User role endpoint not found (404) - using default role');
+        const defaultRole = "user";
+        logger.warn("User role endpoint not found (404) - using default role");
 
         if (authData) {
           authData.userRole = defaultRole;
-          localStorage.setItem('auth', JSON.stringify(authData));
+          localStorage.setItem("auth", JSON.stringify(authData));
         }
         roleCache[userId] = { role: defaultRole, timestamp: now };
 
@@ -285,7 +281,7 @@ export async function getUserRole(): Promise<string> {
       }
 
       if (!response.ok) {
-        const defaultRole = 'user';
+        const defaultRole = "user";
         logger.warn(`Failed to get user role: ${response.status} ${response.statusText}`);
 
         roleCache[userId] = { role: defaultRole, timestamp: now };
@@ -294,11 +290,11 @@ export async function getUserRole(): Promise<string> {
       }
 
       const data = await response.json();
-      const role = data.role || 'user';
+      const role = data.role || "user";
 
       if (authData) {
         authData.userRole = role;
-        localStorage.setItem('auth', JSON.stringify(authData));
+        localStorage.setItem("auth", JSON.stringify(authData));
       }
 
       roleCache[userId] = { role, timestamp: now };
@@ -306,37 +302,30 @@ export async function getUserRole(): Promise<string> {
 
       return role;
     } catch (fetchError) {
-      logger.warn('Failed to fetch user role - network error:', fetchError);
-      return 'user';
+      logger.warn("Failed to fetch user role - network error:", fetchError);
+      return "user";
     }
   } catch (error) {
-    logger.error('Error getting user role:', error);
-    return 'user';
+    logger.error("Error getting user role:", error);
+    return "user";
   }
 }
 
-/**
- * Utility function to check if a user is an admin, handling all possible data types
- * This ensures consistent admin checking across the application
- * 
- * @param user The user object to check
- * @returns boolean indicating whether the user is an admin
- */
 export function isUserAdmin(user: any): boolean {
   if (!user) return false;
-  
+
   const adminFlag = user.is_admin;
-  
+
   if (adminFlag === null || adminFlag === undefined) {
     return false;
-  } else if (typeof adminFlag === 'boolean') {
+  } else if (typeof adminFlag === "boolean") {
     return adminFlag;
-  } else if (typeof adminFlag === 'string') {
+  } else if (typeof adminFlag === "string") {
     const adminStr = String(adminFlag).toLowerCase();
-    return adminStr === 'true' || adminStr === 't' || adminStr === '1';
-  } else if (typeof adminFlag === 'number') {
+    return adminStr === "true" || adminStr === "t" || adminStr === "1";
+  } else if (typeof adminFlag === "number") {
     return adminFlag === 1;
   }
-  
+
   return false;
 }

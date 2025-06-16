@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { useTheme } from '../../hooks/useTheme';
-  import GoogleSignInButton from './GoogleSignInButton.svelte';
-  import ReCaptchaWrapper from './ReCaptchaWrapper.svelte';
-  import type { IDateOfBirth, ICustomWindow } from '../../interfaces/IAuth';
+  import { useTheme } from "../../hooks/useTheme";
+  import GoogleSignInButton from "./GoogleSignInButton.svelte";
+  import ReCaptchaWrapper from "./ReCaptchaWrapper.svelte";
+  import type { IDateOfBirth, ICustomWindow } from "../../interfaces/IAuth";
 
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   export let name = "";
   export let username = "";
@@ -38,7 +38,7 @@
   export let profilePictureError = "";
   export let bannerError = "";
 
-  export let onSubmit: (token: string | null) => void; 
+  export let onSubmit: (token: string | null) => void;
   export let onGoogleAuthSuccess: (result: any) => void;
   export let onGoogleAuthError: (error: string) => void;
 
@@ -65,7 +65,7 @@
   async function triggerSubmit() {
 
     if (isDevelopment) {
-      onSubmit('dev-mode-token');
+      onSubmit("dev-mode-token");
       return;
     }
 
@@ -100,7 +100,7 @@
     }
   }
 
-  import { onDestroy } from 'svelte';
+  import { onDestroy } from "svelte";
 
   onDestroy(() => {
     if (profilePicturePreview) URL.revokeObjectURL(profilePicturePreview);
@@ -113,11 +113,11 @@
     onAuthSuccess={onGoogleAuthSuccess}
     onAuthError={onGoogleAuthError}
     containerId="google-signin-button"
-    class="auth-social-btn {isDarkMode ? 'auth-social-btn-dark' : ''}"
+    class="auth-social-btn {isDarkMode ? "auth-social-btn-dark" : ""}"
   />
 </div>
 
-<div class="auth-divider {isDarkMode ? 'auth-divider-dark' : ''}">
+<div class="auth-divider {isDarkMode ? "auth-divider-dark" : ""}">
   <span class="auth-divider-text">or</span>
 </div>
 
@@ -127,12 +127,12 @@
     <label for="name" class="auth-label">Name <span class="text-red-500">*</span></label>
     <span class="text-xs text-gray-500 dark:text-gray-400" data-cy="name-char-count">{name.length} / 50</span>
   </div>
-  <input 
-    type="text" 
-    id="name" 
-    bind:value={name} 
+  <input
+    type="text"
+    id="name"
+    bind:value={name}
     maxlength="50"
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {nameError ? 'auth-input-error' : ''}"
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {nameError ? "auth-input-error" : ""}"
     placeholder="Name"
     data-cy="name-input"
   />
@@ -145,11 +145,11 @@
 <!-- Username input -->
 <div class="auth-input-group">
   <label for="username" class="auth-label">Username <span class="text-red-500">*</span></label>
-  <input 
-    type="text" 
-    id="username" 
-    bind:value={username} 
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {usernameError ? 'auth-input-error' : ''}"
+  <input
+    type="text"
+    id="username"
+    bind:value={username}
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {usernameError ? "auth-input-error" : ""}"
     placeholder="Username"
     data-cy="username-input"
   />
@@ -162,11 +162,11 @@
 <!-- Email input -->
 <div class="auth-input-group">
   <label for="email" class="auth-label">Email <span class="text-red-500">*</span></label>
-  <input 
-    type="email" 
-    id="email" 
-    bind:value={email} 
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {emailError ? 'auth-input-error' : ''}"
+  <input
+    type="email"
+    id="email"
+    bind:value={email}
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {emailError ? "auth-input-error" : ""}"
     placeholder="Email"
     data-cy="email-input"
   />
@@ -179,11 +179,11 @@
 <!-- Password input -->
 <div class="auth-input-group">
   <label for="password" class="auth-label">Password <span class="text-red-500">*</span></label>
-  <input 
-    type="password" 
-    id="password" 
-    bind:value={password} 
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {passwordErrors.length > 0 ? 'auth-input-error' : ''}"
+  <input
+    type="password"
+    id="password"
+    bind:value={password}
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {passwordErrors.length > 0 ? "auth-input-error" : ""}"
     placeholder="Password"
     data-cy="password-input"
   />
@@ -200,11 +200,11 @@
 <!-- Confirm Password input -->
 <div class="auth-input-group">
   <label for="confirmPassword" class="auth-label">Confirm Password <span class="text-red-500">*</span></label>
-  <input 
-    type="password" 
-    id="confirmPassword" 
-    bind:value={confirmPassword} 
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {confirmPasswordError ? 'auth-input-error' : ''}"
+  <input
+    type="password"
+    id="confirmPassword"
+    bind:value={confirmPassword}
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {confirmPasswordError ? "auth-input-error" : ""}"
     placeholder="Confirm Password"
     data-cy="confirm-password-input"
   />
@@ -220,22 +220,22 @@
     <legend class="auth-label">Gender <span class="text-red-500">*</span></legend>
     <div class="auth-radio-group">
       <label class="auth-checkbox-group">
-        <input 
-          type="radio" 
-          name="gender" 
-          value="male" 
-          bind:group={gender} 
+        <input
+          type="radio"
+          name="gender"
+          value="male"
+          bind:group={gender}
           class="auth-checkbox"
           data-cy="gender-male"
         />
         <span class="auth-checkbox-label">Male</span>
       </label>
       <label class="auth-checkbox-group">
-        <input 
-          type="radio" 
-          name="gender" 
-          value="female" 
-          bind:group={gender} 
+        <input
+          type="radio"
+          name="gender"
+          value="female"
+          bind:group={gender}
           class="auth-checkbox"
           data-cy="gender-female"
         />
@@ -259,10 +259,10 @@
       <div class="auth-dob-select-group" role="group" aria-labelledby="dob-label">
         <div>
           <label for="dob-month" class="sr-only">Month</label>
-          <select 
+          <select
             id="dob-month"
-            bind:value={dateOfBirth.month} 
-            class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+            bind:value={dateOfBirth.month}
+            class="auth-input {isDarkMode ? "auth-input-dark" : ""} {dateOfBirthError ? "auth-input-error" : ""}"
             data-cy="dob-month"
           >
             <option value="">Month</option>
@@ -273,10 +273,10 @@
         </div>
         <div>
           <label for="dob-day" class="sr-only">Day</label>
-          <select 
+          <select
             id="dob-day"
             bind:value={dateOfBirth.day}
-            class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+            class="auth-input {isDarkMode ? "auth-input-dark" : ""} {dateOfBirthError ? "auth-input-error" : ""}"
             data-cy="dob-day"
           >
             <option value="">Day</option>
@@ -287,10 +287,10 @@
         </div>
         <div>
           <label for="dob-year" class="sr-only">Year</label>
-          <select 
+          <select
             id="dob-year"
             bind:value={dateOfBirth.year}
-            class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+            class="auth-input {isDarkMode ? "auth-input-dark" : ""} {dateOfBirthError ? "auth-input-error" : ""}"
             data-cy="dob-year"
           >
             <option value="">Year</option>
@@ -311,10 +311,10 @@
 <!-- Security Question -->
 <div class="auth-input-group">
   <label for="securityQuestion" class="auth-label">Security Question <span class="text-red-500">*</span></label>
-  <select 
+  <select
     id="securityQuestion"
     bind:value={securityQuestion}
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {securityQuestionError ? 'auth-input-error' : ''}"
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {securityQuestionError ? "auth-input-error" : ""}"
     data-cy="security-question"
   >
     <option value="">Select a security question</option>
@@ -331,11 +331,11 @@
 <!-- Security Answer -->
 <div class="auth-input-group">
   <label for="securityAnswer" class="auth-label">Security Answer <span class="text-red-500">*</span></label>
-  <input 
+  <input
     type="text"
     id="securityAnswer"
     bind:value={securityAnswer}
-    class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {securityAnswerError ? 'auth-input-error' : ''}"
+    class="auth-input {isDarkMode ? "auth-input-dark" : ""} {securityAnswerError ? "auth-input-error" : ""}"
     placeholder="Your answer"
     data-cy="security-answer"
   />
@@ -352,7 +352,7 @@
     {#if profilePicturePreview}
       <div class="aycom-auth-image-preview">
         <img src={profilePicturePreview} alt="Profile preview" class="aycom-auth-preview-img" />
-        <button type="button" class="aycom-auth-remove-img" 
+        <button type="button" class="aycom-auth-remove-img"
           on:click={() => {
             profilePicture = null;
             profilePicturePreview = null;
@@ -370,7 +370,7 @@
         </span>
       </label>
     {/if}
-    <input 
+    <input
       type="file"
       id="profilePicture"
       accept="image/*"
@@ -390,7 +390,7 @@
     {#if bannerPreview}
       <div class="aycom-auth-image-preview">
         <img src={bannerPreview} alt="Banner preview" class="aycom-auth-preview-img aycom-auth-banner-preview" />
-        <button type="button" class="aycom-auth-remove-img" 
+        <button type="button" class="aycom-auth-remove-img"
           on:click={() => {
             banner = null;
             bannerPreview = null;
@@ -408,7 +408,7 @@
         </span>
       </label>
     {/if}
-    <input 
+    <input
       type="file"
       id="banner"
       accept="image/*"
@@ -423,7 +423,7 @@
 
 <!-- Subscribe to newsletter -->
 <div class="auth-checkbox-group">
-  <input 
+  <input
     type="checkbox"
     id="subscribeToNewsletter"
     bind:checked={subscribeToNewsletter}
@@ -441,7 +441,7 @@
 <div class="recaptcha-wrapper">
   <ReCaptchaWrapper
     bind:this={recaptchaWrapper}
-    theme={isDarkMode ? 'dark' : 'light'}
+    theme={isDarkMode ? "dark" : "light"}
     size="normal"
     position="inline"
     on:success={handleRecaptchaSuccess}
@@ -450,7 +450,7 @@
   />
 </div>
 
-<button 
+<button
   type="button"
   on:click={triggerSubmit}
   class="auth-btn"
@@ -461,7 +461,7 @@
 </button>
 
 <p class="text-xs mt-4 text-gray-400 text-center">
-  By signing up, you agree to the <a href="/terms" class="text-blue-500 hover:underline">Terms of Service</a> and 
+  By signing up, you agree to the <a href="/terms" class="text-blue-500 hover:underline">Terms of Service</a> and
   <a href="/privacy" class="text-blue-500 hover:underline">Privacy Policy</a>, including <a href="/cookies" class="text-blue-500 hover:underline">Cookie Use</a>.
 </p>
 

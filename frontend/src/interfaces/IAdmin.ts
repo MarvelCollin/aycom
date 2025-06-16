@@ -2,8 +2,8 @@
  * Admin-related interfaces
  */
 
-import type { IPagination } from './ICommon';
-import type { ICategory } from './ICategory';
+import type { IPagination } from "./ICommon";
+import type { ICategory } from "./ICategory";
 
 /**
  * Ban user request
@@ -156,4 +156,4 @@ export interface ICommunityCategories {
   total_count: number;
   page: number;
   limit: number;
-} 
+}

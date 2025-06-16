@@ -23,4 +23,4 @@ export interface ITrendsResponse {
   data: {
     trends: ITrend[];
   };
-} 
+}

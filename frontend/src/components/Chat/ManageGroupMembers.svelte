@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';  import { addChatParticipant, removeChatParticipant, listChatParticipants, searchUsers } from '../../api';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { getAuthToken } from '../../utils/auth';
-  import appConfig from '../../config/appConfig';
-  import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
-  import type { Participant } from '../../interfaces/IChat';
+  import { onMount } from "svelte";  import { addChatParticipant, removeChatParticipant, listChatParticipants, searchUsers } from "../../api";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { getAuthToken } from "../../utils/auth";
+  import appConfig from "../../config/appConfig";
+  import { transformApiUsers, type StandardUser } from "../../utils/userTransform";
+  import type { Participant } from "../../interfaces/IChat";
 
   const API_BASE_URL = appConfig.api.baseUrl;
-  const logger = createLoggerWithPrefix('ManageGroupMembers');
+  const logger = createLoggerWithPrefix("ManageGroupMembers");
   export let chatId: string;
   export let onClose: () => void = () => {};
   export let onMembersUpdated: () => void = () => {};
@@ -15,83 +15,94 @@
 
   let currentParticipants: Participant[] = [];
   let availableUsers: StandardUser[] = [];
-  let searchQuery = '';
+  let searchQuery = "";
   let isLoading = true;
   let isAddingMember = false;
   let isRemovingMember = false;
-  let errorMessage = '';
-  let successMessage = '';
+  let errorMessage = "";
+  let successMessage = "";
   onMount(async () => {
     try {
-      logger.debug('ManageGroupMembers component mounted with chatId:', chatId);
+      logger.debug("ManageGroupMembers component mounted with chatId:", chatId);
       await loadParticipants();
       await loadAvailableUsers();
       isLoading = false;
     } catch (error) {
-      logger.error('Error initializing group management:', error);
-      errorMessage = 'Failed to load group members. Please try again.';
+      logger.error("Error initializing group management:", error);
+      errorMessage = "Failed to load group members. Please try again.";
       isLoading = false;
     }
   });  async function loadParticipants(): Promise<void> {
     try {
-      logger.debug('Loading participants for chat:', chatId);
+      logger.debug("Loading participants for chat:", chatId);
         // Try to get participants from API first
       let participants: Participant[] = [];
       try {
         const response = await listChatParticipants(chatId);
-        logger.debug('Participants API response:', response);
-        
-        if (response && response.data && response.data.participants) {
+        logger.debug("Participants API response:", response);        if (response && response.data && response.data.participants) {
           participants = response.data.participants;
         } else if (response && response.participants) {
           participants = response.participants;
         } else if (response && Array.isArray(response)) {
           participants = response;
         }
+
+        // Normalize participant data structure - API returns user_id, but frontend expects id
+        participants = participants.map((p: any) => ({
+          id: p.id || p.user_id || p.userId || 'unknown',
+          user_id: p.user_id || p.id || p.userId,
+          username: p.username || 'Unknown User',
+          name: p.name || p.display_name || p.username || 'Unknown User',
+          display_name: p.display_name || p.name || p.username || 'Unknown User',
+          profile_picture_url: p.profile_picture_url || p.avatar || null,
+          avatar: p.avatar || p.profile_picture_url || null,
+          is_verified: p.is_verified || false,
+          is_admin: p.is_admin || false
+        })).filter(p => p.id && p.id !== 'unknown');
+
+        logger.debug("Normalized participants:", participants);
       } catch (apiError) {
-        logger.warn('API call failed, trying alternative approach:', apiError);
+        logger.warn("API call failed, trying alternative approach:", apiError);
       }
         // If no participants from API, use the ones passed from parent
       if (participants.length === 0 && currentChatParticipants.length > 0) {
-        logger.debug('Using participants from parent component:', currentChatParticipants);
+        logger.debug("Using participants from parent component:", currentChatParticipants);
         participants = currentChatParticipants;
       }
         currentParticipants = participants.filter(p => p && (p.id || p.username));
-      logger.debug('Final loaded participants:', currentParticipants);
+      logger.debug("Final loaded participants:", currentParticipants);
     } catch (error) {
-      logger.error('Error loading participants:', error);
+      logger.error("Error loading participants:", error);
       currentParticipants = [];
-      throw new Error('Failed to load current participants');
+      throw new Error("Failed to load current participants");
     }
   }
 
   async function loadAvailableUsers(): Promise<void> {
     try {
-      logger.debug('Attempting to load available users with searchUsers API');
+      logger.debug("Attempting to load available users with searchUsers API");
 
-      const response = await searchUsers('a', 1, 50);
+      const response = await searchUsers("a", 1, 50);      if (response && response.users && response.users.length > 0) {
+        logger.debug("Users loaded successfully from searchUsers API", { count: response.users.length });
 
-      if (response && response.users && response.users.length > 0) {
-        logger.debug('Users loaded successfully from searchUsers API', { count: response.users.length });
-
-        const participantIds = new Set(currentParticipants.map(p => p.id));
+        const participantIds = new Set(currentParticipants.map(p => p.id || p.user_id).filter(Boolean));
 
         const transformedUsers = transformApiUsers(response.users);
         availableUsers = transformedUsers.filter(user => !participantIds.has(user.id));
 
-        logger.debug('Filtered available users', { count: availableUsers.length });      } else {
-        logger.warn('No users found from search API');
-        errorMessage = 'No users found. Try searching by username.';
+        logger.debug("Filtered available users", { count: availableUsers.length });      } else {
+        logger.warn("No users found from search API");
+        errorMessage = "No users found. Try searching by username.";
       }    } catch (error) {
-      logger.error('Error loading users with searchUsers API:', error);
-      errorMessage = 'Failed to load users. Try searching by username.';
+      logger.error("Error loading users with searchUsers API:", error);
+      errorMessage = "Failed to load users. Try searching by username.";
     }
   }
-  $: filteredUsers = searchQuery 
-    ? availableUsers.filter(user => 
+  $: filteredUsers = searchQuery
+    ? availableUsers.filter(user =>
         user && user.id && (
-          user.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-          (user.displayName || '').toLowerCase().includes(searchQuery.toLowerCase())
+          user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (user.displayName || "").toLowerCase().includes(searchQuery.toLowerCase())
         )
       )
     : availableUsers.filter(user => user && user.id);
@@ -118,7 +129,7 @@
         if (response && response.users && response.users.length > 0) {
           logger.debug(`Found ${response.users.length} users matching "${query}"`);
 
-          const participantIds = new Set(currentParticipants.map(p => p.id));
+          const participantIds = new Set(currentParticipants.map(p => p.id || p.user_id).filter(Boolean));
 
           const transformedUsers = transformApiUsers(response.users);
           const newUsers = transformedUsers.filter(user => !participantIds.has(user.id));
@@ -134,18 +145,18 @@
       } catch (error) {
         logger.warn(`User search for "${query}" failed:`, error);
       }
-    }, 300); 
+    }, 300);
   }
   async function handleAddMember(user: StandardUser): Promise<void> {
-    errorMessage = '';
-    successMessage = '';
+    errorMessage = "";
+    successMessage = "";
     isAddingMember = true;
 
     try {
-      logger.debug('Adding member to chat:', { chatId, userId: user.id, userName: user.username });
-      
+      logger.debug("Adding member to chat:", { chatId, userId: user.id, userName: user.username });
+
       const response = await addChatParticipant(chatId, { user_id: user.id });
-      logger.debug('Add member response:', response);
+      logger.debug("Add member response:", response);
 
       // Convert StandardUser to Participant format for consistency
       const newParticipant: Participant = {
@@ -160,75 +171,82 @@
 
       // Update the participants list
       currentParticipants = [...currentParticipants, newParticipant];
-      
+
       // Remove from available users
       availableUsers = availableUsers.filter(u => u.id !== user.id);
 
       successMessage = `Added ${user.display_name || user.displayName || user.name || user.username} to the chat`;
-      logger.debug('Member added successfully');
+      logger.debug("Member added successfully");
 
       // Notify parent component to refresh
       onMembersUpdated();
     } catch (error) {
-      logger.error('Error adding member:', error);
-      errorMessage = 'Failed to add member. Please try again.';
+      logger.error("Error adding member:", error);
+      errorMessage = "Failed to add member. Please try again.";
     } finally {
       isAddingMember = false;
 
       if (successMessage) {
         setTimeout(() => {
-          successMessage = '';
+          successMessage = "";
         }, 3000);
       }
     }
-  }
-  async function handleRemoveMember(user: Participant): Promise<void> {
-    errorMessage = '';
-    successMessage = '';
+  }  async function handleRemoveMember(user: Participant): Promise<void> {
+    errorMessage = "";
+    successMessage = "";
     isRemovingMember = true;
 
     try {
-      logger.debug('Removing member from chat:', { chatId, userId: user.id, userName: user.username });
+      // Use id first, fall back to user_id if id is undefined
+      const userIdToRemove = user.id || user.user_id;
       
-      const response = await removeChatParticipant(chatId, user.id);
-      logger.debug('Remove member response:', response);
+      if (!userIdToRemove) {
+        throw new Error("Cannot remove member: user ID is missing");
+      }
 
-      // Remove from participants list
-      currentParticipants = currentParticipants.filter(p => p.id !== user.id);
-      
-      // Convert Participant back to StandardUser format and add to available users
+      logger.debug("Removing member from chat:", { chatId, userId: userIdToRemove, userName: user.username });
+
+      const response = await removeChatParticipant(chatId, userIdToRemove);
+      logger.debug("Remove member response:", response);
+
+      // Remove from participants list using the same ID logic
+      currentParticipants = currentParticipants.filter(p => {
+        const participantId = p.id || p.user_id;
+        return participantId !== userIdToRemove;
+      });      // Convert Participant back to StandardUser format and add to available users
       const removedUser: StandardUser = {
-        id: user.id,
+        id: userIdToRemove,
         username: user.username,
         name: user.name || user.display_name || user.username,
         profile_picture_url: user.profile_picture_url || user.avatar || null,
-        bio: '',
+        bio: "",
         is_verified: user.is_verified || false,
         avatar: user.avatar || user.profile_picture_url || null,
         displayName: user.display_name || user.name || user.username,
         display_name: user.display_name || user.name || user.username
       };
-      
+
       // Add back to available users if not already there
-      const userExists = availableUsers.some(u => u.id === user.id);
+      const userExists = availableUsers.some(u => u.id === userIdToRemove);
       if (!userExists) {
         availableUsers = [...availableUsers, removedUser];
       }
 
       successMessage = `Removed ${user.display_name || user.name || user.username} from the chat`;
-      logger.debug('Member removed successfully');
+      logger.debug("Member removed successfully");
 
       // Notify parent component to refresh
       onMembersUpdated();
     } catch (error) {
-      logger.error('Error removing member:', error);
-      errorMessage = 'Failed to remove member. Please try again.';
+      logger.error("Error removing member:", error);
+      errorMessage = "Failed to remove member. Please try again.";
     } finally {
       isRemovingMember = false;
 
       if (successMessage) {
         setTimeout(() => {
-          successMessage = '';
+          successMessage = "";
         }, 3000);
       }
     }
@@ -269,8 +287,8 @@
                 </div>                <div class="user-info">
                   <div class="user-name">{user.display_name || user.name || user.username}</div>
                   <div class="user-username">@{user.username}</div>
-                </div>                <button 
-                  class="remove-button" 
+                </div>                <button
+                  class="remove-button"
                   on:click|stopPropagation={() => handleRemoveMember(user)}
                   disabled={isRemovingMember}
                 >
@@ -285,14 +303,14 @@
       <div class="add-members-section">
         <h3>Add Members</h3>
         <div class="search-container">
-          <div class="search-input-wrapper">            <input 
-              type="text" 
-              bind:value={searchQuery} 
+          <div class="search-input-wrapper">            <input
+              type="text"
+              bind:value={searchQuery}
               placeholder="Search users..."
               class="search-input"
               on:click|stopPropagation
             />
-            {#if searchQuery.trim() !== ''}              <button class="clear-search-button" on:click|stopPropagation={() => searchQuery = ''} aria-label="Clear search">
+            {#if searchQuery.trim() !== ""}              <button class="clear-search-button" on:click|stopPropagation={() => searchQuery = ""} aria-label="Clear search">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                 </svg>
@@ -300,13 +318,13 @@
             {/if}
           </div>
 
-          {#if searchQuery.trim() !== '' && filteredUsers.length > 0}
+          {#if searchQuery.trim() !== "" && filteredUsers.length > 0}
             <div class="search-dropdown">
               <div class="search-dropdown-section">
                 <h4 class="search-dropdown-title">Users</h4>
                 <ul class="search-dropdown-list">                  {#each filteredUsers as user, index (user.id || `user-${index}`)}
-                    <li><button 
-                        class="dropdown-item" 
+                    <li><button
+                        class="dropdown-item"
                         type="button"
                         on:click|stopPropagation={() => handleAddMember(user)}
                         aria-label="Add {user.display_name || user.name || user.username} to group"
@@ -330,7 +348,7 @@
           {/if}
         </div>
 
-        {#if searchQuery.trim() === ''}
+        {#if searchQuery.trim() === ""}
           <p class="help-text">Type to search for users</p>
         {:else if filteredUsers.length === 0}
           <p class="empty-state">No users found</p>

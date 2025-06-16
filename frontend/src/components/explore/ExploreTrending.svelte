@@ -1,22 +1,22 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import type { ITrend } from '../../interfaces/ITrend';
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { createEventDispatcher, onMount } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import type { ITrend } from "../../interfaces/ITrend";
+  import { createLoggerWithPrefix } from "../../utils/logger";
 
-  const logger = createLoggerWithPrefix('ExploreTrending');
+  const logger = createLoggerWithPrefix("ExploreTrending");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   export let trends: ITrend[] = [];
   export let isTrendsLoading = false;
 
-  let sampleTrends = [
-    { title: 'programming', category: 'Technology', post_count: 125 },
-    { title: 'design', category: 'Creative', post_count: 98 },
-    { title: 'webdev', category: 'Technology', post_count: 87 }
+  const sampleTrends = [
+    { title: "programming", category: "Technology", post_count: 125 },
+    { title: "design", category: "Creative", post_count: 98 },
+    { title: "webdev", category: "Technology", post_count: 87 }
   ];
 
   let showSampleTrends = false;
@@ -31,23 +31,23 @@
   });
 
   function handleHashtagClick(hashtag: string) {
-    logger.debug('Hashtag clicked', { hashtag });
-    dispatch('hashtagClick', hashtag);
+    logger.debug("Hashtag clicked", { hashtag });
+    dispatch("hashtagClick", hashtag);
   }
 
   $: {
     if (!isTrendsLoading) {
       if (trends.length > 0) {
-        logger.debug('Trends loaded', { count: trends.length });
+        logger.debug("Trends loaded", { count: trends.length });
         showSampleTrends = false;
       } else {
-        logger.debug('No trends available');
+        logger.debug("No trends available");
       }
     }
   }
 </script>
 
-<div class="twitter-trends-container {isDarkMode ? 'twitter-trends-container-dark' : ''}">
+<div class="twitter-trends-container {isDarkMode ? "twitter-trends-container-dark" : ""}">
   <h2 class="trends-header">What's happening</h2>
 
   {#if isTrendsLoading}
@@ -59,13 +59,13 @@
   {:else if trends.length > 0}
     <div class="trends-list">
       {#each trends as trend, i}
-        <button 
-          class="trend-item" 
-          on:click={() => handleHashtagClick(trend.title || trend.name || '')}
+        <button
+          class="trend-item"
+          on:click={() => handleHashtagClick(trend.title || trend.name || "")}
         >
           <div class="trend-content">
-            <div class="trend-category">{trend.category || 'Trending'}</div>
-            <div class="trend-tag">#{trend.title || trend.name || ''}</div>
+            <div class="trend-category">{trend.category || "Trending"}</div>
+            <div class="trend-tag">#{trend.title || trend.name || ""}</div>
             <div class="trend-metrics">{trend.post_count || trend.tweet_count || 0} posts</div>
           </div>
           <div class="trend-more">
@@ -93,7 +93,7 @@
           <h4 class="sample-trends-title">Try these topics</h4>
           <div class="sample-trends-grid">
             {#each sampleTrends as trend}
-              <button 
+              <button
                 class="sample-trend-tag"
                 on:click={() => handleHashtagClick(trend.title)}
               >

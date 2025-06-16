@@ -286,6 +286,14 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	{
 		bookmarks.GET("", handlers.GetUserBookmarks)
 	}
+
+	// Global messages routes (for unsend functionality)
+	messages := v1.Group("/messages")
+	messages.Use(middleware.JWTAuth(jwtSecret))
+	{
+		messages.DELETE("/:messageId", handlers.UnsendMessage)
+	}
+
 	media := v1.Group("/media")
 	media.Use(middleware.JWTAuth(jwtSecret))
 	{

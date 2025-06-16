@@ -49,6 +49,7 @@ const (
 	CommunityService_IsMember_FullMethodName                    = "/community.CommunityService/IsMember"
 	CommunityService_HasPendingJoinRequest_FullMethodName       = "/community.CommunityService/HasPendingJoinRequest"
 	CommunityService_CreateChat_FullMethodName                  = "/community.CommunityService/CreateChat"
+	CommunityService_DeleteChat_FullMethodName                  = "/community.CommunityService/DeleteChat"
 	CommunityService_AddChatParticipant_FullMethodName          = "/community.CommunityService/AddChatParticipant"
 	CommunityService_RemoveChatParticipant_FullMethodName       = "/community.CommunityService/RemoveChatParticipant"
 	CommunityService_ListChats_FullMethodName                   = "/community.CommunityService/ListChats"
@@ -94,6 +95,7 @@ type CommunityServiceClient interface {
 	IsMember(ctx context.Context, in *IsMemberRequest, opts ...grpc.CallOption) (*IsMemberResponse, error)
 	HasPendingJoinRequest(ctx context.Context, in *HasPendingJoinRequestRequest, opts ...grpc.CallOption) (*HasPendingJoinRequestResponse, error)
 	CreateChat(ctx context.Context, in *CreateChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
+	DeleteChat(ctx context.Context, in *DeleteChatRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	AddChatParticipant(ctx context.Context, in *AddChatParticipantRequest, opts ...grpc.CallOption) (*ChatParticipantResponse, error)
 	RemoveChatParticipant(ctx context.Context, in *RemoveChatParticipantRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	ListChats(ctx context.Context, in *ListChatsRequest, opts ...grpc.CallOption) (*ListChatsResponse, error)
@@ -413,6 +415,16 @@ func (c *communityServiceClient) CreateChat(ctx context.Context, in *CreateChatR
 	return out, nil
 }
 
+func (c *communityServiceClient) DeleteChat(ctx context.Context, in *DeleteChatRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, CommunityService_DeleteChat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *communityServiceClient) AddChatParticipant(ctx context.Context, in *AddChatParticipantRequest, opts ...grpc.CallOption) (*ChatParticipantResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ChatParticipantResponse)
@@ -537,6 +549,7 @@ type CommunityServiceServer interface {
 	IsMember(context.Context, *IsMemberRequest) (*IsMemberResponse, error)
 	HasPendingJoinRequest(context.Context, *HasPendingJoinRequestRequest) (*HasPendingJoinRequestResponse, error)
 	CreateChat(context.Context, *CreateChatRequest) (*ChatResponse, error)
+	DeleteChat(context.Context, *DeleteChatRequest) (*EmptyResponse, error)
 	AddChatParticipant(context.Context, *AddChatParticipantRequest) (*ChatParticipantResponse, error)
 	RemoveChatParticipant(context.Context, *RemoveChatParticipantRequest) (*EmptyResponse, error)
 	ListChats(context.Context, *ListChatsRequest) (*ListChatsResponse, error)
@@ -645,6 +658,9 @@ func (UnimplementedCommunityServiceServer) HasPendingJoinRequest(context.Context
 }
 func (UnimplementedCommunityServiceServer) CreateChat(context.Context, *CreateChatRequest) (*ChatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateChat not implemented")
+}
+func (UnimplementedCommunityServiceServer) DeleteChat(context.Context, *DeleteChatRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteChat not implemented")
 }
 func (UnimplementedCommunityServiceServer) AddChatParticipant(context.Context, *AddChatParticipantRequest) (*ChatParticipantResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddChatParticipant not implemented")
@@ -1234,6 +1250,24 @@ func _CommunityService_CreateChat_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommunityService_DeleteChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteChatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommunityServiceServer).DeleteChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommunityService_DeleteChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommunityServiceServer).DeleteChat(ctx, req.(*DeleteChatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CommunityService_AddChatParticipant_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddChatParticipantRequest)
 	if err := dec(in); err != nil {
@@ -1522,6 +1556,10 @@ var CommunityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateChat",
 			Handler:    _CommunityService_CreateChat_Handler,
+		},
+		{
+			MethodName: "DeleteChat",
+			Handler:    _CommunityService_DeleteChat_Handler,
 		},
 		{
 			MethodName: "AddChatParticipant",

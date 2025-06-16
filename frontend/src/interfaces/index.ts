@@ -3,13 +3,13 @@
  */
 
 // Common interfaces
-export * from './ICommon';
+export * from "./ICommon";
 
 // Auth interfaces
-export * from './IAuth';
+export * from "./IAuth";
 
 // Media interfaces - these need to be exported first to avoid conflicts
-export * from './IMedia';
+export * from "./IMedia";
 
 // User interfaces - export everything except IMediaUpdateResponse which is already exported from IMedia.ts
 export {
@@ -32,40 +32,40 @@ export {
   type IReportUserResponse,
   type IBlockedUsersResponse,
   type IAdminStatusUpdateRequest
-} from './IUser';
+} from "./IUser";
 
 // Trend interfaces - these need to be exported first to avoid conflicts
-export * from './ITrend';
+export * from "./ITrend";
 
 // Social media interfaces
-export * from './ISocialMedia';
+export * from "./ISocialMedia";
 
 // Chat interfaces
-export * from './IChat';
+export * from "./IChat";
 
 // Community interfaces
-export * from './ICommunity';
+export * from "./ICommunity";
 
 // Category interfaces
-export * from './ICategory';
+export * from "./ICategory";
 
 // Admin interfaces
-export * from './IAdmin';
+export * from "./IAdmin";
 
 // Notification interfaces
-export * from './INotification';
+export * from "./INotification";
 
 // Bookmark interfaces
-export * from './IBookmark';
+export * from "./IBookmark";
 
 // AI interfaces
-export * from './IAI';
+export * from "./IAI";
 
 // Search interfaces
-export * from './ISearch';
+export * from "./ISearch";
 
 // Toast interfaces
-export * from './IToast';
+export * from "./IToast";
 
 // Extended tweet utilities
-export * from './ITweet.extended'; 
+export * from "./ITweet.extended";

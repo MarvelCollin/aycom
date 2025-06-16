@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { useTheme } from '../../hooks/useTheme';
+  import { useTheme } from "../../hooks/useTheme";
 
-  export let type: 'search-results' | 'trends' | 'user-profile' | 'media' | 'profile' | 'threads' | 'community' = 'search-results';
+  export let type: "search-results" | "trends" | "user-profile" | "media" | "profile" | "threads" | "community" = "search-results";
   export let count: number = 5;
 
   const { theme } = useTheme();
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 </script>
 
-{#if type === 'search-results'}
+{#if type === "search-results"}
   <div class="space-y-4">
     {#each Array(count) as _, i}
       <div class="flex items-start p-4 border-b border-gray-200 dark:border-gray-800 animate-pulse">
@@ -21,7 +21,7 @@
       </div>
     {/each}
   </div>
-{:else if type === 'trends'}
+{:else if type === "trends"}
   <div class="rounded-xl bg-gray-50 dark:bg-gray-900 p-4">
     <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-800">
       <div class="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/3 animate-pulse"></div>
@@ -35,7 +35,7 @@
       {/each}
     </div>
   </div>
-{:else if type === 'user-profile'}
+{:else if type === "user-profile"}
   <div class="flex items-center p-4 animate-pulse">
     <div class="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 mr-3"></div>
     <div>
@@ -43,13 +43,13 @@
       <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
     </div>
   </div>
-{:else if type === 'media'}
+{:else if type === "media"}
   <div class="grid grid-cols-3 gap-1 p-4">
     {#each Array(9) as _, i}
       <div class="aspect-square bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
     {/each}
   </div>
-{:else if type === 'profile'}
+{:else if type === "profile"}
   <div class="animate-pulse">
     <!-- Banner -->
     <div class="w-full h-48 bg-gray-200 dark:bg-gray-700"></div>
@@ -79,11 +79,11 @@
       {#each Array(4) as _, i}
         <div class="flex-1 py-4 flex justify-center">
           <div class="h-5 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
-        </div>  
+        </div>
       {/each}
     </div>
   </div>
-{:else if type === 'threads'}
+{:else if type === "threads"}
   <div class="space-y-4 p-4">
     {#each Array(count) as _, i}
       <div class="p-4 border border-gray-200 dark:border-gray-800 rounded-lg animate-pulse">
@@ -112,7 +112,7 @@
       </div>
     {/each}
   </div>
-{:else if type === 'community'}
+{:else if type === "community"}
   <div class="grid gap-4 p-4">
     {#each Array(count) as _, i}
       <div class="p-4 border border-gray-200 dark:border-gray-800 rounded-lg animate-pulse">

@@ -1,25 +1,25 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { chatMessageStore, getMessagesForChat, getTypingUsersForChat } from '../../stores/chatMessageStore';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { fade } from 'svelte/transition';
-  import { listMessages, sendMessage as sendMessageApi } from '../../api';
-  import type { MessageType } from '../../stores/websocketStore';
+  import { onMount, onDestroy } from "svelte";
+  import { chatMessageStore, getMessagesForChat, getTypingUsersForChat } from "../../stores/chatMessageStore";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { fade } from "svelte/transition";
+  import { listMessages, sendMessage as sendMessageApi } from "../../api";
+  import type { MessageType } from "../../stores/websocketStore";
 
-  const logger = createLoggerWithPrefix('ChatWindow');
+  const logger = createLoggerWithPrefix("ChatWindow");
 
   export let chatId: string;
   export let userId: string;
   export let participants: any[] = [];
-  export let initialMessages: any[] = []; 
+  export let initialMessages: any[] = [];
 
-  let messageInput = '';
+  let messageInput = "";
   let messageContainer: HTMLElement;
   let isTyping = false;
   let typingTimeout: number | null = null;
   let initialMessagesProcessed = false;
   let isLoadingMessages = false;
-  let errorMessage = '';
+  let errorMessage = "";
 
   $: messages = getMessagesForChat(chatId);
   $: typingUsers = getTypingUsersForChat(chatId);
@@ -29,40 +29,40 @@
 
     try {
       isLoadingMessages = true;
-      logger.debug('Loading message history for chat', { chatId });
+      logger.debug("Loading message history for chat", { chatId });
 
       console.log(`[ChatWindow] Fetching messages for chat ID: ${chatId}`);
 
       const response = await listMessages(chatId);
 
-      console.log('[ChatWindow] API response:', response);
+      console.log("[ChatWindow] API response:", response);
 
       if (response && response.messages && Array.isArray(response.messages)) {
-        logger.debug('Loaded messages from API', { count: response.messages.length });
+        logger.debug("Loaded messages from API", { count: response.messages.length });
 
         response.messages.forEach(msg => {
 
-          const messageId = msg.message_id || msg.id || '';
+          const messageId = msg.message_id || msg.id || "";
 
-          const messageUserId = msg.user_id || msg.sender_id || '';
+          const messageUserId = msg.user_id || msg.sender_id || "";
 
           const processedMsg = {
             message_id: messageId,
             chat_id: msg.chat_id || chatId,
             content: msg.content,
-            timestamp: msg.timestamp ? 
-              (typeof msg.timestamp === 'number' ? 
-                new Date(msg.timestamp * 1000) : 
-                new Date(msg.timestamp)) : 
+            timestamp: msg.timestamp ?
+              (typeof msg.timestamp === "number" ?
+                new Date(msg.timestamp * 1000) :
+                new Date(msg.timestamp)) :
               new Date(),
             user_id: messageUserId,
-            type: 'text' as MessageType,
+            type: "text" as MessageType,
             is_edited: msg.is_edited || false,
             is_deleted: msg.is_deleted || false,
             is_read: msg.is_read || false,
             user: msg.user || {
               id: messageUserId,
-              username: '',
+              username: "",
               name: getUserDisplayName(messageUserId)
             }
           };
@@ -71,29 +71,29 @@
         });
       } else if (response && Array.isArray(response)) {
 
-        logger.debug('Loaded messages from API (direct array)', { count: response.length });
+        logger.debug("Loaded messages from API (direct array)", { count: response.length });
 
         response.forEach(msg => {
-          const messageId = msg.message_id || msg.id || '';
-          const messageUserId = msg.user_id || msg.sender_id || '';
+          const messageId = msg.message_id || msg.id || "";
+          const messageUserId = msg.user_id || msg.sender_id || "";
 
           const processedMsg = {
             message_id: messageId,
             chat_id: msg.chat_id || chatId,
             content: msg.content,
-            timestamp: msg.timestamp ? 
-              (typeof msg.timestamp === 'number' ? 
-                new Date(msg.timestamp * 1000) : 
-                new Date(msg.timestamp)) : 
+            timestamp: msg.timestamp ?
+              (typeof msg.timestamp === "number" ?
+                new Date(msg.timestamp * 1000) :
+                new Date(msg.timestamp)) :
               new Date(),
             user_id: messageUserId,
-            type: 'text' as MessageType,
+            type: "text" as MessageType,
             is_edited: msg.is_edited || false,
             is_deleted: msg.is_deleted || false,
             is_read: msg.is_read || false,
             user: msg.user || {
               id: messageUserId,
-              username: '',
+              username: "",
               name: getUserDisplayName(messageUserId)
             }
           };
@@ -101,32 +101,32 @@
           chatMessageStore.addMessage(processedMsg);
         });
       } else {
-        logger.warn('No messages returned from API or invalid response format', { response });
-        console.warn('[ChatWindow] Invalid or empty messages response:', response);
+        logger.warn("No messages returned from API or invalid response format", { response });
+        console.warn("[ChatWindow] Invalid or empty messages response:", response);
 
         if (response) {
-          console.log('[ChatWindow] Response keys:', Object.keys(response));
-          console.log('[ChatWindow] Response type:', typeof response);
+          console.log("[ChatWindow] Response keys:", Object.keys(response));
+          console.log("[ChatWindow] Response type:", typeof response);
 
           if (response.messages) {
-            console.log('[ChatWindow] Messages type:', typeof response.messages);
-            console.log('[ChatWindow] Is array?', Array.isArray(response.messages));
+            console.log("[ChatWindow] Messages type:", typeof response.messages);
+            console.log("[ChatWindow] Is array?", Array.isArray(response.messages));
           }
         }
       }
     } catch (error: any) {
-      logger.error('Failed to load message history', error);
+      logger.error("Failed to load message history", error);
 
-      if (error.message && error.message.includes('not a participant in this chat')) {
-        errorMessage = 'You are not a participant in this chat. Please join the chat first.';
+      if (error.message && error.message.includes("not a participant in this chat")) {
+        errorMessage = "You are not a participant in this chat. Please join the chat first.";
       } else {
-      errorMessage = 'Failed to load messages. Please try refreshing.';
+      errorMessage = "Failed to load messages. Please try refreshing.";
       }
 
-      console.error('[ChatWindow] Error loading messages:', error?.message || error);
+      console.error("[ChatWindow] Error loading messages:", error?.message || error);
 
       if (error?.stack) {
-        console.debug('[ChatWindow] Error stack:', error.stack);
+        console.debug("[ChatWindow] Error stack:", error.stack);
       }
     } finally {
       isLoadingMessages = false;
@@ -134,21 +134,21 @@
   }
 
   function formatTimestamp(timestamp: Date | string | undefined): string {
-    if (!timestamp) return 'Just now';
+    if (!timestamp) return "Just now";
 
     try {
 
-      const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+      const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
 
       if (isNaN(date.getTime())) {
-        logger.debug('Invalid timestamp detected', { timestamp });
-        return 'Just now';
+        logger.debug("Invalid timestamp detected", { timestamp });
+        return "Just now";
       }
 
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     } catch (e) {
-      logger.warn('Error formatting timestamp', e);
-      return 'Just now';
+      logger.warn("Error formatting timestamp", e);
+      return "Just now";
     }
   }
 
@@ -176,47 +176,47 @@
     if (!messageInput.trim()) return;
 
     const content = messageInput.trim();
-    messageInput = ''; 
+    messageInput = "";
 
     clearTypingIndicator();
 
     try {
-      logger.debug('Sending message to chat', { chatId });
+      logger.debug("Sending message to chat", { chatId });
 
       const tempId = `temp-${Date.now()}`;
 
       const messageData = {
         content: content,
-        message_id: tempId 
+        message_id: tempId
       };
 
       try {
         const response = await sendMessageApi(chatId, messageData);
-        logger.debug('Message sent successfully via API', { response });
+        logger.debug("Message sent successfully via API", { response });
 
         chatMessageStore.sendMessage(chatId, content, userId);
 
       } catch (apiError) {
-        logger.error('Failed to send message via API, falling back to WebSocket only', apiError);
+        logger.error("Failed to send message via API, falling back to WebSocket only", apiError);
 
         chatMessageStore.sendMessage(chatId, content, userId);
 
-        errorMessage = 'Network issue detected. Message may not be delivered.';
+        errorMessage = "Network issue detected. Message may not be delivered.";
         setTimeout(() => {
-          errorMessage = '';
+          errorMessage = "";
         }, 3000);
       }
     } catch (error) {
-      logger.error('Failed to send message', error);
-      errorMessage = 'Failed to send message. Please try again.';
+      logger.error("Failed to send message", error);
+      errorMessage = "Failed to send message. Please try again.";
       setTimeout(() => {
-        errorMessage = '';
+        errorMessage = "";
       }, 3000);
     }
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleSendMessage();
     } else {
@@ -250,7 +250,7 @@
   $: typingIndicatorText = $typingUsers
     .filter(id => id !== userId)
     .map(getUserDisplayName)
-    .join(', ');
+    .join(", ");
 
   $: if ($messages && messageContainer) {
 
@@ -297,8 +297,8 @@
     {/if}
 
     {#each $messages as message (message.message_id)}
-      <div 
-        class="message {message.user_id === userId ? 'outgoing' : 'incoming'}"
+      <div
+        class="message {message.user_id === userId ? "outgoing" : "incoming"}"
         transition:fade={{ duration: 150 }}
       >
         {#if message.user_id !== userId}
@@ -325,20 +325,20 @@
 
     {#if typingIndicatorText}
       <div class="typing-indicator" transition:fade={{ duration: 100 }}>
-        {typingIndicatorText} {typingIndicatorText.includes(',') ? 'are' : 'is'} typing...
+        {typingIndicatorText} {typingIndicatorText.includes(",") ? "are" : "is"} typing...
       </div>
     {/if}
   </div>
 
   <div class="input-container">
-    <textarea 
-      bind:value={messageInput} 
+    <textarea
+      bind:value={messageInput}
       on:keydown={handleKeydown}
       placeholder="Type a message..."
       rows="1"
     ></textarea>
-    <button 
-      class="send-button" 
+    <button
+      class="send-button"
       on:click={handleSendMessage}
       disabled={!messageInput.trim()}
     >

@@ -1,5 +1,5 @@
 // Extended Tweet interfaces to be used with TweetCard and other components
-import type { ITweet } from './ISocialMedia';
+import type { ITweet } from "./ISocialMedia";
 
 // Extended tweet interface for additional properties that might be in the data
 export interface ExtendedTweet extends ITweet {
@@ -28,66 +28,66 @@ interface IMedia {
 // Helper functions for compatibility
 export function ensureTweetFormat(thread: any): ExtendedTweet {
   try {
-    if (!thread || typeof thread !== 'object') {
+    if (!thread || typeof thread !== "object") {
       return createEmptyTweet();
     }
-    
+
     console.log("Raw thread data in ensureTweetFormat:", thread);
-  
+
     // More robust username extraction with better fallbacks
     let username = thread.username;
-    
+
     // Handle deeply nested author structures
     if (!username && thread.author) {
       username = thread.author.username || thread.author_username;
     }
-    
+
     // Handle other possible locations
     if (!username) {
-      username = thread.author_username || 
-                thread.authorUsername || 
-                thread.user?.username || 
-                thread.author?.username || 
+      username = thread.author_username ||
+                thread.authorUsername ||
+                thread.user?.username ||
+                thread.author?.username ||
                 thread.user_data?.username;
     }
-    
+
     // Final fallback - use a unique placeholder
-    if (!username || username === 'anonymous') {
+    if (!username || username === "anonymous") {
       username = `user_${thread.user_id || thread.userId || thread.authorId || thread.id || Math.random().toString(36).substring(2, 9)}`;
     }
-    
+
     // Display name with similar logic
-    const name = thread.name || 
-               thread.author_name || 
-               thread.authorName || 
-               thread.display_name || 
+    const name = thread.name ||
+               thread.author_name ||
+               thread.authorName ||
+               thread.display_name ||
                thread.displayName ||
-               thread.author?.name || 
+               thread.author?.name ||
                thread.author?.display_name ||
                thread.user?.name ||
                thread.user_data?.name ||
                username;
-    
+
     // Profile picture with similar robust fallbacks
-    const profile_picture_url = thread.profile_picture_url || 
+    const profile_picture_url = thread.profile_picture_url ||
                         thread.profilePictureUrl ||
-                        thread.author_avatar || 
-                        thread.authorAvatar || 
-                        thread.avatar || 
+                        thread.author_avatar ||
+                        thread.authorAvatar ||
+                        thread.avatar ||
                         thread.author?.profile_picture_url ||
                         thread.user?.profile_picture_url ||
                         thread.user_data?.profile_picture_url ||
-                        'https://secure.gravatar.com/avatar/0?d=mp';
-    
+                        "https://secure.gravatar.com/avatar/0?d=mp";
+
     // Safely handle created_at date with validation
     let created_at;
     try {
       if (!thread.created_at && !thread.createdAt && !thread.timestamp) {
         // No date provided, use current date
         created_at = new Date().toISOString();
-      } else if (typeof thread.created_at === 'string') {
+      } else if (typeof thread.created_at === "string") {
         // Check if it's already a valid ISO string
-        if (thread.created_at.includes('T')) {
+        if (thread.created_at.includes("T")) {
           created_at = thread.created_at;
         } else {
           // Try to parse non-ISO string
@@ -102,10 +102,10 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
       } else if (thread.created_at instanceof Date) {
         // It's already a Date object
         created_at = thread.created_at.toISOString();
-      } else if (typeof thread.createdAt === 'string') {
+      } else if (typeof thread.createdAt === "string") {
         // Try alternate property
         created_at = thread.createdAt;
-      } else if (typeof thread.timestamp === 'string' || typeof thread.timestamp === 'number') {
+      } else if (typeof thread.timestamp === "string" || typeof thread.timestamp === "number") {
         // Try timestamp property
         const date = new Date(thread.timestamp);
         if (isNaN(date.getTime())) {
@@ -118,19 +118,19 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
         created_at = new Date().toISOString();
       }
     } catch (e) {
-      console.error('Error parsing date', e);
+      console.error("Error parsing date", e);
       created_at = new Date().toISOString(); // Fallback to current date on any error
     }
-    
+
     // Safely handle updated_at date with validation
     let updated_at;
     try {
       if (!thread.updated_at && !thread.updatedAt) {
         // No updated date, use created_at as fallback
         updated_at = created_at;
-      } else if (typeof thread.updated_at === 'string') {
+      } else if (typeof thread.updated_at === "string") {
         // Already a string, check if valid ISO
-        if (thread.updated_at.includes('T')) {
+        if (thread.updated_at.includes("T")) {
           updated_at = thread.updated_at;
         } else {
           // Try to parse non-ISO string
@@ -145,7 +145,7 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
       } else if (thread.updated_at instanceof Date) {
         // It's already a Date object
         updated_at = thread.updated_at.toISOString();
-      } else if (typeof thread.updatedAt === 'string') {
+      } else if (typeof thread.updatedAt === "string") {
         // Try alternate property
         updated_at = thread.updatedAt;
       } else {
@@ -153,83 +153,83 @@ export function ensureTweetFormat(thread: any): ExtendedTweet {
         updated_at = created_at;
       }
     } catch (e) {
-      console.error('Error parsing updated_at date', e);
+      console.error("Error parsing updated_at date", e);
       updated_at = created_at; // Fallback to created_at on any error
     }
-    
+
     const likes_count = Number(thread.likes_count || thread.like_count || thread.metrics?.likes || 0);
     const replies_count = Number(thread.replies_count || thread.reply_count || thread.metrics?.replies || 0);
     const reposts_count = Number(thread.reposts_count || thread.repost_count || thread.metrics?.reposts || 0);
     const bookmark_count = Number(thread.bookmarks_count || thread.bookmark_count || thread.metrics?.bookmarks || 0);
     const views_count = Number(thread.views || thread.views_count || 0);
-    
+
     const is_liked = Boolean(thread.is_liked || thread.isLiked || false);
     const is_reposted = Boolean(thread.is_repost || thread.isReposted || false);
     const is_bookmarked = Boolean(thread.is_bookmarked || thread.isBookmarked || false);
     const is_pinned = Boolean(
-      thread.is_pinned === true || 
-      thread.is_pinned === 'true' || 
-      thread.is_pinned === 1 || 
-      thread.is_pinned === '1' || 
-      thread.is_pinned === 't' || 
-      thread.IsPinned === true || 
+      thread.is_pinned === true ||
+      thread.is_pinned === "true" ||
+      thread.is_pinned === 1 ||
+      thread.is_pinned === "1" ||
+      thread.is_pinned === "t" ||
+      thread.IsPinned === true ||
       false
     );
-    
+
     // Handle verification status
     const is_verified = Boolean(
-      thread.is_verified || 
-      thread.verified || 
-      thread.user?.is_verified || 
-      thread.author?.is_verified || 
+      thread.is_verified ||
+      thread.verified ||
+      thread.user?.is_verified ||
+      thread.author?.is_verified ||
       false
     );
-    
+
     const media = Array.isArray(thread.media) ? thread.media : [];
-      
+
     const id = thread.id || `thread-${Math.random().toString(36).substring(2, 9)}`;
-    const user_id = thread.user_id || thread.userId || thread.author_id || thread.authorId || thread.author?.id || thread.user?.id || '';
-        
+    const user_id = thread.user_id || thread.userId || thread.author_id || thread.authorId || thread.author?.id || thread.user?.id || "";
+
     return {
       id,
-      content: thread.content || '',
+      content: thread.content || "",
       created_at: created_at,
       updated_at: updated_at,
-      
+
       // User info with consistent values
       user_id,
       username,
       name,
       profile_picture_url,
-      
+
       // Metrics with consistent values
       likes_count,
       replies_count,
       reposts_count,
       bookmark_count,
       views_count,
-      
+
       // Status flags
       is_liked,
       is_reposted,
       is_bookmarked,
       is_pinned,
       is_verified,
-      
+
       // Relations
       parent_id: thread.parent_id || thread.parentId || thread.parent_reply_id || thread.parentReplyId || null,
-      
+
       // Media
       media,
-      
+
       // Additional compatibility fields
       thread_id: thread.thread_id || thread.threadId || id,
-      
+
       // Pass through any other properties
       ...thread
     };
   } catch (error) {
-    console.error('Error formatting tweet:', error);
+    console.error("Error formatting tweet:", error);
     return createEmptyTweet();
   }
 }
@@ -238,36 +238,36 @@ function createEmptyTweet(): ExtendedTweet {
   const id = `error-${Math.random().toString(36).substring(2, 9)}`;
   return {
     id,
-    content: 'Error loading tweet',
+    content: "Error loading tweet",
     created_at: new Date().toISOString(),
     updated_at: undefined,
-    
+
     // User info
-    user_id: '',
-    username: 'error',
-    name: 'Error',
-    profile_picture_url: '',
-    
+    user_id: "",
+    username: "error",
+    name: "Error",
+    profile_picture_url: "",
+
     // Metrics
     likes_count: 0,
     replies_count: 0,
     reposts_count: 0,
     bookmark_count: 0,
     views_count: 0,
-    
+
     // Status flags
     is_liked: false,
     is_reposted: false,
     is_bookmarked: false,
     is_pinned: false,
     is_verified: false,
-    
+
     // Relations
     parent_id: null,
-    
+
     // Media
     media: [],
-    
+
     // Additional compatibility fields
     thread_id: id
   };

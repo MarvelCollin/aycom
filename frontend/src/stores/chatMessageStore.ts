@@ -1,9 +1,9 @@
-import { derived, writable } from 'svelte/store';
-import type { MessageType } from './websocketStore';
-import { getAuthToken } from '../utils/auth';
-import { createLoggerWithPrefix } from '../utils/logger';
+import { derived, writable } from "svelte/store";
+import type { MessageType } from "./websocketStore";
+import { getAuthToken } from "../utils/auth";
+import { createLoggerWithPrefix } from "../utils/logger";
 
-const logger = createLoggerWithPrefix('ChatMessageStore');
+const logger = createLoggerWithPrefix("ChatMessageStore");
 
 export interface ChatMessage {
   type: MessageType;
@@ -63,7 +63,7 @@ export interface User {
   profile_picture_url?: string;
 }
 
-export interface MessageWithUser extends Omit<ChatMessage, 'user_id'> {
+export interface MessageWithUser extends Omit<ChatMessage, "user_id"> {
   user: User;
   user_id: string;
 }
@@ -118,7 +118,7 @@ function createChatMessageStore() {
     const timestamp = new Date();
 
     const tempMessage: MessageWithUser = {
-      type: 'text',
+      type: "text",
       content,
       user_id: userId,
       chat_id: chatId,
@@ -127,31 +127,31 @@ function createChatMessageStore() {
       is_read: false,
       is_edited: false,
       is_deleted: false,
-      user: { 
-        id: userId, 
-        username: '', 
-        name: '' 
+      user: {
+        id: userId,
+        username: "",
+        name: ""
       }
     };
 
     addMessage(tempMessage);
 
     const message: ChatMessage = {
-      type: 'text',
+      type: "text",
       content,
       user_id: userId,
       chat_id: chatId,
       timestamp: new Date(),
-      message_id: tempId 
+      message_id: tempId
     };
 
-    logger.debug('Sending message to WebSocket', { chatId, tempId });
+    logger.debug("Sending message to WebSocket", { chatId, tempId });
     websocketSendMessage(chatId, message);
   };
 
   const sendTypingIndicator = (chatId: string, userId: string) => {
     const message: ChatMessage = {
-      type: 'typing',
+      type: "typing",
       user_id: userId,
       chat_id: chatId
     };
@@ -161,7 +161,7 @@ function createChatMessageStore() {
 
   const sendReadReceipt = (chatId: string, messageId: string, userId: string) => {
     const message: ChatMessage = {
-      type: 'read',
+      type: "read",
       user_id: userId,
       chat_id: chatId,
       message_id: messageId
@@ -195,7 +195,7 @@ function createChatMessageStore() {
     const { chat_id: chatId, message_id: messageId } = message;
 
     if (!chatId || !messageId) {
-      logger.error('Cannot add message without chat_id and message_id', message);
+      logger.error("Cannot add message without chat_id and message_id", message);
       return;
     }
 
@@ -211,9 +211,9 @@ function createChatMessageStore() {
       }
 
       const updatedMessages = { ...state.messages };
-      updatedMessages[chatId] = { 
-        ...updatedMessages[chatId], 
-        [messageId]: message 
+      updatedMessages[chatId] = {
+        ...updatedMessages[chatId],
+        [messageId]: message
       };
 
       const currentUserId = getCurrentUserId();
@@ -224,8 +224,8 @@ function createChatMessageStore() {
         messages: updatedMessages,
         unreadCount: {
           ...state.unreadCount,
-          [chatId]: isFromOther 
-            ? (state.unreadCount[chatId] || 0) + 1 
+          [chatId]: isFromOther
+            ? (state.unreadCount[chatId] || 0) + 1
             : (state.unreadCount[chatId] || 0)
         }
       };
@@ -236,44 +236,44 @@ function createChatMessageStore() {
     const { type, chat_id: chatId } = message;
 
     if (!chatId) {
-      logger.error('Received message without chat_id', message);
+      logger.error("Received message without chat_id", message);
       return;
     }
 
     initChat(chatId);
 
     switch (type) {
-      case 'text':
+      case "text":
         if (message.user) {
           addMessage(message as MessageWithUser);
         } else {
-          logger.error('Received text message without user data', message);
+          logger.error("Received text message without user data", message);
         }
         break;
 
-      case 'typing':
+      case "typing":
         updateTypingStatus(chatId, message.user_id);
         break;
 
-      case 'read':
+      case "read":
         if (message.message_id) {
           markMessageAsRead(chatId, message.message_id, message.user_id);
         }
         break;
 
-      case 'edit':
+      case "edit":
         if (message.message_id) {
           updateMessage(message as MessageWithUser);
         }
         break;
 
-      case 'delete':
+      case "delete":
         if (message.message_id) {
           deleteMessage(chatId, message.message_id);
         }
         break;
 
-      case 'update':
+      case "update":
 
         if (message.originalTempId && message.message_id) {
           updateMessageWithServerData(
@@ -297,9 +297,9 @@ function createChatMessageStore() {
       }
 
       const updatedTyping = { ...state.typingUsers };
-      updatedTyping[chatId] = { 
-        ...updatedTyping[chatId], 
-        [userId]: new Date() 
+      updatedTyping[chatId] = {
+        ...updatedTyping[chatId],
+        [userId]: new Date()
       };
 
       return {
@@ -355,7 +355,7 @@ function createChatMessageStore() {
     const { chat_id: chatId, message_id: messageId } = message;
 
     if (!chatId || !messageId) {
-      logger.error('Cannot update message without chat_id and message_id', message);
+      logger.error("Cannot update message without chat_id and message_id", message);
       return;
     }
 
@@ -385,7 +385,7 @@ function createChatMessageStore() {
       updatedMessages[chatId] = { ...updatedMessages[chatId] };
       updatedMessages[chatId][messageId] = {
         ...updatedMessages[chatId][messageId],
-        content: '',
+        content: "",
         is_deleted: true
       };
 
@@ -417,17 +417,17 @@ function createChatMessageStore() {
 
   const getCurrentUserId = (): string => {
     const token = getAuthToken();
-    if (!token) return '';
+    if (!token) return "";
 
     try {
 
-      const payload = token.split('.')[1];
+      const payload = token.split(".")[1];
 
       const decoded = JSON.parse(atob(payload));
-      return decoded.sub || '';
+      return decoded.sub || "";
     } catch (e) {
-      logger.error('Failed to decode JWT token', e);
-      return '';
+      logger.error("Failed to decode JWT token", e);
+      return "";
     }
   };
 
@@ -438,7 +438,7 @@ function createChatMessageStore() {
 
       const tempMessage = state.messages[chatId][tempMessageId];
       if (!tempMessage) {
-        logger.warn('Could not find temporary message to update', { tempMessageId, chatId });
+        logger.warn("Could not find temporary message to update", { tempMessageId, chatId });
         return state;
       }
 
@@ -454,9 +454,9 @@ function createChatMessageStore() {
       updatedMessages[chatId][serverMessageId] = updatedMessage;
       delete updatedMessages[chatId][tempMessageId];
 
-      logger.debug('Updated temporary message with server data', { 
-        tempId: tempMessageId, 
-        serverId: serverMessageId 
+      logger.debug("Updated temporary message with server data", {
+        tempId: tempMessageId,
+        serverId: serverMessageId
       });
 
       return {

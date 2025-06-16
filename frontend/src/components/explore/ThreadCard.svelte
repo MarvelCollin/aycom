@@ -1,20 +1,20 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import MessageCircleIcon from 'svelte-feather-icons/src/icons/MessageCircleIcon.svelte';
-  import HeartIcon from 'svelte-feather-icons/src/icons/HeartIcon.svelte';
-  import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
+  import { createEventDispatcher } from "svelte";
+  import MessageCircleIcon from "svelte-feather-icons/src/icons/MessageCircleIcon.svelte";
+  import HeartIcon from "svelte-feather-icons/src/icons/HeartIcon.svelte";
+  import RefreshCwIcon from "svelte-feather-icons/src/icons/RefreshCwIcon.svelte";
 
   export let thread: any;
   export let isDarkMode = false;
 
   function formatTime(timestamp: string | null | undefined): string {
-    if (!timestamp) return 'some time ago';
+    if (!timestamp) return "some time ago";
 
     try {
       const date = new Date(timestamp);
 
       if (isNaN(date.getTime())) {
-        return 'some time ago';
+        return "some time ago";
       }
 
       const now = new Date();
@@ -31,23 +31,23 @@
 
       return date.toLocaleDateString();
     } catch (error) {
-      console.error('Error formatting time:', error, timestamp);
-      return 'some time ago';
+      console.error("Error formatting time:", error, timestamp);
+      return "some time ago";
     }
   }
 
   const dispatch = createEventDispatcher();
 
   function handleClick() {
-    dispatch('click', thread);
+    dispatch("click", thread);
   }
 </script>
 
 <div class="thread-card-container">
-  <button 
+  <button
     class="thread-card-button p-4 w-full text-left border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
     on:click={handleClick}
-    aria-label="View thread by {thread.name || 'User'}"
+    aria-label="View thread by {thread.name || "User"}"
   >
     <article class="thread-content">
       <div class="flex">
@@ -56,34 +56,34 @@
             {#if thread.profile_picture_url}
               <img src={thread.profile_picture_url} alt={thread.name} class="w-full h-full object-cover" />
             {:else}
-              <div class="text-lg font-bold text-gray-500">{(thread.name || 'User').charAt(0).toUpperCase()}</div>
+              <div class="text-lg font-bold text-gray-500">{(thread.name || "User").charAt(0).toUpperCase()}</div>
             {/if}
           </div>
         </div>
 
         <div class="flex-1 min-w-0">
           <div class="flex items-center">
-            <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{thread.name || 'User'}</p>
-            <p class="text-gray-500 dark:text-gray-400 text-sm truncate">@{thread.username || 'user'}</p>
+            <p class="font-bold {isDarkMode ? "text-white" : "text-black"} mr-1">{thread.name || "User"}</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm truncate">@{thread.username || "user"}</p>
             <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
-            <time 
+            <time
               datetime={(() => {
                 try {
                   const date = new Date(thread.created_at);
 
-                  return !isNaN(date.getTime()) ? date.toISOString() : '';
+                  return !isNaN(date.getTime()) ? date.toISOString() : "";
                 } catch (e) {
-                  console.error('Invalid date:', thread.created_at);
-                  return '';
+                  console.error("Invalid date:", thread.created_at);
+                  return "";
                 }
-              })()} 
+              })()}
               class="text-gray-500 dark:text-gray-400 text-sm"
             >
               {formatTime(thread.created_at)}
             </time>
           </div>
 
-          <p class="mt-1 mb-2 {isDarkMode ? 'text-white' : 'text-black'}">{thread.content}</p>
+          <p class="mt-1 mb-2 {isDarkMode ? "text-white" : "text-black"}">{thread.content}</p>
 
           {#if thread.media && thread.media.length > 0}
             <div class="mb-2 rounded-lg overflow-hidden border dark:border-gray-700">

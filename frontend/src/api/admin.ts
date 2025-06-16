@@ -1,18 +1,18 @@
-import appConfig from '../config/appConfig';
-import { getAuthToken } from '../utils/auth';
-import { createLoggerWithPrefix } from '../utils/logger';
-import { checkAdminStatus } from './user';
-import type { IApiResponse, IPagination } from '../interfaces/ICommon';
-import { 
-  standardizeCommunityRequest, 
-  standardizePremiumRequest, 
-  standardizeReportRequest, 
+import appConfig from "../config/appConfig";
+import { getAuthToken } from "../utils/auth";
+import { createLoggerWithPrefix } from "../utils/logger";
+import { checkAdminStatus } from "./user";
+import type { IApiResponse, IPagination } from "../interfaces/ICommon";
+import {
+  standardizeCommunityRequest,
+  standardizePremiumRequest,
+  standardizeReportRequest,
   standardizePagination,
   standardizeUser
-} from '../utils/standardizeApiData';
+} from "../utils/standardizeApiData";
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const logger = createLoggerWithPrefix('AdminAPI');
+const logger = createLoggerWithPrefix("AdminAPI");
 
 export type AdminApiResponse = IApiResponse<{
   message: string;
@@ -20,8 +20,8 @@ export type AdminApiResponse = IApiResponse<{
 
 export interface RequestsResponse {
   success: boolean;
-  data: any[];  
-  requests?: any[];  
+  data: any[];
+  requests?: any[];
   pagination: IPagination;
 }
 
@@ -46,25 +46,25 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
   logger.info(`Making ${method} request to ${url}`);
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    "Content-Type": "application/json"
   };
 
   const token = getAuthToken();
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-    logger.info(`Using auth token for request`);
+    headers["Authorization"] = `Bearer ${token}`;
+    logger.info("Using auth token for request");
   }
 
   const options: RequestInit = {
     method,
     headers,
-    credentials: 'include'
+    credentials: "include"
   };
 
   if (body) {
     const jsonBody = JSON.stringify(body);
     options.body = jsonBody;
-    logger.info(`Request includes body data:`, body);
+    logger.info("Request includes body data:", body);
     logger.info(`Request JSON body: ${jsonBody}`);
   }
 
@@ -79,10 +79,10 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
     }
 
     const data = await response.json();
-    logger.info(`Request successful, data received`);
+    logger.info("Request successful, data received");
     return data;
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     logger.error(`Request failed: ${errorMessage}`);
     throw error;
   }
@@ -90,8 +90,8 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
 
 export async function getCommunityRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
   const response = await apiRequest<any>(
-    `${API_BASE_URL}/admin/community-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
-    'GET'
+    `${API_BASE_URL}/admin/community-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}`,
+    "GET"
   );
 
   const standardizedResponse: RequestsResponse = {
@@ -122,8 +122,8 @@ export async function getCommunityRequests(page: number = 1, limit: number = 10,
 
 export async function getPremiumRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
   const response = await apiRequest<any>(
-    `${API_BASE_URL}/admin/premium-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
-    'GET'
+    `${API_BASE_URL}/admin/premium-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}`,
+    "GET"
   );
 
   const standardizedResponse: RequestsResponse = {
@@ -152,8 +152,8 @@ export async function getPremiumRequests(page: number = 1, limit: number = 10, s
 
 export async function getReportRequests(page: number = 1, limit: number = 10, status?: string): Promise<RequestsResponse> {
   const response = await apiRequest<any>(
-    `${API_BASE_URL}/admin/report-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`,
-    'GET'
+    `${API_BASE_URL}/admin/report-requests?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}`,
+    "GET"
   );
 
   const standardizedResponse: RequestsResponse = {
@@ -183,45 +183,45 @@ export async function getReportRequests(page: number = 1, limit: number = 10, st
 export async function getDashboardStatistics(): Promise<StatisticsResponse> {
   return apiRequest<StatisticsResponse>(
     `${API_BASE_URL}/admin/dashboard/statistics`,
-    'GET'
+    "GET"
   );
 }
 
 export async function banUser(userId: string, ban: boolean, reason?: string): Promise<AdminApiResponse> {
-  const requestBody = { 
-    ban, 
+  const requestBody = {
+    ban,
     reason,
   };
-  logger.info(`Ban user request body:`, requestBody);
+  logger.info("Ban user request body:", requestBody);
 
   try {
     // Make the API request
     const response = await apiRequest<AdminApiResponse>(
-      `${API_BASE_URL}/admin/users/${userId}/ban`, 
-      'POST',
+      `${API_BASE_URL}/admin/users/${userId}/ban`,
+      "POST",
       requestBody
     );
-    
-    logger.info(`Ban user API response:`, response);
-    
+
+    logger.info("Ban user API response:", response);
+
     // Validate the response structure
     if (!response) {
-      throw new Error('Empty response received from server');
+      throw new Error("Empty response received from server");
     }
-    
+
     // Handle different response formats
     const success = response.success === true;
-    const message = response.message || response.data?.message || (success ? 
-      `User successfully ${ban ? 'banned' : 'unbanned'}` : 
-      `Failed to ${ban ? 'ban' : 'unban'} user`);
-    
+    const message = response.message || response.data?.message || (success ?
+      `User successfully ${ban ? "banned" : "unbanned"}` :
+      `Failed to ${ban ? "ban" : "unban"} user`);
+
     // Add additional logging for debugging
     if (success) {
-      logger.info(`Successfully ${ban ? 'banned' : 'unbanned'} user ${userId}`);
+      logger.info(`Successfully ${ban ? "banned" : "unbanned"} user ${userId}`);
     } else {
-      logger.warn(`Failed to ${ban ? 'ban' : 'unban'} user ${userId}: ${message}`);
+      logger.warn(`Failed to ${ban ? "ban" : "unban"} user ${userId}: ${message}`);
     }
-    
+
     // Return standardized response
     return {
       success,
@@ -229,11 +229,11 @@ export async function banUser(userId: string, ban: boolean, reason?: string): Pr
       data: { message }
     };
   } catch (error) {
-    logger.error(`Ban user error:`, error);
+    logger.error("Ban user error:", error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to update user ban status',
-      data: { message: error instanceof Error ? error.message : 'Failed to update user ban status' }
+      message: error instanceof Error ? error.message : "Failed to update user ban status",
+      data: { message: error instanceof Error ? error.message : "Failed to update user ban status" }
     };
   }
 }
@@ -241,7 +241,7 @@ export async function banUser(userId: string, ban: boolean, reason?: string): Pr
 export async function sendNewsletter(subject: string, content: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/newsletter/send`,
-    'POST',
+    "POST",
     { subject, content }
   );
 }
@@ -250,7 +250,7 @@ export async function processCommunityRequest(requestId: string, approve: boolea
 
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/community-requests/${requestId}/process`,
-    'POST',
+    "POST",
     { approve: approve, reason }
   );
 }
@@ -258,7 +258,7 @@ export async function processCommunityRequest(requestId: string, approve: boolea
 export async function processReportRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/report-requests/${requestId}/process`,
-    'POST',
+    "POST",
     { approve: approve, reason }
   );
 }
@@ -266,7 +266,7 @@ export async function processReportRequest(requestId: string, approve: boolean, 
 export async function processPremiumRequest(requestId: string, approve: boolean, reason?: string): Promise<AdminApiResponse> {
   return apiRequest<AdminApiResponse>(
     `${API_BASE_URL}/admin/premium-requests/${requestId}/process`,
-    'POST',
+    "POST",
     { approve: approve, reason }
   );
 }
@@ -274,7 +274,7 @@ export async function processPremiumRequest(requestId: string, approve: boolean,
 export async function getThreadCategories(page: number = 1, limit: number = 10): Promise<CategoriesResponse> {
   const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/thread-categories?page=${page}&limit=${limit}`,
-    'GET'
+    "GET"
   );
 
   const standardizedResponse: CategoriesResponse = {
@@ -299,7 +299,7 @@ export async function getThreadCategories(page: number = 1, limit: number = 10):
 export async function createThreadCategory(name: string, description?: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/thread-categories`,
-    'POST',
+    "POST",
     { name, description }
   );
 }
@@ -307,7 +307,7 @@ export async function createThreadCategory(name: string, description?: string): 
 export async function updateThreadCategory(categoryId: string, name: string, description?: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/thread-categories/${categoryId}`,
-    'PUT',
+    "PUT",
     { name, description }
   );
 }
@@ -315,7 +315,7 @@ export async function updateThreadCategory(categoryId: string, name: string, des
 export async function deleteThreadCategory(categoryId: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/thread-categories/${categoryId}`,
-    'DELETE'
+    "DELETE"
   );
 }
 
@@ -327,7 +327,7 @@ export async function getCommunityCategories(page: number = 1, limit: number = 1
 
   const response = await apiRequest<any>(
     `${API_BASE_URL}/admin/community-categories?${params}`,
-    'GET'
+    "GET"
   );
 
   const standardizedResponse: CategoriesResponse = {
@@ -352,7 +352,7 @@ export async function getCommunityCategories(page: number = 1, limit: number = 1
 export async function createCommunityCategory(name: string, description?: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/community-categories`,
-    'POST',
+    "POST",
     { name, description }
   );
 }
@@ -360,7 +360,7 @@ export async function createCommunityCategory(name: string, description?: string
 export async function updateCommunityCategory(categoryId: string, name: string, description?: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/community-categories/${categoryId}`,
-    'PUT',
+    "PUT",
     { name, description }
   );
 }
@@ -368,7 +368,7 @@ export async function updateCommunityCategory(categoryId: string, name: string, 
 export async function deleteCommunityCategory(categoryId: string): Promise<IApiResponse<void>> {
   return apiRequest<IApiResponse<void>>(
     `${API_BASE_URL}/admin/community-categories/${categoryId}`,
-    'DELETE'
+    "DELETE"
   );
 }
 
@@ -376,7 +376,7 @@ export async function getNewsletterSubscribers(page: number = 1, limit: number =
   try {
     const response = await apiRequest<any>(
       `${API_BASE_URL}/admin/newsletter-subscribers?page=${page}&limit=${limit}`,
-      'GET'
+      "GET"
     );
 
     const standardizedResponse: RequestsResponse = {
@@ -396,7 +396,7 @@ export async function getNewsletterSubscribers(page: number = 1, limit: number =
 
     return standardizedResponse;
   } catch (error) {
-    console.error('Error fetching newsletter subscribers:', error);
+    console.error("Error fetching newsletter subscribers:", error);
     return {
       success: false,
       data: [],
@@ -421,7 +421,7 @@ export async function syncCommunityRequests(): Promise<IApiResponse<{
     creator_ids?: string[];
   }>>(
     `${API_BASE_URL}/admin/community-requests/sync`,
-    'POST'
+    "POST"
   );
 
   return response;

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { toastStore } from '../../stores/toastStore';
-  import type { Toast, ToastType, ToastPosition } from '../../interfaces/IToast';
-  import { fly } from 'svelte/transition';
-  import InfoIcon from 'svelte-feather-icons/src/icons/InfoIcon.svelte';
-  import CheckCircleIcon from 'svelte-feather-icons/src/icons/CheckCircleIcon.svelte';
-  import AlertTriangleIcon from 'svelte-feather-icons/src/icons/AlertTriangleIcon.svelte';
-  import XCircleIcon from 'svelte-feather-icons/src/icons/XCircleIcon.svelte';
-  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
+  import { toastStore } from "../../stores/toastStore";
+  import type { Toast, ToastType, ToastPosition } from "../../interfaces/IToast";
+  import { fly } from "svelte/transition";
+  import InfoIcon from "svelte-feather-icons/src/icons/InfoIcon.svelte";
+  import CheckCircleIcon from "svelte-feather-icons/src/icons/CheckCircleIcon.svelte";
+  import AlertTriangleIcon from "svelte-feather-icons/src/icons/AlertTriangleIcon.svelte";
+  import XCircleIcon from "svelte-feather-icons/src/icons/XCircleIcon.svelte";
+  import XIcon from "svelte-feather-icons/src/icons/XIcon.svelte";
 
   let toasts: Toast[] = [];
   toastStore.subscribe((list) => {
@@ -15,30 +15,30 @@
 
   const typeStyles = {
     info: {
-      className: 'toast-info',
+      className: "toast-info",
       icon: InfoIcon
     },
     success: {
-      className: 'toast-success',
+      className: "toast-success",
       icon: CheckCircleIcon
     },
     warning: {
-      className: 'toast-warning',
+      className: "toast-warning",
       icon: AlertTriangleIcon
     },
     error: {
-      className: 'toast-error',
+      className: "toast-error",
       icon: XCircleIcon
     }
   };
 
   const positionClasses: Record<ToastPosition, string> = {
-    'top-left': 'toast-top-left',
-    'top-center': 'toast-top-center',
-    'top-right': 'toast-top-right',
-    'bottom-left': 'toast-bottom-left',
-    'bottom-center': 'toast-bottom-center',
-    'bottom-right': 'toast-bottom-right',
+    "top-left": "toast-top-left",
+    "top-center": "toast-top-center",
+    "top-right": "toast-top-right",
+    "bottom-left": "toast-bottom-left",
+    "bottom-center": "toast-bottom-center",
+    "bottom-right": "toast-bottom-right",
   };
 </script>
 
@@ -46,9 +46,9 @@
   {#if toasts.filter(t => t.position === pos).length}
     <div class="toast-container {positionClasses[pos]}">
       {#each toasts.filter(t => t.position === pos) as toast (toast.id)}
-        <div 
+        <div
           class="toast-item {typeStyles[toast.type].className}"
-          transition:fly={{ y: pos.startsWith('top') ? -20 : 20, duration: 300 }}
+          transition:fly={{ y: pos.startsWith("top") ? -20 : 20, duration: 300 }}
         >
           <div class="toast-content">
             <div class="toast-icon">
@@ -58,8 +58,8 @@
               <p>{toast.message}</p>
             </div>
             <div class="toast-close">
-              <button 
-                on:click={() => toastStore.removeToast(toast.id)} 
+              <button
+                on:click={() => toastStore.removeToast(toast.id)}
                 class="toast-close-button"
               >
                 <span class="sr-only">Close</span>

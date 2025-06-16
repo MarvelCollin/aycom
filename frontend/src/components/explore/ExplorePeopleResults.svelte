@@ -1,20 +1,20 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { useAuth } from '../../hooks/useAuth';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import Button from '../common/Button.svelte';
-  import LoadingSkeleton from '../common/LoadingSkeleton.svelte';
-  import Pagination from '../common/Pagination.svelte';
-  import PerPageSelector from '../common/PerPageSelector.svelte';
-  import { formatNumber } from '../../utils/common';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { useAuth } from "../../hooks/useAuth";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import Button from "../common/Button.svelte";
+  import LoadingSkeleton from "../common/LoadingSkeleton.svelte";
+  import Pagination from "../common/Pagination.svelte";
+  import PerPageSelector from "../common/PerPageSelector.svelte";
+  import { formatNumber } from "../../utils/common";
 
-  const logger = createLoggerWithPrefix('ExplorePeopleResults');
+  const logger = createLoggerWithPrefix("ExplorePeopleResults");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
   const { getAuthState } = useAuth();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
   $: authState = getAuthState ? getAuthState() : { user_id: null, is_authenticated: false };
 
   export let peopleResults: Array<{
@@ -35,22 +35,22 @@
   $: totalPages = Math.max(1, Math.ceil(totalCount / peoplePerPage));
 
   function handlePageChange(event: CustomEvent<number>) {
-    logger.debug('Changing page', { page: event.detail });
+    logger.debug("Changing page", { page: event.detail });
     currentPage = event.detail;
-    dispatch('pageChange', event.detail);
+    dispatch("pageChange", event.detail);
   }
 
   const perPageOptions = [25, 30, 35];
 
   function handlePerPageChange(event: CustomEvent<number>) {
     const newValue = event.detail;
-    logger.debug('Changing results per page', { value: newValue });
+    logger.debug("Changing results per page", { value: newValue });
     peoplePerPage = newValue;
-    dispatch('peoplePerPageChange', newValue);
+    dispatch("peoplePerPageChange", newValue);
   }
 
   function handleFollow(userId: string) {
-    logger.debug('Follow request initiated', { userId });
+    logger.debug("Follow request initiated", { userId });
 
     const userIndex = peopleResults.findIndex(user => user.id === userId);
     if (userIndex !== -1) {
@@ -65,12 +65,12 @@
       ];
     }
 
-    dispatch('follow', userId);
+    dispatch("follow", userId);
   }
 
   function handleProfileClick(userId: string) {
-    logger.debug('Profile click', { userId });
-    dispatch('profileClick', userId);
+    logger.debug("Profile click", { userId });
+    dispatch("profileClick", userId);
 
     const user = peopleResults.find(u => u.id === userId);
     if (user) {
@@ -81,15 +81,15 @@
   $: {
     if (!isLoading) {
       if (peopleResults && peopleResults.length > 0) {
-        logger.debug('People results loaded', { count: peopleResults.length });
-        console.log('People results data:', peopleResults);
+        logger.debug("People results loaded", { count: peopleResults.length });
+        console.log("People results data:", peopleResults);
 
         for (let i = 0; i < peopleResults.length; i++) {
           const person = peopleResults[i];
           console.log(`Person ${i}:`, {
-            id: person.id || 'MISSING ID',
-            username: person.username || 'MISSING USERNAME',
-            displayName: person.displayName || 'MISSING DISPLAY NAME',
+            id: person.id || "MISSING ID",
+            username: person.username || "MISSING USERNAME",
+            displayName: person.displayName || "MISSING DISPLAY NAME",
             avatar: person.avatar,
             bio: person.bio,
             isVerified: person.isVerified,
@@ -97,19 +97,19 @@
             isFollowing: person.isFollowing
           });
 
-          if (!person.id) console.error('Person missing ID!');
-          if (!person.username) console.error('Person missing username!');
-          if (!person.displayName) console.error('Person missing display name!');
+          if (!person.id) console.error("Person missing ID!");
+          if (!person.username) console.error("Person missing username!");
+          if (!person.displayName) console.error("Person missing display name!");
         }
       } else {
-        logger.debug('No people results found');
-        console.log('Empty people results array:', peopleResults);
+        logger.debug("No people results found");
+        console.log("Empty people results array:", peopleResults);
       }
     }
   }
 </script>
 
-<div class="people-results {isDarkMode ? 'people-results-dark' : ''}">
+<div class="people-results {isDarkMode ? "people-results-dark" : ""}">
   {#if isLoading}
     <div class="people-loading">
       {#each Array(5) as _, i}
@@ -148,11 +148,11 @@
               </div>
 
               <div class="twitter-profile-follow">
-                <button 
-                  class="twitter-follow-button {user.isFollowing ? 'following' : ''}"
+                <button
+                  class="twitter-follow-button {user.isFollowing ? "following" : ""}"
                   on:click={() => handleFollow(user.id)}
                 >
-                  {user.isFollowing ? 'Following' : 'Follow'}
+                  {user.isFollowing ? "Following" : "Follow"}
                 </button>
               </div>
             </div>
@@ -171,18 +171,18 @@
 
     <div class="twitter-people-footer">
       <div class="twitter-pagination-wrapper">
-        <Pagination 
-          totalItems={totalCount} 
-          perPage={peoplePerPage} 
-          currentPage={currentPage} 
+        <Pagination
+          totalItems={totalCount}
+          perPage={peoplePerPage}
+          {currentPage}
           on:pageChange={handlePageChange}
         />
       </div>
 
       <div class="twitter-perpage-wrapper">
-        <PerPageSelector 
-          perPage={peoplePerPage} 
-          options={[10, 20, 50]} 
+        <PerPageSelector
+          perPage={peoplePerPage}
+          options={[10, 20, 50]}
           on:perPageChange={handlePerPageChange}
         />
       </div>

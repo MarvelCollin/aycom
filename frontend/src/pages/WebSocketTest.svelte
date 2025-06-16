@@ -1,9 +1,9 @@
 <script>
-import { onMount, onDestroy } from 'svelte';
-import { notificationWebsocketStore } from '../stores/notificationWebsocketStore';
-import { authStore } from '../stores/authStore';
-import { navigate } from '../utils/navigation';
-import { toastStore } from '../stores/toastStore';
+import { onMount, onDestroy } from "svelte";
+import { notificationWebsocketStore } from "../stores/notificationWebsocketStore";
+import { authStore } from "../stores/authStore";
+import { navigate } from "../utils/navigation";
+import { toastStore } from "../stores/toastStore";
 
 let connected = false;
 let reconnecting = false;
@@ -30,14 +30,14 @@ let unregisterHandler;
 onMount(async () => {
   if (!authStore.isAuthenticated()) {
     // Use simple redirection since we don't have the navigation function yet
-    toastStore.showToast('You need to log in to access this page', 'warning');
-    window.location.href = '/login';
+    toastStore.showToast("You need to log in to access this page", "warning");
+    window.location.href = "/login";
     return;
   }
 
   // Register message handler
   unregisterHandler = notificationWebsocketStore.registerMessageHandler(handleMessage);
-  
+
   // Attempt connection
   notificationWebsocketStore.connect();
 });
@@ -49,7 +49,7 @@ onDestroy(() => {
 });
 
 async function testConnection() {
-  testResults = { status: 'Testing connection...' };
+  testResults = { status: "Testing connection..." };
   testResults = await notificationWebsocketStore.testConnection();
 }
 
@@ -64,10 +64,10 @@ function disconnect() {
 
 <div class="container mx-auto p-4">
   <h1 class="text-2xl font-bold mb-6">WebSocket Connection Test</h1>
-  
+
   <div class="bg-white rounded-lg shadow p-6 mb-6">
     <h2 class="text-xl font-semibold mb-4">Connection Status</h2>
-    
+
     <div class="flex flex-col gap-2 mb-4">
       <div class="flex gap-2 items-center">
         <span class="font-bold">Connected:</span>
@@ -77,7 +77,7 @@ function disconnect() {
           <span class="text-red-600">No</span>
         {/if}
       </div>
-      
+
       <div class="flex gap-2 items-center">
         <span class="font-bold">Reconnecting:</span>
         {#if reconnecting}
@@ -86,7 +86,7 @@ function disconnect() {
           <span>No</span>
         {/if}
       </div>
-      
+
       <div class="flex gap-2 items-center">
         <span class="font-bold">Last Error:</span>
         {#if lastError}
@@ -96,22 +96,22 @@ function disconnect() {
         {/if}
       </div>
     </div>
-    
+
     <div class="flex gap-4">
-      <button 
+      <button
         class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
         on:click={reconnect}
       >
         Connect/Reconnect
       </button>
-      
-      <button 
+
+      <button
         class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
         on:click={disconnect}
       >
         Disconnect
       </button>
-      
+
       <button
         class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
         on:click={testConnection}
@@ -120,11 +120,11 @@ function disconnect() {
       </button>
     </div>
   </div>
-  
+
   {#if testResults}
     <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h2 class="text-xl font-semibold mb-4">Test Results</h2>
-      
+
       <div class="flex flex-col gap-2">
         <div class="flex gap-2 items-center">
           <span class="font-bold">Status:</span>
@@ -136,14 +136,14 @@ function disconnect() {
             <span>{testResults.status}</span>
           {/if}
         </div>
-        
+
         {#if testResults.message}
           <div class="flex gap-2">
             <span class="font-bold">Message:</span>
             <span>{testResults.message}</span>
           </div>
         {/if}
-        
+
         {#if testResults.details}
           <div class="mt-2">
             <div class="font-bold">Details:</div>
@@ -152,7 +152,7 @@ function disconnect() {
             </pre>
           </div>
         {/if}
-        
+
         {#if testResults.error}
           <div class="mt-2">
             <div class="font-bold">Error:</div>
@@ -164,10 +164,10 @@ function disconnect() {
       </div>
     </div>
   {/if}
-  
+
   <div class="bg-white rounded-lg shadow p-6">
     <h2 class="text-xl font-semibold mb-4">Received Messages</h2>
-    
+
     {#if messages.length === 0}
       <p class="text-gray-500">No messages received yet.</p>
     {:else}
@@ -183,4 +183,4 @@ function disconnect() {
       </div>
     {/if}
   </div>
-</div> 
+</div>

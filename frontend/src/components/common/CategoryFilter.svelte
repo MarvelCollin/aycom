@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { fade } from 'svelte/transition';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { fade } from "svelte/transition";
 
   export let categories: string[] = [];
   export let selected: string[] = [];
-  export let label: string = 'Categories';
+  export let label: string = "Categories";
 
   let isOpen = false;
   let allSelected = false;
 
   const { theme } = useTheme();
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   const dispatch = createEventDispatcher();
 
@@ -21,7 +21,7 @@
 
   function handleClickOutside(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const dropdown = document.querySelector('.category-dropdown');
+    const dropdown = document.querySelector(".category-dropdown");
     if (dropdown && !dropdown.contains(target)) {
       isOpen = false;
     }
@@ -36,7 +36,7 @@
 
     allSelected = categories.length > 0 && selected.length === categories.length;
 
-    dispatch('change', { categories: selected });
+    dispatch("change", { categories: selected });
   }
 
   function toggleSelectAll() {
@@ -50,44 +50,44 @@
       allSelected = true;
     }
 
-    dispatch('change', { categories: selected });
+    dispatch("change", { categories: selected });
   }
 
   function clearFilters() {
     selected = [];
     allSelected = false;
-    dispatch('change', { categories: selected });
+    dispatch("change", { categories: selected });
   }
 
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy } from "svelte";
 
   onMount(() => {
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
   });
 
   onDestroy(() => {
-    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener("click", handleClickOutside);
   });
 </script>
 
 <div class="category-filter">
-  <button 
-    class="filter-button {isDarkMode ? 'dark' : ''}" 
+  <button
+    class="filter-button {isDarkMode ? "dark" : ""}"
     on:click={toggleDropdown}
     aria-haspopup="true"
     aria-expanded={isOpen}
   >
     <span>{label}</span>
-    <span class="filter-count">{selected.length > 0 ? `(${selected.length})` : ''}</span>
-    <span class="arrow {isOpen ? 'open' : ''}">▼</span>
+    <span class="filter-count">{selected.length > 0 ? `(${selected.length})` : ""}</span>
+    <span class="arrow {isOpen ? "open" : ""}">▼</span>
   </button>
 
   {#if isOpen}
-    <div class="category-dropdown {isDarkMode ? 'dark' : ''}" transition:fade={{ duration: 100 }}>
+    <div class="category-dropdown {isDarkMode ? "dark" : ""}" transition:fade={{ duration: 100 }}>
       <div class="dropdown-header">
         <label class="checkbox-container">
-          <input 
-            type="checkbox" 
+          <input
+            type="checkbox"
             checked={allSelected}
             on:change={toggleSelectAll}
           />
@@ -103,8 +103,8 @@
       <div class="dropdown-body">
         {#each categories as category}
           <label class="checkbox-container">
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               checked={selected.includes(category)}
               on:change={() => toggleCategory(category)}
             />

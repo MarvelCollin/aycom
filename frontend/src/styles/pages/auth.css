@@ -1,18 +1,14 @@
-/* Auth pages styling */
-
-/* Auth layout container */
 .auth-container {
   display: flex;
   min-height: 100vh;
   background-color: var(--bg-primary);
-  overflow: hidden; /* Prevent overflow from affecting the whole page */
+  overflow: hidden; 
 }
 
 .auth-container-dark {
   background-color: var(--bg-primary-dark);
 }
 
-/* Left side with logo/branding */
 .auth-left {
   display: none;
   flex: 1;
@@ -41,36 +37,35 @@
   opacity: 0.1;
 }
 
-/* Right side with form - IMPROVED for scrollability */
 .auth-right {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start; /* Changed from center to allow scrolling */
+  justify-content: flex-start; 
   padding: var(--space-4);
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
   position: relative;
-  overflow-y: auto; /* Enable vertical scrolling */
-  max-height: 100vh; /* Full viewport height */
+  overflow-y: auto; 
+  max-height: 100vh; 
 }
 
 .auth-form {
   width: 100%;
-  max-width: 450px; /* Increased from 400px for more breathing room */
+  max-width: 450px; 
   margin: 0 auto;
-  padding: var(--space-6); /* Increased padding from var(--space-4) */
+  padding: var(--space-6); 
   background-color: var(--bg-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   transition: background-color var(--transition-normal), box-shadow var(--transition-normal);
-  overflow-y: visible; /* Allow content to extend beyond the form */
+  overflow-y: visible; 
 }
 
 .auth-scrollable-content {
   width: 100%;
-  padding-bottom: var(--space-8); /* Add extra padding at the bottom */
+  padding-bottom: var(--space-8); 
 }
 
 .auth-header {
@@ -98,9 +93,8 @@
   margin-bottom: var(--space-4);
 }
 
-/* Form elements */
 .auth-input-group {
-  margin-bottom: var(--space-6); /* Increased from var(--space-4) */
+  margin-bottom: var(--space-6); 
   width: 100%;
 }
 
@@ -114,14 +108,14 @@
 
 .auth-input {
   width: 100%;
-  padding: var(--space-3) var(--space-4); /* Added horizontal padding */
+  padding: var(--space-3) var(--space-4); 
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
-  box-sizing: border-box; /* Ensure padding is included in width */
-  font-size: var(--font-size-sm); /* Adjusted font size */
+  box-sizing: border-box; 
+  font-size: var(--font-size-sm); 
 }
 
 .auth-input:focus {
@@ -152,7 +146,6 @@
   margin-top: var(--space-1);
 }
 
-/* Buttons */
 .auth-btn {
   display: block;
   width: 100%;
@@ -166,7 +159,7 @@
   text-align: center;
   cursor: pointer;
   transition: background-color var(--transition-fast);
-  margin-top: var(--space-6); /* Added margin top */
+  margin-top: var(--space-6); 
 }
 
 .auth-btn:hover {
@@ -219,11 +212,10 @@
   align-items: center;
 }
 
-/* Alternative options */
 .auth-divider {
   display: flex;
   align-items: center;
-  margin: var(--space-6) 0; /* Increased from var(--space-4) */
+  margin: var(--space-6) 0; 
   color: var(--text-tertiary);
 }
 
@@ -242,7 +234,7 @@
 }
 
 .auth-divider-text {
-  padding: 0 var(--space-4); /* Increased from var(--space-2) */
+  padding: 0 var(--space-4); 
   font-size: var(--font-size-sm);
 }
 
@@ -263,7 +255,6 @@
   text-decoration: underline;
 }
 
-/* Checkbox styling */
 .auth-checkbox-group {
   display: flex;
   align-items: center;
@@ -279,7 +270,6 @@
   color: var(--text-primary);
 }
 
-/* Gender selection styling */
 fieldset {
   border: none;
   padding: 0;
@@ -296,7 +286,6 @@ fieldset legend {
   margin: var(--space-3) 0;
 }
 
-/* Date of birth styling */
 .auth-dob-container {
   background-color: var(--bg-secondary);
   border-radius: var(--radius-md);
@@ -304,7 +293,6 @@ fieldset legend {
   margin-top: var(--space-2);
 }
 
-/* Forgot password link */
 .auth-forgot-password {
   display: block;
   text-align: right;
@@ -318,13 +306,11 @@ fieldset legend {
   text-decoration: underline;
 }
 
-/* Animation for form elements */
 .auth-input,
 .auth-btn {
   transition: all var(--transition-fast);
 }
 
-/* Form section (for multi-step forms) */
 .auth-section {
   margin-bottom: var(--space-6);
 }
@@ -336,7 +322,6 @@ fieldset legend {
   color: var(--text-primary);
 }
 
-/* Verification code input */
 .verification-inputs {
   display: flex;
   gap: var(--space-2);
@@ -368,30 +353,28 @@ fieldset legend {
   font-size: var(--font-size-sm);
 }
 
-/* Improved responsive styling */
 @media (min-width: 768px) {
   .auth-left {
     display: flex;
   }
-  
+
   .auth-right {
     max-width: 50%;
     padding: var(--space-6);
-    overflow-y: auto; /* Ensure scrolling works on bigger screens */
+    overflow-y: auto; 
   }
-  
+
   .auth-form {
-    padding: var(--space-8); /* Increased from var(--space-6) */
+    padding: var(--space-8); 
     box-shadow: var(--shadow-md);
-    margin: auto; /* Center vertically when possible */
+    margin: auto; 
   }
-  
-  /* Make select dropdowns look good on larger screens */
+
   .auth-dob-select-group {
     display: flex;
     gap: var(--space-2);
   }
-  
+
   .auth-dob-select-group > div {
     flex: 1;
   }
@@ -400,28 +383,26 @@ fieldset legend {
 @media (max-width: 767px) {
   .auth-right {
     padding: var(--space-4);
-    overflow-y: auto; /* Ensure scrolling on mobile */
-    height: 100vh; /* Full height on mobile */
+    overflow-y: auto; 
+    height: 100vh; 
   }
-  
+
   .auth-form {
     max-width: 100%;
     box-shadow: none;
-    padding: var(--space-4); /* Increased from var(--space-2) */
+    padding: var(--space-4); 
     margin-top: var(--space-4);
   }
-  
+
   .auth-logo {
     margin-bottom: var(--space-4);
   }
-  
-  /* Ensure small screens can scroll */
+
   .aycom-auth-scroll-container {
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch; 
   }
 }
 
-/* Dark mode specific adjustments */
 .dark-theme .auth-form {
   background-color: var(--dark-bg-secondary);
   box-shadow: var(--shadow-md-dark);
@@ -432,7 +413,6 @@ fieldset legend {
   color: var(--dark-disabled-text);
 }
 
-/* File input styling */
 .aycom-auth-file-input {
   position: relative;
   width: 100%;
@@ -472,4 +452,4 @@ fieldset legend {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-} 
+}

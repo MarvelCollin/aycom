@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher } from "svelte";
 
   interface TabItem {
     id: string;
@@ -9,22 +9,22 @@
   }
 
   export let items: TabItem[] = [];
-  export let activeId: string = '';
-  export let variant: 'default' | 'pills' | 'underline' = 'default';
+  export let activeId: string = "";
+  export let variant: "default" | "pills" | "underline" = "default";
 
   const dispatch = createEventDispatcher();
 
   function handleTabClick(item: TabItem) {
     if (item.disabled) return;
     activeId = item.id;
-    dispatch('tabChange', item.id);
+    dispatch("tabChange", item.id);
   }
 </script>
 
 <div class="tab-buttons tab-buttons-{variant}">
   {#each items as item}
-    <button 
-      class="tab-button {activeId === item.id ? 'active' : ''} {item.disabled ? 'disabled' : ''}"
+    <button
+      class="tab-button {activeId === item.id ? "active" : ""} {item.disabled ? "disabled" : ""}"
       on:click={() => handleTabClick(item)}
       disabled={item.disabled}
       type="button"

@@ -43,6 +43,7 @@ service CommunityService {
   rpc HasPendingJoinRequest(HasPendingJoinRequestRequest) returns (HasPendingJoinRequestResponse);
 
   rpc CreateChat(CreateChatRequest) returns (ChatResponse);
+  rpc DeleteChat(DeleteChatRequest) returns (EmptyResponse);
   rpc AddChatParticipant(AddChatParticipantRequest) returns (ChatParticipantResponse);
   rpc RemoveChatParticipant(RemoveChatParticipantRequest) returns (EmptyResponse);
   rpc ListChats(ListChatsRequest) returns (ListChatsResponse);
@@ -200,6 +201,7 @@ message HasPendingJoinRequestRequest { string community_id = 1; string user_id =
 message HasPendingJoinRequestResponse { bool has_request = 1; }
 
 message CreateChatRequest { bool is_group = 1; string name = 2; repeated string participant_ids = 3; string created_by = 4; }
+message DeleteChatRequest { string chat_id = 1; }
 message ChatResponse { Chat chat = 1; }
 message AddChatParticipantRequest { string chat_id = 1; string user_id = 2; bool is_admin = 3; }
 message RemoveChatParticipantRequest { string chat_id = 1; string user_id = 2; }
@@ -219,7 +221,7 @@ message SendMessageRequest {
 }
 message MessageResponse { Message message = 1; }
 message DeleteMessageRequest { string message_id = 1; }
-message UnsendMessageRequest { string message_id = 1; }
+message UnsendMessageRequest { string message_id = 1; string chat_id = 2; }
 message ListMessagesRequest { string chat_id = 1; int32 offset = 2; int32 limit = 3; }
 message ListMessagesResponse { repeated Message messages = 1; }
 message SearchMessagesRequest { string chat_id = 1; string query = 2; int32 offset = 3; int32 limit = 4; }

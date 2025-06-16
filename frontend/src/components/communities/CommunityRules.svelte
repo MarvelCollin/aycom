@@ -1,5 +1,5 @@
 <script lang="ts">
-  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
+  import AlertCircleIcon from "svelte-feather-icons/src/icons/AlertCircleIcon.svelte";
 
   interface Rule {
     id: string;

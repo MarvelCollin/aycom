@@ -1,5 +1,5 @@
-import appConfig from '../config/appConfig';
-import { writable } from 'svelte/store';
+import appConfig from "../config/appConfig";
+import { writable } from "svelte/store";
 
 interface ServiceStatus {
   user_service: boolean;
@@ -9,7 +9,7 @@ interface ServiceStatus {
 }
 
 export const serviceStatus = writable<ServiceStatus>({
-  user_service: true,  
+  user_service: true,
   thread_service: true,
   community_service: true,
   last_checked: null
@@ -19,8 +19,8 @@ export async function checkUserServiceStatus(): Promise<boolean> {
   try {
     const API_BASE_URL = appConfig.api.baseUrl;
     const response = await fetch(`${API_BASE_URL}/health`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
     });
 
     const isAvailable = response.ok;
@@ -33,7 +33,7 @@ export async function checkUserServiceStatus(): Promise<boolean> {
 
     return isAvailable;
   } catch (error) {
-    console.error('Error checking user service status:', error);
+    console.error("Error checking user service status:", error);
 
     serviceStatus.update(status => ({
       ...status,
@@ -50,8 +50,8 @@ export async function checkAllServices(): Promise<ServiceStatus> {
 
   const updatedStatus = {
     user_service: userServiceAvailable,
-    thread_service: userServiceAvailable, 
-    community_service: userServiceAvailable, 
+    thread_service: userServiceAvailable,
+    community_service: userServiceAvailable,
     last_checked: new Date()
   };
 

@@ -1,14 +1,10 @@
-/* Tweet action components styles */
-
-/* Tweet action container */
 .tweet-actions-container {
   display: flex;
   justify-content: space-between;
   margin-top: var(--space-2);
-  max-width: 425px; /* Match Twitter's layout */
+  max-width: 425px; 
 }
 
-/* Individual action button */
 .tweet-action-button {
   display: inline-flex;
   align-items: center;
@@ -21,7 +17,6 @@
   cursor: pointer;
 }
 
-/* Hover states for different action types */
 .tweet-action-button.reply:hover {
   color: var(--color-primary);
   background-color: rgba(29, 155, 240, 0.1);
@@ -47,7 +42,6 @@
   background-color: rgba(29, 155, 240, 0.1);
 }
 
-/* Active states */
 .tweet-action-button.retweet.active {
   color: var(--color-success);
 }
@@ -60,13 +54,11 @@
   color: var(--color-primary);
 }
 
-/* Action count display */
 .tweet-action-count {
   font-size: var(--font-size-xs);
   margin-left: var(--space-1);
 }
 
-/* Action tooltip */
 .tweet-action-tooltip {
   position: absolute;
   bottom: 100%;
@@ -88,7 +80,6 @@
   opacity: 1;
 }
 
-/* Animation for like action */
 @keyframes heart-burst {
   0% {
     transform: scale(1);
@@ -105,24 +96,20 @@
   animation: heart-burst 0.3s ease-in-out;
 }
 
-/* Responsive adjustments */
 @media (max-width: 500px) {
   .tweet-actions-container {
     max-width: 100%;
   }
-  
+
   .tweet-action-count {
     font-size: var(--font-size-xs);
   }
-  
+
   .tweet-action-tooltip {
     display: none;
   }
 }
 
-/* Tweet actions styling */
-
-/* Container for all action buttons */
 .tweet-actions {
   display: flex;
   justify-content: space-between;
@@ -134,13 +121,11 @@
   color: var(--text-secondary-dark);
 }
 
-/* Each action button container */
 .tweet-action-item {
   display: flex;
   align-items: center;
 }
 
-/* Common button styles for all action types */
 .tweet-action-btn {
   display: flex;
   align-items: center;
@@ -186,7 +171,6 @@
   background-color: rgba(var(--color-primary-rgb), 0.1);
 }
 
-/* Loading states */
 .tweet-action-btn.loading {
   pointer-events: none;
 }
@@ -208,7 +192,6 @@
   opacity: 0;
 }
 
-/* Heart animation */
 .tweet-like-btn.animating .heart-animation {
   animation: heartPulse 0.8s cubic-bezier(0.17, 0.89, 0.32, 1.49);
 }
@@ -234,7 +217,6 @@
   }
 }
 
-/* View replies button */
 .view-replies-btn {
   background-color: transparent;
   border: none;
@@ -254,7 +236,6 @@
   text-decoration: underline;
 }
 
-/* Replies toggle */
 .tweet-replies-toggle-container {
   padding: 0 var(--space-2);
 }
@@ -284,20 +265,16 @@
   color: var(--color-primary);
 }
 
-/* Mobile optimizations */
 @media (max-width: 576px) {
   .tweet-action-btn {
     padding: var(--space-1);
   }
-  
+
   .tweet-action-count {
     font-size: var(--font-size-xs);
   }
 }
 
-/* Tweet actions styling */
-
-/* Container for all action buttons */
 .tweet-actions {
   display: flex;
   justify-content: space-between;
@@ -309,13 +286,11 @@
   color: var(--text-secondary-dark);
 }
 
-/* Each action button container */
 .tweet-action-item {
   display: flex;
   align-items: center;
 }
 
-/* Common button styles for all action types */
 .tweet-action-btn {
   display: flex;
   align-items: center;
@@ -328,7 +303,6 @@
   color: var(--text-secondary-dark);
 }
 
-/* Reply button specific styles */
 .tweet-reply-btn {
   color: var(--text-secondary);
 }
@@ -363,7 +337,6 @@
   color: var(--color-primary);
 }
 
-/* Repost/Retweet button specific styles */
 .tweet-repost-btn {
   color: var(--text-secondary);
 }
@@ -380,7 +353,6 @@
   background-color: rgba(var(--color-success-rgb), 0.2);
 }
 
-/* Like button specific styles */
 .tweet-like-btn {
   color: var(--text-secondary);
 }
@@ -397,7 +369,6 @@
   background-color: rgba(var(--color-danger-rgb), 0.2);
 }
 
-/* Bookmark button specific styles */
 .tweet-bookmark-btn {
   color: var(--text-secondary);
 }
@@ -414,7 +385,6 @@
   background-color: rgba(var(--color-primary-rgb), 0.2);
 }
 
-/* Views count container */
 .tweet-views-count {
   display: flex;
   align-items: center;
@@ -435,7 +405,6 @@
   background-color: var(--bg-hover-dark);
 }
 
-/* Common elements */
 .tweet-action-icon {
   margin-right: var(--space-1-5);
 }
@@ -444,17 +413,16 @@
   font-size: var(--font-size-sm);
 }
 
-/* Mobile styles */
 @media (max-width: 640px) {
   .tweet-actions {
     margin-top: var(--space-2);
   }
-  
+
   .tweet-action-btn {
     padding: var(--space-1);
   }
-  
+
   .tweet-action-icon {
     margin-right: var(--space-1);
   }
-} 
+}

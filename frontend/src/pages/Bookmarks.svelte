@@ -1,38 +1,38 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { getUserBookmarks, searchBookmarks, likeThread, unlikeThread, removeBookmark } from '../api/thread';
-  import MainLayout from '../components/layout/MainLayout.svelte';
-  import TweetCard from '../components/social/TweetCard.svelte';
-  import { useTheme } from '../hooks/useTheme';
-  import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
-  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import { toastStore } from '../stores/toastStore';
+  import { onMount } from "svelte";
+  import { getUserBookmarks, searchBookmarks, likeThread, unlikeThread, removeBookmark } from "../api/thread";
+  import MainLayout from "../components/layout/MainLayout.svelte";
+  import TweetCard from "../components/social/TweetCard.svelte";
+  import { useTheme } from "../hooks/useTheme";
+  import SearchIcon from "svelte-feather-icons/src/icons/SearchIcon.svelte";
+  import XIcon from "svelte-feather-icons/src/icons/XIcon.svelte";
+  import { toastStore } from "../stores/toastStore";
 
   let bookmarks: any[] = [];
   let loading = true;
   let error: string | null = null;
-  let searchQuery: string = '';
+  let searchQuery: string = "";
   let isSearching = false;
   let searchResults: any[] = [];
 
   const { theme } = useTheme();
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   async function fetchBookmarks() {
     try {
       loading = true;
-      const response = await getUserBookmarks('me');
-      console.log('Bookmarks API response:', response);
+      const response = await getUserBookmarks("me");
+      console.log("Bookmarks API response:", response);
 
       if (response && response.success) {
         bookmarks = response.bookmarks || [];
-        console.log('Successfully loaded bookmarks:', bookmarks.length);
+        console.log("Successfully loaded bookmarks:", bookmarks.length);
       } else {
-        error = 'Failed to load bookmarks';
+        error = "Failed to load bookmarks";
       }
     } catch (err: any) {
-      console.error('Error fetching bookmarks:', err);
-      error = err.message || 'Failed to load bookmarks';
+      console.error("Error fetching bookmarks:", err);
+      error = err.message || "Failed to load bookmarks";
     } finally {
       loading = false;
     }
@@ -48,25 +48,25 @@
     try {
       isSearching = true;
       loading = true;
-      
+
       // Try to use the server-side search API
       try {
         const response = await searchBookmarks(searchQuery);
-        
+
         if (response && response.success) {
           searchResults = response.bookmarks || [];
-          console.log('Search results from API:', searchResults.length);
+          console.log("Search results from API:", searchResults.length);
         } else {
           // Fall back to client-side search if server search fails
           performClientSideSearch();
         }
       } catch (err) {
-        console.error('API search failed, falling back to client-side search:', err);
+        console.error("API search failed, falling back to client-side search:", err);
         performClientSideSearch();
       }
     } catch (err: any) {
-      console.error('Error searching bookmarks:', err);
-      error = err.message || 'Failed to search bookmarks';
+      console.error("Error searching bookmarks:", err);
+      error = err.message || "Failed to search bookmarks";
       searchResults = [];
     } finally {
       loading = false;
@@ -77,20 +77,20 @@
   function performClientSideSearch() {
     const query = searchQuery.toLowerCase().trim();
     searchResults = bookmarks.filter(bookmark => {
-      const content = (bookmark.content || '').toLowerCase();
-      const username = (bookmark.username || '').toLowerCase();
-      const name = (bookmark.name || bookmark.displayName || '').toLowerCase();
-      
-      return content.includes(query) || 
-             username.includes(query) || 
+      const content = (bookmark.content || "").toLowerCase();
+      const username = (bookmark.username || "").toLowerCase();
+      const name = (bookmark.name || bookmark.displayName || "").toLowerCase();
+
+      return content.includes(query) ||
+             username.includes(query) ||
              name.includes(query);
     });
-    console.log('Client-side search results:', searchResults.length);
+    console.log("Client-side search results:", searchResults.length);
   }
 
   // Function to clear search
   function clearSearch() {
-    searchQuery = '';
+    searchQuery = "";
     isSearching = false;
     searchResults = [];
   }
@@ -106,26 +106,26 @@
     const threadId = event.detail;
     try {
       await likeThread(threadId);
-      
+
       // Update the bookmark or search result
       const updatedBookmarks = isSearching ? [...searchResults] : [...bookmarks];
       const index = updatedBookmarks.findIndex(b => b.id === threadId);
-      
+
       if (index !== -1) {
         updatedBookmarks[index].is_liked = true;
         updatedBookmarks[index].likes_count = (updatedBookmarks[index].likes_count || 0) + 1;
-        
+
         if (isSearching) {
           searchResults = updatedBookmarks;
         } else {
           bookmarks = updatedBookmarks;
         }
       }
-      
-      toastStore.showToast('Post liked', 'success');
+
+      toastStore.showToast("Post liked", "success");
     } catch (error: any) {
-      console.error('Error liking thread:', error);
-      toastStore.showToast('Failed to like post. Please try again.', 'error');
+      console.error("Error liking thread:", error);
+      toastStore.showToast("Failed to like post. Please try again.", "error");
     }
   }
 
@@ -134,26 +134,26 @@
     const threadId = event.detail;
     try {
       await unlikeThread(threadId);
-      
+
       // Update the bookmark or search result
       const updatedBookmarks = isSearching ? [...searchResults] : [...bookmarks];
       const index = updatedBookmarks.findIndex(b => b.id === threadId);
-      
+
       if (index !== -1) {
         updatedBookmarks[index].is_liked = false;
         updatedBookmarks[index].likes_count = Math.max(0, (updatedBookmarks[index].likes_count || 0) - 1);
-        
+
         if (isSearching) {
           searchResults = updatedBookmarks;
         } else {
           bookmarks = updatedBookmarks;
         }
       }
-      
-      toastStore.showToast('Post unliked', 'success');
+
+      toastStore.showToast("Post unliked", "success");
     } catch (error: any) {
-      console.error('Error unliking thread:', error);
-      toastStore.showToast('Failed to unlike post. Please try again.', 'error');
+      console.error("Error unliking thread:", error);
+      toastStore.showToast("Failed to unlike post. Please try again.", "error");
     }
   }
 
@@ -162,7 +162,7 @@
     const threadId = event.detail;
     try {
       await removeBookmark(threadId);
-      
+
       // Remove the item from bookmarks list
       if (isSearching) {
         searchResults = searchResults.filter(bookmark => bookmark.id !== threadId);
@@ -171,11 +171,11 @@
       } else {
         bookmarks = bookmarks.filter(bookmark => bookmark.id !== threadId);
       }
-      
-      toastStore.showToast('Post removed from bookmarks', 'success');
+
+      toastStore.showToast("Post removed from bookmarks", "success");
     } catch (error: any) {
-      console.error('Error removing bookmark:', error);
-      toastStore.showToast('Failed to remove bookmark. Please try again.', 'error');
+      console.error("Error removing bookmark:", error);
+      toastStore.showToast("Failed to remove bookmark. Please try again.", "error");
     }
   }
 
@@ -224,9 +224,9 @@
     {:else}
       <div class="bookmarks-list">
         {#each isSearching ? searchResults : bookmarks as bookmark (bookmark.id)}
-          <TweetCard 
-            tweet={bookmark} 
-            isDarkMode={isDarkMode}
+          <TweetCard
+            tweet={bookmark}
+            {isDarkMode}
             on:like={handleLike}
             on:unlike={handleUnlike}
             on:removeBookmark={handleRemoveBookmark}

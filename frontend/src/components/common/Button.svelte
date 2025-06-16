@@ -1,19 +1,19 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { supabase } from '../../utils/supabase';
-  import { formatStorageUrl } from '../../utils/common';
-  import { toastStore } from '../../stores/toastStore';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { supabase } from "../../utils/supabase";
+  import { formatStorageUrl } from "../../utils/common";
+  import { toastStore } from "../../stores/toastStore";
 
-  export let variant: 'primary' | 'secondary' | 'outlined' | 'text' | 'danger' | 'success' = 'primary';
-  export let size: 'small' | 'medium' | 'large' = 'medium';
-  export let type: 'button' | 'submit' | 'reset' = 'button';
+  export let variant: "primary" | "secondary" | "outlined" | "text" | "danger" | "success" = "primary";
+  export let size: "small" | "medium" | "large" = "medium";
+  export let type: "button" | "submit" | "reset" = "button";
   export let disabled: boolean = false;
   export let fullWidth: boolean = false;
   export let loading: boolean = false;
   export let icon: any = null;
-  export let iconPosition: 'left' | 'right' = 'left';
-  export let tooltip: string = '';
+  export let iconPosition: "left" | "right" = "left";
+  export let tooltip: string = "";
 
   const { theme } = useTheme();
   const dispatch = createEventDispatcher();
@@ -25,7 +25,7 @@
 
       if (error) {
         console.error("Supabase connection error:", error);
-        toastStore.showToast(`Supabase error: ${error.message}`, 'error');
+        toastStore.showToast(`Supabase error: ${error.message}`, "error");
         return;
       }
 
@@ -43,11 +43,11 @@
         console.log(`Original: ${url} -> Formatted: ${formatted}`);
       });
 
-      toastStore.showToast(`Supabase connected. Found ${buckets.length} buckets.`, 'success');
+      toastStore.showToast(`Supabase connected. Found ${buckets.length} buckets.`, "success");
     } catch (e: unknown) {
       console.error("Error testing Supabase:", e);
-      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      toastStore.showToast(`Error: ${errorMessage}`, 'error');
+      const errorMessage = e instanceof Error ? e.message : "Unknown error";
+      toastStore.showToast(`Error: ${errorMessage}`, "error");
     }
   }
 
@@ -57,17 +57,17 @@
       return;
     }
 
-    if ($$props.class && $$props.class.includes('test-supabase')) {
+    if ($$props.class && $$props.class.includes("test-supabase")) {
       testSupabaseConnection();
     }
 
-    dispatch('click', event);
+    dispatch("click", event);
   }
 
-  $: buttonClass = `btn btn-${variant} btn-${size} ${fullWidth ? 'btn-full' : ''} ${loading ? 'btn-loading' : ''}`;
+  $: buttonClass = `btn btn-${variant} btn-${size} ${fullWidth ? "btn-full" : ""} ${loading ? "btn-loading" : ""}`;
 </script>
 
-<button 
+<button
   {type}
   class={buttonClass}
   {disabled}
@@ -79,7 +79,7 @@
     <span class="loading-spinner"></span>
   {:else if icon}
     <span class="btn-icon">
-      <svelte:component this={icon} size={size === 'small' ? '14' : size === 'large' ? '20' : '18'} />
+      <svelte:component this={icon} size={size === "small" ? "14" : size === "large" ? "20" : "18"} />
     </span>
   {/if}
 

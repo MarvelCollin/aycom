@@ -2,19 +2,19 @@
  * Notification-related interfaces
  */
 
-import type { IPagination } from './ICommon';
+import type { IPagination } from "./ICommon";
 
 /**
  * Notification type enum
  */
 export enum NotificationType {
-  MESSAGE = 'message',
-  LIKE = 'like',
-  FOLLOW = 'follow',
-  REPLY = 'reply',
-  MENTION = 'mention',
-  COMMUNITY = 'community',
-  SYSTEM = 'system'
+  MESSAGE = "message",
+  LIKE = "like",
+  FOLLOW = "follow",
+  REPLY = "reply",
+  MENTION = "mention",
+  COMMUNITY = "community",
+  SYSTEM = "system"
 }
 
 /**
@@ -119,4 +119,4 @@ export interface IUpdateNotificationPreferencesResponse {
     message: string;
     preferences: INotificationPreferences;
   };
-} 
+}

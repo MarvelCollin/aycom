@@ -1,6 +1,3 @@
-/* Button styles similar to Twitter */
-
-/* Base button styles */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -9,13 +6,13 @@
   font-weight: 600;
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: background-color var(--transition-fast),
+    color var(--transition-fast), box-shadow var(--transition-fast);
   font-size: var(--font-size-sm);
   border: none;
   outline: none;
 }
 
-/* Primary button - Blue */
 .btn-primary {
   background-color: var(--color-primary);
   color: white;
@@ -29,7 +26,6 @@
   transform: scale(0.98);
 }
 
-/* Secondary button - White/Black outline */
 .btn-secondary {
   background-color: transparent;
   color: var(--text-primary);
@@ -40,7 +36,6 @@
   background-color: var(--hover-bg);
 }
 
-/* Text/ghost button */
 .btn-text {
   background-color: transparent;
   color: var(--text-primary);
@@ -52,7 +47,6 @@
   color: var(--color-primary);
 }
 
-/* Danger button */
 .btn-danger {
   background-color: var(--color-danger);
   color: white;
@@ -62,7 +56,6 @@
   background-color: rgba(244, 33, 46, 0.9);
 }
 
-/* Button sizes */
 .btn-xs {
   padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-xs);
@@ -83,13 +76,11 @@
   font-size: var(--font-size-md);
 }
 
-/* Full width button */
 .btn-block {
   display: flex;
   width: 100%;
 }
 
-/* Icon button - for circular icon buttons */
 .btn-icon {
   display: inline-flex;
   align-items: center;
@@ -99,7 +90,8 @@
   padding: var(--space-2);
   cursor: pointer;
   border: none;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition: background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .btn-icon:hover {
@@ -112,7 +104,6 @@
   height: 1.25rem;
 }
 
-/* Icon button sizes */
 .btn-icon-sm svg {
   width: 1rem;
   height: 1rem;
@@ -123,7 +114,6 @@
   height: 1.5rem;
 }
 
-/* Social action buttons (like, retweet, etc.) */
 .action-btn {
   display: inline-flex;
   align-items: center;
@@ -134,11 +124,12 @@
   border-radius: 50%;
   cursor: pointer;
   border: none;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition: background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .action-btn:hover {
-  background-color: rgba(29, 155, 240, 0.1); 
+  background-color: rgba(29, 155, 240, 0.1);
   color: var(--color-primary);
 }
 
@@ -158,7 +149,6 @@
   background-color: rgba(0, 186, 124, 0.1);
 }
 
-/* Disabled state */
 .btn:disabled,
 .btn-icon:disabled,
 .action-btn:disabled {
@@ -166,7 +156,6 @@
   cursor: not-allowed;
 }
 
-/* Float action button (like Twitter's compose button) */
 .float-action-btn {
   position: fixed;
   bottom: 80px;
@@ -183,7 +172,8 @@
   cursor: pointer;
   border: none;
   z-index: var(--z-fixed);
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  transition: background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .float-action-btn:hover {
@@ -199,4 +189,4 @@
   .float-action-btn {
     bottom: 20px;
   }
-} 
+}

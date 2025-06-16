@@ -1,6 +1,3 @@
-/* Common Styles for AYCOM */
-
-/* Line Clamp utilities */
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -25,7 +22,6 @@
   text-overflow: ellipsis;
 }
 
-/* Common Animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -63,7 +59,6 @@
   animation: pulse 1.5s infinite;
 }
 
-/* Common Tab Styles */
 .tab-container {
   display: flex;
   border-bottom: 1px solid var(--border-color, #e1e8ed);
@@ -88,7 +83,6 @@
   border-bottom: 2px solid var(--primary-color, #1d9bf0);
 }
 
-/* Common Form Styles */
 .form-group {
   margin-bottom: 1rem;
 }
@@ -120,7 +114,6 @@
   margin-top: 0.25rem;
 }
 
-/* Common Button Styles */
 .btn {
   padding: 0.5rem 1rem;
   border-radius: 9999px;
@@ -149,7 +142,6 @@
   background-color: var(--primary-light, rgba(29, 155, 240, 0.1));
 }
 
-/* Common Card Styles */
 .card {
   background-color: var(--card-bg, #fff);
   border-radius: 0.5rem;
@@ -158,13 +150,11 @@
   margin-bottom: 1rem;
 }
 
-/* Accessibility Focus Styles */
 .focus-visible:focus {
   outline: 2px solid var(--primary-color, #1d9bf0);
   outline-offset: 2px;
 }
 
-/* Common Loading Indicator */
 .loading-spinner {
   display: inline-block;
   width: 1.5rem;
@@ -179,7 +169,6 @@
   to { transform: rotate(360deg); }
 }
 
-/* Dark Mode Modifiers */
 .dark .card {
   background-color: var(--dark-card-bg, #15202b);
 }
@@ -197,4 +186,4 @@
 .dark .tab:hover {
   background-color: var(--dark-bg-hover, rgba(255, 255, 255, 0.03));
   color: var(--dark-text, #fff);
-} 
+}

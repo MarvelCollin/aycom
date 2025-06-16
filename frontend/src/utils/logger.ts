@@ -1,5 +1,5 @@
-import { toastStore } from '../stores/toastStore';
-import { writable } from 'svelte/store';
+import { toastStore } from "../stores/toastStore";
+import { writable } from "svelte/store";
 
 export enum LogLevel {
   TRACE = 0,
@@ -37,7 +37,7 @@ export const clearLogs = () => {
 const DEFAULT_LOG_LEVEL = import.meta.env.DEV ? LogLevel.DEBUG : LogLevel.WARN;
 
 const getLogLevel = (): LogLevel => {
-  const storedLevel = localStorage.getItem('logLevel');
+  const storedLevel = localStorage.getItem("logLevel");
   if (storedLevel !== null && !isNaN(Number(storedLevel))) {
     return Number(storedLevel);
   }
@@ -45,26 +45,26 @@ const getLogLevel = (): LogLevel => {
 };
 
 const setLogLevel = (level: LogLevel): void => {
-  localStorage.setItem('logLevel', level.toString());
+  localStorage.setItem("logLevel", level.toString());
 };
 
 let currentLogLevel = getLogLevel();
 
 const LOG_STYLES = {
-  [LogLevel.TRACE]: 'color: #6b7280',
-  [LogLevel.DEBUG]: 'color: #3b82f6',
-  [LogLevel.INFO]: 'color: #10b981',
-  [LogLevel.WARN]: 'color: #f59e0b',
-  [LogLevel.ERROR]: 'color: #ef4444',
+  [LogLevel.TRACE]: "color: #6b7280",
+  [LogLevel.DEBUG]: "color: #3b82f6",
+  [LogLevel.INFO]: "color: #10b981",
+  [LogLevel.WARN]: "color: #f59e0b",
+  [LogLevel.ERROR]: "color: #ef4444",
 };
 
 const LOG_LEVEL_NAMES = {
-  [LogLevel.TRACE]: 'TRACE',
-  [LogLevel.DEBUG]: 'DEBUG',
-  [LogLevel.INFO]: 'INFO',
-  [LogLevel.WARN]: 'WARN',
-  [LogLevel.ERROR]: 'ERROR',
-  [LogLevel.NONE]: 'NONE',
+  [LogLevel.TRACE]: "TRACE",
+  [LogLevel.DEBUG]: "DEBUG",
+  [LogLevel.INFO]: "INFO",
+  [LogLevel.WARN]: "WARN",
+  [LogLevel.ERROR]: "ERROR",
+  [LogLevel.NONE]: "NONE",
 };
 
 type ToastOptions = {
@@ -105,44 +105,44 @@ const createLogger = (prefix: string): Logger => {
 
     switch (level) {
       case LogLevel.TRACE:
-        console.log(`%c[TRACE] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
+        console.log(`%c[TRACE] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || "");
         break;
       case LogLevel.DEBUG:
-        console.log(`%c[DEBUG] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
+        console.log(`%c[DEBUG] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || "");
         break;
       case LogLevel.INFO:
-        console.log(`%c[INFO] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
+        console.log(`%c[INFO] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || "");
         break;
       case LogLevel.WARN:
-        console.warn(`%c[WARN] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
+        console.warn(`%c[WARN] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || "");
         break;
       case LogLevel.ERROR:
-        console.error(`%c[ERROR] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || '');
+        console.error(`%c[ERROR] ${timestamp} ${formattedMessage}`, LOG_STYLES[level], data || "");
         break;
     }
       const { show_toast = false, timeout } = options;
     if (show_toast) {
-      const toastType = level === LogLevel.ERROR ? 'error' 
-        : level === LogLevel.WARN ? 'warning'
-        : level === LogLevel.INFO ? 'info'
-        : 'info';
+      const toastType = level === LogLevel.ERROR ? "error"
+        : level === LogLevel.WARN ? "warning"
+        : level === LogLevel.INFO ? "info"
+        : "info";
 
       toastStore.showToast(message, toastType, timeout);
     }
   };
 
   return {
-    trace: (message: string, data?: any, options?: ToastOptions) => 
+    trace: (message: string, data?: any, options?: ToastOptions) =>
       log(LogLevel.TRACE, message, data, options),
-    debug: (message: string, data?: any, options?: ToastOptions) => 
+    debug: (message: string, data?: any, options?: ToastOptions) =>
       log(LogLevel.DEBUG, message, data, options),
-    info: (message: string, data?: any, options?: ToastOptions) => 
+    info: (message: string, data?: any, options?: ToastOptions) =>
       log(LogLevel.INFO, message, data, options),
-    warn: (message: string, data?: any, options?: ToastOptions) => 
+    warn: (message: string, data?: any, options?: ToastOptions) =>
       log(LogLevel.WARN, message, data, options),
-    warning: (message: string, data?: any, options?: ToastOptions) => 
+    warning: (message: string, data?: any, options?: ToastOptions) =>
       log(LogLevel.WARN, message, data, options),
-    error: (message: string, data?: any, options?: ToastOptions) => 
+    error: (message: string, data?: any, options?: ToastOptions) =>
       log(LogLevel.ERROR, message, data, options),
     getLevel: () => currentLogLevel,
     setLevel: (level: LogLevel) => {
@@ -154,7 +154,7 @@ const createLogger = (prefix: string): Logger => {
 
 export const createLoggerWithPrefix = createLogger;
 
-export const logger = createLogger('App');
+export const logger = createLogger("App");
 
 export const setGlobalLogLevel = (level: LogLevel): void => {
   currentLogLevel = level;
@@ -162,7 +162,7 @@ export const setGlobalLogLevel = (level: LogLevel): void => {
   logger.info(`Log level set to ${LogLevel[level]}`, null, { show_toast: true });
 };
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   (window as any).logger = logger;
   (window as any).LogLevel = LogLevel;
   (window as any).setLogLevel = setGlobalLogLevel;

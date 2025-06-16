@@ -1,5 +1,3 @@
-/* Explore page styles */
-
 .explore-container {
   min-height: 100vh;
   background-color: var(--bg-primary);
@@ -89,7 +87,6 @@
   border-radius: 9999px 9999px 0 0;
 }
 
-/* Trends section */
 .explore-trends {
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-color);
@@ -130,7 +127,6 @@
   color: var(--text-secondary);
 }
 
-/* Who to follow section */
 .explore-who-to-follow {
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-color);
@@ -179,7 +175,6 @@
   text-overflow: ellipsis;
 }
 
-/* Search results */
 .search-results {
   display: flex;
   flex-direction: column;
@@ -213,19 +208,18 @@
   border-bottom: 1px solid var(--border-color);
 }
 
-/* Responsive adjustments */
 @media (max-width: 500px) {
   .explore-search {
     margin: var(--space-2) var(--space-2) var(--space-2) var(--space-2);
   }
-  
+
   .trend-item,
   .who-to-follow-item,
   .search-result-user {
     padding: var(--space-3);
   }
-  
+
   .explore-section-title {
     padding: 0 var(--space-3);
   }
-}  
+}

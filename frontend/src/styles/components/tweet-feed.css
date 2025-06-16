@@ -1,6 +1,3 @@
-/* Tweet feed component styles */
-
-/* Main feed container */
 .feed-container {
   display: flex;
   flex-direction: column;
@@ -10,7 +7,6 @@
   max-width: 100%;
 }
 
-/* Feed header */
 .feed-header {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-color);
@@ -28,7 +24,6 @@
   color: var(--text-primary);
 }
 
-/* Feed status tabs */
 .feed-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -74,7 +69,6 @@
   background-color: var(--color-primary);
 }
 
-/* Dark mode specific styles */
 :global(.dark-theme) .feed-tab {
   color: #71767b;
 }
@@ -92,14 +86,12 @@
   background-color: #1d9bf0;
 }
 
-/* Feed items container */
 .feed-items {
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-/* Tweet card styling improvements */
 .tweet-card {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-color);
@@ -139,7 +131,6 @@
   transition: all var(--transition-fast);
 }
 
-/* Loading state */
 .feed-loading {
   padding: var(--space-8);
   display: flex;
@@ -161,7 +152,6 @@
   100% { transform: rotate(360deg); }
 }
 
-/* Empty feed state */
 .feed-empty {
   padding: var(--space-8);
   text-align: center;
@@ -185,7 +175,6 @@
   margin-bottom: var(--space-4);
 }
 
-/* Feed pagination */
 .feed-pagination {
   padding: var(--space-4);
   text-align: center;
@@ -211,7 +200,6 @@
   cursor: not-allowed;
 }
 
-/* New tweets available notification */
 .new-tweets-notification {
   position: sticky;
   top: 60px;
@@ -233,7 +221,6 @@
   background-color: var(--color-primary-hover);
 }
 
-/* Gap between tweets */
 .tweet-separator {
   height: 8px;
   background-color: var(--bg-secondary);
@@ -241,7 +228,6 @@
   border-bottom: 1px solid var(--border-color);
 }
 
-/* Mobile compose tweet area */
 .feed-compose {
   display: flex;
   padding: var(--space-3);
@@ -296,13 +282,12 @@
   justify-content: center;
 }
 
-/* Responsive adjustments */
 @media (max-width: 500px) {
   .feed-tab {
     padding: var(--space-2) 0;
   }
-  
+
   .feed-empty {
     padding: var(--space-4);
   }
-} 
+}

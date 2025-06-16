@@ -1,5 +1,5 @@
-import { writable } from 'svelte/store';
-import type { ITweet } from '../interfaces/ISocialMedia';
+import { writable } from "svelte/store";
+import type { ITweet } from "../interfaces/ISocialMedia";
 
 export interface InteractionStatus {
   is_liked: boolean;
@@ -47,7 +47,7 @@ const tweetStore = writable({
   },
 
   initTweet: (tweet: ITweet) => {
-    const id = typeof tweet.id === 'number' ? String(tweet.id) : tweet.id;
+    const id = typeof tweet.id === "number" ? String(tweet.id) : tweet.id;
 
     const existingData = interactionMap.get(id);
     const newData = {

@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import ProfileCard from './ProfileCard.svelte';
-  import ThreadCard from './ThreadCard.svelte';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { useTheme } from '../../hooks/useTheme';
+  import { createEventDispatcher } from "svelte";
+  import ProfileCard from "./ProfileCard.svelte";
+  import ThreadCard from "./ThreadCard.svelte";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { useTheme } from "../../hooks/useTheme";
 
-  const logger = createLoggerWithPrefix('ExploreTopResults');
+  const logger = createLoggerWithPrefix("ExploreTopResults");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   export let topProfiles: Array<{
     id: string;
@@ -47,13 +47,13 @@
 
   function handleProfileClick(event) {
     const userId = event.detail;
-    logger.debug('Profile click', { userId });
-    dispatch('profileClick', userId);
+    logger.debug("Profile click", { userId });
+    dispatch("profileClick", userId);
   }
 
   function handleViewAll(section: string) {
-    logger.debug('View all clicked', { section });
-    dispatch('viewAll', section);
+    logger.debug("View all clicked", { section });
+    dispatch("viewAll", section);
   }
 </script>
 
@@ -96,7 +96,7 @@
               Recommended People
             </span>
           </h3>
-          <button class="view-all-button" on:click={() => handleViewAll('people')}>
+          <button class="view-all-button" on:click={() => handleViewAll("people")}>
             <span>View all</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M5 12h14"></path>
@@ -107,8 +107,8 @@
 
         <div class="profiles-grid">
           {#each topProfiles as profile}
-            <div class="profile-card-container {isDarkMode ? 'profile-card-container-dark' : ''}">
-              <ProfileCard 
+            <div class="profile-card-container {isDarkMode ? "profile-card-container-dark" : ""}">
+              <ProfileCard
                 id={profile.id}
                 username={profile.username}
                 displayName={profile.displayName || profile.name || profile.username}

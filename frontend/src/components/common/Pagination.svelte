@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
 
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   export let totalItems: number = 0;
   export let perPage: number = 20;
@@ -30,7 +30,7 @@
 
   function goToPage(page: number) {
     if (page < 1 || page > totalPages || page === currentPage) return;
-    dispatch('pageChange', page);
+    dispatch("pageChange", page);
   }
 
   function showEllipsisBefore() {
@@ -43,10 +43,10 @@
 </script>
 
 {#if totalPages > 1}
-  <nav class="pagination {isDarkMode ? 'pagination-dark' : ''}">
-    <button 
-      class="pagination-action" 
-      on:click={() => goToPage(currentPage - 1)} 
+  <nav class="pagination {isDarkMode ? "pagination-dark" : ""}">
+    <button
+      class="pagination-action"
+      on:click={() => goToPage(currentPage - 1)}
       disabled={currentPage === 1}
       aria-label="Previous page"
     >
@@ -63,8 +63,8 @@
     {/if}
 
     {#each visiblePages as page}
-      <button 
-        class="pagination-button {page === currentPage ? 'active' : ''}" 
+      <button
+        class="pagination-button {page === currentPage ? "active" : ""}"
         on:click={() => goToPage(page)}
       >
         {page}
@@ -78,9 +78,9 @@
       <button class="pagination-button" on:click={() => goToPage(totalPages)}>{totalPages}</button>
     {/if}
 
-    <button 
-      class="pagination-action" 
-      on:click={() => goToPage(currentPage + 1)} 
+    <button
+      class="pagination-action"
+      on:click={() => goToPage(currentPage + 1)}
       disabled={currentPage === totalPages}
       aria-label="Next page"
     >

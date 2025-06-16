@@ -1,45 +1,45 @@
 <script>
-  import { useTheme } from '../../hooks/useTheme';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { SunIcon, MoonIcon } from 'svelte-feather-icons';
+  import { useTheme } from "../../hooks/useTheme";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { SunIcon, MoonIcon } from "svelte-feather-icons";
 
-  export let size = 'md'; 
+  export let size = "md";
   export let showLabel = false;
 
   const { theme, toggleTheme } = useTheme();
 
-  const logger = createLoggerWithPrefix('ThemeToggle');
+  const logger = createLoggerWithPrefix("ThemeToggle");
 
   function handleToggle() {
     toggleTheme();
-    logger.debug('Theme toggled', { newTheme: $theme });
+    logger.debug("Theme toggled", { newTheme: $theme });
   }
 
-  let iconSize = '';
+  let iconSize = "";
 
   $: {
     switch (size) {
-      case 'sm':
-        iconSize = '16';
+      case "sm":
+        iconSize = "16";
         break;
-      case 'lg':
-        iconSize = '24';
+      case "lg":
+        iconSize = "24";
         break;
-      case 'md':
+      case "md":
       default:
-        iconSize = '20';
+        iconSize = "20";
         break;
     }
   }
 </script>
 
-<button 
-  type="button" 
-  class="btn-icon {size === 'sm' ? 'btn-icon-sm' : size === 'lg' ? 'btn-icon-lg' : ''}"
+<button
+  type="button"
+  class="btn-icon {size === "sm" ? "btn-icon-sm" : size === "lg" ? "btn-icon-lg" : ""}"
   on:click={handleToggle}
-  aria-label={$theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+  aria-label={$theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
 >
-  {#if $theme === 'dark'}
+  {#if $theme === "dark"}
     <div class="flex items-center text-warning">
       <SunIcon size={iconSize} />
       {#if showLabel}

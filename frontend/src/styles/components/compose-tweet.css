@@ -1,19 +1,14 @@
-/* Compose tweet component styles */
-
-/* Main compose tweet container */
 .compose-tweet-container {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-primary);
 }
 
-/* Header layout */
 .compose-tweet-header {
   display: flex;
   align-items: flex-start;
 }
 
-/* User avatar */
 .compose-tweet-avatar {
   width: 48px;
   height: 48px;
@@ -23,13 +18,11 @@
   flex-shrink: 0;
 }
 
-/* Input area container */
 .compose-tweet-input-area {
   flex: 1;
-  min-width: 0; /* Ensures proper text truncation */
+  min-width: 0; 
 }
 
-/* The primary text input */
 .compose-tweet-textarea {
   width: 100%;
   min-height: 80px;
@@ -50,7 +43,6 @@
   color: var(--text-tertiary);
 }
 
-/* Character count indicator */
 .compose-tweet-char-count {
   margin-left: auto;
   color: var(--text-secondary);
@@ -66,7 +58,6 @@
   color: var(--color-danger);
 }
 
-/* Media preview area */
 .compose-tweet-media-preview {
   margin-top: var(--space-3);
   border-radius: var(--radius-md);
@@ -115,7 +106,6 @@
   z-index: 1;
 }
 
-/* Action bar at the bottom */
 .compose-tweet-actions {
   display: flex;
   justify-content: space-between;
@@ -125,7 +115,6 @@
   border-top: 1px solid var(--border-color);
 }
 
-/* Left side tools */
 .compose-tweet-tools {
   display: flex;
   gap: var(--space-3);
@@ -153,7 +142,6 @@
   cursor: not-allowed;
 }
 
-/* Right side submit button */
 .compose-tweet-submit {
   background-color: var(--color-primary);
   color: white;
@@ -175,12 +163,10 @@
   cursor: not-allowed;
 }
 
-/* Image upload input (hidden) */
 .compose-tweet-file-input {
   display: none;
 }
 
-/* Poll creation styles */
 .compose-tweet-poll {
   margin-top: var(--space-3);
   padding: var(--space-3);
@@ -215,22 +201,21 @@
   margin-top: var(--space-3);
 }
 
-/* Responsive adjustments */
 @media (max-width: 500px) {
   .compose-tweet-container {
     padding: var(--space-3);
   }
-  
+
   .compose-tweet-avatar {
     width: 40px;
     height: 40px;
   }
-  
+
   .compose-tweet-textarea {
     font-size: var(--font-size-md);
   }
-  
+
   .compose-tweet-tools {
     gap: var(--space-2);
   }
-} 
+}

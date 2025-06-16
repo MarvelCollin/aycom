@@ -38,4 +38,4 @@ declare namespace Cypress {
      */
     attachFile(options: { fileContent: string, fileName: string, mimeType: string }): Chainable<any>
   }
-} 
+}

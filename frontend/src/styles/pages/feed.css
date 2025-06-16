@@ -1,5 +1,3 @@
-/* Feed page styles */
-
 .feed-container {
   display: flex;
   flex-direction: column;
@@ -126,27 +124,23 @@
   background-color: var(--color-primary);
 }
 
-/* Feed content area */
 .feed-content {
   flex: 1;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch; 
 }
 
-/* Feed list for tweets/posts */
 .feed-list {
   display: flex;
   flex-direction: column;
-  padding-bottom: 80px; /* Extra padding at bottom for mobile */
+  padding-bottom: 80px; 
 }
 
-/* Load more button at the bottom of feed */
 .load-more {
   padding: var(--space-4);
   text-align: center;
 }
 
-/* Empty state */
 .empty {
   padding: var(--space-8);
   text-align: center;
@@ -161,7 +155,6 @@
   color: var(--dark-text-secondary);
 }
 
-/* Loading state */
 .loading {
   display: flex;
   flex-direction: column;
@@ -211,12 +204,10 @@
   animation: spin 1s linear infinite;
 }
 
-/* Animation for spinners */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-/* Error state */
 .error {
   padding: var(--space-8);
   text-align: center;
@@ -256,21 +247,19 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
-/* Feed items container */
 .feed-items {
   display: flex;
   flex-direction: column;
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
   .feed-title {
     padding: var(--space-3);
     font-size: var(--font-size-lg);
   }
-  
+
   .error, .empty {
     margin: var(--space-3);
     padding: var(--space-4);
   }
-} 
+}

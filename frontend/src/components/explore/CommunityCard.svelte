@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
 
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   type CommunityData = {
     id: string;
@@ -30,15 +30,15 @@
   $: isPending = community.isPending || community.is_pending || false;
 
   function handleJoinRequest() {
-    dispatch('joinRequest', {communityId: community.id});
+    dispatch("joinRequest", {communityId: community.id});
   }
 </script>
 
-<div class="community-card {isDarkMode ? 'community-card-dark' : ''}">
+<div class="community-card {isDarkMode ? "community-card-dark" : ""}">
   <div class="community-card-content">
     <a href={`/community/${community.id}`} class="community-logo-container">
-      <div class="community-logo {isDarkMode ? 'community-logo-dark' : ''}">
-        {#if typeof logo === 'string' && logo.startsWith('http')}
+      <div class="community-logo {isDarkMode ? "community-logo-dark" : ""}">
+        {#if typeof logo === "string" && logo.startsWith("http")}
           <img src={logo} alt={community.name} class="community-logo-img" />
         {:else}
           <div class="community-logo-placeholder">
@@ -54,8 +54,8 @@
     </a>
     <div class="community-info">
       <a href={`/community/${community.id}`} class="community-link">
-        <h3 class="community-name {isDarkMode ? 'community-name-dark' : ''}">{community.name}</h3>
-        <p class="community-description {isDarkMode ? 'community-description-dark' : ''}">{community.description || 'No description provided'}</p>
+        <h3 class="community-name {isDarkMode ? "community-name-dark" : ""}">{community.name}</h3>
+        <p class="community-description {isDarkMode ? "community-description-dark" : ""}">{community.description || "No description provided"}</p>
         <div class="community-stats">
           <span class="community-member-count">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -64,21 +64,21 @@
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
-            {memberCount} {memberCount === 1 ? 'member' : 'members'}
+            {memberCount} {memberCount === 1 ? "member" : "members"}
           </span>
         </div>
       </a>
     </div>
     <div class="community-action">
       {#if isJoined}
-        <span class="joined-badge {isDarkMode ? 'joined-badge-dark' : ''}">
+        <span class="joined-badge {isDarkMode ? "joined-badge-dark" : ""}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 6L9 17l-5-5"></path>
           </svg>
           Joined
         </span>
       {:else if isPending}
-        <span class="pending-badge {isDarkMode ? 'pending-badge-dark' : ''}">
+        <span class="pending-badge {isDarkMode ? "pending-badge-dark" : ""}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
@@ -86,8 +86,8 @@
           Pending
         </span>
       {:else}
-        <button 
-          class="join-button {isDarkMode ? 'join-button-dark' : ''}"
+        <button
+          class="join-button {isDarkMode ? "join-button-dark" : ""}"
           on:click={handleJoinRequest}
         >
           Request to Join

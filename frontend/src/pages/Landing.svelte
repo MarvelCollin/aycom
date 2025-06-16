@@ -1,29 +1,29 @@
 <script lang="ts">
-  import { useTheme } from '../hooks/useTheme';
-  import { onMount } from 'svelte';
-  import lightLogo from '../assets/logo/light-logo.jpeg';
-  import darkLogo from '../assets/logo/dark-logo.jpeg';
+  import { useTheme } from "../hooks/useTheme";
+  import { onMount } from "svelte";
+  import lightLogo from "../assets/logo/light-logo.jpeg";
+  import darkLogo from "../assets/logo/dark-logo.jpeg";
 
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   onMount(() => {
-    document.documentElement.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
-    
+    document.documentElement.classList.add(isDarkMode ? "dark-theme" : "light-theme");
+
     return () => {
-      document.documentElement.classList.remove(isDarkMode ? 'dark-theme' : 'light-theme');
+      document.documentElement.classList.remove(isDarkMode ? "dark-theme" : "light-theme");
     };
   });
 
   $: {
-    if (typeof document !== 'undefined') {
+    if (typeof document !== "undefined") {
       if (isDarkMode) {
-        document.documentElement.classList.add('dark-theme');
-        document.documentElement.classList.remove('light-theme');
+        document.documentElement.classList.add("dark-theme");
+        document.documentElement.classList.remove("light-theme");
       } else {
-        document.documentElement.classList.add('light-theme');
-        document.documentElement.classList.remove('dark-theme');
+        document.documentElement.classList.add("light-theme");
+        document.documentElement.classList.remove("dark-theme");
       }
     }
   }

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import UserCard from '../social/UserCard.svelte';
-  import Button from '../common/Button.svelte';
-  import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
-  import UserMinusIcon from 'svelte-feather-icons/src/icons/UserMinusIcon.svelte';
-  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
+  import { createEventDispatcher } from "svelte";
+  import UserCard from "../social/UserCard.svelte";
+  import Button from "../common/Button.svelte";
+  import UsersIcon from "svelte-feather-icons/src/icons/UsersIcon.svelte";
+  import UserMinusIcon from "svelte-feather-icons/src/icons/UserMinusIcon.svelte";
+  import ShieldIcon from "svelte-feather-icons/src/icons/ShieldIcon.svelte";
 
   interface Member {
     id: string;
@@ -20,29 +20,29 @@
   export let members: Member[] = [];
   export let pendingMembers: Member[] = [];
   export let canManageCommunity: boolean = false;
-  export let currentUserId: string = ''; 
+  export let currentUserId: string = "";
 
   const dispatch = createEventDispatcher();
 
   function handleApproveJoinRequest(requestId: string) {
-    dispatch('approveJoinRequest', requestId);
+    dispatch("approveJoinRequest", requestId);
   }
 
   function handleRejectJoinRequest(requestId: string) {
-    dispatch('rejectJoinRequest', requestId);
+    dispatch("rejectJoinRequest", requestId);
   }
 
   function handleKickMember(userId: string, username: string) {
     if (confirm(`Are you sure you want to remove ${username} from this community?`)) {
-      dispatch('kickMember', userId);
+      dispatch("kickMember", userId);
     }
   }
 
   function canKickMember(member: Member): boolean {
     if (!canManageCommunity) return false;
-    if (member.user_id === currentUserId) return false; 
+    if (member.user_id === currentUserId) return false;
 
-    if ((member.role === 'admin' || member.role === 'owner')) return false;
+    if ((member.role === "admin" || member.role === "owner")) return false;
 
     return true;
   }
@@ -54,13 +54,13 @@
     <div class="members-list">
       {#each members as member (member.id)}
         <div class="member-card">
-          <UserCard 
+          <UserCard
             user={{
               id: member.user_id || member.id,
-              name: member.name || member.username || 'Unknown User',
-              username: member.username || `user_${(member.user_id || '').substring(0, 8)}`,
-              avatar_url: member.avatar_url || '',
-              role: member.role || 'member'
+              name: member.name || member.username || "Unknown User",
+              username: member.username || `user_${(member.user_id || "").substring(0, 8)}`,
+              avatar_url: member.avatar_url || "",
+              role: member.role || "member"
             }}
             showFollowButton={false}
           />
@@ -69,8 +69,8 @@
             <div class="member-actions">
               {#if canKickMember(member)}
                 <div on:click|stopPropagation>
-                  <Button 
-                    variant="danger" 
+                  <Button
+                    variant="danger"
                     size="small"
                     icon={UserMinusIcon}
                     on:click={() => handleKickMember(member.user_id, member.username)}
@@ -78,10 +78,10 @@
                     Kick
                   </Button>
                 </div>
-              {:else if member.role === 'owner' || member.role === 'admin'}
+              {:else if member.role === "owner" || member.role === "admin"}
                 <div class="protected-badge">
                   <ShieldIcon size="16" />
-                  <span>{member.role === 'owner' ? 'Owner' : 'Admin'}</span>
+                  <span>{member.role === "owner" ? "Owner" : "Admin"}</span>
                 </div>
               {/if}
             </div>
@@ -113,14 +113,14 @@
                 {/if}
               </div>
               <div class="user-info">
-                <h3 class="user-name">{member.name || member.username || 'Unknown User'}</h3>
-                <p class="user-username">@{member.username || `user_${(member.user_id || '').substring(0, 8)}`}</p>
+                <h3 class="user-name">{member.name || member.username || "Unknown User"}</h3>
+                <p class="user-username">@{member.username || `user_${(member.user_id || "").substring(0, 8)}`}</p>
                 <span class="user-role-badge pending">Pending</span>
               </div>
             </div>
 
             <div class="pending-member-info">
-              <p><strong>Requested:</strong> {member.requested_at ? new Date(member.requested_at).toLocaleDateString() : 'Unknown'}</p>
+              <p><strong>Requested:</strong> {member.requested_at ? new Date(member.requested_at).toLocaleDateString() : "Unknown"}</p>
             </div>
 
             <div class="pending-member-actions">

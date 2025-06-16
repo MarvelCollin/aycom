@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable } from "svelte/store";
 
 export const page = writable({
   url: new URL(window.location.href),
@@ -32,8 +32,8 @@ function getRouteParams() {
 
 updatePageStore();
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('popstate', updatePageStore);
+if (typeof window !== "undefined") {
+  window.addEventListener("popstate", updatePageStore);
 
   const originalPushState = history.pushState;
   history.pushState = function(state, title, url) {

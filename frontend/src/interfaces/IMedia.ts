@@ -8,7 +8,7 @@
 export interface IMedia {
   id?: string;
   url: string;
-  type: 'image' | 'video' | 'gif';
+  type: "image" | "video" | "gif";
   width?: number;
   height?: number;
   thumbnail_url?: string;
@@ -22,7 +22,7 @@ export interface IMediaUploadResponse {
   success: boolean;
   data: {
     id: string;
-    type: 'image' | 'video' | 'gif';
+    type: "image" | "video" | "gif";
     url: string;
     thumbnail?: string;
   };
@@ -48,7 +48,7 @@ export interface IMediaUpdateRequest {
 }
 
 /**
- * Media update response 
+ * Media update response
  */
 export interface IMediaUpdateResponse {
   success: boolean;
@@ -56,4 +56,4 @@ export interface IMediaUpdateResponse {
     message: string;
     urls: string[];
   };
-} 
+}

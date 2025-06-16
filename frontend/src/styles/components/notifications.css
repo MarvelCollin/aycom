@@ -1,12 +1,8 @@
-/* Notification components styles */
-
-/* Notifications container */
 .notifications-container {
   min-height: 100vh;
   background-color: var(--bg-primary);
 }
 
-/* Notifications header */
 .notifications-header {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-color);
@@ -24,7 +20,6 @@
   color: var(--text-primary);
 }
 
-/* Notifications tabs */
 .notifications-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -57,7 +52,6 @@
   background-color: var(--color-primary);
 }
 
-/* Notification item */
 .notification-item {
   display: flex;
   padding: var(--space-3) var(--space-4);
@@ -82,7 +76,6 @@
   background-color: var(--color-primary);
 }
 
-/* Notification type icon */
 .notification-icon {
   width: 32px;
   height: 32px;
@@ -114,7 +107,6 @@
   background-color: var(--color-primary);
 }
 
-/* Notification content */
 .notification-content {
   flex: 1;
 }
@@ -169,7 +161,6 @@
   margin-top: var(--space-1);
 }
 
-/* Empty notifications state */
 .notifications-empty {
   display: flex;
   flex-direction: column;
@@ -198,13 +189,12 @@
   max-width: 300px;
 }
 
-/* Responsive adjustments */
 @media (max-width: 500px) {
   .notification-item {
     padding: var(--space-3);
   }
-  
+
   .notifications-empty {
     padding: var(--space-6);
   }
-} 
+}

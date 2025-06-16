@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import LoadingSkeleton from '../common/LoadingSkeleton.svelte';
+  import { createEventDispatcher, onMount, onDestroy } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import LoadingSkeleton from "../common/LoadingSkeleton.svelte";
 
-  const logger = createLoggerWithPrefix('ExploreMediaResults');
+  const logger = createLoggerWithPrefix("ExploreMediaResults");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   type MediaItem = {
     url: string;
@@ -32,20 +32,20 @@
   let isIntersecting = false;
 
   function setupIntersectionObserver() {
-    if (typeof IntersectionObserver !== 'undefined') {
+    if (typeof IntersectionObserver !== "undefined") {
       observer = new IntersectionObserver(
         (entries) => {
           const [entry] = entries;
           isIntersecting = entry.isIntersecting;
 
           if (isIntersecting && hasMore && !isLoading) {
-            logger.debug('Load more trigger intersected, loading more media');
+            logger.debug("Load more trigger intersected, loading more media");
             loadMore();
       }
         },
         {
           root: null,
-          rootMargin: '100px',
+          rootMargin: "100px",
           threshold: 0.1
         }
       );
@@ -57,8 +57,8 @@
   }
 
   function loadMore() {
-    logger.debug('Loading more media items');
-    dispatch('loadMore');
+    logger.debug("Loading more media items");
+    dispatch("loadMore");
   }
 
   function getMediaElement(mediaItem: { url: string; type?: string }) {
@@ -67,23 +67,23 @@
     }
 
     const url = mediaItem.url;
-    const fileExt = url.split('.').pop()?.toLowerCase() || '';
+    const fileExt = url.split(".").pop()?.toLowerCase() || "";
 
-    const type = mediaItem.type || '';
+    const type = mediaItem.type || "";
 
-    if (type.includes('video') || ['mp4', 'webm', 'mov'].includes(fileExt)) {
+    if (type.includes("video") || ["mp4", "webm", "mov"].includes(fileExt)) {
       return {
-        type: 'video',
+        type: "video",
         url: mediaItem.url
       };
-    } else if (type.includes('gif') || fileExt === 'gif') {
+    } else if (type.includes("gif") || fileExt === "gif") {
       return {
-        type: 'gif',
+        type: "gif",
         url: mediaItem.url
       };
     } else {
       return {
-        type: 'image',
+        type: "image",
         url: mediaItem.url
     };
   }
@@ -95,14 +95,14 @@
 
   function processThreadMedia(threads: ThreadWithMedia[]) {
     if (!threads || !Array.isArray(threads)) {
-      logger.warn('Invalid threads data:', threads);
+      logger.warn("Invalid threads data:", threads);
       return [];
     }
 
     logger.debug(`Processing ${threads.length} threads for media`);
 
     return threads
-      .filter(thread => thread && typeof thread === 'object')
+      .filter(thread => thread && typeof thread === "object")
       .flatMap(thread => {
 
         let threadMedia: MediaItem[] = [];
@@ -120,14 +120,14 @@
           if (thread.images && Array.isArray(thread.images)) {
             threadMedia = [
               ...threadMedia,
-              ...thread.images.map(url => ({ url, type: 'image' }))
+              ...thread.images.map(url => ({ url, type: "image" }))
             ];
           }
 
           if (thread.videos && Array.isArray(thread.videos)) {
             threadMedia = [
               ...threadMedia,
-              ...thread.videos.map(url => ({ url, type: 'video' }))
+              ...thread.videos.map(url => ({ url, type: "video" }))
             ];
           }
         }
@@ -144,7 +144,7 @@
   $: flattenedMedia = processThreadMedia(media);
 
   onMount(() => {
-    logger.debug('ExploreMediaResults component mounted');
+    logger.debug("ExploreMediaResults component mounted");
     setupIntersectionObserver();
   });
 
@@ -171,13 +171,13 @@
   {:else}
     <div class="grid grid-cols-3 gap-2">
       {#each flattenedMedia as item}
-        <button 
+        <button
           class="aspect-square bg-gray-100 dark:bg-gray-900 flex items-center justify-center overflow-hidden rounded-md hover:opacity-90 transition-opacity"
           on:click={() => navigateToThread(item.threadId)}
         >
-          {#if item.media && item.media.type === 'video'}
+          {#if item.media && item.media.type === "video"}
             <video src={item.media.url} class="w-full h-full object-cover" />
-          {:else if item.media && item.media.type === 'gif'}
+          {:else if item.media && item.media.type === "gif"}
             <img src={item.media.url} alt="GIF" class="w-full h-full object-cover" />
           {:else if item.media}
             <img src={item.media.url} alt="Image" class="w-full h-full object-cover" />
@@ -188,7 +188,7 @@
 
     <!-- Infinite scroll load trigger -->
     {#if hasMore}
-      <div 
+      <div
         bind:this={loadMoreTrigger}
         class="w-full h-10 flex items-center justify-center my-4"
       >

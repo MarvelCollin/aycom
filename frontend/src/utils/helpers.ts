@@ -53,7 +53,7 @@ export function formatRelativeTime(date: string | Date): string {
     return `${diffWeek}w`;
   }
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   return `${monthNames[then.getMonth()]} ${then.getDate()}`;
 }
@@ -63,11 +63,11 @@ export function truncateText(text: string, maxLength: number): string {
     return text;
   }
 
-  const lastSpaceIndex = text.substring(0, maxLength).lastIndexOf(' ');
+  const lastSpaceIndex = text.substring(0, maxLength).lastIndexOf(" ");
 
   if (lastSpaceIndex <= 0) {
-    return text.substring(0, maxLength) + '...';
+    return text.substring(0, maxLength) + "...";
   }
 
-  return text.substring(0, lastSpaceIndex) + '...';
+  return text.substring(0, lastSpaceIndex) + "...";
 }

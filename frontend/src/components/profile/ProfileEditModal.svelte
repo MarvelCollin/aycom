@@ -1,74 +1,74 @@
 <!-- ProfileEditModal.svelte -->
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { uploadFile } from '../../utils/supabase';
-  import { updateProfile } from '../../api/user';
-  import { toastStore } from '../../stores/toastStore';
-  import { formatStorageUrl } from '../../utils/common';
-  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import CameraIcon from 'svelte-feather-icons/src/icons/CameraIcon.svelte';
-  import type { IUserProfile } from '../../interfaces/IUser';
-  import { useTheme } from '../../hooks/useTheme';
-  
+  import { createEventDispatcher, onMount } from "svelte";
+  import { uploadFile } from "../../utils/supabase";
+  import { updateProfile } from "../../api/user";
+  import { toastStore } from "../../stores/toastStore";
+  import { formatStorageUrl } from "../../utils/common";
+  import XIcon from "svelte-feather-icons/src/icons/XIcon.svelte";
+  import CameraIcon from "svelte-feather-icons/src/icons/CameraIcon.svelte";
+  import type { IUserProfile } from "../../interfaces/IUser";
+  import { useTheme } from "../../hooks/useTheme";
+
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
-  
+
   // Reactive declarations
-  $: isDarkMode = $theme === 'dark';
-  
+  $: isDarkMode = $theme === "dark";
+
   export let profile: IUserProfile | null = null;
   export let isOpen: boolean = false;
-  
+
   // Local form data that we can safely bind to
   let formData = {
-    name: '',
-    bio: '',
-    email: '',
-    date_of_birth: '',
-    gender: ''
+    name: "",
+    bio: "",
+    email: "",
+    date_of_birth: "",
+    gender: ""
   };
-  
+
   let profilePictureFile: File | null = null;
   let bannerFile: File | null = null;
   let profilePicturePreview: string | null = null;
   let bannerPreview: string | null = null;
   let isUploading = false;
-  let errorMessage = '';
-  
+  let errorMessage = "";
+
   // Initialize form data when profile changes
   $: if (profile) {
     formData = {
-      name: profile.name || '',
-      bio: profile.bio || '',
-      email: profile.email || '',
-      date_of_birth: profile.date_of_birth || '',
-      gender: profile.gender || ''
+      name: profile.name || "",
+      bio: profile.bio || "",
+      email: profile.email || "",
+      date_of_birth: profile.date_of_birth || "",
+      gender: profile.gender || ""
     };
-    
+
     // Also update preview images when profile changes
-    profilePicturePreview = profile.profile_picture_url || '';
-    bannerPreview = profile.banner_url || '';
-    
-    console.log('[ProfileEditModal] Initializing form data from profile:', formData);
-    console.log('[ProfileEditModal] Profile picture URL:', profilePicturePreview);
-    console.log('[ProfileEditModal] Banner URL:', bannerPreview);
+    profilePicturePreview = profile.profile_picture_url || "";
+    bannerPreview = profile.banner_url || "";
+
+    console.log("[ProfileEditModal] Initializing form data from profile:", formData);
+    console.log("[ProfileEditModal] Profile picture URL:", profilePicturePreview);
+    console.log("[ProfileEditModal] Banner URL:", bannerPreview);
   }
-  
+
   onMount(() => {
     if (profile) {
       // Ensure we initialize the form data on mount as well
       formData = {
-        name: profile.name || '',
-        bio: profile.bio || '',
-        email: profile.email || '',
-        date_of_birth: profile.date_of_birth || '',
-        gender: profile.gender || ''
+        name: profile.name || "",
+        bio: profile.bio || "",
+        email: profile.email || "",
+        date_of_birth: profile.date_of_birth || "",
+        gender: profile.gender || ""
       };
-      
-      profilePicturePreview = profile.profile_picture_url || '';
-      bannerPreview = profile.banner_url || '';
-      
-      console.log('[ProfileEditModal] Profile data on mount:', {
+
+      profilePicturePreview = profile.profile_picture_url || "";
+      bannerPreview = profile.banner_url || "";
+
+      console.log("[ProfileEditModal] Profile data on mount:", {
         name: profile.name,
         bio: profile.bio,
         email: profile.email,
@@ -79,12 +79,12 @@
       });
     }
   });
-  
+
   function handleProfilePictureChange(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       profilePictureFile = input.files[0];
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -93,12 +93,12 @@
       reader.readAsDataURL(profilePictureFile);
     }
   }
-  
+
   function handleBannerChange(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       bannerFile = input.files[0];
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -107,100 +107,100 @@
       reader.readAsDataURL(bannerFile);
     }
   }
-  
+
   function removeProfilePicture() {
     profilePictureFile = null;
     profilePicturePreview = null;
   }
-  
+
   function removeBanner() {
     bannerFile = null;
     bannerPreview = null;
   }
-  
+
   async function handleSave() {
     // If we have form changes, update those as well
     if (profile) {
       // Update profile with form data
-      if (formData.name !== profile.name || 
+      if (formData.name !== profile.name ||
           formData.bio !== profile.bio ||
           formData.email !== profile.email ||
           formData.date_of_birth !== profile.date_of_birth ||
           formData.gender !== profile.gender) {
         // Dispatch event to parent to handle the profile update
-        dispatch('updateProfile', formData);
+        dispatch("updateProfile", formData);
       }
     }
-    
+
     if (!profilePictureFile && !bannerFile) {
-      dispatch('close');
+      dispatch("close");
       return;
     }
-    
+
     isUploading = true;
-    errorMessage = '';
-    
+    errorMessage = "";
+
     try {
       // Upload profile picture if selected
       if (profilePictureFile) {
-        console.log('Uploading profile picture:', profilePictureFile.name);
+        console.log("Uploading profile picture:", profilePictureFile.name);
         const profilePictureUrl = await uploadFile(profilePictureFile);
         if (profilePictureUrl) {
-          toastStore.showToast('Profile picture updated successfully', 'success');
-          console.log('Profile picture updated successfully:', profilePictureUrl);
-          dispatch('profilePictureUpdated', { url: profilePictureUrl });
+          toastStore.showToast("Profile picture updated successfully", "success");
+          console.log("Profile picture updated successfully:", profilePictureUrl);
+          dispatch("profilePictureUpdated", { url: profilePictureUrl });
         } else {
-          throw new Error('Failed to upload profile picture');
+          throw new Error("Failed to upload profile picture");
         }
       }
-      
+
       // Upload banner if selected
       if (bannerFile) {
-        console.log('Uploading banner:', bannerFile.name);
+        console.log("Uploading banner:", bannerFile.name);
         const bannerUrl = await uploadFile(bannerFile);
         if (bannerUrl) {
-          toastStore.showToast('Banner updated successfully', 'success');
-          console.log('Banner updated successfully:', bannerUrl);
-          dispatch('bannerUpdated', { url: bannerUrl });
+          toastStore.showToast("Banner updated successfully", "success");
+          console.log("Banner updated successfully:", bannerUrl);
+          dispatch("bannerUpdated", { url: bannerUrl });
         } else {
-          throw new Error('Failed to upload banner');
+          throw new Error("Failed to upload banner");
         }
       }
-      
+
       // Close the modal after successful upload
-      dispatch('close');
+      dispatch("close");
     } catch (err) {
-      console.error('Error updating profile media:', err);
-      errorMessage = err instanceof Error ? err.message : 'Failed to update profile media';
-      toastStore.showToast(errorMessage, 'error');
+      console.error("Error updating profile media:", err);
+      errorMessage = err instanceof Error ? err.message : "Failed to update profile media";
+      toastStore.showToast(errorMessage, "error");
     } finally {
       isUploading = false;
     }
   }
-  
+
   function handleClose() {
-    dispatch('close');
+    dispatch("close");
   }
-  
+
   // Keyboard event handler for modal
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       handleClose();
     }
   }
 </script>
 
 {#if isOpen}
-<div 
+<div
   class="modal-overlay"
   on:click={handleClose}
   on:keydown={handleKeyDown}
-  role="dialog" 
+  role="dialog"
   aria-modal="true"
   aria-labelledby="modal-title"
   tabindex="0"
 >
-  <div 
+  <div
     class="modal-container"
     on:click|stopPropagation
     on:keydown|stopPropagation
@@ -209,8 +209,8 @@
     <!-- Header -->
     <div class="modal-header">
       <div class="header-left">
-        <button 
-          on:click={handleClose} 
+        <button
+          on:click={handleClose}
           class="close-button"
           aria-label="Close modal"
         >
@@ -220,8 +220,8 @@
         </button>
         <h2 id="modal-title" class="modal-title">Edit profile</h2>
       </div>
-      
-      <button 
+
+      <button
         class="save-button"
         disabled={isUploading}
         on:click={handleSave}
@@ -240,21 +240,21 @@
         {/if}
       </button>
     </div>
-    
+
     <!-- Banner image -->
     <div class="banner-container">
       <div class="banner-wrapper">
         {#if bannerPreview}
-          <img 
-            src={bannerPreview} 
-            alt="Banner preview" 
+          <img
+            src={bannerPreview}
+            alt="Banner preview"
             class="banner-image"
           />
         {:else}
           <div class="banner-placeholder"></div>
         {/if}
       </div>
-      
+
       <div class="banner-overlay">
         <label class="upload-label">
           <svg class="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -262,24 +262,24 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span class="upload-text">Add banner photo</span>
-          <input 
-            type="file" 
-            accept="image/*" 
-            class="file-input" 
+          <input
+            type="file"
+            accept="image/*"
+            class="file-input"
             on:change={handleBannerChange}
           />
         </label>
       </div>
     </div>
-    
+
     <!-- Profile picture -->
     <div class="profile-picture-container">
       <div class="profile-picture-wrapper">
         <div class="profile-picture-border">
           {#if profilePicturePreview}
-            <img 
-              src={profilePicturePreview} 
-              alt="Profile preview" 
+            <img
+              src={profilePicturePreview}
+              alt="Profile preview"
               class="profile-picture"
             />
           {:else}
@@ -288,22 +288,22 @@
             </div>
           {/if}
         </div>
-        
+
         <label class="profile-picture-overlay">
           <svg class="upload-icon-small" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <input 
-            type="file" 
-            accept="image/*" 
-            class="file-input" 
+          <input
+            type="file"
+            accept="image/*"
+            class="file-input"
             on:change={handleProfilePictureChange}
           />
         </label>
       </div>
     </div>
-    
+
     <!-- Form fields -->
     <form class="form-container" on:submit|preventDefault={handleSave}>
       <!-- Display name -->
@@ -311,8 +311,8 @@
         <label for="name" class="form-label">
           Display name
         </label>
-        <input 
-          type="text" 
+        <input
+          type="text"
           id="name"
           bind:value={formData.name}
           maxlength="50"
@@ -323,13 +323,13 @@
           {formData.name.length}/50
         </p>
       </div>
-      
+
       <!-- Bio -->
       <div class="form-field">
         <label for="bio" class="form-label">
           Bio
         </label>
-        <textarea 
+        <textarea
           id="bio"
           bind:value={formData.bio}
           maxlength="160"
@@ -341,40 +341,40 @@
           {formData.bio.length}/160
         </p>
       </div>
-      
+
       <!-- Email -->
       <div class="form-field">
         <label for="email" class="form-label">
           Email
         </label>
-        <input 
-          type="email" 
+        <input
+          type="email"
           id="email"
           bind:value={formData.email}
           class="form-input"
           placeholder="Your email address"
         />
       </div>
-      
+
       <!-- Date of birth -->
       <div class="form-field">
         <label for="date_of_birth" class="form-label">
           Date of birth
         </label>
-        <input 
-          type="date" 
+        <input
+          type="date"
           id="date_of_birth"
           bind:value={formData.date_of_birth}
           class="form-input"
         />
       </div>
-      
+
       <!-- Gender -->
       <div class="form-field">
         <label for="gender" class="form-label">
           Gender
         </label>
-        <select 
+        <select
           id="gender"
           bind:value={formData.gender}
           class="form-select"
@@ -674,4 +674,4 @@
     text-align: right;
     margin: 2px 0 0 0;
   }
-</style> 
+</style>

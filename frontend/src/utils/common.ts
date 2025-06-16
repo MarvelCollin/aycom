@@ -1,24 +1,24 @@
-import { toastStore } from '../stores/toastStore';
-import type { IAuthStore } from '../interfaces/IAuth';
-import type { IMedia } from '../interfaces/IMedia';
-import { createLoggerWithPrefix } from './logger';
+import { toastStore } from "../stores/toastStore";
+import type { IAuthStore } from "../interfaces/IAuth";
+import type { IMedia } from "../interfaces/IMedia";
+import { createLoggerWithPrefix } from "./logger";
 
-const logger = createLoggerWithPrefix('common-utils');
+const logger = createLoggerWithPrefix("common-utils");
 
 export function formatTimeAgo(timestamp: string): string {
-  if (!timestamp) return 'now';
+  if (!timestamp) return "now";
 
   try {
     const date = new Date(timestamp);
 
     if (isNaN(date.getTime())) {
-      return 'now';
+      return "now";
     }
 
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (seconds < 0) return 'now';
+    if (seconds < 0) return "now";
 
     if (seconds < 60) {
       return `${seconds}s`;
@@ -53,15 +53,15 @@ export function formatTimeAgo(timestamp: string): string {
     return `${years}y`;
 
   } catch (error) {
-    console.error('Error formatting timestamp:', error);
-    return 'now';
+    console.error("Error formatting timestamp:", error);
+    return "now";
   }
 }
 
 export function checkAuth(authState: IAuthStore, featureName: string): boolean {
   if (!authState.is_authenticated) {
-    toastStore.showToast(`You need to log in to access ${featureName}`, 'warning');
-    window.location.href = '/login';
+    toastStore.showToast(`You need to log in to access ${featureName}`, "warning");
+    window.location.href = "/login";
     return false;
   }
   return true;
@@ -80,15 +80,15 @@ export function isWithinTime(timestamp: string, withinMs: number = 60000): boole
 
 export function generateFilePreview(file: File): IMedia {
   const url = URL.createObjectURL(file);
-  let type: 'image' | 'video' | 'gif';
-  
-  if (file.type.startsWith('image/')) {
-    type = file.type === 'image/gif' ? 'gif' : 'image';
-  } else if (file.type.startsWith('video/')) {
-    type = 'video';
+  let type: "image" | "video" | "gif";
+
+  if (file.type.startsWith("image/")) {
+    type = file.type === "image/gif" ? "gif" : "image";
+  } else if (file.type.startsWith("video/")) {
+    type = "video";
   } else {
     // Default to image for unsupported types
-    type = 'image';
+    type = "image";
   }
 
   return {
@@ -99,7 +99,7 @@ export function generateFilePreview(file: File): IMedia {
 }
 
 export function processUserMetadata(content: string): { username?: string, name?: string, content: string } {
-  if (!content) return { content: '' };
+  if (!content) return { content: "" };
 
   const userMetadataRegex = /^\[USER:([^@\]]+)(?:@([^\]]+))?\](.*)/;
   const match = content.match(userMetadataRegex);
@@ -108,7 +108,7 @@ export function processUserMetadata(content: string): { username?: string, name?
     return {
       username: match[1] || undefined,
       name: match[2] || undefined,
-      content: match[3] || ''
+      content: match[3] || ""
     };
   }
 
@@ -117,96 +117,96 @@ export function processUserMetadata(content: string): { username?: string, name?
 
 export function handleApiError(error: unknown): { success: false, message: string } {
   if (error instanceof Error) {
-    if (error.name === 'AbortError') {
-      return { success: false, message: 'Request timed out. Please try again.' };
+    if (error.name === "AbortError") {
+      return { success: false, message: "Request timed out. Please try again." };
     }
     return { success: false, message: error.message };
   }
-  return { success: false, message: 'An unexpected error occurred.' };
+  return { success: false, message: "An unexpected error occurred." };
 }
 
 export function truncateText(text: string, maxLength: number = 100): string {
   if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  return text.substring(0, maxLength) + "...";
 }
 
 export function isSupabaseStorageUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
-    return urlObj.hostname.includes('supabase.co') && 
-           (urlObj.pathname.includes('/storage/v1/object/public/') || 
-            urlObj.pathname.includes('/storage/v1/s3/'));
+    return urlObj.hostname.includes("supabase.co") &&
+           (urlObj.pathname.includes("/storage/v1/object/public/") ||
+            urlObj.pathname.includes("/storage/v1/s3/"));
   } catch (error) {
     // If the URL is not valid, check with a simple string match
-    return url.includes('supabase.co/storage/v1/object/public/') || 
-           url.includes('supabase.co/storage/v1/s3/');
+    return url.includes("supabase.co/storage/v1/object/public/") ||
+           url.includes("supabase.co/storage/v1/s3/");
   }
 }
 
 export function formatStorageUrl(url: string | null): string {
-  if (!url) return '';
+  if (!url) return "";
 
   // For debugging
-  console.log('Original URL:', url);
+  console.log("Original URL:", url);
 
   // If the URL is already complete, return it as is
-  if (url.startsWith('http://') || url.startsWith('https://')) {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
     // Fix issue with double slashes in paths
-    if (url.includes('//storage/v1/s3/')) {
-      return url.replace('//storage/v1/s3/', '/storage/v1/s3/');
+    if (url.includes("//storage/v1/s3/")) {
+      return url.replace("//storage/v1/s3/", "/storage/v1/s3/");
     }
-    
+
     // Check if it's a valid URL with correct access path
     try {
       const urlObj = new URL(url);
       // If URL contains "object/public" but not "s3", convert it to use s3 endpoint
-      if (url.includes('/storage/v1/object/public/') && !url.includes('/storage/v1/s3/')) {
-        return url.replace('/storage/v1/object/public/', '/storage/v1/s3/');
+      if (url.includes("/storage/v1/object/public/") && !url.includes("/storage/v1/s3/")) {
+        return url.replace("/storage/v1/object/public/", "/storage/v1/s3/");
       }
-      
+
       // Check for CORS issues - add crossorigin attribute to images in the component
-      console.log('URL hostname:', urlObj.hostname);
+      console.log("URL hostname:", urlObj.hostname);
     } catch (e) {
-      console.error('Error parsing URL:', e);
+      console.error("Error parsing URL:", e);
     }
-    
+
     return url;
   }
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
-  
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sdhtnvlmuywinhcglfsu.supabase.co";
+
   // Handle relative paths starting with /
-  if (url.startsWith('/')) {
+  if (url.startsWith("/")) {
     // If it's a simple relative path without storage indicators
-    if (!url.includes('storage/')) {
+    if (!url.includes("storage/")) {
       return `${supabaseUrl}/storage/v1/s3/${url.slice(1)}`;
     }
   }
 
   // Handle storage path formats and convert if needed
-  if (url.includes('storage/v1/object/public/')) {
-    const formatted = url.replace('storage/v1/object/public/', 'storage/v1/s3/');
-    
+  if (url.includes("storage/v1/object/public/")) {
+    const formatted = url.replace("storage/v1/object/public/", "storage/v1/s3/");
+
     // Make sure we have the full URL
-    if (formatted.startsWith('storage/')) {
+    if (formatted.startsWith("storage/")) {
       return `${supabaseUrl}/${formatted}`;
     }
-    
+
     return formatted;
   }
 
-  if (url.includes('storage/v1/s3/')) {
+  if (url.includes("storage/v1/s3/")) {
     // Make sure we have the full URL
-    if (url.startsWith('storage/')) {
+    if (url.startsWith("storage/")) {
       return `${supabaseUrl}/${url}`;
     }
-    
+
     // Already has the domain
     return url;
   }
 
   // Handle URLs with bucket name directly (like profile-pictures/, banners/, etc.)
-  const knownBuckets = ['profile-pictures', 'banners', 'thread-media', 'user-media', 'media', 'tpaweb', 'test', 'uploads'];
+  const knownBuckets = ["profile-pictures", "banners", "thread-media", "user-media", "media", "tpaweb", "test", "uploads"];
   for (const bucket of knownBuckets) {
     if (url.startsWith(`${bucket}/`)) {
       return `${supabaseUrl}/storage/v1/s3/${url}`;
@@ -214,18 +214,18 @@ export function formatStorageUrl(url: string | null): string {
   }
 
   // Special case for community uploads with specific patterns
-  if (url.includes('community/community_')) {
+  if (url.includes("community/community_")) {
     return `${supabaseUrl}/storage/v1/s3/uploads/${url}`;
   }
 
   // Handle URLs with user IDs or specific patterns
-  if (url.includes('_1/')) {
+  if (url.includes("_1/")) {
     // This is likely a user-specific path in the tpaweb bucket
     return `${supabaseUrl}/storage/v1/s3/${url}`;
   }
 
   // Default case - ensure we attach the full URL
-  const cleanPath = url.replace(/^\//, ''); // Remove leading slash if present
+  const cleanPath = url.replace(/^\//, ""); // Remove leading slash if present
   return `${supabaseUrl}/storage/v1/s3/${cleanPath}`;
 }
 
@@ -235,30 +235,30 @@ export function formatStorageUrl(url: string | null): string {
  * @returns Formatted number string (e.g., 1.2K, 3.4M)
  */
 export function formatNumber(num: number): string {
-  if (num === undefined || num === null) return '0';
-  
-  if (num === 0) return '0';
-  
+  if (num === undefined || num === null) return "0";
+
+  if (num === 0) return "0";
+
   const absNum = Math.abs(num);
-  const sign = num < 0 ? '-' : '';
-  
+  const sign = num < 0 ? "-" : "";
+
   if (absNum < 1000) {
     return sign + absNum.toString();
   }
-  
-  const abbreviations = ['', 'K', 'M', 'B', 'T'];
+
+  const abbreviations = ["", "K", "M", "B", "T"];
   const tier = Math.floor(Math.log10(absNum) / 3);
-  
+
   if (tier >= abbreviations.length) {
     return sign + absNum.toString(); // If number is too large, just return it as is
   }
-  
+
   const scale = Math.pow(10, tier * 3);
   const scaled = absNum / scale;
-  
+
   // Format with 1 decimal place if needed, but remove .0
-  let formatted = scaled.toFixed(1).replace(/\.0$/, '');
-  
+  const formatted = scaled.toFixed(1).replace(/\.0$/, "");
+
   return sign + formatted + abbreviations[tier];
 }
 

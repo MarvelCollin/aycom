@@ -4,10 +4,10 @@
 // ***********************************************************
 
 // Import commands.js using ES2015 syntax:
-import './commands'
+import "./commands";
 
 // Configure Cypress for file uploads and attachments
-import 'cypress-file-upload';
+import "cypress-file-upload";
 
 // Use the existing Cypress Blob utility instead of overriding it
 // The Cypress.Blob utilities are already available and include base64StringToBlob
@@ -17,10 +17,10 @@ import 'cypress-file-upload';
 
 // Hide fetch/XHR requests in the Command Log
 const app = window.top;
-if (!app.document.head.querySelector('[data-hide-command-log-request]')) {
-  const style = app.document.createElement('style');
+if (!app.document.head.querySelector("[data-hide-command-log-request]")) {
+  const style = app.document.createElement("style");
   style.innerHTML =
-    '.command-name-request, .command-name-xhr { display: none }';
-  style.setAttribute('data-hide-command-log-request', '');
+    ".command-name-request, .command-name-xhr { display: none }";
+  style.setAttribute("data-hide-command-log-request", "");
   app.document.head.appendChild(style);
 }

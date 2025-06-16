@@ -1,4 +1,4 @@
-import type { IUserRegistrationRequest } from './IUser';
+import type { IUserRegistrationRequest } from "./IUser";
 
 export interface IGoogleAccountsId {
   initialize: (config: any) => void;
@@ -80,7 +80,7 @@ export interface ILoginCredentials {
 }
 
 // Unify with IUserRegistrationRequest
-export type IRegisterCredentials = Pick<IUserRegistrationRequest, 'username' | 'email' | 'password' | 'confirm_password'>;
+export type IRegisterCredentials = Pick<IUserRegistrationRequest, "username" | "email" | "password" | "confirm_password">;
 
 /**
  * Auth endpoint response interfaces

@@ -1,4 +1,4 @@
-import { toastStore } from '../stores/toastStore';
+import { toastStore } from "../stores/toastStore";
 
 /**
  * Navigate to a specific route
@@ -6,33 +6,33 @@ import { toastStore } from '../stores/toastStore';
  * @param options Options for navigation
  */
 export function navigate(
-  route: string, 
-  options: { 
+  route: string,
+  options: {
     replace?: boolean,
     showToast?: boolean,
     toastMessage?: string,
-    toastType?: 'info' | 'success' | 'warning' | 'error'
+    toastType?: "info" | "success" | "warning" | "error"
   } = {}
 ) {
-  const { 
-    replace = false, 
-    showToast = false, 
+  const {
+    replace = false,
+    showToast = false,
     toastMessage,
-    toastType = 'info' 
+    toastType = "info"
   } = options;
-  
+
   if (showToast && toastMessage) {
     toastStore.showToast(toastMessage, toastType);
   }
-  
+
   if (replace) {
-    window.history.replaceState({}, '', route);
+    window.history.replaceState({}, "", route);
   } else {
-    window.history.pushState({}, '', route);
+    window.history.pushState({}, "", route);
   }
-  
+
   // Dispatch a custom navigation event
-  window.dispatchEvent(new CustomEvent('navigate', { detail: { route } }));
+  window.dispatchEvent(new CustomEvent("navigate", { detail: { route } }));
 }
 
 /**
@@ -49,14 +49,14 @@ export function navigateToLogin(
   const {
     replace = true,
     showToast = true,
-    toastMessage = 'You need to log in to access this feature'
+    toastMessage = "You need to log in to access this feature"
   } = options;
-  
-  navigate('/login', {
+
+  navigate("/login", {
     replace,
     showToast,
     toastMessage,
-    toastType: 'warning'
+    toastType: "warning"
   });
 }
 
@@ -69,10 +69,10 @@ export function navigateToHome(
     replace?: boolean,
     showToast?: boolean,
     toastMessage?: string,
-    toastType?: 'info' | 'success' | 'warning' | 'error'
+    toastType?: "info" | "success" | "warning" | "error"
   } = {}
 ) {
-  navigate('/feed', options);
+  navigate("/feed", options);
 }
 
 /**
@@ -86,7 +86,7 @@ export function navigateToUserProfile(
     replace?: boolean,
     showToast?: boolean,
     toastMessage?: string,
-    toastType?: 'info' | 'success' | 'warning' | 'error'
+    toastType?: "info" | "success" | "warning" | "error"
   } = {}
 ) {
   navigate(`/user/${userId}`, options);
@@ -96,10 +96,10 @@ export function navigateToUserProfile(
  * Navigate back in history
  * @param fallbackRoute The route to navigate to if there's no history
  */
-export function goBack(fallbackRoute = '/') {
+export function goBack(fallbackRoute = "/") {
   if (window.history.length > 1) {
     window.history.back();
   } else {
     navigate(fallbackRoute, { replace: true });
   }
-} 
+}

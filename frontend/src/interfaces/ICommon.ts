@@ -37,4 +37,4 @@ export interface IErrorResponse {
 /**
  * Generic API response type (success or error)
  */
-export type ApiResponse<T> = IApiResponse<T> | IErrorResponse; 
+export type ApiResponse<T> = IApiResponse<T> | IErrorResponse;

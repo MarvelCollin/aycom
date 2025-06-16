@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { useValidation } from '../../hooks/useValidation';
-  import { useAuth } from '../../hooks/useAuth';
-  import { toastStore } from '../../stores/toastStore';
-  import type { IDateOfBirth } from '../../interfaces/IAuth';
-  import appConfig from '../../config/appConfig';
+  import { onMount } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { useValidation } from "../../hooks/useValidation";
+  import { useAuth } from "../../hooks/useAuth";
+  import { toastStore } from "../../stores/toastStore";
+  import type { IDateOfBirth } from "../../interfaces/IAuth";
+  import appConfig from "../../config/appConfig";
 
   export let missingFields: string[] = [];
   export let onComplete: () => void;
@@ -19,7 +19,7 @@
   let error = "";
 
   const months = [
-    "January", "February", "March", "April", "May", "June", 
+    "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
 
@@ -45,21 +45,21 @@
   const validation = useValidation();
   const { getProfile, updateProfile } = useAuth();
 
-  $: isDarkMode = $theme === 'dark';
-  $: showGenderField = missingFields.includes('gender');
-  $: showDateOfBirthField = missingFields.includes('date_of_birth');
-  $: showSecurityFields = missingFields.includes('security_question') || missingFields.includes('security_answer');
+  $: isDarkMode = $theme === "dark";
+  $: showGenderField = missingFields.includes("gender");
+  $: showDateOfBirthField = missingFields.includes("date_of_birth");
+  $: showSecurityFields = missingFields.includes("security_question") || missingFields.includes("security_answer");
 
   onMount(async () => {
     try {
       const profileData = await getProfile();
       if (profileData?.user) {
-        if (profileData.user.gender && profileData.user.gender !== 'unknown') {
+        if (profileData.user.gender && profileData.user.gender !== "unknown") {
           gender = profileData.user.gender;
         }
 
         if (profileData.user.date_of_birth) {
-          const [month, day, year] = profileData.user.date_of_birth.split('-');
+          const [month, day, year] = profileData.user.date_of_birth.split("-");
           if (month && day && year) {
             const monthIndex = parseInt(month);
             dateOfBirth = {
@@ -83,15 +83,15 @@
     let errorMessage = "";
 
     switch (field) {
-      case 'gender':
+      case "gender":
         errorMessage = validation.validateGender(value);
         genderError = errorMessage;
         break;
-      case 'dateOfBirth':
+      case "dateOfBirth":
         errorMessage = validation.validateDateOfBirth(value, months);
         dateOfBirthError = errorMessage;
         break;
-      case 'securityQuestion':
+      case "securityQuestion":
         errorMessage = validation.validateSecurityQuestion(securityQuestion, securityAnswer);
         securityQuestionError = errorMessage;
         break;
@@ -104,17 +104,17 @@
     let isValid = true;
 
     if (showGenderField) {
-      const isGenderValid = validateField('gender', gender);
+      const isGenderValid = validateField("gender", gender);
       isValid = isValid && isGenderValid;
     }
 
     if (showDateOfBirthField) {
-      const isDateValid = validateField('dateOfBirth', dateOfBirth);
+      const isDateValid = validateField("dateOfBirth", dateOfBirth);
       isValid = isValid && isDateValid;
     }
 
     if (showSecurityFields) {
-      const isSecurityValid = validateField('securityQuestion', {
+      const isSecurityValid = validateField("securityQuestion", {
         question: securityQuestion,
         answer: securityAnswer
       });
@@ -189,36 +189,36 @@
         <label class="auth-label">Gender</label>
         <div class="flex flex-wrap gap-4">
           <label class="flex items-center space-x-2 cursor-pointer">
-            <input 
-              type="radio" 
-              name="gender" 
+            <input
+              type="radio"
+              name="gender"
               value="male"
               bind:group={gender}
-              on:change={() => validateField('gender', gender)}
+              on:change={() => validateField("gender", gender)}
               class="form-radio"
             />
             <span>Male</span>
           </label>
 
           <label class="flex items-center space-x-2 cursor-pointer">
-            <input 
-              type="radio" 
-              name="gender" 
+            <input
+              type="radio"
+              name="gender"
               value="female"
               bind:group={gender}
-              on:change={() => validateField('gender', gender)}
+              on:change={() => validateField("gender", gender)}
               class="form-radio"
             />
             <span>Female</span>
           </label>
 
           <label class="flex items-center space-x-2 cursor-pointer">
-            <input 
-              type="radio" 
-              name="gender" 
+            <input
+              type="radio"
+              name="gender"
               value="other"
               bind:group={gender}
-              on:change={() => validateField('gender', gender)}
+              on:change={() => validateField("gender", gender)}
               class="form-radio"
             />
             <span>Other</span>
@@ -235,10 +235,10 @@
       <div class="auth-input-group">
         <label class="auth-label">Date of Birth</label>
         <div class="flex space-x-2">
-          <select 
-            bind:value={dateOfBirth.month} 
-            on:change={() => validateField('dateOfBirth', dateOfBirth)}
-            class="auth-select {isDarkMode ? 'auth-select-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+          <select
+            bind:value={dateOfBirth.month}
+            on:change={() => validateField("dateOfBirth", dateOfBirth)}
+            class="auth-select {isDarkMode ? "auth-select-dark" : ""} {dateOfBirthError ? "auth-input-error" : ""}"
           >
             <option value="">Month</option>
             {#each months as month}
@@ -246,10 +246,10 @@
             {/each}
           </select>
 
-          <select 
-            bind:value={dateOfBirth.day} 
-            on:change={() => validateField('dateOfBirth', dateOfBirth)}
-            class="auth-select {isDarkMode ? 'auth-select-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+          <select
+            bind:value={dateOfBirth.day}
+            on:change={() => validateField("dateOfBirth", dateOfBirth)}
+            class="auth-select {isDarkMode ? "auth-select-dark" : ""} {dateOfBirthError ? "auth-input-error" : ""}"
           >
             <option value="">Day</option>
             {#each days as day}
@@ -257,10 +257,10 @@
             {/each}
           </select>
 
-          <select 
-            bind:value={dateOfBirth.year} 
-            on:change={() => validateField('dateOfBirth', dateOfBirth)}
-            class="auth-select {isDarkMode ? 'auth-select-dark' : ''} {dateOfBirthError ? 'auth-input-error' : ''}"
+          <select
+            bind:value={dateOfBirth.year}
+            on:change={() => validateField("dateOfBirth", dateOfBirth)}
+            class="auth-select {isDarkMode ? "auth-select-dark" : ""} {dateOfBirthError ? "auth-input-error" : ""}"
           >
             <option value="">Year</option>
             {#each years as year}
@@ -278,10 +278,10 @@
     {#if showSecurityFields}
       <div class="auth-input-group">
         <label class="auth-label">Security Question</label>
-        <select 
-          bind:value={securityQuestion} 
-          on:change={() => validateField('securityQuestion', { question: securityQuestion, answer: securityAnswer })}
-          class="auth-select {isDarkMode ? 'auth-select-dark' : ''} {securityQuestionError ? 'auth-input-error' : ''}"
+        <select
+          bind:value={securityQuestion}
+          on:change={() => validateField("securityQuestion", { question: securityQuestion, answer: securityAnswer })}
+          class="auth-select {isDarkMode ? "auth-select-dark" : ""} {securityQuestionError ? "auth-input-error" : ""}"
         >
           <option value="">Select a security question</option>
           {#each securityQuestions as question}
@@ -290,11 +290,11 @@
         </select>
 
         <label class="auth-label mt-4">Security Answer</label>
-        <input 
-          type="text" 
-          bind:value={securityAnswer} 
-          on:blur={() => validateField('securityQuestion', { question: securityQuestion, answer: securityAnswer })}
-          class="auth-input {isDarkMode ? 'auth-input-dark' : ''} {securityQuestionError ? 'auth-input-error' : ''}"
+        <input
+          type="text"
+          bind:value={securityAnswer}
+          on:blur={() => validateField("securityQuestion", { question: securityQuestion, answer: securityAnswer })}
+          class="auth-input {isDarkMode ? "auth-input-dark" : ""} {securityQuestionError ? "auth-input-error" : ""}"
           placeholder="Your answer"
         />
 
@@ -305,18 +305,18 @@
     {/if}
 
     <div class="flex gap-4 mt-6">
-      <button 
-        type="button" 
-        class="btn-secondary" 
-        on:click={onSkip} 
+      <button
+        type="button"
+        class="btn-secondary"
+        on:click={onSkip}
         disabled={isLoading}
       >
         Skip for now
       </button>
 
-      <button 
-        type="submit" 
-        class="btn-primary" 
+      <button
+        type="submit"
+        class="btn-primary"
         disabled={isLoading}
       >
         {#if isLoading}

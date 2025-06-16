@@ -49,6 +49,11 @@
   let loading = true;
   let error = null;
   
+  // Infinite scroll state
+  let currentPage = 1;
+  let isLoadingMore = false;
+  let hasMore = true;
+  
   let repliesMap = new Map<string, ExtendedTweet[]>();
   let showRepliesMap = new Map<string, boolean>();
 
@@ -302,48 +307,59 @@
     isSubmitting = false;
   }
 
-  // Load threads function - updated to handle different tabs
-  async function loadThreads() {
-    console.log(`Loading threads for tab: ${activeTab}...`);
-    loading = true;
+  // Load threads function - updated to handle different tabs and infinite scroll
+  async function loadThreads(isInitial = true) {
+    console.log(`Loading threads for tab: ${activeTab}, page: ${isInitial ? 1 : currentPage}...`);
+    
+    if (isInitial) {
+      loading = true;
+      currentPage = 1;
+      hasMore = true;
+    } else {
+      isLoadingMore = true;
+    }
+    
     error = null;
 
     try {
       let response;
+      const pageToLoad = isInitial ? 1 : currentPage;
       
       if (activeTab === 'for-you') {
-        response = await getAllThreads(1, 20);
+        response = await getAllThreads(pageToLoad, 20);
       } else {
         // Only attempt following feed if user is authenticated
         if (!authStore.isAuthenticated()) {
           toastStore.showToast("Please sign in to see threads from people you follow", "info");
           activeTab = 'for-you';
-          response = await getAllThreads(1, 20);
+          response = await getAllThreads(pageToLoad, 20);
         } else {
-          response = await getFollowingThreads(1, 20);
+          response = await getFollowingThreads(pageToLoad, 20);
         }
       }
       
-      console.log(`Thread API response for ${activeTab}:`, response);
+      console.log(`Thread API response for ${activeTab}, page ${pageToLoad}:`, response);
       
       let loadedThreads: ExtendedTweet[] = [];
       
       // Handle different response formats
       if (response && response.success && Array.isArray(response.threads)) {
         loadedThreads = response.threads as ExtendedTweet[];
-        console.log(`Loaded ${loadedThreads.length} threads for ${activeTab}`);
+        console.log(`Loaded ${loadedThreads.length} threads for ${activeTab}, page ${pageToLoad}`);
       } else if (response && Array.isArray(response)) {
         // Handle case where API returns threads directly as array
         loadedThreads = response as ExtendedTweet[];
-        console.log(`Loaded ${loadedThreads.length} threads directly for ${activeTab}`);
+        console.log(`Loaded ${loadedThreads.length} threads directly for ${activeTab}, page ${pageToLoad}`);
       } else if (response && response.success && response.data && Array.isArray(response.data.threads)) {
         // Handle nested data structure (used by Following tab)
         loadedThreads = response.data.threads as ExtendedTweet[];
-        console.log(`Loaded ${loadedThreads.length} threads from nested data for ${activeTab}`);
+        console.log(`Loaded ${loadedThreads.length} threads from nested data for ${activeTab}, page ${pageToLoad}`);
       } else {
         console.error('Invalid API response format:', response);
         loadedThreads = [];
-        error = 'No threads available right now. Try again later.' as any;
+        if (isInitial) {
+          error = 'No threads available right now. Try again later.' as any;
+        }
       }
       
       // Debug the structure of the first thread if available
@@ -367,7 +383,7 @@
       }
       
       // Filter out any threads without valid IDs and ensure each has a unique ID
-      threads = loadedThreads
+      const processedThreads = loadedThreads
         .filter(thread => thread && typeof thread === 'object')
         .map((thread, index) => {
           // Ensure all required properties exist
@@ -451,7 +467,29 @@
           return processedThread;
         }).filter(Boolean) as ExtendedTweet[];
       
-      console.log(`Final processed threads count: ${threads.length}`);
+      // Check if we have more threads to load
+      const limit = 20; // The limit we're requesting from the API
+      if (processedThreads.length < limit) {
+        // If we got fewer than the limit of threads, we've reached the end
+        console.log('Received fewer threads than requested, reached the end');
+        hasMore = false;
+      } else {
+        // We got the full amount, there are probably more to load
+        hasMore = true;
+        if (!isInitial) {
+          currentPage++;
+        }
+      }
+      
+      // Always append new threads (allow duplicates for true infinite scroll)
+      if (isInitial) {
+        threads = processedThreads;
+      } else {
+        // Simply append all new threads
+        threads = [...threads, ...processedThreads];
+      }
+      
+      console.log(`Final threads count: ${threads.length}, hasMore: ${hasMore}, currentPage: ${currentPage}`);
       
     } catch (err) {
       console.error(`Error loading ${activeTab} threads:`, err);
@@ -460,17 +498,22 @@
         if (activeTab === 'following') {
           activeTab = 'for-you';
           toastStore.showToast("Please sign in to view your Following feed", "info");
-          return loadThreads(); // Retry with For You tab
+          return loadThreads(isInitial); // Retry with For You tab
         }
         // For other 401 errors, just show empty state
-        threads = [];
-        error = 'No threads available right now. Try again later.' as any;
+        if (isInitial) {
+          threads = [];
+          error = 'No threads available right now. Try again later.' as any;
+        }
       } else {
         // For other errors, show a helpful message
-        error = 'Unable to load threads. Please check your connection and try again.' as any;
+        if (isInitial) {
+          error = 'Unable to load threads. Please check your connection and try again.' as any;
+        }
       }
     } finally {
       loading = false;
+      isLoadingMore = false;
     }
   }
 
@@ -481,9 +524,38 @@
       threads = [];
       repliesMap = new Map();
       showRepliesMap = new Map();
+      currentPage = 1;
+      hasMore = true;
       // Load new content
-      loadThreads();
+      loadThreads(true);
     }
+  }
+
+  // Infinite scroll handler
+  function handleScroll() {
+    // Use window scroll for better compatibility
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    
+    const scrollBottom = scrollTop + windowHeight;
+    const threshold = 200; // Load more when 200px from bottom
+    
+    if (scrollBottom >= documentHeight - threshold && !isLoadingMore && threads.length > 0 && hasMore) {
+      console.log('Triggering infinite scroll - loading more threads from API...');
+      // Call loadThreads with isInitial=false to load the next page
+      isLoadingMore = true;
+      loadThreads(false);
+    }
+  }
+
+  // Load more threads when reaching end (for the manual button)
+  async function loadMoreThreads() {
+    if (isLoadingMore || threads.length === 0) return;
+    
+    console.log('Load more button clicked - loading more threads from API...');
+    // Call loadThreads with isInitial=false to load the next page
+    loadThreads(false);
   }
 
   // Convert Thread to ITweet for compatibility with TweetCard
@@ -535,8 +607,33 @@
 
   // Load on mount
   onMount(() => {
-    loadThreads();
+    loadThreads(true);
+    
+    // Add scroll event listener for infinite scroll using window
+    const handleScrollThrottled = throttle(handleScroll, 100);
+    
+    // Add event listener to window for better compatibility
+    window.addEventListener('scroll', handleScrollThrottled, { passive: true });
+    console.log('Window scroll listener attached');
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('scroll', handleScrollThrottled);
+      console.log('Window scroll listener removed');
+    };
   });
+
+  // Throttle function to limit scroll event frequency
+  function throttle(func: Function, limit: number) {
+    let inThrottle: boolean;
+    return function(this: any, ...args: any[]) {
+      if (!inThrottle) {
+        func.apply(this, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    };
+  }
 </script>
 
 <MainLayout>
@@ -569,7 +666,7 @@
     {:else if error}
       <div class="error {isDarkMode ? 'error-dark' : ''}">
         <p>{error}</p>
-        <button class="retry-button {isDarkMode ? 'retry-button-dark' : ''}" on:click={loadThreads}>Retry</button>
+        <button class="retry-button {isDarkMode ? 'retry-button-dark' : ''}" on:click={() => loadThreads(true)}>Retry</button>
       </div>
     {:else if threads.length === 0}
       <div class="empty {isDarkMode ? 'empty-dark' : ''}">
@@ -597,6 +694,27 @@
             on:click={handleThreadClick}
           />
         {/each}
+        
+        <!-- Loading more indicator -->
+        {#if isLoadingMore}
+          <div class="loading-more {isDarkMode ? 'loading-more-dark' : ''}">
+            <div class="loading-spinner-small"></div>
+            <span>Loading more threads...</span>
+          </div>
+        {/if}
+        
+        <!-- Load more button (fallback for manual loading) -->
+        {#if !isLoadingMore && threads.length > 0 && hasMore}
+          <div class="load-more-container">
+            <button 
+              class="load-more-btn {isDarkMode ? 'load-more-btn-dark' : ''}" 
+              on:click={loadMoreThreads}
+              aria-label="Load more threads"
+            >
+              Show More Threads
+            </button>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -615,7 +733,9 @@
     <div 
       class="aycom-reply-modal aycom-dark-theme" 
       on:click|stopPropagation
-      role="document"
+      on:keydown={(e) => e.key === 'Enter' && e.stopPropagation()}
+      role="dialog"
+      tabindex="-1"
     >
       <div class="aycom-reply-header">
         <h3 id="reply-modal-title" class="aycom-reply-title">
@@ -810,7 +930,12 @@
     }
   }
 
-  .error button {
+  .error button:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-2px);
+  }
+
+  .retry-button {
     margin-top: 10px;
     padding: 10px 20px;
     background: var(--color-primary);
@@ -822,7 +947,7 @@
     transition: all 0.2s ease;
   }
   
-  .error button:hover {
+  .retry-button:hover {
     background: var(--color-primary-hover);
     transform: translateY(-2px);
   }
@@ -838,6 +963,72 @@
   
   :global(.dark-theme) .threads-list {
     border-color: var(--border-color-dark);
+  }
+  
+  /* Infinite scroll styles */
+  .loading-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 20px;
+    background-color: var(--bg-secondary);
+    border-radius: 10px;
+    margin: 10px 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+  }
+  
+  .loading-more-dark {
+    background-color: var(--bg-secondary-dark);
+    color: var(--text-secondary-dark);
+  }
+  
+  .loading-spinner-small {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-left-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  .loading-more-dark .loading-spinner-small {
+    border-color: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--color-primary);
+  }
+  
+  .load-more-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+  }
+  
+  .load-more-btn {
+    padding: 12px 24px;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .load-more-btn:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .load-more-btn-dark {
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+  }
+  
+  .load-more-btn-dark:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
   }
   
   .aycom-reply-overlay {

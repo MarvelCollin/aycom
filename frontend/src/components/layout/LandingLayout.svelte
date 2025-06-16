@@ -1,23 +1,23 @@
 <script lang="ts">
-  import { useTheme } from '../../hooks/useTheme';
-  import { onMount } from 'svelte';
-  
+  import { useTheme } from "../../hooks/useTheme";
+  import { onMount } from "svelte";
+
   // Get the theme store and toggleTheme function from our hook
   const { theme, toggleTheme } = useTheme();
-  
+
   // Reactive declaration to update isDarkMode when theme changes
-  $: isDarkMode = $theme === 'dark';
-  
+  $: isDarkMode = $theme === "dark";
+
   onMount(() => {
     // Apply theme class to document when component mounts
-    document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
+    document.documentElement.classList.add(isDarkMode ? "dark" : "light");
   });
 </script>
 
-<div class="theme-container {isDarkMode ? 'dark-mode' : 'light-mode'} min-h-screen w-full overflow-x-hidden">
-  <div class="{isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'} min-h-screen w-full">
-    <button 
-      class="absolute top-4 right-4 p-2 rounded-full z-10 {isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} transition-colors"
+<div class="theme-container {isDarkMode ? "dark-mode" : "light-mode"} min-h-screen w-full overflow-x-hidden">
+  <div class="{isDarkMode ? "bg-gray-900 text-white" : "bg-white text-black"} min-h-screen w-full">
+    <button
+      class="absolute top-4 right-4 p-2 rounded-full z-10 {isDarkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-gray-100 hover:bg-gray-200"} transition-colors"
       on:click={toggleTheme}
       aria-label="Toggle theme"
     >
@@ -31,7 +31,7 @@
         </svg>
       {/if}
     </button>
-    
+
     <slot />
   </div>
 </div>
@@ -41,14 +41,14 @@
   .theme-container {
     transition: background-color 0.3s ease, color 0.3s ease;
   }
-  
+
   .dark-mode {
     --bg-color: #1a202c;
     --text-color: #f7fafc;
   }
-  
+
   .light-mode {
     --bg-color: #ffffff;
     --text-color: #1a202c;
   }
-</style> 
+</style>

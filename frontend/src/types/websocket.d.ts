@@ -1,7 +1,7 @@
 // Type declarations for websocketStore
-import type { ChatMessage } from '../stores/websocketStore';
+import type { ChatMessage } from "../stores/websocketStore";
 
-declare module '../stores/websocketStore' {
+declare module "../stores/websocketStore" {
   interface WebSocketStore {
     connect: (chatId: string) => void;
     disconnect: (chatId: string) => void;
@@ -11,4 +11,4 @@ declare module '../stores/websocketStore' {
     isConnected: (chatId: string) => boolean;
     registerMessageHandler: (handler: (message: any) => void) => () => void;
   }
-} 
+}

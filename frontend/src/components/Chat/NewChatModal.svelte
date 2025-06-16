@@ -1,24 +1,24 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { createEventDispatcher } from 'svelte';
-  import { getAllUsers, searchUsers } from '../../api/user';
-  import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { toastStore } from '../../stores/toastStore';
+  import { onMount } from "svelte";
+  import { createEventDispatcher } from "svelte";
+  import { getAllUsers, searchUsers } from "../../api/user";
+  import { transformApiUsers, type StandardUser } from "../../utils/userTransform";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { toastStore } from "../../stores/toastStore";
 
-  const logger = createLoggerWithPrefix('NewChatModal');
+  const logger = createLoggerWithPrefix("NewChatModal");
   const dispatch = createEventDispatcher();
 
   export let onCancel: () => void;
 
   export let isLoadingUsers = false;
   export let userSearchResults: StandardUser[] = [];
-  export let searchKeyword = '';
+  export let searchKeyword = "";
 
-  let searchQuery = '';
+  let searchQuery = "";
   let users: StandardUser[] = [];
   let filteredUsers: StandardUser[] = [];
-  let isLoading = false;  
+  let isLoading = false;
   let searchTimeout: ReturnType<typeof setTimeout>;
 
   onMount(async () => {
@@ -28,56 +28,56 @@
   async function loadUsers() {
     isLoading = true;
     try {
-      console.log('Loading users...'); 
+      console.log("Loading users...");
 
-      const testResponse = await fetch('http://localhost:8083/api/v1/users?limit=50', {
-        method: 'GET',
+      const testResponse = await fetch("http://localhost:8083/api/v1/users?limit=50", {
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json"
         }
       });
 
-      console.log('Direct API test - Status:', testResponse.status);
+      console.log("Direct API test - Status:", testResponse.status);
 
       if (testResponse.ok) {
         const testData = await testResponse.json();
-        console.log('Direct API test - Data:', testData);
+        console.log("Direct API test - Data:", testData);
 
         if (testData && testData.users && Array.isArray(testData.users)) {
           users = transformApiUsers(testData.users);
           filteredUsers = users;
-          console.log('Direct API success - Users loaded:', users.length);
+          console.log("Direct API success - Users loaded:", users.length);
           return;
         }
       }
 
-      console.log('Trying getAllUsers API call...');
+      console.log("Trying getAllUsers API call...");
       const response = await getAllUsers(1, 50);
-      console.log('getAllUsers response:', response); 
+      console.log("getAllUsers response:", response);
 
       if (response && response.users && Array.isArray(response.users)) {
         users = transformApiUsers(response.users);
-        console.log('Transformed users count:', users.length); 
+        console.log("Transformed users count:", users.length);
       } else if (response && Array.isArray(response)) {
 
         users = transformApiUsers(response);
-        console.log('Transformed users count (direct array):', users.length); 
+        console.log("Transformed users count (direct array):", users.length);
       } else {
-        console.error('Unexpected response format:', response);
-        toastStore.showToast('Unexpected response format from server', 'error');
+        console.error("Unexpected response format:", response);
+        toastStore.showToast("Unexpected response format from server", "error");
         users = [];
       }
 
       filteredUsers = users;
-      console.log('Final filtered users count:', filteredUsers.length); 
+      console.log("Final filtered users count:", filteredUsers.length);
 
       if (users.length === 0) {
-        toastStore.showToast('No users found', 'warning');
+        toastStore.showToast("No users found", "warning");
       }
     } catch (error) {
-      console.error('Error in loadUsers:', error); 
-      logger.error('Failed to load users', error);
-      toastStore.showToast(`Failed to load users: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      console.error("Error in loadUsers:", error);
+      logger.error("Failed to load users", error);
+      toastStore.showToast(`Failed to load users: ${error instanceof Error ? error.message : String(error)}`, "error");
       users = [];
       filteredUsers = [];
     } finally {
@@ -97,23 +97,23 @@
       }
 
       const query = searchQuery.toLowerCase();
-      filteredUsers = users.filter(user => 
+      filteredUsers = users.filter(user =>
         user.username.toLowerCase().includes(query) ||
         (user.display_name && user.display_name.toLowerCase().includes(query))
       );
     }, 300);
 
-    dispatch('search', searchQuery.trim());
+    dispatch("search", searchQuery.trim());
   }
 
   function handleUserClick(user: StandardUser) {
 
-    dispatch('createChat', { 
-      type: 'individual',
+    dispatch("createChat", {
+      type: "individual",
       participants: [user.id]
     });
 
-    if (typeof onCancel === 'function') {
+    if (typeof onCancel === "function") {
       onCancel();
     }
   }
@@ -128,7 +128,7 @@
   }
 </script>
 
-<div class="modal-overlay" role="button" tabindex="0" on:click={onCancel} on:keydown={(e) => e.key === 'Escape' && onCancel()}>
+<div class="modal-overlay" role="button" tabindex="0" on:click={onCancel} on:keydown={(e) => e.key === "Escape" && onCancel()}>
   <div class="modal-content" role="dialog" tabindex="0" on:click|stopPropagation on:keydown|stopPropagation>
     <div class="modal-header">
       <h2>New Message</h2>
@@ -160,8 +160,8 @@
           <p>No users found</p>
         </div>
       {:else}        {#each filteredUsers as user}
-          <button 
-            class="user-item" 
+          <button
+            class="user-item"
             on:click={() => handleUserClick(user)}
             type="button"
           >

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import TweetCard from '../social/TweetCard.svelte';
-  import Button from '../common/Button.svelte';
-  import MessageSquareIcon from 'svelte-feather-icons/src/icons/MessageSquareIcon.svelte';
+  import { createEventDispatcher } from "svelte";
+  import TweetCard from "../social/TweetCard.svelte";
+  import Button from "../common/Button.svelte";
+  import MessageSquareIcon from "svelte-feather-icons/src/icons/MessageSquareIcon.svelte";
 
   interface Thread {
     id: string;
@@ -22,19 +22,19 @@
   const dispatch = createEventDispatcher();
 
   function handleThreadClick(event) {
-    dispatch('threadClick', event.detail);
+    dispatch("threadClick", event.detail);
   }
 
   function handleCreatePost() {
-    dispatch('createPost');
+    dispatch("createPost");
   }
 </script>
 
 <div class="posts-container">
   {#if threads.length > 0}
     <div class="threads-container">
-      {#each threads as thread (thread.id)}        <TweetCard 
-          tweet={thread as any} 
+      {#each threads as thread (thread.id)}        <TweetCard
+          tweet={thread as any}
           on:click={handleThreadClick}
         />
       {/each}

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import ThreadCard from './ThreadCard.svelte';
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import ThreadCard from "./ThreadCard.svelte";
+  import { createLoggerWithPrefix } from "../../utils/logger";
 
-  const logger = createLoggerWithPrefix('ExploreLatestResults');
+  const logger = createLoggerWithPrefix("ExploreLatestResults");
 
   export let latestThreads: Array<{
     id: string;
@@ -24,9 +24,9 @@
   $: {
     if (!isLoading) {
       if (latestThreads.length > 0) {
-        logger.debug('Latest threads loaded', { count: latestThreads.length });
+        logger.debug("Latest threads loaded", { count: latestThreads.length });
       } else {
-        logger.debug('No latest threads found');
+        logger.debug("No latest threads found");
       }
     }
   }

@@ -1,7 +1,6 @@
-import { writable } from 'svelte/store';
-import type { Toast, ToastType, ToastPosition } from '../interfaces/IToast';
+import { writable } from "svelte/store";
+import type { Toast, ToastType, ToastPosition } from "../interfaces/IToast";
 
-// Define a new interface for toast options
 export interface ToastOptions {
   message: string;
   type?: ToastType;
@@ -14,51 +13,50 @@ function createToastStore() {
 
   function showToast(
     messageOrOptions: string | ToastOptions,
-    type: ToastType = 'info',
+    type: ToastType = "info",
     timeout: number = 3000,
-    position: ToastPosition = 'top-right'
+    position: ToastPosition = "top-right"
   ) {
     const id = Math.random().toString(36).substring(2, 9);
-    
+
     let toast: Toast;
-    
-    // Handle both string and object parameters
-    if (typeof messageOrOptions === 'string') {
+
+    if (typeof messageOrOptions === "string") {
       toast = {
         id,
         message: messageOrOptions,
         type,
         timeout,
-        position
+        position,
       };
     } else {
       toast = {
         id,
         message: messageOrOptions.message,
-        type: messageOrOptions.type || 'info',
+        type: messageOrOptions.type || "info",
         timeout: messageOrOptions.timeout || 3000,
-        position: messageOrOptions.position || 'top-right'
+        position: messageOrOptions.position || "top-right",
       };
     }
-    
-    update(toasts => [...toasts, toast]);
-    
+
+    update((toasts) => [...toasts, toast]);
+
     setTimeout(() => {
       removeToast(id);
     }, toast.timeout);
-    
+
     return id;
   }
 
   function removeToast(id: string) {
-    update(toasts => toasts.filter(t => t.id !== id));
+    update((toasts) => toasts.filter((t) => t.id !== id));
   }
 
   return {
     subscribe,
     showToast,
-    removeToast
+    removeToast,
   };
 }
 
-export const toastStore = createToastStore(); 
+export const toastStore = createToastStore();

@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import ChatWindow from './ChatWindow.svelte';
-  import { listChatParticipants, listMessages, joinChat } from '../../api';
-  import { getAuthToken } from '../../utils/auth';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { chatMessageStore } from '../../stores/chatMessageStore';
-  import type { MessageType } from '../../stores/websocketStore';
+  import { onMount, onDestroy } from "svelte";
+  import ChatWindow from "./ChatWindow.svelte";
+  import { listChatParticipants, listMessages, joinChat } from "../../api";
+  import { getAuthToken } from "../../utils/auth";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { chatMessageStore } from "../../stores/chatMessageStore";
+  import type { MessageType } from "../../stores/websocketStore";
 
-  const logger = createLoggerWithPrefix('ChatContainer');
+  const logger = createLoggerWithPrefix("ChatContainer");
 
   export let chatId: string;
 
@@ -36,7 +36,7 @@
   };
 
   let participants: BasicUser[] = [];
-  let userId = '';
+  let userId = "";
   let isLoading = true;
   let error: string | null = null;
   let messages: ChatMessage[] = [];
@@ -52,8 +52,8 @@
 
       window.location.reload();
     } catch (err: any) {
-      logger.error('Failed to join chat:', err);
-      error = err.message || 'Failed to join chat. Please try again.';
+      logger.error("Failed to join chat:", err);
+      error = err.message || "Failed to join chat. Please try again.";
       isJoiningChat = false;
     }
   }
@@ -64,54 +64,54 @@
     if (token) {
       try {
 
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(atob(base64).split("").map(c => {
+          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(""));
 
         const tokenData = JSON.parse(jsonPayload);
-        userId = tokenData.user_id || tokenData.sub || '';
-        console.log('[ChatContainer] Extracted user ID from token:', userId);
+        userId = tokenData.user_id || tokenData.sub || "";
+        console.log("[ChatContainer] Extracted user ID from token:", userId);
       } catch (e) {
-        logger.error('Failed to extract userID from token:', e);
-        console.error('[ChatContainer] Auth token parsing error:', e);
+        logger.error("Failed to extract userID from token:", e);
+        console.error("[ChatContainer] Auth token parsing error:", e);
       }
     } else {
-      console.warn('[ChatContainer] No authentication token found');
+      console.warn("[ChatContainer] No authentication token found");
     }
 
     try {
       isLoading = true;
-      console.log('[ChatContainer] Loading chat data for chat ID:', chatId);
+      console.log("[ChatContainer] Loading chat data for chat ID:", chatId);
 
       try {
         const participantsResponse = await listChatParticipants(chatId);
-        console.log('[ChatContainer] Participants response:', participantsResponse);
+        console.log("[ChatContainer] Participants response:", participantsResponse);
 
         if (participantsResponse && participantsResponse.participants) {
           participants = participantsResponse.participants.map((p: any) => ({
             id: p.user_id || p.id,
-            username: p.username || '',
-            display_name: p.display_name || p.name || p.username || 'Unknown User',
+            username: p.username || "",
+            display_name: p.display_name || p.name || p.username || "Unknown User",
             avatar_url: p.avatar_url || p.profile_picture_url || null
           }));
-          console.log('[ChatContainer] Processed participants:', participants);
+          console.log("[ChatContainer] Processed participants:", participants);
         } else if (participantsResponse && Array.isArray(participantsResponse)) {
 
           participants = participantsResponse.map((p: any) => ({
             id: p.user_id || p.id,
-            username: p.username || '',
-            display_name: p.display_name || p.name || p.username || 'Unknown User',
+            username: p.username || "",
+            display_name: p.display_name || p.name || p.username || "Unknown User",
             avatar_url: p.avatar_url || p.profile_picture_url || null
           }));
         }
       } catch (participantsError: any) {
-        console.error('[ChatContainer] Failed to load participants:', participantsError);
+        console.error("[ChatContainer] Failed to load participants:", participantsError);
 
-        if (participantsError.message && participantsError.message.includes('not a participant in this chat')) {
+        if (participantsError.message && participantsError.message.includes("not a participant in this chat")) {
           isParticipantError = true;
-          error = 'You are not a participant in this chat. Please join the chat first.';
+          error = "You are not a participant in this chat. Please join the chat first.";
         }
 
       }
@@ -120,7 +120,7 @@
 
         try {
           const messagesResponse = await listMessages(chatId);
-          console.log('[ChatContainer] Messages response:', messagesResponse);
+          console.log("[ChatContainer] Messages response:", messagesResponse);
 
           if (messagesResponse && messagesResponse.messages) {
             messages = messagesResponse.messages;
@@ -128,20 +128,20 @@
 
             messages = messagesResponse;
           } else {
-            console.warn('[ChatContainer] Invalid or empty messages response');
-            messages = []; 
+            console.warn("[ChatContainer] Invalid or empty messages response");
+            messages = [];
           }
         } catch (messagesError: any) {
-          console.error('[ChatContainer] Failed to load messages:', messagesError);
+          console.error("[ChatContainer] Failed to load messages:", messagesError);
 
-          if (messagesError.message && messagesError.message.includes('not a participant in this chat')) {
+          if (messagesError.message && messagesError.message.includes("not a participant in this chat")) {
             isParticipantError = true;
-            error = 'You are not a participant in this chat. Please join the chat first.';
+            error = "You are not a participant in this chat. Please join the chat first.";
           } else {
-            error = messagesError instanceof Error ? messagesError.message : 'Failed to load messages';
+            error = messagesError instanceof Error ? messagesError.message : "Failed to load messages";
           }
 
-          messages = []; 
+          messages = [];
         }
       }
 
@@ -149,25 +149,25 @@
         messages.forEach(message => {
 
           let sender = message.user;
-          const senderId = message.user_id || message.sender_id || '';
+          const senderId = message.user_id || message.sender_id || "";
 
           if (!sender && participants.length > 0) {
             sender = participants.find(p => p.id === senderId || p.user_id === senderId);
           }
 
-          const messageId = message.message_id || message.id || '';
+          const messageId = message.message_id || message.id || "";
 
           let messageTimestamp;
-          if (typeof message.timestamp === 'number') {
+          if (typeof message.timestamp === "number") {
             messageTimestamp = new Date(message.timestamp * 1000);
-          } else if (typeof message.timestamp === 'string') {
+          } else if (typeof message.timestamp === "string") {
             messageTimestamp = new Date(message.timestamp);
           } else {
             messageTimestamp = new Date();
           }
 
           const storeMessage = {
-            type: 'text' as MessageType,
+            type: "text" as MessageType,
             content: message.content,
             user_id: senderId,
             chat_id: chatId,
@@ -177,9 +177,9 @@
             is_deleted: message.is_deleted || false,
             is_edited: message.is_edited || false,
             user: {
-              id: senderId || 'unknown',
-              username: sender?.username || 'Unknown',
-              name: sender?.display_name || sender?.name || 'Unknown User',
+              id: senderId || "unknown",
+              username: sender?.username || "Unknown",
+              name: sender?.display_name || sender?.name || "Unknown User",
               profile_picture_url: sender?.avatar_url || sender?.profile_picture_url
             }
           };
@@ -194,24 +194,24 @@
 
       isLoading = false;
     } catch (err: unknown) {
-      logger.error('Error loading chat data:', err);
-      console.error('[ChatContainer] Error details:', err instanceof Error ? err.message : err);
+      logger.error("Error loading chat data:", err);
+      console.error("[ChatContainer] Error details:", err instanceof Error ? err.message : err);
 
-      if (err instanceof Error && err.message.includes('not a participant in this chat')) {
+      if (err instanceof Error && err.message.includes("not a participant in this chat")) {
         isParticipantError = true;
-        error = 'You are not a participant in this chat. Please join the chat first.';
+        error = "You are not a participant in this chat. Please join the chat first.";
       } else {
-        error = err instanceof Error ? err.message : 'Failed to load chat';
+        error = err instanceof Error ? err.message : "Failed to load chat";
       }
 
       isLoading = false;
 
       if (err instanceof Error && (
-          err.message.includes('authentication') || 
-          err.message.includes('UNAUTHORIZED')
+          err.message.includes("authentication") ||
+          err.message.includes("UNAUTHORIZED")
       )) {
-        console.error('[ChatContainer] Authentication error detected');
-        error = 'Authentication error. Please try logging in again.';
+        console.error("[ChatContainer] Authentication error detected");
+        error = "Authentication error. Please try logging in again.";
       }
     }
   });
@@ -234,7 +234,7 @@
       {#if isParticipantError}
         <div class="action-buttons">
           <button on:click={handleJoinChat} disabled={isJoiningChat}>
-            {isJoiningChat ? 'Joining...' : 'Join Chat'}
+            {isJoiningChat ? "Joining..." : "Join Chat"}
           </button>
           <button on:click={() => window.history.back()}>Go Back</button>
         </div>
@@ -250,17 +250,17 @@
     <div class="chat-header">
       {#if participants.length > 0}
         <div class="participant-info">
-          {#if chatId.startsWith('group_') || participants.length > 2}
+          {#if chatId.startsWith("group_") || participants.length > 2}
             <h3>Group Chat</h3>
           {:else}
             <h3>Chat with: {participants.filter(p => p.user_id !== userId && p.id !== userId)
-              .map(p => p.display_name || p.username || 'Unknown User')
-              .join(', ') || 'Unknown User'}</h3>
+              .map(p => p.display_name || p.username || "Unknown User")
+              .join(", ") || "Unknown User"}</h3>
           {/if}
         </div>
       {/if}
     </div>
-    <ChatWindow 
+    <ChatWindow
       {chatId}
       {userId}
       {participants}

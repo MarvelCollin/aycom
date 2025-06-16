@@ -1,9 +1,9 @@
-import { createLoggerWithPrefix } from '../utils/logger';
-import appConfig from '../config/appConfig';
-import { getAuthToken, getUserId } from '../utils/auth';
+import { createLoggerWithPrefix } from "../utils/logger";
+import appConfig from "../config/appConfig";
+import { getAuthToken, getUserId } from "../utils/auth";
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const logger = createLoggerWithPrefix('ChatAPI');
+const logger = createLoggerWithPrefix("ChatAPI");
 
 let messageHandler: ((message: any) => void) | null = null;
 
@@ -13,33 +13,33 @@ export function setMessageHandler(handler: (message: any) => void) {
 
 export function processWebSocketMessage(message: any) {
   try {
-    logger.debug('Processing WebSocket message:', message);
+    logger.debug("Processing WebSocket message:", message);
 
   if (!message || !message.type) {
-      logger.warn('Invalid WebSocket message format:', message);
+      logger.warn("Invalid WebSocket message format:", message);
     return;
   }
 
   switch (message.type) {
-    case 'text':
+    case "text":
         handleIncomingTextMessage(message);
       break;
-    case 'typing':
+    case "typing":
       break;
-    case 'read':
+    case "read":
       break;
-    case 'delete':
+    case "delete":
       break;
-    case 'edit':
+    case "edit":
       break;
-      case 'connection_status':
-        logger.info('WebSocket connection status:', message.status);
+      case "connection_status":
+        logger.info("WebSocket connection status:", message.status);
         break;
     default:
-        logger.warn('Unknown WebSocket message type:', message.type);
+        logger.warn("Unknown WebSocket message type:", message.type);
     }
   } catch (error) {
-    logger.error('Error processing WebSocket message:', error);
+    logger.error("Error processing WebSocket message:", error);
   }
 }
 
@@ -49,7 +49,7 @@ function extractTempIdFromMessage(message: any): string | null {
       return message.temp_id;
   }
 
-    if (message && message.content && typeof message.content === 'string' && message.content.startsWith('temp-')) {
+    if (message && message.content && typeof message.content === "string" && message.content.startsWith("temp-")) {
       const match = message.content.match(/temp-(\d+)/);
       if (match && match[1]) {
         return `temp-${match[1]}`;
@@ -58,38 +58,38 @@ function extractTempIdFromMessage(message: any): string | null {
 
   return null;
   } catch (error) {
-    logger.error('Error extracting temp ID from message:', error);
+    logger.error("Error extracting temp ID from message:", error);
     return null;
   }
 }
 
 function handleIncomingTextMessage(message: any) {
-  logger.debug('Handling incoming text message:', message);
-  
+  logger.debug("Handling incoming text message:", message);
+
   const processedMessage = {
     id: message.id || message.message_id,
     chat_id: message.chat_id,
     content: message.content,
     sender_id: message.user_id || message.sender_id,
-    sender_name: message.sender_name || 'User',
+    sender_name: message.sender_name || "User",
     sender_avatar: message.sender_avatar,
     timestamp: message.timestamp ? new Date(message.timestamp).toISOString() : new Date().toISOString(),
     is_read: message.is_read || false,
     is_edited: message.is_edited || false,
     is_deleted: message.is_deleted || false
   };
-  
+
   const tempId = extractTempIdFromMessage(message);
-  
+
   if (messageHandler) {
     try {
       messageHandler({
         ...processedMessage,
         temp_id: tempId,
-        type: 'text'
+        type: "text"
       });
     } catch (handlerError) {
-      logger.error('Error in message handler:', handlerError);
+      logger.error("Error in message handler:", handlerError);
     }
   }
 }
@@ -97,23 +97,23 @@ function handleIncomingTextMessage(message: any) {
 export async function createChat(data: Record<string, any>) {
   try {
     if (!data) {
-      logger.error('Cannot create chat: Missing data');
-      throw new Error('Missing data: chat creation data is required');
+      logger.error("Cannot create chat: Missing data");
+      throw new Error("Missing data: chat creation data is required");
     }
-    
-    if (data.type === 'individual' && (!data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
-      logger.error('Cannot create chat: Missing participants for individual chat');
-      throw new Error('Missing required data: participants array is required for individual chat');
+
+    if (data.type === "individual" && (!data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
+      logger.error("Cannot create chat: Missing participants for individual chat");
+      throw new Error("Missing required data: participants array is required for individual chat");
     }
-    
-    if (data.type === 'group' && (!data.name || !data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
-      logger.error('Cannot create chat: Missing name or participants for group chat');
-      throw new Error('Missing required data: name and participants are required for group chat');
+
+    if (data.type === "group" && (!data.name || !data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
+      logger.error("Cannot create chat: Missing name or participants for group chat");
+      throw new Error("Missing required data: name and participants are required for group chat");
     }
-    
+
     if (data.participants && Array.isArray(data.participants)) {
       for (const participantId of data.participants) {
-        if (typeof participantId === 'string' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId)) {
+        if (typeof participantId === "string" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId)) {
           logger.error(`Cannot create chat: Invalid UUID format for participant ID: ${participantId}`);
           throw new Error(`Invalid participant ID format: ${participantId} must be a valid UUID`);
         }
@@ -121,18 +121,18 @@ export async function createChat(data: Record<string, any>) {
     }
 
     const token = getAuthToken();
-    logger.debug('Creating chat with data', { data, apiUrl: `${API_BASE_URL}/chats` });
+    logger.debug("Creating chat with data", { data, apiUrl: `${API_BASE_URL}/chats` });
 
-    if (data.type === 'individual' && data.participants && data.participants.length === 1) {
+    if (data.type === "individual" && data.participants && data.participants.length === 1) {
       const participantId = data.participants[0];
       const currentUserId = getUserId();
 
       try {
         const existingChats = await getChatHistoryList();
-        logger.debug('Checking existing chats for participant', { 
-          participantId, 
+        logger.debug("Checking existing chats for participant", {
+          participantId,
           currentUserId,
-          chatsCount: existingChats.chats?.length || 0 
+          chatsCount: existingChats.chats?.length || 0
         });
 
         const existingChat = existingChats.chats?.find(chat => {
@@ -148,44 +148,44 @@ export async function createChat(data: Record<string, any>) {
             return false;
           }
 
-          const hasCurrentUser = chat.participants.some(p => 
+          const hasCurrentUser = chat.participants.some(p =>
             (p.id === currentUserId || p.user_id === currentUserId)
           );
-          
-          const hasTargetUser = chat.participants.some(p => 
+
+          const hasTargetUser = chat.participants.some(p =>
             (p.id === participantId || p.user_id === participantId)
           );
-          
+
           return hasCurrentUser && hasTargetUser;
         });
 
         if (existingChat) {
-          logger.debug('Found existing chat with this participant', { chatId: existingChat.id });
-          return { 
+          logger.debug("Found existing chat with this participant", { chatId: existingChat.id });
+          return {
             success: true,
             chat: existingChat
           };
         }
       } catch (err) {
-        logger.warn('Error checking existing chats:', err);
+        logger.warn("Error checking existing chats:", err);
       }
     }
 
     const response = await fetch(`${API_BASE_URL}/chats`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
       },
       body: JSON.stringify(data)
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         try {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create chat');
+          throw new Error(errorData.message || "Failed to create chat");
         } catch (parseError) {
           throw new Error(`Failed to create chat: ${response.status} ${response.statusText}`);
         }
@@ -194,15 +194,15 @@ export async function createChat(data: Record<string, any>) {
       }
     }
 
-    const contentLength = response.headers.get('content-length');
-    if (contentLength === '0') {
-      logger.warn('Empty response received from create chat endpoint');
+    const contentLength = response.headers.get("content-length");
+    if (contentLength === "0") {
+      logger.warn("Empty response received from create chat endpoint");
       return {
         success: true,
         chat: {
           id: `temp-${Date.now()}`,
-          name: data.name || 'New Chat',
-          is_group_chat: data.type === 'group',
+          name: data.name || "New Chat",
+          is_group_chat: data.type === "group",
           created_at: new Date().toISOString(),
           participants: data.participants || []
         }
@@ -211,50 +211,50 @@ export async function createChat(data: Record<string, any>) {
 
     try {
       const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
-        logger.warn('Empty response body from create chat endpoint');
+      if (!responseText || responseText.trim() === "") {
+        logger.warn("Empty response body from create chat endpoint");
         return {
           success: true,
           chat: {
             id: `temp-${Date.now()}`,
-            name: data.name || 'New Chat',
-            is_group_chat: data.type === 'group',
+            name: data.name || "New Chat",
+            is_group_chat: data.type === "group",
             created_at: new Date().toISOString(),
             participants: data.participants || []
           }
         };
       }
-      
+
       const jsonResponse = JSON.parse(responseText);
-      logger.debug('Chat creation response', { jsonResponse });
-      
-      logger.debug('Chat response analysis', { 
-        hasSuccess: jsonResponse && typeof jsonResponse.success === 'boolean',
+      logger.debug("Chat creation response", { jsonResponse });
+
+      logger.debug("Chat response analysis", {
+        hasSuccess: jsonResponse && typeof jsonResponse.success === "boolean",
         successValue: jsonResponse?.success,
         hasData: jsonResponse && jsonResponse.data !== undefined,
-        dataType: jsonResponse?.data ? typeof jsonResponse.data : 'undefined', 
+        dataType: jsonResponse?.data ? typeof jsonResponse.data : "undefined",
         hasChat: jsonResponse && jsonResponse.chat !== undefined,
-        chatType: jsonResponse?.chat ? typeof jsonResponse.chat : 'undefined',
-        responseKeys: jsonResponse ? Object.keys(jsonResponse) : [] 
+        chatType: jsonResponse?.chat ? typeof jsonResponse.chat : "undefined",
+        responseKeys: jsonResponse ? Object.keys(jsonResponse) : []
       });
-      
+
       if (jsonResponse && jsonResponse.success === true && jsonResponse.data) {
-        logger.debug('Using success+data response format');
+        logger.debug("Using success+data response format");
         return jsonResponse.data;
       } else if (jsonResponse && jsonResponse.chat) {
-        logger.debug('Using direct chat object response format');
+        logger.debug("Using direct chat object response format");
         return jsonResponse;
-      } else if (jsonResponse && typeof jsonResponse === 'object') {
-        logger.debug('Using generic object response format');
+      } else if (jsonResponse && typeof jsonResponse === "object") {
+        logger.debug("Using generic object response format");
         return jsonResponse;
       } else {
-        logger.warn('Unexpected chat response format, creating fallback', { jsonResponse });
+        logger.warn("Unexpected chat response format, creating fallback", { jsonResponse });
         return {
           chat: {
             id: `fallback-${Date.now()}`,
-            name: data.name || 'Chat',
-            is_group_chat: data.type === 'group',
-            created_by: 'current-user',
+            name: data.name || "Chat",
+            is_group_chat: data.type === "group",
+            created_by: "current-user",
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             participants: data.participants || []
@@ -262,11 +262,11 @@ export async function createChat(data: Record<string, any>) {
         };
       }
     } catch (parseError) {
-      logger.error('Failed to parse JSON response for chat creation:', parseError);
+      logger.error("Failed to parse JSON response for chat creation:", parseError);
       throw new Error(`Failed to parse response when creating chat: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
-    logger.error('Create chat failed:', error);
+    logger.error("Create chat failed:", error);
     throw error;
   }
 }
@@ -274,40 +274,40 @@ export async function createChat(data: Record<string, any>) {
 export async function listChats() {
   try {
     const token = getAuthToken();
-    logger.debug('Fetching chat list');
-    
+    logger.debug("Fetching chat list");
+
     logger.info(`API URL for chats: ${API_BASE_URL}/chats`);
 
     const response = await fetch(`${API_BASE_URL}/chats`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     logger.info(`Chat list response status: ${response.status} ${response.statusText}`);
-    
-    const contentTypeHeader = response.headers.get('content-type');
-    logger.info(`Response content type: ${contentTypeHeader || 'not provided'}`);
+
+    const contentTypeHeader = response.headers.get("content-type");
+    logger.info(`Response content type: ${contentTypeHeader || "not provided"}`);
 
     if (!response.ok) {
       try {
         const errorText = await response.text();
         logger.error(`Error response body: ${errorText}`);
       } catch (textError) {
-        logger.error('Could not read error response body', textError);
+        logger.error("Could not read error response body", textError);
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         try {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to list chats');
+          throw new Error(errorData.message || "Failed to list chats");
         } catch (parseError) {
-          logger.error('Could not parse error response as JSON', parseError);
+          logger.error("Could not parse error response as JSON", parseError);
           throw new Error(`Failed to list chats: ${response.status} ${response.statusText}`);
         }
       } else {
@@ -315,34 +315,34 @@ export async function listChats() {
       }
     }
 
-    const contentLength = response.headers.get('content-length');
-    if (contentLength === '0') {
-      logger.warn('Empty response received from list chats endpoint');
+    const contentLength = response.headers.get("content-length");
+    if (contentLength === "0") {
+      logger.warn("Empty response received from list chats endpoint");
       return { chats: [] };
     }
 
     try {
       const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
-        logger.warn('Empty response body from list chats endpoint');
+      if (!responseText || responseText.trim() === "") {
+        logger.warn("Empty response body from list chats endpoint");
         return { chats: [] };
       }
-      
+
       try {
         const responseData = JSON.parse(responseText);
-        logger.debug('API response structure:', {
+        logger.debug("API response structure:", {
           hasData: !!responseData,
-          hasChats: responseData && 'chats' in responseData,
-          isChatsArray: responseData && 'chats' in responseData && Array.isArray(responseData.chats),
+          hasChats: responseData && "chats" in responseData,
+          isChatsArray: responseData && "chats" in responseData && Array.isArray(responseData.chats),
           chatsLength: responseData?.chats?.length || 0,
           responseKeys: responseData ? Object.keys(responseData) : []
         });
-        
-        if (responseData && 'chats' in responseData && Array.isArray(responseData.chats)) {
+
+        if (responseData && "chats" in responseData && Array.isArray(responseData.chats)) {
           return responseData;
         } else if (Array.isArray(responseData)) {
           return { chats: responseData };
-        } else if (responseData && typeof responseData === 'object') {
+        } else if (responseData && typeof responseData === "object") {
           if (responseData.id && (responseData.name || responseData.participants)) {
             return { chats: [responseData] };
           }
@@ -354,18 +354,18 @@ export async function listChats() {
           return { chats: [] };
         }
       } catch (parseError) {
-        logger.error('Failed to parse JSON response for listing chats:', parseError);
+        logger.error("Failed to parse JSON response for listing chats:", parseError);
         if (responseText) {
-          logger.error('Raw response text:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+          logger.error("Raw response text:", responseText.substring(0, 200) + (responseText.length > 200 ? "..." : ""));
         }
         return { chats: [] };
       }
     } catch (textError) {
-      logger.error('Could not read response text', textError);
+      logger.error("Could not read response text", textError);
       return { chats: [] };
     }
   } catch (error) {
-    logger.error('List chats failed:', error);
+    logger.error("List chats failed:", error);
     throw error;
   }
 }
@@ -375,26 +375,26 @@ export async function listChatParticipants(chatId: string) {
     const token = getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to list chat participants');
+        throw new Error(errorData.message || "Failed to list chat participants");
       } else {
         throw new Error(`Failed to list chat participants: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         const data = await response.json();
         return data;
@@ -417,27 +417,27 @@ export async function addChatParticipant(chatId: string, data: Record<string, an
     const token = getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
       body: JSON.stringify(data),
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to add chat participant');
+        throw new Error(errorData.message || "Failed to add chat participant");
       } else {
         throw new Error(`Failed to add chat participant: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -459,25 +459,25 @@ export async function removeChatParticipant(chatId: string, userId: string) {
     const token = getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants/${userId}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to remove chat participant');
+        throw new Error(errorData.message || "Failed to remove chat participant");
       } else {
         throw new Error(`Failed to remove chat participant: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -496,20 +496,20 @@ export async function removeChatParticipant(chatId: string, userId: string) {
 
 export async function sendMessage(chatId: string, data: Record<string, any>) {
   try {
-    if (!chatId || chatId.trim() === '') {
-      logger.error('Cannot send message: Invalid or missing chat ID');
-      throw new Error('Invalid chat ID: A valid chat ID is required to send messages');
+    if (!chatId || chatId.trim() === "") {
+      logger.error("Cannot send message: Invalid or missing chat ID");
+      throw new Error("Invalid chat ID: A valid chat ID is required to send messages");
     }
-    
+
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
       logger.error(`Cannot send message: Invalid UUID format for chat ID: ${chatId}`);
-      throw new Error('Invalid chat ID format: Must be a valid UUID');
+      throw new Error("Invalid chat ID format: Must be a valid UUID");
     }
 
     const currentUserId = getUserId();
     if (!currentUserId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId)) {
       logger.error(`Cannot send message: Invalid or missing user ID: ${currentUserId}`);
-      throw new Error('Invalid user ID: Please try logging in again');
+      throw new Error("Invalid user ID: Please try logging in again");
     }
 
     const token = getAuthToken();
@@ -517,56 +517,56 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
 
     // Explicitly create the message data object with proper validation
     const messageData = {
-      content: (data.content || '').trim() // Ensure content field exists, is properly named (lowercase), and trimmed
+      content: (data.content || "").trim() // Ensure content field exists, is properly named (lowercase), and trimmed
     };
-    
+
     // Validate content is not empty
     if (!messageData.content || messageData.content.length === 0) {
-      logger.error('Cannot send empty message');
-      throw new Error('Message content cannot be empty');
+      logger.error("Cannot send empty message");
+      throw new Error("Message content cannot be empty");
     }
-    
+
     // Add attachments if they exist (as a separate property, not through spread)
     if (data.attachments && data.attachments.length > 0) {
-      messageData['attachments'] = data.attachments;
+      messageData["attachments"] = data.attachments;
     }
-    
+
     // Stringify the JSON directly for more control
     const jsonBody = JSON.stringify(messageData);
-    logger.debug('Message payload being sent (raw JSON):', jsonBody);
+    logger.debug("Message payload being sent (raw JSON):", jsonBody);
 
     const requestUrl = `${API_BASE_URL}/chats/${chatId}/messages`;
     logger.info(`Making API request to: ${requestUrl}`);
-    logger.debug('Request payload:', messageData);
-    logger.debug('Using auth token:', token ? `${token.substring(0, 10)}...` : 'none');
+    logger.debug("Request payload:", messageData);
+    logger.debug("Using auth token:", token ? `${token.substring(0, 10)}...` : "none");
 
     try {
       const response = await fetch(requestUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
         },
         body: jsonBody, // Use our pre-stringified JSON
-        credentials: 'include'
+        credentials: "include"
       });
-      
+
       logger.debug(`Response status: ${response.status} ${response.statusText}`);
       const responseHeaders = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key] = value;
       });
-      logger.debug('Response headers:', responseHeaders);
+      logger.debug("Response headers:", responseHeaders);
 
       if (!response.ok) {
         let errorMessage = `Server error when sending message: ${response.status} ${response.statusText}`;
         logger.warn(errorMessage);
-        
+
         try {
           const errorResponse = await response.json();
-          logger.debug('Error response body:', errorResponse);
+          logger.debug("Error response body:", errorResponse);
           if (errorResponse && errorResponse.error) {
-            if (typeof errorResponse.error === 'string') {
+            if (typeof errorResponse.error === "string") {
               errorMessage = errorResponse.error;
             } else if (errorResponse.error.message) {
               errorMessage = errorResponse.error.message;
@@ -574,32 +574,32 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           } else if (errorResponse && errorResponse.message) {
             errorMessage = errorResponse.message;
           }
-          
-          logger.error(`API error details:`, errorResponse);
+
+          logger.error("API error details:", errorResponse);
         } catch (parseError) {
           logger.error(`Could not parse error response: ${parseError}`);
           try {
             const rawErrorText = await response.text();
-            logger.debug('Raw error response:', rawErrorText);
+            logger.debug("Raw error response:", rawErrorText);
           } catch (textError) {
-            logger.error('Could not read raw error response:', textError);
+            logger.error("Could not read raw error response:", textError);
           }
         }
 
         if (response.status === 404) {
-          throw new Error('Chat not found. It may have been deleted or you may not have access.');
+          throw new Error("Chat not found. It may have been deleted or you may not have access.");
         } else if (response.status === 403) {
-          throw new Error('You do not have permission to send messages in this chat.');
+          throw new Error("You do not have permission to send messages in this chat.");
         } else if (response.status === 401) {
-          throw new Error('Authentication required. Please log in again.');
+          throw new Error("Authentication required. Please log in again.");
         } else if (response.status === 400) {
           throw new Error(`Invalid message: ${errorMessage}`);
         } else if (response.status === 500) {
-          if (errorMessage.includes('user ID') || errorMessage.includes('UUID')) {
+          if (errorMessage.includes("user ID") || errorMessage.includes("UUID")) {
             logger.error(`User ID validation error detected: ${errorMessage}`);
-            throw new Error('Session error: Please log out and log in again.');
+            throw new Error("Session error: Please log out and log in again.");
           }
-          
+
           // For server errors, don't use fallback - throw the actual error
           throw new Error(`Server error: ${errorMessage}`);
         } else {
@@ -608,23 +608,23 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
       }
 
       const responseText = await response.text();
-      logger.debug('Raw response text:', responseText);
-      
-      if (!responseText || responseText.trim() === '') {
+      logger.debug("Raw response text:", responseText);
+
+      if (!responseText || responseText.trim() === "") {
         logger.error(`Empty response for sending message to chat ${chatId}`);
-        throw new Error('Server returned empty response');
+        throw new Error("Server returned empty response");
       }
 
       try {
         const responseData = JSON.parse(responseText);
-        logger.debug(`Message sent successfully to chat ${chatId}`, { 
+        logger.debug(`Message sent successfully to chat ${chatId}`, {
           messageId: responseData.message?.id || responseData.message?.message_id,
           responseData
         });
         return responseData;
       } catch (parseError) {
         logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
-        throw new Error('Invalid response from server');
+        throw new Error("Invalid response from server");
       }
     } catch (apiError) {
       if (apiError instanceof Error) {
@@ -632,7 +632,7 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         throw apiError;
       } else {
         logger.error(`Unknown API error when sending message to ${chatId}:`, apiError);
-        throw new Error('Failed to send message due to a network error');
+        throw new Error("Failed to send message due to a network error");
       }
     }
   } catch (error) {
@@ -644,8 +644,8 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
 export async function listMessages(chatId: string) {
   try {
     if (!chatId) {
-      logger.error('Cannot list messages: Chat ID is undefined or empty');
-      throw new Error('Invalid chat ID: Chat ID is required');
+      logger.error("Cannot list messages: Chat ID is undefined or empty");
+      throw new Error("Invalid chat ID: Chat ID is required");
     }
 
     const token = getAuthToken();
@@ -654,40 +654,40 @@ export async function listMessages(chatId: string) {
     logger.info(`API URL for messages: ${API_BASE_URL}/chats/${chatId}/messages`);
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     logger.info(`Messages response status: ${response.status} ${response.statusText}`);
-    
-    const contentTypeHeader = response.headers.get('content-type');
-    logger.info(`Response content type: ${contentTypeHeader || 'not provided'}`);
+
+    const contentTypeHeader = response.headers.get("content-type");
+    logger.info(`Response content type: ${contentTypeHeader || "not provided"}`);
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         try {
           const errorData = await response.json();
-          logger.error('Error response from message list endpoint', errorData);
-          
+          logger.error("Error response from message list endpoint", errorData);
+
           if (errorData.error && errorData.error.message) {
             throw new Error(errorData.error.message);
           } else if (errorData.message) {
             throw new Error(errorData.message);
-          } else if (errorData.error && typeof errorData.error === 'string') {
+          } else if (errorData.error && typeof errorData.error === "string") {
             throw new Error(errorData.error);
           } else if (errorData.success === false) {
-            throw new Error('Failed to list messages: Request failed');
+            throw new Error("Failed to list messages: Request failed");
           } else {
-            throw new Error('Failed to list messages: Unknown error');
+            throw new Error("Failed to list messages: Unknown error");
           }
         } catch (parseError) {
-          if (parseError instanceof Error && parseError.message !== 'Failed to list messages: Unknown error') {
+          if (parseError instanceof Error && parseError.message !== "Failed to list messages: Unknown error") {
             throw parseError;
           }
           throw new Error(`Failed to list messages: ${response.status} ${response.statusText}`);
@@ -697,40 +697,40 @@ export async function listMessages(chatId: string) {
       }
     }
 
-    const contentLength = response.headers.get('content-length');
-    if (contentLength === '0') {
+    const contentLength = response.headers.get("content-length");
+    if (contentLength === "0") {
       logger.warn(`Empty response received from messages endpoint for chat ${chatId}`);
       return { messages: [] };
     }
 
     try {
       const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
+      if (!responseText || responseText.trim() === "") {
         logger.warn(`Empty response body from messages endpoint for chat ${chatId}`);
         return { messages: [] };
       }
-      
+
       try {
         const responseData = JSON.parse(responseText);
-        logger.debug('API messages response structure:', {
+        logger.debug("API messages response structure:", {
           hasData: !!responseData,
-          hasSuccess: responseData && 'success' in responseData,
-          hasMessages: responseData && 'messages' in responseData,
-          hasDataObject: responseData && 'data' in responseData,
-          isMessagesArray: responseData && 'messages' in responseData && Array.isArray(responseData.messages),
+          hasSuccess: responseData && "success" in responseData,
+          hasMessages: responseData && "messages" in responseData,
+          hasDataObject: responseData && "data" in responseData,
+          isMessagesArray: responseData && "messages" in responseData && Array.isArray(responseData.messages),
           messagesLength: responseData?.messages?.length || 0,
           responseKeys: responseData ? Object.keys(responseData) : []
         });
-        
+
         if (responseData && responseData.success && responseData.data && responseData.data.messages) {
           return responseData.data;
-        } else if (responseData && 'messages' in responseData) {
+        } else if (responseData && "messages" in responseData) {
           return responseData;
         } else if (responseData && responseData.data && Array.isArray(responseData.data)) {
           return { messages: responseData.data };
         } else if (Array.isArray(responseData)) {
           return { messages: responseData };
-        } else if (responseData && typeof responseData === 'object') {
+        } else if (responseData && typeof responseData === "object") {
           if (responseData.id && responseData.content) {
             return { messages: [responseData] };
           }
@@ -740,7 +740,7 @@ export async function listMessages(chatId: string) {
         }
       } catch (parseError: unknown) {
         logger.error(`Failed to parse JSON response for chat ${chatId}:`, parseError);
-        logger.error('Raw response text:', responseText.substring(0, 200) + '...');
+        logger.error("Raw response text:", responseText.substring(0, 200) + "...");
         return { messages: [] };
       }
     } catch (textError) {
@@ -758,25 +758,25 @@ export async function deleteMessage(chatId: string, messageId: string) {
     const token = getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/${messageId}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete message');
+        throw new Error(errorData.message || "Failed to delete message");
       } else {
         throw new Error(`Failed to delete message: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -797,26 +797,26 @@ export async function unsendMessage(chatId: string, messageId: string) {
   try {
     const token = getAuthToken();
 
-    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/${messageId}/unsend`, {
-      method: 'POST',
+    const response = await fetch(`${API_BASE_URL}/messages/${messageId}?chat_id=${chatId}`, {
+      method: "DELETE",
       headers: {
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to unsend message');
+        throw new Error(errorData.message || "Failed to unsend message");
       } else {
         throw new Error(`Failed to unsend message: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -838,26 +838,26 @@ export async function searchMessages(chatId: string, query: string) {
     const token = getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages/search?query=${encodeURIComponent(query)}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to search messages');
+        throw new Error(errorData.message || "Failed to search messages");
       } else {
         throw new Error(`Failed to search messages: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -877,49 +877,49 @@ export async function searchMessages(chatId: string, query: string) {
 export async function getChatHistoryList() {
   try {
     const token = getAuthToken();
-    logger.debug('Fetching chat history list');
+    logger.debug("Fetching chat history list");
 
     const response = await fetch(`${API_BASE_URL}/chats/history`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
-    logger.debug('Chat history response status', { 
-      status: response.status, 
+    logger.debug("Chat history response status", {
+      status: response.status,
       statusText: response.statusText
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        logger.error('Error response from chat history endpoint', errorData);
-        throw new Error(errorData.message || 'Failed to get chat history');
+        logger.error("Error response from chat history endpoint", errorData);
+        throw new Error(errorData.message || "Failed to get chat history");
       } else {
         throw new Error(`Failed to get chat history: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         const data = await response.json();
-        
-        logger.debug('API response structure:', { 
+
+        logger.debug("API response structure:", {
           hasData: !!data,
-          hasSuccess: data && 'success' in data,
-          hasChats: data && 'chats' in data,
-          hasDataChats: data && data.data && 'chats' in data.data,
-          isChatsArray: data && 'chats' in data && Array.isArray(data.chats),
-          isDataChatsArray: data && data.data && 'chats' in data.data && Array.isArray(data.data.chats),
+          hasSuccess: data && "success" in data,
+          hasChats: data && "chats" in data,
+          hasDataChats: data && data.data && "chats" in data.data,
+          isChatsArray: data && "chats" in data && Array.isArray(data.chats),
+          isDataChatsArray: data && data.data && "chats" in data.data && Array.isArray(data.data.chats),
           chatsLength: data?.chats?.length || (data?.data?.chats?.length) || 0,
           responseKeys: data ? Object.keys(data) : []
         });
-        
+
         if (data && data.data && data.data.chats) {
           return {
             chats: data.data.chats
@@ -931,126 +931,126 @@ export async function getChatHistoryList() {
             chats: data
           };
         } else {
-          logger.warn('Unexpected response format from chat history endpoint', data);
+          logger.warn("Unexpected response format from chat history endpoint", data);
           return { chats: [] };
         }
       } catch (parseError: unknown) {
-        logger.error('Failed to parse JSON response for getting chat history:', parseError);
+        logger.error("Failed to parse JSON response for getting chat history:", parseError);
         return { chats: [] };
       }
     } else {
-      logger.warn('Non-JSON response for getting chat history');
+      logger.warn("Non-JSON response for getting chat history");
       return { chats: [] };
     }
   } catch (error) {
-    logger.error('Get chat history failed:', error);
+    logger.error("Get chat history failed:", error);
     throw error;
   }
 }
 
 export async function testApiConnection() {
   try {
-    logger.debug('Testing API connection');
-    
-    const baseUrlComponents = API_BASE_URL.split('/');
+    logger.debug("Testing API connection");
+
+    const baseUrlComponents = API_BASE_URL.split("/");
     if (baseUrlComponents.length < 3) {
-      logger.error('Invalid API URL format:', API_BASE_URL);
-      return { success: false, error: 'Invalid API URL format', url: API_BASE_URL };
+      logger.error("Invalid API URL format:", API_BASE_URL);
+      return { success: false, error: "Invalid API URL format", url: API_BASE_URL };
     }
-    
+
     const protocol = baseUrlComponents[0];
     const host = baseUrlComponents[2];
-    
+
     logger.debug(`API Protocol: ${protocol}, Host: ${host}`);
-    
+
     try {
       const basicResponse = await fetch(`${protocol}//${host}/`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Accept': 'text/html,application/json'
+          "Accept": "text/html,application/json"
         }
       });
-      
+
       logger.debug(`Basic server response: ${basicResponse.status}`);
     } catch (err) {
-      logger.warn('Basic connectivity check failed:', err);
+      logger.warn("Basic connectivity check failed:", err);
     }
-    
+
     const token = getAuthToken();
-    
+
     if (token) {
       try {
-        logger.debug('Testing authenticated chats endpoint');
+        logger.debug("Testing authenticated chats endpoint");
         const chatResponse = await fetch(`${API_BASE_URL}/chats`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": `Bearer ${token}`
           }
         });
-        
+
         logger.debug(`Chats endpoint response: ${chatResponse.status}`);
-        
+
         if (chatResponse.ok) {
           return {
             success: true,
             status: chatResponse.status,
-            endpoint: '/chats',
+            endpoint: "/chats",
             authenticated: true
           };
         }
       } catch (chatErr) {
-        logger.debug('Failed to test authenticated chats endpoint:', chatErr);
+        logger.debug("Failed to test authenticated chats endpoint:", chatErr);
       }
     }
-    
+
     const endpointsToTry = [
-      '/api/v1/chats',
-      '/api/v1/users/me',
-      '/api/v1/trends',
-      '/api/v1/health',
-      '/api/v1'
+      "/api/v1/chats",
+      "/api/v1/users/me",
+      "/api/v1/trends",
+      "/api/v1/health",
+      "/api/v1"
     ];
-    
+
     let successful = false;
     let status = 0;
     let responseData = null;
-    let errorMessage = '';
-    let testedEndpoint = '';
-    
+    let errorMessage = "";
+    let testedEndpoint = "";
+
     for (const endpoint of endpointsToTry) {
       try {
         logger.debug(`Testing API endpoint: ${endpoint}`);
         const apiResponse = await fetch(`${protocol}//${host}${endpoint}`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : ''
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": token ? `Bearer ${token}` : ""
           }
         });
-        
+
         status = apiResponse.status;
         logger.debug(`API endpoint ${endpoint} response: ${status}`);
-        
-        if (endpoint === '/api/v1/chats' && apiResponse.ok) {
+
+        if (endpoint === "/api/v1/chats" && apiResponse.ok) {
           successful = true;
           testedEndpoint = endpoint;
-          
+
           try {
             responseData = await apiResponse.json();
             logger.debug(`API response data from ${endpoint}:`, responseData);
           } catch (e) {
             logger.debug(`Could not parse JSON from ${endpoint} response`);
           }
-          
+
           break;
         }
-        else if ((endpoint === '/api/v1' && status === 404) || apiResponse.ok) {
+        else if ((endpoint === "/api/v1" && status === 404) || apiResponse.ok) {
           successful = true;
           testedEndpoint = endpoint;
-          
+
           if (apiResponse.ok) {
             try {
               responseData = await apiResponse.json();
@@ -1059,8 +1059,8 @@ export async function testApiConnection() {
               logger.debug(`Could not parse JSON from ${endpoint} response`);
             }
           }
-          
-          if (endpoint !== '/api/v1' || endpointsToTry.indexOf(endpoint) === endpointsToTry.length - 1) {
+
+          if (endpoint !== "/api/v1" || endpointsToTry.indexOf(endpoint) === endpointsToTry.length - 1) {
             break;
           }
         } else {
@@ -1070,7 +1070,7 @@ export async function testApiConnection() {
         logger.debug(`Failed to connect to ${endpoint}:`, endpointErr);
       }
     }
-    
+
     if (successful) {
       return {
         success: true,
@@ -1081,15 +1081,15 @@ export async function testApiConnection() {
     } else {
       return {
         success: false,
-        error: errorMessage || 'Could not connect to any API endpoint',
+        error: errorMessage || "Could not connect to any API endpoint",
         testedEndpoints: endpointsToTry
       };
     }
   } catch (error) {
-    logger.error('API connection test failed:', error);
+    logger.error("API connection test failed:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error"
     };
   }
 }
@@ -1098,66 +1098,66 @@ export function logAuthTokenInfo() {
   try {
     const token = getAuthToken();
     if (!token) {
-      logger.error('No auth token found');
-      return { success: false, error: 'No auth token available' };
+      logger.error("No auth token found");
+      return { success: false, error: "No auth token available" };
     }
-    
-    logger.info('Auth token found, checking format');
-    
-    const parts = token.split('.');
+
+    logger.info("Auth token found, checking format");
+
+    const parts = token.split(".");
     if (parts.length !== 3) {
-      logger.error('Invalid JWT format - expected 3 parts separated by periods');
-      return { success: false, error: 'Invalid JWT format', tokenLength: token.length };
+      logger.error("Invalid JWT format - expected 3 parts separated by periods");
+      return { success: false, error: "Invalid JWT format", tokenLength: token.length };
     }
-    
+
     try {
       const headerJson = atob(parts[0]);
       const header = JSON.parse(headerJson);
-      logger.debug('Token header:', header);
-      
+      logger.debug("Token header:", header);
+
       if (!header.alg) {
-        logger.warn('Token header missing algorithm');
+        logger.warn("Token header missing algorithm");
       }
-      
+
       if (!header.typ) {
-        logger.warn('Token header missing type');
+        logger.warn("Token header missing type");
       }
     } catch (e) {
-      logger.error('Failed to parse token header:', e);
+      logger.error("Failed to parse token header:", e);
     }
-    
+
     try {
       const base64Url = parts[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payloadJson = decodeURIComponent(atob(base64).split('').map(c => {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const payloadJson = decodeURIComponent(atob(base64).split("").map(c => {
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(""));
+
       const payload = JSON.parse(payloadJson);
-      
+
       const safePayload = { ...payload };
       delete safePayload.password;
       delete safePayload.secret;
-      
-      logger.info('Token payload:', safePayload);
-      
+
+      logger.info("Token payload:", safePayload);
+
       if (!payload.exp) {
-        logger.warn('Token missing expiration (exp) claim');
+        logger.warn("Token missing expiration (exp) claim");
       } else {
         const expiry = new Date(payload.exp * 1000);
         const now = new Date();
-        
+
         if (expiry < now) {
           logger.error(`Token expired at ${expiry.toISOString()}`);
         } else {
           logger.info(`Token valid until ${expiry.toISOString()} (${Math.floor((expiry.getTime() - now.getTime()) / 60000)} minutes)`);
         }
       }
-      
+
       if (!payload.sub && !payload.user_id) {
-        logger.warn('Token missing subject (sub) or user_id claim');
+        logger.warn("Token missing subject (sub) or user_id claim");
       }
-      
+
       return {
         success: true,
         isExpired: payload.exp ? new Date(payload.exp * 1000) < new Date() : null,
@@ -1166,12 +1166,12 @@ export function logAuthTokenInfo() {
         issuer: payload.iss || null
       };
     } catch (e) {
-      logger.error('Failed to parse token payload:', e);
-      return { success: false, error: 'Failed to parse token payload' };
+      logger.error("Failed to parse token payload:", e);
+      return { success: false, error: "Failed to parse token payload" };
     }
   } catch (e) {
-    logger.error('Error checking auth token:', e);
-    return { success: false, error: 'Error analyzing token' };
+    logger.error("Error checking auth token:", e);
+    return { success: false, error: "Error analyzing token" };
   }
 }
 
@@ -1181,27 +1181,27 @@ export async function joinChat(chatId: string) {
     logger.debug(`Joining chat ${chatId}`);
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/participants`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
       body: JSON.stringify({ is_admin: false }),
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error?.message || 'Failed to join chat');
+        throw new Error(errorData.message || errorData.error?.message || "Failed to join chat");
       } else {
         throw new Error(`Failed to join chat: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {
@@ -1226,39 +1226,39 @@ export async function joinChat(chatId: string) {
 export async function deleteChat(chatId: string) {
   try {
     if (!chatId) {
-      logger.error('Cannot delete chat: Missing chat ID');
-      throw new Error('Missing chat ID: A valid chat ID is required');
+      logger.error("Cannot delete chat: Missing chat ID");
+      throw new Error("Missing chat ID: A valid chat ID is required");
     }
-    
+
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
       logger.error(`Cannot delete chat: Invalid UUID format for chat ID: ${chatId}`);
-      throw new Error('Invalid chat ID format: Must be a valid UUID');
+      throw new Error("Invalid chat ID format: Must be a valid UUID");
     }
 
     const token = getAuthToken();
     logger.debug(`Deleting chat ${chatId}`);
 
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        "Content-Type": "application/json",
+        "Authorization": token ? `Bearer ${token}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType && contentType.includes("application/json")) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete chat');
+        throw new Error(errorData.message || "Failed to delete chat");
       } else {
         throw new Error(`Failed to delete chat: ${response.status} ${response.statusText}`);
       }
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType && contentType.includes("application/json")) {
       try {
         return await response.json();
       } catch (parseError: unknown) {

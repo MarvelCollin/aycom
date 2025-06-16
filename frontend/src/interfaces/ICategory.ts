@@ -37,4 +37,4 @@ export interface ICategoryRequest {
 export interface ICategoryResponse {
   success: boolean;
   category: ICategory;
-} 
+}

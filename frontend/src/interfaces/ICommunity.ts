@@ -2,8 +2,8 @@
  * Community-related interfaces
  */
 
-import type { IUser } from './IUser';
-import type { IPagination } from './ICommon';
+import type { IUser } from "./IUser";
+import type { IPagination } from "./ICommon";
 
 /**
  * Community interface
@@ -179,6 +179,6 @@ export interface IJoinRequestResponse {
 export interface IMembershipStatusResponse {
   success: boolean;
   data: {
-    status: 'member' | 'pending' | 'none';
+    status: "member" | "pending" | "none";
   };
-} 
+}

@@ -1,4 +1,3 @@
-  /* Main Container */
   .message-container {
     display: grid;
     grid-template-columns: 288px 300px 1fr;
@@ -7,7 +6,6 @@
     color: var(--text-color, black);
   }
 
-  /* Dark mode overrides */
   :global(.dark) .message-container {
     --background-color: black;
     --text-color: white;
@@ -19,7 +17,6 @@
     --input-bg: #1a202c;
   }
 
-  /* Light mode variables */
   .message-container {
     --border-color: #e2e8f0;
     --hover-bg: #f7fafc;
@@ -29,7 +26,6 @@
     --input-bg: #f7fafc;
   }
 
-  /* Left Sidebar */
   .left-sidebar {
     border-right: 1px solid var(--border-color);
     height: 100%;
@@ -37,7 +33,6 @@
     min-width: 288px;
   }
 
-  /* Middle Section */
   .middle-section {
     display: flex;
     flex-direction: column;
@@ -215,7 +210,6 @@
     flex-shrink: 0;
   }
 
-  /* Right Section */
   .right-section {
     display: flex;
     flex-direction: column;

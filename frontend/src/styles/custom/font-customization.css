@@ -1,29 +1,27 @@
-/* Font Size Customization */
 :root.font-small {
-  --font-size-xs: 0.7rem;     /* 11.2px */
-  --font-size-sm: 0.8125rem;  /* 13px */
-  --font-size-base: 0.9375rem; /* 15px */
-  --font-size-lg: 1.0625rem;  /* 17px */
-  --font-size-xl: 1.1875rem;  /* 19px */
-  --font-size-2xl: 1.4375rem; /* 23px */
+  --font-size-xs: 0.7rem;     
+  --font-size-sm: 0.8125rem;  
+  --font-size-base: 0.9375rem; 
+  --font-size-lg: 1.0625rem;  
+  --font-size-xl: 1.1875rem;  
+  --font-size-2xl: 1.4375rem; 
 }
 
 :root.font-medium {
-  /* Default font sizes, defined in base/variables.css */
+
 }
 
 :root.font-large {
-  --font-size-xs: 0.8125rem;  /* 13px */
-  --font-size-sm: 0.9375rem;  /* 15px */
-  --font-size-base: 1.0625rem; /* 17px */
-  --font-size-lg: 1.1875rem;  /* 19px */
-  --font-size-xl: 1.3125rem;  /* 21px */
-  --font-size-2xl: 1.5625rem; /* 25px */
+  --font-size-xs: 0.8125rem;  
+  --font-size-sm: 0.9375rem;  
+  --font-size-base: 1.0625rem; 
+  --font-size-lg: 1.1875rem;  
+  --font-size-xl: 1.3125rem;  
+  --font-size-2xl: 1.5625rem; 
 }
 
-/* Font Color Customization - Light Theme */
 html.text-default {
-  /* Default text colors defined in the theme */
+
 }
 
 html.text-blue {
@@ -44,7 +42,6 @@ html.text-purple {
   --text-tertiary: #c061cb;
 }
 
-/* Font Color Customization - Dark Theme */
 html[data-theme="dark"].text-blue {
   --text-primary: #62a0ea;
   --text-secondary: #3584e4;
@@ -63,7 +60,6 @@ html[data-theme="dark"].text-purple {
   --text-tertiary: #9141ac;
 }
 
-/* Additional selectors to ensure compatibility with different theme implementations */
 :root.text-blue, 
 .light-theme.text-blue,
 .text-blue {
@@ -106,8 +102,6 @@ html[data-theme="dark"].text-purple {
   --text-tertiary: #9141ac;
 }
 
-/* Direct selectors for the settings page - will override any conflicting styles */
-/* Blue text color */
 .text-blue .page-title,
 .text-blue .settings-section-title,
 .text-blue .settings-form-group label,
@@ -115,7 +109,6 @@ html[data-theme="dark"].text-purple {
   color: var(--text-primary) !important;
 }
 
-/* Green text color */
 .text-green .page-title,
 .text-green .settings-section-title,
 .text-green .settings-form-group label,
@@ -123,7 +116,6 @@ html[data-theme="dark"].text-purple {
   color: var(--text-primary) !important;
 }
 
-/* Purple text color */
 .text-purple .page-title,
 .text-purple .settings-section-title,
 .text-purple .settings-form-group label,
@@ -131,7 +123,6 @@ html[data-theme="dark"].text-purple {
   color: var(--text-primary) !important;
 }
 
-/* Light theme specific direct overrides */
 html:not([data-theme="dark"]).text-blue .page-title,
 html:not([data-theme="dark"]).text-blue .settings-section-title,
 html:not([data-theme="dark"]).text-blue .settings-form-group label,
@@ -153,7 +144,6 @@ html:not([data-theme="dark"]).text-purple .settings-toggle-label span {
   color: #613583 !important;
 }
 
-/* Dark theme specific direct overrides */
 html[data-theme="dark"].text-blue .page-title,
 html[data-theme="dark"].text-blue .settings-section-title,
 html[data-theme="dark"].text-blue .settings-form-group label,
@@ -173,4 +163,4 @@ html[data-theme="dark"].text-purple .settings-section-title,
 html[data-theme="dark"].text-purple .settings-form-group label,
 html[data-theme="dark"].text-purple .settings-toggle-label span {
   color: #dc8add !important;
-} 
+}

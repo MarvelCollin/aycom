@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Logo from '../common/Logo.svelte';
+  import Logo from "../common/Logo.svelte";
 
   export let loading = false;
   export let success = false;
@@ -34,7 +34,7 @@
           </div>
         </div>
         <p class="text-green-400 text-xl font-semibold mb-2">Authentication Successful!</p>
-        <p class="text-gray-400">Redirecting to your feed in {redirectCountdown} second{redirectCountdown !== 1 ? 's' : ''}...</p>
+        <p class="text-gray-400">Redirecting to your feed in {redirectCountdown} second{redirectCountdown !== 1 ? "s" : ""}...</p>
       </div>
     {:else if error}
       <div class="mb-6 text-center">
@@ -46,8 +46,8 @@
         <p class="text-red-500 mb-4">
           {error}
         </p>
-        <a 
-          href="/login" 
+        <a
+          href="/login"
           class="mt-4 inline-block px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition"
         >
           Return to login

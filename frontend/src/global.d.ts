@@ -1,7 +1,7 @@
 /// <reference types="svelte" />
 
-declare module 'svelte-feather-icons' {
-  import { SvelteComponentTyped } from 'svelte';
+declare module "svelte-feather-icons" {
+  import { SvelteComponentTyped } from "svelte";
 
   export class ActivityIcon extends SvelteComponentTyped<{
     size?: string;
@@ -191,4 +191,4 @@ declare module 'svelte-feather-icons' {
     variation?: string;
     ariaLabel?: string;
   }> {}
-} 
+}

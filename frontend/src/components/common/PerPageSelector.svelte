@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
 
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   export let perPage: number = 20;
   export let options: number[] = [10, 20, 50, 100];
@@ -14,11 +14,11 @@
   function handleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     const value = parseInt(target.value, 10);
-    dispatch('perPageChange', value);
+    dispatch("perPageChange", value);
   }
 </script>
 
-<div class="per-page-selector {isDarkMode ? 'per-page-selector-dark' : ''}">
+<div class="per-page-selector {isDarkMode ? "per-page-selector-dark" : ""}">
   <label for="perPage">{label}</label>
   <select
     id="perPage"

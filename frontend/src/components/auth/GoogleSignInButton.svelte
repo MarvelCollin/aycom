@@ -1,22 +1,22 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { useExternalServices } from '../../hooks/useExternalServices';
-  import { useAuth } from '../../hooks/useAuth';
-  import { useTheme } from '../../hooks/useTheme';
-  import type { IGoogleCredentialResponse } from '../../interfaces/IAuth';
-  import { clearAuthData } from '../../utils/auth';
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { onMount } from "svelte";
+  import { useExternalServices } from "../../hooks/useExternalServices";
+  import { useAuth } from "../../hooks/useAuth";
+  import { useTheme } from "../../hooks/useTheme";
+  import type { IGoogleCredentialResponse } from "../../interfaces/IAuth";
+  import { clearAuthData } from "../../utils/auth";
+  import { createLoggerWithPrefix } from "../../utils/logger";
 
   export let onAuthSuccess: (result: any) => void = () => {};
   export let onAuthError: (error: string) => void = () => {};
-  export let containerId = 'google-signin-button';
+  export let containerId = "google-signin-button";
 
-  let buttonClass = '';
+  let buttonClass = "";
   export { buttonClass as class };
 
   let isLoading = true;
   let loadError = false;
-  let errorMessage = '';
+  let errorMessage = "";
 
   const { loadGoogleAuth } = useExternalServices();
 
@@ -24,11 +24,11 @@
 
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   async function handleGoogleCredentialResponse(response: IGoogleCredentialResponse) {
-    const logger = createLoggerWithPrefix('GoogleSignIn');
-    logger.info('Handling Google credential response');
+    const logger = createLoggerWithPrefix("GoogleSignIn");
+    logger.info("Handling Google credential response");
     isLoading = true;
     loadError = false;
 
@@ -37,10 +37,10 @@
       clearAuthData();
 
       if (!response || !response.credential) {
-        logger.error('Invalid Google credential response:', response);
-        errorMessage = 'Invalid response from Google';
+        logger.error("Invalid Google credential response:", response);
+        errorMessage = "Invalid response from Google";
         loadError = true;
-        onAuthError('Invalid response from Google');
+        onAuthError("Invalid response from Google");
         return;
       }
 
@@ -49,55 +49,55 @@
       try {
       const result = await handleGoogleAuth(response);
 
-        logger.info('Google auth completed with result:', { 
-          success: result.success, 
+        logger.info("Google auth completed with result:", {
+          success: result.success,
           has_missing_fields: result.missing_fields && result.missing_fields.length > 0,
           requires_completion: result.requires_profile_completion
         });
 
       if (result.success) {
-          logger.info('Google auth successful, invoking success callback');
+          logger.info("Google auth successful, invoking success callback");
         onAuthSuccess(result);
       } else {
-          logger.error('Google auth failed:', result.message);
-        errorMessage = result.message || 'Google authentication failed';
+          logger.error("Google auth failed:", result.message);
+        errorMessage = result.message || "Google authentication failed";
         loadError = true;
-        onAuthError(result.message || 'Google authentication failed');
+        onAuthError(result.message || "Google authentication failed");
         }
       } catch (apiError) {
-        logger.error('API error during Google auth:', apiError);
-        const errorMsg = apiError instanceof Error ? apiError.message : 'Failed to authenticate with Google';
+        logger.error("API error during Google auth:", apiError);
+        const errorMsg = apiError instanceof Error ? apiError.message : "Failed to authenticate with Google";
         errorMessage = errorMsg;
         loadError = true;
         onAuthError(errorMsg);
       }
     } catch (err) {
-      logger.error('Exception during Google auth:', err);
-      errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      logger.error("Exception during Google auth:", err);
+      errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       loadError = true;
-      onAuthError('An unexpected error occurred');
+      onAuthError("An unexpected error occurred");
     } finally {
       isLoading = false;
     }
   }
 
   onMount(() => {
-    console.log('GoogleSignInButton mounted, loading Google Auth...');
+    console.log("GoogleSignInButton mounted, loading Google Auth...");
     isLoading = true;
     loadError = false;
 
     const cleanup = loadGoogleAuth(
-      containerId, 
-      isDarkMode, 
+      containerId,
+      isDarkMode,
       handleGoogleCredentialResponse
     );
 
     const timeoutId = setTimeout(() => {
       const buttonElement = document.getElementById(containerId);
       if (buttonElement && buttonElement.children.length === 0) {
-        console.warn('Google button did not render within timeout period');
+        console.warn("Google button did not render within timeout period");
         loadError = true;
-        errorMessage = 'Google Sign-In could not be loaded. Please try again later.';
+        errorMessage = "Google Sign-In could not be loaded. Please try again later.";
       }
       isLoading = false;
     }, 5000);

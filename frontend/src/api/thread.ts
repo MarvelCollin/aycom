@@ -1,22 +1,22 @@
-import { getAuthToken, getUserId, getAuthData } from '../utils/auth';
-import appConfig from '../config/appConfig';
-import { uploadMultipleThreadMedia } from '../utils/supabase';
-import { createLoggerWithPrefix } from '../utils/logger';
-import { useAuth } from '../hooks/useAuth';
+import { getAuthToken, getUserId, getAuthData } from "../utils/auth";
+import appConfig from "../config/appConfig";
+import { uploadMultipleThreadMedia } from "../utils/supabase";
+import { createLoggerWithPrefix } from "../utils/logger";
+import { useAuth } from "../hooks/useAuth";
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const AI_SERVICE_URL = appConfig.api.aiServiceUrl || 'http://localhost:5000';
-const logger = createLoggerWithPrefix('ThreadAPI');
+const AI_SERVICE_URL = appConfig.api.aiServiceUrl || "http://localhost:5000";
+const logger = createLoggerWithPrefix("ThreadAPI");
 
-logger.info('Thread API using URL:', API_BASE_URL);
+logger.info("Thread API using URL:", API_BASE_URL);
 
-async function handleApiResponse(response: Response, errorMessage: string = 'API request failed') {
+async function handleApiResponse(response: Response, errorMessage: string = "API request failed") {
   if (!response.ok) {
     try {
       const errorData = await response.json();
       throw new Error(
-        errorData.message || 
-        errorData.error?.message || 
+        errorData.message ||
+        errorData.error?.message ||
         `${errorMessage}: ${response.status} ${response.statusText}`
       );
     } catch (parseError) {
@@ -33,7 +33,7 @@ async function ensureValidToken() {
     const { checkAndRefreshTokenIfNeeded } = useAuth();
     await checkAndRefreshTokenIfNeeded();
   } catch (error) {
-    logger.warn('Error ensuring token freshness:', error);
+    logger.warn("Error ensuring token freshness:", error);
     // Continue with the request even if token refresh fails
     // The server will respond with 401 if necessary
   }
@@ -42,8 +42,8 @@ async function ensureValidToken() {
 async function makeApiRequest(url: string, method: string, body?: any, errorMessage?: string, timeout: number = 15000) {
   try {
     // For GET requests that can work without authentication, we'll try but not fail if auth refresh fails
-    const isPublicReadRequest = method === 'GET' && url.includes('/threads');
-    
+    const isPublicReadRequest = method === "GET" && url.includes("/threads");
+
     try {
       const { checkAndRefreshTokenIfNeeded } = useAuth();
       await checkAndRefreshTokenIfNeeded();
@@ -54,33 +54,33 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
         throw error;
       }
     }
-    
+
     const token = getAuthToken();
-    
+
     // Log full URL to help with debugging
     logger.debug(`Full request URL: ${url}`);
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       // Extract origin from URL for CORS headers
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
       logger.debug(`Using origin: ${origin} for CORS headers`);
-      
+
       const options: RequestInit = {
         method,
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Accept': 'application/json',
-          'Origin': origin, // Use current origin
-          'Cache-Control': 'no-cache' // Prevent caching issues
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+          "Accept": "application/json",
+          "Origin": origin, // Use current origin
+          "Cache-Control": "no-cache" // Prevent caching issues
         },
-        credentials: 'include',
+        credentials: "include",
         signal: controller.signal,
-        mode: 'cors', // Explicitly set CORS mode
-        redirect: 'follow' // Handle redirects automatically
+        mode: "cors", // Explicitly set CORS mode
+        redirect: "follow" // Handle redirects automatically
       };
 
       if (body) {
@@ -89,119 +89,119 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
       }
 
       logger.debug(`Making API request to ${url} with method ${method}`);
-      
+
       // For POST/PUT requests, check if we have a token first
-      if ((method === 'POST' || method === 'PUT') && !token && !isPublicReadRequest) {
-        logger.warn('Attempting to make a write request without auth token');
+      if ((method === "POST" || method === "PUT") && !token && !isPublicReadRequest) {
+        logger.warn("Attempting to make a write request without auth token");
       }
-      
+
       // Handle critical paths with special handling
-      if (url.includes('/threads') && method === 'POST') {
-        logger.debug(`Critical path detected: Creating thread. Adding extra headers.`);
+      if (url.includes("/threads") && method === "POST") {
+        logger.debug("Critical path detected: Creating thread. Adding extra headers.");
         // Add extra CORS headers for critical paths
         options.headers = {
           ...options.headers,
-          'X-Requested-With': 'XMLHttpRequest'
+          "X-Requested-With": "XMLHttpRequest"
         };
       }
-      
+
       // Create a wrapper for multiple fetches if needed (for redirect handling)
       const fetchWithRetry = async (fetchUrl: string, fetchOptions: RequestInit, retries = 1): Promise<Response> => {
         try {
           const response = await fetch(fetchUrl, fetchOptions);
-          
+
           // Log response details
           logger.debug(`API response status: ${response.status} ${response.statusText} for ${fetchUrl}`);
-          
+
           // Handle redirects manually if needed
           if ([301, 302, 307, 308].includes(response.status)) {
-            const location = response.headers.get('Location');
+            const location = response.headers.get("Location");
             if (location && retries > 0) {
               logger.info(`Following redirect to ${location}, retries left: ${retries-1}`);
-              
+
               // If redirect is to the same host, pass all headers
               // If to a different host, be more careful with what we send
               const redirectUrl = new URL(location, fetchUrl);
-              
+
               return fetchWithRetry(redirectUrl.toString(), fetchOptions, retries - 1);
             }
           }
-          
+
           return response;
         } catch (error: any) {
           logger.error(`Fetch attempt error for ${fetchUrl}: ${error.message}`);
           throw error;
         }
       };
-      
+
       // Perform the actual fetch with retry capability
       const response = await fetchWithRetry(url, options, 2);
       clearTimeout(timeoutId);
-      
+
       // For 401 responses on public endpoints, try again without auth token
       if (response.status === 401 && isPublicReadRequest && token) {
-        logger.warn('Got 401 on public endpoint, retrying without auth');
+        logger.warn("Got 401 on public endpoint, retrying without auth");
         const publicOptions = { ...options };
-        publicOptions.headers = { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Origin': origin
+        publicOptions.headers = {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Origin": origin
         };
-        
+
         const publicResponse = await fetch(url, publicOptions);
         return await handleApiResponse(publicResponse, errorMessage);
       }
-      
+
       // Special handling for thread creation
-      if (url.includes('/threads') && method === 'POST' && response.status >= 200 && response.status < 300) {
-        logger.debug('Thread creation succeeded with status:', response.status);
+      if (url.includes("/threads") && method === "POST" && response.status >= 200 && response.status < 300) {
+        logger.debug("Thread creation succeeded with status:", response.status);
       }
-      
+
       return await handleApiResponse(response, errorMessage);
     } catch (error: any) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        throw new Error('Request timed out');
+      if (error.name === "AbortError") {
+        throw new Error("Request timed out");
       }
-      
+
       // Enhanced error logging for CORS issues
-      if (error.message.includes('CORS') || error.message.includes('cross-origin') || error.message === 'Failed to fetch') {
+      if (error.message.includes("CORS") || error.message.includes("cross-origin") || error.message === "Failed to fetch") {
         logger.error(`CORS error for ${url}:`, error.message);
-        
+
         // Try another approach for thread creation if that's what we're doing
-        if (url.includes('/threads') && method === 'POST') {
-          logger.debug('Thread creation CORS issue - attempting fallback approach');
-          
+        if (url.includes("/threads") && method === "POST") {
+          logger.debug("Thread creation CORS issue - attempting fallback approach");
+
           try {
             // Try with different headers as a fallback
             const fallbackOptions: RequestInit = {
               method,
               headers: {
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : '',
-                'Accept': '*/*',
+                "Content-Type": "application/json",
+                "Authorization": token ? `Bearer ${token}` : "",
+                "Accept": "*/*",
               },
-              credentials: 'include',
-              mode: 'cors',
+              credentials: "include",
+              mode: "cors",
               body: body ? JSON.stringify(body) : undefined
             };
-            
+
             // Add an extra delay before retrying to allow any previous requests to settle
             await new Promise(resolve => setTimeout(resolve, 500));
-            
+
             const fallbackResponse = await fetch(url, fallbackOptions);
             logger.debug(`Fallback approach status: ${fallbackResponse.status}`);
-            
+
             return await handleApiResponse(fallbackResponse, errorMessage);
           } catch (fallbackError) {
-            logger.error('Fallback approach failed:', fallbackError);
-            throw new Error(`CORS error: The server may not allow requests from this origin. Please check your browser console for more details.`);
+            logger.error("Fallback approach failed:", fallbackError);
+            throw new Error("CORS error: The server may not allow requests from this origin. Please check your browser console for more details.");
           }
         } else {
           throw new Error(`CORS error: ${error.message}. The server may not allow requests from this origin.`);
         }
       }
-      
+
       logger.error(`Fetch error for ${url}: ${error.message}`);
       throw error;
     }
@@ -213,60 +213,60 @@ async function makeApiRequest(url: string, method: string, body?: any, errorMess
 
 export async function createThread(data: Record<string, any>) {
   try {
-    logger.debug('Creating new thread with data:', { 
+    logger.debug("Creating new thread with data:", {
       contentLength: data.content?.length || 0,
       hasMedia: !!data.media,
       hasPoll: !!data.poll,
       whoCanReply: data.who_can_reply
     });
-    
+
     // Ensure the API endpoint is correctly formatted
     const url = `${API_BASE_URL}/threads`;
     logger.debug(`Using endpoint: ${url}`);
-    
+
     // Check if token is available before making request
     const token = getAuthToken();
     if (!token) {
-      logger.warn('No auth token available for createThread. User may need to log in');
-      throw new Error('Authentication required. Please log in to post.');
+      logger.warn("No auth token available for createThread. User may need to log in");
+      throw new Error("Authentication required. Please log in to post.");
     }
-    
+
     // Extra debugging
     logger.debug(`Using auth token for createThread: ${token.substring(0, 10)}...${token.substring(token.length - 10)}`);
-    
+
     try {
       // Explicitly create the request with correct headers
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'Origin': origin,
-          'Cache-Control': 'no-cache'
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+          "Origin": origin,
+          "Cache-Control": "no-cache"
         },
-        credentials: 'include',
-        mode: 'cors',
+        credentials: "include",
+        mode: "cors",
         body: JSON.stringify(data)
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
-        logger.error('Thread creation failed with status:', response.status, errorData);
+        logger.error("Thread creation failed with status:", response.status, errorData);
         throw new Error(errorData.message || `Failed to create thread: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      logger.info('Thread created successfully');
+      logger.info("Thread created successfully");
       return result;
     } catch (apiError: any) {
       // Handle API-specific errors with more detail
-      if (apiError.message?.includes('307') || apiError.message?.includes('Temporary Redirect')) {
-        logger.error('Server returned redirect for thread creation. This could be a CORS issue');
-        throw new Error('Server redirect occurred. This might be due to CORS configuration issues. Please check your network settings or contact support.');
+      if (apiError.message?.includes("307") || apiError.message?.includes("Temporary Redirect")) {
+        logger.error("Server returned redirect for thread creation. This could be a CORS issue");
+        throw new Error("Server redirect occurred. This might be due to CORS configuration issues. Please check your network settings or contact support.");
       }
-      
+
       throw apiError;
     }
   } catch (error: any) {
@@ -278,22 +278,22 @@ export async function createThread(data: Record<string, any>) {
 export async function getThread(id: string) {
   try {
     logger.debug(`Fetching thread with ID: ${id}`);
-    
+
     const response = await makeApiRequest(
-      `${API_BASE_URL}/threads/${id}`, 
-      'GET', 
-      null, 
-      'Failed to fetch thread'
+      `${API_BASE_URL}/threads/${id}`,
+      "GET",
+      null,
+      "Failed to fetch thread"
     );
-    
+
     // Log the raw API response for debugging
     logger.debug(`Thread API response for ID ${id}:`, response);
-    
-    if (!response || (typeof response === 'object' && Object.keys(response).length === 0)) {
+
+    if (!response || (typeof response === "object" && Object.keys(response).length === 0)) {
       logger.warn(`Empty thread response for ID ${id}`);
       throw new Error(`Thread with ID ${id} not found or returned empty response`);
     }
-    
+
     // Ensure response has all required fields with consistent naming
     const standardizedResponse = {
       id: response.id,
@@ -316,22 +316,22 @@ export async function getThread(id: string) {
       is_verified: Boolean(response.is_verified),
       media: Array.isArray(response.media) ? response.media : []
     };
-    
+
     logger.debug(`Thread data standardized for ID: ${id}`);
     return standardizedResponse;
   } catch (error) {
     logger.error(`Get thread ${id} failed:`, error);
-    
+
     // Provide more detailed error information
     if (error instanceof Response) {
       try {
         const errorText = await error.text();
         logger.error(`API error response for thread ${id}:`, errorText);
       } catch (e) {
-        logger.error(`Could not read API error response:`, e);
+        logger.error("Could not read API error response:", e);
       }
     }
-    
+
     throw error;
   }
 }
@@ -340,12 +340,12 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
   try {
     let actualUserId = userId;
 
-    if (userId === 'me') {
+    if (userId === "me") {
       const currentUserId = getUserId();
-      logger.debug('Current user ID from auth:', currentUserId);
+      logger.debug("Current user ID from auth:", currentUserId);
 
       if (!currentUserId) {
-        throw new Error('User ID is required');
+        throw new Error("User ID is required");
       }
       actualUserId = currentUserId;
     }
@@ -354,10 +354,10 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
     logger.debug(`Making request to: ${endpoint}`);
 
     const data = await makeApiRequest(
-      endpoint, 
-      'GET', 
-      null, 
-      'Failed to get user threads'
+      endpoint,
+      "GET",
+      null,
+      "Failed to get user threads"
     );
 
     logger.info(`Received ${data.threads?.length || 0} threads for user ${actualUserId}`);
@@ -365,7 +365,7 @@ export async function getThreadsByUser(userId: string, page: number = 1, limit: 
 
     return data;
   } catch (error) {
-    logger.error('Error getting user threads:', error);
+    logger.error("Error getting user threads:", error);
     throw error;
   }
 }
@@ -411,16 +411,16 @@ export async function getAllThreads(page = 1, limit = 10): Promise<ThreadsRespon
 
     try {
       const data = await makeApiRequest(
-        url, 
-        'GET', 
-        null, 
-        'Failed to fetch threads'
+        url,
+        "GET",
+        null,
+        "Failed to fetch threads"
       );
 
       logger.info(`getAllThreads received ${data.threads?.length || 0} threads`);
 
       if (!data.threads || !Array.isArray(data.threads)) {
-        logger.warn('API returned invalid threads data structure', data);
+        logger.warn("API returned invalid threads data structure", data);
         return {
           success: false,
           threads: [],
@@ -436,11 +436,11 @@ export async function getAllThreads(page = 1, limit = 10): Promise<ThreadsRespon
         total_count: totalCount
       };
     } catch (error) {
-      logger.error('Fetch error in getAllThreads:', error);
+      logger.error("Fetch error in getAllThreads:", error);
       throw error;
     }
   } catch (error) {
-    logger.error('Get all threads failed:', error);
+    logger.error("Get all threads failed:", error);
     throw error;
   }
 }
@@ -448,10 +448,10 @@ export async function getAllThreads(page = 1, limit = 10): Promise<ThreadsRespon
 export async function updateThread(id: string, data: Record<string, any>) {
   try {
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${id}`, 
-      'PUT', 
-      data, 
-      'Failed to update thread'
+      `${API_BASE_URL}/threads/${id}`,
+      "PUT",
+      data,
+      "Failed to update thread"
     );
   } catch (error) {
     logger.error(`Update thread ${id} failed:`, error);
@@ -462,10 +462,10 @@ export async function updateThread(id: string, data: Record<string, any>) {
 export async function deleteThread(id: string) {
   try {
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${id}`, 
-      'DELETE', 
-      null, 
-      'Failed to delete thread'
+      `${API_BASE_URL}/threads/${id}`,
+      "DELETE",
+      null,
+      "Failed to delete thread"
     );
   } catch (error) {
     logger.error(`Delete thread ${id} failed:`, error);
@@ -482,21 +482,21 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
       const token = getAuthToken();
 
       const response = await fetch(`${API_BASE_URL}/threads/${threadId}/media/update`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
         },
         body: JSON.stringify({ media_urls: urls }),
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!response.ok) {
         try {
           const errorData = await response.json();
           throw new Error(
-            errorData.message || 
-            errorData.error?.message || 
+            errorData.message ||
+            errorData.error?.message ||
             `Failed to update thread with media URLs: ${response.status}`
           );
         } catch (parseError) {
@@ -510,27 +510,27 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
   const token = getAuthToken();
 
   const formData = new FormData();
-  formData.append('thread_id', threadId);
+  formData.append("thread_id", threadId);
 
   files.forEach((file, index) => {
-    formData.append(`file`, file);
+    formData.append("file", file);
   });
 
   const response = await fetch(`${API_BASE_URL}/threads/media`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      "Authorization": token ? `Bearer ${token}` : ''
+      "Authorization": token ? `Bearer ${token}` : ""
     },
     body: formData,
-    credentials: 'include',
+    credentials: "include",
   });
 
   if (!response.ok) {
     try {
       const errorData = await response.json();
       throw new Error(
-        errorData.message || 
-        errorData.error?.message || 
+        errorData.message ||
+        errorData.error?.message ||
         `Failed to upload media: ${response.status} ${response.statusText}`
       );
     } catch (parseError) {
@@ -546,7 +546,7 @@ export async function uploadThreadMedia(threadId: string, files: File[]) {
 }
 
 // Prevent multiple rapid like/unlike requests
-let likeDebounceMap = new Map();
+const likeDebounceMap = new Map();
 const DEBOUNCE_DELAY = 500; // ms
 
 export async function likeThread(threadId: string) {
@@ -554,27 +554,27 @@ export async function likeThread(threadId: string) {
     // Check for existing ongoing request
     if (likeDebounceMap.has(threadId)) {
       logger.warn(`Like operation for thread ${threadId} already in progress, skipping`);
-      return { success: false, message: 'Operation already in progress' };
+      return { success: false, message: "Operation already in progress" };
     }
 
     // Set debounce lock
     likeDebounceMap.set(threadId, true);
-    
+
     // Clear lock after delay regardless of outcome
     setTimeout(() => {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
-    
+
     // Check if token exists - this is critical
     if (!token) {
       logger.error(`Cannot like thread ${threadId}: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      throw new Error("Authentication required. Please log in again.");
     }
 
     logger.debug(`Sending like request for thread ${threadId} with token length: ${token.length}`);
-    
+
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
       method: "POST",
       headers: {
@@ -588,12 +588,12 @@ export async function likeThread(threadId: string) {
       // Check specifically for auth errors
       if (response.status === 401) {
         logger.error(`Authentication failed when liking thread ${threadId} - token may be invalid`);
-        throw new Error('Your session has expired. Please log in again.');
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       const errorData = await response.json();
       logger.error(`Error liking thread ${threadId}:`, errorData);
-      throw new Error(errorData.message || 'Failed to like thread');
+      throw new Error(errorData.message || "Failed to like thread");
     }
 
     const data = await response.json();
@@ -615,25 +615,25 @@ export async function unlikeThread(threadId: string) {
     // Check for existing ongoing request
     if (likeDebounceMap.has(threadId)) {
       logger.warn(`Unlike operation for thread ${threadId} already in progress, skipping`);
-      return { success: false, message: 'Operation already in progress' };
+      return { success: false, message: "Operation already in progress" };
     }
 
     // Set debounce lock
     likeDebounceMap.set(threadId, true);
-    
+
     // Clear lock after delay regardless of outcome
     setTimeout(() => {
       likeDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
-    
+
     // Check if token exists - this is critical
     if (!token) {
       logger.error(`Cannot unlike thread ${threadId}: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      throw new Error("Authentication required. Please log in again.");
     }
-    
+
     logger.debug(`Sending unlike request for thread ${threadId} with token length: ${token.length}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/like`, {
@@ -649,12 +649,12 @@ export async function unlikeThread(threadId: string) {
       // Check specifically for auth errors
       if (response.status === 401) {
         logger.error(`Authentication failed when unliking thread ${threadId} - token may be invalid`);
-        throw new Error('Your session has expired. Please log in again.');
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       const errorData = await response.json();
       logger.error(`Error unliking thread ${threadId}:`, errorData);
-      throw new Error(errorData.message || 'Failed to unlike thread');
+      throw new Error(errorData.message || "Failed to unlike thread");
     }
 
     const data = await response.json();
@@ -679,10 +679,10 @@ export async function replyToThread(threadId: string, data: {
 }) {
   try {
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/replies`, 
-      'POST', 
-      data, 
-      'Failed to post reply'
+      `${API_BASE_URL}/threads/${threadId}/replies`,
+      "POST",
+      data,
+      "Failed to post reply"
     );
   } catch (error) {
     logger.error(`Reply to thread ${threadId} failed:`, error);
@@ -693,19 +693,19 @@ export async function replyToThread(threadId: string, data: {
 export async function getThreadReplies(threadId: string) {
   try {
     const response = await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/replies`, 
-      'GET', 
-      null, 
-      'Failed to get thread replies'
+      `${API_BASE_URL}/threads/${threadId}/replies`,
+      "GET",
+      null,
+      "Failed to get thread replies"
     );
-    
+
     let standardizedReplies = [];
-    
+
     // Process replies to ensure they have consistent field structure
     if (response && response.replies && Array.isArray(response.replies)) {
       standardizedReplies = response.replies.map(reply => ({
         id: reply.id,
-        content: reply.content || '',
+        content: reply.content || "",
         created_at: reply.created_at,
         updated_at: reply.updated_at,
         thread_id: reply.thread_id || threadId,
@@ -725,7 +725,7 @@ export async function getThreadReplies(threadId: string) {
         media: Array.isArray(reply.media) ? reply.media : []
       }));
     }
-    
+
     return {
       replies: standardizedReplies,
       total: response.total || standardizedReplies.length
@@ -736,13 +736,13 @@ export async function getThreadReplies(threadId: string) {
   }
 }
 
-export async function repostThread(threadId: string, content = '') {
+export async function repostThread(threadId: string, content = "") {
   try {
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/${threadId}/reposts`, 
-      'POST', 
-      { content }, 
-      'Failed to repost thread'
+      `${API_BASE_URL}/threads/${threadId}/reposts`,
+      "POST",
+      { content },
+      "Failed to repost thread"
     );
   } catch (error) {
     logger.error(`Repost thread ${threadId} failed:`, error);
@@ -753,10 +753,10 @@ export async function repostThread(threadId: string, content = '') {
 export async function removeRepost(repostId: string) {
   try {
     return await makeApiRequest(
-      `${API_BASE_URL}/threads/reposts/${repostId}`, 
-      'DELETE', 
-      null, 
-      'Failed to remove repost'
+      `${API_BASE_URL}/threads/reposts/${repostId}`,
+      "DELETE",
+      null,
+      "Failed to remove repost"
     );
   } catch (error) {
     logger.error(`Remove repost ${repostId} failed:`, error);
@@ -765,32 +765,32 @@ export async function removeRepost(repostId: string) {
 }
 
 // Prevent multiple rapid bookmark/unbookmark requests
-let bookmarkDebounceMap = new Map();
+const bookmarkDebounceMap = new Map();
 
 export async function bookmarkThread(threadId: string) {
   try {
     // Check for existing ongoing request
     if (bookmarkDebounceMap.has(threadId)) {
       logger.warn(`Bookmark operation for thread ${threadId} already in progress, skipping`);
-      return { success: false, message: 'Operation already in progress' };
+      return { success: false, message: "Operation already in progress" };
     }
 
     // Set debounce lock
     bookmarkDebounceMap.set(threadId, true);
-    
+
     // Clear lock after delay regardless of outcome
     setTimeout(() => {
       bookmarkDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
-    
+
     // Check if token exists - this is critical
     if (!token) {
       logger.error(`Cannot bookmark thread ${threadId}: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      throw new Error("Authentication required. Please log in again.");
     }
-    
+
     logger.debug(`Sending bookmark request for thread ${threadId} with token length: ${token.length}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
@@ -806,12 +806,12 @@ export async function bookmarkThread(threadId: string) {
       // Check specifically for auth errors
       if (response.status === 401) {
         logger.error(`Authentication failed when bookmarking thread ${threadId} - token may be invalid`);
-        throw new Error('Your session has expired. Please log in again.');
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       const errorData = await response.json();
       logger.error(`Error bookmarking thread ${threadId}:`, errorData);
-      throw new Error(errorData.message || 'Failed to bookmark thread');
+      throw new Error(errorData.message || "Failed to bookmark thread");
     }
 
     const data = await response.json();
@@ -833,25 +833,25 @@ export async function removeBookmark(threadId: string) {
     // Check for existing ongoing request
     if (bookmarkDebounceMap.has(threadId)) {
       logger.warn(`Remove bookmark operation for thread ${threadId} already in progress, skipping`);
-      return { success: false, message: 'Operation already in progress' };
+      return { success: false, message: "Operation already in progress" };
     }
 
     // Set debounce lock
     bookmarkDebounceMap.set(threadId, true);
-    
+
     // Clear lock after delay regardless of outcome
     setTimeout(() => {
       bookmarkDebounceMap.delete(threadId);
     }, DEBOUNCE_DELAY);
 
     const token = getAuthToken();
-    
+
     // Check if token exists - this is critical
     if (!token) {
       logger.error(`Cannot remove bookmark for thread ${threadId}: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      throw new Error("Authentication required. Please log in again.");
     }
-    
+
     logger.debug(`Sending remove bookmark request for thread ${threadId} with token length: ${token.length}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/${threadId}/bookmark`, {
@@ -867,12 +867,12 @@ export async function removeBookmark(threadId: string) {
       // Check specifically for auth errors
       if (response.status === 401) {
         logger.error(`Authentication failed when removing bookmark for thread ${threadId} - token may be invalid`);
-        throw new Error('Your session has expired. Please log in again.');
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       const errorData = await response.json();
       logger.error(`Error removing bookmark for thread ${threadId}:`, errorData);
-      throw new Error(errorData.message || 'Failed to remove bookmark');
+      throw new Error(errorData.message || "Failed to remove bookmark");
     }
 
     const data = await response.json();
@@ -894,12 +894,12 @@ export async function getFollowingThreads(page = 1, limit = 20) {
     const url = `${API_BASE_URL}/threads/following?page=${page}&limit=${limit}`;
 
     const response = await makeApiRequest(
-      url, 
-      'GET', 
-      null, 
-      'Failed to fetch following threads'
+      url,
+      "GET",
+      null,
+      "Failed to fetch following threads"
     );
-    
+
     // Handle the response format from the backend
     if (response && response.data) {
       // The backend wraps the response in a data field
@@ -910,7 +910,7 @@ export async function getFollowingThreads(page = 1, limit = 20) {
         pagination: response.data.pagination || { total_count: 0, current_page: page, per_page: limit }
       };
     }
-    
+
     // Direct format (threads directly in response)
     if (response && response.threads) {
       return {
@@ -920,7 +920,7 @@ export async function getFollowingThreads(page = 1, limit = 20) {
         pagination: response.pagination || { total_count: response.threads.length, current_page: page, per_page: limit }
       };
     }
-    
+
     // Empty response fallback
     return {
       success: true,
@@ -929,15 +929,15 @@ export async function getFollowingThreads(page = 1, limit = 20) {
       pagination: { total_count: 0, current_page: page, per_page: limit }
     };
   } catch (error) {
-    logger.error('Get following threads failed:', error);
+    logger.error("Get following threads failed:", error);
     throw error;
   }
 }
 
 export async function searchThreads(
-  query: string, 
-  page: number = 1, 
-  limit: number = 10, 
+  query: string,
+  page: number = 1,
+  limit: number = 10,
   options?: { filter?: string; category?: string; sort_by?: string }
 ) {
   try {
@@ -949,21 +949,21 @@ export async function searchThreads(
 
     // Make sure all filters are properly appended to the request
     if (options?.filter) {
-      params.append('filter', options.filter);
+      params.append("filter", options.filter);
       console.log(`Using filter: ${options.filter}`);
     }
-    if (options?.category) params.append('category', options.category);
-    if (options?.sort_by) params.append('sort_by', options.sort_by);
+    if (options?.category) params.append("category", options.category);
+    if (options?.sort_by) params.append("sort_by", options.sort_by);
 
-    logger.debug(`Searching threads with query: ${query}, filter: ${options?.filter || 'all'}`);
+    logger.debug(`Searching threads with query: ${query}, filter: ${options?.filter || "all"}`);
 
     const response = await fetch(`${API_BASE_URL}/threads/search?${params}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': getAuthToken() ? `Bearer ${getAuthToken()}` : ''
+        "Content-Type": "application/json",
+        "Authorization": getAuthToken() ? `Bearer ${getAuthToken()}` : ""
       },
-      credentials: 'include'
+      credentials: "include"
     });
 
     if (!response.ok) {
@@ -981,8 +981,8 @@ export async function searchThreads(
     }
 
     const data = await response.json();
-    logger.debug('Search threads response:', data);
-    
+    logger.debug("Search threads response:", data);
+
     return {
       threads: data.threads || [],
       pagination: data.pagination || {
@@ -993,8 +993,8 @@ export async function searchThreads(
       }
     };
   } catch (error) {
-    logger.error('Search threads failed:', error);
-    
+    logger.error("Search threads failed:", error);
+
     // Return empty result set on error instead of throwing
     return {
       threads: [],
@@ -1009,38 +1009,38 @@ export async function searchThreads(
 }
 
 export async function searchThreadsWithMedia(
-  query: string, 
-  page: number = 1, 
-  limit: number = 10, 
+  query: string,
+  page: number = 1,
+  limit: number = 10,
   options?: { filter?: string; category?: string }
 ) {
   try {
     // Use the regular thread search endpoint instead, but filter for threads with media
     const url = new URL(`${API_BASE_URL}/threads/search`);
 
-    url.searchParams.append('q', query);
-    url.searchParams.append('page', page.toString());
-    url.searchParams.append('limit', limit.toString());
-    url.searchParams.append('media_only', 'true'); // This will be a hint to the backend
+    url.searchParams.append("q", query);
+    url.searchParams.append("page", page.toString());
+    url.searchParams.append("limit", limit.toString());
+    url.searchParams.append("media_only", "true"); // This will be a hint to the backend
 
     // Make sure filter is always included if provided
     if (options?.filter) {
-      url.searchParams.append('filter', options.filter);
+      url.searchParams.append("filter", options.filter);
       console.log(`Using filter for media search: ${options.filter}`);
     }
 
     if (options?.category) {
-      url.searchParams.append('category', options.category);
+      url.searchParams.append("category", options.category);
     }
 
     const token = getAuthToken();
     console.log(`Searching threads with media: ${url.toString()}`);
 
     const response = await fetch(url.toString(), {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
+        "Authorization": token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json"
       }
     });
 
@@ -1050,7 +1050,7 @@ export async function searchThreadsWithMedia(
     }
 
     const data = await response.json();
-    
+
     // Filter the results to only include threads with media (just in case backend doesn't filter)
     if (data.threads) {
       data.threads = data.threads.filter(thread => thread.media && thread.media.length > 0);
@@ -1058,33 +1058,33 @@ export async function searchThreadsWithMedia(
 
     return data;
   } catch (error: any) {
-    console.error('Error searching threads with media:', error);
+    console.error("Error searching threads with media:", error);
     throw error;
   }
 }
 
 export async function getThreadsByHashtag(
-  hashtag: string, 
-  page: number = 1, 
+  hashtag: string,
+  page: number = 1,
   limit: number = 10
 ) {
   try {
-    const cleanHashtag = hashtag.startsWith('#') ? hashtag.substring(1) : hashtag;
+    const cleanHashtag = hashtag.startsWith("#") ? hashtag.substring(1) : hashtag;
 
     const url = new URL(`${API_BASE_URL}/threads/hashtag/${encodeURIComponent(cleanHashtag)}`);
 
-    url.searchParams.append('page', page.toString());
-    url.searchParams.append('limit', limit.toString());
-    url.searchParams.append('sort_by', 'likes');
-    url.searchParams.append('sort_order', 'desc');
+    url.searchParams.append("page", page.toString());
+    url.searchParams.append("limit", limit.toString());
+    url.searchParams.append("sort_by", "likes");
+    url.searchParams.append("sort_order", "desc");
 
     const token = getAuthToken();
 
     const response = await fetch(url.toString(), {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json'
+        "Authorization": token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json"
       }
     });
 
@@ -1094,7 +1094,7 @@ export async function getThreadsByHashtag(
 
     return await response.json();
   } catch (error: any) {
-    console.error('Error getting threads by hashtag:', error);
+    console.error("Error getting threads by hashtag:", error);
     throw error;
   }
 }
@@ -1102,7 +1102,7 @@ export async function getThreadsByHashtag(
 export async function getReplyReplies(replyId: string, page = 1, limit = 20): Promise<{ replies: any[], total_count: number, cached?: boolean, error?: string }> {
   try {
     console.log(`Fetching replies for reply ID: ${replyId}`);
-    
+
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString()
@@ -1110,11 +1110,11 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
 
     const data = await makeApiRequest(
       `${API_BASE_URL}/replies/${replyId}/replies?${params.toString()}`,
-      'GET',
+      "GET",
       null,
-      'Failed to fetch reply replies'
+      "Failed to fetch reply replies"
     );
-    
+
     // Process replies to ensure they have consistent field structure
     if (data && data.replies && Array.isArray(data.replies)) {
       data.replies = data.replies.map(reply => {
@@ -1122,19 +1122,19 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
         if (reply.replies_count === undefined && reply.repliesCount === undefined) {
           reply.replies_count = 0;
         }
-        
+
         // Ensure other required fields exist
         return {
           id: reply.id,
-          content: reply.content || '',
+          content: reply.content || "",
           created_at: reply.created_at,
           updated_at: reply.updated_at,
           thread_id: reply.thread_id,
           parent_id: reply.parent_id || null,
           user_id: reply.user_id,
-          username: reply.username || '',
-          name: reply.name || '',
-          profile_picture_url: reply.profile_picture_url || '',
+          username: reply.username || "",
+          name: reply.name || "",
+          profile_picture_url: reply.profile_picture_url || "",
           likes_count: reply.likes_count || 0,
           replies_count: reply.replies_count || reply.repliesCount || 0,
           reposts_count: reply.reposts_count || 0,
@@ -1150,12 +1150,12 @@ export async function getReplyReplies(replyId: string, page = 1, limit = 20): Pr
         };
       });
     }
-    
+
     console.log(`Successfully fetched ${data.replies?.length || 0} replies for reply ${replyId}`);
     return data;
   } catch (error: any) {
     console.error(`Error fetching replies for reply ${replyId}:`, error);
-    return { replies: [], total_count: 0, error: error.message || 'Network error fetching replies' };
+    return { replies: [], total_count: 0, error: error.message || "Network error fetching replies" };
   }
 }
 
@@ -1164,24 +1164,24 @@ export async function suggestThreadCategory(content: string) {
     console.log("Requesting category suggestion for content:", content.substring(0, 50) + (content.length > 50 ? "..." : ""));
 
     if (!content || content.trim().length < 10) {
-      return { 
-        category: 'general',
+      return {
+        category: "general",
         confidence: 0
       };
     }
 
     const response = await fetch(`${AI_SERVICE_URL}/predict/category`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ content })
     });
 
     if (!response.ok) {
       console.warn("Category suggestion failed:", response.status, response.statusText);
-      return { 
-        category: 'general',
+      return {
+        category: "general",
         confidence: 0
       };
     }
@@ -1190,13 +1190,13 @@ export async function suggestThreadCategory(content: string) {
     console.log("Received category suggestion:", data);
 
     return {
-      category: data.category || 'general',
+      category: data.category || "general",
       confidence: data.confidence || 0
     };
   } catch (error) {
     console.error("Error suggesting thread category:", error);
-    return { 
-      category: 'general',
+    return {
+      category: "general",
       confidence: 0
     };
   }
@@ -1209,7 +1209,7 @@ export async function likeReply(replyId: string) {
     // Check if token exists
     if (!token) {
       logger.error(`Cannot like reply ${replyId}: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      throw new Error("Authentication required. Please log in again.");
     }
 
     const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
@@ -1224,12 +1224,12 @@ export async function likeReply(replyId: string) {
     if (!response.ok) {
       if (response.status === 401) {
         logger.error(`Authentication failed when liking reply ${replyId} - token may be invalid`);
-        throw new Error('Your session has expired. Please log in again.');
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       const errorData = await response.json();
       console.error(`Error liking reply ${replyId}:`, errorData);
-      return { success: false, error: errorData.message || 'Failed to like reply' };
+      return { success: false, error: errorData.message || "Failed to like reply" };
     }
 
     const data = await response.json();
@@ -1237,7 +1237,7 @@ export async function likeReply(replyId: string) {
     return { ...data, success: true };
   } catch (error) {
     console.error(`Error liking reply ${replyId}:`, error);
-    return { success: false, error: 'Network error liking reply' };
+    return { success: false, error: "Network error liking reply" };
   }
 }
 
@@ -1248,7 +1248,7 @@ export async function unlikeReply(replyId: string) {
     // Check if token exists
     if (!token) {
       logger.error(`Cannot unlike reply ${replyId}: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      throw new Error("Authentication required. Please log in again.");
     }
 
     const response = await fetch(`${API_BASE_URL}/replies/${replyId}/like`, {
@@ -1264,12 +1264,12 @@ export async function unlikeReply(replyId: string) {
       // Check specifically for auth errors
       if (response.status === 401) {
         logger.error(`Authentication failed when unliking reply ${replyId} - token may be invalid`);
-        throw new Error('Your session has expired. Please log in again.');
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       const errorData = await response.json();
       console.error(`Error unliking reply ${replyId}:`, errorData);
-      return { success: false, error: errorData.message || 'Failed to unlike reply' };
+      return { success: false, error: errorData.message || "Failed to unlike reply" };
     }
 
     const data = await response.json();
@@ -1277,7 +1277,7 @@ export async function unlikeReply(replyId: string) {
     return { ...data, success: true };
   } catch (error) {
     console.error(`Error unliking reply ${replyId}:`, error);
-    return { success: false, error: 'Network error unliking reply' };
+    return { success: false, error: "Network error unliking reply" };
   }
 }
 
@@ -1292,31 +1292,31 @@ async function resolveUserIdIfNeeded(userId: string): Promise<string> {
     return userId;
   }
 
-  if (userId === 'me') {
+  if (userId === "me") {
     const token = getAuthToken();
-    const currentUserId = token ? JSON.parse(atob(token.split('.')[1])).sub : null;
+    const currentUserId = token ? JSON.parse(atob(token.split(".")[1])).sub : null;
     return currentUserId || userId;
   }
 
   try {
     const response = await fetch(`${API_BASE_URL}/users/username/${encodeURIComponent(userId)}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}`
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${getAuthToken()}`
       }
     });
 
     if (!response.ok) {
       console.error(`Failed to resolve username: ${response.status}`);
-      return userId; 
+      return userId;
     }
 
     const data = await response.json();
     return data.user?.id || userId;
   } catch (error) {
-    console.error('Error resolving user ID:', error);
-    return userId; 
+    console.error("Error resolving user ID:", error);
+    return userId;
   }
 }
 
@@ -1337,12 +1337,12 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
       try {
         const url = `${API_BASE_URL}/threads/user/${resolvedUserId}?page=${page}&limit=${limit}`;
         logger.debug(`Fetching from URL: ${url}`);
-        
+
         const response = await fetch(url, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Authorization': `Bearer ${getAuthToken()}`,
-            'Content-Type': 'application/json'
+            "Authorization": `Bearer ${getAuthToken()}`,
+            "Content-Type": "application/json"
           },
           signal: controller.signal
         });
@@ -1354,14 +1354,14 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
           let errorMessage = `Failed to get user threads: ${response.status}`;
           try {
             const errorData = await response.json();
-            logger.error('Error getting user threads:', errorData);
+            logger.error("Error getting user threads:", errorData);
             if (errorData.message) {
               errorMessage += ` - ${errorData.message}`;
             }
           } catch (parseError) {
-            logger.error('Could not parse error response:', parseError);
+            logger.error("Could not parse error response:", parseError);
           }
-          
+
           // For 500 errors, we'll retry
           if (response.status >= 500) {
             throw new Error(errorMessage);
@@ -1378,18 +1378,18 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
 
         const result = await response.json();
         logger.debug(`Successfully fetched threads for user ${resolvedUserId}:`, result);
-        
+
         // Check if the result has the expected structure
         if (!result.threads && result.success) {
-          logger.warn('Response is missing threads array:', result);
-          
+          logger.warn("Response is missing threads array:", result);
+
           // Try to adapt to different API response formats
           if (Array.isArray(result.data)) {
             result.threads = result.data;
-            logger.debug('Using data array as threads');
+            logger.debug("Using data array as threads");
           }
         }
-        
+
         // Add success flag for more consistent handling
         return {
           ...result,
@@ -1402,16 +1402,16 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
       }
     } catch (error: any) {
       lastError = error;
-      
+
       // If this was a timeout or network error, log and retry
-      const isNetworkError = error.name === 'AbortError' || 
-                             error.message?.includes('network') ||
-                             error.message?.includes('timeout');
-                             
-      if (isNetworkError || error.message?.includes('500')) {
+      const isNetworkError = error.name === "AbortError" ||
+                             error.message?.includes("network") ||
+                             error.message?.includes("timeout");
+
+      if (isNetworkError || error.message?.includes("500")) {
         logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
         retryCount++;
-        
+
         if (retryCount <= maxRetries) {
           // Wait before retrying: 1s, then 3s
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
@@ -1419,20 +1419,20 @@ export const getUserThreads = async (userId: string, page = 1, limit = 10): Prom
         }
       } else {
         // For other types of errors, don't retry
-        logger.error('Non-retriable error in getUserThreads:', error);
+        logger.error("Non-retriable error in getUserThreads:", error);
         break;
       }
     }
   }
 
   // If we got here, all retries failed
-  logger.error('Error in getUserThreads after all retries:', lastError);
-  
+  logger.error("Error in getUserThreads after all retries:", lastError);
+
   // Return an empty result with error information
   return {
     threads: [],
     total: 0,
-    error: lastError?.message || 'Unknown error fetching threads',
+    error: lastError?.message || "Unknown error fetching threads",
     success: false
   };
 };
@@ -1453,10 +1453,10 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
 
       try {
         const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/replies?page=${page}&limit=${limit}`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Authorization': `Bearer ${getAuthToken()}`,
-            'Content-Type': 'application/json'
+            "Authorization": `Bearer ${getAuthToken()}`,
+            "Content-Type": "application/json"
           },
           signal: controller.signal
         });
@@ -1468,14 +1468,14 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
           let errorMessage = `Failed to get user replies: ${response.status}`;
           try {
             const errorData = await response.json();
-            logger.error('Error getting user replies:', errorData);
+            logger.error("Error getting user replies:", errorData);
             if (errorData.message) {
               errorMessage += ` - ${errorData.message}`;
             }
           } catch (parseError) {
-            logger.error('Could not parse error response:', parseError);
+            logger.error("Could not parse error response:", parseError);
           }
-          
+
           // For 500 errors, we'll retry
           if (response.status >= 500) {
             throw new Error(errorMessage);
@@ -1491,7 +1491,7 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
         }
 
         const result = await response.json();
-        
+
         // Add success flag for more consistent handling
         return {
           ...result,
@@ -1504,16 +1504,16 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
       }
     } catch (error: any) {
       lastError = error;
-      
+
       // If this was a timeout or network error, log and retry
-      const isNetworkError = error.name === 'AbortError' || 
-                             error.message?.includes('network') ||
-                             error.message?.includes('timeout');
-                             
-      if (isNetworkError || error.message?.includes('500')) {
+      const isNetworkError = error.name === "AbortError" ||
+                             error.message?.includes("network") ||
+                             error.message?.includes("timeout");
+
+      if (isNetworkError || error.message?.includes("500")) {
         logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
         retryCount++;
-        
+
         if (retryCount <= maxRetries) {
           // Wait before retrying: 1s, then 3s
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
@@ -1521,20 +1521,20 @@ export const getUserReplies = async (userId: string, page = 1, limit = 10): Prom
         }
       } else {
         // For other types of errors, don't retry
-        logger.error('Non-retriable error in getUserReplies:', error);
+        logger.error("Non-retriable error in getUserReplies:", error);
         break;
       }
     }
   }
 
   // If we got here, all retries failed
-  logger.error('Error in getUserReplies after all retries:', lastError);
-  
+  logger.error("Error in getUserReplies after all retries:", lastError);
+
   // Return an empty result with error information
   return {
     replies: [],
     total: 0,
-    error: lastError?.message || 'Unknown error fetching replies',
+    error: lastError?.message || "Unknown error fetching replies",
     success: false
   };
 };
@@ -1549,7 +1549,7 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
       const token = getAuthToken();
       let actualUserId = userId;
 
-      if (userId === 'me') {
+      if (userId === "me") {
         actualUserId = await resolveUserIdIfNeeded(userId);
       }
 
@@ -1562,10 +1562,10 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
 
       try {
         const response = await fetch(endpoint, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : ''
+            "Content-Type": "application/json",
+            "Authorization": token ? `Bearer ${token}` : ""
           },
           credentials: "include",
           signal: controller.signal
@@ -1599,7 +1599,7 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
         }
 
         const responseData = await response.json();
-        
+
         // Add success flag for more consistent handling
         return {
           ...responseData,
@@ -1612,16 +1612,16 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
       }
     } catch (error: any) {
       lastError = error;
-      
+
       // If this was a timeout or network error, log and retry
-      const isNetworkError = error.name === 'AbortError' || 
-                             error.message?.includes('network') ||
-                             error.message?.includes('timeout');
-                             
-      if (isNetworkError || error.message?.includes('500')) {
+      const isNetworkError = error.name === "AbortError" ||
+                             error.message?.includes("network") ||
+                             error.message?.includes("timeout");
+
+      if (isNetworkError || error.message?.includes("500")) {
         logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
         retryCount++;
-        
+
         if (retryCount <= maxRetries) {
           // Wait before retrying: 1s, then 3s
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
@@ -1629,20 +1629,20 @@ export const getUserLikedThreads = async (userId: string, page: number = 1, limi
         }
       } else {
         // For other types of errors, don't retry
-        logger.error('Non-retriable error in getUserLikedThreads:', error);
+        logger.error("Non-retriable error in getUserLikedThreads:", error);
         break;
       }
     }
   }
 
   // If we got here, all retries failed
-  logger.error('Error in getUserLikedThreads after all retries:', lastError);
-  
+  logger.error("Error in getUserLikedThreads after all retries:", lastError);
+
   // Return an empty result with error information
   return {
     threads: [],
     total: 0,
-    error: lastError?.message || 'Unknown error fetching liked threads',
+    error: lastError?.message || "Unknown error fetching liked threads",
     success: false
   };
 };
@@ -1663,10 +1663,10 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
 
       try {
         const response = await fetch(`${API_BASE_URL}/threads/user/${resolvedUserId}/media?page=${page}&limit=${limit}`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Authorization': `Bearer ${getAuthToken()}`,
-            'Content-Type': 'application/json'
+            "Authorization": `Bearer ${getAuthToken()}`,
+            "Content-Type": "application/json"
           },
           signal: controller.signal
         });
@@ -1678,14 +1678,14 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
           let errorMessage = `Failed to get user media: ${response.status}`;
           try {
             const errorData = await response.json();
-            logger.error('Error getting user media:', errorData);
+            logger.error("Error getting user media:", errorData);
             if (errorData.message) {
               errorMessage += ` - ${errorData.message}`;
             }
           } catch (parseError) {
-            logger.error('Could not parse error response:', parseError);
+            logger.error("Could not parse error response:", parseError);
           }
-          
+
           // For 500 errors, we'll retry
           if (response.status >= 500) {
             throw new Error(errorMessage);
@@ -1701,7 +1701,7 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
         }
 
         const result = await response.json();
-        
+
         // Add success flag for more consistent handling
         return {
           ...result,
@@ -1714,16 +1714,16 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
       }
     } catch (error: any) {
       lastError = error;
-      
+
       // If this was a timeout or network error, log and retry
-      const isNetworkError = error.name === 'AbortError' || 
-                             error.message?.includes('network') ||
-                             error.message?.includes('timeout');
-                             
-      if (isNetworkError || error.message?.includes('500')) {
+      const isNetworkError = error.name === "AbortError" ||
+                             error.message?.includes("network") ||
+                             error.message?.includes("timeout");
+
+      if (isNetworkError || error.message?.includes("500")) {
         logger.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${error.message}. Retrying...`);
         retryCount++;
-        
+
         if (retryCount <= maxRetries) {
           // Wait before retrying: 1s, then 3s
           await new Promise(resolve => setTimeout(resolve, retryCount * 2000));
@@ -1731,20 +1731,20 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
         }
       } else {
         // For other types of errors, don't retry
-        logger.error('Non-retriable error in getUserMedia:', error);
+        logger.error("Non-retriable error in getUserMedia:", error);
         break;
       }
     }
   }
 
   // If we got here, all retries failed
-  logger.error('Error in getUserMedia after all retries:', lastError);
-  
+  logger.error("Error in getUserMedia after all retries:", lastError);
+
   // Return an empty result with error information
   return {
     media: [],
     total: 0,
-    error: lastError?.message || 'Unknown error fetching media',
+    error: lastError?.message || "Unknown error fetching media",
     success: false
   };
 };
@@ -1752,18 +1752,18 @@ export const getUserMedia = async (userId: string, page = 1, limit = 10): Promis
 export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Promise<any> => {
   try {
     const token = getAuthToken();
-    
+
     // Check if token exists - this is critical
     if (!token) {
-      logger.error(`Cannot get user bookmarks: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      logger.error("Cannot get user bookmarks: No auth token available");
+      throw new Error("Authentication required. Please log in again.");
     }
-    
-    const actualUserId = userId === 'me' ? getUserId() : userId;
+
+    const actualUserId = userId === "me" ? getUserId() : userId;
 
     if (!actualUserId) {
-      logger.error('No user ID available, cannot fetch bookmarks');
-      throw new Error('User ID is required');
+      logger.error("No user ID available, cannot fetch bookmarks");
+      throw new Error("User ID is required");
     }
 
     // Set up URL for bookmarks API
@@ -1772,10 +1772,10 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     logger.debug(`Auth token available: ${!!token}, length: ${token?.length}`);
 
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
       },
       credentials: "include"
     });
@@ -1783,17 +1783,17 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
     if (!response.ok) {
       // Check specifically for auth errors
       if (response.status === 401) {
-        logger.error('Authentication failed when getting bookmarks - token may be invalid');
-        throw new Error('Your session has expired. Please log in again.');
+        logger.error("Authentication failed when getting bookmarks - token may be invalid");
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       logger.error(`Failed to get bookmarks: ${response.status}`);
       throw new Error(`Failed to get bookmarks: ${response.status}`);
     }
 
     const data = await response.json();
-    logger.debug('Bookmarks API returned data:', data);
-    
+    logger.debug("Bookmarks API returned data:", data);
+
     // HANDLE BOTH RESPONSE FORMATS:
     // 1. {data: {bookmarks: [...]}}
     // 2. {bookmarks: [...]}
@@ -1808,7 +1808,7 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
       pagination: data.data?.pagination || data.pagination || null
     };
   } catch (err) {
-    logger.error('Error getting user bookmarks:', err);
+    logger.error("Error getting user bookmarks:", err);
     throw err;
   }
 };
@@ -1816,21 +1816,21 @@ export const getUserBookmarks = async (userId: string, page = 1, limit = 10): Pr
 export const searchBookmarks = async (query: string, page = 1, limit = 10): Promise<any> => {
   try {
     const token = getAuthToken();
-    
+
     // Check if token exists - this is critical
     if (!token) {
-      logger.error(`Cannot search bookmarks: No auth token available`);
-      throw new Error('Authentication required. Please log in again.');
+      logger.error("Cannot search bookmarks: No auth token available");
+      throw new Error("Authentication required. Please log in again.");
     }
-    
+
     const url = `${API_BASE_URL}/bookmarks/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`;
     logger.debug(`Searching bookmarks from: ${url}`);
 
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
       },
       credentials: "include"
     });
@@ -1838,16 +1838,16 @@ export const searchBookmarks = async (query: string, page = 1, limit = 10): Prom
     if (!response.ok) {
       // Check specifically for auth errors
       if (response.status === 401) {
-        logger.error('Authentication failed when searching bookmarks - token may be invalid');
-        throw new Error('Your session has expired. Please log in again.');
+        logger.error("Authentication failed when searching bookmarks - token may be invalid");
+        throw new Error("Your session has expired. Please log in again.");
       }
-      
+
       logger.error(`Failed to search bookmarks: ${response.status}`);
       throw new Error(`Failed to search bookmarks: ${response.status}`);
     }
 
     const data = await response.json();
-    logger.debug('Search bookmarks API returned data:', data);
+    logger.debug("Search bookmarks API returned data:", data);
 
     // Return data structure that matches what the frontend expects
     return {
@@ -1857,7 +1857,7 @@ export const searchBookmarks = async (query: string, page = 1, limit = 10): Prom
       pagination: data.pagination || null
     };
   } catch (err) {
-    logger.error('Error searching bookmarks:', err);
+    logger.error("Error searching bookmarks:", err);
     throw err;
   }
 };

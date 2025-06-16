@@ -1,41 +1,41 @@
-import appConfig from '../config/appConfig';
-import type { ISuggestedFollow } from '../interfaces/ISocialMedia';
-import { createLoggerWithPrefix } from '../utils/logger';
+import appConfig from "../config/appConfig";
+import type { ISuggestedFollow } from "../interfaces/ISocialMedia";
+import { createLoggerWithPrefix } from "../utils/logger";
 
 const API_BASE_URL = appConfig.api.baseUrl;
-const logger = createLoggerWithPrefix('suggestions-api');
+const logger = createLoggerWithPrefix("suggestions-api");
 
-export async function getSuggestedUsers(limit: number = 3, sortBy: string = 'follower_count'): Promise<ISuggestedFollow[]> {
+export async function getSuggestedUsers(limit: number = 3, sortBy: string = "follower_count"): Promise<ISuggestedFollow[]> {
   try {
     const url = `${API_BASE_URL}/users/all?limit=${limit}&sort_by=${sortBy}&sort_desc=true`;
     logger.debug(`Fetching suggested users from ${url}`);
-    
+
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json"
       },
-      credentials: 'include'
+      credentials: "include"
     });
-    
+
     if (!response.ok) {
       logger.error(`Failed to fetch suggestions: ${response.status}`);
       return [];
     }
-    
+
     const data = await response.json();
-    
+
     if (!data || !data.users || !Array.isArray(data.users)) {
-      logger.warn('Invalid data format from suggestions API');
+      logger.warn("Invalid data format from suggestions API");
       return [];
     }
 
     logger.info(`Successfully fetched ${data.users.length} user suggestions from API`);
 
     return data.users.map((user: any) => ({
-      id: user.id, 
+      id: user.id,
       username: user.username,
-      name: user.name || user.display_name, 
+      name: user.name || user.display_name,
       profile_picture_url: user.profile_picture_url,
       is_verified: user.is_verified || false,
       follower_count: user.follower_count || 0,
@@ -43,7 +43,7 @@ export async function getSuggestedUsers(limit: number = 3, sortBy: string = 'fol
     }));
 
   } catch (error: any) {
-    logger.error('Failed to fetch suggested users', { error: error.message });
+    logger.error("Failed to fetch suggested users", { error: error.message });
     return [];
   }
 }

@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { API_URL } from '../config';
+import axios from "axios";
+import { API_URL } from "../config";
 
 export interface Community {
   id: string;
@@ -52,7 +52,7 @@ export interface PaginationData {
 }
 
 export interface MembershipStatus {
-  status: 'member' | 'pending' | 'none';
+  status: "member" | "pending" | "none";
 }
 
 // Create community request interface
@@ -79,22 +79,22 @@ export const getCommunityById = async (id: string): Promise<Community> => {
 export const listCommunities = async (
   page: number = 1,
   limit: number = 25,
-  filter: string = 'all',
+  filter: string = "all",
   query?: string,
   categories?: string[]
 ): Promise<{ communities: Community[], pagination: PaginationData }> => {
   let url = `${API_URL}/v1/communities?page=${page}&limit=${limit}&filter=${filter}`;
-  
+
   if (query) {
     url += `&q=${query}`;
   }
-  
+
   if (categories && categories.length > 0) {
     categories.forEach(category => {
       url += `&category=${category}`;
     });
   }
-  
+
   const response = await axios.get(url);
   return response.data.data;
 };

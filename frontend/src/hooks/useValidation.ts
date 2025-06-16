@@ -1,4 +1,4 @@
-import type { IDateOfBirth } from '../interfaces/IAuth';
+import type { IDateOfBirth } from "../interfaces/IAuth";
 
 export function useValidation() {
   // Validate name
@@ -15,7 +15,7 @@ export function useValidation() {
     }
     return "";
   };
-  
+
   // Validate username
   const validateUsername = (username: string): string => {
     if (!username) {
@@ -29,7 +29,7 @@ export function useValidation() {
     }
     return "";
   };
-  
+
   // Validate email
   const validateEmail = (email: string): string => {
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
@@ -40,39 +40,39 @@ export function useValidation() {
     }
     return "";
   };
-  
+
   // Validate password
   const validatePassword = (password: string): string[] => {
     const errors: string[] = [];
-    
+
     if (!password) {
       errors.push("Password is required");
       return errors;
     }
-    
+
     if (password.length < 8) {
       errors.push("Password must be at least 8 characters");
     }
-    
+
     if (!/[A-Z]/.test(password)) {
       errors.push("Password must contain at least one uppercase letter");
     }
-    
+
     if (!/[a-z]/.test(password)) {
       errors.push("Password must contain at least one lowercase letter");
     }
-    
+
     if (!/[0-9]/.test(password)) {
       errors.push("Password must contain at least one number");
     }
-    
+
     if (!/[^A-Za-z0-9]/.test(password)) {
       errors.push("Password must contain at least one special character");
     }
-    
+
     return errors;
   };
-  
+
   // Validate confirm password
   const validateConfirmPassword = (password: string, confirmPassword: string): string => {
     if (!confirmPassword) {
@@ -82,7 +82,7 @@ export function useValidation() {
     }
     return "";
   };
-  
+
   // Validate gender
   const validateGender = (gender: string): string => {
     if (!gender) {
@@ -90,34 +90,34 @@ export function useValidation() {
     }
     return "";
   };
-  
+
   // Validate date of birth
   const validateDateOfBirth = (dateOfBirth: IDateOfBirth, months: string[]): string => {
     if (!dateOfBirth.month || !dateOfBirth.day || !dateOfBirth.year) {
       return "Date of birth is required";
     }
-    
+
     const birthDate = new Date(
       parseInt(dateOfBirth.year),
       months.indexOf(dateOfBirth.month),
       parseInt(dateOfBirth.day)
     );
-    
+
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     if (age < 13) {
       return "You must be at least 13 years old to register";
     }
-    
+
     return "";
   };
-  
+
   // Validate security question
   const validateSecurityQuestion = (question: string, answer: string): string => {
     if (!question) {
@@ -129,14 +129,14 @@ export function useValidation() {
     }
     return "";
   };
-  
+
   // Format date of birth for API
   const formatDateOfBirth = (dateOfBirth: IDateOfBirth, months: string[]): string => {
-    const month = (months.indexOf(dateOfBirth.month) + 1).toString().padStart(2, '0');
-    const day = dateOfBirth.day.padStart(2, '0');
+    const month = (months.indexOf(dateOfBirth.month) + 1).toString().padStart(2, "0");
+    const day = dateOfBirth.day.padStart(2, "0");
     return `${dateOfBirth.year}-${month}-${day}`;
   };
-  
+
   return {
     validateName,
     validateUsername,
@@ -148,4 +148,4 @@ export function useValidation() {
     validateSecurityQuestion,
     formatDateOfBirth
   };
-} 
+}

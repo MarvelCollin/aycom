@@ -1,5 +1,3 @@
-/* Thread detail page styles */
-
 .thread-container {
   min-height: 100vh;
   background-color: var(--bg-primary);
@@ -169,7 +167,6 @@
   background-color: rgba(0, 186, 124, 0.1);
 }
 
-/* Replies section */
 .thread-replies {
   display: flex;
   flex-direction: column;
@@ -232,17 +229,16 @@
   gap: var(--space-2);
 }
 
-/* Responsive adjustments */
 @media (max-width: 500px) {
   .thread-header {
     padding: var(--space-2) var(--space-3);
   }
-  
+
   .thread-main {
     padding: var(--space-3);
   }
-  
+
   .thread-content {
     font-size: var(--font-size-md);
   }
-}  
+}

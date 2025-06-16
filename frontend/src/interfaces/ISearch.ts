@@ -2,10 +2,10 @@
  * Search-related interfaces
  */
 
-import type { IUser, IUserProfile } from './IUser';
-import type { ITweet } from './ISocialMedia';
-import type { ICommunity } from './ICommunity';
-import type { IPagination } from './ICommon';
+import type { IUser, IUserProfile } from "./IUser";
+import type { ITweet } from "./ISocialMedia";
+import type { ICommunity } from "./ICommunity";
+import type { IPagination } from "./ICommon";
 
 /**
  * Search users request
@@ -78,4 +78,4 @@ export interface IUserRecommendationsResponse {
   data: {
     users: IUserProfile[];
   };
-} 
+}

@@ -1,64 +1,64 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import MainLayout from '../components/layout/MainLayout.svelte';
-  import { useAuth } from '../hooks/useAuth';
-  import { useTheme } from '../hooks/useTheme';
-  import type { IAuthStore } from '../interfaces/IAuth';
-  import { createLoggerWithPrefix } from '../utils/logger';
-  import { toastStore } from '../stores/toastStore';
-  
-  const logger = createLoggerWithPrefix('CreateCommunity');
-  
+  import { onMount } from "svelte";
+  import MainLayout from "../components/layout/MainLayout.svelte";
+  import { useAuth } from "../hooks/useAuth";
+  import { useTheme } from "../hooks/useTheme";
+  import type { IAuthStore } from "../interfaces/IAuth";
+  import { createLoggerWithPrefix } from "../utils/logger";
+  import { toastStore } from "../stores/toastStore";
+
+  const logger = createLoggerWithPrefix("CreateCommunity");
+
   // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
-  
+
   // Reactive declarations
   $: authState = getAuthState ? (getAuthState() as IAuthStore) : { user_id: null, is_authenticated: false, access_token: null, refresh_token: null };
-  $: isDarkMode = $theme === 'dark';
-  $: sidebarUsername = authState?.user_id ? `User_${authState.user_id.substring(0, 4)}` : '';
-  $: sidebarDisplayName = authState?.user_id ? `User ${authState.user_id.substring(0, 4)}` : '';
-  $: sidebarAvatar = 'https://secure.gravatar.com/avatar/0?d=mp'; // Default avatar with proper image URL
-  
+  $: isDarkMode = $theme === "dark";
+  $: sidebarUsername = authState?.user_id ? `User_${authState.user_id.substring(0, 4)}` : "";
+  $: sidebarDisplayName = authState?.user_id ? `User ${authState.user_id.substring(0, 4)}` : "";
+  $: sidebarAvatar = "https://secure.gravatar.com/avatar/0?d=mp"; // Default avatar with proper image URL
+
   // Available categories for selection
   const availableCategories = [
-    'Gaming', 'Sports', 'Food', 'Technology', 'Art', 'Music', 
-    'Movies', 'Books', 'Fitness', 'Travel', 'Fashion', 'Education',
-    'Science', 'Health', 'Business', 'Politics', 'News', 'Photography',
-    'Lifestyle', 'Entertainment', 'Pets', 'Environment', 'DIY', 'Finance'
+    "Gaming", "Sports", "Food", "Technology", "Art", "Music",
+    "Movies", "Books", "Fitness", "Travel", "Fashion", "Education",
+    "Science", "Health", "Business", "Politics", "News", "Photography",
+    "Lifestyle", "Entertainment", "Pets", "Environment", "DIY", "Finance"
   ];
-  
+
   // Form data
-  let communityName = '';
-  let description = '';
+  let communityName = "";
+  let description = "";
   let icon: File | null = null;
   let iconPreview: string | null = null;
   let selectedCategories: string[] = [];
   let banner: File | null = null;
   let bannerPreview: string | null = null;
-  let rules = '';
-  
+  let rules = "";
+
   // Form state
   let isSubmitting = false;
   let isSuccess = false;
   let errors: Record<string, string> = {};
-  
+
   // Authentication check
   function checkAuth() {
     if (!authState.is_authenticated) {
-      toastStore.showToast('You need to log in to create a community', 'warning');
-      window.location.href = '/login';
+      toastStore.showToast("You need to log in to create a community", "warning");
+      window.location.href = "/login";
       return false;
     }
     return true;
   }
-  
+
   // Handle icon file selection
   function handleIconChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       icon = input.files[0];
-      
+
       // Create a preview
       const reader = new FileReader();
       reader.onload = e => {
@@ -67,13 +67,13 @@
       reader.readAsDataURL(icon);
     }
   }
-  
+
   // Handle banner file selection
   function handleBannerChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       banner = input.files[0];
-      
+
       // Create a preview
       const reader = new FileReader();
       reader.onload = e => {
@@ -82,7 +82,7 @@
       reader.readAsDataURL(banner);
     }
   }
-  
+
   // Toggle category selection
   function toggleCategory(category: string) {
     if (selectedCategories.includes(category)) {
@@ -91,58 +91,58 @@
       if (selectedCategories.length < 5) { // Limit to 5 categories
         selectedCategories = [...selectedCategories, category];
       } else {
-        toastStore.showToast('You can select up to 5 categories', 'warning');
+        toastStore.showToast("You can select up to 5 categories", "warning");
       }
     }
   }
-  
+
   // Validate form
   function validateForm(): boolean {
     errors = {};
-    
+
     // Community name validation
     if (!communityName.trim()) {
-      errors.communityName = 'Community name is required';
+      errors.communityName = "Community name is required";
     } else if (communityName.length < 3) {
-      errors.communityName = 'Community name must be at least 3 characters';
+      errors.communityName = "Community name must be at least 3 characters";
     } else if (communityName.length > 50) {
-      errors.communityName = 'Community name cannot exceed 50 characters';
+      errors.communityName = "Community name cannot exceed 50 characters";
     }
-    
+
     // Description validation
     if (!description.trim()) {
-      errors.description = 'Description is required';
+      errors.description = "Description is required";
     } else if (description.length < 30) {
-      errors.description = 'Description must be at least 30 characters';
+      errors.description = "Description must be at least 30 characters";
     } else if (description.length > 500) {
-      errors.description = 'Description cannot exceed 500 characters';
+      errors.description = "Description cannot exceed 500 characters";
     }
-    
+
     // Icon validation
     if (!icon) {
-      errors.icon = 'Community icon is required';
+      errors.icon = "Community icon is required";
     }
-    
+
     // Categories validation
     if (selectedCategories.length === 0) {
-      errors.categories = 'At least one category is required';
+      errors.categories = "At least one category is required";
     }
-    
+
     // Banner validation
     if (!banner) {
-      errors.banner = 'Community banner is required';
+      errors.banner = "Community banner is required";
     }
-    
+
     // Rules validation
     if (!rules.trim()) {
-      errors.rules = 'Community rules are required';
+      errors.rules = "Community rules are required";
     } else if (rules.length < 50) {
-      errors.rules = 'Rules must be at least 50 characters';
+      errors.rules = "Rules must be at least 50 characters";
     }
-    
+
     return Object.keys(errors).length === 0;
   }
-  
+
   // Submit form
   async function handleSubmit() {
     if (!validateForm()) {
@@ -150,13 +150,13 @@
       const firstErrorField = Object.keys(errors)[0];
       const element = document.getElementById(firstErrorField);
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
       }
       return;
     }
-    
+
     isSubmitting = true;
-    
+
     try {
       // In a real implementation, this would be an API call to create a community
       // For example:
@@ -171,34 +171,34 @@
       //   method: 'POST',
       //   body: formData
       // });
-      
+
       // Simulate API response with a delay
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      logger.debug('Community creation request submitted', {
+
+      logger.debug("Community creation request submitted", {
         name: communityName,
         categories: selectedCategories
       });
-      
+
       // Success
       isSuccess = true;
-      toastStore.showToast('Community creation request submitted for approval', 'success');
-      
+      toastStore.showToast("Community creation request submitted for approval", "success");
+
     } catch (error) {
-      console.error('Error creating community:', error);
-      toastStore.showToast('Failed to create community. Please try again.', 'error');
+      console.error("Error creating community:", error);
+      toastStore.showToast("Failed to create community. Please try again.", "error");
     } finally {
       isSubmitting = false;
     }
   }
-  
+
   // Navigate back to communities
   function navigateToCommunities() {
-    window.location.href = '/communities';
+    window.location.href = "/communities";
   }
-  
+
   onMount(() => {
-    logger.debug('Create Community page mounted', { authState });
+    logger.debug("Create Community page mounted", { authState });
     checkAuth();
   });
 </script>
@@ -225,7 +225,7 @@
         <h1 class="text-xl font-bold">Create Community</h1>
       </div>
     </div>
-    
+
     <!-- Content -->
     <div class="p-4">
       {#if isSuccess}
@@ -235,7 +235,7 @@
           </svg>
           <h2 class="text-2xl font-bold mt-4 mb-2">Request Submitted!</h2>
           <p class="text-gray-600 dark:text-gray-300 mb-6 max-w-md mx-auto">
-            Your community creation request has been submitted and is pending admin approval. 
+            Your community creation request has been submitted and is pending admin approval.
             We'll notify you once it's approved.
           </p>
           <button
@@ -248,10 +248,10 @@
       {:else}
         <div class="max-w-3xl mx-auto">
           <p class="text-gray-600 dark:text-gray-300 mb-6">
-            Create your own community to connect with people who share your interests. 
+            Create your own community to connect with people who share your interests.
             All communities are subject to admin approval before they are created.
           </p>
-          
+
           <form on:submit|preventDefault={handleSubmit} class="space-y-6">
             <!-- Community Name -->
             <div>
@@ -262,14 +262,14 @@
                 id="communityName"
                 type="text"
                 bind:value={communityName}
-                class="w-full px-4 py-2 rounded-lg border {errors.communityName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800"
+                class="w-full px-4 py-2 rounded-lg border {errors.communityName ? "border-red-500" : "border-gray-300 dark:border-gray-600"} bg-white dark:bg-gray-800"
                 placeholder="Enter community name"
               />
               {#if errors.communityName}
                 <p class="mt-1 text-sm text-red-500">{errors.communityName}</p>
               {/if}
             </div>
-            
+
             <!-- Description -->
             <div>
               <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -279,7 +279,7 @@
                 id="description"
                 bind:value={description}
                 rows="4"
-                class="w-full px-4 py-2 rounded-lg border {errors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800"
+                class="w-full px-4 py-2 rounded-lg border {errors.description ? "border-red-500" : "border-gray-300 dark:border-gray-600"} bg-white dark:bg-gray-800"
                 placeholder="Describe what your community is about"
               ></textarea>
               {#if errors.description}
@@ -288,14 +288,14 @@
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{description.length}/500 characters</p>
               {/if}
             </div>
-            
+
             <!-- Icon Upload -->
             <div>
               <label for="icon" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Community Icon <span class="text-red-500">*</span>
               </label>
               <div class="flex items-center space-x-4">
-                <div class="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden border-2 {errors.icon ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}">
+                <div class="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden border-2 {errors.icon ? "border-red-500" : "border-gray-300 dark:border-gray-600"}">
                   {#if iconPreview}
                     <img src={iconPreview} alt="Icon preview" class="w-full h-full object-cover" />
                   {:else}
@@ -325,7 +325,7 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- Categories -->
             <div>
               <label for="categories-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -341,7 +341,7 @@
                 {#each availableCategories as category}
                   <button
                     type="button"
-                    class="px-3 py-1 rounded-full text-sm {selectedCategories.includes(category) ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}"
+                    class="px-3 py-1 rounded-full text-sm {selectedCategories.includes(category) ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"}"
                     on:click={() => toggleCategory(category)}
                     aria-pressed={selectedCategories.includes(category)}
                   >
@@ -353,13 +353,13 @@
                 <p class="mt-1 text-sm text-red-500">{errors.categories}</p>
               {/if}
             </div>
-            
+
             <!-- Banner Upload -->
             <div>
               <label for="banner" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Community Banner <span class="text-red-500">*</span>
               </label>
-              <div class="border-2 rounded-lg {errors.banner ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} overflow-hidden">
+              <div class="border-2 rounded-lg {errors.banner ? "border-red-500" : "border-gray-300 dark:border-gray-600"} overflow-hidden">
                 <div class="aspect-[3/1] bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                   {#if bannerPreview}
                     <img src={bannerPreview} alt="Banner preview" class="w-full h-full object-cover" />
@@ -392,7 +392,7 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- Rules -->
             <div>
               <label for="rules" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -402,7 +402,7 @@
                 id="rules"
                 bind:value={rules}
                 rows="6"
-                class="w-full px-4 py-2 rounded-lg border {errors.rules ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800"
+                class="w-full px-4 py-2 rounded-lg border {errors.rules ? "border-red-500" : "border-gray-300 dark:border-gray-600"} bg-white dark:bg-gray-800"
                 placeholder="Enter the rules for your community. These help maintain a positive environment and let members know what's expected."
               ></textarea>
               {#if errors.rules}
@@ -412,7 +412,7 @@
                 Include guidelines for posting, commenting, and interacting within the community.
               </p>
             </div>
-            
+
             <!-- Submit Button -->
             <div class="flex justify-end pt-4">
               <button
@@ -428,7 +428,7 @@
                 class="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit for Approval'}
+                {isSubmitting ? "Submitting..." : "Submit for Approval"}
               </button>
             </div>
           </form>

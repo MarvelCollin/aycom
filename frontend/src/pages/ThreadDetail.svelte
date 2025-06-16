@@ -1,20 +1,20 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { fade } from 'svelte/transition';
-  import { getThread, getThreadReplies, getReplyReplies } from '../api/thread';
-  import TweetCard from '../components/social/TweetCard.svelte';
-  import ComposeTweetModal from '../components/social/ComposeTweetModal.svelte';
-  import { toastStore } from '../stores/toastStore';
-  import { authStore } from '../stores/authStore';
-  import { useTheme } from '../hooks/useTheme';
-  import ArrowLeftIcon from 'svelte-feather-icons/src/icons/ArrowLeftIcon.svelte';
-  import type { ITweet } from '../interfaces/ISocialMedia';
-  
+  import { onMount, onDestroy } from "svelte";
+  import { fade } from "svelte/transition";
+  import { getThread, getThreadReplies, getReplyReplies } from "../api/thread";
+  import TweetCard from "../components/social/TweetCard.svelte";
+  import ComposeTweetModal from "../components/social/ComposeTweetModal.svelte";
+  import { toastStore } from "../stores/toastStore";
+  import { authStore } from "../stores/authStore";
+  import { useTheme } from "../hooks/useTheme";
+  import ArrowLeftIcon from "svelte-feather-icons/src/icons/ArrowLeftIcon.svelte";
+  import type { ITweet } from "../interfaces/ISocialMedia";
+
   const { theme } = useTheme();
-  
+
   export let threadId: string;
   export let passedThread: any = null; // Accept thread data passed from TweetCard
-  
+
   let thread: any = null;
   let replies: any[] = [];
   let isLoading = true;
@@ -22,25 +22,25 @@
   let showReplyForm = false;
   let replyTo: any = null;
   let isDarkMode = false;
-  
+
   // Update isDarkMode based on theme
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   // Function to format thread data from the API response to a consistent structure
   function formatThreadData(responseData) {
     try {
-      console.log('Formatting thread data from API response:', responseData);
-      
+      console.log("Formatting thread data from API response:", responseData);
+
       // Create standardized thread object using the API fields directly
         return {
           id: responseData.id || threadId,
-          content: responseData.content || '',
+          content: responseData.content || "",
           created_at: responseData.created_at || new Date().toISOString(),
           updated_at: responseData.updated_at,
-        user_id: responseData.user_id || '',
-        username: responseData.username || responseData.author_username || '',
-        name: responseData.name || responseData.display_name || 'User',
-          profile_picture_url: responseData.profile_picture_url || '',
+        user_id: responseData.user_id || "",
+        username: responseData.username || responseData.author_username || "",
+        name: responseData.name || responseData.display_name || "User",
+          profile_picture_url: responseData.profile_picture_url || "",
           likes_count: responseData.likes_count || 0,
           replies_count: responseData.replies_count || 0,
           reposts_count: responseData.reposts_count || 0,
@@ -59,16 +59,16 @@
         })) : []
         };
     } catch (error) {
-      console.error('Error formatting thread data:', error);
+      console.error("Error formatting thread data:", error);
       // Return a minimal safe object
       return {
         id: threadId,
-        content: '',
+        content: "",
         created_at: new Date().toISOString(),
-        user_id: '',
-        username: '',
-        name: 'User',
-        profile_picture_url: '',
+        user_id: "",
+        username: "",
+        name: "User",
+        profile_picture_url: "",
         likes_count: 0,
         replies_count: 0,
         reposts_count: 0,
@@ -83,20 +83,20 @@
       };
     }
   }
-  
+
   // Format reply data to a consistent structure
   function formatReplyData(replyData) {
     try {
       return {
         id: replyData.id,
-        content: replyData.content || '',
+        content: replyData.content || "",
         created_at: replyData.created_at || new Date().toISOString(),
         updated_at: replyData.updated_at,
         thread_id: replyData.thread_id || threadId,
-        user_id: replyData.user_id || '',
-        username: replyData.username || replyData.author_username || '',
-        name: replyData.name || replyData.display_name || 'User',
-        profile_picture_url: replyData.profile_picture_url || '',
+        user_id: replyData.user_id || "",
+        username: replyData.username || replyData.author_username || "",
+        name: replyData.name || replyData.display_name || "User",
+        profile_picture_url: replyData.profile_picture_url || "",
         is_verified: replyData.is_verified || false,
         likes_count: replyData.likes_count || 0,
         replies_count: replyData.replies_count || 0,
@@ -108,10 +108,10 @@
         parent_id: replyData.parent_id,
         parent_content: replyData.parent_content || null,
         parent_user: replyData.parent_user ? {
-          id: replyData.parent_user.id || '',
-          username: replyData.parent_user.username || '',
-          name: replyData.parent_user.name || '',
-          profile_picture_url: replyData.parent_user.profile_picture_url || ''
+          id: replyData.parent_user.id || "",
+          username: replyData.parent_user.username || "",
+          name: replyData.parent_user.name || "",
+          profile_picture_url: replyData.parent_user.profile_picture_url || ""
         } : null,
         media: Array.isArray(replyData.media) ? replyData.media.map(m => ({
           id: m.id,
@@ -121,17 +121,17 @@
         })) : []
       };
     } catch (error) {
-      console.error('Error formatting reply data:', error);
+      console.error("Error formatting reply data:", error);
       // Return a basic object with required fields
       return {
-        id: replyData.id || '',
-        content: replyData.content || '',
+        id: replyData.id || "",
+        content: replyData.content || "",
         created_at: replyData.created_at || new Date().toISOString(),
         thread_id: replyData.thread_id || threadId,
-        user_id: replyData.user_id || '',
-        username: '',
-        name: 'User',
-        profile_picture_url: '',
+        user_id: replyData.user_id || "",
+        username: "",
+        name: "User",
+        profile_picture_url: "",
         likes_count: 0,
         replies_count: 0,
         media: []
@@ -145,89 +145,89 @@
     try {
       // Check if we have threadId
       if (!threadId) {
-        console.error('No thread ID available');
+        console.error("No thread ID available");
         isLoading = false;
         return;
       }
-      
-      console.log('Loading thread with ID:', threadId);
-      
+
+      console.log("Loading thread with ID:", threadId);
+
       // Always load fresh thread data from API
       const response = await getThread(threadId);
-      console.log('Thread data from API:', response);
-      
+      console.log("Thread data from API:", response);
+
       if (!response) {
-        throw new Error('Failed to load thread data');
+        throw new Error("Failed to load thread data");
       }
-      
+
       // Process the response using our formatter
       thread = formatThreadData(response);
-      console.log('Processed thread:', thread);
-      
+      console.log("Processed thread:", thread);
+
       // If username is empty or undefined, try to get it from sessionStorage
       if (!thread.username) {
         try {
-          const storedThread = sessionStorage.getItem('lastViewedThread');
+          const storedThread = sessionStorage.getItem("lastViewedThread");
           if (storedThread) {
             const parsedThread = JSON.parse(storedThread);
             if (parsedThread.id === threadId && parsedThread.username) {
-              console.log('Using username from stored thread data:', parsedThread.username);
+              console.log("Using username from stored thread data:", parsedThread.username);
               thread.username = parsedThread.username;
               thread.name = parsedThread.name || thread.name;
             }
           }
         } catch (storageError) {
-          console.error('Error accessing stored thread data for username:', storageError);
+          console.error("Error accessing stored thread data for username:", storageError);
         }
       }
-      
+
       // Load replies
       await loadReplies(threadId);
-      
+
     } catch (error) {
-      console.error('Error loading thread:', error);
-      toastStore.showToast('Failed to load thread details', 'error');
-      
+      console.error("Error loading thread:", error);
+      toastStore.showToast("Failed to load thread details", "error");
+
       // If API fails but we have thread data in sessionStorage, use that as fallback
       try {
-        const storedThread = sessionStorage.getItem('lastViewedThread');
+        const storedThread = sessionStorage.getItem("lastViewedThread");
         if (storedThread) {
           const parsedThread = JSON.parse(storedThread);
-          
+
           // Verify this is the correct thread
           if (parsedThread.id === threadId) {
-            console.log('Using stored thread data as fallback:', parsedThread);
+            console.log("Using stored thread data as fallback:", parsedThread);
             thread = formatThreadData(parsedThread);
           } else {
-            console.log('Stored thread ID does not match current threadId, ignoring stored data');
+            console.log("Stored thread ID does not match current threadId, ignoring stored data");
           }
         }
       } catch (storageError) {
-        console.error('Error parsing stored thread data:', storageError);
+        console.error("Error parsing stored thread data:", storageError);
       }
     } finally {
       isLoading = false;
     }
   }
-  
+
   // Load replies for a thread
   async function loadReplies(threadId: string) {
     try {
       // Get the replies from the API
       const response = await getThreadReplies(threadId);
-      console.log('Replies data:', response);
-      
+      console.log("Replies data:", response);
+
       if (response && response.replies && Array.isArray(response.replies)) {
         // Process replies to make them compatible with TweetCard
         replies = response.replies
           .map(formatReplyData)
           .filter(reply => reply && reply.id); // Filter out any null or invalid replies
-        
+
         // Check structure of first reply to validate
         if (replies.length > 0) {
-          console.log('Processed reply structure:', replies[0]);
+          console.log("Processed reply structure:", replies[0]);
         }
-        
+
         // Pre-load nested replies for each reply that has them
         for (const reply of replies) {
           if (reply && reply.replies_count && reply.replies_count > 0) {
@@ -236,22 +236,22 @@
         }
       }
     } catch (error) {
-      console.error('Error loading replies:', error);
+      console.error("Error loading replies:", error);
     }
   }
-  
+
   // Load nested replies
   async function loadNestedReplies(replyId: string) {
     try {
       const response = await getReplyReplies(replyId);
       console.log(`Nested replies for ${replyId}:`, response);
-      
+
       if (response && response.replies && Array.isArray(response.replies)) {
         // Process nested replies using the same formatter
         const processedReplies = response.replies
           .map(formatReplyData)
           .filter(reply => reply && reply.id); // Filter out any null entries
-        
+
         nestedRepliesMap.set(replyId, processedReplies);
         nestedRepliesMap = new Map(nestedRepliesMap); // Force reactivity update
       }
@@ -259,21 +259,21 @@
       console.error(`Error loading nested replies for ${replyId}:`, error);
     }
   }
-  
+
   // Handle refresh replies from ComposeTweet component
   function handleRefreshReplies(event: any) {
     const { threadId, parentReplyId, newReply } = event.detail;
-    
+
     if (!newReply) return;
-    
+
     // Process the new reply using the formatter
     const processedReply = formatReplyData(newReply);
-    
+
     // If refreshing replies for a thread
     if (threadId === thread?.id && !parentReplyId) {
       // Add the new reply to our replies array
       replies = [processedReply, ...replies];
-      
+
       // Update reply count on thread
       if (thread) {
         thread.replies_count = (thread.replies_count || 0) + 1;
@@ -287,7 +287,7 @@
       nestedRepliesMap.set(parentReplyId, [processedReply, ...currentNestedReplies]);
       // Update the map to trigger reactivity
       nestedRepliesMap = new Map(nestedRepliesMap);
-      
+
       // Find the parent reply and update its reply count
       const parentReplyIndex = replies.findIndex(r => r.id === parentReplyId);
       if (parentReplyIndex >= 0) {
@@ -295,105 +295,105 @@
         replies = [...replies]; // Force reactivity update
       }
     }
-    
+
     // Close the reply form after a successful reply
     showReplyForm = false;
   }
-  
+
   // Handle reply button click
   function handleReply(event: CustomEvent<string>) {
     if (!authStore.isAuthenticated()) {
-      toastStore.showToast('Please log in to reply', 'info');
+      toastStore.showToast("Please log in to reply", "info");
       return;
     }
-    
+
     const targetId = event.detail;
-    
+
     // If replying to the main thread
     if (thread && targetId === thread.id) {
       replyTo = {
         id: thread.id,
-        content: thread.content || '',
-        username: thread.username || '',
-        name: thread.name || '',
-        user_id: thread.user_id || '',
+        content: thread.content || "",
+        username: thread.username || "",
+        name: thread.name || "",
+        user_id: thread.user_id || "",
         created_at: thread.created_at || new Date().toISOString()
       };
-    } 
+    }
     // If replying to a reply
     else {
       // Find the reply either in the main replies array or in nested replies
       const targetReply = replies.find(r => r.id === targetId);
-      
+
       if (targetReply) {
         replyTo = {
           id: targetReply.id,
           thread_id: thread?.id,
-          content: targetReply.content || '',
-          username: targetReply.username || '',
-          name: targetReply.name || '',
-          user_id: targetReply.user_id || ''
+          content: targetReply.content || "",
+          username: targetReply.username || "",
+          name: targetReply.name || "",
+          user_id: targetReply.user_id || ""
         };
       } else {
         // Check in nested replies
         for (const [parentId, nestedReplies] of nestedRepliesMap.entries()) {
           if (!Array.isArray(nestedReplies)) continue;
-          
+
           const nestedReply = nestedReplies.find(r => r.id === targetId);
           if (nestedReply) {
             replyTo = {
               id: nestedReply.id,
               thread_id: thread?.id,
               parent_reply_id: parentId,
-              content: nestedReply.content || '',
-              username: nestedReply.username || '',
-              name: nestedReply.name || '',
-              user_id: nestedReply.user_id || ''
+              content: nestedReply.content || "",
+              username: nestedReply.username || "",
+              name: nestedReply.name || "",
+              user_id: nestedReply.user_id || ""
             };
             break;
           }
         }
       }
     }
-    
+
     showReplyForm = true;
   }
-  
+
   // Handle like, unlike, bookmark, unbookmark events by forwarding them
-  function handleLike(event) { dispatch('like', event.detail); }
-  function handleUnlike(event) { dispatch('unlike', event.detail); }
-  function handleBookmark(event) { dispatch('bookmark', event.detail); }
-  function handleRemoveBookmark(event) { dispatch('removeBookmark', event.detail); }
-  function handleRepost(event) { dispatch('repost', event.detail); }
-  
+  function handleLike(event) { dispatch("like", event.detail); }
+  function handleUnlike(event) { dispatch("unlike", event.detail); }
+  function handleBookmark(event) { dispatch("bookmark", event.detail); }
+  function handleRemoveBookmark(event) { dispatch("removeBookmark", event.detail); }
+  function handleRepost(event) { dispatch("repost", event.detail); }
+
   // Initialize component
   onMount(() => {
     // Check if we have thread data in sessionStorage from TweetCard navigation
     try {
-      const storedThread = sessionStorage.getItem('lastViewedThread');
+      const storedThread = sessionStorage.getItem("lastViewedThread");
       if (storedThread) {
         const parsedThread = JSON.parse(storedThread);
-        
+
         // Verify this is the correct thread for the current page
         if (parsedThread.id === threadId) {
           // Use the stored thread data as a quick initial render
           thread = formatThreadData(parsedThread);
-          console.log('Using thread data from sessionStorage:', thread);
+          console.log("Using thread data from sessionStorage:", thread);
         } else {
-          console.log('Stored thread ID does not match current threadId, ignoring stored data');
+          console.log("Stored thread ID does not match current threadId, ignoring stored data");
         }
-        
+
         // Remove from sessionStorage to avoid stale data on page refresh
-        sessionStorage.removeItem('lastViewedThread');
+        sessionStorage.removeItem("lastViewedThread");
       }
     } catch (error) {
-      console.error('Error parsing stored thread data:', error);
+      console.error("Error parsing stored thread data:", error);
     }
-    
+
     // Always load fresh thread data from API to ensure it's up-to-date
     loadThreadWithReplies();
   });
-  
+
   // Clean up subscription on component destruction
   onDestroy(() => {
     // No cleanup needed since we're not using store subscription
@@ -410,19 +410,19 @@
 </script>
 
 <svelte:head>
-  <title>{thread ? `${thread.name || 'User'}'s Post` : 'Thread'} | AYCOM</title>
+  <title>{thread ? `${thread.name || "User"}'s Post` : "Thread"} | AYCOM</title>
 </svelte:head>
 
 <div class="thread-detail-container">
   <div class="thread-content">
     <!-- Back Button -->
     <div class="back-button-container">
-      <button 
+      <button
         class="back-button"
         on:click={() => window.history.back()}
         aria-label="Go back"
       >
-        <ArrowLeftIcon size="20" class="{isDarkMode ? 'text-white' : 'text-black'}" />
+        <ArrowLeftIcon size="20" class={isDarkMode ? "text-white" : "text-black"} />
       </button>
       <span class="ml-2 font-semibold">Thread</span>
     </div>
@@ -430,17 +430,17 @@
     {#if isLoading}
       <div class="p-4 text-center">
         <div class="loader"></div>
-        <p class="mt-4 {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">Loading thread...</p>
+        <p class="mt-4 {isDarkMode ? "text-gray-300" : "text-gray-600"}">Loading thread...</p>
       </div>
     {:else if thread}
       <div transition:fade={{ duration: 200 }}>
         <!-- Main Thread -->
-        <TweetCard 
-          tweet={thread} 
+        <TweetCard
+          tweet={thread}
           {isDarkMode}
           isAuth={authStore.isAuthenticated()}
           showReplies={true}
-          replies={replies}
+          {replies}
           {nestedRepliesMap}
           on:reply={handleReply}
           on:like={handleLike}
@@ -450,11 +450,11 @@
           on:repost={handleRepost}
           on:loadReplies={() => {}}
         />
-        
+
         <!-- Reply Form -->
         {#if showReplyForm && replyTo}
           <div class="reply-form-container">
-            <ComposeTweetModal 
+            <ComposeTweetModal
               isOpen={showReplyForm}
               avatar={replyTo.profile_picture_url || "https://secure.gravatar.com/avatar/0?d=mp"}
               on:close={() => showReplyForm = false}
@@ -467,16 +467,16 @@
           </div>
         {:else}
           <div class="p-4">
-            <button 
+            <button
               class="reply-button"
               on:click={() => {
                 if (thread) {
                   replyTo = {
                     id: thread.id,
-                    content: thread.content || '',
-                    username: thread.username || '',
-                    name: thread.name || '',
-                    user_id: thread.user_id || '',
+                    content: thread.content || "",
+                    username: thread.username || "",
+                    name: thread.name || "",
+                    user_id: thread.user_id || "",
                     created_at: thread.created_at || new Date().toISOString()
                   };
                 showReplyForm = true;
@@ -487,7 +487,7 @@
             </button>
           </div>
         {/if}
-        
+
         <!-- Debug info to show thread and replies data -->
         {#if thread && import.meta.env?.DEV}
           <details class="p-4 bg-gray-800 text-white text-xs rounded-lg m-2">
@@ -495,7 +495,7 @@
             <pre>{JSON.stringify(thread, null, 2)}</pre>
           </details>
         {/if}
-        
+
         <!-- Replies List with visual connector line -->
         {#if replies && replies.length > 0}
           <div class="reply-section">
@@ -505,7 +505,7 @@
         {/if}
       </div>
     {:else}
-      <div class="p-4 text-center {isDarkMode ? 'text-gray-300' : 'text-gray-600'}">
+      <div class="p-4 text-center {isDarkMode ? "text-gray-300" : "text-gray-600"}">
         <p>Thread not found</p>
       </div>
     {/if}
@@ -520,34 +520,34 @@
     background-color: var(--light-bg-primary);
     color: var(--light-text-primary);
   }
-  
+
   /* Dark theme overrides - these will apply when dark theme is active */
   :global([data-theme="dark"]) .thread-detail-container {
     background-color: var(--dark-bg-primary);
     color: var(--dark-text-primary);
   }
-  
+
   .thread-content {
     max-width: 800px;
     margin: 0 auto;
     background-color: var(--light-bg-primary);
   }
-  
+
   :global([data-theme="dark"]) .thread-content {
     background-color: var(--dark-bg-primary);
   }
-  
+
   .back-button-container {
     display: flex;
     align-items: center;
     padding: 1rem;
     border-bottom: 1px solid var(--light-border-color);
   }
-  
+
   :global([data-theme="dark"]) .back-button-container {
     border-bottom: 1px solid var(--dark-border-color);
   }
-  
+
   .back-button {
     display: flex;
     align-items: center;
@@ -557,15 +557,15 @@
     border-radius: 50%;
     transition: background-color 0.2s ease;
   }
-  
+
   .back-button:hover {
     background-color: var(--light-hover-bg);
   }
-  
+
   :global([data-theme="dark"]) .back-button:hover {
     background-color: var(--dark-hover-bg);
   }
-  
+
   .loader {
     border: 4px solid rgba(0, 0, 0, 0.1);
     border-radius: 50%;
@@ -575,17 +575,17 @@
     animation: spin 1s linear infinite;
     margin: 0 auto;
   }
-  
+
   :global([data-theme="dark"]) .loader {
     border: 4px solid rgba(255, 255, 255, 0.1);
     border-top-color: var(--color-primary);
   }
-  
+
   .reply-section {
     position: relative;
     padding: 0 1rem;
   }
-  
+
   .reply-separator {
     position: absolute;
     left: 2.5rem;
@@ -595,16 +595,16 @@
     background-color: var(--light-border-color);
     z-index: 0;
   }
-  
+
   :global([data-theme="dark"]) .reply-separator {
     background-color: var(--dark-border-color);
   }
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  
+
   .reply-button {
     transition: all 0.2s;
     display: flex;
@@ -618,24 +618,24 @@
     font-weight: 600;
     margin-top: 1rem;
   }
-  
+
   .reply-button:hover {
     transform: translateY(-1px);
     background-color: var(--color-primary-hover);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   }
-  
+
   :global([data-theme="dark"]) .reply-button {
     background-color: var(--color-primary);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
   }
-  
+
   .reply-form-container {
     margin-top: 1rem;
     border-radius: 16px;
     border: 1px solid var(--light-border-color);
   }
-  
+
   :global([data-theme="dark"]) .reply-form-container {
     border-color: var(--dark-border-color);
   }

@@ -95,14 +95,14 @@ export interface ChatMessage {
 
 export interface Attachment {
   id: string;
-  type: 'image' | 'gif' | 'video';
+  type: "image" | "gif" | "video";
   url: string;
   thumbnail?: string;
 }
 
 export interface Chat {
   id: string;
-  type: 'individual' | 'group';
+  type: "individual" | "group";
   name: string;
   profile_picture_url: string | null;
   participants: Participant[];
@@ -184,7 +184,7 @@ export interface IParticipantsResponse {
 }
 
 export interface ICreateChatRequest {
-  type: 'individual' | 'group';
+  type: "individual" | "group";
   name?: string;
   participants: string[];
 }
@@ -262,7 +262,7 @@ export interface IChatHistoryResponse {
         content: string;
         timestamp: string;
         sender_id: string;
-        sender_name: string; 
+        sender_name: string;
       };
       unread_count: number;
     }>;
@@ -274,4 +274,4 @@ export interface IChatHistoryResponse {
       has_more?: boolean;
     };
   };
-} 
+}

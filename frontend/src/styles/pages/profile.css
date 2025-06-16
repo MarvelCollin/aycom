@@ -1,5 +1,3 @@
-/* Profile page styles */
-
 .profile-container {
   min-height: 100vh;
   background-color: var(--bg-primary);
@@ -318,7 +316,6 @@
   to { width: 56px; opacity: 1; }
 }
 
-/* Profile content sections */
 .profile-content {
   min-height: 300px;
   padding: 0;
@@ -349,7 +346,6 @@
   margin: 0 auto;
 }
 
-/* Profile edit modal */
 .profile-edit-modal {
   background-color: var(--bg-primary);
   max-width: 600px;
@@ -376,7 +372,6 @@
   padding: var(--space-4);
 }
 
-/* Followers/Following modal */
 .profile-follow-modal {
   background-color: var(--bg-primary);
   max-width: 600px;
@@ -488,45 +483,44 @@
   .profile-banner {
     height: 160px;
   }
-  
+
   .profile-avatar-container {
     margin-top: -50px;
     margin-left: var(--space-3);
   }
-  
+
   .profile-avatar {
     width: 100px;
     height: 100px;
     border-width: 3px;
   }
-  
+
   .profile-details {
     padding: var(--space-2);
   }
-  
+
   .profile-name {
     font-size: var(--font-size-lg);
   }
-  
+
   .profile-username {
     font-size: var(--font-size-sm);
   }
-  
+
   .profile-meta,
   .profile-stats {
     gap: var(--space-2);
   }
-  
+
   .profile-tab {
     font-size: var(--font-size-sm);
   }
-  
+
   .profile-tab.active::after {
     width: 40px;
   }
 }
 
-/* Dark mode enhancements */
 .dark-theme .profile-header-back {
   background-color: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.05);
@@ -554,7 +548,6 @@
   color: black;
 }
 
-/* Tweet card container */
 .tweet-card-container {
   margin-bottom: 0;
   padding: var(--space-3);
@@ -614,7 +607,6 @@
   text-decoration: underline;
 }
 
-/* Media grid */
 .media-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -690,7 +682,6 @@
   border-radius: var(--radius-sm);
 }
 
-/* Dark mode enhancements */
 .dark-theme .tweet-card-container.pinned {
   background-color: var(--bg-secondary-dark);
   border-color: var(--border-color-dark);
@@ -703,4 +694,4 @@
 
 .dark-theme .media-grid-item {
   border-color: var(--border-color-dark);
-} 
+}

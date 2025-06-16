@@ -1,43 +1,43 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { toastStore } from '../../stores/toastStore';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { createCommunity, getCategories } from '../../api/community';
+  import { createEventDispatcher, onMount } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { toastStore } from "../../stores/toastStore";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { createCommunity, getCategories } from "../../api/community";
 
-  import Spinner from '../common/Spinner.svelte';
+  import Spinner from "../common/Spinner.svelte";
 
-  import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import ImageIcon from 'svelte-feather-icons/src/icons/ImageIcon.svelte';
-  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
-  import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
+  import XIcon from "svelte-feather-icons/src/icons/XIcon.svelte";
+  import ImageIcon from "svelte-feather-icons/src/icons/ImageIcon.svelte";
+  import AlertCircleIcon from "svelte-feather-icons/src/icons/AlertCircleIcon.svelte";
+  import CheckIcon from "svelte-feather-icons/src/icons/CheckIcon.svelte";
 
-  const logger = createLoggerWithPrefix('CreateCommunityModal');
+  const logger = createLoggerWithPrefix("CreateCommunityModal");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
   export let isOpen = false;
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   let isLoading = false;
   let isSubmitting = false;
   let isSuccess = false;
 
-  let communityName = '';
-  let description = '';
+  let communityName = "";
+  let description = "";
   let icon: File | null = null;
   let iconPreview: string | null = null;
   let banner: File | null = null;
   let bannerPreview: string | null = null;
-  let rules = '';
+  let rules = "";
   let availableCategories: string[] = [];
   let selectedCategories: string[] = [];
   let errors: Record<string, string> = {};
 
   const defaultCategories = [
-    "Art", "Business", "Education", "Entertainment", "Gaming", 
-    "Health", "Lifestyle", "Music", "News", "Politics", 
+    "Art", "Business", "Education", "Entertainment", "Gaming",
+    "Health", "Lifestyle", "Music", "News", "Politics",
     "Science", "Sports", "Technology", "Travel"
   ];
 
@@ -75,7 +75,7 @@
 
       if (Array.isArray(response) && response.length > 0) {
         availableCategories = response.map(cat => cat.name);
-      } else if (response && typeof response === 'object' && 'categories' in response) {
+      } else if (response && typeof response === "object" && "categories" in response) {
         const typedResponse = response as { categories: Array<{name: string}> };
         if (typedResponse.categories && typedResponse.categories.length > 0) {
           availableCategories = typedResponse.categories.map(cat => cat.name);
@@ -86,7 +86,7 @@
         availableCategories = defaultCategories;
       }
     } catch (error) {
-      logger.error('Error fetching categories:', error);
+      logger.error("Error fetching categories:", error);
       availableCategories = defaultCategories;
     } finally {
       isLoading = false;
@@ -97,27 +97,27 @@
     errors = {};
 
     if (!communityName.trim()) {
-      errors.communityName = 'Community name is required';
+      errors.communityName = "Community name is required";
     }
 
     if (!description.trim()) {
-      errors.description = 'Description is required';
+      errors.description = "Description is required";
     }
 
     if (!icon) {
-      errors.icon = 'Community icon is required';
+      errors.icon = "Community icon is required";
     }
 
     if (selectedCategories.length === 0) {
-      errors.categories = 'At least one category is required';
+      errors.categories = "At least one category is required";
     }
 
     if (!banner) {
-      errors.banner = 'Community banner is required';
+      errors.banner = "Community banner is required";
     }
 
     if (!rules.trim()) {
-      errors.rules = 'Community rules are required';
+      errors.rules = "Community rules are required";
     }
 
     return Object.keys(errors).length === 0;
@@ -156,7 +156,7 @@
       selectedCategories = selectedCategories.filter(c => c !== category);
     } else {
       if (selectedCategories.length >= 5) {
-        toastStore.showToast('Maximum 5 categories allowed', 'warning');
+        toastStore.showToast("Maximum 5 categories allowed", "warning");
         return;
       }
       selectedCategories = [...selectedCategories, category];
@@ -165,19 +165,19 @@
 
   function applyTemplate(template: { name: string, categories: string[] }) {
 
-    const validCategories = template.categories.filter(cat => 
+    const validCategories = template.categories.filter(cat =>
       availableCategories.includes(cat)
     );
 
     const limitedCategories = validCategories.slice(0, 5);
 
     if (limitedCategories.length === 0) {
-      toastStore.showToast('No valid categories in this template', 'warning');
+      toastStore.showToast("No valid categories in this template", "warning");
       return;
     }
 
     selectedCategories = [...limitedCategories];
-    toastStore.showToast(`Applied "${template.name}" template`, 'success');
+    toastStore.showToast(`Applied "${template.name}" template`, "success");
   }
 
   async function handleSubmit() {
@@ -186,7 +186,7 @@
       const firstErrorKey = Object.keys(errors)[0];
       const errorElement = document.querySelector(`[data-error="${firstErrorKey}"]`);
       if (errorElement) {
-        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        errorElement.scrollIntoView({ behavior: "smooth", block: "center" });
       }
       return;
     }
@@ -207,16 +207,16 @@
       const result = await createCommunity(communityData);
 
       isSuccess = true;
-      toastStore.showToast('Community creation request submitted for approval', 'success');
+      toastStore.showToast("Community creation request submitted for approval", "success");
 
       setTimeout(() => {
         handleClose();
-        dispatch('success');
+        dispatch("success");
       }, 2000);
 
     } catch (error) {
-      logger.error('Error creating community:', error);
-      toastStore.showToast('Failed to create community. Please try again.', 'error');
+      logger.error("Error creating community:", error);
+      toastStore.showToast("Failed to create community. Please try again.", "error");
     } finally {
       isSubmitting = false;
     }
@@ -224,16 +224,16 @@
 
   function handleClose() {
     isOpen = false;
-    dispatch('close');
+    dispatch("close");
 
     setTimeout(() => {
-      communityName = '';
-      description = '';
+      communityName = "";
+      description = "";
       icon = null;
       iconPreview = null;
       banner = null;
       bannerPreview = null;
-      rules = '';
+      rules = "";
       selectedCategories = [];
       errors = {};
       isSuccess = false;
@@ -241,14 +241,14 @@
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       handleClose();
     }
   }
 </script>
 
 {#if isOpen}
-  <div class="modal-overlay {isDarkMode ? 'dark' : ''}"
+  <div class="modal-overlay {isDarkMode ? "dark" : ""}"
     on:click={handleClose}
     on:keydown={handleKeyDown}
     role="dialog"
@@ -288,7 +288,7 @@
               <input
                 id="communityName"
                 type="text"
-                class={errors.communityName ? 'error' : ''}
+                class={errors.communityName ? "error" : ""}
                 bind:value={communityName}
                 placeholder="Enter community name"
                 maxlength="50"
@@ -310,7 +310,7 @@
               </label>
               <textarea
                 id="description"
-                class={errors.description ? 'error' : ''}
+                class={errors.description ? "error" : ""}
                 bind:value={description}
                 placeholder="Describe what your community is about"
                 rows="4"
@@ -332,7 +332,7 @@
                 <label>
                   Community Icon <span class="required">*</span>
                 </label>
-                <div class="media-preview {errors.icon ? 'error' : ''}">
+                <div class="media-preview {errors.icon ? "error" : ""}">
                   {#if iconPreview}
                     <img src={iconPreview} alt="Community icon preview" />
                   {:else}
@@ -359,7 +359,7 @@
                 <label>
                   Community Banner <span class="required">*</span>
                 </label>
-                <div class="media-preview banner-preview {errors.banner ? 'error' : ''}">
+                <div class="media-preview banner-preview {errors.banner ? "error" : ""}">
                   {#if bannerPreview}
                     <img src={bannerPreview} alt="Community banner preview" />
                   {:else}
@@ -393,8 +393,8 @@
                 <h4>Quick Templates</h4>
                 <div class="templates-grid">
                   {#each categoryTemplates as template}
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       class="template-button"
                       on:click={() => applyTemplate(template)}
                     >
@@ -404,7 +404,7 @@
                 </div>
               </div>
 
-              <div class="categories-container {errors.categories ? 'error' : ''}">
+              <div class="categories-container {errors.categories ? "error" : ""}">
                 <h4>Selected Categories: {selectedCategories.length}/5</h4>
 
                 <div class="selected-categories">
@@ -414,9 +414,9 @@
                     {#each selectedCategories as category}
                       <div class="selected-category">
                         <span>{category}</span>
-                        <button 
-                          type="button" 
-                          class="remove-category" 
+                        <button
+                          type="button"
+                          class="remove-category"
                           on:click={() => toggleCategory(category)}
                           aria-label={`Remove ${category} category`}
                         >
@@ -435,7 +435,7 @@
                     {#each availableCategories as category}
                       <button
                         type="button"
-                        class="category-chip {selectedCategories.includes(category) ? 'selected' : ''}"
+                        class="category-chip {selectedCategories.includes(category) ? "selected" : ""}"
                         on:click={() => toggleCategory(category)}
                         disabled={selectedCategories.length >= 5 && !selectedCategories.includes(category)}
                       >
@@ -463,7 +463,7 @@
               </label>
               <textarea
                 id="rules"
-                class={errors.rules ? 'error' : ''}
+                class={errors.rules ? "error" : ""}
                 bind:value={rules}
                 placeholder="Enter community rules (e.g., be respectful, no spamming, etc.)"
                 rows="5"
@@ -480,17 +480,17 @@
             </div>
 
             <div class="form-actions">
-              <button 
-                type="button" 
-                class="cancel-button" 
+              <button
+                type="button"
+                class="cancel-button"
                 on:click={handleClose}
                 disabled={isSubmitting}
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
-                class="submit-button" 
+              <button
+                type="submit"
+                class="submit-button"
                 disabled={isSubmitting}
               >
                 {#if isSubmitting}

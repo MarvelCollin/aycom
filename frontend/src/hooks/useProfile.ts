@@ -1,13 +1,13 @@
-import { writable, get } from 'svelte/store';
-import type { IUser, IUserProfile, IUserUpdateRequest } from '../interfaces/IUser';
-import * as userApi from '../api/user';
+import { writable, get } from "svelte/store";
+import type { IUser, IUserProfile, IUserUpdateRequest } from "../interfaces/IUser";
+import * as userApi from "../api/user";
 
 export function useProfile() {
   const profile = writable<IUserProfile | null>(null);
   const loading = writable(false);
   const error = writable<string | null>(null);
-  
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8083/api/v1';
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8083/api/v1";
 
   async function fetchProfile(): Promise<boolean> {
     loading.set(true);
@@ -16,36 +16,36 @@ export function useProfile() {
     try {
       // Use the getProfile API function
       const data = await userApi.getProfile();
-      
+
       if (data && data.user) {
         const userData = data.user;
-        
+
         const userProfile: IUserProfile = {
           id: userData.id,
           name: userData.name || userData.display_name,
           username: userData.username,
           email: userData.email,
-          bio: userData.bio || '',
-          location: userData.location || '',
-          website: userData.website || '',
-          profile_picture: userData.profile_picture_url || '',
-          banner: userData.banner_url || '',
+          bio: userData.bio || "",
+          location: userData.location || "",
+          website: userData.website || "",
+          profile_picture: userData.profile_picture_url || "",
+          banner: userData.banner_url || "",
           verified: userData.verified || false,
           followers_count: userData.followers_count || 0,
           following_count: userData.following_count || 0,
           tweets_count: userData.tweets_count || 0,
           joined_date: userData.created_at || new Date().toISOString(),
-          birthday: userData.birthday || ''
+          birthday: userData.birthday || ""
         };
-        
+
         profile.set(userProfile);
         return true;
       } else {
-        throw new Error('Invalid profile data received from API');
+        throw new Error("Invalid profile data received from API");
       }
     } catch (err) {
-      console.error('Failed to fetch profile:', err);
-      error.set(err instanceof Error ? err.message : 'Failed to load profile data');
+      console.error("Failed to fetch profile:", err);
+      error.set(err instanceof Error ? err.message : "Failed to load profile data");
       return false;
     } finally {
       loading.set(false);
@@ -60,7 +60,7 @@ export function useProfile() {
     try {
       // Use the updateProfile API function
       const responseData = await userApi.updateProfile(data);
-      
+
       // Update the local profile with the new data
       const currentProfile = get(profile);
       if (currentProfile) {
@@ -69,17 +69,17 @@ export function useProfile() {
           ...data,
         });
       }
-      
-      return { 
-        success: true, 
-        message: responseData.message || 'Profile updated successfully' 
+
+      return {
+        success: true,
+        message: responseData.message || "Profile updated successfully"
       };
     } catch (err) {
-      console.error('Failed to update profile:', err);
-      error.set(err instanceof Error ? err.message : 'Failed to update profile');
-      return { 
-        success: false, 
-        message: err instanceof Error ? err.message : 'Failed to update profile' 
+      console.error("Failed to update profile:", err);
+      error.set(err instanceof Error ? err.message : "Failed to update profile");
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : "Failed to update profile"
       };
     } finally {
       loading.set(false);
@@ -91,7 +91,7 @@ export function useProfile() {
     try {
       return await userApi.checkUsernameAvailability(username);
     } catch (err) {
-      console.error('Failed to check username availability:', err);
+      console.error("Failed to check username availability:", err);
       return false;
     }
   }
@@ -100,7 +100,7 @@ export function useProfile() {
   async function followUser(userId: string): Promise<boolean> {
     try {
       const success = await userApi.followUser(userId);
-      
+
       // Update followers count in the profile
       if (success) {
         const currentProfile = get(profile);
@@ -111,10 +111,10 @@ export function useProfile() {
           });
         }
       }
-      
+
       return success;
     } catch (err) {
-      console.error('Failed to follow user:', err);
+      console.error("Failed to follow user:", err);
       return false;
     }
   }
@@ -123,7 +123,7 @@ export function useProfile() {
   async function unfollowUser(userId: string): Promise<boolean> {
     try {
       const success = await userApi.unfollowUser(userId);
-      
+
       // Update followers count in the profile
       if (success) {
         const currentProfile = get(profile);
@@ -134,10 +134,10 @@ export function useProfile() {
           });
         }
       }
-      
+
       return success;
     } catch (err) {
-      console.error('Failed to unfollow user:', err);
+      console.error("Failed to unfollow user:", err);
       return false;
     }
   }
@@ -147,7 +147,7 @@ export function useProfile() {
     try {
       return await userApi.getFollowers(userId, page, limit);
     } catch (err) {
-      console.error('Failed to get followers:', err);
+      console.error("Failed to get followers:", err);
       return [];
     }
   }
@@ -157,7 +157,7 @@ export function useProfile() {
     try {
       return await userApi.getFollowing(userId, page, limit);
     } catch (err) {
-      console.error('Failed to get following list:', err);
+      console.error("Failed to get following list:", err);
       return [];
     }
   }
@@ -174,4 +174,4 @@ export function useProfile() {
     getFollowers,
     getFollowing
   };
-} 
+}

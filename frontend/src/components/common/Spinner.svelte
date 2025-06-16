@@ -1,6 +1,6 @@
 <script lang="ts">
-  export let size: 'small' | 'medium' | 'large' = 'medium';
-  export let color: 'primary' | 'secondary' | 'white' = 'primary';
+  export let size: "small" | "medium" | "large" = "medium";
+  export let color: "primary" | "secondary" | "white" = "primary";
 
   const sizeMap = {
     small: 16,

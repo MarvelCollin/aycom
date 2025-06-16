@@ -2,8 +2,8 @@
  * Bookmark-related interfaces
  */
 
-import type { ITweet } from './ISocialMedia';
-import type { IPagination } from './ICommon';
+import type { ITweet } from "./ISocialMedia";
+import type { IPagination } from "./ICommon";
 
 /**
  * Bookmarks response
@@ -33,4 +33,4 @@ export interface IDeleteBookmarkResponse {
   data: {
     message: string;
   };
-} 
+}

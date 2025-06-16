@@ -1,50 +1,43 @@
-import type { IMedia } from './IMedia';
-import type { ITrend } from './ITrend';
-import type { IPagination } from './ICommon';
+import type { IMedia } from "./IMedia";
+import type { ITrend } from "./ITrend";
+import type { IPagination } from "./ICommon";
 
 export interface ITweet {
   id: string;
   content: string;
   created_at: string;
   updated_at?: string;
-  
-  // User info
+
   user_id: string;
   username: string;
   name: string;
   profile_picture_url: string;
-  
-  // Metrics
+
   likes_count: number;
   replies_count: number;
   reposts_count: number;
   bookmark_count: number;
   views_count?: number;
-  
-  // Status flags
+
   is_liked: boolean;
   is_reposted: boolean;
   is_bookmarked: boolean;
   is_pinned: boolean;
-  
-  // Relations
+
   parent_id: string | null;
   reply_to?: string | { id: string } | null;
-  
-  // Media
+
   media: IMedia[];
-  
-  // Community
+
   community_id?: string | null;
   community_name?: string | null;
-  
-  // Other
+
   is_advertisement?: boolean;
 }
 
 export interface ISuggestedFollow {
   id?: string;
-  user_id?: string;  // Added for compatibility with API responses
+  user_id?: string;
   username: string;
   name: string;
   profile_picture_url: string;
@@ -53,7 +46,6 @@ export interface ISuggestedFollow {
   is_following?: boolean;
 }
 
-// Backend Thread API response types
 export interface IThreadApiResponse {
   id: string;
   content: string;
@@ -75,20 +67,16 @@ export interface IThreadApiResponse {
   media: IMedia[];
 }
 
-// Standard thread interaction interface for consistent naming
 export interface IThreadInteraction {
   likes_count: number;
   is_liked: boolean;
   replies_count: number;
   reposts_count: number;
   is_reposted: boolean;
-  bookmark_count: number; 
+  bookmark_count: number;
   is_bookmarked: boolean;
 }
 
-/**
- * Thread API response interfaces
- */
 export interface IThreadResponse {
   success: boolean;
   data: ITweet;
@@ -107,7 +95,7 @@ export interface ICreateThreadRequest {
   media?: Array<string>;
   scheduled_at?: string;
   community_id?: string;
-  who_can_reply?: 'everyone' | 'following' | 'mentioned';
+  who_can_reply?: "everyone" | "following" | "mentioned";
 }
 
 export interface ICreateReplyRequest {
@@ -146,4 +134,4 @@ export interface IPinResponse {
   data: {
     message: string;
   };
-} 
+}

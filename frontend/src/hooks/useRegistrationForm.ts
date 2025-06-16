@@ -1,5 +1,5 @@
-import { writable } from 'svelte/store';
-import type { IDateOfBirth } from '../interfaces/IAuth';
+import { writable } from "svelte/store";
+import type { IDateOfBirth } from "../interfaces/IAuth";
 
 export function useRegistrationForm() {
   // Form data
@@ -53,10 +53,10 @@ export function useRegistrationForm() {
 
   // Constants for form
   const months = [
-    "January", "February", "March", "April", "May", "June", 
+    "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
-  
+
   const securityQuestions = [
     "What was the name of your first pet?",
     "What city were you born in?",
@@ -64,7 +64,7 @@ export function useRegistrationForm() {
     "What was the name of your first school?",
     "What was your childhood nickname?"
   ];
-  
+
   // Get the current year
   const currentYear = new Date().getFullYear();
   // Generate days 1-31
@@ -106,25 +106,25 @@ export function useRegistrationForm() {
       if (state.timerId) {
         clearInterval(state.timerId);
       }
-      
+
       // Reset timer to 5 minutes (300 seconds)
       state.timeLeft = 300;
       state.showResendOption = false;
-      
+
       // Start a new timer
       state.timerId = window.setInterval(() => {
         formState.update(s => {
           s.timeLeft -= 1;
-          
+
           if (s.timeLeft <= 0) {
             clearInterval(s.timerId);
             s.showResendOption = true;
           }
-          
+
           return s;
         });
       }, 1000);
-      
+
       return state;
     });
   };
@@ -135,10 +135,10 @@ export function useRegistrationForm() {
       timeLeft = state.timeLeft;
       return state;
     });
-    
+
     const minutes = Math.floor(timeLeft / 60);
     const seconds = timeLeft % 60;
-    return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+    return `${minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
   };
 
   const cleanupTimers = () => {
@@ -165,4 +165,4 @@ export function useRegistrationForm() {
     formatTimeLeft,
     cleanupTimers
   };
-} 
+}

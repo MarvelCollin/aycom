@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { createLoggerWithPrefix } from "../../utils/logger";
 
-  const logger = createLoggerWithPrefix('ExploreSearch');
+  const logger = createLoggerWithPrefix("ExploreSearch");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
-  export let searchQuery = '';
+  export let searchQuery = "";
   export let recentSearches: string[] = [];
   export let recommendedProfiles: Array<{
     id: string;
@@ -28,107 +28,107 @@
 
   function handleSearchInput(event) {
     const value = event.target.value;
-    logger.debug('Search input changed', { value });
+    logger.debug("Search input changed", { value });
 
-    dispatch('input', value);
+    dispatch("input", value);
 
     if (!value || value.length === 0) {
       showRecentSearches = false;
-      logger.debug('Hiding recent searches due to empty query');
+      logger.debug("Hiding recent searches due to empty query");
     }
 
-    console.log('Search query changed to:', value);
+    console.log("Search query changed to:", value);
   }
 
   function getFuzzyMatchColor(score: number | undefined): string {
-    if (!score) return '';
+    if (!score) return "";
 
-    if (score >= 0.8) return 'fuzzy-match-high';
-    if (score >= 0.6) return 'fuzzy-match-medium';
-    if (score >= 0.3) return 'fuzzy-match-low';
-    return '';
+    if (score >= 0.8) return "fuzzy-match-high";
+    if (score >= 0.6) return "fuzzy-match-medium";
+    if (score >= 0.3) return "fuzzy-match-low";
+    return "";
   }
 
   function getFuzzyMatchLabel(score: number | undefined): string {
-    if (!score) return '';
+    if (!score) return "";
 
-    if (score >= 0.8) return 'Strong match';
-    if (score >= 0.6) return 'Good match';
-    if (score >= 0.3) return 'Possible match';
-    return '';
+    if (score >= 0.8) return "Strong match";
+    if (score >= 0.6) return "Good match";
+    if (score >= 0.3) return "Possible match";
+    return "";
   }
 
   function executeSearch() {
-    logger.debug('Search executed', { query: searchQuery });
-    dispatch('search');
+    logger.debug("Search executed", { query: searchQuery });
+    dispatch("search");
   }
 
   function handleFocus() {
-    logger.debug('Search field focused');
-    dispatch('focus');
+    logger.debug("Search field focused");
+    dispatch("focus");
   }
 
   function handleKeydown(event) {
 
-    if (event.key === 'Enter') {
-      logger.debug('Search triggered via Enter key', { query: searchQuery || '(empty)' });
+    if (event.key === "Enter") {
+      logger.debug("Search triggered via Enter key", { query: searchQuery || "(empty)" });
 
       showRecentSearches = false;
 
       isSearching = true;
 
-      dispatch('search');
+      dispatch("search");
 
-      dispatch('enterPressed');
+      dispatch("enterPressed");
     }
   }
 
   function selectRecentSearch(search: string) {
-    logger.debug('Recent search selected', { search });
-    dispatch('selectRecentSearch', search);
+    logger.debug("Recent search selected", { search });
+    dispatch("selectRecentSearch", search);
   }
 
   function clearRecentSearches() {
-    logger.debug('Recent searches cleared');
-    dispatch('clearRecentSearches');
+    logger.debug("Recent searches cleared");
+    dispatch("clearRecentSearches");
   }
 
   function clearSearch() {
-    logger.debug('Search input cleared');
-    dispatch('clearSearch');
+    logger.debug("Search input cleared");
+    dispatch("clearSearch");
   }
 
   $: {
     if (!isLoadingRecommendations && recommendedProfiles.length > 0) {
-      logger.debug('Profile recommendations loaded', { count: recommendedProfiles.length });
+      logger.debug("Profile recommendations loaded", { count: recommendedProfiles.length });
     }
   }
 </script>
 
 <div class="search-container">
   <!-- Search bar -->
-  <div class="search-input-wrapper {isDarkMode ? 'search-input-wrapper-dark' : ''}">
+  <div class="search-input-wrapper {isDarkMode ? "search-input-wrapper-dark" : ""}">
     <div class="search-icon-container">
       <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     </div>
 
-    <input 
-      type="text" 
-      placeholder="Search with Fuzzy Matching (typo-friendly)" 
+    <input
+      type="text"
+      placeholder="Search with Fuzzy Matching (typo-friendly)"
       value={searchQuery}
       on:input={handleSearchInput}
       on:focus={handleFocus}
       on:keydown={handleKeydown}
-      class="search-input {isDarkMode ? 'search-input-dark' : ''}"
+      class="search-input {isDarkMode ? "search-input-dark" : ""}"
       aria-label="Fuzzy search with Damerau-Levenshtein distance (0.3 threshold)"
       title="Search using Damerau-Levenshtein fuzzy matching - tolerates misspellings (now with 0.3 threshold)"
     />
 
     {#if searchQuery}
-      <button 
-        class="search-clear-button {isDarkMode ? 'search-clear-button-dark' : ''}"
+      <button
+        class="search-clear-button {isDarkMode ? "search-clear-button-dark" : ""}"
         on:click={clearSearch}
         aria-label="Clear search"
       >
@@ -152,10 +152,10 @@
 
   <!-- Recent searches dropdown -->
   {#if showRecentSearches && recentSearches.length > 0 && !searchQuery}
-    <div class="search-dropdown {isDarkMode ? 'search-dropdown-dark' : ''}">
+    <div class="search-dropdown {isDarkMode ? "search-dropdown-dark" : ""}">
       <div class="search-dropdown-header">
         <h3 class="search-dropdown-title">Recent</h3>
-        <button 
+        <button
           class="search-dropdown-clear-button"
           on:click={clearRecentSearches}
         >
@@ -165,8 +165,8 @@
       <ul class="search-recent-list">
         {#each recentSearches as search}
           <li>
-            <button 
-              class="search-recent-item {isDarkMode ? 'search-recent-item-dark' : ''}"
+            <button
+              class="search-recent-item {isDarkMode ? "search-recent-item-dark" : ""}"
               on:click={() => selectRecentSearch(search)}
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="search-recent-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -182,20 +182,20 @@
 
   <!-- Recommended profiles dropdown -->
   {#if searchQuery && recommendedProfiles.length > 0 && !isSearching}
-    <div class="search-dropdown {isDarkMode ? 'search-dropdown-dark' : ''}">
+    <div class="search-dropdown {isDarkMode ? "search-dropdown-dark" : ""}">
       <div class="search-dropdown-header">
         <h3 class="search-dropdown-title">Suggested Profiles</h3>
       </div>
       <ul class="search-profiles-list">
         {#each recommendedProfiles as profile}
           <li>
-            <a 
+            <a
               href={`/user/${profile.username}`}
-              class="search-profile-item {isDarkMode ? 'search-profile-item-dark' : ''}"
+              class="search-profile-item {isDarkMode ? "search-profile-item-dark" : ""}"
             >
               <div class="search-profile-content">
-                <div class="search-profile-avatar {isDarkMode ? 'search-profile-avatar-dark' : ''}">
-                  {#if typeof profile.avatar === 'string' && profile.avatar.startsWith('http')}
+                <div class="search-profile-avatar {isDarkMode ? "search-profile-avatar-dark" : ""}">
+                  {#if typeof profile.avatar === "string" && profile.avatar.startsWith("http")}
                     <img src={profile.avatar} alt={profile.username} class="search-profile-img" />
                   {:else}
                     <span class="search-profile-placeholder">{profile.displayName.charAt(0)}</span>
@@ -203,7 +203,7 @@
                 </div>
                 <div class="search-profile-info">
                   <div class="search-profile-name-wrapper">
-                    <p class="search-profile-name {isDarkMode ? 'search-profile-name-dark' : ''}">{profile.displayName}</p>
+                    <p class="search-profile-name {isDarkMode ? "search-profile-name-dark" : ""}">{profile.displayName}</p>
                     {#if profile.isVerified}
                       <span class="search-profile-verified">
                         <svg xmlns="http://www.w3.org/2000/svg" class="search-verified-icon" viewBox="0 0 20 20" fill="currentColor">
@@ -222,14 +222,14 @@
                       </span>
                     {/if}
                   </div>
-                  <p class="search-profile-username {isDarkMode ? 'search-profile-username-dark' : ''}">@{profile.username}</p>
+                  <p class="search-profile-username {isDarkMode ? "search-profile-username-dark" : ""}">@{profile.username}</p>
                 </div>
               </div>
             </a>
           </li>
         {/each}
         <li class="search-dropdown-footer">
-          <button 
+          <button
             class="search-query-button"
             on:click={executeSearch}
           >
@@ -384,7 +384,7 @@
     background-color: var(--hover-primary);
   }
 
-  .search-recent-list, 
+  .search-recent-list,
   .search-profiles-list {
     list-style: none;
     padding: 0;

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Router from './base/Router.svelte';
-  import ThemeProvider from './components/common/ThemeProvider.svelte';
-  import { useTheme } from './hooks/useTheme';
-  
+  import Router from "./base/Router.svelte";
+  import ThemeProvider from "./components/common/ThemeProvider.svelte";
+  import { useTheme } from "./hooks/useTheme";
+
   const { theme } = useTheme();
 </script>
 

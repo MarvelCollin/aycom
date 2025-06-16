@@ -1,26 +1,26 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { useTheme } from '../../hooks/useTheme';
-  import { createLoggerWithPrefix } from '../../utils/logger';
+  import { createEventDispatcher } from "svelte";
+  import { useTheme } from "../../hooks/useTheme";
+  import { createLoggerWithPrefix } from "../../utils/logger";
 
-  const logger = createLoggerWithPrefix('ExploreFilters');
+  const logger = createLoggerWithPrefix("ExploreFilters");
   const dispatch = createEventDispatcher();
   const { theme } = useTheme();
 
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
-  export let searchFilter: 'all' | 'following' | 'verified' = 'all';
-  export let selectedCategory: string = 'all';
+  export let searchFilter: "all" | "following" | "verified" = "all";
+  export let selectedCategory: string = "all";
   export let threadCategories: Array<{ id: string; name: string }> = [];
 
-  function handleFilterChange(filter: 'all' | 'following' | 'verified') {
-    logger.debug('Search filter changed', { from: searchFilter, to: filter });
-    dispatch('filterChange', filter);
+  function handleFilterChange(filter: "all" | "following" | "verified") {
+    logger.debug("Search filter changed", { from: searchFilter, to: filter });
+    dispatch("filterChange", filter);
   }
 
   function handleCategoryChange(event) {
-    logger.debug('Category filter changed', { from: selectedCategory, to: event.target.value });
-    dispatch('categoryChange', event.target.value);
+    logger.debug("Category filter changed", { from: selectedCategory, to: event.target.value });
+    dispatch("categoryChange", event.target.value);
   }
 </script>
 
@@ -28,24 +28,24 @@
   <!-- People filter buttons -->
   <div class="filter-section">
     <label class="filter-label">Show:</label>
-    <div class="filter-button-group {isDarkMode ? 'filter-button-group-dark' : ''}">
-      <button 
-        class="filter-button {searchFilter === 'all' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
-        on:click={() => handleFilterChange('all')}
+    <div class="filter-button-group {isDarkMode ? "filter-button-group-dark" : ""}">
+      <button
+        class="filter-button {searchFilter === "all" ? "active" : ""} {isDarkMode ? "filter-button-dark" : ""}"
+        on:click={() => handleFilterChange("all")}
       >
         <span class="filter-icon">👥</span>
         Everyone
       </button>
-      <button 
-        class="filter-button {searchFilter === 'following' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
-        on:click={() => handleFilterChange('following')}
+      <button
+        class="filter-button {searchFilter === "following" ? "active" : ""} {isDarkMode ? "filter-button-dark" : ""}"
+        on:click={() => handleFilterChange("following")}
       >
         <span class="filter-icon">👤</span>
         Following
       </button>
-      <button 
-        class="filter-button {searchFilter === 'verified' ? 'active' : ''} {isDarkMode ? 'filter-button-dark' : ''}"
-        on:click={() => handleFilterChange('verified')}
+      <button
+        class="filter-button {searchFilter === "verified" ? "active" : ""} {isDarkMode ? "filter-button-dark" : ""}"
+        on:click={() => handleFilterChange("verified")}
       >
         <span class="filter-icon">✓</span>
         Verified
@@ -57,8 +57,8 @@
   <div class="filter-section">
     <label class="filter-label">Category:</label>
     <div class="category-container">
-      <select 
-        class="category-select {isDarkMode ? 'category-select-dark' : ''}"
+      <select
+        class="category-select {isDarkMode ? "category-select-dark" : ""}"
         value={selectedCategory}
         on:change={handleCategoryChange}
       >

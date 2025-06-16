@@ -1,30 +1,30 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { useAuth } from '../../hooks/useAuth';
-  import * as api from '../../api';
-  import { createLoggerWithPrefix } from '../../utils/logger';
-  import { toastStore } from '../../stores/toastStore';
-  import { handleApiError } from '../../utils/common';
-  import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
-  import type { User, ApiUserResponse, CreateChatResponse } from '../../interfaces/IChat';
+  import { createEventDispatcher, onMount } from "svelte";
+  import { useAuth } from "../../hooks/useAuth";
+  import * as api from "../../api";
+  import { createLoggerWithPrefix } from "../../utils/logger";
+  import { toastStore } from "../../stores/toastStore";
+  import { handleApiError } from "../../utils/common";
+  import { transformApiUsers, type StandardUser } from "../../utils/userTransform";
+  import type { User, ApiUserResponse, CreateChatResponse } from "../../interfaces/IChat";
 
   const { searchUsers, getAllUsers, getUserById, createChat } = api;
 
-  const logger = createLoggerWithPrefix('CreateGroupChat');
+  const logger = createLoggerWithPrefix("CreateGroupChat");
   const dispatch = createEventDispatcher();
   const { getAuthState } = useAuth();
 
-  export let onSuccess: ((event: { detail: { chat: any } }) => void) | undefined = undefined;  
-  export let onCancel: (() => void) | undefined = undefined;   
+  export let onSuccess: ((event: { detail: { chat: any } }) => void) | undefined = undefined;
+  export let onCancel: (() => void) | undefined = undefined;
 
-  let authState = getAuthState ? getAuthState() : { user_id: null };
-  let groupName = '';
-  let searchQuery = '';
+  const authState = getAuthState ? getAuthState() : { user_id: null };
+  let groupName = "";
+  let searchQuery = "";
   let searchResults: StandardUser[] = [];
   let selectedParticipants: StandardUser[] = [];
   let isLoading = false;
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-  let errorMessage = '';
+  let errorMessage = "";
   let groupNameInput: HTMLInputElement;
   let searchInput: HTMLInputElement;
   let selectedIndex = -1;
@@ -37,18 +37,18 @@
 
   function getAvatarColor(name: string | undefined): string {
     const colors = [
-      '#4F46E5', 
-      '#0EA5E9', 
-      '#10B981', 
-      '#F59E0B', 
-      '#EF4444', 
-      '#8B5CF6', 
-      '#EC4899', 
-      '#06B6D4', 
+      "#4F46E5",
+      "#0EA5E9",
+      "#10B981",
+      "#F59E0B",
+      "#EF4444",
+      "#8B5CF6",
+      "#EC4899",
+      "#06B6D4",
     ];
 
     let hash = 0;
-    if (!name) name = 'User';
+    if (!name) name = "User";
     for (let i = 0; i < name.length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
@@ -71,15 +71,15 @@
 
     searchTimeout = setTimeout(async () => {
       try {
-        logger.debug('Searching for users:', { query: searchQuery });
+        logger.debug("Searching for users:", { query: searchQuery });
         isLoading = true;
-        errorMessage = '';
+        errorMessage = "";
         const query = searchQuery.toLowerCase();
 
         const response = await searchUsers(searchQuery);
 
-        logger.debug('Search users API response:', { 
-          status: 'success',
+        logger.debug("Search users API response:", {
+          status: "success",
           userCount: response.users?.length || 0
         });
 
@@ -88,33 +88,33 @@
         if (users && users.length > 0) {
 
           const transformedUsers = transformApiUsers(users);
-          searchResults = transformedUsers.filter(user => 
-            user.id !== authState.user_id && 
+          searchResults = transformedUsers.filter(user =>
+            user.id !== authState.user_id &&
             !selectedParticipants.some(p => p.id === user.id)
           );
-          logger.info('Retrieved users from API', { count: searchResults.length });        } else {
-          logger.warn('No users found from API search');
+          logger.info("Retrieved users from API", { count: searchResults.length });        } else {
+          logger.warn("No users found from API search");
           searchResults = [];
         }      } catch (error) {
-        logger.error('Error searching users:', error);
-        errorMessage = 'Failed to search for users. Please try again.';
+        logger.error("Error searching users:", error);
+        errorMessage = "Failed to search for users. Please try again.";
         searchResults = [];
       } finally {
         isLoading = false;
       }
-    }, 300); 
+    }, 300);
   }
 
   function handleSearchKeydown(event: KeyboardEvent): void {
     if (!searchResults.length) return;
 
-    if (event.key === 'ArrowDown') {
+    if (event.key === "ArrowDown") {
       event.preventDefault();
       selectedIndex = Math.min(selectedIndex + 1, searchResults.length - 1);
-    } else if (event.key === 'ArrowUp') {
+    } else if (event.key === "ArrowUp") {
       event.preventDefault();
       selectedIndex = Math.max(selectedIndex - 1, -1);
-    } else if (event.key === 'Enter' && selectedIndex >= 0) {
+    } else if (event.key === "Enter" && selectedIndex >= 0) {
       event.preventDefault();
       addParticipant(searchResults[selectedIndex]);
     }
@@ -127,8 +127,8 @@
 
     selectedParticipants = [...selectedParticipants, user];
     searchResults = searchResults.filter(u => u.id !== user.id);
-    logger.debug('Added participant', { userId: user.id, username: user.username });
-    searchQuery = '';
+    logger.debug("Added participant", { userId: user.id, username: user.username });
+    searchQuery = "";
     selectedIndex = -1;
 
     setTimeout(() => {
@@ -138,54 +138,54 @@
 
   function removeParticipant(userId: string): void {
     selectedParticipants = selectedParticipants.filter(p => p.id !== userId);
-    logger.debug('Removed participant:', { userId });
+    logger.debug("Removed participant:", { userId });
   }
 
   async function createGroupChat(): Promise<void> {
     if (!groupName.trim()) {
-      errorMessage = 'Please enter a group name';
+      errorMessage = "Please enter a group name";
       groupNameInput.focus();
       return;
     }
 
     if (selectedParticipants.length === 0) {
-      errorMessage = 'Please select at least one participant';
+      errorMessage = "Please select at least one participant";
       searchInput.focus();
       return;
     }
 
     try {
       isLoading = true;
-      errorMessage = '';
+      errorMessage = "";
 
       const participantIds = selectedParticipants.map(p => p.id);
       const chatData = {
         name: groupName.trim(),
-        type: 'group',
+        type: "group",
         participants: participantIds
       };
 
-      logger.debug('Creating group chat:', { 
-        name: groupName, 
-        participantsCount: participantIds.length 
+      logger.debug("Creating group chat:", {
+        name: groupName,
+        participantsCount: participantIds.length
       });
 
       const response: CreateChatResponse = await createChat(chatData);
 
       if (response && response.chat) {
-        logger.debug('Group chat created:', { chatId: response.chat.id });
+        logger.debug("Group chat created:", { chatId: response.chat.id });
 
         const fullParticipants = [...selectedParticipants];
 
         if (onSuccess) {
-          onSuccess({ detail: { 
+          onSuccess({ detail: {
             chat: {
               ...response.chat,
               participants: fullParticipants
             }
           }});
         } else {
-          dispatch('success', { 
+          dispatch("success", {
             chat: {
               ...response.chat,
               participants: fullParticipants
@@ -193,15 +193,15 @@
           });
         }
 
-        toastStore.showToast('Group chat created successfully', 'success');
+        toastStore.showToast("Group chat created successfully", "success");
       } else {
-        throw new Error('Invalid response from server');
+        throw new Error("Invalid response from server");
       }
     } catch (error) {
       const errorDetail = handleApiError(error);
-      errorMessage = 'Failed to create group chat. Please try again.';
-      logger.error('Failed to create group chat:', errorDetail);
-      toastStore.showToast('Failed to create group chat', 'error');
+      errorMessage = "Failed to create group chat. Please try again.";
+      logger.error("Failed to create group chat:", errorDetail);
+      toastStore.showToast("Failed to create group chat", "error");
     } finally {
       isLoading = false;
     }
@@ -209,7 +209,7 @@
 
   function handleInput(): void {
 
-    if (errorMessage) errorMessage = '';
+    if (errorMessage) errorMessage = "";
 
     handleSearch();
   }
@@ -218,7 +218,7 @@
     if (onCancel) {
       onCancel();
     } else {
-      dispatch('cancel');
+      dispatch("cancel");
     }
   }
 </script>
@@ -231,8 +231,8 @@
         <div class="member-preview">
           <div class="avatar-group">
             {#each selectedParticipants.slice(0, 3) as participant, i}
-              <div 
-                class="avatar-mini preview" 
+              <div
+                class="avatar-mini preview"
                 style="
                   background-color: {getAvatarColor(participant.displayName || participant.username)};
                   margin-right: -8px;
@@ -242,7 +242,7 @@
                 {#if participant.avatar}
                   <img src={participant.avatar} alt={participant.displayName || participant.username} />
                 {:else}
-                  <span>{(participant.displayName || participant.username || 'User').substring(0, 1).toUpperCase()}</span>
+                  <span>{(participant.displayName || participant.username || "User").substring(0, 1).toUpperCase()}</span>
                 {/if}
               </div>
             {/each}
@@ -252,7 +252,7 @@
               </div>
             {/if}
           </div>
-          <span class="member-count">{selectedParticipants.length} {selectedParticipants.length === 1 ? 'member' : 'members'}</span>
+          <span class="member-count">{selectedParticipants.length} {selectedParticipants.length === 1 ? "member" : "members"}</span>
         </div>
       {/if}
     </div>
@@ -272,24 +272,24 @@
 
     <div class="input-group">
       <label for="groupName">Group Name</label>
-      <input 
-        type="text" 
-        id="groupName" 
-        placeholder="Enter group name" 
+      <input
+        type="text"
+        id="groupName"
+        placeholder="Enter group name"
         bind:value={groupName}
         bind:this={groupNameInput}
-        on:input={() => errorMessage = ''}
-        on:keydown={(e) => e.key === 'Enter' && searchInput.focus()}
+        on:input={() => errorMessage = ""}
+        on:keydown={(e) => e.key === "Enter" && searchInput.focus()}
         on:click|stopPropagation
       />
     </div>
 
     <div class="input-group">
       <label for="searchUsers">Add Participants</label>
-      <input 
-        type="text" 
-        id="searchUsers" 
-        placeholder="Search users by name or username" 
+      <input
+        type="text"
+        id="searchUsers"
+        placeholder="Search users by name or username"
         bind:value={searchQuery}
         bind:this={searchInput}
         on:input={handleInput}
@@ -315,10 +315,10 @@
         <ul>
           {#each searchResults as user, i}
             <li>
-              <div 
-                class="user-item {i === selectedIndex ? 'selected' : ''}" 
+              <div
+                class="user-item {i === selectedIndex ? "selected" : ""}"
                 on:click|stopPropagation={() => addParticipant(user)}
-                on:keydown={(e) => e.key === 'Enter' && addParticipant(user)}
+                on:keydown={(e) => e.key === "Enter" && addParticipant(user)}
                 role="button"
                 tabindex="0"
               >
@@ -326,7 +326,7 @@
                   {#if user.avatar}
                     <img src={user.avatar} alt={user.displayName || user.username} />
                   {:else}
-                    <span>{(user.displayName || user.username || 'User').substring(0, 1).toUpperCase()}</span>
+                    <span>{(user.displayName || user.username || "User").substring(0, 1).toUpperCase()}</span>
                   {/if}
                 </div>
                 <div class="user-info">
@@ -361,12 +361,12 @@
                 {#if participant.avatar}
                   <img src={participant.avatar} alt={participant.displayName || participant.username} />
                 {:else}
-                  <span>{(participant.displayName || participant.username || 'User').substring(0, 1).toUpperCase()}</span>
+                  <span>{(participant.displayName || participant.username || "User").substring(0, 1).toUpperCase()}</span>
                 {/if}
               </div>
               <span>{participant.displayName || participant.username}</span>
-              <button 
-                class="remove-button" 
+              <button
+                class="remove-button"
                 on:click|stopPropagation={() => removeParticipant(participant.id)}
                 aria-label="Remove participant"
               >
@@ -385,12 +385,12 @@
     <button class="cancel-button" on:click|stopPropagation={cancel} disabled={isLoading}>
       Cancel
     </button>
-    <button 
-      class="create-button" 
-      on:click|stopPropagation={createGroupChat} 
+    <button
+      class="create-button"
+      on:click|stopPropagation={createGroupChat}
       disabled={isLoading || selectedParticipants.length === 0 || !groupName.trim()}
     >
-      {isLoading ? 'Creating...' : 'Create Group Chat'}
+      {isLoading ? "Creating..." : "Create Group Chat"}
     </button>
   </div>
 </div>

@@ -1,6 +1,6 @@
-import { writable } from 'svelte/store';
-import type { ITweet } from '../interfaces/ISocialMedia';
-import { likeThread, unlikeThread } from '../api/thread';
+import { writable } from "svelte/store";
+import type { ITweet } from "../interfaces/ISocialMedia";
+import { likeThread, unlikeThread } from "../api/thread";
 
 export interface TweetInteractionState {
   is_liked: boolean;
@@ -18,16 +18,14 @@ export interface TweetInteractionState {
   last_interaction?: number;
 }
 
-// Maximum number of retries for failed operations
 const MAX_RETRIES = 3;
 
 const createTweetInteractionStore = () => {
   const interactions = new Map<string, TweetInteractionState>();
   const { subscribe, update, set } = writable(interactions);
 
-  // Initialize from localStorage
   try {
-    const savedLikes = JSON.parse(localStorage.getItem('likedThreads') || '{}');
+    const savedLikes = JSON.parse(localStorage.getItem("likedThreads") || "{}");
     Object.entries(savedLikes).forEach(([id, timestamp]) => {
       interactions.set(id, {
         is_liked: true,
@@ -45,31 +43,28 @@ const createTweetInteractionStore = () => {
       });
     });
   } catch (e) {
-    console.error('Failed to load saved likes from localStorage', e);
+    console.error("Failed to load saved likes from localStorage", e);
   }
 
-  // Function to sync pending likes with the server
   const syncPendingInteractions = async () => {
     if (!navigator.onLine) return;
 
-    let syncPromises: Promise<void>[] = [];
+    const syncPromises: Promise<void>[] = [];
 
     update(map => {
       map.forEach((state, tweetId) => {
-        // Only process items that are pending and haven't exceeded retry limit
-        if ((state.pending_like || state.pending_bookmark || state.pending_repost) && 
+
+        if ((state.pending_like || state.pending_bookmark || state.pending_repost) &&
             (!state.retry_count || state.retry_count < MAX_RETRIES)) {
-          
-          // Increment retry count
+
           const newState = { ...state, retry_count: (state.retry_count || 0) + 1 };
           map.set(tweetId, newState);
 
-          // Create a promise for this sync operation
           const syncPromise = (async () => {
             try {
-              // Process like operations
+
               if (state.pending_like) {
-                // Call the appropriate API based on the current state
+
                 if (state.is_liked) {
                   await likeThread(tweetId);
                   console.log(`✅ Successfully liked tweet ${tweetId} on server`);
@@ -77,12 +72,11 @@ const createTweetInteractionStore = () => {
                   await unlikeThread(tweetId);
                   console.log(`✅ Successfully unliked tweet ${tweetId} on server`);
                 }
-              
-                // Success - clear pending flag
+
                 update(innerMap => {
                   const currentState = innerMap.get(tweetId);
                   if (currentState) {
-                    const updatedState: TweetInteractionState = { 
+                    const updatedState: TweetInteractionState = {
                       ...currentState,
                       pending_like: false,
                       retry_count: 0
@@ -92,31 +86,20 @@ const createTweetInteractionStore = () => {
                   return innerMap;
                 });
               }
-              
-              // TODO: Handle pending_bookmark and pending_repost similarly
-              // Left commented to focus on like/unlike functionality
-              /*
-              if (state.pending_bookmark) {
-                // Handle bookmark operations
-              }
-              
-              if (state.pending_repost) {
-                // Handle repost operations
-              }
-              */
+
             } catch (error) {
               console.error(`Failed to sync interaction state for tweet ${tweetId}:`, error);
-              // Only increment retry count on server errors, not client errors
+
               const errorMsg = String(error).toLowerCase();
-              if (errorMsg.includes('network') || errorMsg.includes('timeout') || 
-                  errorMsg.includes('failed to fetch')) {
-                // Leave pending flag for next sync attempt on network errors
+              if (errorMsg.includes("network") || errorMsg.includes("timeout") ||
+                  errorMsg.includes("failed to fetch")) {
+
               } else {
-                // For other errors (like already liked/unliked), clear the pending flag
+
                 update(innerMap => {
                   const currentState = innerMap.get(tweetId);
                   if (currentState) {
-                    const updatedState: TweetInteractionState = { 
+                    const updatedState: TweetInteractionState = {
                       ...currentState,
                       pending_like: false,
                       retry_count: 0
@@ -128,28 +111,25 @@ const createTweetInteractionStore = () => {
               }
             }
           })();
-          
+
           syncPromises.push(syncPromise);
         }
       });
       return map;
     });
 
-    // Wait for all sync operations to complete
     try {
       await Promise.allSettled(syncPromises);
       console.log(`✓ Completed syncing ${syncPromises.length} pending interactions with server`);
     } catch (error) {
-      console.error('Error during interaction sync batch:', error);
+      console.error("Error during interaction sync batch:", error);
     }
   };
 
-  // Listen for online/offline events
-  if (typeof window !== 'undefined') {
-    window.addEventListener('online', syncPendingInteractions);
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", syncPendingInteractions);
   }
 
-  // Try to sync every minute when the app is active
   const syncInterval = setInterval(syncPendingInteractions, 60000);
 
   return {
@@ -181,10 +161,10 @@ const createTweetInteractionStore = () => {
       update(map => {
         if (map.has(tweetId)) {
           const current = map.get(tweetId)!;
-          const newState: TweetInteractionState = { 
-            ...current, 
+          const newState: TweetInteractionState = {
+            ...current,
             ...changes,
-            // Ensure all required properties are defined (not undefined)
+
             is_liked: changes.is_liked ?? current.is_liked,
             is_reposted: changes.is_reposted ?? current.is_reposted,
             is_bookmarked: changes.is_bookmarked ?? current.is_bookmarked,
@@ -195,19 +175,18 @@ const createTweetInteractionStore = () => {
             last_interaction: Date.now()
           };
           map.set(tweetId, newState);
-          
-          // Update localStorage if like status changed and not pending
+
           if (changes.is_liked !== undefined && !changes.pending_like) {
             try {
-              const likedItems = JSON.parse(localStorage.getItem('likedThreads') || '{}');
+              const likedItems = JSON.parse(localStorage.getItem("likedThreads") || "{}");
               if (changes.is_liked) {
                 likedItems[tweetId] = Date.now();
               } else {
                 delete likedItems[tweetId];
               }
-              localStorage.setItem('likedThreads', JSON.stringify(likedItems));
+              localStorage.setItem("likedThreads", JSON.stringify(likedItems));
             } catch (e) {
-              console.error('Failed to update localStorage', e);
+              console.error("Failed to update localStorage", e);
             }
           }
         } else {
@@ -254,17 +233,16 @@ const createTweetInteractionStore = () => {
     reset: () => {
       set(new Map());
       try {
-        localStorage.removeItem('likedThreads');
+        localStorage.removeItem("likedThreads");
       } catch (e) {
-        console.error('Failed to clear localStorage', e);
+        console.error("Failed to clear localStorage", e);
       }
     },
 
-    // Clean up resources when the app unmounts
     destroy: () => {
       clearInterval(syncInterval);
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('online', syncPendingInteractions);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", syncPendingInteractions);
       }
     }
   };

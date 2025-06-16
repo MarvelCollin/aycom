@@ -162,11 +162,11 @@ func AddChatParticipant(c *gin.Context) {
 
 	log.Printf("AddChatParticipant: Successfully added user %s to chat %s", targetUserID, chatID)
 	utils.SendSuccessResponse(c, 200, gin.H{
-		"message":     "Participant added successfully",
-		"chat_id":     chatID,
-		"user_id":     targetUserID,
-		"is_admin":    isAdmin,
-		"added_by":    currentUserID,
+		"message":  "Participant added successfully",
+		"chat_id":  chatID,
+		"user_id":  targetUserID,
+		"is_admin": isAdmin,
+		"added_by": currentUserID,
 	})
 }
 
@@ -583,9 +583,31 @@ func UnsendMessage(c *gin.Context) {
 		return
 	}
 
+	// Get chatID from query parameter instead of path parameter
+	chatID := c.Query("chat_id")
+	if chatID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
+		return
+	}
+
 	messageID := c.Param("messageId")
 	if messageID == "" {
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Message ID is required")
+		return
+	}
+
+	log.Printf("UnsendMessage: User %s attempting to unsend message %s in chat %s", userID, messageID, chatID)
+
+	// Handle temporary messages that haven't been saved to database yet
+	if strings.HasPrefix(messageID, "temp-") {
+		log.Printf("UnsendMessage: Handling temporary message %s", messageID)
+		// For temporary messages, just return success since they're not in the database
+		utils.SendSuccessResponse(c, 200, gin.H{
+			"message":      "Temporary message unsent successfully",
+			"message_id":   messageID,
+			"chat_id":      chatID,
+			"is_temporary": true,
+		})
 		return
 	}
 
@@ -597,17 +619,22 @@ func UnsendMessage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	listResp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
-		Limit: 1,
+	// Get the specific message to verify ownership
+	messagesResp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
+		ChatId: chatID,
+		Limit:  100, // Get recent messages to find the one we want
+		Offset: 0,
 	})
 
-	if err != nil || len(listResp.Messages) == 0 {
-		utils.SendErrorResponse(c, 404, "NOT_FOUND", "Message not found")
+	if err != nil {
+		log.Printf("UnsendMessage: Error fetching messages: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch message: "+err.Error())
 		return
 	}
 
+	// Find the specific message
 	var message *communityProto.Message
-	for _, msg := range listResp.Messages {
+	for _, msg := range messagesResp.Messages {
 		if msg.Id == messageID {
 			message = msg
 			break
@@ -615,26 +642,36 @@ func UnsendMessage(c *gin.Context) {
 	}
 
 	if message == nil {
+		log.Printf("UnsendMessage: Message %s not found in chat %s", messageID, chatID)
 		utils.SendErrorResponse(c, 404, "NOT_FOUND", "Message not found")
 		return
 	}
 
+	// Verify user ownership
 	if message.SenderId != userID.(string) {
+		log.Printf("UnsendMessage: User %s does not own message %s (owner: %s)", userID, messageID, message.SenderId)
 		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You can only unsend your own messages")
 		return
 	}
 
-	_, err = CommunityClient.UnsendMessage(ctx, &communityProto.UnsendMessageRequest{
+	// Call the community service to unsend the message
+	// Use DeleteMessageRequest for now and pass chat_id via context
+	ctx = context.WithValue(ctx, "chat_id", chatID)
+	_, err = CommunityClient.DeleteMessage(ctx, &communityProto.DeleteMessageRequest{
 		MessageId: messageID,
 	})
 
 	if err != nil {
+		log.Printf("UnsendMessage: Error unsending message: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to unsend message: "+err.Error())
 		return
 	}
 
+	log.Printf("UnsendMessage: Successfully unsent message %s in chat %s", messageID, chatID)
 	utils.SendSuccessResponse(c, 200, gin.H{
-		"message": "Message unsent successfully",
+		"message":    "Message unsent successfully",
+		"message_id": messageID,
+		"chat_id":    chatID,
 	})
 }
 
@@ -966,47 +1003,28 @@ func DeleteChat(c *gin.Context) {
 
 	log.Printf("DeleteChat: User %s is deleting chat %s", userID, chatID)
 
-	// Get the community service client
 	if CommunityClient == nil {
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
-	// First, verify that the chat exists and the user is a participant
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Get chat participants
-	participantsResp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+	ctx = context.WithValue(ctx, "user_id", userID.(string))
+
+	_, err := CommunityClient.DeleteChat(ctx, &communityProto.DeleteChatRequest{
 		ChatId: chatID,
 	})
+
 	if err != nil {
-		log.Printf("DeleteChat: Error checking participants: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat: "+err.Error())
+		log.Printf("DeleteChat: Error deleting chat: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to delete chat: "+err.Error())
 		return
 	}
 
-	// Check if the user is a participant
-	isParticipant := false
-	for _, participant := range participantsResp.Participants {
-		if participant.UserId == userID.(string) {
-			isParticipant = true
-			break
-		}
-	}
-
-	if !isParticipant {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
-		return
-	}
-
-	// This is a simplified approach that only deletes the chat from the client's view
-	// In a production environment, we would store this in a database
-	// For now, we'll just confirm success to the client and let the client
-	// handle the UI removal of the chat
-
+	log.Printf("DeleteChat: Successfully deleted chat %s for user %s", chatID, userID)
 	utils.SendSuccessResponse(c, 200, gin.H{
 		"message": "Chat deleted successfully",
-		"note":    "This is a client-side delete only. The chat will reappear on reload.",
 	})
 }

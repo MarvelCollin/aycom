@@ -1,5 +1,5 @@
 // API Configuration
-export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+export const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8080/api/v1";
 
 // Default request timeout in milliseconds
 export const DEFAULT_TIMEOUT = 30000; // 30 seconds
@@ -13,4 +13,4 @@ export const STATUS_CODES = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   INTERNAL_SERVER_ERROR: 500,
-}; 
+};

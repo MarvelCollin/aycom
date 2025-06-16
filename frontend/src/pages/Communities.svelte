@@ -1,81 +1,81 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import MainLayout from '../components/layout/MainLayout.svelte';
-  import { useAuth } from '../hooks/useAuth';
-  import { useTheme } from '../hooks/useTheme';
-  import { createLoggerWithPrefix } from '../utils/logger';
-  import { toastStore } from '../stores/toastStore';
-  import { 
+  import { onMount } from "svelte";
+  import MainLayout from "../components/layout/MainLayout.svelte";
+  import { useAuth } from "../hooks/useAuth";
+  import { useTheme } from "../hooks/useTheme";
+  import { createLoggerWithPrefix } from "../utils/logger";
+  import { toastStore } from "../stores/toastStore";
+  import {
     getJoinedCommunities,
-    getPendingCommunities, 
+    getPendingCommunities,
     getDiscoverCommunities,
     getCategories,
-    requestToJoin, 
+    requestToJoin,
     checkUserCommunityMembership
-  } from '../api/community';
-  import type { ICategoriesResponse, ICategory } from '../interfaces/ICategory';
-  import { getPublicUrl, SUPABASE_BUCKETS } from '../utils/supabase';
-  import { formatStorageUrl } from '../utils/common';
-  
+  } from "../api/community";
+  import type { ICategoriesResponse, ICategory } from "../interfaces/ICategory";
+  import { getPublicUrl, SUPABASE_BUCKETS } from "../utils/supabase";
+  import { formatStorageUrl } from "../utils/common";
+
   // Import components
-  import Pagination from '../components/common/Pagination.svelte';
-  import CategoryFilter from '../components/common/CategoryFilter.svelte';
-  import Spinner from '../components/common/Spinner.svelte';
-  import CreateCommunityModal from '../components/communities/CreateCommunityModal.svelte';
-  
+  import Pagination from "../components/common/Pagination.svelte";
+  import CategoryFilter from "../components/common/CategoryFilter.svelte";
+  import Spinner from "../components/common/Spinner.svelte";
+  import CreateCommunityModal from "../components/communities/CreateCommunityModal.svelte";
+
   // Import icons
-  import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
-  import FilterIcon from 'svelte-feather-icons/src/icons/FilterIcon.svelte';
-  import CheckIcon from 'svelte-feather-icons/src/icons/CheckIcon.svelte';
-  import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
-  import LockIcon from 'svelte-feather-icons/src/icons/LockIcon.svelte';
-  import PlusIcon from 'svelte-feather-icons/src/icons/PlusIcon.svelte';
-  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
-  
-  const logger = createLoggerWithPrefix('Communities');
-  
+  import SearchIcon from "svelte-feather-icons/src/icons/SearchIcon.svelte";
+  import FilterIcon from "svelte-feather-icons/src/icons/FilterIcon.svelte";
+  import CheckIcon from "svelte-feather-icons/src/icons/CheckIcon.svelte";
+  import UsersIcon from "svelte-feather-icons/src/icons/UsersIcon.svelte";
+  import LockIcon from "svelte-feather-icons/src/icons/LockIcon.svelte";
+  import PlusIcon from "svelte-feather-icons/src/icons/PlusIcon.svelte";
+  import AlertCircleIcon from "svelte-feather-icons/src/icons/AlertCircleIcon.svelte";
+
+  const logger = createLoggerWithPrefix("Communities");
+
   // Auth setup
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
   let authState = getAuthState();
-  $: isDarkMode = $theme === 'dark';
-  
+  $: isDarkMode = $theme === "dark";
+
   // Community creation modal state
   let isCreateModalOpen = false;
-  
+
   // Pagination configuration
-  let limitOptions = [25, 30, 35];
+  const limitOptions = [25, 30, 35];
   let currentPage = 1;
   let limit = limitOptions[0];
   let totalCount = 0;  // Total number of communities
   let totalPages = 1;
-  
+
   // Filter settings
-  let activeTab = 'joined'; // Default to 'joined' tab
-  let searchQuery = '';
+  let activeTab = "joined"; // Default to 'joined' tab
+  let searchQuery = "";
   let selectedCategories: string[] = [];
   let availableCategories: string[] = [];
-  
+
   // Community data
   let isLoading = false;
   let communities: any[] = []; // Communities for the current tab
   let error: string | null = null;
-  
+
   // Map to track membership status for each community in discover tab
   let communityMembershipStatus = new Map();
-  
+
   // Helper function to calculate total pages
   function calculateTotalPages(total: number, perPage: number): number {
     // Always return at least 1 page, even with 0 items
     if (total <= 0 || perPage <= 0) return 1;
     return Math.ceil(total / perPage);
   }
-  
+
   // Fetch communities based on active tab
   async function fetchCommunities() {
     isLoading = true;
     error = null;
-    
+
     try {
       // Prepare parameters for API call
       const params = {
@@ -84,24 +84,24 @@
         q: searchQuery,
         category: selectedCategories
       };
-      
+
       let result;
       logger.info(`Fetching communities for tab: ${activeTab}`);
-      
+
       try {
         // Use appropriate API call based on active tab
         switch (activeTab) {
-          case 'joined':
-            result = await getJoinedCommunities(authState.user_id || '', params);
+          case "joined":
+            result = await getJoinedCommunities(authState.user_id || "", params);
             break;
-          case 'pending':
-            result = await getPendingCommunities(authState.user_id || '', params);
+          case "pending":
+            result = await getPendingCommunities(authState.user_id || "", params);
             break;
-          case 'discover':
-            result = await getDiscoverCommunities(authState.user_id || '', params);
+          case "discover":
+            result = await getDiscoverCommunities(authState.user_id || "", params);
             break;
           default:
-            result = await getJoinedCommunities(authState.user_id || '', params);
+            result = await getJoinedCommunities(authState.user_id || "", params);
         }
       } catch (apiError) {
         // Handle API call errors gracefully
@@ -114,11 +114,11 @@
           limit
         };
       }
-      
+
       // Add more detailed logging
       console.log(`[Communities] Raw API response for ${activeTab} tab:`, result);
-      logger.info('[Communities] API response:', result);
-      
+      logger.info("[Communities] API response:", result);
+
       // Handle response data
       if (result && result.success !== false) {
         // Extract communities from the result
@@ -135,81 +135,81 @@
           currentPage = result.page || currentPage;
           limit = result.limit || limit;
         }
-        
-        console.log('[Communities] Extracted communities:', communities);
-        console.log('[Communities] Total count:', totalCount);
-        
+
+        console.log("[Communities] Extracted communities:", communities);
+        console.log("[Communities] Total count:", totalCount);
+
         // Make sure communities is always an array
         if (!Array.isArray(communities)) {
-          console.log('[Communities] Communities is not an array, resetting to empty array');
+          console.log("[Communities] Communities is not an array, resetting to empty array");
           communities = [];
         }
-        
+
         // Additional debug logging for each community
         communities.forEach((community, index) => {
           console.log(`[Communities] Community ${index}:`, {
             id: community.id,
             name: community.name,
-            description: community.description?.substring(0, 30) + '...',
+            description: community.description?.substring(0, 30) + "...",
             logo_url: community.logo_url || community.logoUrl,
             banner_url: community.banner_url || community.bannerUrl
           });
         });
-        
+
         // Set up pagination
         totalPages = calculateTotalPages(totalCount, limit);
         if (currentPage > totalPages && totalPages > 0) {
           currentPage = totalPages;
         }
-        
+
         // Check membership status for communities in the discover tab
-        if (activeTab === 'discover') {
+        if (activeTab === "discover") {
           checkMembershipStatusForAll();
         }
-        
+
         error = null;
       } else {
         // Handle API error by showing empty data
-        logger.error('[Communities] Error fetching communities:', result?.error || 'Unknown error');
+        logger.error("[Communities] Error fetching communities:", result?.error || "Unknown error");
         communities = [];
         totalCount = 0;
         totalPages = 1;
-        error = result?.error?.message || 'Failed to load communities';
+        error = result?.error?.message || "Failed to load communities";
       }
     } catch (err) {
       // Handle unexpected errors
-      logger.error('[Communities] Exception fetching communities:', err);
+      logger.error("[Communities] Exception fetching communities:", err);
       communities = [];
       totalCount = 0;
       totalPages = 1;
-      error = 'An unexpected error occurred';
+      error = "An unexpected error occurred";
     } finally {
       isLoading = false;
     }
   }
-  
+
   // Fetch available categories
   async function fetchCategories() {
     try {
       const response = await getCategories();
-      
+
       // Handle both array response and object with categories property
       if (Array.isArray(response)) {
         availableCategories = response.map(cat => cat.name);
-      } else if (response && typeof response === 'object' && 'categories' in response) {
+      } else if (response && typeof response === "object" && "categories" in response) {
         // Use type assertion to tell TypeScript this is a valid object with categories property
         const typedResponse = response as { categories: ICategory[] };
         availableCategories = typedResponse.categories.map(cat => cat.name);
       }
     } catch (error) {
-      logger.error('Error fetching categories:', error);
+      logger.error("Error fetching categories:", error);
     }
   }
-  
+
   // Check membership status for all communities in discover tab
   async function checkMembershipStatusForAll() {
-    if (!Array.isArray(communities) || communities.length === 0 || activeTab !== 'discover') return;
-    
+    if (!Array.isArray(communities) || communities.length === 0 || activeTab !== "discover") return;
+
     for (const community of communities) {
       if (community && community.id) {
         try {
@@ -223,26 +223,26 @@
       }
     }
   }
-  
+
   // Function to check membership status for a community
   async function checkMembershipStatus(communityId: string): Promise<string> {
-    if (!authState.is_authenticated || !communityId) return 'none';
-    
+    if (!authState.is_authenticated || !communityId) return "none";
+
     try {
       const membershipResponse = await checkUserCommunityMembership(communityId);
-      return membershipResponse.status || 'none';
+      return membershipResponse.status || "none";
     } catch (error) {
       logger.warn(`Error checking membership for community ${communityId}:`, error);
-      return 'none'; // Default to 'none' on error
+      return "none"; // Default to 'none' on error
     }
   }
-  
+
   // Handle page change
   function handlePageChange(event: CustomEvent) {
     currentPage = event.detail.page;
     fetchCommunities();
   }
-  
+
   // Handle limit change
   function handleLimitChange(event: Event) {
     const target = event.target as HTMLSelectElement;
@@ -250,35 +250,35 @@
     currentPage = 1; // Reset to first page when changing limit
     fetchCommunities();
   }
-  
+
   // Handle tab change
   function setActiveTab(tabName: string) {
     activeTab = tabName;
     currentPage = 1; // Reset to first page when changing tabs
     fetchCommunities();
   }
-  
+
   // Handle search
   function handleSearch() {
     currentPage = 1; // Reset to first page when searching
     fetchCommunities();
   }
-  
+
   // Handle category filter change
   function handleCategoryChange(event: CustomEvent) {
     selectedCategories = event.detail.categories;
     currentPage = 1; // Reset to first page when changing filters
     fetchCommunities();
   }
-  
+
   // Clear filters
   function clearFilters() {
-    searchQuery = '';
+    searchQuery = "";
     selectedCategories = [];
     currentPage = 1;
     fetchCommunities();
   }
-  
+
   // Handle join request
   async function joinCommunity(communityId: string, event?: Event) {
     // Prevent propagation to avoid navigation
@@ -286,71 +286,71 @@
       event.stopPropagation();
       event.preventDefault();
     }
-    
+
     if (!authState.is_authenticated) {
-      toastStore.showToast('You must be logged in to join communities', 'warning');
+      toastStore.showToast("You must be logged in to join communities", "warning");
       return;
     }
-    
+
     try {
       const response = await requestToJoin(communityId, {});
       if (response.success) {
-        toastStore.showToast('Join request sent successfully', 'success');
+        toastStore.showToast("Join request sent successfully", "success");
         // Update the local membership status immediately
-        communityMembershipStatus.set(communityId, 'pending');
+        communityMembershipStatus.set(communityId, "pending");
         communityMembershipStatus = communityMembershipStatus; // Force update
       } else {
-        toastStore.showToast(response.message || 'Failed to request to join community', 'error');
+        toastStore.showToast(response.message || "Failed to request to join community", "error");
       }
     } catch (error) {
-      logger.error('Error requesting to join community:', error);
-      toastStore.showToast('Failed to request to join community', 'error');
+      logger.error("Error requesting to join community:", error);
+      toastStore.showToast("Failed to request to join community", "error");
     }
   }
-  
+
   // Handle community click - navigate to detail page
   function handleCommunityClick(communityId: string) {
     if (!communityId) {
-      logger.error('Invalid community ID');
+      logger.error("Invalid community ID");
       return;
     }
-    
+
     const href = `/communities/${communityId}`;
     window.location.href = href;
   }
-  
+
   // Open community creation modal
   function openCreateModal() {
     if (!authState.is_authenticated) {
-      toastStore.showToast('You must be logged in to create a community', 'warning');
+      toastStore.showToast("You must be logged in to create a community", "warning");
       return;
     }
     isCreateModalOpen = true;
   }
-  
+
   // Handle successful community creation
   function handleCommunityCreated() {
     // Refresh communities list
-    toastStore.showToast('Community created successfully!', 'success');
-    setActiveTab('joined');
+    toastStore.showToast("Community created successfully!", "success");
+    setActiveTab("joined");
   }
-  
+
   // Helper function to get the Supabase URL for community logos
   function getLogoUrl(community: any): string|null {
     if (!community) return null;
-    
+
     // Check for different property names
     const logoUrl = community.logo_url || community.logoUrl || community.logo;
-    
+
     if (!logoUrl) return null;
-    
+
     try {
       // First check if this is a known problematic URL and fix it directly
       const fixedUrl = fixKnownProblematicUrl(logoUrl);
       if (fixedUrl !== logoUrl) {
         return fixedUrl;
       }
-      
+
       // Use formatStorageUrl utility to handle all URL formatting consistently
       return formatStorageUrl(logoUrl);
     } catch (error) {
@@ -358,23 +358,23 @@
       return logoUrl; // Return original as fallback
     }
   }
-  
+
   // Helper function to get the Supabase URL for community banners
   function getBannerUrl(community: any): string|null {
     if (!community) return null;
-    
+
     // Check for different property names
     const bannerUrl = community.banner_url || community.bannerUrl || community.banner;
-    
+
     if (!bannerUrl) return null;
-    
+
     try {
       // First check if this is a known problematic URL and fix it directly
       const fixedUrl = fixKnownProblematicUrl(bannerUrl);
       if (fixedUrl !== bannerUrl) {
         return fixedUrl;
       }
-      
+
       // Use formatStorageUrl utility to handle all URL formatting consistently
       return formatStorageUrl(bannerUrl);
     } catch (error) {
@@ -382,46 +382,46 @@
       return bannerUrl; // Return original as fallback
     }
   }
-  
+
   // Function to fix known problematic URLs
   function fixKnownProblematicUrl(url: string): string {
     // Map of known problematic URLs to their fixed versions
     const knownUrlFixes: Record<string, string> = {
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614937805_k3pne3t9.jpg': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614937805_k3pne3t9.jpg',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/uploads/community/community_banner_91df5727a9c5427e94cee0486e3bfdb7_1749202798.png': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/uploads/community/community_banner_91df5727a9c5427e94cee0486e3bfdb7_1749202798.png',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/test/logo.jpg': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/test/logo.jpg',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/test/banner.jpg': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/test/banner.jpg',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749269410545_m10xabzo.png': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269410545_m10xabzo.png',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/uploads/community/community_logo_91df5727a9c5427e94cee0486e3bfdb7_1749202798.jpg': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/uploads/community/community_logo_91df5727a9c5427e94cee0486e3bfdb7_1749202798.jpg',
-      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749269411979_4070qdrp.png': 
-        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269411979_4070qdrp.png'
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614937805_k3pne3t9.jpg":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614937805_k3pne3t9.jpg",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/uploads/community/community_banner_91df5727a9c5427e94cee0486e3bfdb7_1749202798.png":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/uploads/community/community_banner_91df5727a9c5427e94cee0486e3bfdb7_1749202798.png",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/test/logo.jpg":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/test/logo.jpg",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/test/banner.jpg":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/test/banner.jpg",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749269410545_m10xabzo.png":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269410545_m10xabzo.png",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/uploads/community/community_logo_91df5727a9c5427e94cee0486e3bfdb7_1749202798.jpg":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/uploads/community/community_logo_91df5727a9c5427e94cee0486e3bfdb7_1749202798.jpg",
+      "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749269411979_4070qdrp.png":
+        "https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269411979_4070qdrp.png"
     };
-    
+
     // If this is a known problematic URL, return the fixed version
     if (url in knownUrlFixes) {
-      console.log('Fixed known problematic URL:', url, 'to', knownUrlFixes[url]);
+      console.log("Fixed known problematic URL:", url, "to", knownUrlFixes[url]);
       return knownUrlFixes[url];
     }
-    
+
     // Check if the URL follows a pattern of known problematic URLs
-    if (url.includes('/storage/v1/s3/')) {
+    if (url.includes("/storage/v1/s3/")) {
       // Convert s3 URLs to object/public URLs
-      const fixedUrl = url.replace('/storage/v1/s3/', '/storage/v1/object/public/');
-      console.log('Fixed pattern-matched URL:', url, 'to', fixedUrl);
+      const fixedUrl = url.replace("/storage/v1/s3/", "/storage/v1/object/public/");
+      console.log("Fixed pattern-matched URL:", url, "to", fixedUrl);
       return fixedUrl;
     }
-    
+
     return url;
   }
-  
+
   // Initial data loading
   onMount(() => {
     authState = getAuthState();
@@ -429,16 +429,16 @@
       fetchCategories();
       fetchCommunities();
     } else {
-      logger.warn('User not authenticated');
-      toastStore.showToast('Sign in to view your communities', 'info');
+      logger.warn("User not authenticated");
+      toastStore.showToast("Sign in to view your communities", "info");
       // Still fetch discover communities for non-authenticated users
-      setActiveTab('discover');
+      setActiveTab("discover");
     }
   });
 </script>
 
 <MainLayout>
-  <div class="communities-container {isDarkMode ? 'dark' : ''}">
+  <div class="communities-container {isDarkMode ? "dark" : ""}">
     <div class="communities-header">
       <h1>Communities</h1>
       <button class="create-button" on:click={openCreateModal}>
@@ -446,60 +446,60 @@
         <span>Create Community</span>
       </button>
     </div>
-      
+
     <div class="search-filter-container">
       <div class="search-box">
-        <input 
-          type="text" 
+        <input
+          type="text"
           placeholder="Search communities..."
-          bind:value={searchQuery} 
-          on:keydown={(e) => e.key === 'Enter' && handleSearch()}
+          bind:value={searchQuery}
+          on:keydown={(e) => e.key === "Enter" && handleSearch()}
         />
         <button on:click={handleSearch} aria-label="Search">
           <SearchIcon size="16" />
         </button>
       </div>
-      
+
       {#if availableCategories.length > 0}
-        <CategoryFilter 
+        <CategoryFilter
           categories={availableCategories}
           selected={selectedCategories}
           on:change={handleCategoryChange}
         />
       {/if}
     </div>
-    
+
     <div class="tab-container">
-      <button 
-        class="tab-button {activeTab === 'joined' ? 'active' : ''}"
-        on:click={() => setActiveTab('joined')}
+      <button
+        class="tab-button {activeTab === "joined" ? "active" : ""}"
+        on:click={() => setActiveTab("joined")}
       >
         <CheckIcon size="16" />
         <span>Joined</span>
       </button>
-      <button 
-        class="tab-button {activeTab === 'pending' ? 'active' : ''}"
-        on:click={() => setActiveTab('pending')}
+      <button
+        class="tab-button {activeTab === "pending" ? "active" : ""}"
+        on:click={() => setActiveTab("pending")}
       >
         <AlertCircleIcon size="16" />
         <span>Pending</span>
       </button>
-      <button 
-        class="tab-button {activeTab === 'discover' ? 'active' : ''}"
-        on:click={() => setActiveTab('discover')}
+      <button
+        class="tab-button {activeTab === "discover" ? "active" : ""}"
+        on:click={() => setActiveTab("discover")}
       >
         <FilterIcon size="16" />
         <span>Discover</span>
       </button>
     </div>
-    
+
     {#if error}
       <div class="error-message">
         <AlertCircleIcon size="18" />
         <span>{error}</span>
       </div>
     {/if}
-    
+
     {#if isLoading}
       <div class="loading-container">
         <Spinner size="large" />
@@ -511,9 +511,9 @@
             <div class="community-card">
               <div class="community-banner">
                 {#if community.banner_url || community.bannerUrl || community.banner}
-                  <img 
-                    src={getBannerUrl(community)} 
-                    alt={`${community.name || 'Community'} banner`} 
+                  <img
+                    src={getBannerUrl(community)}
+                    alt={`${community.name || "Community"} banner`}
                     crossorigin="anonymous"
                     loading="lazy"
                     on:error={(e) => {
@@ -521,14 +521,14 @@
                       // Set a fallback class to show a placeholder instead
                       const imgElement = e.target as HTMLImageElement;
                       if (imgElement) {
-                        imgElement.classList.add('image-error');
+                        imgElement.classList.add("image-error");
                         // Try to set a data attribute to help with debugging
-                        imgElement.setAttribute('data-original-url', 
-                          community.banner_url || community.bannerUrl || community.banner || '');
+                        imgElement.setAttribute("data-original-url",
+                          community.banner_url || community.bannerUrl || community.banner || "");
                         // Show placeholder
                         const parent = imgElement.parentElement;
                         if (parent) {
-                          parent.classList.add('banner-placeholder');
+                          parent.classList.add("banner-placeholder");
                         }
                       }
                     }}
@@ -540,9 +540,9 @@
               <div class="community-card-content" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
                   {#if community.logo_url || community.logoUrl || community.logo}
-                    <img 
-                      src={getLogoUrl(community)} 
-                      alt={community.name || 'Community'} 
+                    <img
+                      src={getLogoUrl(community)}
+                      alt={community.name || "Community"}
                       crossorigin="anonymous"
                       loading="lazy"
                       on:error={(e) => {
@@ -550,36 +550,36 @@
                         // Set a fallback class to show a placeholder instead
                         const imgElement = e.target as HTMLImageElement;
                         if (imgElement) {
-                          imgElement.classList.add('image-error');
+                          imgElement.classList.add("image-error");
                           // Show the first letter as fallback
-                          imgElement.style.display = 'none';
+                          imgElement.style.display = "none";
                           if (imgElement.parentElement) {
-                            imgElement.parentElement.classList.add('logo-placeholder');
+                            imgElement.parentElement.classList.add("logo-placeholder");
                             // Add the first letter as content
-                            const letter = community.name && community.name.length > 0 
-                              ? community.name[0].toUpperCase() 
-                              : 'C';
-                            imgElement.parentElement.setAttribute('data-content', letter);
+                            const letter = community.name && community.name.length > 0
+                              ? community.name[0].toUpperCase()
+                              : "C";
+                            imgElement.parentElement.setAttribute("data-content", letter);
                           }
                           // Try to set a data attribute to help with debugging
-                          imgElement.setAttribute('data-original-url', 
-                            community.logo_url || community.logoUrl || community.logo || '');
+                          imgElement.setAttribute("data-original-url",
+                            community.logo_url || community.logoUrl || community.logo || "");
                         }
                       }}
                     />
                     <!-- Fallback content that will be shown when image fails to load -->
                     <div class="logo-placeholder-fallback">
-                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
+                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : "C"}
                     </div>
                   {:else}
                     <div class="logo-placeholder">
-                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
+                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : "C"}
                     </div>
                   {/if}
                 </div>
                 <div class="community-info">
                   <h3 class="community-name">
-                    {community.name || 'Unnamed Community'}
+                    {community.name || "Unnamed Community"}
                     {#if community.is_approved === false || community.isApproved === false}
                       <span class="pending-badge">
                         <AlertCircleIcon size="12" />
@@ -587,8 +587,8 @@
                       </span>
                     {/if}
                   </h3>
-                  <p class="community-description">{community.description || 'No description available'}</p>
-                  
+                  <p class="community-description">{community.description || "No description available"}</p>
+
                   <div class="community-meta">
                     {#if community.categories && community.categories.length > 0}
                       <div class="community-categories">
@@ -604,7 +604,7 @@
                         <span class="category-tag no-category">Uncategorized</span>
                       </div>
                     {/if}
-                    
+
                     <div class="community-stats">
                       <UsersIcon size="14" />
                       <span>{community.member_count || 0}</span>
@@ -612,35 +612,35 @@
                   </div>
                 </div>
               </div>
-              
+
               <!-- Show action buttons based on tab - using a unified design -->
               <div class="community-action">
-                {#if activeTab === 'discover'}
-                  {#if communityMembershipStatus.get(community.id) === 'member'}
+                {#if activeTab === "discover"}
+                  {#if communityMembershipStatus.get(community.id) === "member"}
                     <div class="membership-status joined">
                       <CheckIcon size="14" />
                       <span>Joined</span>
                     </div>
-                  {:else if communityMembershipStatus.get(community.id) === 'pending'}
+                  {:else if communityMembershipStatus.get(community.id) === "pending"}
                     <div class="membership-status pending">
                       <AlertCircleIcon size="14" />
                       <span>Pending</span>
                     </div>
                   {:else}
-                    <button 
+                    <button
                       class="action-button join-button"
                       on:click={(e) => joinCommunity(community.id, e)}
                     >
-                      {community.is_private ? 'Request to Join' : 'Join'}
+                      {community.is_private ? "Request to Join" : "Join"}
                     </button>
                   {/if}
-                {:else if activeTab === 'pending'}
+                {:else if activeTab === "pending"}
                   <div class="membership-status pending">
                     <AlertCircleIcon size="14" />
                     <span>Join Request Pending</span>
                   </div>
-                {:else if activeTab === 'joined'}
-                  <button 
+                {:else if activeTab === "joined"}
+                  <button
                     class="action-button view-button"
                     on:click={() => handleCommunityClick(community.id)}
                   >
@@ -652,14 +652,14 @@
           {/each}
         {:else}
           <div class="empty-state">
-            {#if activeTab === 'joined'}
+            {#if activeTab === "joined"}
               <p class="message">You haven't joined any communities yet</p>
               <p class="description">Discover and join communities that interest you</p>
-              <button class="action-button" on:click={() => setActiveTab('discover')}>Explore Communities</button>
-            {:else if activeTab === 'pending'}
+              <button class="action-button" on:click={() => setActiveTab("discover")}>Explore Communities</button>
+            {:else if activeTab === "pending"}
               <p class="message">You don't have any pending join requests</p>
               <p class="description">Find communities to join</p>
-              <button class="action-button" on:click={() => setActiveTab('discover')}>Discover Communities</button>
+              <button class="action-button" on:click={() => setActiveTab("discover")}>Discover Communities</button>
             {:else}
               <p class="message">No communities found matching your search</p>
               {#if searchQuery || selectedCategories.length > 0}
@@ -672,7 +672,7 @@
           </div>
         {/if}
       </div>
-      
+
       <!-- Pagination controls - always show even with fewer than limit items -->
       <div class="pagination-container">
         <div class="limit-selector">
@@ -683,19 +683,19 @@
             {/each}
           </select>
         </div>
-        
-        <Pagination 
+
+        <Pagination
           totalItems={totalCount}
           perPage={limit}
-          currentPage={currentPage}
+          {currentPage}
           maxDisplayPages={5}
           on:pageChange={handlePageChange}
         />
       </div>
     {/if}
   </div>
-  
-  <CreateCommunityModal 
+
+  <CreateCommunityModal
     bind:isOpen={isCreateModalOpen}
     on:success={handleCommunityCreated}
   />
@@ -707,23 +707,23 @@
     max-width: 1200px;
     margin: 0 auto;
   }
-  
+
   .communities-container.dark {
     color: #e2e8f0;
   }
-  
+
   .communities-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
   }
-  
+
   h1 {
     font-size: 1.5rem;
     font-weight: 700;
   }
-  
+
   .create-button {
     display: flex;
     align-items: center;
@@ -738,11 +738,11 @@
     cursor: pointer;
     font-weight: 500;
   }
-  
+
   .create-button:hover {
     background-color: var(--primary-dark, #2c5282);
   }
-  
+
   .search-filter-container {
     display: flex;
     align-items: center;
@@ -750,13 +750,13 @@
     margin-bottom: 1rem;
     flex-wrap: wrap;
   }
-  
+
   .search-box {
     flex: 1;
     position: relative;
     min-width: 250px;
   }
-  
+
   .search-box input {
     width: 100%;
     padding: 0.5rem 2.5rem 0.5rem 1rem;
@@ -766,17 +766,17 @@
     outline: none;
     transition: border-color 0.2s;
   }
-  
+
   .dark .search-box input {
     background-color: #2d3748;
     color: #e2e8f0;
     border-color: #4a5568;
   }
-  
+
   .search-box input:focus {
     border-color: var(--primary-color, #3182ce);
   }
-  
+
   .search-box button {
     position: absolute;
     right: 0.5rem;
@@ -788,15 +788,15 @@
     cursor: pointer;
     padding: 0.25rem;
   }
-  
+
   .dark .search-box button {
     color: #a0aec0;
   }
-  
+
   .search-box button:hover {
     color: var(--primary-color, #3182ce);
   }
-  
+
   .tab-container {
     display: flex;
     gap: 0.25rem;
@@ -806,15 +806,15 @@
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
-  
+
   .tab-container::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
   }
-  
+
   .dark .tab-container {
     border-color: #4a5568;
   }
-  
+
   .tab-button {
     display: flex;
     align-items: center;
@@ -829,20 +829,20 @@
     transition: all 0.2s;
     white-space: nowrap;
   }
-  
+
   .dark .tab-button {
     color: #a0aec0;
   }
-  
+
   .tab-button:hover {
     color: var(--primary-color, #3182ce);
   }
-  
+
   .tab-button.active {
     color: var(--primary-color, #3182ce);
     border-bottom-color: var(--primary-color, #3182ce);
   }
-  
+
   .error-message {
     display: flex;
     align-items: center;
@@ -853,24 +853,24 @@
     border-radius: 0.25rem;
     margin-bottom: 1rem;
   }
-  
+
   .dark .error-message {
     background-color: rgba(220, 38, 38, 0.2);
   }
-  
+
   .loading-container {
     display: flex;
     justify-content: center;
     align-items: center;
     height: 200px;
   }
-  
+
   .communities-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
   }
-  
+
   .community-card {
     display: flex;
     flex-direction: column;
@@ -881,58 +881,58 @@
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     height: 100%;
   }
-  
+
   .community-banner {
     width: 100%;
     height: 80px;
     overflow: hidden;
     position: relative;
   }
-  
+
   .community-banner img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   .banner-placeholder {
     width: 100%;
     height: 100%;
     min-height: 120px;
     background-color: #e2e8f0;
-    background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1), 
+    background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1),
                       linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1);
     background-size: 20px 20px;
     background-position: 0 0, 10px 10px;
   }
-  
+
   .dark .community-banner .banner-placeholder {
     background-color: #334155;
-    background-image: linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569), 
+    background-image: linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569),
                       linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569);
   }
-  
+
   .dark .community-card {
     background-color: #2d3748;
     border-color: #4a5568;
   }
-  
+
   .community-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   }
-  
+
   .dark .community-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
   }
-  
+
   .community-card-content {
     display: flex;
     padding: 1rem;
     flex: 1;
     cursor: pointer;
   }
-  
+
   .community-logo {
     width: 60px;
     height: 60px;
@@ -945,17 +945,17 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .dark .community-logo {
     background-color: #4a5568;
   }
-  
+
   .community-logo img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   .logo-placeholder {
     display: flex;
     align-items: center;
@@ -969,7 +969,7 @@
     font-size: 1.5rem;
     position: relative;
   }
-  
+
   .logo-placeholder::after {
     content: attr(data-content);
     position: absolute;
@@ -980,20 +980,20 @@
     font-weight: bold;
     font-size: 1.5rem;
   }
-  
+
   .logo-placeholder-fallback {
     display: none;
   }
-  
+
   .logo-placeholder .logo-placeholder-fallback {
     display: block;
   }
-  
+
   .community-info {
     flex: 1;
     min-width: 0;
   }
-  
+
   .community-name {
     margin: 0 0 0.25rem;
     font-size: 1.125rem;
@@ -1003,7 +1003,7 @@
     flex-wrap: wrap;
     gap: 0.5rem;
   }
-  
+
   .pending-badge {
     display: inline-flex;
     align-items: center;
@@ -1017,12 +1017,12 @@
     white-space: nowrap;
     vertical-align: middle;
   }
-  
+
   .dark .pending-badge {
     background-color: #3c2f00;
     color: #ffdb7d;
   }
-  
+
   .community-description {
     font-size: 0.875rem;
     color: #718096;
@@ -1037,24 +1037,24 @@
     line-height: 1.4;
     max-height: calc(1.4em * 2);
   }
-  
+
   .dark .community-info p {
     color: #a0aec0;
   }
-  
+
   .community-meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 0.75rem;
   }
-  
+
   .community-categories {
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
   }
-  
+
   .category-tag {
     padding: 0.125rem 0.5rem;
     background-color: #edf2f7;
@@ -1063,53 +1063,53 @@
     font-size: 0.75rem;
     white-space: nowrap;
   }
-  
+
   .category-tag.no-category {
     background-color: #e2e8f0;
     color: #718096;
   }
-  
+
   .category-tag.more {
     background-color: #e2e8f0;
     color: #4a5568;
   }
-  
+
   .dark .category-tag {
     background-color: #4a5568;
     color: #e2e8f0;
   }
-  
+
   .dark .category-tag.no-category {
     background-color: #2d3748;
     color: #a0aec0;
   }
-  
+
   .dark .category-tag.more {
     background-color: #2d3748;
   }
-  
+
   .community-stats {
     display: flex;
     align-items: center;
     gap: 0.25rem;
     color: #718096;
   }
-  
+
   .dark .community-stats {
     color: #a0aec0;
   }
-  
+
   .community-action {
     padding: 0.5rem 1rem;
     border-top: 1px solid #e2e8f0;
     display: flex;
     justify-content: center;
   }
-  
+
   .dark .community-action {
     border-color: #4a5568;
   }
-  
+
   .action-button {
     padding: 0.375rem 0.75rem;
     background-color: var(--primary-color, #3182ce);
@@ -1125,19 +1125,19 @@
     justify-content: center;
     gap: 0.25rem;
   }
-  
+
   .view-button {
     background-color: #4a5568;
   }
-  
+
   .join-button:hover, .action-button:hover {
     background-color: var(--primary-dark, #2c5282);
   }
-  
+
   .view-button:hover {
     background-color: #2d3748;
   }
-  
+
   .membership-status {
     display: flex;
     align-items: center;
@@ -1150,17 +1150,17 @@
     min-width: 100px;
     text-align: center;
   }
-  
+
   .membership-status.joined {
     background-color: #48bb78;
     color: white;
   }
-  
+
   .membership-status.pending {
     background-color: #ed8936;
     color: white;
   }
-  
+
   .empty-state {
     grid-column: 1 / -1;
     padding: 3rem 1rem;
@@ -1171,21 +1171,21 @@
     text-align: center;
     color: #718096;
   }
-  
+
   .dark .empty-state {
     color: #a0aec0;
   }
-  
+
   .empty-state .message {
     font-size: 1.125rem;
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
-  
+
   .empty-state .description {
     margin-bottom: 1.5rem;
   }
-  
+
   .pagination-container {
     display: flex;
     justify-content: space-between;
@@ -1194,31 +1194,31 @@
     padding-top: 1rem;
     border-top: 1px solid #e2e8f0;
   }
-  
+
   .dark .pagination-container {
     border-color: #4a5568;
   }
-  
+
   .limit-selector {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     font-size: 0.875rem;
   }
-  
+
   .limit-selector select {
     padding: 0.25rem 0.5rem;
     border: 1px solid #e2e8f0;
     border-radius: 0.25rem;
     background-color: white;
   }
-  
+
   .dark .limit-selector select {
     background-color: #2d3748;
     color: #e2e8f0;
     border-color: #4a5568;
   }
-  
+
   @media (max-width: 640px) {
     .communities-header {
       flex-direction: column;
@@ -1226,49 +1226,49 @@
       gap: 1rem;
       margin-bottom: 1rem;
     }
-    
+
     .create-button {
       width: 100%;
       justify-content: center;
     }
-    
+
     .search-filter-container {
       flex-direction: column;
       width: 100%;
     }
-    
+
     .search-box {
       width: 100%;
     }
-    
+
     .pagination-container {
       flex-direction: column;
       gap: 1rem;
     }
   }
-  
+
   /* Add styles for image error handling */
   .image-error {
     display: none !important;
   }
-  
+
   .banner-placeholder {
     height: 100%;
     width: 100%;
     min-height: 120px;
     background-color: #e2e8f0;
-    background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1), 
+    background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1),
                       linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1);
     background-size: 20px 20px;
     background-position: 0 0, 10px 10px;
   }
-  
+
   .dark .banner-placeholder {
     background-color: #334155;
-    background-image: linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569), 
+    background-image: linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569),
                       linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569);
   }
-  
+
   .logo-placeholder {
     display: flex;
     align-items: center;
@@ -1282,7 +1282,7 @@
     font-size: 1.5rem;
     position: relative;
   }
-  
+
   .logo-placeholder::after {
     content: attr(data-content);
     position: absolute;
@@ -1293,11 +1293,11 @@
     font-weight: bold;
     font-size: 1.5rem;
   }
-  
+
   .logo-placeholder-fallback {
     display: none;
   }
-  
+
   .logo-placeholder .logo-placeholder-fallback {
     display: block;
   }

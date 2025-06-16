@@ -1,62 +1,62 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { toastStore } from '../stores/toastStore';
-  import MainLayout from '../components/layout/MainLayout.svelte';
-  import { createLoggerWithPrefix } from '../utils/logger';
-  import { useAuth } from '../hooks/useAuth';
-  import { useTheme } from '../hooks/useTheme';
-  import type { IAuthStore } from '../interfaces/IAuth';
-  import { isUserAdmin } from '../utils/auth';
-  import { 
-    standardizeCommunityRequest, 
-    standardizePremiumRequest, 
+  import { onMount } from "svelte";
+  import { toastStore } from "../stores/toastStore";
+  import MainLayout from "../components/layout/MainLayout.svelte";
+  import { createLoggerWithPrefix } from "../utils/logger";
+  import { useAuth } from "../hooks/useAuth";
+  import { useTheme } from "../hooks/useTheme";
+  import type { IAuthStore } from "../interfaces/IAuth";
+  import { isUserAdmin } from "../utils/auth";
+  import {
+    standardizeCommunityRequest,
+    standardizePremiumRequest,
     standardizeReportRequest,
     standardizeUser
-  } from '../utils/standardizeApiData';
-  import '../styles/pages/admin.css';
+  } from "../utils/standardizeApiData";
+  import "../styles/pages/admin.css";
 
-  import * as adminAPI from '../api/admin';
-  import type { RequestsResponse, CategoriesResponse } from '../api/admin';
-  import { getAllUsers, checkAdminStatus } from '../api/user';
+  import * as adminAPI from "../api/admin";
+  import type { RequestsResponse, CategoriesResponse } from "../api/admin";
+  import { getAllUsers, checkAdminStatus } from "../api/user";
 
-  import UsersIcon from 'svelte-feather-icons/src/icons/UsersIcon.svelte';
-  import AlertCircleIcon from 'svelte-feather-icons/src/icons/AlertCircleIcon.svelte';
-  import MessageSquareIcon from 'svelte-feather-icons/src/icons/MessageSquareIcon.svelte';
-  import ShieldIcon from 'svelte-feather-icons/src/icons/ShieldIcon.svelte';
-  import UserXIcon from 'svelte-feather-icons/src/icons/UserXIcon.svelte';
-  import FlagIcon from 'svelte-feather-icons/src/icons/FlagIcon.svelte';
-  import SettingsIcon from 'svelte-feather-icons/src/icons/SettingsIcon.svelte';
-  import TrendingUpIcon from 'svelte-feather-icons/src/icons/TrendingUpIcon.svelte';
-  import MailIcon from 'svelte-feather-icons/src/icons/MailIcon.svelte';
-  import FolderIcon from 'svelte-feather-icons/src/icons/FolderIcon.svelte';
-  import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
+  import UsersIcon from "svelte-feather-icons/src/icons/UsersIcon.svelte";
+  import AlertCircleIcon from "svelte-feather-icons/src/icons/AlertCircleIcon.svelte";
+  import MessageSquareIcon from "svelte-feather-icons/src/icons/MessageSquareIcon.svelte";
+  import ShieldIcon from "svelte-feather-icons/src/icons/ShieldIcon.svelte";
+  import UserXIcon from "svelte-feather-icons/src/icons/UserXIcon.svelte";
+  import FlagIcon from "svelte-feather-icons/src/icons/FlagIcon.svelte";
+  import SettingsIcon from "svelte-feather-icons/src/icons/SettingsIcon.svelte";
+  import TrendingUpIcon from "svelte-feather-icons/src/icons/TrendingUpIcon.svelte";
+  import MailIcon from "svelte-feather-icons/src/icons/MailIcon.svelte";
+  import FolderIcon from "svelte-feather-icons/src/icons/FolderIcon.svelte";
+  import RefreshCwIcon from "svelte-feather-icons/src/icons/RefreshCwIcon.svelte";
 
-  import Spinner from '../components/common/Spinner.svelte';
-  import TabButtons from '../components/common/TabButtons.svelte';
-  import Button from '../components/common/Button.svelte';
+  import Spinner from "../components/common/Spinner.svelte";
+  import TabButtons from "../components/common/TabButtons.svelte";
+  import Button from "../components/common/Button.svelte";
 
   interface BaseResponse {
     success: boolean;
     message?: string;
   }
 
-  const logger = createLoggerWithPrefix('AdminDashboard');
+  const logger = createLoggerWithPrefix("AdminDashboard");
 
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
 
-  $: authState = getAuthState ? (getAuthState() as IAuthStore) : { 
-    user_id: null, 
-    is_authenticated: false, 
-    access_token: null, 
+  $: authState = getAuthState ? (getAuthState() as IAuthStore) : {
+    user_id: null,
+    is_authenticated: false,
+    access_token: null,
     refresh_token: null,
     is_admin: false
   };
-  $: isDarkMode = $theme === 'dark';
+  $: isDarkMode = $theme === "dark";
 
   let isLoading = true;
   let isAdmin = false;
-  let activeTab = 'overview'; 
+  let activeTab = "overview";
 
   interface AdminStatistics {
     totalUsers: number;
@@ -143,26 +143,26 @@
 
   let currentPage = 1;
   let totalCount = 0;
-  let limit = 10;
+  const limit = 10;
 
-  let newsletterSubject = '';
-  let newsletterContent = '';
+  let newsletterSubject = "";
+  let newsletterContent = "";
   let isSendingNewsletter = false;
   let newsletterSubscribers: User[] = [];
   let isLoadingSubscribers = false;
   let subscribersPage = 1;
   let subscribersPagination: any = null;
 
-  let newCategoryName = '';
-  let newCategoryDescription = '';
+  let newCategoryName = "";
+  let newCategoryDescription = "";
   let editingCategory: ThreadCategory | CommunityCategory | null = null;
   let isProcessingRequest = false;
-  let selectedRequestType = 'all';
-  let requestStatusFilter = 'pending';
-  let searchQuery = '';
+  let selectedRequestType = "all";
+  let requestStatusFilter = "pending";
+  let searchQuery = "";
 
   let showNewCategoryModal = false;
-  let categoryType: 'thread' | 'community' = 'thread';
+  let categoryType: "thread" | "community" = "thread";
 
   // Variable declarations for pagination
   let isLoadingCommunityRequests = false;
@@ -171,48 +171,48 @@
   let isLoadingCategories = false;
 
   let communityRequestsTotal = 0;
-  let communityRequestsPagination: any = null;
+  const communityRequestsPagination: any = null;
   let premiumRequestsPagination: any = null;
   let reportRequestsPagination: any = null;
   let categoriesPagination: any = null;
 
-  let communityRequestsPage = 1;
-  let premiumRequestsPage = 1;
-  let reportRequestsPage = 1;
-  let categoriesPage = 1;
+  const communityRequestsPage = 1;
+  const premiumRequestsPage = 1;
+  const reportRequestsPage = 1;
+  const categoriesPage = 1;
 
-  let reportStatusFilter = 'pending';
+  let reportStatusFilter = "pending";
 
   // Add a new function to sync community requests
   let isSyncingCommunities = false;
-  
+
   async function syncCommunityRequests() {
     try {
       isSyncingCommunities = true;
-      logger.info('Syncing community requests between services');
-      
+      logger.info("Syncing community requests between services");
+
       const result = await adminAPI.syncCommunityRequests();
-      
+
       if (result && result.success) {
         const syncData = result.data;
-        logger.info('Community sync completed successfully:', syncData);
-        
+        logger.info("Community sync completed successfully:", syncData);
+
         const message = `Sync completed: Found ${syncData.total_pending_communities} pending communities`;
-        toastStore.showToast(message, 'success');
-        
+        toastStore.showToast(message, "success");
+
         // Reload community requests to show the newly synced ones
         await loadCommunityRequests();
-        
+
         // Debug the community requests after loading
-        logger.info('After sync, community requests:', communityRequests);
+        logger.info("After sync, community requests:", communityRequests);
       } else {
-        logger.error('Failed to sync community requests:', result);
-        toastStore.showToast('Failed to sync community requests', 'error');
+        logger.error("Failed to sync community requests:", result);
+        toastStore.showToast("Failed to sync community requests", "error");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error syncing community requests:', error);
-      toastStore.showToast(`Error syncing community requests: ${message}`, 'error');
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Error syncing community requests:", error);
+      toastStore.showToast(`Error syncing community requests: ${message}`, "error");
     } finally {
       isSyncingCommunities = false;
     }
@@ -227,21 +227,21 @@
 
       if (isAdmin) {
         await loadDashboardData();
-        
+
         // Also load categories on initial load for quicker access
-        if (activeTab !== 'categories') {
+        if (activeTab !== "categories") {
           logger.info("Pre-loading categories data for better user experience");
           await loadCategories();
         }
       } else {
         // Handle non-admin users
         logger.warn("User is not an admin");
-        window.location.href = '/feed';
+        window.location.href = "/feed";
       }
     } catch (error) {
       logger.error("Error in onMount:", error);
       isLoading = false;
-      toastStore.showToast('Error loading admin dashboard. Please try again later.', 'error');
+      toastStore.showToast("Error loading admin dashboard. Please try again later.", "error");
     } finally {
       // Ensure loading state is cleared even if there's an error
       isLoading = false;
@@ -251,33 +251,33 @@
   async function checkAdmin() {
     try {
       logger.info("Checking admin status with authState:", authState);
-      
+
       // First check if the user is already marked as admin in the auth state
       if (authState && authState.is_admin === true) {
         logger.info("User is admin according to auth state");
         return true;
       }
-      
+
       // If not, make an API call to check admin status
       logger.info("Checking admin status via API call");
       const isAdmin = await checkAdminStatus();
-      
+
       if (isAdmin) {
         logger.info("API confirmed user is admin");
-        
+
         // Update the auth state in localStorage
         try {
-          const authData = localStorage.getItem('auth');
+          const authData = localStorage.getItem("auth");
           if (authData) {
             const auth = JSON.parse(authData);
             auth.is_admin = true;
-            localStorage.setItem('auth', JSON.stringify(auth));
+            localStorage.setItem("auth", JSON.stringify(auth));
             logger.info("Updated localStorage with admin status");
           }
         } catch (e) {
           logger.error("Error updating auth state:", e);
         }
-        
+
         return true;
       } else {
         logger.warn("User is not an admin according to API");
@@ -285,8 +285,8 @@
       }
     } catch (error) {
       logger.error("Error checking admin status:", error);
-      toastStore.showToast('Error checking admin status. Redirecting to feed.', 'error');
-      window.location.href = '/feed';
+      toastStore.showToast("Error checking admin status. Redirecting to feed.", "error");
+      window.location.href = "/feed";
       return false;
     }
   }
@@ -296,26 +296,26 @@
       isLoading = true;
 
       switch (activeTab) {
-        case 'overview':
+        case "overview":
           await loadStatistics();
           break;
-        case 'users':
+        case "users":
           await loadUsers();
           break;
-        case 'requests':
+        case "requests":
           await loadAllRequests();
           break;
-        case 'categories':
+        case "categories":
           await loadCategories();
           break;
-        case 'newsletter':
+        case "newsletter":
           await loadNewsletterSubscribers();
           break;
       }
 
     } catch (error) {
-      logger.error('Error loading dashboard data:', error);
-      toastStore.showToast('Failed to load dashboard data', 'error');
+      logger.error("Error loading dashboard data:", error);
+      toastStore.showToast("Failed to load dashboard data", "error");
     } finally {
       isLoading = false;
     }
@@ -334,15 +334,15 @@
           newUsersToday: response.data?.new_users_today || 0,
           newPostsToday: response.data?.new_posts_today || 0
         };
-        logger.info('Dashboard statistics loaded successfully');
+        logger.info("Dashboard statistics loaded successfully");
       } else {
-        logger.warn('Statistics API returned success: false');
-        toastStore.showToast('Failed to load dashboard statistics', 'warning');
+        logger.warn("Statistics API returned success: false");
+        toastStore.showToast("Failed to load dashboard statistics", "warning");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error loading statistics:', error);
-      toastStore.showToast(`Statistics error: ${message}`, 'warning');
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Error loading statistics:", error);
+      toastStore.showToast(`Statistics error: ${message}`, "warning");
 
       statistics = {
         totalUsers: 0,
@@ -359,7 +359,7 @@
   async function loadUsers() {
     try {
       logger.info(`Loading users with search: ${searchQuery}, page: ${currentPage}, limit: ${limit}`);
-      const response = await getAllUsers(currentPage, limit, 'created_at', false, searchQuery);
+      const response = await getAllUsers(currentPage, limit, "created_at", false, searchQuery);
 
       logger.info("Response from getAllUsers:", response);
 
@@ -371,11 +371,11 @@
         // Ensure is_banned property is correctly processed
         users = users.map(user => {
           // Make sure is_banned is a boolean and handle different property names
-          const isBanned = 
-            user.is_banned === true || 
-            String(user.is_banned) === 'true' || 
+          const isBanned =
+            user.is_banned === true ||
+            String(user.is_banned) === "true" ||
             Number(user.is_banned) === 1;
-          
+
           // Create a consistent property
           return {
             ...user,
@@ -384,18 +384,18 @@
         });
 
         if (users.length > 0) {
-          logger.info(`First user data:`, users[0]);
+          logger.info("First user data:", users[0]);
           logger.info(`Ban status of first user: ${users[0].is_banned}`);
         }
       } else {
-        logger.warn('User response missing expected data structure or failed:', response.error);
+        logger.warn("User response missing expected data structure or failed:", response.error);
         users = [];
         totalCount = 0;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error loading users:', error);
-      toastStore.showToast(`Failed to load users: ${message}`, 'error');
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Error loading users:", error);
+      toastStore.showToast(`Failed to load users: ${message}`, "error");
       users = [];
       totalCount = 0;
     }
@@ -405,10 +405,10 @@
     try {
       isLoadingCommunityRequests = true;
       logger.info(`Loading community requests (page: ${communityRequestsPage}, status: ${requestStatusFilter})`);
-      
-      const result = await adminAPI.getCommunityRequests(communityRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
-      logger.info(`Community requests API response:`, result);
-      
+
+      const result = await adminAPI.getCommunityRequests(communityRequestsPage, 10, requestStatusFilter === "all" ? undefined : requestStatusFilter);
+      logger.info("Community requests API response:", result);
+
       if (result && result.success) {
         // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
         if (result.requests && Array.isArray(result.requests)) {
@@ -420,21 +420,21 @@
           communityRequests = result.data.map(request => standardizeCommunityRequest(request));
           communityRequestsTotal = result.pagination?.total_count || 0;
         } else {
-          logger.warn('Community requests response has unexpected format:', result);
+          logger.warn("Community requests response has unexpected format:", result);
           communityRequests = [];
           communityRequestsTotal = 0;
         }
-        
+
         logger.info(`Processed ${communityRequests.length} community requests:`, communityRequests);
       } else {
-        logger.error('Failed to load community requests:', result);
-        toastStore.showToast('Failed to load community requests', 'error');
+        logger.error("Failed to load community requests:", result);
+        toastStore.showToast("Failed to load community requests", "error");
         communityRequests = [];
         communityRequestsTotal = 0;
       }
     } catch (error) {
-      logger.error('Error loading community requests:', error);
-      toastStore.showToast('Error loading community requests', 'error');
+      logger.error("Error loading community requests:", error);
+      toastStore.showToast("Error loading community requests", "error");
       communityRequests = [];
       communityRequestsTotal = 0;
     } finally {
@@ -445,8 +445,8 @@
   async function loadPremiumRequests() {
     try {
       isLoadingPremiumRequests = true;
-      const result = await adminAPI.getPremiumRequests(premiumRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
-      
+      const result = await adminAPI.getPremiumRequests(premiumRequestsPage, 10, requestStatusFilter === "all" ? undefined : requestStatusFilter);
+
       if (result && result.success) {
         // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
         if (result.requests && Array.isArray(result.requests)) {
@@ -455,15 +455,15 @@
           premiumRequests = result.data.map(request => standardizePremiumRequest(request));
         } else {
           premiumRequests = [];
-          logger.warn('No valid premium requests data found in API response');
+          logger.warn("No valid premium requests data found in API response");
         }
-        
+
         premiumRequestsPagination = result.pagination;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to load premium requests:', error);
-      toastStore.showToast(`Failed to load premium requests: ${message}`, 'error');
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Failed to load premium requests:", error);
+      toastStore.showToast(`Failed to load premium requests: ${message}`, "error");
     } finally {
       isLoadingPremiumRequests = false;
     }
@@ -472,8 +472,8 @@
   async function loadReportRequests() {
     try {
       isLoadingReportRequests = true;
-      const result = await adminAPI.getReportRequests(reportRequestsPage, 10, reportStatusFilter === 'all' ? undefined : reportStatusFilter);
-      
+      const result = await adminAPI.getReportRequests(reportRequestsPage, 10, reportStatusFilter === "all" ? undefined : reportStatusFilter);
+
       if (result && result.success) {
         // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
         if (result.requests && Array.isArray(result.requests)) {
@@ -482,15 +482,15 @@
           reportRequests = result.data.map(request => standardizeReportRequest(request));
         } else {
           reportRequests = [];
-          logger.warn('No valid report requests data found in API response');
+          logger.warn("No valid report requests data found in API response");
         }
-        
+
         reportRequestsPagination = result.pagination;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to load report requests:', error);
-      toastStore.showToast(`Failed to load report requests: ${message}`, 'error');
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Failed to load report requests:", error);
+      toastStore.showToast(`Failed to load report requests: ${message}`, "error");
     } finally {
       isLoadingReportRequests = false;
     }
@@ -500,23 +500,23 @@
     try {
       isLoadingCategories = true;
       const result = await adminAPI.getThreadCategories(categoriesPage, 10);
-      
+
       if (result && result.success) {
         threadCategories = result.data || [];
         categoriesPagination = result.pagination;
       }
     } catch (error) {
-      console.error('Failed to load thread categories:', error);
-      toastStore.showToast('Failed to load thread categories. Please try again.', 'error');
+      console.error("Failed to load thread categories:", error);
+      toastStore.showToast("Failed to load thread categories. Please try again.", "error");
     } finally {
       isLoadingCategories = false;
     }
   }
 
   async function loadCategories() {
-    logger.info('Loading both thread and community categories');
+    logger.info("Loading both thread and community categories");
     isLoadingCategories = true;
-    
+
     try {
       // Use Promise.allSettled to load both category types in parallel
       // This way if one fails, we still get the other
@@ -524,31 +524,31 @@
         adminAPI.getThreadCategories(categoriesPage, 50),
         adminAPI.getCommunityCategories(categoriesPage, 50)
       ]);
-      
+
       // Process thread categories result
-      if (threadResult.status === 'fulfilled' && threadResult.value && threadResult.value.success) {
+      if (threadResult.status === "fulfilled" && threadResult.value && threadResult.value.success) {
         threadCategories = threadResult.value.data || [];
         logger.info(`Loaded ${threadCategories.length} thread categories`);
       } else {
-        const error = threadResult.status === 'rejected' ? threadResult.reason : 'Unknown error';
-        logger.warn('Failed to load thread categories:', error);
+        const error = threadResult.status === "rejected" ? threadResult.reason : "Unknown error";
+        logger.warn("Failed to load thread categories:", error);
         threadCategories = [];
       }
-      
+
       // Process community categories result
-      if (communityResult.status === 'fulfilled' && communityResult.value && communityResult.value.success) {
+      if (communityResult.status === "fulfilled" && communityResult.value && communityResult.value.success) {
         communityCategories = communityResult.value.data || [];
         logger.info(`Loaded ${communityCategories.length} community categories`);
       } else {
-        const error = communityResult.status === 'rejected' ? communityResult.reason : 'Unknown error';
-        logger.warn('Failed to load community categories:', error);
+        const error = communityResult.status === "rejected" ? communityResult.reason : "Unknown error";
+        logger.warn("Failed to load community categories:", error);
         communityCategories = [];
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error loading categories:', error);
-      toastStore.showToast(`Failed to load categories: ${message}`, 'error');
-      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Error loading categories:", error);
+      toastStore.showToast(`Failed to load categories: ${message}`, "error");
+
       threadCategories = [];
       communityCategories = [];
     } finally {
@@ -559,22 +559,22 @@
   async function loadNewsletterSubscribers() {
     try {
       isLoadingSubscribers = true;
-      logger.info('Loading newsletter subscribers');
+      logger.info("Loading newsletter subscribers");
 
       const response = await adminAPI.getNewsletterSubscribers(subscribersPage, 10);
-      
+
       if (response && response.success) {
         newsletterSubscribers = response.data || [];
         subscribersPagination = response.pagination;
         logger.info(`Loaded ${newsletterSubscribers.length} newsletter subscribers`);
       } else {
-        logger.warn('Failed to load newsletter subscribers');
+        logger.warn("Failed to load newsletter subscribers");
         newsletterSubscribers = [];
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error loading newsletter subscribers:', error);
-      toastStore.showToast(`Failed to load subscribers: ${message}`, 'error');
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error("Error loading newsletter subscribers:", error);
+      toastStore.showToast(`Failed to load subscribers: ${message}`, "error");
       newsletterSubscribers = [];
     } finally {
       isLoadingSubscribers = false;
@@ -596,20 +596,20 @@
   }
 
   const tabItems = [
-    { id: 'overview', label: 'Overview', icon: TrendingUpIcon },
-    { id: 'users', label: 'Users', icon: UsersIcon },
-    { id: 'requests', label: 'Requests', icon: AlertCircleIcon },
-    { id: 'categories', label: 'Categories', icon: FolderIcon },
-    { id: 'newsletter', label: 'Newsletter', icon: MailIcon }
+    { id: "overview", label: "Overview", icon: TrendingUpIcon },
+    { id: "users", label: "Users", icon: UsersIcon },
+    { id: "requests", label: "Requests", icon: AlertCircleIcon },
+    { id: "categories", label: "Categories", icon: FolderIcon },
+    { id: "newsletter", label: "Newsletter", icon: MailIcon }
   ];
 
   function handleTabChange(event) {
     activeTab = event.detail;
-    currentPage = 1; 
-    
+    currentPage = 1;
+
     // Log the tab change for debugging
     logger.info(`Tab changed to: ${activeTab}`);
-    
+
     // Load the appropriate data for the tab
     loadDashboardData();
   }
@@ -630,49 +630,49 @@
 
   async function handleBanUser(userId: string, isBanned: boolean) {
     try {
-      const ban = !isBanned; 
+      const ban = !isBanned;
       logger.info(`Processing ban for user ${userId} with current ban status=${isBanned}, setting to ${ban}`);
-      
+
       // Show loading state
-      const actionText = isBanned ? 'unbanning' : 'banning';
-      toastStore.showToast(`${actionText} user...`, 'info');
+      const actionText = isBanned ? "unbanning" : "banning";
+      toastStore.showToast(`${actionText} user...`, "info");
 
       // Use both lowercase and uppercase versions to ensure compatibility
       const requestBody = {
         ban: ban,
         Ban: ban,
-        reason: isBanned ? 'Admin unban action' : 'Admin ban action',
-        Reason: isBanned ? 'Admin unban action' : 'Admin ban action'
+        reason: isBanned ? "Admin unban action" : "Admin ban action",
+        Reason: isBanned ? "Admin unban action" : "Admin ban action"
       };
-      
-      logger.info(`Sending ban request with payload:`, requestBody);
 
-      const response = await adminAPI.banUser(userId, ban, isBanned ? 'Admin unban action' : 'Admin ban action');
-      
-      logger.info(`Ban response received:`, response);
-      
+      logger.info("Sending ban request with payload:", requestBody);
+
+      const response = await adminAPI.banUser(userId, ban, isBanned ? "Admin unban action" : "Admin ban action");
+
+      logger.info("Ban response received:", response);
+
       if (response.success) {
-        toastStore.showToast(`User ${isBanned ? 'unbanned' : 'banned'} successfully`, 'success');
-        
+        toastStore.showToast(`User ${isBanned ? "unbanned" : "banned"} successfully`, "success");
+
         // Force reload users to reflect the latest changes
-        await loadUsers(); 
-        
+        await loadUsers();
+
         // Verify the change took effect
         const updatedUser = users.find(u => u.id === userId);
         if (updatedUser) {
           logger.info(`Updated user ban status: ${updatedUser.is_banned}`);
           if (updatedUser.is_banned === isBanned) {
-            logger.warn(`Ban status did not change as expected. Refreshing data...`);
+            logger.warn("Ban status did not change as expected. Refreshing data...");
             await loadUsers(); // Try loading again if the status didn't update
           }
         }
       } else {
-        throw new Error(response.message || 'Failed to update user status');
+        throw new Error(response.message || "Failed to update user status");
       }
     } catch (error) {
-      logger.error('Error updating user ban status:', error);
-      toastStore.showToast(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-      
+      logger.error("Error updating user ban status:", error);
+      toastStore.showToast(`Failed to update user status: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+
       // Reload users to ensure we have the latest data
       await loadUsers();
     }
@@ -680,7 +680,7 @@
 
   async function handleSendNewsletter() {
     if (!newsletterSubject.trim() || !newsletterContent.trim()) {
-      toastStore.showToast('Please provide both subject and content', 'warning');
+      toastStore.showToast("Please provide both subject and content", "warning");
       return;
     }
 
@@ -689,19 +689,19 @@
       const response = await adminAPI.sendNewsletter(newsletterSubject, newsletterContent) as BaseResponse;
 
       if (response.success) {
-        toastStore.showToast('Newsletter sent successfully', 'success');
-        newsletterSubject = '';
-        newsletterContent = '';
+        toastStore.showToast("Newsletter sent successfully", "success");
+        newsletterSubject = "";
+        newsletterContent = "";
       } else {
-        throw new Error(response.message || 'Failed to send newsletter');
+        throw new Error(response.message || "Failed to send newsletter");
       }
     } catch (error: any) {
       const newsletterError = error as Error;
-      logger.error('Error sending newsletter:', newsletterError);
-      if (newsletterError.message && newsletterError.message.includes('permission')) {
-        toastStore.showToast('You do not have sufficient permissions to send newsletters', 'error');
+      logger.error("Error sending newsletter:", newsletterError);
+      if (newsletterError.message && newsletterError.message.includes("permission")) {
+        toastStore.showToast("You do not have sufficient permissions to send newsletters", "error");
       } else {
-        toastStore.showToast(`Failed to send newsletter: ${newsletterError.message}`, 'error');
+        toastStore.showToast(`Failed to send newsletter: ${newsletterError.message}`, "error");
       }
     } finally {
       isSendingNewsletter = false;
@@ -714,21 +714,21 @@
 
       // First check if the request still exists by refreshing data
       await loadAllRequests();
-      
+
       // Check if the request still exists after refresh
       const requestExists = communityRequests.some(req => req.id === requestId);
       if (!requestExists) {
-        toastStore.showToast('This request no longer exists. It may have already been processed.', 'warning');
+        toastStore.showToast("This request no longer exists. It may have already been processed.", "warning");
         return;
       }
 
-      const response = await adminAPI.processCommunityRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
+      const response = await adminAPI.processCommunityRequest(requestId, approve, approve ? "Approved by admin" : "Rejected by admin");
       if (response.success) {
-        toastStore.showToast(`Community ${approve ? 'approved' : 'rejected'} successfully`, 'success');
-        
+        toastStore.showToast(`Community ${approve ? "approved" : "rejected"} successfully`, "success");
+
         // Refresh the community requests list
         await loadCommunityRequests();
-        
+
         // If we're approving, also refresh the communities list to show the newly approved community
         if (approve) {
           // Wait a moment for the backend to process the approval
@@ -737,12 +737,12 @@
           }, 1000);
         }
       } else {
-        logger.error('Failed to process community request:', response);
-        toastStore.showToast(`Failed to ${approve ? 'approve' : 'reject'} community: ${response.message || 'Unknown error'}`, 'error');
+        logger.error("Failed to process community request:", response);
+        toastStore.showToast(`Failed to ${approve ? "approve" : "reject"} community: ${response.message || "Unknown error"}`, "error");
       }
     } catch (error) {
-      logger.error('Error processing community request:', error);
-      toastStore.showToast(`Error ${approve ? 'approving' : 'rejecting'} community`, 'error');
+      logger.error("Error processing community request:", error);
+      toastStore.showToast(`Error ${approve ? "approving" : "rejecting"} community`, "error");
     } finally {
       isProcessingRequest = false;
     }
@@ -753,16 +753,16 @@
       isProcessingRequest = true;
       logger.info(`Processing premium request ${requestId} with approve=${approve}`);
 
-      const response = await adminAPI.processPremiumRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
+      const response = await adminAPI.processPremiumRequest(requestId, approve, approve ? "Approved by admin" : "Rejected by admin");
       if (response.success) {
-        toastStore.showToast(`Premium request ${approve ? 'approved' : 'rejected'}`, 'success');
+        toastStore.showToast(`Premium request ${approve ? "approved" : "rejected"}`, "success");
         await loadAllRequests();
       } else {
-        throw new Error(response.message || 'Failed to process request');
+        throw new Error(response.message || "Failed to process request");
       }
     } catch (error) {
-      logger.error('Error processing premium request:', error);
-      toastStore.showToast('Failed to process request', 'error');
+      logger.error("Error processing premium request:", error);
+      toastStore.showToast("Failed to process request", "error");
     } finally {
       isProcessingRequest = false;
     }
@@ -773,17 +773,17 @@
       isProcessingRequest = true;
       logger.info(`Processing report request ${requestId} with approve=${approve}`);
 
-      const response = await adminAPI.processReportRequest(requestId, approve, approve ? 'Action taken by admin' : 'No action needed');
+      const response = await adminAPI.processReportRequest(requestId, approve, approve ? "Action taken by admin" : "No action needed");
       if (response.success) {
-        toastStore.showToast(`Report ${approve ? 'approved and user banned' : 'dismissed'}`, 'success');
+        toastStore.showToast(`Report ${approve ? "approved and user banned" : "dismissed"}`, "success");
         await loadAllRequests();
-        await loadUsers(); 
+        await loadUsers();
       } else {
-        throw new Error(response.message || 'Failed to process request');
+        throw new Error(response.message || "Failed to process request");
       }
     } catch (error) {
-      logger.error('Error processing report request:', error);
-      toastStore.showToast('Failed to process request', 'error');
+      logger.error("Error processing report request:", error);
+      toastStore.showToast("Failed to process request", "error");
     } finally {
       isProcessingRequest = false;
     }
@@ -791,86 +791,86 @@
 
   async function handleCreateCategory() {
     if (!newCategoryName.trim()) {
-      toastStore.showToast('Please provide a category name', 'warning');
+      toastStore.showToast("Please provide a category name", "warning");
       return;
     }
 
     try {
       let response;
-      if (categoryType === 'thread') {
+      if (categoryType === "thread") {
         response = await adminAPI.createThreadCategory(newCategoryName, newCategoryDescription);
       } else {
         response = await adminAPI.createCommunityCategory(newCategoryName, newCategoryDescription);
       }
 
       if (response.success) {
-        toastStore.showToast('Category created successfully', 'success');
-        newCategoryName = '';
-        newCategoryDescription = '';
+        toastStore.showToast("Category created successfully", "success");
+        newCategoryName = "";
+        newCategoryDescription = "";
         showNewCategoryModal = false;
         await loadCategories();
       } else {
-        throw new Error((response as any).message || 'Failed to create category');
+        throw new Error((response as any).message || "Failed to create category");
       }
     } catch (error) {
-      logger.error('Error creating category:', error);
-      toastStore.showToast('Failed to create category', 'error');
+      logger.error("Error creating category:", error);
+      toastStore.showToast("Failed to create category", "error");
     }
   }
 
-  async function handleUpdateCategory(categoryId: string, name: string, description: string, type: 'thread' | 'community') {
+  async function handleUpdateCategory(categoryId: string, name: string, description: string, type: "thread" | "community") {
     try {
       let response;
-      if (type === 'thread') {
+      if (type === "thread") {
         response = await adminAPI.updateThreadCategory(categoryId, name, description);
       } else {
         response = await adminAPI.updateCommunityCategory(categoryId, name, description);
       }
 
       if (response.success) {
-        toastStore.showToast('Category updated successfully', 'success');
+        toastStore.showToast("Category updated successfully", "success");
         editingCategory = null;
         await loadCategories();
       } else {
-        throw new Error((response as any).message || 'Failed to update category');
+        throw new Error((response as any).message || "Failed to update category");
       }
     } catch (error) {
-      logger.error('Error updating category:', error);
-      toastStore.showToast('Failed to update category', 'error');
+      logger.error("Error updating category:", error);
+      toastStore.showToast("Failed to update category", "error");
     }
   }
 
-  async function handleDeleteCategory(categoryId: string, type: 'thread' | 'community') {
-    if (!confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
+  async function handleDeleteCategory(categoryId: string, type: "thread" | "community") {
+    if (!confirm("Are you sure you want to delete this category? This action cannot be undone.")) {
       return;
     }
 
     try {
       let response;
-      if (type === 'thread') {
+      if (type === "thread") {
         response = await adminAPI.deleteThreadCategory(categoryId);
       } else {
         response = await adminAPI.deleteCommunityCategory(categoryId);
       }
 
       if (response.success) {
-        toastStore.showToast('Category deleted successfully', 'success');
+        toastStore.showToast("Category deleted successfully", "success");
         await loadCategories();
       } else {
-        throw new Error((response as any).message || 'Failed to delete category');
+        throw new Error((response as any).message || "Failed to delete category");
       }
     } catch (error) {
-      logger.error('Error deleting category:', error);
-      toastStore.showToast('Failed to delete category', 'error');
+      logger.error("Error deleting category:", error);
+      toastStore.showToast("Failed to delete category", "error");
     }
   }
 
   function formatDate(dateString) {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
     });
   }
 
@@ -882,25 +882,25 @@
   }
 
   // Replace any calls to loadRequests() with loadAllRequests()
-  
+
   // For example, in the activeTab watcher
-  $: if (activeTab === 'requests') {
+  $: if (activeTab === "requests") {
     logger.info("Request tab activated, loading requests data");
     loadAllRequests();
-  } else if (activeTab === 'categories') {
+  } else if (activeTab === "categories") {
     logger.info("Categories tab activated, loading categories data");
     loadCategories();
-  } else if (activeTab === 'newsletter') {
+  } else if (activeTab === "newsletter") {
     logger.info("Newsletter tab activated, loading subscribers");
     loadNewsletterSubscribers();
   }
-  
+
   // And in status filter handlers
   function handleRequestStatusFilterChange(event) {
     requestStatusFilter = event.target.value;
     loadAllRequests();
   }
-  
+
   // And in report status filter
   function handleReportStatusFilterChange(event) {
     reportStatusFilter = event.target.value;
@@ -929,7 +929,7 @@
         on:tabChange={handleTabChange}
       />
 
-      <div class="admin-content">        {#if activeTab === 'overview'}
+      <div class="admin-content">        {#if activeTab === "overview"}
           <div class="overview-section">
             <div class="stats-grid">
               <div class="stat-card">
@@ -970,30 +970,30 @@
               <div class="activity-summary">
                 <div class="activity-card">
                   <h4>Pending Community Requests</h4>
-                  <div class="activity-value">{communityRequests.filter(r => r.status === 'pending').length}</div>
+                  <div class="activity-value">{communityRequests.filter(r => r.status === "pending").length}</div>
                 </div>
 
                 <div class="activity-card">
                   <h4>Pending Premium Requests</h4>
-                  <div class="activity-value">{premiumRequests.filter(r => r.status === 'pending').length}</div>
+                  <div class="activity-value">{premiumRequests.filter(r => r.status === "pending").length}</div>
                 </div>
 
                 <div class="activity-card">
                   <h4>Pending Reports</h4>
-                  <div class="activity-value">{reportRequests.filter(r => r.status === 'pending').length}</div>
+                  <div class="activity-value">{reportRequests.filter(r => r.status === "pending").length}</div>
                 </div>
               </div>
             </div>
           </div>
 
-        {:else if activeTab === 'users'}
+        {:else if activeTab === "users"}
           <div class="users-section">
             <div class="section-header">
               <h2>Manage Users</h2>
               <div class="search-filter">
-                <input 
-                  type="text" 
-                  placeholder="Search users..." 
+                <input
+                  type="text"
+                  placeholder="Search users..."
                   bind:value={searchQuery}
                   on:input={() => loadUsers()}
                 />
@@ -1004,7 +1004,7 @@
             <div class="users-table">
               {#if users.length === 0}
                 <div class="no-results">
-                  <p>No users found. {searchQuery ? 'Try a different search term.' : ''}</p>
+                  <p>No users found. {searchQuery ? "Try a different search term." : ""}</p>
                 </div>
               {:else}
                 <table>
@@ -1028,17 +1028,17 @@
                                 <img src={user.profile_picture_url} alt={user.username} />
                               {:else}
                                 <div class="avatar-placeholder">
-                                  {user.username?.charAt(0).toUpperCase() || '?'}
+                                  {user.username?.charAt(0).toUpperCase() || "?"}
                                 </div>
                               {/if}
                             </div>
                             <div class="user-details">
-                              <span class="name">{user.name || user.username || 'Unknown'}</span>
-                              <span class="username">@{user.username || 'unknown'}</span>
+                              <span class="name">{user.name || user.username || "Unknown"}</span>
+                              <span class="username">@{user.username || "unknown"}</span>
                             </div>
                           </div>
                         </td>
-                        <td>{user.email || 'No email'}</td>
+                        <td>{user.email || "No email"}</td>
                         <td>{formatDate(user.created_at)}</td>
                         <td>
                           {#if user.is_banned === true}
@@ -1051,11 +1051,11 @@
                         </td>
                         <td>{user.follower_count || 0}</td>
                         <td class="actions-cell">
-                          <button 
-                            class="action-btn {user.is_banned === true ? 'unban' : 'ban'}" 
+                          <button
+                            class="action-btn {user.is_banned === true ? "unban" : "ban"}"
                             on:click={() => handleBanUser(user.id, user.is_banned === true)}
                           >
-                            {user.is_banned === true ? 'Unban' : 'Ban'}
+                            {user.is_banned === true ? "Unban" : "Ban"}
                           </button>
                           <a href="/profile/{user.username}" class="view-link" target="_blank">View</a>
                         </td>
@@ -1065,16 +1065,16 @@
                 </table>
 
                 <div class="pagination">
-                  <button 
-                    class="pagination-btn" 
+                  <button
+                    class="pagination-btn"
                     disabled={currentPage <= 1}
                     on:click={handlePrevPage}
                   >
                     Previous
                   </button>
                   <span class="page-info">Page {currentPage} of {Math.ceil(totalCount / limit)}</span>
-                  <button 
-                    class="pagination-btn" 
+                  <button
+                    class="pagination-btn"
                     disabled={currentPage >= Math.ceil(totalCount / limit)}
                     on:click={handleNextPage}
                   >
@@ -1083,7 +1083,7 @@
                 </div>
               {/if}
             </div>
-          </div>        {:else if activeTab === 'requests'}
+          </div>        {:else if activeTab === "requests"}
           <div class="requests-section">
             <div class="section-header">
               <h2>Manage Requests</h2>
@@ -1102,24 +1102,24 @@
                     <option value="rejected">Rejected</option>
                   </select>
                 </div>
-                <Button 
-                  variant="outlined" 
+                <Button
+                  variant="outlined"
                   on:click={() => loadAllRequests()}
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Refreshing...' : 'Refresh Data'}
+                  {isLoading ? "Refreshing..." : "Refresh Data"}
                 </Button>
               </div>
             </div>
 
             <!-- Community Requests -->
-            {#if selectedRequestType === 'all' || selectedRequestType === 'community'}
+            {#if selectedRequestType === "all" || selectedRequestType === "community"}
               <div class="request-category">
                 <div class="category-header-with-actions">
                   <h3>Community Creation Requests</h3>
-                  <Button 
-                    variant="outlined" 
-                    on:click={syncCommunityRequests} 
+                  <Button
+                    variant="outlined"
+                    on:click={syncCommunityRequests}
                     disabled={isSyncingCommunities}
                     color="primary"
                   >
@@ -1128,11 +1128,11 @@
                     {:else}
                       <RefreshCwIcon size="16" />
                     {/if}
-                    {isSyncingCommunities ? 'Syncing...' : 'Sync Communities'}
+                    {isSyncingCommunities ? "Syncing..." : "Sync Communities"}
                   </Button>
                 </div>
                 <div class="community-requests-grid">
-                  {#each communityRequests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter) as request}
+                  {#each communityRequests.filter(r => requestStatusFilter === "all" || r.status === requestStatusFilter) as request}
                     <div class="community-request-card">
                       <div class="card-header">
                         <div class="community-identity">
@@ -1155,18 +1155,18 @@
                           <span class="date-value">{formatDate(request.created_at)}</span>
                         </div>
                       </div>
-                      
+
                       <div class="card-body">
                         <div class="community-description">
-                          <p>{request.description || 'No description provided'}</p>
+                          <p>{request.description || "No description provided"}</p>
                         </div>
-                        
+
                         {#if request.banner_url}
                           <div class="community-banner">
                             <img src={request.banner_url} alt="Banner" />
                           </div>
                         {/if}
-                        
+
                         <div class="requester-section">
                           <h4>Requested by:</h4>
                           <div class="requester-info">
@@ -1204,7 +1204,7 @@
                           </div>
                         </div>
                       </div>
-                      
+
                       <div class="card-footer">
                         <button class="btn btn-approve" on:click={() => handleProcessCommunityRequest(request.id, true)}>
                           <span class="btn-icon">✓</span> Approve
@@ -1228,7 +1228,7 @@
             {/if}
 
             <!-- Premium Requests -->
-            {#if selectedRequestType === 'all' || selectedRequestType === 'premium'}
+            {#if selectedRequestType === "all" || selectedRequestType === "premium"}
               <div class="request-category">
                 <h3>Premium User Requests</h3>
                 <div class="requests-table">
@@ -1243,9 +1243,9 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {#each premiumRequests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter) as request}
+                      {#each premiumRequests.filter(r => requestStatusFilter === "all" || r.status === requestStatusFilter) as request}
                         <tr>
-                          <td>{request.requester?.name || 'Unknown User'}</td>
+                          <td>{request.requester?.name || "Unknown User"}</td>
                           <td class="description-cell">{request.reason}</td>
                           <td>{formatDate(request.created_at)}</td>
                           <td>
@@ -1255,17 +1255,17 @@
                           </td>
                           <td>
                             <div class="action-buttons">
-                              {#if request.status === 'pending'}
-                                <Button 
-                                  variant="primary" 
+                              {#if request.status === "pending"}
+                                <Button
+                                  variant="primary"
                                   size="small"
                                   disabled={isProcessingRequest}
                                   on:click={() => handleProcessPremiumRequest(request.id, true)}
                                 >
                                   Approve
                                 </Button>
-                                <Button 
-                                  variant="danger" 
+                                <Button
+                                  variant="danger"
                                   size="small"
                                   disabled={isProcessingRequest}
                                   on:click={() => handleProcessPremiumRequest(request.id, false)}
@@ -1284,7 +1284,7 @@
             {/if}
 
             <!-- Report Requests -->
-            {#if selectedRequestType === 'all' || selectedRequestType === 'report'}
+            {#if selectedRequestType === "all" || selectedRequestType === "report"}
               <div class="request-category">
                 <h3>User Report Requests</h3>
                 <div class="requests-table">
@@ -1300,10 +1300,10 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {#each reportRequests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter) as request}
+                      {#each reportRequests.filter(r => requestStatusFilter === "all" || r.status === requestStatusFilter) as request}
                         <tr>
-                          <td>{request.reporter?.name || 'Unknown User'}</td>
-                          <td>{request.reported_user?.name || 'Unknown User'}</td>
+                          <td>{request.reporter?.name || "Unknown User"}</td>
+                          <td>{request.reported_user?.name || "Unknown User"}</td>
                           <td class="description-cell">{request.reason}</td>
                           <td>{formatDate(request.created_at)}</td>
                           <td>
@@ -1313,17 +1313,17 @@
                           </td>
                           <td>
                             <div class="action-buttons">
-                              {#if request.status === 'pending'}
-                                <Button 
-                                  variant="danger" 
+                              {#if request.status === "pending"}
+                                <Button
+                                  variant="danger"
                                   size="small"
                                   disabled={isProcessingRequest}
                                   on:click={() => handleProcessReportRequest(request.id, true)}
                                 >
                                   Ban User
                                 </Button>
-                                <Button 
-                                  variant="secondary" 
+                                <Button
+                                  variant="secondary"
                                   size="small"
                                   disabled={isProcessingRequest}
                                   on:click={() => handleProcessReportRequest(request.id, false)}
@@ -1342,7 +1342,7 @@
             {/if}
           </div>
 
-        {:else if activeTab === 'categories'}
+        {:else if activeTab === "categories"}
           <div class="categories-section">
             <div class="section-header">
               <h2>Manage Categories</h2>
@@ -1368,21 +1368,21 @@
                     {#each threadCategories as category}
                       <tr>
                         <td>{category.name}</td>
-                        <td class="description-cell">{category.description || '-'}</td>
+                        <td class="description-cell">{category.description || "-"}</td>
                         <td>{formatDate(category.created_at)}</td>
                         <td>
                           <div class="action-buttons">
-                            <Button 
-                              variant="secondary" 
+                            <Button
+                              variant="secondary"
                               size="small"
-                              on:click={() => {editingCategory = category; categoryType = 'thread'}}
+                              on:click={() => {editingCategory = category; categoryType = "thread";}}
                             >
                               Edit
                             </Button>
-                            <Button 
-                              variant="danger" 
+                            <Button
+                              variant="danger"
                               size="small"
-                              on:click={() => handleDeleteCategory(category.id, 'thread')}
+                              on:click={() => handleDeleteCategory(category.id, "thread")}
                             >
                               Delete
                             </Button>
@@ -1412,21 +1412,21 @@
                     {#each communityCategories as category}
                       <tr>
                         <td>{category.name}</td>
-                        <td class="description-cell">{category.description || '-'}</td>
+                        <td class="description-cell">{category.description || "-"}</td>
                         <td>{formatDate(category.created_at)}</td>
                         <td>
                           <div class="action-buttons">
-                            <Button 
-                              variant="secondary" 
+                            <Button
+                              variant="secondary"
                               size="small"
-                              on:click={() => {editingCategory = category; categoryType = 'community'}}
+                              on:click={() => {editingCategory = category; categoryType = "community";}}
                             >
                               Edit
                             </Button>
-                            <Button 
-                              variant="danger" 
+                            <Button
+                              variant="danger"
                               size="small"
-                              on:click={() => handleDeleteCategory(category.id, 'community')}
+                              on:click={() => handleDeleteCategory(category.id, "community")}
                             >
                               Delete
                             </Button>
@@ -1440,7 +1440,7 @@
             </div>
           </div>
 
-        {:else if activeTab === 'newsletter'}
+        {:else if activeTab === "newsletter"}
           <div class="newsletter-section">
             <div class="section-header">
               <h2>Send Newsletter</h2>
@@ -1449,9 +1449,9 @@
             <div class="newsletter-form">
               <div class="form-group">
                 <label for="newsletter-subject">Subject</label>
-                <input 
+                <input
                   id="newsletter-subject"
-                  type="text" 
+                  type="text"
                   bind:value={newsletterSubject}
                   placeholder="Enter newsletter subject..."
                   disabled={isSendingNewsletter}
@@ -1460,7 +1460,7 @@
 
               <div class="form-group">
                 <label for="newsletter-content">Content</label>
-                <textarea 
+                <textarea
                   id="newsletter-content"
                   bind:value={newsletterContent}
                   placeholder="Enter newsletter content..."
@@ -1470,7 +1470,7 @@
               </div>
 
               <div class="form-actions">
-                <Button 
+                <Button
                   variant="primary"
                   disabled={isSendingNewsletter || !newsletterSubject.trim() || !newsletterContent.trim()}
                   on:click={handleSendNewsletter}
@@ -1495,7 +1495,7 @@
               <div class="section-header">
                 <h3>Newsletter Subscribers</h3>
               </div>
-              
+
               {#if isLoadingSubscribers}
                 <div class="loading-container">
                   <Spinner size="medium" />
@@ -1525,17 +1525,17 @@
                                   <img src={user.profile_picture_url} alt={user.name} />
                                 {:else}
                                   <div class="avatar-placeholder">
-                                    {user.name?.charAt(0) || user.username?.charAt(0) || '?'}
+                                    {user.name?.charAt(0) || user.username?.charAt(0) || "?"}
                                   </div>
                                 {/if}
                               </div>
                               <div class="user-details">
-                                <span class="name">{user.name || 'Unknown'}</span>
-                                <span class="username">@{user.username || 'unknown'}</span>
+                                <span class="name">{user.name || "Unknown"}</span>
+                                <span class="username">@{user.username || "unknown"}</span>
                               </div>
                             </div>
                           </td>
-                          <td>{user.email || 'No email'}</td>
+                          <td>{user.email || "No email"}</td>
                           <td>{formatDate(user.created_at)}</td>
                           <td>
                             {#if user.is_banned}
@@ -1551,16 +1551,16 @@
 
                   {#if subscribersPagination && subscribersPagination.total_pages > 1}
                     <div class="pagination">
-                      <button 
-                        class="pagination-btn" 
+                      <button
+                        class="pagination-btn"
                         disabled={subscribersPage <= 1}
                         on:click={handlePrevSubscribersPage}
                       >
                         Previous
                       </button>
                       <span class="page-info">Page {subscribersPage} of {subscribersPagination.total_pages}</span>
-                      <button 
-                        class="pagination-btn" 
+                      <button
+                        class="pagination-btn"
                         disabled={subscribersPage >= subscribersPagination.total_pages}
                         on:click={handleNextSubscribersPage}
                       >
@@ -1596,7 +1596,7 @@
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Category Type</label>
-          <select 
+          <select
             bind:value={categoryType}
             class="theme-input"
           >
@@ -1607,9 +1607,9 @@
 
         <div class="form-group">
           <label for="category-name" class="form-label">Name</label>
-          <input 
+          <input
             id="category-name"
-            type="text" 
+            type="text"
             bind:value={newCategoryName}
             placeholder="Enter category name..."
             class="theme-input"
@@ -1618,7 +1618,7 @@
 
         <div class="form-group">
           <label for="category-description" class="form-label">Description (Optional)</label>
-          <textarea 
+          <textarea
             id="category-description"
             bind:value={newCategoryDescription}
             placeholder="Enter category description..."
@@ -1652,9 +1652,9 @@
       <div class="modal-body">
         <div class="form-group">
           <label for="edit-category-name" class="form-label">Name</label>
-          <input 
+          <input
             id="edit-category-name"
-            type="text" 
+            type="text"
             bind:value={editingCategory.name}
             placeholder="Enter category name..."
             class="theme-input"
@@ -1663,7 +1663,7 @@
 
         <div class="form-group">
           <label for="edit-category-description" class="form-label">Description</label>
-          <textarea 
+          <textarea
             id="edit-category-description"
             bind:value={editingCategory.description}
             placeholder="Enter category description..."
@@ -1677,8 +1677,8 @@
         <Button variant="secondary" on:click={() => editingCategory = null}>
           Cancel
         </Button>
-        <Button 
-          variant="primary" 
+        <Button
+          variant="primary"
           on:click={() => {
             if (editingCategory) {
               handleUpdateCategory(editingCategory.id, editingCategory.name, editingCategory.description, categoryType);

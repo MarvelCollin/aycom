@@ -774,6 +774,41 @@ func BookmarkThread(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
+	// Connect to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	client := threadProto.NewThreadServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service to bookmark the thread
+	_, err = client.BookmarkThread(ctx, &threadProto.BookmarkThreadRequest{
+		ThreadId: threadID,
+		UserId:   currentUserID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.AlreadyExists {
+				httpStatus = http.StatusConflict
+			} else if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			}
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to bookmark thread: "+err.Error())
+		}
+		return
+	}
+
 	// Publish bookmark event to RabbitMQ
 	if err := utils.PublishThreadBookmarkedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
@@ -799,6 +834,39 @@ func RemoveBookmark(c *gin.Context) {
 		return
 	}
 	currentUserID := userID.(string)
+
+	// Connect to thread service
+	conn, err := threadConnPool.Get()
+	if err != nil {
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "Failed to connect to thread service: "+err.Error())
+		return
+	}
+	defer threadConnPool.Put(conn)
+
+	client := threadProto.NewThreadServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	// Call thread service to remove the bookmark
+	_, err = client.RemoveBookmark(ctx, &threadProto.RemoveBookmarkRequest{
+		ThreadId: threadID,
+		UserId:   currentUserID,
+	})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			}
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to remove bookmark: "+err.Error())
+		}
+		return
+	}
 
 	// Publish unbookmark event to RabbitMQ
 	if err := utils.PublishThreadUnbookmarkedEvent(threadID, currentUserID, utils.EventData{
