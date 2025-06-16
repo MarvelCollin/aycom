@@ -297,6 +297,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		adminGroup.POST("/newsletter/send", handlers.SendNewsletter)
 		adminGroup.GET("/community-requests", handlers.GetCommunityRequests)
 		adminGroup.POST("/community-requests/:requestId/process", handlers.ProcessCommunityRequest)
+		adminGroup.POST("/community-requests/sync", handlers.SyncPendingCommunities)
 		adminGroup.GET("/premium-requests", handlers.GetPremiumRequests)
 		adminGroup.POST("/premium-requests/:requestId/process", handlers.ProcessPremiumRequest)
 		adminGroup.GET("/report-requests", handlers.GetReportRequests)

@@ -11,6 +11,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"aycom/backend/api-gateway/config"
+
+	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type CommunityServiceClient interface {
@@ -112,25 +116,64 @@ func (c *communityCommunicationClient) ValidateUser(userID string) (bool, error)
 
 func (c *communityCommunicationClient) SendMessage(chatID, userID, content string) (string, error) {
 	if c.grpcClient == nil {
+		log.Printf("SendMessage: Community service client not initialized")
 		return "", fmt.Errorf("community service client not initialized")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Printf("Sending message to chat %s from user %s: %s", chatID, userID, content)
+	log.Printf("SendMessage: Preparing gRPC call to send message. ChatID=%s, UserID=%s", chatID, userID)
 
+	// Validate IDs before sending to gRPC
+	_, err := uuid.Parse(chatID)
+	if err != nil {
+		log.Printf("SendMessage: Invalid chat ID format: %s (%v)", chatID, err)
+		return "", fmt.Errorf("invalid chat ID format: %v", err)
+	}
+
+	_, err = uuid.Parse(userID)
+	if err != nil {
+		log.Printf("SendMessage: Invalid user ID format: %s (%v)", userID, err)
+		return "", fmt.Errorf("invalid user ID format: %v", err)
+	}
+
+	log.Printf("SendMessage: Making gRPC call to send message. ChatID=%s, UserID=%s", chatID, userID)
 	resp, err := c.grpcClient.SendMessage(ctx, &communityProto.SendMessageRequest{
 		ChatId:   chatID,
 		SenderId: userID,
 		Content:  content,
 	})
+
 	if err != nil {
-		log.Printf("Error sending message to gRPC service: %v", err)
-		return "", err
+		log.Printf("SendMessage: Error from gRPC service: %v", err)
+
+		// Add detailed error information
+		st, ok := status.FromError(err)
+		if ok {
+			log.Printf("SendMessage: gRPC status code: %s, message: %s", st.Code(), st.Message())
+			if st.Code() == codes.NotFound {
+				return "", fmt.Errorf("chat not found: %v", err)
+			}
+			if st.Code() == codes.PermissionDenied {
+				return "", fmt.Errorf("user not allowed to send message: %v", err)
+			}
+		}
+
+		return "", fmt.Errorf("error sending message: %v", err)
 	}
 
-	log.Printf("Successfully sent message, got ID: %s", resp.Message.Id)
+	if resp == nil {
+		log.Printf("SendMessage: Received nil response from gRPC service")
+		return "", fmt.Errorf("received nil response from service")
+	}
+
+	if resp.Message == nil {
+		log.Printf("SendMessage: Received response with nil message field")
+		return "", fmt.Errorf("received response with nil message field")
+	}
+
+	log.Printf("SendMessage: Successfully sent message with ID: %s", resp.Message.Id)
 	return resp.Message.Id, nil
 }
 

@@ -1863,14 +1863,18 @@
                   </div>
                   {#if processedTweet.parent_content}
                     <div class="tweet-parent-content">
-                      <p>{processedTweet.parent_content}</p>
+                      <div class="tweet-content-text">
+                        <Linkify text={processedTweet.parent_content} />
+                      </div>
                     </div>
                   {/if}
                 </div>
               {/if}
               
               {#if processedTweet.content}
-                <p>{processedTweet.content}</p>
+                <div class="tweet-content-text">
+                  <Linkify text={processedTweet.content} />
+                </div>
               {:else}
                 <p class="tweet-empty-content">{processedTweet.is_reposted ? 'Reposted' : 'This post has no content'}</p>
               {/if}
@@ -3221,6 +3225,13 @@
     height: 20px;
     width: 60px;
     border-radius: var(--radius-md);
+  }
+
+  /* Tweet content styles */
+  .tweet-content-text {
+    margin: var(--space-2) 0;
+    word-break: break-word;
+    line-height: 1.4;
   }
 </style>
 

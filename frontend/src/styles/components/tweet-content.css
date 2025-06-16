@@ -1,0 +1,32 @@
+/* Tweet content styling */
+
+.tweet-content-text {
+  margin: 0.5rem 0;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* Hashtag and mention styling */
+.hashtag {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.hashtag:hover {
+  text-decoration: underline;
+  color: var(--color-primary-dark);
+}
+
+.mention {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.mention:hover {
+  text-decoration: underline;
+  color: var(--color-primary-dark);
+} 

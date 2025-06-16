@@ -5,9 +5,9 @@ import { createLoggerWithPrefix } from '../utils/logger';
 const API_BASE_URL = appConfig.api.baseUrl;
 const logger = createLoggerWithPrefix('suggestions-api');
 
-export async function getSuggestedUsers(limit: number = 3): Promise<ISuggestedFollow[]> {
+export async function getSuggestedUsers(limit: number = 3, sortBy: string = 'follower_count'): Promise<ISuggestedFollow[]> {
   try {
-    const url = `${API_BASE_URL}/users/all?limit=${limit}`;
+    const url = `${API_BASE_URL}/users/all?limit=${limit}&sort_by=${sortBy}&sort_desc=true`;
     logger.debug(`Fetching suggested users from ${url}`);
     
     const response = await fetch(url, {

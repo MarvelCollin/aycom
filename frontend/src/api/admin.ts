@@ -398,3 +398,29 @@ export async function getNewsletterSubscribers(page: number = 1, limit: number =
     };
   }
 }
+
+/**
+ * Sync community requests between community service and user service
+ * This will ensure that any communities in the community service with is_approved=false
+ * also have a corresponding entry in the community_requests table in the user service
+ */
+export async function syncCommunityRequests(): Promise<IApiResponse<{
+  total_pending_communities: number;
+  already_synced: number;
+  newly_synced: number;
+  failed: number;
+  failed_community_ids?: string[];
+}>> {
+  const response = await apiRequest<IApiResponse<{
+    total_pending_communities: number;
+    already_synced: number;
+    newly_synced: number;
+    failed: number;
+    failed_community_ids?: string[];
+  }>>(
+    `${API_BASE_URL}/admin/community-requests/sync`,
+    'POST'
+  );
+  
+  return response;
+}

@@ -107,9 +107,20 @@ function handleIncomingTextMessage(message: any) {
 
 export async function createChat(data: Record<string, any>) {
   try {
-    if (!data || (!data.participants && !data.name)) {
-      logger.error('Cannot create chat: Missing required data');
-      throw new Error('Missing required data: participants or name is required to create a chat');
+    if (!data) {
+      logger.error('Cannot create chat: Missing data');
+      throw new Error('Missing data: chat creation data is required');
+    }
+    
+    // Check for required fields based on chat type
+    if (data.type === 'individual' && (!data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
+      logger.error('Cannot create chat: Missing participants for individual chat');
+      throw new Error('Missing required data: participants array is required for individual chat');
+    }
+    
+    if (data.type === 'group' && (!data.name || !data.participants || !Array.isArray(data.participants) || data.participants.length === 0)) {
+      logger.error('Cannot create chat: Missing name or participants for group chat');
+      throw new Error('Missing required data: name and participants are required for group chat');
     }
     
     // Validate participant IDs if present
@@ -554,24 +565,39 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
       ...(data.attachments && data.attachments.length > 0 ? { attachments: data.attachments } : {})
     };
 
-    try {
-    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-        body: JSON.stringify(messageData),
-      credentials: 'include'
-    });
+    // Log the full request details for debugging
+    const requestUrl = `${API_BASE_URL}/chats/${chatId}/messages`;
+    logger.info(`Making API request to: ${requestUrl}`);
+    logger.debug('Request payload:', messageData);
+    logger.debug('Using auth token:', token ? `${token.substring(0, 10)}...` : 'none');
 
-    if (!response.ok) {
+    try {
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(messageData),
+        credentials: 'include'
+      });
+      
+      // Log full response details
+      logger.debug(`Response status: ${response.status} ${response.statusText}`);
+      const responseHeaders = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      logger.debug('Response headers:', responseHeaders);
+
+      if (!response.ok) {
         let errorMessage = `Server error when sending message: ${response.status} ${response.statusText}`;
         logger.warn(errorMessage);
         
         // Try to get more detailed error information from the response
         try {
           const errorResponse = await response.json();
+          logger.debug('Error response body:', errorResponse);
           if (errorResponse && errorResponse.error) {
             // Handle structured error responses
             if (typeof errorResponse.error === 'string') {
@@ -587,6 +613,13 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
         } catch (parseError) {
           // If we can't parse the error response, just use the status code
           logger.error(`Could not parse error response: ${parseError}`);
+          // Try to read the raw text response
+          try {
+            const rawErrorText = await response.text();
+            logger.debug('Raw error response:', rawErrorText);
+          } catch (textError) {
+            logger.error('Could not read raw error response:', textError);
+          }
         }
 
         // Handle specific error codes
@@ -608,27 +641,29 @@ export async function sendMessage(chatId: string, data: Record<string, any>) {
           // Use a fallback for other server errors
           logger.warn(`Using local fallback due to server error: ${errorMessage}`);
           return createFallbackMessage(chatId, data);
-      } else {
+        } else {
           throw new Error(errorMessage);
+        }
       }
-    }
 
       // Parse the response
-    const responseText = await response.text();
-    if (!responseText || responseText.trim() === '') {
-      logger.warn(`Empty response for sending message to chat ${chatId}`);
+      const responseText = await response.text();
+      logger.debug('Raw response text:', responseText);
+      
+      if (!responseText || responseText.trim() === '') {
+        logger.warn(`Empty response for sending message to chat ${chatId}`);
         return createFallbackMessage(chatId, data);
-    }
+      }
 
-    try {
-      const responseData = JSON.parse(responseText);
-      logger.debug(`Message sent successfully to chat ${chatId}`, { 
-        messageId: responseData.message?.id || responseData.message?.message_id,
-        responseData
-      });
-      return responseData;
-    } catch (parseError) {
-      logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
+      try {
+        const responseData = JSON.parse(responseText);
+        logger.debug(`Message sent successfully to chat ${chatId}`, { 
+          messageId: responseData.message?.id || responseData.message?.message_id,
+          responseData
+        });
+        return responseData;
+      } catch (parseError) {
+        logger.error(`Failed to parse response for chat ${chatId}:`, parseError);
         return createFallbackMessage(chatId, data);
       }
     } catch (apiError) {

@@ -417,7 +417,7 @@ func (s *chatService) SendMessage(chatID string, userID string, content string) 
 		UpdatedAt:        now,
 	}
 
-	// Convert to MessageDTO and save
+	// Use the existing conversion function
 	messageDTO := toModelMessageDTO(message)
 
 	// Save the message with error handling

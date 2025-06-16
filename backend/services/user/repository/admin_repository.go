@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"aycom/backend/services/user/model"
@@ -76,10 +77,24 @@ func (r *AdminRepository) ProcessCommunityRequest(id string, approve bool) error
 		status = "approved"
 	}
 
-	return r.db.Model(&model.CommunityRequest{}).Where("id = ?", id).Updates(map[string]interface{}{
+	log.Printf("Processing community request %s with status: %s", id, status)
+	result := r.db.Model(&model.CommunityRequest{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
-	}).Error
+	})
+
+	if result.Error != nil {
+		log.Printf("Error updating community request %s: %v", id, result.Error)
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		log.Printf("No community request found with ID %s", id)
+		return errors.New("community request not found")
+	}
+
+	log.Printf("Successfully updated community request %s to status: %s", id, status)
+	return nil
 }
 
 func (r *AdminRepository) GetPremiumRequests(page, limit int, status string) ([]model.PremiumRequest, int64, error) {

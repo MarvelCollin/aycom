@@ -29,6 +29,7 @@
   import TrendingUpIcon from 'svelte-feather-icons/src/icons/TrendingUpIcon.svelte';
   import MailIcon from 'svelte-feather-icons/src/icons/MailIcon.svelte';
   import FolderIcon from 'svelte-feather-icons/src/icons/FolderIcon.svelte';
+  import RefreshCwIcon from 'svelte-feather-icons/src/icons/RefreshCwIcon.svelte';
 
   import Spinner from '../components/common/Spinner.svelte';
   import TabButtons from '../components/common/TabButtons.svelte';
@@ -169,6 +170,7 @@
   let isLoadingReportRequests = false;
   let isLoadingCategories = false;
 
+  let communityRequestsTotal = 0;
   let communityRequestsPagination: any = null;
   let premiumRequestsPagination: any = null;
   let reportRequestsPagination: any = null;
@@ -180,6 +182,38 @@
   let categoriesPage = 1;
 
   let reportStatusFilter = 'pending';
+
+  // Add a new function to sync community requests
+  let isSyncingCommunities = false;
+  
+  async function syncCommunityRequests() {
+    try {
+      isSyncingCommunities = true;
+      logger.info('Syncing community requests between services');
+      
+      const result = await adminAPI.syncCommunityRequests();
+      
+      if (result && result.success) {
+        const syncData = result.data;
+        logger.info('Community sync completed successfully:', syncData);
+        
+        const message = `Sync completed: ${syncData.newly_synced} new entries created, ${syncData.already_synced} already in sync, ${syncData.failed} failed`;
+        toastStore.showToast(message, 'success');
+        
+        // Reload community requests to show the newly synced ones
+        await loadCommunityRequests();
+      } else {
+        logger.error('Failed to sync community requests:', result);
+        toastStore.showToast('Failed to sync community requests', 'error');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error syncing community requests:', error);
+      toastStore.showToast(`Error syncing community requests: ${message}`, 'error');
+    } finally {
+      isSyncingCommunities = false;
+    }
+  }
 
   onMount(async () => {
     try {
@@ -351,25 +385,39 @@
   async function loadCommunityRequests() {
     try {
       isLoadingCommunityRequests = true;
+      logger.info(`Loading community requests (page: ${communityRequestsPage}, status: ${requestStatusFilter})`);
+      
       const result = await adminAPI.getCommunityRequests(communityRequestsPage, 10, requestStatusFilter === 'all' ? undefined : requestStatusFilter);
+      logger.info(`Community requests API response:`, result);
       
       if (result && result.success) {
         // Check if data is in 'requests' property (from backend) or 'data' property (standardized format)
         if (result.requests && Array.isArray(result.requests)) {
+          logger.info(`Found ${result.requests.length} community requests in 'requests' field`);
           communityRequests = result.requests.map(request => standardizeCommunityRequest(request));
+          communityRequestsTotal = (result as any).total_count || 0;
         } else if (result.data && Array.isArray(result.data)) {
+          logger.info(`Found ${result.data.length} community requests in 'data' field`);
           communityRequests = result.data.map(request => standardizeCommunityRequest(request));
+          communityRequestsTotal = result.pagination?.total_count || 0;
         } else {
+          logger.warn('Community requests response has unexpected format:', result);
           communityRequests = [];
-          logger.warn('No valid community requests data found in API response');
+          communityRequestsTotal = 0;
         }
         
-        communityRequestsPagination = result.pagination;
+        logger.info(`Processed ${communityRequests.length} community requests`);
+      } else {
+        logger.error('Failed to load community requests:', result);
+        toastStore.showToast('Failed to load community requests', 'error');
+        communityRequests = [];
+        communityRequestsTotal = 0;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to load community requests:', error);
-      toastStore.showToast(`Failed to load community requests: ${message}`, 'error');
+      logger.error('Error loading community requests:', error);
+      toastStore.showToast('Error loading community requests', 'error');
+      communityRequests = [];
+      communityRequestsTotal = 0;
     } finally {
       isLoadingCommunityRequests = false;
     }
@@ -625,25 +673,25 @@
 
       const response = await adminAPI.processCommunityRequest(requestId, approve, approve ? 'Approved by admin' : 'Rejected by admin');
       if (response.success) {
-        toastStore.showToast(`Community request ${approve ? 'approved' : 'rejected'}`, 'success');
-        await loadAllRequests();
+        toastStore.showToast(`Community ${approve ? 'approved' : 'rejected'} successfully`, 'success');
+        
+        // Refresh the community requests list
+        await loadCommunityRequests();
+        
+        // If we're approving, also refresh the communities list to show the newly approved community
+        if (approve) {
+          // Wait a moment for the backend to process the approval
+          setTimeout(() => {
+            loadAllRequests();
+          }, 1000);
+        }
       } else {
-        throw new Error(response.message || 'Failed to process request');
+        logger.error('Failed to process community request:', response);
+        toastStore.showToast(`Failed to ${approve ? 'approve' : 'reject'} community: ${response.message || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       logger.error('Error processing community request:', error);
-      
-      // Enhanced error handling for specific error cases
-      if (error instanceof Error) {
-        if (error.message.includes('404') || error.message.includes('not found')) {
-          toastStore.showToast('This request no longer exists. Refreshing data...', 'warning');
-          await loadAllRequests(); // Refresh the data to remove stale entries
-        } else {
-          toastStore.showToast(`Failed to process request: ${error.message}`, 'error');
-        }
-      } else {
-        toastStore.showToast('Failed to process request', 'error');
-      }
+      toastStore.showToast(`Error ${approve ? 'approving' : 'rejecting'} community`, 'error');
     } finally {
       isProcessingRequest = false;
     }
@@ -1016,7 +1064,22 @@
             <!-- Community Requests -->
             {#if selectedRequestType === 'all' || selectedRequestType === 'community'}
               <div class="request-category">
-                <h3>Community Creation Requests</h3>
+                <div class="category-header-with-actions">
+                  <h3>Community Creation Requests</h3>
+                  <Button 
+                    variant="outlined" 
+                    on:click={syncCommunityRequests} 
+                    disabled={isSyncingCommunities}
+                    color="primary"
+                  >
+                    {#if isSyncingCommunities}
+                      <Spinner size="small" />
+                    {:else}
+                      <RefreshCwIcon size="16" />
+                    {/if}
+                    {isSyncingCommunities ? 'Syncing...' : 'Sync Communities'}
+                  </Button>
+                </div>
                 <div class="community-requests-grid">
                   {#each communityRequests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter) as request}
                     <div class="community-request-card">

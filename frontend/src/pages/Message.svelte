@@ -549,7 +549,38 @@
       }
 
       // Send message to API
-      // ...rest of function remains the same
+      const messageData = {
+        content: content,
+        message_id: tempMessageId
+      };
+      
+      // Log the API call attempt
+      logger.info(`Sending message to chat ${selectedChat?.id} via API`);
+      
+      try {
+        // Call the API to send the message
+        const result = await apiSendMessage(selectedChat?.id || '', messageData);
+        logger.info('Message sent successfully via API', result);
+        
+        // Optionally update the WebSocket for real-time sync
+        websocketStore.sendMessage(selectedChat?.id || '', {
+          type: 'text',
+          content: content,
+          chat_id: selectedChat?.id || '',
+          user_id: $authStore.user_id || ''
+        });
+      } catch (apiError) {
+        logger.error('Failed to send message via API:', apiError);
+        toastStore.showToast('Network issue detected. Message may not be delivered.', 'error');
+        
+        // Try WebSocket as fallback
+        websocketStore.sendMessage(selectedChat?.id || '', {
+          type: 'text',
+          content: content,
+          chat_id: selectedChat?.id || '',
+          user_id: $authStore.user_id || ''
+        });
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Error sending message:', errorMessage);
@@ -757,6 +788,9 @@
     try {
       logger.info('Initializing WebSocket connections for all chats');
       
+      // First disconnect all existing connections
+      websocketStore.disconnectAll();
+      
       // Register the WebSocket message handler
       setMessageHandler(handleWebSocketMessage);
       
@@ -770,21 +804,25 @@
         // Connect to each chat's WebSocket
         for (const chat of fetchedChats) {
           try {
-            if (!websocketStore.isConnected(chat.id)) {
-              websocketStore.connect(chat.id);
-              logger.debug(`Connected to WebSocket for chat ${chat.id}`);
-            }
+            websocketStore.connect(chat.id);
+            logger.debug(`Connected to WebSocket for chat ${chat.id}`);
           } catch (err) {
             const errorMessage = err instanceof Error ? err.message : String(err);
             logger.error(`Error connecting to WebSocket for chat ${chat.id}: ${errorMessage}`);
           }
         }
+        
+        // Update UI to show we're trying to connect
+        toastStore.showToast('Connecting to real-time chat service...', 'info');
+      } else {
+        logger.info('No chats available to connect WebSockets');
       }
       
       logger.info('WebSocket connections initialized');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error(`Error initializing WebSocket connections: ${errorMessage}`);
+      toastStore.showToast('Failed to connect to real-time chat service', 'error');
     }
   }
 
@@ -1115,13 +1153,35 @@
   /**
    * Initialize a new chat with a user
    */
-  async function initiateNewChat(userId: string) {
+  async function initiateNewChat(data: any) {
     try {
       isLoadingChats = true;
-      const response = await createChat({
-        type: 'individual',
-        participant_ids: [userId]
-      });
+      
+      // Check if we received an object with chat data or just a user ID
+      let chatData;
+      if (typeof data === 'string') {
+        // Handle legacy format (just user ID)
+        chatData = {
+          type: 'individual',
+          participants: [data]
+        };
+      } else if (typeof data === 'object') {
+        // Use the object data directly, but ensure it uses the correct field name
+        chatData = data;
+        
+        // Convert participant_ids to participants if needed
+        if (data.participant_ids && !data.participants) {
+          chatData = {
+            ...data,
+            participants: data.participant_ids
+          };
+          delete chatData.participant_ids;
+        }
+      } else {
+        throw new Error('Invalid chat data format');
+      }
+      
+      const response = await createChat(chatData);
       
       if (response && response.chat_id) {
         showNewChatModal = false;
@@ -1144,7 +1204,7 @@
       const response = await createChat({
         type: 'group',
         name: data.name,
-        participants: data.participants // Use 'participants' instead of 'participant_ids'
+        participants: data.participants
       });
       
       if (response && response.chat_id) {
@@ -1182,6 +1242,70 @@
     width: 100%;
     display: flex;
     overflow: hidden;
+  }
+
+  .websocket-status {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+  
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    background-color: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(5px);
+  }
+  
+  .status-indicator.connected {
+    color: #4caf50;
+  }
+  
+  .status-indicator.disconnected {
+    color: #f44336;
+  }
+  
+  .status-icon {
+    font-size: 14px;
+  }
+  
+  .status-error {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+    backdrop-filter: blur(5px);
+  }
+  
+  .reconnect-button {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .reconnect-button:hover {
+    background-color: #d32f2f;
   }
 </style>
 
@@ -1230,6 +1354,14 @@
       <div class="status-indicator {$websocketStore.connected ? 'connected' : 'disconnected'}">
         <span class="status-icon">{$websocketStore.connected ? '●' : '○'}</span>
         <span class="status-text">Real-time {$websocketStore.connected ? 'Connected' : 'Disconnected'}</span>
+        {#if !$websocketStore.connected}
+          <button class="reconnect-button" on:click={initializeWebSocketConnections}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+            </svg>
+            Reconnect
+          </button>
+        {/if}
       </div>
       {#if $websocketStore.lastError}
         <div class="status-error">
@@ -1564,6 +1696,7 @@
     {isLoadingUsers}
     {userSearchResults}
     searchKeyword={userSearchQuery}
+    onCancel={() => showNewChatModal = false}
     on:close={() => showNewChatModal = false}
     on:search={(e) => searchForUsers(e.detail)}
     on:createChat={(e) => initiateNewChat(e.detail)}

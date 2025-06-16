@@ -65,8 +65,8 @@ function createWebSocketStore() {
     // Ensure baseUrl doesn't end with a slash
     baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     
-    // Use hardcoded URL for development testing to ensure connection works
-    let wsUrl = `ws://localhost:8083/api/v1/chats/${chatId}/ws`;
+    // Build the WebSocket URL using the base URL
+    let wsUrl = `${baseUrl}/chats/${chatId}/ws`;
     
     // Extract user ID from token if available
     let userId = '';

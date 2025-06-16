@@ -4,7 +4,8 @@
   import MoreHorizontalIcon from 'svelte-feather-icons/src/icons/MoreHorizontalIcon.svelte';
   import SearchIcon from 'svelte-feather-icons/src/icons/SearchIcon.svelte';
   import XIcon from 'svelte-feather-icons/src/icons/XIcon.svelte';
-  import type { ITrend, ISuggestedFollow } from '../../interfaces/ISocialMedia';  import { getTrends } from '../../api/trends';
+  import type { ISuggestedFollow } from '../../interfaces/ISocialMedia';
+import type { ITrend } from '../../interfaces/ITrend';  import { getTrends } from '../../api/trends';
   import { getSuggestedUsers } from '../../api/suggestions';
   import { followUser, unfollowUser, searchUsers } from '../../api/user';
   import { toastStore } from '../../stores/toastStore';
@@ -64,8 +65,10 @@
   async function fetchTrends() {
     isTrendsLoading = true;
     try {
-      const fetchedTrends = await getTrends(5);
+      // Fetch more trends to ensure we have enough data
+      const fetchedTrends = await getTrends(10);
       trends = fetchedTrends || [];
+      console.log('Fetched trends:', trends);
     } catch (error) {
       console.error('Error loading trends:', error);
       toastStore.showToast('Failed to load trends', 'error');
@@ -78,7 +81,7 @@
   async function fetchSuggestedUsers() {
     isFollowSuggestionsLoading = true;
     try {
-      const users = await getSuggestedUsers();
+      const users = await getSuggestedUsers(isTabletView ? 3 : 3, 'follower_count');
       suggestedFollows = users || [];
     } catch (error) {
       // Don't show toast error for auth issues, just log quietly
@@ -98,6 +101,11 @@
   }
 
   async function handleToggleFollow(userId: string) {
+    if (!userId) {
+      console.error('Invalid user ID for follow action');
+      return;
+    }
+    
     if (!isAuthenticated()) {
       window.location.href = '/login';
       return;
@@ -109,7 +117,9 @@
       followLoading[userId] = true;
       
       // Find the user in suggestedFollows
-      const userIndex = suggestedFollows.findIndex(user => user.user_id === userId);
+      const userIndex = suggestedFollows.findIndex(user => 
+        (user.user_id === userId) || (user.id === userId)
+      );
       if (userIndex === -1) {
         console.error('User not found in suggested follows list');
         return;
@@ -374,7 +384,8 @@
         </div>
       {:else}
         <div class="trends-list">
-          {#each trends as trend, i}
+          <!-- Only display the top 3 trending hashtags -->
+          {#each trends.slice(0, 3) as trend, i}
             <div class="trend-item {isDarkMode ? 'trend-item-dark' : ''}">
               <div class="trend-header">
                 <span class="trend-location">{trend.category || 'Trending'}</span>
@@ -386,11 +397,11 @@
                 </button>
               </div>
               <div class="trend-name">
-                <a href={`/explore?q=${encodeURIComponent(trend.title)}`}>
-                  {trend.title}
+                <a href={`/explore?q=${encodeURIComponent((trend.title || trend.name || '').replace(/^#/, ''))}`}>
+                  {trend.title || trend.name || ''}
                 </a>
               </div>
-              <div class="trend-count">{trend.post_count || '0'} posts</div>
+              <div class="trend-count">{trend.post_count || trend.tweet_count || '0'} posts</div>
             </div>
           {/each}
         </div>
@@ -415,7 +426,7 @@
         </div>
       {:else}
         <div class="suggestions-list">
-          {#each suggestedFollows.slice(0, isTabletView ? 3 : 5) as user, i}
+          {#each suggestedFollows.slice(0, 3) as user, i}
             <div class="suggestion-item {isDarkMode ? 'suggestion-item-dark' : ''}">
               <div class="suggested-user-avatar">
                 <img 
@@ -435,10 +446,10 @@
               <div class="suggestion-action">
                 <button 
                   class="follow-button {followingStatus[user.username] ? 'following' : ''} {isDarkMode ? 'follow-button-dark' : ''}"
-                  on:click={() => handleToggleFollow(user.user_id)}
-                  disabled={followLoading[user.user_id]}
+                  on:click={() => handleToggleFollow(user.user_id || user.id || '')}
+                  disabled={followLoading[user.user_id || user.id || '']}
                 >
-                  {#if followLoading[user.user_id]}
+                  {#if followLoading[user.user_id || user.id || '']}
                     <span class="loading-dot"></span>
                   {:else}
                     {followingStatus[user.username] ? 'Following' : 'Follow'}

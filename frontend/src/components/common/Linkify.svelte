@@ -28,4 +28,30 @@
   }
 </script>
 
-{@html linkify(text)} 
+<span class="linkified-text">{@html linkify(text)}</span>
+
+<style>
+  .linkified-text :global(.hashtag) {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .linkified-text :global(.hashtag:hover) {
+    text-decoration: underline;
+    color: var(--color-primary-dark);
+  }
+
+  .linkified-text :global(.mention) {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .linkified-text :global(.mention:hover) {
+    text-decoration: underline;
+    color: var(--color-primary-dark);
+  }
+</style> 

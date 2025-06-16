@@ -43,7 +43,8 @@ export interface ITweet {
 }
 
 export interface ISuggestedFollow {
-  id: string;
+  id?: string;
+  user_id?: string;  // Added for compatibility with API responses
   username: string;
   name: string;
   profile_picture_url: string;

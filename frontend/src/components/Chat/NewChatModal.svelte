@@ -10,16 +10,26 @@
   const dispatch = createEventDispatcher();
 
   export let onCancel: () => void;
-  export let onUserSelect: (user: StandardUser) => void;
+  
+  // Remove the onUserSelect prop that's causing issues
+  // export let onUserSelect: (user: StandardUser) => void;
+  
+  // Add optional props for user results and loading state
+  export let isLoadingUsers = false;
+  export let userSearchResults: StandardUser[] = [];
+  export let searchKeyword = '';
 
   let searchQuery = '';
   let users: StandardUser[] = [];
   let filteredUsers: StandardUser[] = [];
-  let isLoading = false;  let searchTimeout: ReturnType<typeof setTimeout>;
+  let isLoading = false;  
+  let searchTimeout: ReturnType<typeof setTimeout>;
 
   onMount(async () => {
     await loadUsers();
-  });  async function loadUsers() {
+  });
+  
+  async function loadUsers() {
     isLoading = true;
     try {
       console.log('Loading users...'); // Debug log
@@ -99,10 +109,23 @@
         (user.display_name && user.display_name.toLowerCase().includes(query))
       );
     }, 300);
+    
+    // Dispatch search event for parent component
+    dispatch('search', searchQuery.trim());
   }
 
+  // Fix the handleUserClick function to properly send participant IDs
   function handleUserClick(user: StandardUser) {
-    onUserSelect(user);
+    // Dispatch an event with the participants array format required by the API
+    dispatch('createChat', { 
+      type: 'individual',
+      participants: [user.id]
+    });
+    
+    // Only call onCancel if it exists
+    if (typeof onCancel === 'function') {
+      onCancel();
+    }
   }
 
   function getAvatarColor(name: string) {
@@ -192,14 +215,15 @@
   }
 
   .modal-content {
-    background: var(--bg-secondary, #1a1a1a);
+    background-color: var(--bg-secondary, #ffffff);
     border-radius: 12px;
     width: 90%;
     max-width: 500px;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border-color, #333);
+    border: 1px solid var(--border-color, #e5e7eb);
+    color: var(--text-color, #333333);
   }
 
   .modal-header {
@@ -207,12 +231,12 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
-    border-bottom: 1px solid var(--border-color, #333);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
   }
 
   .modal-header h2 {
     margin: 0;
-    color: white;
+    color: var(--text-color, #333333);
     font-size: 18px;
     font-weight: 600;
   }
@@ -220,7 +244,7 @@
   .close-button {
     background: none;
     border: none;
-    color: #888;
+    color: var(--text-secondary, #6b7280);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
@@ -228,22 +252,22 @@
   }
 
   .close-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+    color: var(--text-color, #333333);
   }
 
   .search-container {
     padding: 20px 24px;
-    border-bottom: 1px solid var(--border-color, #333);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
   }
 
   .search-input {
     width: 100%;
     padding: 12px 16px;
-    background: var(--bg-primary, #000);
-    border: 1px solid var(--border-color, #333);
+    background-color: var(--input-bg, #ffffff);
+    border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 8px;
-    color: white;
+    color: var(--text-color, #333333);
     font-size: 16px;
     outline: none;
   }
@@ -253,7 +277,7 @@
   }
 
   .search-input::placeholder {
-    color: #888;
+    color: var(--text-secondary, #6b7280);
   }
 
   .users-list {
@@ -268,13 +292,13 @@
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #888;
+    color: var(--text-secondary, #6b7280);
   }
 
   .loading-spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid var(--border-color, #333);
+    border: 3px solid var(--border-color, #e5e7eb);
     border-top: 3px solid var(--accent-color, #1d9bf0);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -291,7 +315,7 @@
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #888;
+    color: var(--text-secondary, #6b7280);
   }
   .user-item {
     display: flex;
@@ -299,17 +323,17 @@
     padding: 16px 24px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid var(--border-color, #333);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
     background: none;
     border: none;
-    border-bottom: 1px solid var(--border-color, #333);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
     width: 100%;
     text-align: left;
     color: inherit;
   }
 
   .user-item:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
   }
 
   .user-item:last-child {
@@ -352,7 +376,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: white;
+    color: var(--text-color, #333333);
     font-weight: 600;
     font-size: 16px;
     margin-bottom: 4px;
@@ -364,7 +388,7 @@
   }
 
   .username {
-    color: #888;
+    color: var(--text-secondary, #6b7280);
     font-size: 14px;
   }
 

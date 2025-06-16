@@ -413,6 +413,9 @@ func SendMessage(c *gin.Context) {
 		return
 	}
 
+	// Debug logging for tracing purposes
+	log.Printf("SendMessage: Checking if user %s is participant in chat %s", userID, chatID)
+
 	// Check if user is a participant in this chat
 	isParticipant, err := client.IsUserChatParticipant(chatID, userID.(string))
 	if err != nil {
@@ -428,6 +431,7 @@ func SendMessage(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		log.Printf("SendMessage: Attempting to add user %s to chat %s", userID, chatID)
 		_, addErr := CommunityClient.AddChatParticipant(ctx, &communityProto.AddChatParticipantRequest{
 			ChatId:  chatID,
 			UserId:  userID.(string),
@@ -444,6 +448,7 @@ func SendMessage(c *gin.Context) {
 		isParticipant = true
 	}
 
+	log.Printf("SendMessage: Calling community service to send message from user %s in chat %s", userID, chatID)
 	// Send the message using the community service client
 	msgID, err := client.SendMessage(chatID, userID.(string), req.Content)
 	if err != nil {

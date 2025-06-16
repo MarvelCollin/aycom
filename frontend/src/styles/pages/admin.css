@@ -1233,3 +1233,22 @@
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
   }
+
+  /* Add styling for category header with actions */
+  .category-header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .category-header-with-actions h3 {
+    margin: 0;
+  }
+
+  .category-header-with-actions button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+  }

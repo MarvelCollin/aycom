@@ -19,7 +19,6 @@ import (
 func BanUser(c *gin.Context) {
 	log.Printf("BanUser: Handling ban user request")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -86,7 +85,6 @@ func BanUser(c *gin.Context) {
 func SendNewsletter(c *gin.Context) {
 	log.Printf("SendNewsletter: Handling send newsletter request")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -152,7 +150,6 @@ func SendNewsletter(c *gin.Context) {
 func GetCommunityRequests(c *gin.Context) {
 	log.Printf("GetCommunityRequests: Handling community requests endpoint")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -190,7 +187,6 @@ func GetCommunityRequests(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// First get community requests from the user service
 	response, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
 		Page:   int32(page),
 		Limit:  int32(limit),
@@ -203,7 +199,6 @@ func GetCommunityRequests(c *gin.Context) {
 		return
 	}
 
-	// Ensure all requests have requester information if they have a user_id
 	for i, req := range response.Requests {
 		if req.Requester == nil && req.UserId != "" {
 			log.Printf("Request %s missing requester info, fetching user data for ID: %s", req.Id, req.UserId)
@@ -223,36 +218,32 @@ func GetCommunityRequests(c *gin.Context) {
 		}
 	}
 
-	// Also get all communities with is_approved='f' from the community service
 	if CommunityClient != nil {
 		communitiesResponse, commErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 			Query:      "",
 			Limit:      int32(limit),
 			Offset:     int32((page - 1) * limit),
-			IsApproved: false, // Only get unapproved communities for admin review
+			IsApproved: false,
 		})
 
 		if commErr == nil && communitiesResponse != nil && len(communitiesResponse.Communities) > 0 {
 			log.Printf("Found %d communities from community service", len(communitiesResponse.Communities))
 
-			// Convert community objects to community requests
-			for _, community := range communitiesResponse.Communities {
-				// Check if this community is already in the requests list
-				exists := false
-				for _, req := range response.Requests {
-					if req.Name == community.Name {
-						exists = true
-						break
-					}
-				}
+			// Create a map to track existing requests by name for faster lookup
+			existingRequests := make(map[string]bool)
+			for _, req := range response.Requests {
+				existingRequests[req.Name] = true
+			}
 
-				if !exists && community.CreatorId != "" {
+			for _, community := range communitiesResponse.Communities {
+				// Check if we already have a request with this name using our map
+				if !existingRequests[community.Name] && community.CreatorId != "" {
 					log.Printf("Adding community %s with creator ID: %s", community.Name, community.CreatorId)
 
-					// Get user info for the creator (requester) - with more robust error handling
 					var requester *userProto.User
 					if UserClient != nil {
 						log.Printf("Fetching user info for creator ID: %s", community.CreatorId)
+
 						userResp, userErr := UserClient.GetUser(ctx, &userProto.GetUserRequest{
 							UserId: community.CreatorId,
 						})
@@ -272,7 +263,7 @@ func GetCommunityRequests(c *gin.Context) {
 						log.Printf("ERROR: UserClient is nil when trying to fetch creator info")
 					}
 
-					// Add it to the requests list
+					// Add the community as a pending request
 					communityRequest := &userProto.CommunityRequest{
 						Id:          community.Id,
 						UserId:      community.CreatorId,
@@ -286,7 +277,6 @@ func GetCommunityRequests(c *gin.Context) {
 						BannerUrl:   community.BannerUrl,
 					}
 
-					// Additional log to verify the requester info
 					if requester != nil {
 						log.Printf("Added community request with requester: %s (%s)", requester.Name, requester.Username)
 					} else {
@@ -302,7 +292,6 @@ func GetCommunityRequests(c *gin.Context) {
 		}
 	}
 
-	// Final pass to ensure ALL requests have requester information
 	for i, req := range response.Requests {
 		if req.Requester == nil && req.UserId != "" {
 			log.Printf("Final check: Request %s for community %s is missing requester info, fetching user data for ID: %s",
@@ -339,7 +328,7 @@ func GetCommunityRequests(c *gin.Context) {
 			}
 
 			if userErr != nil || userResp == nil || userResp.User == nil {
-				// More detailed error logging
+
 				if userErr != nil {
 					log.Printf("ERROR: Failed to fetch user %s after %d attempts: %v", req.UserId, retryCount+1, userErr)
 				} else if userResp == nil {
@@ -351,7 +340,6 @@ func GetCommunityRequests(c *gin.Context) {
 		}
 	}
 
-	// Use standard success response format
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"requests":    response.Requests,
 		"total_count": response.TotalCount,
@@ -363,7 +351,6 @@ func GetCommunityRequests(c *gin.Context) {
 func ProcessCommunityRequest(c *gin.Context) {
 	log.Printf("ProcessCommunityRequest: Processing community request")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -409,8 +396,6 @@ func ProcessCommunityRequest(c *gin.Context) {
 			switch st.Code() {
 			case codes.NotFound:
 				utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", "Community request not found")
-			case codes.InvalidArgument:
-				utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", st.Message())
 			default:
 				log.Printf("ProcessCommunityRequest Handler: gRPC error: %v", err)
 				utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process community request")
@@ -422,61 +407,25 @@ func ProcessCommunityRequest(c *gin.Context) {
 		return
 	}
 
-	// If the community request was approved, also update the community's approved status
+	// If the request was approved, also update the community in the community service
 	if req.Approve && CommunityClient != nil && response.Success {
-		// Get the community ID directly from the community service
-		// Since naming is consistent, the community ID should be the same as the Name in the request
-		communityRequestsResponse, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
-			Page:   1,
-			Limit:  100,
-			Status: "approved", // Look for the request we just approved
+		// The request ID should be the same as the community ID
+		communityID := requestID
+
+		// Call the ApproveCommunity endpoint to update the community's approval status
+		_, approveErr := CommunityClient.ApproveCommunity(ctx, &communityProto.ApproveCommunityRequest{
+			CommunityId: communityID,
 		})
 
-		if err == nil && communityRequestsResponse.Requests != nil && len(communityRequestsResponse.Requests) > 0 {
-			// Find the request we just processed
-			var communityName string
-			for _, request := range communityRequestsResponse.Requests {
-				if request.Id == requestID {
-					communityName = request.Name
-					break
-				}
-			}
-
-			if communityName != "" {
-				// Search for the community by name in the community service
-				searchResponse, searchErr := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-					Query:  communityName,
-					Limit:  1,
-					Offset: 0,
-				})
-
-				if searchErr == nil && searchResponse.Communities != nil && len(searchResponse.Communities) > 0 {
-					communityID := searchResponse.Communities[0].Id
-
-					// Call the community service to approve the community
-					_, approveErr := CommunityClient.ApproveCommunity(ctx, &communityProto.ApproveCommunityRequest{
-						CommunityId: communityID,
-					})
-
-					if approveErr != nil {
-						// Log error but don't fail the request, as the request itself was processed successfully
-						log.Printf("Warning: Failed to approve community in community service: %v", approveErr)
-					} else {
-						log.Printf("Successfully approved community %s in community service", communityID)
-					}
-				} else {
-					log.Printf("Warning: Could not find community with name '%s' in community service: %v", communityName, searchErr)
-				}
-			} else {
-				log.Printf("Warning: Could not find community request details for ID %s", requestID)
-			}
+		if approveErr != nil {
+			log.Printf("Warning: Failed to approve community in community service: %v", approveErr)
 		} else {
-			log.Printf("Warning: Failed to retrieve community requests: %v", err)
+			log.Printf("Successfully approved community %s in community service", communityID)
 		}
 	}
 
-	// Use standard success response format
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+		"success": response.Success,
 		"message": response.Message,
 	})
 }
@@ -484,7 +433,6 @@ func ProcessCommunityRequest(c *gin.Context) {
 func GetPremiumRequests(c *gin.Context) {
 	log.Printf("GetPremiumRequests: Handling premium requests endpoint")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -546,7 +494,6 @@ func GetPremiumRequests(c *gin.Context) {
 func ProcessPremiumRequest(c *gin.Context) {
 	log.Printf("ProcessPremiumRequest: Processing premium request")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -605,7 +552,6 @@ func ProcessPremiumRequest(c *gin.Context) {
 		return
 	}
 
-	// Use standard success response format
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})
@@ -614,7 +560,6 @@ func ProcessPremiumRequest(c *gin.Context) {
 func GetReportRequests(c *gin.Context) {
 	log.Printf("GetReportRequests: Handling report requests endpoint")
 
-	// Add permissive CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -676,7 +621,6 @@ func GetReportRequests(c *gin.Context) {
 func ProcessReportRequest(c *gin.Context) {
 	log.Printf("ProcessReportRequest: Processing report request")
 
-	// Add permissive CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -735,7 +679,6 @@ func ProcessReportRequest(c *gin.Context) {
 		return
 	}
 
-	// Use standard success response format
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": response.Message,
 	})
@@ -744,7 +687,6 @@ func ProcessReportRequest(c *gin.Context) {
 func GetThreadCategories(c *gin.Context) {
 	log.Printf("GetThreadCategories: Handling thread categories endpoint")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -800,7 +742,6 @@ func GetThreadCategories(c *gin.Context) {
 func CreateThreadCategory(c *gin.Context) {
 	log.Printf("CreateThreadCategory: Creating thread category")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -860,7 +801,6 @@ func CreateThreadCategory(c *gin.Context) {
 func UpdateThreadCategory(c *gin.Context) {
 	log.Printf("UpdateThreadCategory: Updating thread category")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -929,7 +869,6 @@ func UpdateThreadCategory(c *gin.Context) {
 func DeleteThreadCategory(c *gin.Context) {
 	log.Printf("DeleteThreadCategory: Deleting thread category")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -985,7 +924,6 @@ func DeleteThreadCategory(c *gin.Context) {
 func GetCommunityCategories(c *gin.Context) {
 	log.Printf("GetCommunityCategories: Handling community categories endpoint")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -1041,7 +979,6 @@ func GetCommunityCategories(c *gin.Context) {
 func CreateCommunityCategory(c *gin.Context) {
 	log.Printf("CreateCommunityCategory: Creating community category")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -1101,7 +1038,6 @@ func CreateCommunityCategory(c *gin.Context) {
 func UpdateCommunityCategory(c *gin.Context) {
 	log.Printf("UpdateCommunityCategory: Updating community category")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -1170,7 +1106,6 @@ func UpdateCommunityCategory(c *gin.Context) {
 func DeleteCommunityCategory(c *gin.Context) {
 	log.Printf("DeleteCommunityCategory: Deleting community category")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -1226,7 +1161,6 @@ func DeleteCommunityCategory(c *gin.Context) {
 func GetDashboardStatistics(c *gin.Context) {
 	log.Printf("GetDashboardStatistics: Generating statistics data for admin dashboard")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -1236,8 +1170,6 @@ func GetDashboardStatistics(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
 
-	// For now, we use placeholder values until the API is fully implemented
-	// In a production environment, these would come from actual database queries
 	c.JSON(http.StatusOK, gin.H{
 		"success":           true,
 		"total_users":       int64(1250),
@@ -1253,7 +1185,6 @@ func GetDashboardStatistics(c *gin.Context) {
 func AdminGetAllUsers(c *gin.Context) {
 	log.Printf("AdminGetAllUsers: Handling get all users request")
 
-	// Add CORS headers
 	origin := c.Request.Header.Get("Origin")
 	if origin == "" {
 		origin = "http://localhost:3000"
@@ -1316,4 +1247,123 @@ func AdminGetAllUsers(c *gin.Context) {
 		"total_count": response.TotalCount,
 		"page":        response.Page,
 	})
+}
+
+// SyncPendingCommunities fetches communities from the community service that are not approved
+// and ensures they exist in the user service's community_requests table
+func SyncPendingCommunities(c *gin.Context) {
+	// Verify admin permissions
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	// Check if user is admin
+	if UserClient == nil {
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "User service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	userResp, err := UserClient.GetUser(ctx, &userProto.GetUserRequest{
+		UserId: userID.(string),
+	})
+	if err != nil || !userResp.User.IsAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Admin privileges required")
+		return
+	}
+
+	// Get all pending communities from community service
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	// Set false to filter by not approved communities
+	isApproved := false
+	searchResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+		IsApproved: isApproved,
+		Limit:      100, // Using a reasonable limit
+		Offset:     0,
+	})
+
+	if err != nil {
+		log.Printf("Error getting pending communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get pending communities")
+		return
+	}
+
+	pendingCommunities := searchResp.Communities
+
+	// Get existing community requests from user service
+	communityReqsResp, err := UserClient.GetCommunityRequests(ctx, &userProto.GetCommunityRequestsRequest{
+		Limit: 1000, // High limit to get as many as possible
+		Page:  1,
+	})
+
+	if err != nil {
+		log.Printf("Error getting existing community requests: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get existing community requests")
+		return
+	}
+
+	// Create a map of existing community request IDs for quick lookup
+	existingRequestsMap := make(map[string]bool)
+	for _, req := range communityReqsResp.Requests {
+		existingRequestsMap[req.Id] = true
+	}
+
+	// Track results
+	var syncResults struct {
+		TotalPendingCommunities int      `json:"total_pending_communities"`
+		AlreadySynced           int      `json:"already_synced"`
+		NewlySynced             int      `json:"newly_synced"`
+		Failed                  int      `json:"failed"`
+		FailedCommunityIds      []string `json:"failed_community_ids,omitempty"`
+	}
+
+	syncResults.TotalPendingCommunities = len(pendingCommunities)
+
+	// For each pending community not already in the user service, create a request
+	for _, community := range pendingCommunities {
+		// Skip if already exists in user service
+		if existingRequestsMap[community.Id] {
+			syncResults.AlreadySynced++
+			continue
+		}
+
+		// Get detailed community info if needed
+		communityDetail, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
+			CommunityId: community.Id,
+		})
+
+		if err != nil {
+			log.Printf("Error getting community details for ID %s: %v", community.Id, err)
+			syncResults.Failed++
+			syncResults.FailedCommunityIds = append(syncResults.FailedCommunityIds, community.Id)
+			continue
+		}
+
+		// Create community request in user service
+		_, err = UserClient.CreateCommunityRequest(ctx, &userProto.CreateCommunityRequestRequest{
+			CommunityId: community.Id,
+			UserId:      communityDetail.Community.CreatorId,
+			Name:        community.Name,
+			Description: community.Description,
+		})
+
+		if err != nil {
+			log.Printf("Error creating community request for community %s: %v", community.Id, err)
+			syncResults.Failed++
+			syncResults.FailedCommunityIds = append(syncResults.FailedCommunityIds, community.Id)
+		} else {
+			log.Printf("Successfully synced community request for community ID: %s", community.Id)
+			syncResults.NewlySynced++
+		}
+	}
+
+	utils.SendSuccessResponse(c, 200, syncResults)
 }

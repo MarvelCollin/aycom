@@ -136,6 +136,24 @@
     }
   }
   
+  // Function to extract hashtags from tweet content
+  function extractHashtags(content: string): string[] {
+    if (!content) return [];
+    
+    // Twitter-style #hashtag pattern
+    const hashtagRegex = /#([a-zA-Z0-9_]+)/g;
+    const hashtags: string[] = [];
+    let match;
+    
+    while ((match = hashtagRegex.exec(content)) !== null) {
+      if (match[1]) {
+        hashtags.push(match[1]);
+      }
+    }
+    
+    return hashtags;
+  }
+  
   function handleClose() {
     resetForm();
     dispatch('close');
@@ -320,10 +338,15 @@
         return;
       }
 
+      // Extract hashtags from content
+      const hashtags = extractHashtags(newTweet);
+      console.log("Extracted hashtags:", hashtags);
+
       // Format the thread data
       const threadData: Record<string, any> = {
         content: newTweet.trim(),
         who_can_reply: replyPermission.toLowerCase(),
+        hashtags: hashtags
       };
 
       // Add category if selected
@@ -387,7 +410,13 @@
             throw new Error('Authentication required to reply');
           }
           
+          // Extract hashtags from reply content
+          const replyHashtags = extractHashtags(newTweet);
+          console.log("Extracted hashtags for reply:", replyHashtags);
+          
           threadData.thread_id = replyTo.id;
+          threadData.hashtags = replyHashtags;
+          
           if (replyTo.parent_id) {
             threadData.parent_reply_id = replyTo.id;
           }

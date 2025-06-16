@@ -193,10 +193,16 @@ func (s *AdminService) ProcessCommunityRequest(ctx context.Context, req *user.Pr
 		return nil, status.Error(codes.InvalidArgument, "Request ID is required")
 	}
 
-	_, err := s.adminRepo.GetCommunityRequestByID(req.RequestId)
+	communityReq, err := s.adminRepo.GetCommunityRequestByID(req.RequestId)
 	if err != nil {
 		log.Printf("Error finding community request by ID %s: %v", req.RequestId, err)
 		return nil, status.Error(codes.NotFound, "Community request not found")
+	}
+
+	// Ensure we're updating a valid request
+	if communityReq.Status != "pending" {
+		log.Printf("Cannot process community request %s with status %s", req.RequestId, communityReq.Status)
+		return nil, status.Error(codes.FailedPrecondition, "Community request is not in pending status")
 	}
 
 	err = s.adminRepo.ProcessCommunityRequest(req.RequestId, req.Approve)
