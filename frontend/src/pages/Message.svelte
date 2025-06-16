@@ -622,8 +622,8 @@
           ...chats.filter(c => c.id !== message.chat_id)
         ];
         
-        // Update the chat list
-        chats = updatedChats;
+        // Update the chat list with deduplication
+        chats = deduplicateChats(updatedChats);
         
         // Also update filtered chats
         const filteredIndex = filteredChats.findIndex(c => c.id === message.chat_id);
@@ -723,6 +723,20 @@
     });
   }
   
+  // Function to deduplicate chats by ID
+  function deduplicateChats(chatList: Chat[]): Chat[] {
+    const chatMap = new Map<string, Chat>();
+    
+    // Use Map to automatically deduplicate by chat ID
+    chatList.forEach(chat => {
+      if (chat.id && !chatMap.has(chat.id)) {
+        chatMap.set(chat.id, chat);
+      }
+    });
+    
+    return Array.from(chatMap.values());
+  }
+
   async function fetchChats() {
     isLoadingChats = true;
     
@@ -765,18 +779,20 @@
             };
           }
           
-          return chatObj;
-        });
+          return chatObj;        });
+        
+        // Deduplicate chats to prevent duplicates
+        const uniqueChats = deduplicateChats(processedChats);
         
         // Sort chats by update time, newest first
-        processedChats.sort((a, b) => {
+        uniqueChats.sort((a, b) => {
           const timeA = new Date(a.updated_at).getTime();
           const timeB = new Date(b.updated_at).getTime();
           return timeB - timeA;
         });
-        
-        chats = processedChats;
-        filteredChats = [...processedChats];
+
+        chats = uniqueChats;
+        filteredChats = [...uniqueChats];
         
         // If no chat is selected yet and we have chats, select the first one
         if (!selectedChat && processedChats.length > 0) {
@@ -1172,7 +1188,7 @@
     
     try {
       // Generate a unique temporary ID for this message
-    const tempMessageId = `temp-${Date.now()}`;
+      const tempMessageId = `temp-${Date.now()}`;
 
       // Trim content and prevent empty messages
       content = content.trim();
@@ -2403,7 +2419,10 @@
               {#if selectedChat.type === 'group'}
                 <button 
                   class="msg-action-icon" 
-                  on:click={() => showManageGroupModal = true} 
+                  on:click={() => {
+                    logger.debug('Opening group management modal for chat:', selectedChat);
+                    showManageGroupModal = true;
+                  }} 
                   aria-label="Manage group members"
                   title="Manage Members"
                 >
@@ -2684,9 +2703,19 @@
     >
       <ManageGroupMembers 
         chatId={selectedChat.id}
+        currentChatParticipants={selectedChat.participants?.map(p => ({
+          id: p.id,
+          username: p.username || '',
+          name: p.display_name || p.username || '',
+          display_name: p.display_name || p.username || '',
+          profile_picture_url: p.avatar || null,
+          is_verified: p.is_verified || false,
+          avatar: p.avatar || null
+        })) || []}
         onClose={() => showManageGroupModal = false}
         onMembersUpdated={() => {
           // Refresh the chat data
+          logger.debug('Members updated, refreshing chats');
           fetchChats();
         }}
       />

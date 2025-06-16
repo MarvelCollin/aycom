@@ -8,10 +8,10 @@
 
   const API_BASE_URL = appConfig.api.baseUrl;
   const logger = createLoggerWithPrefix('ManageGroupMembers');
-
   export let chatId: string;
   export let onClose: () => void = () => {};
   export let onMembersUpdated: () => void = () => {};
+  export let currentChatParticipants: Participant[] = [];
 
   let currentParticipants: Participant[] = [];
   let availableUsers: StandardUser[] = [];
@@ -21,9 +21,9 @@
   let isRemovingMember = false;
   let errorMessage = '';
   let successMessage = '';
-
   onMount(async () => {
     try {
+      logger.debug('ManageGroupMembers component mounted with chatId:', chatId);
       await loadParticipants();
       await loadAvailableUsers();
       isLoading = false;
@@ -32,14 +32,36 @@
       errorMessage = 'Failed to load group members. Please try again.';
       isLoading = false;
     }
-  });
-
-  async function loadParticipants(): Promise<void> {
+  });  async function loadParticipants(): Promise<void> {
     try {
-      const response = await listChatParticipants(chatId);
-      currentParticipants = response.participants || [];
+      logger.debug('Loading participants for chat:', chatId);
+        // Try to get participants from API first
+      let participants: Participant[] = [];
+      try {
+        const response = await listChatParticipants(chatId);
+        logger.debug('Participants API response:', response);
+        
+        if (response && response.data && response.data.participants) {
+          participants = response.data.participants;
+        } else if (response && response.participants) {
+          participants = response.participants;
+        } else if (response && Array.isArray(response)) {
+          participants = response;
+        }
+      } catch (apiError) {
+        logger.warn('API call failed, trying alternative approach:', apiError);
+      }
+        // If no participants from API, use the ones passed from parent
+      if (participants.length === 0 && currentChatParticipants.length > 0) {
+        logger.debug('Using participants from parent component:', currentChatParticipants);
+        participants = currentChatParticipants;
+      }
+      
+      currentParticipants = participants;
+      logger.debug('Final loaded participants:', currentParticipants);
     } catch (error) {
       logger.error('Error loading participants:', error);
+      currentParticipants = [];
       throw new Error('Failed to load current participants');
     }
   }

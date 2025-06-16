@@ -42,7 +42,6 @@ func main() {
 	}()
 
 	var wg sync.WaitGroup
-
 	userHandler := handlers.NewUserEventHandler(pub)
 	wg.Add(1)
 	go func() {
@@ -50,6 +49,16 @@ func main() {
 		log.Println("Starting user event handler...")
 		if err := userHandler.Start(); err != nil {
 			log.Printf("Error in user event handler: %v", err)
+		}
+	}()
+
+	threadHandler := handlers.NewThreadEventHandler(pub)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		log.Println("Starting thread event handler...")
+		if err := threadHandler.Start(); err != nil {
+			log.Printf("Error in thread event handler: %v", err)
 		}
 	}()
 

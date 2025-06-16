@@ -154,7 +154,6 @@ func (h *UserEventHandler) processMessage(msg amqp.Delivery) {
 		log.Printf("Error unmarshaling event: %v", err)
 		return
 	}
-
 	switch msg.RoutingKey {
 	case "user.created":
 		h.handleUserCreated(event)
@@ -162,6 +161,10 @@ func (h *UserEventHandler) processMessage(msg amqp.Delivery) {
 		h.handleUserUpdated(event)
 	case "user.deleted":
 		h.handleUserDeleted(event)
+	case "user.followed":
+		h.handleUserFollowed(event)
+	case "user.unfollowed":
+		h.handleUserUnfollowed(event)
 	default:
 		log.Printf("Unhandled user event type: %s", msg.RoutingKey)
 	}
@@ -193,5 +196,50 @@ func (h *UserEventHandler) handleUserUpdated(event publisher.Event) {
 
 func (h *UserEventHandler) handleUserDeleted(event publisher.Event) {
 	log.Printf("Processing user deleted event: %v", event)
+}
 
+func (h *UserEventHandler) handleUserFollowed(event publisher.Event) {
+	log.Printf("Processing user followed event: %v", event)
+
+	followerID, ok := event.Data["follower_id"].(string)
+	if !ok {
+		log.Printf("Error: follower_id is missing or not a string")
+		return
+	}
+
+	followedID, ok := event.Data["followed_id"].(string)
+	if !ok {
+		log.Printf("Error: followed_id is missing or not a string")
+		return
+	}
+
+	log.Printf("User %s followed user %s", followerID, followedID)
+
+	// Here you can add logic to:
+	// - Send notifications
+	// - Update analytics
+	// - Trigger other services
+}
+
+func (h *UserEventHandler) handleUserUnfollowed(event publisher.Event) {
+	log.Printf("Processing user unfollowed event: %v", event)
+
+	followerID, ok := event.Data["follower_id"].(string)
+	if !ok {
+		log.Printf("Error: follower_id is missing or not a string")
+		return
+	}
+
+	followedID, ok := event.Data["followed_id"].(string)
+	if !ok {
+		log.Printf("Error: followed_id is missing or not a string")
+		return
+	}
+
+	log.Printf("User %s unfollowed user %s", followerID, followedID)
+
+	// Here you can add logic to:
+	// - Send notifications
+	// - Update analytics
+	// - Trigger other services
 }

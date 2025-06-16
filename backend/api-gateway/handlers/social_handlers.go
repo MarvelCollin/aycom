@@ -108,6 +108,13 @@ func FollowUser(c *gin.Context) {
 
 	log.Printf("User %s successfully followed user %s. Response: %+v", currentUserID, resolvedUserID, followResp)
 
+	// Publish follow event to RabbitMQ
+	if err := utils.PublishUserFollowedEvent(currentUserID, resolvedUserID, utils.EventData{
+		"timestamp": time.Now(),
+	}); err != nil {
+		log.Printf("Warning: Failed to publish user followed event: %v", err)
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"success":               true,
 		"action":                "followed",
@@ -180,6 +187,13 @@ func UnfollowUser(c *gin.Context) {
 	}
 
 	log.Printf("User %s successfully unfollowed user %s. Response: %+v", currentUserID, resolvedUserID, unfollowResp)
+
+	// Publish unfollow event to RabbitMQ
+	if err := utils.PublishUserUnfollowedEvent(currentUserID, resolvedUserID, utils.EventData{
+		"timestamp": time.Now(),
+	}); err != nil {
+		log.Printf("Warning: Failed to publish user unfollowed event: %v", err)
+	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"success":          true,
@@ -372,6 +386,20 @@ func LikeThread(c *gin.Context) {
 		return
 	}
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	currentUserID := userID.(string)
+
+	// Publish like event to RabbitMQ
+	if err := utils.PublishThreadLikedEvent(threadID, currentUserID, utils.EventData{
+		"timestamp": time.Now(),
+	}); err != nil {
+		log.Printf("Warning: Failed to publish thread liked event: %v", err)
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message":      "Thread liked successfully",
 		"thread_id":    threadID,
@@ -384,6 +412,20 @@ func UnlikeThread(c *gin.Context) {
 	if threadID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "BAD_REQUEST", "Thread ID parameter is required")
 		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	currentUserID := userID.(string)
+
+	// Publish unlike event to RabbitMQ
+	if err := utils.PublishThreadUnlikedEvent(threadID, currentUserID, utils.EventData{
+		"timestamp": time.Now(),
+	}); err != nil {
+		log.Printf("Warning: Failed to publish thread unliked event: %v", err)
 	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
@@ -725,6 +767,20 @@ func BookmarkThread(c *gin.Context) {
 		return
 	}
 
+	userID, exists := c.Get("userID")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	currentUserID := userID.(string)
+
+	// Publish bookmark event to RabbitMQ
+	if err := utils.PublishThreadBookmarkedEvent(threadID, currentUserID, utils.EventData{
+		"timestamp": time.Now(),
+	}); err != nil {
+		log.Printf("Warning: Failed to publish thread bookmarked event: %v", err)
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Thread bookmarked successfully",
 	})
@@ -735,6 +791,20 @@ func RemoveBookmark(c *gin.Context) {
 	if threadID == "" {
 		utils.SendErrorResponse(c, http.StatusBadRequest, "VALIDATION_ERROR", "Thread ID is required")
 		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User not authenticated")
+		return
+	}
+	currentUserID := userID.(string)
+
+	// Publish unbookmark event to RabbitMQ
+	if err := utils.PublishThreadUnbookmarkedEvent(threadID, currentUserID, utils.EventData{
+		"timestamp": time.Now(),
+	}); err != nil {
+		log.Printf("Warning: Failed to publish thread unbookmarked event: %v", err)
 	}
 
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{

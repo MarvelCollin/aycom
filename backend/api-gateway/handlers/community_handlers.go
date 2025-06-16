@@ -731,7 +731,7 @@ func ListCommunities(c *gin.Context) {
 			Query:      query,
 			Categories: categories,
 			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit * 2), 
+			Limit:      int32(limit * 2),
 			IsApproved: true,
 		})
 
@@ -744,7 +744,7 @@ func ListCommunities(c *gin.Context) {
 		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId: userID,
 			Status: "member",
-			Limit:  1000, 
+			Limit:  1000,
 		})
 
 		joinedCommunityMap := make(map[string]bool)
@@ -757,7 +757,7 @@ func ListCommunities(c *gin.Context) {
 		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId: userID,
 			Status: "pending",
-			Limit:  1000, 
+			Limit:  1000,
 		})
 
 		pendingCommunityMap := make(map[string]bool)
@@ -1121,7 +1121,7 @@ func OldSearchCommunities(c *gin.Context) {
 func ListCategories(c *gin.Context) {
 	ctx := context.Background()
 	cacheKey := "community_categories"
-	
+
 	// Try to get from cache first
 	var cachedResponse gin.H
 	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
@@ -1132,7 +1132,7 @@ func ListCategories(c *gin.Context) {
 
 	// Cache miss - fetch from community service
 	c.Header("X-Cache", "MISS")
-	
+
 	if CommunityClient == nil {
 		log.Printf("Error: CommunityClient is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
@@ -1163,7 +1163,7 @@ func ListCategories(c *gin.Context) {
 	response := gin.H{
 		"categories": categories,
 	}
-	
+
 	// Cache the response for 12 hours
 	_ = utils.SetCache(context.Background(), cacheKey, response, 12*time.Hour)
 

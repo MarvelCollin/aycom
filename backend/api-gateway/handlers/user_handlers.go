@@ -986,7 +986,7 @@ func GetUserById(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	
+
 	// Try to get from cache first
 	var cachedResponse gin.H
 	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
@@ -1027,7 +1027,7 @@ func GetUserById(c *gin.Context) {
 			"is_following":        user.IsFollowing,
 		},
 	}
-	
+
 	// Cache the response for 30 minutes
 	_ = utils.SetCache(ctx, cacheKey, response, 30*time.Minute)
 
