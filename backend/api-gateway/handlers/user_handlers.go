@@ -171,6 +171,13 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
+	// Invalidate user profile cache
+	ctx := context.Background()
+	cachePattern := fmt.Sprintf("user_profile:%s*", userIDStr)
+	if err := utils.DeleteCachePattern(ctx, cachePattern); err != nil {
+		log.Printf("Warning: Failed to invalidate cache for user %s: %v", userIDStr, err)
+	}
+
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                  updatedUser.ID,
@@ -966,6 +973,31 @@ func GetUserById(c *gin.Context) {
 
 	log.Printf("GetUserById Handler: Looking up user with ID: %s", userIdParam)
 
+	// Get requester ID for personalization
+	var requesterID string
+	if id, exists := c.Get("userID"); exists {
+		requesterID = id.(string)
+	}
+
+	// Create cache key - include requester ID for personalized data (following status)
+	cacheKey := fmt.Sprintf("user_profile:%s", userIdParam)
+	if requesterID != "" {
+		cacheKey = fmt.Sprintf("user_profile:%s:requester:%s", userIdParam, requesterID)
+	}
+
+	ctx := context.Background()
+	
+	// Try to get from cache first
+	var cachedResponse gin.H
+	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
+		c.Header("X-Cache", "HIT")
+		utils.SendSuccessResponse(c, http.StatusOK, cachedResponse)
+		return
+	}
+
+	// Cache miss - fetch from user service
+	c.Header("X-Cache", "MISS")
+
 	user, err := userServiceClient.GetUserById(userIdParam)
 
 	if err != nil {
@@ -974,15 +1006,12 @@ func GetUserById(c *gin.Context) {
 		return
 	}
 
-	if id, exists := c.Get("userID"); exists {
-		requesterID := id.(string)
-		if requesterID != "" && user.ID != requesterID {
-			isFollowing, _ := userServiceClient.IsFollowing(requesterID, user.ID)
-			user.IsFollowing = isFollowing
-		}
+	if requesterID != "" && user.ID != requesterID {
+		isFollowing, _ := userServiceClient.IsFollowing(requesterID, user.ID)
+		user.IsFollowing = isFollowing
 	}
 
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+	response := gin.H{
 		"user": gin.H{
 			"id":                  user.ID,
 			"username":            user.Username,
@@ -997,7 +1026,12 @@ func GetUserById(c *gin.Context) {
 			"created_at":          user.CreatedAt,
 			"is_following":        user.IsFollowing,
 		},
-	})
+	}
+	
+	// Cache the response for 30 minutes
+	_ = utils.SetCache(ctx, cacheKey, response, 30*time.Minute)
+
+	utils.SendSuccessResponse(c, http.StatusOK, response)
 }
 
 func CreateAdminUser(c *gin.Context) {

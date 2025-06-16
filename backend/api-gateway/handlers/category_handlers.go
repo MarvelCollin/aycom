@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"aycom/backend/api-gateway/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,19 @@ import (
 )
 
 func GetCategories(c *gin.Context) {
+	ctx := context.Background()
+	cacheKey := "thread_categories"
+	
+	// Try to get from cache first
+	var cachedResponse map[string]interface{}
+	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
+		c.Header("X-Cache", "HIT")
+		utils.SendSuccessResponse(c, http.StatusOK, cachedResponse)
+		return
+	}
+
+	// Cache miss - fetch from AI service
+	c.Header("X-Cache", "MISS")
 	aiServiceAddr := AppConfig.Services.AIService
 
 	url := fmt.Sprintf("http://%s/categories", aiServiceAddr)
@@ -44,9 +58,12 @@ func GetCategories(c *gin.Context) {
 			{"id": "politics", "name": "Politics"},
 			{"id": "business", "name": "Business"},
 			{"id": "lifestyle", "name": "Lifestyle"},
-			{"id": "travel", "name": "Travel"},
-			{"id": "other", "name": "Other"},
+			{"id": "travel", "name": "Travel"},			{"id": "other", "name": "Other"},
 		}
+		
+		// Cache the default response
+		_ = utils.SetCache(ctx, cacheKey, gin.H{"categories": defaultCategories}, 24*time.Hour)
+		
 		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"categories": defaultCategories,
 		})
@@ -68,11 +85,18 @@ func GetCategories(c *gin.Context) {
 			{"id": "travel", "name": "Travel"},
 			{"id": "other", "name": "Other"},
 		}
+		
+		// Cache the default response
+		_ = utils.SetCache(ctx, cacheKey, gin.H{"categories": defaultCategories}, 24*time.Hour)
+		
 		utils.SendSuccessResponse(c, http.StatusOK, gin.H{
 			"categories": defaultCategories,
 		})
 		return
 	}
+
+	// Cache the AI service response
+	_ = utils.SetCache(ctx, cacheKey, aiResponse, 24*time.Hour)
 
 	utils.SendSuccessResponse(c, http.StatusOK, aiResponse)
 }

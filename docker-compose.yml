@@ -76,11 +76,15 @@ services:
       - AI_SERVICE_PORT=5000
       - CORS_ORIGIN=http://localhost:3000
       # Supabase configuration
-      - SUPABASE_URL=https://sdhtnvlmuywinhcglfsu.supabase.co
-      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTkwMTg3NSwiZXhwIjoyMDYxNDc3ODc1fQ.KNuEFpwiuSIt3rgaJDSO-BOhYnqlRyR1uIcHAenIthw
+      - SUPABASE_URL=https://sdhtnvlmuywinhcglfsu.supabase.co      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkaHRudmxtdXl3aW5oY2dsZnN1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTkwMTg3NSwiZXhwIjoyMDYxNDc3ODc1fQ.KNuEFpwiuSIt3rgaJDSO-BOhYnqlRyR1uIcHAenIthw
       # reCAPTCHA configuration
       - RECAPTCHA_SECRET_KEY=6LcrtmErAAAAAI0TIp3ZflJJgEXiNFEOhuGQKF61
       - RECAPTCHA_SITE_KEY=6LcrtmErAAAAACQuNOe_Zck_KLZm3QpZ-yrXCOoU
+      # Redis configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
     volumes:
       - ./backend:/app
       - api_gateway_go_mod_cache:/go/pkg/mod
@@ -90,6 +94,7 @@ services:
       - thread_service
       - community_service
       - ai_service
+      - redis
     restart: always
     command: >
       sh -c "cd /app/api-gateway && 

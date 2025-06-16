@@ -14,6 +14,7 @@ type Config struct {
 	RateLimit RateLimitConfig
 	OAuth     OAuthConfig
 	WebSocket WebSocketConfig
+	Redis     RedisConfig
 }
 
 type ServerConfig struct {
@@ -56,6 +57,13 @@ type WebSocketConfig struct {
 	WriteDeadlineTimeout time.Duration
 	PingInterval         time.Duration
 	MaxMessageSize       int
+}
+
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
 }
 
 func LoadConfig() (*Config, error) {
@@ -102,8 +110,7 @@ func LoadConfig() (*Config, error) {
 		},
 		OAuth: OAuthConfig{
 			GoogleClientID: getEnv("GOOGLE_CLIENT_ID", ""),
-		},
-		WebSocket: WebSocketConfig{
+		},		WebSocket: WebSocketConfig{
 			ReadBufferSize:       getIntEnv("WS_READ_BUFFER_SIZE", 1024),
 			WriteBufferSize:      getIntEnv("WS_WRITE_BUFFER_SIZE", 1024),
 			SendBufferSize:       getIntEnv("WS_SEND_BUFFER_SIZE", 256),
@@ -111,6 +118,12 @@ func LoadConfig() (*Config, error) {
 			WriteDeadlineTimeout: getDurationEnv("WS_WRITE_DEADLINE", 10*time.Second),
 			PingInterval:         getDurationEnv("WS_PING_INTERVAL", 54*time.Second),
 			MaxMessageSize:       getIntEnv("WS_MAX_MESSAGE_SIZE", 4096),
+		},
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "redis"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getIntEnv("REDIS_DB", 0),
 		},
 	}
 
@@ -212,8 +225,7 @@ func GetDefaultConfig() *Config {
 		},
 		OAuth: OAuthConfig{
 			GoogleClientID: getEnv("GOOGLE_CLIENT_ID", ""),
-		},
-		WebSocket: WebSocketConfig{
+		},		WebSocket: WebSocketConfig{
 			ReadBufferSize:       1024,
 			WriteBufferSize:      1024,
 			SendBufferSize:       256,
@@ -221,6 +233,12 @@ func GetDefaultConfig() *Config {
 			WriteDeadlineTimeout: 10 * time.Second,
 			PingInterval:         54 * time.Second,
 			MaxMessageSize:       4096,
+		},
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "redis"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getIntEnv("REDIS_DB", 0),
 		},
 	}
 }

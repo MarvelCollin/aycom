@@ -332,5 +332,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		adminGroup.PUT("/community-categories/:categoryId", handlers.UpdateCommunityCategory)
 		adminGroup.DELETE("/community-categories/:categoryId", handlers.DeleteCommunityCategory)
 		adminGroup.GET("/newsletter-subscribers", handlers.AdminGetAllUsers)
+		
+		// Cache management routes
+		adminGroup.DELETE("/cache", handlers.ClearCache)
+		adminGroup.GET("/cache/stats", handlers.GetCacheStats)
 	}
 }

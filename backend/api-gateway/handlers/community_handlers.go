@@ -1119,6 +1119,20 @@ func OldSearchCommunities(c *gin.Context) {
 }
 
 func ListCategories(c *gin.Context) {
+	ctx := context.Background()
+	cacheKey := "community_categories"
+	
+	// Try to get from cache first
+	var cachedResponse gin.H
+	if err := utils.GetCache(ctx, cacheKey, &cachedResponse); err == nil {
+		c.Header("X-Cache", "HIT")
+		utils.SendSuccessResponse(c, 200, cachedResponse)
+		return
+	}
+
+	// Cache miss - fetch from community service
+	c.Header("X-Cache", "MISS")
+	
 	if CommunityClient == nil {
 		log.Printf("Error: CommunityClient is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
@@ -1146,9 +1160,14 @@ func ListCategories(c *gin.Context) {
 		}
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
+	response := gin.H{
 		"categories": categories,
-	})
+	}
+	
+	// Cache the response for 12 hours
+	_ = utils.SetCache(context.Background(), cacheKey, response, 12*time.Hour)
+
+	utils.SendSuccessResponse(c, 200, response)
 }
 
 func ListMembers(c *gin.Context) {

@@ -501,7 +501,7 @@ func SendMessage(c *gin.Context) {
 				Message: wsMessageBytes,
 				UserID:  userID.(string),
 			}
-			
+
 			// Send to broadcast channel (non-blocking)
 			select {
 			case wsManager.broadcast <- broadcastMsg:

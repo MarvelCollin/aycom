@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { addChatParticipant, removeChatParticipant, listChatParticipants, searchUsers } from '../../api';
+  import { onMount } from 'svelte';  import { addChatParticipant, removeChatParticipant, listChatParticipants, searchUsers } from '../../api';
   import { createLoggerWithPrefix } from '../../utils/logger';
   import { getAuthToken } from '../../utils/auth';
   import appConfig from '../../config/appConfig';
   import { transformApiUsers, type StandardUser } from '../../utils/userTransform';
+  import type { Participant } from '../../interfaces/IChat';
 
   const API_BASE_URL = appConfig.api.baseUrl;
   const logger = createLoggerWithPrefix('ManageGroupMembers');
@@ -13,7 +13,7 @@
   export let onClose: () => void = () => {};
   export let onMembersUpdated: () => void = () => {};
 
-  export let currentParticipants: StandardUser[] = [];
+  let currentParticipants: Participant[] = [];
   let availableUsers: StandardUser[] = [];
   let searchQuery = '';
   let isLoading = true;
@@ -172,10 +172,10 @@
   }
 </script>
 
-<div class="manage-members-modal">
+<div class="manage-members-modal" role="dialog" aria-modal="true" tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
   <div class="modal-header">
     <h2>Manage Group Members</h2>
-    <button class="close-button" on:click={onClose}>✕</button>
+    <button class="close-button" on:click|stopPropagation={onClose}>✕</button>
   </div>
 
   <div class="modal-body">
@@ -200,29 +200,20 @@
                 <div class="user-avatar">
                   {#if user.avatar}
                     <img src={user.avatar} alt={user.username} />
-                  {:else}
-                    <div class="avatar-placeholder">
-                      {(user.displayName || user.username)[0].toUpperCase()}
+                  {:else}                    <div class="avatar-placeholder">
+                      {(user.display_name || user.name || user.username)[0].toUpperCase()}
                     </div>
                   {/if}
-                </div>
-
-                <div class="user-info">
-                  <div class="user-name">{user.displayName || user.username}</div>
+                </div>                <div class="user-info">
+                  <div class="user-name">{user.display_name || user.name || user.username}</div>
                   <div class="user-username">@{user.username}</div>
-                </div>
-
-                {#if user.role === 'admin'}
-                  <div class="role-badge admin">Admin</div>
-                {:else}
-                  <button 
-                    class="remove-button" 
-                    on:click={() => handleRemoveMember(user)}
-                    disabled={isRemovingMember}
-                  >
-                    Remove
-                  </button>
-                {/if}
+                </div>                <button 
+                  class="remove-button" 
+                  on:click|stopPropagation={() => handleRemoveMember(user)}
+                  disabled={isRemovingMember}
+                >
+                  Remove
+                </button>
               </div>
             {/each}
           </div>
@@ -232,15 +223,14 @@
       <div class="add-members-section">
         <h3>Add Members</h3>
         <div class="search-container">
-          <div class="search-input-wrapper">
-            <input 
+          <div class="search-input-wrapper">            <input 
               type="text" 
               bind:value={searchQuery} 
               placeholder="Search users..."
               class="search-input"
+              on:click|stopPropagation
             />
-            {#if searchQuery.trim() !== ''}
-              <button class="clear-search-button" on:click={() => searchQuery = ''}>
+            {#if searchQuery.trim() !== ''}              <button class="clear-search-button" on:click|stopPropagation={() => searchQuery = ''} aria-label="Clear search">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                 </svg>
@@ -254,27 +244,23 @@
                 <h4 class="search-dropdown-title">Users</h4>
                 <ul class="search-dropdown-list">
                   {#each filteredUsers as user (user.id)}
-                    <li>
-                      <div class="dropdown-item" on:click={() => handleAddMember(user)}>
+                    <li>                      <button 
+                        class="dropdown-item" 
+                        type="button"
+                        on:click|stopPropagation={() => handleAddMember(user)}
+                        aria-label="Add {user.display_name || user.name || user.username} to group"
+                      >
                         <div class="avatar-container">
-                          {#if user.avatar}
-                            <img src={user.avatar} alt={user.displayName || user.username} class="avatar-image" />
+                          {#if user.avatar}                            <img src={user.avatar} alt={user.display_name || user.name || user.username} class="avatar-image" />
                           {:else}
-                            <span class="avatar-placeholder">{(user.displayName || user.username)[0].toUpperCase()}</span>
+                            <span class="avatar-placeholder">{(user.display_name || user.name || user.username)[0].toUpperCase()}</span>
                           {/if}
-                        </div>
-                        <div class="user-info">
-                          <span class="user-name">{user.displayName || user.username}</span>
+                        </div>                        <div class="user-info">
+                          <span class="user-name">{user.display_name || user.name || user.username}</span>
                           <span class="user-username">@{user.username}</span>
                         </div>
-                        <button 
-                          class="add-button" 
-                          on:click|stopPropagation={() => handleAddMember(user)}
-                          disabled={isAddingMember}
-                        >
-                          Add
-                        </button>
-                      </div>
+                        <span class="add-button-text">Add</span>
+                      </button>
                     </li>
                   {/each}
                 </ul>
@@ -293,7 +279,7 @@
   </div>
 
   <div class="modal-footer">
-    <button class="close-button-footer" on:click={onClose}>Close</button>
+    <button class="close-button-footer" on:click|stopPropagation={onClose}>Close</button>
   </div>
 </div>
 
@@ -517,41 +503,18 @@
     color: #6c757d;
     display: block;
   }
-
-  .role-badge {
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-weight: 500;
-  }
-
-  .role-badge.admin {
-    background-color: #e9ecef;
-    color: #495057;
-  }
-
-  .remove-button, .add-button {
+  .remove-button {
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 0.875rem;
     cursor: pointer;
     white-space: nowrap;
-  }
-
-  .remove-button {
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
   }
 
-  .add-button {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-    margin-left: 8px;
-  }
-
-  .remove-button:disabled, .add-button:disabled {
+  .remove-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -568,7 +531,6 @@
     padding: 16px;
     border-top: 1px solid #e5e5e5;
   }
-
   .close-button-footer {
     padding: 8px 16px;
     background-color: #6c757d;
@@ -576,5 +538,14 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
+  }
+
+  .add-button-text {
+    padding: 4px 8px;
+    background-color: #007bff;
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
   }
 </style>

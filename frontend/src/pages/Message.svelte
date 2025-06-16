@@ -15,6 +15,7 @@
   import DebugPanel from '../components/common/DebugPanel.svelte';
   import CreateGroupChat from '../components/chat/CreateGroupChat.svelte';
   import NewChatModal from '../components/chat/NewChatModal.svelte';
+  import ManageGroupMembers from '../components/chat/ManageGroupMembers.svelte';
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   import Toast from '../components/common/Toast.svelte';
@@ -183,6 +184,7 @@
   // Modal visibility flags
   let showNewChatModal = false;
   let showCreateGroupModal = false;
+  let showManageGroupModal = false;
   let showDebug = false;
   
   // Toast notifications - managed by toastStore
@@ -2116,6 +2118,32 @@
     width: 100%;
     display: block;
   }
+
+  /* Modal styles for group chat */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  .modal-container {
+    background: white;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
 </style>
 
 <div class="custom-message-layout {isDarkMode ? 'dark-theme' : ''}">
@@ -2372,6 +2400,18 @@
         </div>
             
             <div class="msg-chat-header-actions">
+              {#if selectedChat.type === 'group'}
+                <button 
+                  class="msg-action-icon" 
+                  on:click={() => showManageGroupModal = true} 
+                  aria-label="Manage group members"
+                  title="Manage Members"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                </button>
+              {/if}
               <button class="msg-action-icon" on:click={() => {/* Implement options */}} aria-label="More options">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -2605,12 +2645,53 @@
 {/if}
 
 {#if showCreateGroupModal}
-  <CreateGroupChat 
-    onCancel={() => showCreateGroupModal = false}
-    onSuccess={(e) => handleCreateGroupChat(e.detail)}
-    on:close={() => showCreateGroupModal = false}
-    on:createGroup={(e) => handleCreateGroupChat(e.detail)}
-  />
+  <!-- Modal backdrop -->
+  <div 
+    class="modal-backdrop" 
+    role="dialog" 
+    aria-modal="true"
+    tabindex="-1"
+    on:click={() => showCreateGroupModal = false}
+    on:keydown={(e) => e.key === 'Escape' && (showCreateGroupModal = false)}
+  >
+    <div 
+      class="modal-container" 
+      role="document"
+    >
+      <CreateGroupChat 
+        onCancel={() => showCreateGroupModal = false}
+        onSuccess={(e) => handleCreateGroupChat(e.detail)}
+        on:close={() => showCreateGroupModal = false}
+        on:createGroup={(e) => handleCreateGroupChat(e.detail)}
+      />
+    </div>
+  </div>
+{/if}
+
+{#if showManageGroupModal && selectedChat && selectedChat.type === 'group'}
+  <!-- Modal backdrop -->
+  <div 
+    class="modal-backdrop" 
+    role="dialog" 
+    aria-modal="true"
+    tabindex="-1"
+    on:click={() => showManageGroupModal = false}
+    on:keydown={(e) => e.key === 'Escape' && (showManageGroupModal = false)}
+  >
+    <div 
+      class="modal-container" 
+      role="document"
+    >
+      <ManageGroupMembers 
+        chatId={selectedChat.id}
+        onClose={() => showManageGroupModal = false}
+        onMembersUpdated={() => {
+          // Refresh the chat data
+          fetchChats();
+        }}
+      />
+    </div>
+  </div>
 {/if}
 
 {#if showDebug}

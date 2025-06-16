@@ -56,6 +56,12 @@ func main() {
 		log.Println("Supabase client initialized successfully")
 	}
 
+	if err := utils.InitRedis(cfg); err != nil {
+		log.Printf("Warning: Failed to initialize Redis client: %v", err)
+	} else {
+		log.Println("Redis client initialized successfully")
+	}
+
 	r := router.SetupRouter(cfg)
 
 	server := &http.Server{

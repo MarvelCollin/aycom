@@ -223,7 +223,7 @@
   }
 </script>
 
-<div class="group-chat-modal">
+<div class="group-chat-modal" role="dialog" aria-modal="true" tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
   <div class="modal-header">
     <div class="header-content">
       <h2>Create a Group Chat</h2>
@@ -256,7 +256,7 @@
         </div>
       {/if}
     </div>
-    <button class="close-button" on:click={cancel} aria-label="Close">
+    <button class="close-button" on:click|stopPropagation={cancel} aria-label="Close">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
@@ -280,6 +280,7 @@
         bind:this={groupNameInput}
         on:input={() => errorMessage = ''}
         on:keydown={(e) => e.key === 'Enter' && searchInput.focus()}
+        on:click|stopPropagation
       />
     </div>
 
@@ -293,6 +294,7 @@
         bind:this={searchInput}
         on:input={handleInput}
         on:keydown={handleSearchKeydown}
+        on:click|stopPropagation
       />
     </div>
 
@@ -315,7 +317,7 @@
             <li>
               <div 
                 class="user-item {i === selectedIndex ? 'selected' : ''}" 
-                on:click={() => addParticipant(user)}
+                on:click|stopPropagation={() => addParticipant(user)}
                 on:keydown={(e) => e.key === 'Enter' && addParticipant(user)}
                 role="button"
                 tabindex="0"
@@ -365,7 +367,7 @@
               <span>{participant.displayName || participant.username}</span>
               <button 
                 class="remove-button" 
-                on:click={() => removeParticipant(participant.id)}
+                on:click|stopPropagation={() => removeParticipant(participant.id)}
                 aria-label="Remove participant"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
@@ -380,12 +382,12 @@
   </div>
 
   <div class="modal-footer">
-    <button class="cancel-button" on:click={cancel} disabled={isLoading}>
+    <button class="cancel-button" on:click|stopPropagation={cancel} disabled={isLoading}>
       Cancel
     </button>
     <button 
       class="create-button" 
-      on:click={createGroupChat} 
+      on:click|stopPropagation={createGroupChat} 
       disabled={isLoading || selectedParticipants.length === 0 || !groupName.trim()}
     >
       {isLoading ? 'Creating...' : 'Create Group Chat'}
