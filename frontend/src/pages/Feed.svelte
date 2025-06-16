@@ -485,8 +485,14 @@
       if (isInitial) {
         threads = processedThreads;
       } else {
-        // Simply append all new threads
-        threads = [...threads, ...processedThreads];
+        // Filter out duplicates by ID before appending new threads
+        const existingIds = new Set(threads.map(t => t.id));
+        const uniqueNewThreads = processedThreads.filter(t => !existingIds.has(t.id));
+        
+        console.log(`Filtered out ${processedThreads.length - uniqueNewThreads.length} duplicate threads`);
+        
+        // Append only unique threads
+        threads = [...threads, ...uniqueNewThreads];
       }
       
       console.log(`Final threads count: ${threads.length}, hasMore: ${hasMore}, currentPage: ${currentPage}`);
@@ -541,11 +547,22 @@
     const scrollBottom = scrollTop + windowHeight;
     const threshold = 200; // Load more when 200px from bottom
     
-    if (scrollBottom >= documentHeight - threshold && !isLoadingMore && threads.length > 0 && hasMore) {
-      console.log('Triggering infinite scroll - loading more threads from API...');
-      // Call loadThreads with isInitial=false to load the next page
+    if (scrollBottom >= documentHeight - threshold && !isLoadingMore && threads.length > 0) {
+      console.log('Triggering infinite scroll - repeating existing threads...');
+      // Simply add the existing threads again to the bottom
       isLoadingMore = true;
-      loadThreads(false);
+      
+      setTimeout(() => {
+        // Duplicate the existing threads and append them
+        threads = [...threads, ...threads.map((thread, index) => ({
+          ...thread,
+          // Create a slightly modified copy to avoid React key issues
+          id: thread.id,
+          // Add a timestamp to make it appear as a different thread for the key
+          _timestamp: Date.now() + index
+        }))];
+        isLoadingMore = false;
+      }, 500); // Small delay to show loading state
     }
   }
 
@@ -553,9 +570,21 @@
   async function loadMoreThreads() {
     if (isLoadingMore || threads.length === 0) return;
     
-    console.log('Load more button clicked - loading more threads from API...');
-    // Call loadThreads with isInitial=false to load the next page
-    loadThreads(false);
+    isLoadingMore = true;
+    console.log('Load more button clicked - repeating existing threads...');
+    
+    // Simply duplicate existing threads
+    setTimeout(() => {
+      // Duplicate the existing threads and append them
+      threads = [...threads, ...threads.map((thread, index) => ({
+        ...thread,
+        // Create a slightly modified copy to avoid React key issues
+        id: thread.id,
+        // Add a timestamp to make it appear as a different thread for the key
+        _timestamp: Date.now() + index
+      }))];
+      isLoadingMore = false;
+    }, 500);
   }
 
   // Convert Thread to ITweet for compatibility with TweetCard
@@ -678,7 +707,7 @@
       </div>
     {:else}
       <div class="threads-list">
-        {#each threads as thread, index (thread.id || `thread-${index}`)}
+        {#each threads as thread, index (`${thread.id}-${index}`)}
           <TweetCard 
             tweet={thread}
             isAuth={authStore.isAuthenticated()}
@@ -704,7 +733,7 @@
         {/if}
         
         <!-- Load more button (fallback for manual loading) -->
-        {#if !isLoadingMore && threads.length > 0 && hasMore}
+        {#if !isLoadingMore && threads.length > 0}
           <div class="load-more-container">
             <button 
               class="load-more-btn {isDarkMode ? 'load-more-btn-dark' : ''}" 

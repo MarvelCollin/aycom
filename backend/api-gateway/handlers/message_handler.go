@@ -583,7 +583,7 @@ func UnsendMessage(c *gin.Context) {
 		return
 	}
 
-	// Get chatID from query parameter instead of path parameter
+	// Get chatID from query parameter
 	chatID := c.Query("chat_id")
 	if chatID == "" {
 		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
@@ -619,49 +619,17 @@ func UnsendMessage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Get the specific message to verify ownership
-	messagesResp, err := CommunityClient.ListMessages(ctx, &communityProto.ListMessagesRequest{
-		ChatId: chatID,
-		Limit:  100, // Get recent messages to find the one we want
-		Offset: 0,
-	})
-
-	if err != nil {
-		log.Printf("UnsendMessage: Error fetching messages: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch message: "+err.Error())
-		return
-	}
-
-	// Find the specific message
-	var message *communityProto.Message
-	for _, msg := range messagesResp.Messages {
-		if msg.Id == messageID {
-			message = msg
-			break
-		}
-	}
-
-	if message == nil {
-		log.Printf("UnsendMessage: Message %s not found in chat %s", messageID, chatID)
-		utils.SendErrorResponse(c, 404, "NOT_FOUND", "Message not found")
-		return
-	}
-
-	// Verify user ownership
-	if message.SenderId != userID.(string) {
-		log.Printf("UnsendMessage: User %s does not own message %s (owner: %s)", userID, messageID, message.SenderId)
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You can only unsend your own messages")
-		return
-	}
-
-	// Call the community service to unsend the message
-	// Use DeleteMessageRequest for now and pass chat_id via context
+	// Call the community service directly to unsend the message
+	// Pass both chat_id and user_id via context
 	ctx = context.WithValue(ctx, "chat_id", chatID)
-	_, err = CommunityClient.DeleteMessage(ctx, &communityProto.DeleteMessageRequest{
+	ctx = context.WithValue(ctx, "user_id", userID.(string))
+
+	_, err := CommunityClient.DeleteMessage(ctx, &communityProto.DeleteMessageRequest{
 		MessageId: messageID,
 	})
 
 	if err != nil {
+		// Extract and log details about the error
 		log.Printf("UnsendMessage: Error unsending message: %v", err)
 		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to unsend message: "+err.Error())
 		return
