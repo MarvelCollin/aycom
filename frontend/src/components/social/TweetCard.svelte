@@ -165,6 +165,22 @@
   $: effectiveReposts = storeInteraction?.reposts ?? parseCount(processedTweet.reposts_count);
   $: effectiveBookmarks = storeInteraction?.bookmarks ?? parseCount(processedTweet.bookmark_count);
 
+  // Debug logging for counts
+  $: if (processedTweet.id) {
+    console.debug(`Tweet ${processedTweet.id} counts:`, {
+      likes: effectiveLikes,
+      replies: effectiveReplies,
+      reposts: effectiveReposts,
+      bookmarks: effectiveBookmarks,
+      fromStore: !!storeInteraction,
+      rawCounts: {
+        likes_count: processedTweet.likes_count,
+        replies_count: processedTweet.replies_count,
+        bookmark_count: processedTweet.bookmark_count
+      }
+    });
+  }
+
   // Track loading states for interaction buttons
   let isLikeLoading = false;
   const isRepostLoading = false;
@@ -248,7 +264,14 @@
     }
 
       // Log the raw tweet data for debugging
-      console.debug("Processing tweet data:", JSON.stringify(rawTweet).substring(0, 200));
+      console.debug("Processing tweet data:", {
+        id: rawTweet.id,
+        replies_count: rawTweet.replies_count,
+        likes_count: rawTweet.likes_count,
+        bookmark_count: rawTweet.bookmark_count,
+        is_liked: rawTweet.is_liked,
+        is_bookmarked: rawTweet.is_bookmarked
+      });
 
       // Make a deep copy with standardized field names
       const processed: ExtendedTweet = {
@@ -514,13 +537,22 @@
 
   // Helper function to safely parse interaction counts
   function parseCount(value: any): number {
-    if (value === undefined || value === null) return 0;
-    if (typeof value === "number") return value;
-    if (typeof value === "string") {
-      const parsed = parseInt(value, 10);
-      return isNaN(parsed) ? 0 : parsed;
+    const result = (() => {
+      if (value === undefined || value === null) return 0;
+      if (typeof value === "number") return value;
+      if (typeof value === "string") {
+        const parsed = parseInt(value, 10);
+        return isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    })();
+    
+    // Add debugging for reply counts specifically
+    if (value !== undefined && value !== null && value !== 0) {
+      console.debug(`parseCount: ${value} (${typeof value}) -> ${result}`);
     }
-    return 0;
+    
+    return result;
   }
 
   // Safely convert a value to string for event dispatching
@@ -597,7 +629,9 @@
       const newLikeStatus = !currentLikeStatus;
       const newLikeCount = newLikeStatus ? effectiveLikes + 1 : Math.max(0, effectiveLikes - 1);
 
-      console.log(`${newLikeStatus ? "Liking" : "Unliking"} tweet ${tweetId}, current UI count: ${effectiveLikes}, new count will be: ${newLikeCount}`);
+      console.log(`${newLikeStatus ? "Liking" : "Unliking"} tweet ${tweetId}`);
+      console.log(`Current UI like status: ${currentLikeStatus}, new status: ${newLikeStatus}`);
+      console.log(`Current UI like count: ${effectiveLikes}, optimistic new count: ${newLikeCount}`);
 
       // Optimistically update the store
       tweetInteractionStore.updateTweetInteraction(tweetId, {
@@ -620,10 +654,19 @@
 
         // Only update if this is still the current request
         if (requestId === currentLikeRequestId) {
+          console.log('API response:', response);
+          
+          // Extract the updated counts from the API response if available
+          let finalLikeCount = newLikeCount;
+          if (response && typeof response.likes_count === 'number') {
+            finalLikeCount = response.likes_count;
+            console.log(`Updated like count from API: ${finalLikeCount}`);
+          }
+          
           // Update the store with the final state and clear the pending flag
           tweetInteractionStore.updateTweetInteraction(tweetId, {
             is_liked: newLikeStatus,
-            likes: newLikeCount,
+            likes: finalLikeCount,
             pending_like: false
           });
 
@@ -741,16 +784,26 @@
       }
 
       // Make the API call
+      let response;
       if (!status) {
-        await bookmarkThread(processedTweet.id);
+        response = await bookmarkThread(processedTweet.id);
         toastStore.showToast("Tweet bookmarked", "success");
       } else {
-        await removeBookmark(processedTweet.id);
+        response = await removeBookmark(processedTweet.id);
         toastStore.showToast("Bookmark removed", "success");
+      }
+
+      // Extract updated counts from API response if available
+      let finalBookmarkCount = !status ? effectiveBookmarks + 1 : effectiveBookmarks - 1;
+      if (response && typeof response.bookmark_count === 'number') {
+        finalBookmarkCount = response.bookmark_count;
+        console.log(`Updated bookmark count from API: ${finalBookmarkCount}`);
       }
 
       // Confirm the update was successful
       tweetInteractionStore.updateTweetInteraction(String(processedTweet.id), {
+        is_bookmarked: !status,
+        bookmarks: finalBookmarkCount,
         pending_bookmark: false
       });
     } catch (error) {
@@ -1568,45 +1621,61 @@
     e.preventDefault();
     e.stopPropagation();
 
-    if (processedTweet && processedTweet.id) {
-      // Dispatch click event for any parent components that need to know
-      dispatch("click", processedTweet);
+    if (!processedTweet || !processedTweet.id) {
+      console.error("Cannot navigate to thread detail: missing tweet ID");
+      return;
+    }
 
-      // Use proper navigation to ensure data loading
-      const threadId = processedTweet.id;
+    // Ensure thread ID is consistently a string
+    const threadId = String(processedTweet.id);
 
-      // Save thread data to sessionStorage for retrieval in the ThreadDetail page
-      // This prevents the "no content" issue when navigating
-      // Create a clean object with all required fields
-      const threadDataObj = {
-        id: threadId,
-        thread_id: threadId,
-        user_id: processedTweet.user_id || processedTweet.userId || processedTweet.author_id || processedTweet.authorId,
-        username: processedTweet.username || processedTweet.author_username || processedTweet.authorUsername || "user",
-        name: processedTweet.name || processedTweet.displayName || processedTweet.display_name || "User",
-        profile_picture_url: processedTweet.profile_picture_url,
-        content: processedTweet.content,
-        created_at: processedTweet.created_at,
-        updated_at: processedTweet.updated_at,
-        likes_count: processedTweet.likes_count || 0,
-        replies_count: processedTweet.replies_count || 0,
-        reposts_count: processedTweet.reposts_count || 0,
-        is_liked: Boolean(processedTweet.is_liked),
-        is_bookmarked: Boolean(processedTweet.is_bookmarked),
-        is_reposted: Boolean(processedTweet.is_reposted),
-        is_verified: Boolean(processedTweet.is_verified),
-        media: processedTweet.media || []
-      };
+    // Dispatch click event for any parent components that need to know
+    dispatch("click", processedTweet);
 
-      // Log the data being stored to help with debugging
-      console.log("Storing thread data in sessionStorage:", threadDataObj);
+    // Create a clean object with all required fields
+    // Make sure all fields use consistent naming and data types
+    // Use effective values from the store for interaction metrics
+    const threadDataObj = {
+      id: threadId,
+      thread_id: threadId,
+      user_id: String(processedTweet.user_id || processedTweet.userId || processedTweet.author_id || processedTweet.authorId || ""),
+      username: String(processedTweet.username || processedTweet.author_username || processedTweet.authorUsername || "user"),
+      name: String(processedTweet.name || processedTweet.displayName || processedTweet.display_name || "User"),
+      profile_picture_url: processedTweet.profile_picture_url || "",
+      content: processedTweet.content || "",
+      created_at: processedTweet.created_at || new Date().toISOString(),
+      updated_at: processedTweet.updated_at || null,
+      // Use effective values from store or fall back to processedTweet values
+      likes_count: effectiveLikes,
+      replies_count: effectiveReplies,
+      reposts_count: effectiveReposts,
+      bookmark_count: effectiveBookmarks,
+      views_count: Number(processedTweet.views_count || 0),
+      is_liked: effectiveIsLiked,
+      is_bookmarked: effectiveIsBookmarked,
+      is_reposted: effectiveIsReposted,
+      is_verified: Boolean(processedTweet.is_verified),
+      media: Array.isArray(processedTweet.media) ? processedTweet.media.map(item => ({
+        id: String(item.id || ""),
+        url: String(item.url || ""),
+        type: String(item.type || "image"),
+        thumbnail_url: String(item.thumbnail_url || item.url || "")
+      })) : []
+    };
 
+    // Log the data being stored to help with debugging
+    console.log("Storing thread data in sessionStorage:", threadDataObj);
+
+    // Store the data with proper JSON serialization
+    try {
       const threadData = JSON.stringify(threadDataObj);
       sessionStorage.setItem("lastViewedThread", threadData);
-
-      // Navigate to the thread page
-      window.location.href = `/thread/${threadId}`;
+    } catch (error) {
+      console.error("Failed to store thread data in sessionStorage:", error);
     }
+
+    // Navigate to the thread page
+    window.location.href = `/thread/${threadId}`;
   }
 
   // In the script section, add isCurrentUserAuthor and dropdown toggle functionality

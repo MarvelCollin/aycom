@@ -35,7 +35,6 @@
     }
   }
 
-  // Function to resize image
   async function resizeImage(file: File, maxWidth = 800, maxHeight = 600, quality = 0.8): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -46,7 +45,6 @@
         img.src = e.target?.result as string;
 
         img.onload = () => {
-          // Calculate new dimensions while maintaining aspect ratio
           let width = img.width;
           let height = img.height;
 
@@ -62,7 +60,6 @@
             }
           }
 
-          // Create canvas and resize
           const canvas = document.createElement("canvas");
           canvas.width = width;
           canvas.height = height;
@@ -75,7 +72,6 @@
 
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Convert to data URL
           const resizedDataURL = canvas.toDataURL("image/jpeg", quality);
           resolve(resizedDataURL);
         };
@@ -112,17 +108,13 @@
     isSubmitting = true;
 
     try {
-      // Log the file details
       console.log(`Processing face photo: ${facePhoto.name}, size: ${facePhoto.size}B, type: ${facePhoto.type}`);
 
-      // Always resize the image to reduce its size (max 800x600px, quality 0.7)
       console.log("Resizing image to ensure it fits within size limits...");
       try {
-        // Resize the image to reduce its size
         const resizedPhotoDataURL = await resizeImage(facePhoto, 600, 400, 0.7);
         console.log(`Resized photo to data URL of length: ${resizedPhotoDataURL.length}`);
 
-        // Submit with the resized image
         const success = await submitPremiumRequest(
           reason,
           identityCardNumber,
@@ -131,7 +123,6 @@
 
         if (success) {
           toastStore.showToast("Your verification request has been submitted", "success");
-          // Reset form and hide it
           showVerificationForm = false;
           identityCardNumber = "";
           reason = "";

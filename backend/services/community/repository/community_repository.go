@@ -69,7 +69,15 @@ func (r *GormCommunityRepository) List(offset, limit int) ([]*model.Community, e
 func (r *GormCommunityRepository) ListByCategories(categories []string, offset, limit int) ([]*model.Community, error) {
 	var communities []*model.Community
 
-	if len(categories) == 0 {
+	// Filter out empty categories
+	validCategories := make([]string, 0)
+	for _, category := range categories {
+		if category != "" {
+			validCategories = append(validCategories, category)
+		}
+	}
+
+	if len(validCategories) == 0 {
 		err := r.db.Preload("Categories").Offset(offset).Limit(limit).Find(&communities).Error
 		return communities, err
 	}
@@ -78,7 +86,7 @@ func (r *GormCommunityRepository) ListByCategories(categories []string, offset, 
 	categoryQuery := r.db.Table("community_categories").
 		Select("community_id").
 		Joins("JOIN categories ON categories.category_id = community_categories.category_id").
-		Where("categories.name IN ?", categories).
+		Where("categories.name IN ?", validCategories).
 		Group("community_id")
 
 	if err := categoryQuery.Pluck("community_id", &communityIDs).Error; err != nil {
@@ -111,25 +119,34 @@ func (r *GormCommunityRepository) Search(query string, categories []string, isAp
 	if isApproved != nil {
 		dbQuery = dbQuery.Where("is_approved = ?", *isApproved)
 	}
-
 	if len(categories) > 0 {
-
-		var communityIDs []uuid.UUID
-		categoryQuery := r.db.Table("community_categories").
-			Select("community_id").
-			Joins("JOIN categories ON categories.category_id = community_categories.category_id").
-			Where("categories.name IN ?", categories).
-			Group("community_id")
-
-		if err := categoryQuery.Pluck("community_id", &communityIDs).Error; err != nil {
-			return nil, 0, err
+		// Filter out empty categories
+		validCategories := make([]string, 0)
+		for _, category := range categories {
+			if category != "" {
+				validCategories = append(validCategories, category)
+			}
 		}
 
-		if len(communityIDs) > 0 {
-			dbQuery = dbQuery.Where("community_id IN ?", communityIDs)
-		} else {
+		// Only proceed if we have valid categories
+		if len(validCategories) > 0 {
+			var communityIDs []uuid.UUID
+			categoryQuery := r.db.Table("community_categories").
+				Select("community_id").
+				Joins("JOIN categories ON categories.category_id = community_categories.category_id").
+				Where("categories.name IN ?", validCategories).
+				Group("community_id")
 
-			return []*model.Community{}, 0, nil
+			if err := categoryQuery.Pluck("community_id", &communityIDs).Error; err != nil {
+				return nil, 0, err
+			}
+
+			if len(communityIDs) > 0 {
+				dbQuery = dbQuery.Where("community_id IN ?", communityIDs)
+			} else {
+				// No communities found with these categories
+				return []*model.Community{}, 0, nil
+			}
 		}
 	}
 

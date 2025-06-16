@@ -40,39 +40,39 @@
   let missingProfileFields: string[] = [];
 
   function validateNameAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateUsernameAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateEmailAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validatePasswordAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateConfirmPasswordAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateGenderAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateDateOfBirthAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateSecurityQuestionAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   function validateSecurityAnswerAndUpdate() {
-    // Removed client-side validation
+    // pindah ke backend 
   }
 
   let recaptchaToken: string | null = null;
@@ -87,13 +87,10 @@
       return;
     }
 
-    // Clear any previous errors before submission
     clearErrors();
 
     formState.update(state => ({ ...state, loading: true }));
 
-    // Format date of birth in the expected backend format: month_index-day-year
-    // Where month_index starts from 0 (January = 0, February = 1, etc.)
     const monthIndex = months.indexOf($formData.dateOfBirth.month);
     const formattedDateOfBirth = `${monthIndex}-${$formData.dateOfBirth.day}-${$formData.dateOfBirth.year}`;
 
@@ -140,14 +137,10 @@
           "success"
         );
       } else {
-        // Handle validation errors from the API response
         if (result.validation_errors) {
-          // Clear previous validation errors
           clearErrors();
 
-          // Set specific field errors directly from API response
           Object.entries(result.validation_errors).forEach(([field, message]) => {
-            // Convert field names from snake_case to camelCase
             const camelField = field.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
 
             if (field === "password") {
@@ -157,19 +150,15 @@
             }
           });
 
-          // Update the form state with general error message
           formState.update(state => ({
             ...state,
             error: "Please fix the validation errors highlighted below.",
             loading: false
           }));
         }
-        // Check if we have an error object with validation errors in the message
         else if (result.error?.fields) {
-          // Clear previous validation errors
           clearErrors();
 
-          // Set specific field errors from the error fields object
           Object.entries(result.error.fields).forEach(([field, message]) => {
             const camelField = field.replace(/_([a-z])/g, (match, p1) => p1.toUpperCase());
 
@@ -186,7 +175,6 @@
             loading: false
           }));
         }
-        // Handle cases where we just have a general error message
         else if (result.error && result.error.message) {
           const errorMessage = result.error.message;
           formState.update(state => ({
@@ -195,7 +183,6 @@
             loading: false
           }));
 
-          // Try to extract field errors from error message string if possible
           if (typeof errorMessage === "string" &&
              (errorMessage.includes("Key:") || errorMessage.includes("validation"))) {
 
@@ -203,14 +190,12 @@
           }
         }
 
-        // Always ensure errorMessage is a string
         const errorMessage = typeof result.message === "string" ? result.message :
           (result.error && typeof result.error.message === "string" ? result.error.message :
             "Registration failed. Please check the form for errors.");
 
         formState.update(state => ({ ...state, error: errorMessage }));
         if (appConfig.ui.showErrorToasts) {
-          // Ensure the errorMessage is a string before checking if it includes something
           const toastErrorMsg = typeof errorMessage === "string" && errorMessage.includes("Registration successful") ?
             "Registration failed. Please check the form for errors." : errorMessage;
           toastStore.showToast(`Registration Error: ${toastErrorMsg}`, "error");
@@ -227,14 +212,12 @@
     const logger = createLoggerWithPrefix("GoogleRegister");
     logger.info("Google auth success in Register page with result:", result);
 
-    // Check if the user needs to complete their profile
     if (result.missing_fields && result.missing_fields.length > 0) {
       logger.info(`User needs to complete profile information: ${result.missing_fields.join(", ")}`);
       missingProfileFields = result.missing_fields;
       showProfileCompletion = true;
       toastStore.showToast("Please complete your profile information", "info");
     } else if (result.is_new_user) {
-      // Even if no missing fields were detected but it's a new user, show profile completion
       logger.info("New user detected, showing profile completion form");
       missingProfileFields = ["gender", "date_of_birth", "security_question", "security_answer"];
       showProfileCompletion = true;

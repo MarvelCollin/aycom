@@ -11,7 +11,9 @@
     getDiscoverCommunities,
     getCategories,
     requestToJoin,
-    checkUserCommunityMembership
+    checkUserCommunityMembership,
+    searchCommunities,
+    getCommunities
   } from "../api/community";
   import type { ICategoriesResponse, ICategory } from "../interfaces/ICategory";
   import { getPublicUrl, SUPABASE_BUCKETS } from "../utils/supabase";
@@ -55,6 +57,9 @@
   let searchQuery = "";
   let selectedCategories: string[] = [];
   let availableCategories: string[] = [];
+  
+  // Enhanced search settings
+  let showFilters = false;
 
   // Community data
   let isLoading = false;
@@ -77,13 +82,22 @@
     error = null;
 
     try {
-      // Prepare parameters for API call
+      // Prepare parameters for API call - clean empty values
       const params = {
         page: currentPage,
-        limit: limit,
-        q: searchQuery,
-        category: selectedCategories
+        limit: limit
       };
+
+      // Only add search query if it's not empty
+      if (searchQuery && searchQuery.trim()) {
+        params.q = searchQuery.trim();
+      }
+
+      // Only add categories if there are valid ones
+      const validCategories = selectedCategories.filter(cat => cat && cat.trim());
+      if (validCategories.length > 0) {
+        params.category = validCategories;
+      }
 
       let result;
       logger.info(`Fetching communities for tab: ${activeTab}`);
@@ -99,6 +113,19 @@
             break;
           case "discover":
             result = await getDiscoverCommunities(authState.user_id || "", params);
+            break;
+          case "all":
+            // Search across all communities
+            if (searchQuery?.trim() || validCategories.length > 0) {
+              const searchParams = {
+                ...params,
+                categories: validCategories
+              };
+              result = await searchCommunities(searchQuery?.trim() || "", params.page || 1, params.limit || 25, searchParams);
+            } else {
+              // Get all communities when no search query
+              result = await getCommunities(params);
+            }
             break;
           default:
             result = await getJoinedCommunities(authState.user_id || "", params);
@@ -163,7 +190,7 @@
         }
 
         // Check membership status for communities in the discover tab
-        if (activeTab === "discover") {
+        if (activeTab === "discover" || activeTab === "all") {
           checkMembershipStatusForAll();
         }
 
@@ -208,7 +235,7 @@
 
   // Check membership status for all communities in discover tab
   async function checkMembershipStatusForAll() {
-    if (!Array.isArray(communities) || communities.length === 0 || activeTab !== "discover") return;
+    if (!Array.isArray(communities) || communities.length === 0 || (activeTab !== "discover" && activeTab !== "all")) return;
 
     for (const community of communities) {
       if (community && community.id) {
@@ -264,6 +291,25 @@
     fetchCommunities();
   }
 
+  // Handle real-time search on input
+  function handleSearchInput() {
+    // If we're in the "all" tab, perform real-time search
+    if (activeTab === "all") {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        currentPage = 1;
+        fetchCommunities();
+      }, 300); // 300ms debounce
+    }
+  }
+
+  let searchTimeout: any;
+
+  // Toggle filters visibility
+  function toggleFilters() {
+    showFilters = !showFilters;
+  }
+
   // Handle category filter change
   function handleCategoryChange(event: CustomEvent) {
     selectedCategories = event.detail.categories;
@@ -271,12 +317,17 @@
     fetchCommunities();
   }
 
-  // Clear filters
+  // Clear all filters and search
   function clearFilters() {
     searchQuery = "";
     selectedCategories = [];
     currentPage = 1;
     fetchCommunities();
+  }
+
+  // Quick search for all communities
+  function searchAllCommunities() {
+    setActiveTab("all");
   }
 
   // Handle join request
@@ -431,8 +482,9 @@
     } else {
       logger.warn("User not authenticated");
       toastStore.showToast("Sign in to view your communities", "info");
-      // Still fetch discover communities for non-authenticated users
-      setActiveTab("discover");
+      // Still fetch categories and show all communities for non-authenticated users
+      fetchCategories();
+      setActiveTab("all");
     }
   });
 </script>
@@ -448,24 +500,46 @@
     </div>
 
     <div class="search-filter-container">
-      <div class="search-box">
-        <input
-          type="text"
-          placeholder="Search communities..."
-          bind:value={searchQuery}
-          on:keydown={(e) => e.key === "Enter" && handleSearch()}
-        />
-        <button on:click={handleSearch} aria-label="Search">
-          <SearchIcon size="16" />
-        </button>
+      <div class="search-section">
+        <div class="search-box">
+          <input
+            type="text"
+            placeholder={activeTab === "all" ? "Search all communities..." : "Search communities..."}
+            bind:value={searchQuery}
+            on:input={handleSearchInput}
+            on:keydown={(e) => e.key === "Enter" && handleSearch()}
+          />
+          <button on:click={handleSearch} aria-label="Search">
+            <SearchIcon size="16" />
+          </button>
+        </div>
+        
+        <div class="search-actions">
+          <button 
+            class="filter-toggle-button {showFilters ? 'active' : ''}"
+            on:click={toggleFilters}
+            aria-label="Toggle filters"
+          >
+            <FilterIcon size="16" />
+            <span>Filters</span>
+          </button>
+          
+          {#if searchQuery || selectedCategories.length > 0}
+            <button class="clear-filters-button" on:click={clearFilters}>
+              Clear
+            </button>
+          {/if}
+        </div>
       </div>
 
-      {#if availableCategories.length > 0}
-        <CategoryFilter
-          categories={availableCategories}
-          selected={selectedCategories}
-          on:change={handleCategoryChange}
-        />
+      {#if showFilters && availableCategories.length > 0}
+        <div class="filters-section">
+          <CategoryFilter
+            categories={availableCategories}
+            selected={selectedCategories}
+            on:change={handleCategoryChange}
+          />
+        </div>
       {/if}
     </div>
 
@@ -490,6 +564,13 @@
       >
         <FilterIcon size="16" />
         <span>Discover</span>
+      </button>
+      <button
+        class="tab-button {activeTab === "all" ? "active" : ""}"
+        on:click={() => setActiveTab("all")}
+      >
+        <SearchIcon size="16" />
+        <span>All Communities</span>
       </button>
     </div>
 
@@ -646,6 +727,25 @@
                   >
                     View
                   </button>
+                {:else if activeTab === "all"}
+                  {#if communityMembershipStatus.get(community.id) === "member"}
+                    <div class="membership-status joined">
+                      <CheckIcon size="14" />
+                      <span>Joined</span>
+                    </div>
+                  {:else if communityMembershipStatus.get(community.id) === "pending"}
+                    <div class="membership-status pending">
+                      <AlertCircleIcon size="14" />
+                      <span>Pending</span>
+                    </div>
+                  {:else}
+                    <button
+                      class="action-button join-button"
+                      on:click={(e) => joinCommunity(community.id, e)}
+                    >
+                      {community.is_private ? "Request to Join" : "Join"}
+                    </button>
+                  {/if}
                 {/if}
               </div>
             </div>
@@ -660,6 +760,15 @@
               <p class="message">You don't have any pending join requests</p>
               <p class="description">Find communities to join</p>
               <button class="action-button" on:click={() => setActiveTab("discover")}>Discover Communities</button>
+            {:else if activeTab === "all"}
+              <p class="message">No communities found</p>
+              {#if searchQuery || selectedCategories.length > 0}
+                <p class="description">Try adjusting your search or filters</p>
+                <button class="action-button" on:click={clearFilters}>Clear Filters</button>
+              {:else}
+                <p class="description">Be the first to create a community</p>
+                <button class="action-button" on:click={openCreateModal}>Create Community</button>
+              {/if}
             {:else}
               <p class="message">No communities found matching your search</p>
               {#if searchQuery || selectedCategories.length > 0}
@@ -745,10 +854,103 @@
 
   .search-filter-container {
     display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .search-section {
+    display: flex;
+    gap: 1rem;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
     flex-wrap: wrap;
+  }
+
+  .search-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .filter-toggle-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.25rem;
+    background-color: #ffffff;
+    color: #4a5568;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .filter-toggle-button:hover {
+    background-color: #f7fafc;
+    border-color: #cbd5e1;
+  }
+
+  .filter-toggle-button.active {
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    border-color: var(--primary-color, #3182ce);
+  }
+
+  .dark .filter-toggle-button {
+    background-color: #2d3748;
+    color: #e2e8f0;
+    border-color: #4a5568;
+  }
+
+  .dark .filter-toggle-button:hover {
+    background-color: #4a5568;
+    border-color: #718096;
+  }
+
+  .dark .filter-toggle-button.active {
+    background-color: var(--primary-color, #3182ce);
+    color: white;
+    border-color: var(--primary-color, #3182ce);
+  }
+
+  .clear-filters-button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #e53e3e;
+    border-radius: 0.25rem;
+    background-color: #ffffff;
+    color: #e53e3e;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .clear-filters-button:hover {
+    background-color: #e53e3e;
+    color: white;
+  }
+
+  .dark .clear-filters-button {
+    background-color: #2d3748;
+    border-color: #fc8181;
+    color: #fc8181;
+  }
+
+  .dark .clear-filters-button:hover {
+    background-color: #e53e3e;
+    color: white;
+  }
+
+  .filters-section {
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background-color: #f7fafc;
+  }
+
+  .dark .filters-section {
+    background-color: #2d3748;
+    border-color: #4a5568;
   }
 
   .search-box {
@@ -1219,31 +1421,59 @@
     border-color: #4a5568;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
+    .search-section {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .search-box {
+      min-width: 100%;
+    }
+
+    .search-actions {
+      justify-content: center;
+      width: 100%;
+    }
+
+    .tab-container {
+      justify-content: center;
+      gap: 0.125rem;
+    }
+
+    .tab-button {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tab-button span {
+      display: none;
+    }
+
+    .filters-section {
+      padding: 0.75rem;
+    }
+
     .communities-header {
       flex-direction: column;
-      align-items: flex-start;
       gap: 1rem;
-      margin-bottom: 1rem;
+      align-items: stretch;
     }
 
     .create-button {
       width: 100%;
       justify-content: center;
     }
+  }
 
-    .search-filter-container {
-      flex-direction: column;
-      width: 100%;
+  @media (max-width: 480px) {
+    .tab-button {
+      padding: 0.5rem 0.25rem;
+      font-size: 0.75rem;
     }
 
-    .search-box {
-      width: 100%;
-    }
-
-    .pagination-container {
-      flex-direction: column;
-      gap: 1rem;
+    .search-box input {
+      font-size: 16px; /* Prevents zoom on iOS */
     }
   }
 

@@ -393,6 +393,37 @@ func LikeThread(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
+	// Get thread service client
+	threadClient := GetThreadServiceClient()
+	if threadClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service unavailable")
+		return
+	}
+
+	// Call thread service to like the thread
+	err := threadClient.LikeThread(threadID, currentUserID)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			}
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to like thread: "+err.Error())
+		}
+		return
+	}
+
+	// Get updated thread data to return current counts
+	thread, err := threadClient.GetThreadByID(threadID, currentUserID)
+	if err != nil {
+		log.Printf("Warning: Failed to get updated thread data after like: %v", err)
+		// Still return success since like operation succeeded
+	}
+
 	// Publish like event to RabbitMQ
 	if err := utils.PublishThreadLikedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
@@ -400,11 +431,21 @@ func LikeThread(c *gin.Context) {
 		log.Printf("Warning: Failed to publish thread liked event: %v", err)
 	}
 
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+	response := gin.H{
 		"message":      "Thread liked successfully",
 		"thread_id":    threadID,
 		"is_now_liked": true,
-	})
+	}
+
+	// Add updated counts if we got the thread data
+	if thread != nil {
+		response["likes_count"] = thread.LikeCount
+		response["bookmark_count"] = thread.BookmarkCount
+		response["replies_count"] = thread.ReplyCount
+		response["is_bookmarked"] = thread.IsBookmarked
+	}
+
+	utils.SendSuccessResponse(c, http.StatusOK, response)
 }
 
 func UnlikeThread(c *gin.Context) {
@@ -421,6 +462,37 @@ func UnlikeThread(c *gin.Context) {
 	}
 	currentUserID := userID.(string)
 
+	// Get thread service client
+	threadClient := GetThreadServiceClient()
+	if threadClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service unavailable")
+		return
+	}
+
+	// Call thread service to unlike the thread
+	err := threadClient.UnlikeThread(threadID, currentUserID)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			httpStatus := http.StatusInternalServerError
+			if st.Code() == codes.NotFound {
+				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			}
+			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
+		} else {
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unlike thread: "+err.Error())
+		}
+		return
+	}
+
+	// Get updated thread data to return current counts
+	thread, err := threadClient.GetThreadByID(threadID, currentUserID)
+	if err != nil {
+		log.Printf("Warning: Failed to get updated thread data after unlike: %v", err)
+		// Still return success since unlike operation succeeded
+	}
+
 	// Publish unlike event to RabbitMQ
 	if err := utils.PublishThreadUnlikedEvent(threadID, currentUserID, utils.EventData{
 		"timestamp": time.Now(),
@@ -428,11 +500,21 @@ func UnlikeThread(c *gin.Context) {
 		log.Printf("Warning: Failed to publish thread unliked event: %v", err)
 	}
 
-	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+	response := gin.H{
 		"message":      "Thread unliked successfully",
 		"thread_id":    threadID,
 		"is_now_liked": false,
-	})
+	}
+
+	// Add updated counts if we got the thread data
+	if thread != nil {
+		response["likes_count"] = thread.LikeCount
+		response["bookmark_count"] = thread.BookmarkCount
+		response["replies_count"] = thread.ReplyCount
+		response["is_bookmarked"] = thread.IsBookmarked
+	}
+
+	utils.SendSuccessResponse(c, http.StatusOK, response)
 }
 
 func getUserIDFromContext(c *gin.Context) (string, bool) {
@@ -523,6 +605,31 @@ func ReplyToThread(c *gin.Context) {
 		return
 	}
 
+	// Get updated thread data to return current counts for the parent thread
+	threadService := GetThreadServiceClient()
+	if threadService != nil {
+		thread, err := threadService.GetThreadByID(threadID, userID)
+		if err != nil {
+			log.Printf("Warning: Failed to get updated thread data after reply: %v", err)
+		} else if thread != nil {
+			// Return the reply response along with updated parent thread counts
+			response := map[string]interface{}{
+				"reply": resp.Reply,
+				"updated_thread": map[string]interface{}{
+					"thread_id":      threadID,
+					"likes_count":    thread.LikeCount,
+					"bookmark_count": thread.BookmarkCount,
+					"replies_count":  thread.ReplyCount,
+					"is_liked":       thread.IsLiked,
+					"is_bookmarked":  thread.IsBookmarked,
+				},
+			}
+			c.JSON(http.StatusCreated, response)
+			return
+		}
+	}
+
+	// Fallback to original response if we couldn't get updated data
 	c.JSON(http.StatusCreated, resp)
 }
 
@@ -816,8 +923,31 @@ func BookmarkThread(c *gin.Context) {
 		log.Printf("Warning: Failed to publish thread bookmarked event: %v", err)
 	}
 
+	// Get updated thread data to return current counts
+	threadService := GetThreadServiceClient()
+	if threadService != nil {
+		thread, err := threadService.GetThreadByID(threadID, currentUserID)
+		if err != nil {
+			log.Printf("Warning: Failed to get updated thread data after bookmark: %v", err)
+		} else if thread != nil {
+			utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+				"message":        "Thread bookmarked successfully",
+				"thread_id":      threadID,
+				"is_bookmarked":  true,
+				"likes_count":    thread.LikeCount,
+				"bookmark_count": thread.BookmarkCount,
+				"replies_count":  thread.ReplyCount,
+				"is_liked":       thread.IsLiked,
+			})
+			return
+		}
+	}
+
+	// Fallback response if we couldn't get updated data
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"message": "Thread bookmarked successfully",
+		"message":       "Thread bookmarked successfully",
+		"thread_id":     threadID,
+		"is_bookmarked": true,
 	})
 }
 
@@ -875,8 +1005,31 @@ func RemoveBookmark(c *gin.Context) {
 		log.Printf("Warning: Failed to publish thread unbookmarked event: %v", err)
 	}
 
+	// Get updated thread data to return current counts
+	threadService := GetThreadServiceClient()
+	if threadService != nil {
+		thread, err := threadService.GetThreadByID(threadID, currentUserID)
+		if err != nil {
+			log.Printf("Warning: Failed to get updated thread data after removing bookmark: %v", err)
+		} else if thread != nil {
+			utils.SendSuccessResponse(c, http.StatusOK, gin.H{
+				"message":        "Bookmark removed successfully",
+				"thread_id":      threadID,
+				"is_bookmarked":  false,
+				"likes_count":    thread.LikeCount,
+				"bookmark_count": thread.BookmarkCount,
+				"replies_count":  thread.ReplyCount,
+				"is_liked":       thread.IsLiked,
+			})
+			return
+		}
+	}
+
+	// Fallback response if we couldn't get updated data
 	utils.SendSuccessResponse(c, http.StatusOK, gin.H{
-		"message": "Bookmark removed successfully",
+		"message":       "Bookmark removed successfully",
+		"thread_id":     threadID,
+		"is_bookmarked": false,
 	})
 }
 

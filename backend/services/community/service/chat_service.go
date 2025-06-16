@@ -509,7 +509,7 @@ func (s *chatService) DeleteChatForUser(chatID, userID string) error {
 		return fmt.Errorf("chat not found")
 	}
 
-	isParticipant, err := s.IsParticipant(chatID, userID)
+	isParticipant, err := s.participantRepo.IsUserInChat(chatID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to check participation: %v", err)
 	}

@@ -54,6 +54,7 @@ type ChatService interface {
 	DeleteMessage(chatID, messageID, userID string) error
 	UnsendMessage(chatID, messageID, userID string) error
 	SearchMessages(chatID, query string, limit, offset int) ([]*communityProto.Message, error)
+	DeleteChatForUser(chatID, userID string) error
 }
 
 type CommunityMemberRepository interface {
@@ -1014,7 +1015,12 @@ func (h *CommunityHandler) SearchMessages(ctx context.Context, req *communityPro
 }
 
 func extractUserIDFromContext(ctx context.Context) (string, error) {
+	// Extract the user ID from the context
+	if userID, ok := ctx.Value("user_id").(string); ok && userID != "" {
+		return userID, nil
+	}
 
+	// Fallback to system-user only if no user ID is found
 	return "system-user", nil
 }
 

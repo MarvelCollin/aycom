@@ -17,7 +17,6 @@
 
   const logger = createLoggerWithPrefix("MainLayout");
 
-  // Icons for mobile navigation
   import HomeIcon from "svelte-feather-icons/src/icons/HomeIcon.svelte";
   import HashIcon from "svelte-feather-icons/src/icons/HashIcon.svelte";
   import BellIcon from "svelte-feather-icons/src/icons/BellIcon.svelte";

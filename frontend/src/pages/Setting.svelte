@@ -13,14 +13,12 @@
   let isSaving = false;
   let isLoadingBlockedUsers = true;
 
-  // Font size options
   const fontSizeOptions = [
     { value: "small", label: "Small" },
     { value: "medium", label: "Medium" },
     { value: "large", label: "Large" }
   ];
 
-  // Font color options
   const fontColorOptions = [
     { value: "default", label: "Default" },
     { value: "blue", label: "Blue" },
@@ -28,7 +26,6 @@
     { value: "purple", label: "Purple" }
   ];
 
-  // Notification types
   const notificationTypes = [
     { id: "like", label: "Like", description: "Notify me when someone likes my post" },
     { id: "repost", label: "Repost", description: "Notify me when someone reposts my post" },
@@ -37,14 +34,11 @@
     { id: "community", label: "Community", description: "Notify me about community activities" }
   ];
 
-  // Display settings
   let fontSize = "medium";
   let fontColor = "default";
 
-  // Get the current text color based on the selected font color
   $: textColor = getTextColor(fontColor, isDarkMode);
 
-  // Function to determine the text color based on font color selection and theme
   function getTextColor(color, isDark) {
     if (color === "blue") {
       return isDark ? "#62a0ea" : "#1a5fb4";
@@ -56,7 +50,6 @@
     return isDark ? "var(--text-primary)" : "var(--text-primary)";
   }
 
-  // Real blocked accounts data from API
   interface BlockedUser {
     id: string;
     username: string;
@@ -71,7 +64,6 @@
   const blockedUsersPage = 1;
   const blockedUsersLimit = 20;
 
-  // User settings form data
   let userData = {
     name: "",
     username: "",
@@ -86,7 +78,6 @@
     }
   };
 
-  // Load user data and display preferences on mount
   onMount(async () => {
     isLoading = true;
 

@@ -29,7 +29,6 @@
     bio?: string;
   }
 
-  // Define interfaces for our data structures
   interface Thread {
     id: string;
     content: string;
@@ -51,7 +50,7 @@
     is_reposted?: boolean;
     is_bookmarked?: boolean;
     is_pinned?: boolean;
-    IsPinned?: boolean; // Added to match API property
+    IsPinned?: boolean; 
     parent_id?: string | null;
     author_id?: string;
     author_username?: string;
@@ -59,14 +58,14 @@
     author_avatar?: string;
     profile_picture_url?: string;
     name?: string;
-    thread_id?: string; // Thread ID for replies referring to parent thread
+    thread_id?: string; 
     media?: Array<{
       type: string;
       url: string;
       id?: string;
     }>;
     avatar?: string;
-    [key: string]: any; // For any additional properties
+    [key: string]: any; 
   }
 
   interface Reply {
@@ -82,7 +81,7 @@
     likes_count?: number;
     is_liked?: boolean;
     is_pinned?: boolean;
-    [key: string]: any; // For any additional properties
+    [key: string]: any; 
   }
 
   interface ThreadMedia {
@@ -91,28 +90,22 @@
     type: "image" | "video" | "gif";
     thread_id: string;
     created_at?: string;
-    [key: string]: any; // For any additional properties
+    [key: string]: any; 
   }
 
-  // Auth and theme
   const { getAuthState } = useAuth();
   const { theme } = useTheme();
 
-  // Get userId from URL parameter or use current user
   export let userId: string = "";
 
-  // Determine if we're viewing the current user's profile or another user's profile
   $: isOwnProfile = !userId || userId === "me" || userId === getUserId();
   $: profileUserId = isOwnProfile ? "me" : userId;
 
-  // Reactive declarations
   $: isDarkMode = $theme === "dark";
   $: authState = getAuthState();
 
-  // Define default image URL for fallback
   const DEFAULT_AVATAR = "https://secure.gravatar.com/avatar/0?d=mp";
 
-  // Profile data
   let profileData = {
     id: "",
     username: "",
@@ -129,32 +122,27 @@
     isVerified: false
   };
 
-  // Content data with types
   let posts: Thread[] = [];
   let replies: Reply[] = [];
   let likes: Thread[] = [];
-  let media: Thread[] = []; // Change to Thread[] type to match the other tabs
+  let media: Thread[] = []; 
   const bookmarks: Thread[] = [];
 
-  // UI state
   let activeTab = "posts";
   let isLoading = true;
   let showEditModal = false;
-  let showPicturePreview = false; // Controls the profile picture preview modal
+  let showPicturePreview = false; 
   let isUpdatingProfile = false;
   const searchQuery = "";
   const showPinnedOnly = false;
 
-  // Log initial state for debugging
   console.log("Initial showPicturePreview state:", showPicturePreview);
 
-  // Function to toggle profile picture preview
   function toggleProfilePicturePreview() {
     showPicturePreview = !showPicturePreview;
     console.log("Toggled picture preview:", showPicturePreview);
   }
 
-  // Modal state for followers/following
   let showFollowersModal = false;
   let showFollowingModal = false;
   let followersList: IFollowUser[] = [];
@@ -164,17 +152,14 @@
   let followersError = "";
   let followingError = "";
 
-  // Additional functions for thread interactions
-  let repliesMap = new Map(); // Store replies for threads
-  let nestedRepliesMap = new Map(); // Store nested replies
+  let repliesMap = new Map(); 
+  let nestedRepliesMap = new Map(); 
 
-  // State variables
   const profile: any = null;
   let errorMessage = "";
 
-  // Helper function to ensure an object has all ITweet properties
   function ensureTweetFormat(thread: any): ITweet {
-    // Handle is_pinned value consistently
+
     let isPinned = false;
     if (thread.is_pinned === true || thread.is_pinned === "true" ||
         thread.is_pinned === 1 || thread.is_pinned === "1" ||
@@ -183,36 +168,29 @@
       console.log(`Thread ${thread.id} IS PINNED`);
     }
 
-    // Get username from all possible sources
     const username = thread.author_username || thread.username || "anonymous";
 
-    // Get display name from all possible sources
     const name = thread.author_name || thread.name || "User";
 
-    // Get profile picture from all possible sources
     const profile_picture_url = thread.author_profile_picture_url || thread.profile_picture_url ||
                        thread.author_avatar || "https://secure.gravatar.com/avatar/0?d=mp";
 
-    // Use the created_at timestamp if available, fall back to UTC now
     let created_at = thread.created_at || new Date().toISOString();
     if (typeof created_at === "string" && !created_at.includes("T")) {
-      // Convert to ISO format if it's not already
+
       created_at = new Date(created_at).toISOString();
     }
 
-    // Normalize metrics
     const likes_count = thread.likes_count || 0;
     const replies_count = thread.replies_count || 0;
     const reposts_count = thread.reposts_count || 0;
     const bookmark_count = thread.bookmark_count || thread.bookmarks_count || 0;
     const views_count = thread.views_count || 0;
 
-    // Normalize interaction states
     const is_liked = thread.is_liked || false;
     const is_reposted = thread.is_reposted || false;
     const is_bookmarked = thread.is_bookmarked || false;
 
-    // For type safety, create a properly formatted ITweet object
     const tweetData: ITweet = {
       id: thread.id,
       user_id: thread.user_id || thread.author_id || userId,
@@ -235,7 +213,6 @@
       parent_id: thread.parent_id || null
     };
 
-    // If there's a thread_id property (in replies), store it as a custom property
     if (thread.thread_id || thread.reply_to) {
       (tweetData as any).reply_to_thread_id = thread.thread_id ||
                                              (typeof thread.reply_to === "string" ? thread.reply_to :
@@ -245,12 +222,11 @@
     return tweetData;
   }
 
-  // Helper function to troubleshoot and manually repair pinned threads if needed
   async function troubleshootPinnedThreads() {
     console.log("Troubleshooting pinned threads...");
 
     try {
-      // Step 1: Fetch recent threads to check if any should be pinned
+
       let postsData;
       let threads: any[] = [];
 
@@ -260,12 +236,11 @@
         console.log("Threads from API:", threads.length);
       } catch (error: any) {
         console.error("Error fetching threads for troubleshooting:", error);
-        // Continue with empty threads array rather than failing completely
+
         toastStore.showToast("Unable to check pinned threads - will try later", "warning");
-        return; // Exit the function but don't throw error up to caller
+        return; 
       }
 
-      // Check different formats of is_pinned that might be present
       const pinned = {
         boolean: threads.filter(t => t.is_pinned === true).length,
         string: threads.filter(t => t.is_pinned === "true").length,
@@ -279,7 +254,6 @@
 
       console.log("Pinned threads by format:", pinned);
 
-      // Get possible pinned threads with any format
       const possiblyPinned = threads.filter(t =>
         t.is_pinned === true ||
         t.is_pinned === "true" ||
@@ -291,26 +265,21 @@
 
       console.log("Possible pinned threads:", possiblyPinned.map(t => t.id));
 
-      // Skip the repair steps if we couldn't get threads or there's an obvious error
       if (threads.length === 0) {
         console.log("No threads found, skipping pin repair");
         return;
       }
 
-      // Find threads that should be pinned based on our database check
-      // These IDs should match what you see in the database
       const shouldBePinned = [
-        "5a07bfd3-5e19-401c-89a6-c14da0e44da7", // Based on the db screenshot showing is_pinned = t
-        "3d3ffe9e-3b9f-4fdd-a942-7eda514429ea"  // Based on the second row in the db showing is_pinned = t
+        "5a07bfd3-5e19-401c-89a6-c14da0e44da7", 
+        "3d3ffe9e-3b9f-4fdd-a942-7eda514429ea"  
       ];
 
-      // Only proceed with repair if we have valid thread data
       if (!Array.isArray(threads)) {
         console.error("Threads data is not an array, can't repair pins");
         return;
       }
 
-      // Check if any of these threads aren't showing as pinned
       const unpinnedThreads = threads.filter(thread =>
         shouldBePinned.includes(thread.id) &&
         !(thread.is_pinned === true || thread.is_pinned === "true" ||
@@ -321,7 +290,6 @@
       console.log("Threads that should be pinned according to database:", shouldBePinned);
       console.log("Threads that need pinning repair:", unpinnedThreads.map(t => t.id));
 
-      // Check if there are any threads that have 't' as is_pinned value
       const postgresFormat = threads.filter(t => t.is_pinned === "t").map(t => ({
         id: t.id,
         is_pinned: t.is_pinned,
@@ -330,7 +298,6 @@
 
       console.log("Threads with PostgreSQL 't' format:", postgresFormat);
 
-      // Fix any threads that should be pinned but aren't
       if (unpinnedThreads.length > 0) {
         console.log(`Attempting to repair pin status for ${unpinnedThreads.length} threads...`);
 
@@ -342,11 +309,10 @@
             repairSuccessCount++;
           } catch (err) {
             console.error(`Failed to repair thread ${thread.id}:`, err);
-            // Continue with next thread rather than failing
+
           }
         }
 
-        // Reload data after repairs if at least one repair succeeded
         if (repairSuccessCount > 0) {
           toastStore.showToast(`Repaired ${repairSuccessCount} pinned thread(s). Reloading...`, "success");
           setTimeout(() => loadTabContent("posts"), 2000);
@@ -356,7 +322,7 @@
       }
     } catch (error: any) {
       console.error("Error troubleshooting pinned threads:", error);
-      // Show error but don't crash the profile page
+
       toastStore.showToast("Error checking pinned threads: " + error.message, "warning");
     }
   }
@@ -368,7 +334,7 @@
         console.log(`Loaded ${response.replies.length} replies for thread ${threadId}`);
 
         const convertedReplies = response.replies.map((reply: any) => {
-          // Standardize the reply data structure regardless of API format
+
           const replyData = reply.reply || reply || {};
           const userData = reply.user || {} as any;
 
@@ -390,7 +356,6 @@
 
           const convertedReply = ensureTweetFormat(enrichedReply);
 
-          // Add reply-specific fields
           convertedReply.reply_to = threadId as any;
           (convertedReply as any).parentReplyId = replyData.parent_id;
 
@@ -399,7 +364,6 @@
 
         repliesMap.set(threadId, convertedReplies);
 
-        // Process nested replies
         convertedReplies.forEach(reply => {
           const parentId = (reply as any).parentReplyId;
           if (parentId) {
@@ -448,21 +412,17 @@
     loadTabContent(tab);
   }
 
-  // Helper function to determine if a thread is pinned, handling different data formats
   function isThreadPinned(thread: Thread): boolean {
     if (!thread) return false;
 
-    // First check for boolean values
     if (thread.is_pinned === true || thread.IsPinned === true) return true;
 
-    // Handle string values with explicit type assertion
     if (typeof thread.is_pinned === "string") {
-      // Use type assertion to tell TypeScript that is_pinned is definitely a string
+
       const pinValue = (thread.is_pinned as string).toLowerCase();
       return pinValue === "true" || pinValue === "t" || pinValue === "1";
     }
 
-    // Handle numeric values
     if (typeof thread.is_pinned === "number") {
       return thread.is_pinned === 1;
     }
@@ -478,9 +438,8 @@
         const postsData = await getUserThreads(profileUserId);
         console.log("Posts data from API:", postsData);
 
-        // Extract threads from the response, handling nested data structures
         if (postsData && postsData.success) {
-          // Check if data is in the main object or nested inside a data property
+
           let postsArray: Thread[] = [];
           if (postsData.threads) {
             postsArray = postsData.threads;
@@ -490,16 +449,14 @@
             postsArray = [];
           }
 
-          // Sort posts to ensure pinned ones are at the top
           postsArray.sort((a: Thread, b: Thread) => {
-            // First sort by pinned status
+
             const aIsPinned = isThreadPinned(a);
             const bIsPinned = isThreadPinned(b);
 
             if (aIsPinned && !bIsPinned) return -1;
             if (!aIsPinned && bIsPinned) return 1;
 
-            // Then sort by creation date (newest first)
             const dateA = new Date(a.created_at);
             const dateB = new Date(b.created_at);
             return dateB.getTime() - dateA.getTime();
@@ -508,7 +465,6 @@
           posts = postsArray;
           console.log(`Loaded ${posts.length} posts:`, posts);
 
-          // Log pinned posts for debugging
           const pinnedPosts = posts.filter(post => isThreadPinned(post));
           console.log(`Found ${pinnedPosts.length} pinned posts:`, pinnedPosts);
         } else {
@@ -554,7 +510,6 @@
         console.log("Follower count in API response:", response.user.follower_count);
         console.log("Following count in API response:", response.user.following_count);
 
-        // Extract user data exactly like in LeftSide.svelte
         const userData = response.user;
 
         profileData = {
@@ -595,14 +550,14 @@
     console.log("Current profile data before update:", profileData);
 
     try {
-      // Map the form field names to what the backend API expects
+
       const apiData = {
-        name: updatedData.name,      // Backend expects 'name'
+        name: updatedData.name,      
         bio: updatedData.bio,
         email: updatedData.email,
-        date_of_birth: updatedData.date_of_birth,  // Backend uses snake_case 'date_of_birth'
+        date_of_birth: updatedData.date_of_birth,  
         gender: updatedData.gender
-        // profile_picture_url and banner_url are handled separately via their own handlers
+
       };
 
       console.log("Sending profile update to API:", apiData);
@@ -611,7 +566,7 @@
 
       if (response && response.success) {
         toastStore.showToast("Profile updated successfully!", "success");
-        // Update local profile data to reflect changes
+
         profileData = {
           ...profileData,
           displayName: updatedData.name,
@@ -621,7 +576,6 @@
           gender: updatedData.gender
         };
 
-        // Also reload full profile data from server to ensure everything is in sync
         loadProfileData();
       } else {
         throw new Error(response?.message || "Failed to update profile");
@@ -635,14 +589,12 @@
     }
   }
 
-  // Handler for profile picture updated event
   function handleProfilePictureUpdated(e) {
     const url = e.detail.url;
     profileData = { ...profileData, profilePicture: url };
     console.log("Profile picture updated:", getProfileImageUrl(url));
   }
 
-  // Handler for banner updated event
   function handleBannerUpdated(e) {
     const url = e.detail.url;
     profileData = { ...profileData, backgroundBanner: url };
@@ -654,7 +606,6 @@
     try {
       await likeThread(threadId);
 
-      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
           return {
@@ -667,7 +618,6 @@
         return post;
       });
 
-      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
           return {
@@ -692,7 +642,6 @@
     try {
       await unlikeThread(threadId);
 
-      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
           return {
@@ -705,7 +654,6 @@
         return post;
       });
 
-      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
           return {
@@ -730,7 +678,6 @@
     try {
       await bookmarkThread(threadId);
 
-      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
           return {
@@ -743,7 +690,6 @@
         return post;
       });
 
-      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
           return {
@@ -756,7 +702,6 @@
         return like;
       });
 
-      // Update replies tab if the same thread ID exists
       replies = replies.map(reply => {
         if (reply.id === threadId) {
           return {
@@ -781,7 +726,6 @@
     try {
       await removeBookmark(threadId);
 
-      // Update posts tab
       posts = posts.map(post => {
         if (post.id === threadId) {
           return {
@@ -794,7 +738,6 @@
         return post;
       });
 
-      // Update likes tab
       likes = likes.map(like => {
         if (like.id === threadId) {
           return {
@@ -807,7 +750,6 @@
         return like;
       });
 
-      // Update replies tab if the same thread ID exists
       replies = replies.map(reply => {
         if (reply.id === threadId) {
           return {
@@ -831,7 +773,6 @@
     try {
       console.log(`${isPinned ? "Unpinning" : "Pinning"} thread ${threadId}`);
 
-      // Optimistically update UI
       posts = posts.map(post => {
         if (post.id === threadId) {
           return { ...post, is_pinned: !isPinned };
@@ -839,39 +780,34 @@
         return post;
       });
 
-      // Sort the posts again to ensure pinned ones appear at the top
       posts.sort((a, b) => {
-        // First sort by pinned status
+
         if (isThreadPinned(a) && !isThreadPinned(b)) return -1;
         if (!isThreadPinned(a) && isThreadPinned(b)) return 1;
 
-        // Then sort by creation date (newest first)
         const dateA = new Date(a.created_at);
         const dateB = new Date(b.created_at);
         return dateB.getTime() - dateA.getTime();
       });
 
-      // Make the API call
       if (isPinned) {
         await unpinThread(threadId);
       } else {
         await pinThread(threadId);
       }
 
-      // Show success toast
       toastStore.showToast(isPinned ? "Thread unpinned" : "Thread pinned", "success");
     } catch (error: any) {
       console.error("Error pinning/unpinning thread:", error);
       toastStore.showToast("Failed to pin/unpin thread", "error");
 
-      // Revert UI if there's an error by reloading the tab
       loadTabContent("posts");
     }
   }
 
   async function handlePinReply(replyId, isPinned) {
     try {
-      // First optimistically update UI
+
       replies = replies.map(reply => {
         if (reply.id === replyId) {
           return { ...reply, is_pinned: !isPinned };
@@ -879,7 +815,6 @@
         return reply;
       });
 
-      // Sort replies to show pinned ones first
       replies.sort((a, b) => {
         if (a.is_pinned && !b.is_pinned) return -1;
         if (!a.is_pinned && b.is_pinned) return 1;
@@ -889,20 +824,17 @@
         return dateB.getTime() - dateA.getTime();
       });
 
-      // Make the API call
       if (isPinned) {
         await unpinReply(replyId);
       } else {
         await pinReply(replyId);
       }
 
-      // Show success toast
       toastStore.showToast(isPinned ? "Reply unpinned" : "Reply pinned", "success");
     } catch (error: any) {
       console.error("Error pinning/unpinning reply:", error);
       toastStore.showToast("Failed to pin/unpin reply", "error");
 
-      // Revert UI if there's an error by reloading the tab
       loadTabContent("replies");
     }
   }
@@ -914,15 +846,13 @@
     return `Joined ${date.toLocaleString("default", { month: "long" })} ${date.getFullYear()}`;
   }
 
-  // Filter function for posts based on search query and pinned status
   function filterPosts(posts) {
     return posts.filter(post => {
-      // First check if we're showing pinned only
+
       if (showPinnedOnly && !post.is_pinned) {
         return false;
       }
 
-      // Then check for search query match
       if (searchQuery && !post.content.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
@@ -931,25 +861,22 @@
     });
   }
 
-  // Computed property for filtered posts
   $: filteredPosts = filterPosts(posts);
 
-  // Handlers for repost functionality
   async function handleRepost(event) {
     const threadId = event.detail;
-    // In a real implementation, this would call an API
+
     console.log("Repost thread:", threadId);
     toastStore.showToast("Repost functionality not implemented yet", "info");
   }
 
   async function handleUnrepost(event) {
     const threadId = event.detail;
-    // In a real implementation, this would call an API
+
     console.log("Unrepost thread:", threadId);
     toastStore.showToast("Unrepost functionality not implemented yet", "info");
   }
 
-  // Get profile picture URL ensuring it's a full URL
   function getProfileImageUrl(url) {
     if (!url || url === "") {
       console.log("No profile image URL provided, using default");
@@ -962,7 +889,6 @@
     return formattedUrl;
   }
 
-  // Get banner image URL ensuring it's a full URL
   function getBannerImageUrl(url) {
     if (!url || url === "") {
       console.log("No banner image URL provided, using default");
@@ -975,7 +901,6 @@
     return formattedUrl;
   }
 
-  // A simple fetch profile function that matches LeftSide.svelte approach
   async function fetchProfile() {
     if (!isAuthenticated()) {
       return;
@@ -1010,7 +935,6 @@
     }
   }
 
-  // Load followers data
   async function loadFollowers() {
     if (isLoadingFollowers) return;
 
@@ -1029,14 +953,13 @@
       } else if (response && Array.isArray(response.followers)) {
         followersList = response.followers;
       } else {
-        // Try to find any array in the response
+
         const possibleArrays = Object.values(response || {}).filter(val => Array.isArray(val));
         if (possibleArrays.length > 0) {
           followersList = possibleArrays[0];
         } else {
           console.warn("Unexpected followers data format:", response);
 
-          // If the API fails but we know there are followers, create placeholder data
           if (profileData.followerCount > 0) {
             followersList = Array.from({ length: Math.min(profileData.followerCount, 5) }, (_, i) => ({
               id: `follower-${i}`,
@@ -1061,7 +984,6 @@
     }
   }
 
-  // Load following data
   async function loadFollowing() {
     if (isLoadingFollowing) return;
 
@@ -1080,14 +1002,13 @@
       } else if (response && Array.isArray(response.following)) {
         followingList = response.following;
       } else {
-        // Try to find any array in the response
+
         const possibleArrays = Object.values(response || {}).filter(val => Array.isArray(val));
         if (possibleArrays.length > 0) {
           followingList = possibleArrays[0];
         } else {
           console.warn("Unexpected following data format:", response);
 
-          // If the API fails but we know the user is following people, create placeholder data
           if (profileData.followingCount > 0) {
             followingList = Array.from({ length: Math.min(profileData.followingCount, 5) }, (_, i) => ({
               id: `following-${i}`,
@@ -1112,7 +1033,6 @@
     }
   }
 
-  // Open followers modal
   function openFollowersModal() {
     if (profileData.followerCount > 0) {
       showFollowersModal = true;
@@ -1122,7 +1042,6 @@
     }
   }
 
-  // Open following modal
   function openFollowingModal() {
     if (profileData.followingCount > 0) {
       showFollowingModal = true;
@@ -1132,13 +1051,11 @@
     }
   }
 
-  // Close modals
   function closeModals() {
     showFollowersModal = false;
     showFollowingModal = false;
   }
 
-  // Navigate to a user's profile
   function navigateToProfile(username) {
     if (username) {
       window.location.href = `/profile/${username}`;
@@ -1147,7 +1064,7 @@
 
   onMount(async () => {
     try {
-      // Load profile data - use different methods for own vs other profiles
+
       let profileResponse;
       if (isOwnProfile) {
         profileResponse = await getProfile();
@@ -1157,7 +1074,6 @@
         console.log("getUserById API response:", profileResponse);
       }
 
-      // Extract user data from response
       const userData = profileResponse.user || profileResponse;
 
       profileData = {
@@ -1178,26 +1094,22 @@
 
       console.log("Profile loaded with username:", profileData.username);
       console.log("Profile loaded with displayName:", profileData.displayName);
-      console.log("Profile ID:", profileData.id); // Debug - Check if user ID is valid
+      console.log("Profile ID:", profileData.id); 
 
-      // Make sure we have a valid user ID before loading threads
       if (!profileData.id) {
         console.error("No user ID available to load posts");
         errorMessage = "Failed to load profile data. Please try again later.";
         return;
       }
 
-      // Store the user ID for thread loading
       profileUserId = profileData.id;
       console.log("Setting profileUserId to:", profileUserId);
 
-      // Test fetching posts directly
       try {
         console.log("Testing getUserThreads API directly with ID:", profileUserId);
         const testPostsData = await getUserThreads(profileUserId);
         console.log("Test posts data:", testPostsData);
 
-        // Check if data is available but nested in a data property
         if (testPostsData && testPostsData.data && testPostsData.data.threads) {
           console.log("Found threads in nested data structure:", testPostsData.data.threads.length);
         } else if (testPostsData && testPostsData.threads) {
@@ -1209,10 +1121,8 @@
         console.error("Error testing posts API directly:", e);
       }
 
-      // Load initial tab content
       await loadTabContent(activeTab);
 
-      // Preload other tabs in the background
       if (activeTab !== "posts") {
         setTimeout(() => loadTabContent("posts"), 1000);
       }
@@ -1237,7 +1147,7 @@
     e.stopPropagation();
 
     if (e.target && (e.target as HTMLElement).tagName === "BUTTON") {
-      // Skip navigation if a button was clicked (like follow/unfollow)
+
       return;
     }
 
@@ -1254,7 +1164,7 @@
     e.stopPropagation();
 
     if (e.target && (e.target as HTMLElement).tagName === "BUTTON") {
-      // Skip navigation if a button was clicked (like follow/unfollow)
+
       return;
     }
 
@@ -1686,7 +1596,7 @@
 }} />
 
 <style>
-  /* Base theme variables */
+
   :global(:root) {
     --bg-color: #ffffff;
     --bg-secondary: #f7f9fa;
@@ -1720,7 +1630,6 @@
     --bg-hover: rgba(255, 255, 255, 0.03);
   }
 
-  /* Profile container styling */
   .profile-container {
     width: 100%;
     max-width: 100%;
@@ -1729,7 +1638,6 @@
     background-color: var(--bg-color);
   }
 
-  /* Profile header styling */
   .profile-header-container {
     position: relative;
     width: 100%;
@@ -1749,7 +1657,6 @@
     object-fit: cover;
   }
 
-  /* Profile info section */
   .profile-info-section {
     position: relative;
     padding: 0 16px;
@@ -1759,11 +1666,10 @@
     margin-top: -45px;
   }
 
-  /* Avatar styling */
   .profile-avatar-container {
     position: relative;
     margin-bottom: 12px;
-    z-index: 5; /* Ensure container is above other elements */
+    z-index: 5; 
   }
 
   .profile-avatar-wrapper {
@@ -1821,7 +1727,6 @@
     font-size: 24px;
   }
 
-  /* Profile picture preview styles */
   .image-preview-modal {
     position: fixed;
     top: 0;
@@ -1918,7 +1823,6 @@
     }
   }
 
-  /* Profile actions */
   .profile-actions {
     padding-top: 16px;
   }
@@ -1955,7 +1859,6 @@
     opacity: 0.9;
   }
 
-  /* Profile details */
   .profile-details {
     padding: 4px 16px;
   }
@@ -2014,7 +1917,6 @@
     font-size: 14px;
   }
 
-  /* Profile stats */
   .profile-stats {
     display: flex;
     gap: 10px;
@@ -2064,7 +1966,6 @@
     font-size: 13px;
   }
 
-  /* Profile tabs */
   .profile-tabs {
     display: flex;
     border-bottom: 1px solid var(--border-color);
@@ -2088,18 +1989,10 @@
     border-bottom-color: #1da1f2;
   }
 
-  /* Content styling */
   .profile-content {
     padding: 0 16px;
   }
 
-
-
-  /* Tweet card styling */
-
-  /* Media grid */
-
-  /* Modal styles */
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -2207,9 +2100,6 @@
     background-color: #0c85d0;
   }
 
-  /* User list styling */
-
-  /* Animation keyframes */
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -2219,8 +2109,6 @@
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
-
-
 
   .loading-container {
     display: flex;
@@ -2242,7 +2130,6 @@
     background-color: var(--bg-secondary);
   }
 
-  /* Hidden elements for empty state */
   .empty-state {
     display: flex;
     flex-direction: column;

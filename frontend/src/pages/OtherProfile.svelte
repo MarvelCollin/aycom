@@ -1783,7 +1783,7 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
-    max-height: 2.6em; /* Fallback for browsers that don't support line-clamp */
+    max-height: 2.6em;
     line-height: 1.3;
   }
 
@@ -1793,7 +1793,6 @@
     margin-left: 12px;
   }
 
-  /* Compact buttons for modal */
   .profile-follow-button.compact,
   .profile-following-button.compact {
     padding: 6px 12px;
@@ -1801,7 +1800,6 @@
     min-width: 80px;
   }
 
-  /* Animation keyframes */
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

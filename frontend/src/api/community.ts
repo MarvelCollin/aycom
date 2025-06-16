@@ -31,13 +31,36 @@ interface CommunitiesParams {
   [key: string]: any;
 }
 
+// Helper function to clean empty values from parameters
+function cleanParams(params: CommunitiesParams): CommunitiesParams {
+  const cleaned: CommunitiesParams = {};
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (key === 'category' && Array.isArray(value)) {
+      const validCategories = value.filter(cat => cat && cat.trim());
+      if (validCategories.length > 0) {
+        cleaned[key] = validCategories;
+      }
+    } else if (key === 'q' && value && typeof value === 'string' && value.trim()) {
+      cleaned[key] = value.trim();
+    } else if (value !== null && value !== undefined && value !== '') {
+      cleaned[key] = value;
+    }
+  });
+  
+  return cleaned;
+}
+
 export async function getUserCommunities(params: CommunitiesParams = {}) {
   try {
     const token = getAuthToken();
     console.log(`Getting user communities with token: ${token ? "present" : "missing"}`);
 
+    // Clean parameters to remove empty values
+    const cleanedParams = cleanParams(params);
+
     const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
+    Object.entries(cleanedParams).forEach(([key, value]) => {
       if (Array.isArray(value)) {
         value.forEach(v => queryParams.append(key, v));
       } else if (value !== null && value !== undefined) {
@@ -146,8 +169,11 @@ export async function getCommunities(params: CommunitiesParams = {}) {
     const token = getAuthToken();
     console.log(`Getting communities with token: ${token ? "present" : "missing"}`);
 
+    // Clean parameters to remove empty values
+    const cleanedParams = cleanParams(params);
+    
     const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
+    Object.entries(cleanedParams).forEach(([key, value]) => {
       if (key === "is_approved") {
         return;
       }
@@ -1142,7 +1168,11 @@ export async function searchCommunities(
 
     if (options && typeof options === "object") {
       Object.entries(options).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
+        if (key === 'categories' && Array.isArray(value)) {
+          // Filter out empty categories
+          const validCategories = value.filter(cat => cat && cat.trim());
+          validCategories.forEach(cat => params.append("category", cat));
+        } else if (value !== undefined && value !== null && value !== '') {
           params.append(key, value.toString());
         }
       });
