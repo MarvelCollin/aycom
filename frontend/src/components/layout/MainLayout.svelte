@@ -551,7 +551,7 @@
   
   .app-layout {
     display: grid;
-    grid-template-columns: 1fr 3fr 1fr;
+    grid-template-columns: 1fr 4fr 1fr;
     grid-template-areas: "sidebar main widgets";
     min-height: 100vh;
     width: 100%;
@@ -562,14 +562,14 @@
   /* Adjust sidebar width */
   @media (min-width: 1281px) {
     .app-layout {
-      grid-template-columns: 1fr 3fr 1fr;
+      grid-template-columns: 1fr 4fr 1fr;
       max-width: 1280px;
     }
   }
   
   @media (max-width: 1280px) {
     .app-layout {
-      grid-template-columns: 1fr 3fr 1fr;
+      grid-template-columns: 1fr 4fr 1fr;
       max-width: 100%;
     }
   }
@@ -629,7 +629,7 @@
   
   .main-content {
     width: 100%;
-    max-width: 670px;
+    max-width: 800px;
     margin: 0 auto;
     border-right: 1px solid var(--border-color);
     border-left: 1px solid var(--border-color);

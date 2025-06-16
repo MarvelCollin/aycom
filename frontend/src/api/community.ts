@@ -1235,14 +1235,12 @@ async function handleCommunityResponse(response: Response, page: number, limit: 
 
 function getEmptyCommunityResult(page: number, limit: number) {
   return {
+    success: true,
     communities: [],
-    total_count: 0,
-    pagination: {
-      total_count: 0,
-      current_page: page,
-      per_page: limit,
-      total_pages: 0
-    }
+    total: 0,
+    page: page,
+    limit: limit,
+    total_pages: 1
   };
 }
 
@@ -1415,7 +1413,8 @@ export async function getDiscoverCommunities(userId: string, params: Communities
     console.log(`Getting discover communities for user: ${userId}`);
     const paramsWithApproval = {
       ...params,
-      is_approved: false
+      is_approved: true,
+      userId: userId
     };
 
     const queryParams = new URLSearchParams();
@@ -1433,7 +1432,7 @@ export async function getDiscoverCommunities(userId: string, params: Communities
 
     while (attempts < maxAttempts) {
       try {
-        response = await fetch(`${API_BASE_URL}/communities/discover/${userId}?${queryParams.toString()}`, {
+        response = await fetch(`${API_BASE_URL}/communities/discover?${queryParams.toString()}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

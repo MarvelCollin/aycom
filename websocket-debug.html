@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Connection Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .log-info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Connection Debug Tool</h1>
+        <p>Test WebSocket connections to identify connection issues.</p>
+        
+        <div>
+            <label>Chat ID:</label>
+            <input type="text" id="chatId" placeholder="Enter valid UUID chat ID" style="width: 300px; padding: 8px;">
+        </div>
+        
+        <div style="margin: 10px 0;">
+            <label>Auth Token:</label>
+            <input type="text" id="authToken" placeholder="JWT token" style="width: 300px; padding: 8px;">
+            <button onclick="autoFillToken()">Auto-fill from localStorage</button>
+        </div>
+        
+        <div style="margin: 10px 0;">
+            <button onclick="testConnection()">Test Connection</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div id="status" class="status info">Ready to test connection</div>
+        
+        <h3>Connection Log:</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[WebSocket Debug] ${message}`);
+        }
+        
+        function updateStatus(message, type) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+        
+        function autoFillToken() {
+            const token = localStorage.getItem('authToken') || 
+                         localStorage.getItem('token') ||
+                         localStorage.getItem('auth_token');
+            
+            if (token) {
+                document.getElementById('authToken').value = token;
+                log('Token auto-filled from localStorage', 'success');
+            } else {
+                log('No token found in localStorage', 'warning');
+            }
+        }
+        
+        function testConnection() {
+            const chatId = document.getElementById('chatId').value.trim();
+            const token = document.getElementById('authToken').value.trim();
+            
+            if (!chatId) {
+                log('Please enter a chat ID', 'error');
+                updateStatus('Missing chat ID', 'error');
+                return;
+            }
+            
+            if (!token) {
+                log('Please enter an auth token', 'error');
+                updateStatus('Missing auth token', 'error');
+                return;
+            }
+            
+            // Validate chat ID format (UUID)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(chatId)) {
+                log('Invalid chat ID format. Expected UUID format.', 'error');
+                updateStatus('Invalid chat ID format', 'error');
+                return;
+            }
+            
+            // Close existing connection
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            // Build WebSocket URL
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const hostname = window.location.hostname;
+            const port = '8083';
+            const wsUrl = `${protocol}//${hostname}:${port}/api/v1/chats/${chatId}/ws?token=${encodeURIComponent(token)}`;
+            
+            log(`Testing connection to: ${wsUrl}`, 'info');
+            updateStatus('Connecting...', 'warning');
+            
+            // Test connection with timeout
+            const connectionTimeout = setTimeout(() => {
+                log('Connection timeout (15 seconds)', 'error');
+                updateStatus('Connection timeout', 'error');
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+            }, 15000);
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function(event) {
+                    clearTimeout(connectionTimeout);
+                    log('✅ WebSocket connection established successfully!', 'success');
+                    updateStatus('Connected', 'success');
+                    
+                    // Send test message
+                    const testMessage = {
+                        type: 'connection_test',
+                        chat_id: chatId,
+                        timestamp: new Date().toISOString(),
+                        content: 'Test message from debug tool'
+                    };
+                    
+                    ws.send(JSON.stringify(testMessage));
+                    log('Sent test message', 'info');
+                };
+                
+                ws.onmessage = function(event) {
+                    log(`📨 Received message: ${event.data}`, 'success');
+                    
+                    try {
+                        const message = JSON.parse(event.data);
+                        log(`Parsed message type: ${message.type || 'unknown'}`, 'info');
+                    } catch (e) {
+                        log('Message is not valid JSON', 'warning');
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    clearTimeout(connectionTimeout);
+                    log(`❌ WebSocket error: ${error}`, 'error');
+                    updateStatus('Connection error', 'error');
+                    
+                    // Additional debugging info
+                    log(`WebSocket readyState: ${ws ? ws.readyState : 'undefined'}`, 'info');
+                    log(`Browser: ${navigator.userAgent}`, 'info');
+                };
+                
+                ws.onclose = function(event) {
+                    clearTimeout(connectionTimeout);
+                    log(`🔌 Connection closed. Code: ${event.code}, Reason: ${event.reason}`, 'warning');
+                    
+                    if (event.code === 1006) {
+                        log('Close code 1006 indicates abnormal closure (network issue or server problem)', 'error');
+                    } else if (event.code === 1002) {
+                        log('Close code 1002 indicates protocol error', 'error');
+                    } else if (event.code === 1003) {
+                        log('Close code 1003 indicates unsupported data type', 'error');
+                    } else if (event.code === 1000) {
+                        log('Close code 1000 indicates normal closure', 'success');
+                    }
+                    
+                    updateStatus('Disconnected', 'warning');
+                    ws = null;
+                };
+                
+            } catch (error) {
+                clearTimeout(connectionTimeout);
+                log(`❌ Failed to create WebSocket: ${error}`, 'error');
+                updateStatus('Failed to create connection', 'error');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-fill token on page load
+        window.addEventListener('load', () => {
+            autoFillToken();
+            log('WebSocket Debug Tool loaded', 'info');
+            log('Backend should be running on port 8083', 'info');
+        });
+    </script>
+</body>
+</html>

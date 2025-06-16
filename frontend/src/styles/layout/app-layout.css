@@ -10,7 +10,7 @@
   /* Layout sizes - optimized for fullscreen use */
   --sidebar-width: 250px;
   --sidebar-collapsed-width: 70px;
-  --main-content-max-width: 800px; 
+  --main-content-max-width: 900px; 
   --widgets-width: 320px;
   
   /* Z-index layers */
@@ -40,7 +40,7 @@
 /* Layout with sidebar, main content, and widgets */
 .app-layout {
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--widgets-width);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1.5fr) var(--widgets-width);
   grid-template-areas: "sidebar main widgets";
   width: 100%;
   min-height: 100vh;
@@ -191,19 +191,19 @@
 /* Responsive adjustments - optimized for different screen sizes */
 @media (max-width: 1600px) {
   .app-layout {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--widgets-width);
+    grid-template-columns: var(--sidebar-width) minmax(0, 1.5fr) var(--widgets-width);
   }
 }
 
 @media (max-width: 1400px) {
   .app-layout {
-    grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr) var(--widgets-width);
+    grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1.5fr) var(--widgets-width);
   }
 }
 
 @media (max-width: 1200px) {
   .app-layout {
-    grid-template-columns: var(--sidebar-collapsed-width) 1fr var(--widgets-width);
+    grid-template-columns: var(--sidebar-collapsed-width) 1.5fr var(--widgets-width);
     max-width: 100%;
   }
   
@@ -226,6 +226,7 @@
     max-width: 100%;
     padding: 0 var(--space-4);
     border-right: none;
+    width: 100%;
   }
   
   .widgets-container {
@@ -267,6 +268,7 @@
     padding: 0 var(--space-3);
     margin-top: var(--space-2);
     max-width: 100%;
+    width: 100%;
   }
   
   .content-wrapper {

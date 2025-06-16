@@ -62,8 +62,10 @@ async function apiRequest<T>(url: string, method: string, body?: any): Promise<T
   };
 
   if (body) {
-    options.body = JSON.stringify(body);
-    logger.info(`Request includes body data`);
+    const jsonBody = JSON.stringify(body);
+    options.body = jsonBody;
+    logger.info(`Request includes body data:`, body);
+    logger.info(`Request JSON body: ${jsonBody}`);
   }
 
   try {
@@ -186,12 +188,54 @@ export async function getDashboardStatistics(): Promise<StatisticsResponse> {
 }
 
 export async function banUser(userId: string, ban: boolean, reason?: string): Promise<AdminApiResponse> {
+  const requestBody = { 
+    ban, 
+    reason,
+  };
+  logger.info(`Ban user request body:`, requestBody);
 
-  return apiRequest<AdminApiResponse>(
-    `${API_BASE_URL}/admin/users/${userId}/ban`, 
-    'POST',
-    { ban: ban, reason }
-  );
+  try {
+    // Make the API request
+    const response = await apiRequest<AdminApiResponse>(
+      `${API_BASE_URL}/admin/users/${userId}/ban`, 
+      'POST',
+      requestBody
+    );
+    
+    logger.info(`Ban user API response:`, response);
+    
+    // Validate the response structure
+    if (!response) {
+      throw new Error('Empty response received from server');
+    }
+    
+    // Handle different response formats
+    const success = response.success === true;
+    const message = response.message || response.data?.message || (success ? 
+      `User successfully ${ban ? 'banned' : 'unbanned'}` : 
+      `Failed to ${ban ? 'ban' : 'unban'} user`);
+    
+    // Add additional logging for debugging
+    if (success) {
+      logger.info(`Successfully ${ban ? 'banned' : 'unbanned'} user ${userId}`);
+    } else {
+      logger.warn(`Failed to ${ban ? 'ban' : 'unban'} user ${userId}: ${message}`);
+    }
+    
+    // Return standardized response
+    return {
+      success,
+      message,
+      data: { message }
+    };
+  } catch (error) {
+    logger.error(`Ban user error:`, error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update user ban status',
+      data: { message: error instanceof Error ? error.message : 'Failed to update user ban status' }
+    };
+  }
 }
 
 export async function sendNewsletter(subject: string, content: string): Promise<IApiResponse<void>> {

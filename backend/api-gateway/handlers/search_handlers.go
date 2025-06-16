@@ -1,26 +1,30 @@
 package handlers
 
 import (
-	"aycom/backend/api-gateway/utils"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/status"
+
+	"aycom/backend/api-gateway/utils"
 )
 
 func SearchUsers(c *gin.Context) {
 	// Get query parameters
 	query := c.Query("q")
-	altQuery := c.Query("alt_q") // Alternative query for fuzzy matching
 	filter := c.DefaultQuery("filter", "all")
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "10")
+	fuzzyStr := c.DefaultQuery("fuzzy", "false")
 
 	// Log the search parameters
-	log.Printf("SearchUsers: Processing with query='%s', alt_query='%s', filter='%s', page=%s, limit=%s",
-		query, altQuery, filter, pageStr, limitStr)
+	log.Printf("SearchUsers: Processing with query='%s', filter='%s', page=%s, limit=%s, fuzzy=%s",
+		query, filter, pageStr, limitStr, fuzzyStr)
+
+	// Parse fuzzy search parameter
+	enableFuzzy := fuzzyStr == "true"
 
 	// Convert page and limit to integers
 	page, err := strconv.Atoi(pageStr)
@@ -66,24 +70,7 @@ func SearchUsers(c *gin.Context) {
 	}
 
 	// Search for users
-	var users []*User
-	var totalCount int
-	var searchErr error
-
-	// First try with the main query
-	users, totalCount, searchErr = userServiceClient.SearchUsers(query, filter, page, limit)
-
-	// If we got no results and have an alternative query, try that too
-	if len(users) == 0 && altQuery != "" && searchErr == nil {
-		log.Printf("SearchUsers: No results with primary query '%s', trying alternative query '%s'", query, altQuery)
-		altUsers, altTotalCount, altErr := userServiceClient.SearchUsers(altQuery, filter, page, limit)
-
-		if altErr == nil && len(altUsers) > 0 {
-			log.Printf("SearchUsers: Found %d results with alternative query", len(altUsers))
-			users = altUsers
-			totalCount = altTotalCount
-		}
-	}
+	users, totalCount, searchErr := userServiceClient.SearchUsers(query, filter, page, limit, enableFuzzy)
 
 	if searchErr != nil {
 		st, ok := status.FromError(searchErr)

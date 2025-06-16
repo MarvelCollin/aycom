@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"log"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +16,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// calculateTotalPages calculates the total number of pages based on total items and items per page
+func calculateTotalPages(total, perPage int) int {
+	if total <= 0 || perPage <= 0 {
+		return 1
+	}
+	return int(math.Ceil(float64(total) / float64(perPage)))
+}
 
 func CreateCommunity(c *gin.Context) {
 	userID, exists := c.Get("userId")
@@ -623,157 +630,107 @@ func GetCommunityByID(c *gin.Context) {
 }
 
 func ListCommunities(c *gin.Context) {
-	offset := 0
-	limit := 25
-
-	if offsetStr := c.Query("offset"); offsetStr != "" {
-		if offsetInt, err := strconv.Atoi(offsetStr); err == nil && offsetInt >= 0 {
-			offset = offsetInt
-		}
-	} else if pageStr := c.Query("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-
-			if limitStr := c.Query("limit"); limitStr != "" {
-				if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-					limit = limitInt
-				}
-			}
-			offset = (pageInt - 1) * limit
-		}
+	// If there's a search query, delegate to the search function instead
+	if query := c.Query("q"); query != "" {
+		OldSearchCommunities(c)
+		return
 	}
 
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-			limit = limitInt
-		}
-	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "25"))
+	isApproved, _ := strconv.ParseBool(c.DefaultQuery("is_approved", "true"))
+	filter := c.Query("filter")
+	userID := c.Query("userId")
 
-	query := c.Query("q")
-
-	isApproved := true
-	if isApprovedStr := c.Query("is_approved"); isApprovedStr != "" {
-		isApproved = isApprovedStr == "true"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if CommunityClient == nil {
-		log.Printf("Error: CommunityClient is nil")
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
 
-	var communities []*communityProto.Community
-	var totalCount int32
+	var resp *communityProto.ListCommunitiesResponse
+	var err error
 
-	if query != "" {
-		searchReq := &communityProto.SearchCommunitiesRequest{
-			Query:      query,
-			Offset:     int32(offset),
+	if filter == "discover" {
+		// This is a simplified discover implementation.
+		// A real implementation would have more complex logic.
+		req := &communityProto.ListCommunitiesRequest{
+			Offset:     int32((page - 1) * limit),
 			Limit:      int32(limit),
-			IsApproved: isApproved,
+			IsApproved: true, // Discover only approved communities
 		}
-
-		resp, err := CommunityClient.SearchCommunities(ctx, searchReq)
-		if err != nil {
-			log.Printf("Error calling SearchCommunities: %v", err)
-			log.Printf("Falling back to ListCommunities")
-
-			listResp, listErr := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
-				Offset:     int32(offset),
-				Limit:      int32(limit),
-				IsApproved: isApproved,
-			})
-
-			if listErr != nil {
-				log.Printf("Error calling ListCommunities: %v", listErr)
-				utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list communities: "+err.Error())
-				return
-			}
-
-			communities = listResp.Communities
-			totalCount = listResp.TotalCount
-		} else {
-			communities = resp.Communities
-			totalCount = resp.TotalCount
-		}
+		resp, err = CommunityClient.ListCommunities(ctx, req)
 	} else {
-
-		resp, err := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
-			Offset:     int32(offset),
+		req := &communityProto.ListCommunitiesRequest{
+			Offset:     int32((page - 1) * limit),
 			Limit:      int32(limit),
 			IsApproved: isApproved,
-		})
-
-		if err != nil {
-			log.Printf("Error calling ListCommunities: %v", err)
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list communities: "+err.Error())
-			return
 		}
-
-		communities = resp.Communities
-		totalCount = resp.TotalCount
+		resp, err = CommunityClient.ListCommunities(ctx, req)
 	}
 
-	result := make([]gin.H, 0, len(communities))
-	for _, community := range communities {
+	if err != nil {
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list communities")
+		return
+	}
 
-		if community == nil {
-			continue
+	communities := make([]gin.H, len(resp.Communities))
+	for i, community := range resp.Communities {
+		// In a real application, you would get the member count from the database.
+		// Here we'll just return a placeholder.
+		memberCount := 0
+		listMembersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{CommunityId: community.Id})
+		if err == nil {
+			memberCount = len(listMembersResp.Members)
 		}
 
-		categoryNames := make([]string, 0)
-		if community.Categories != nil {
-			for _, cat := range community.Categories {
-				if cat != nil {
-					categoryNames = append(categoryNames, cat.Name)
-				}
+		communities[i] = gin.H{
+			"id":           community.Id,
+			"name":         community.Name,
+			"description":  community.Description,
+			"logo_url":     community.LogoUrl,
+			"banner_url":   community.BannerUrl,
+			"creator_id":   community.CreatorId,
+			"is_approved":  community.IsApproved,
+			"created_at":   community.CreatedAt.AsTime(),
+			"member_count": memberCount,
+		}
+	}
+
+	// Filter out joined/pending communities for discover view
+	if filter == "discover" && userID != "" {
+		filteredCommunities := []gin.H{}
+		for _, community := range communities {
+			isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{CommunityId: community["id"].(string), UserId: userID})
+			if err == nil && isMemberResp.IsMember {
+				continue
 			}
-		}
 
-		communityData := gin.H{
-			"id":          community.Id,
-			"name":        community.Name,
-			"description": community.Description,
-			"logo_url":    community.LogoUrl,
-			"banner_url":  community.BannerUrl,
-			"creator_id":  community.CreatorId,
-			"is_approved": community.IsApproved,
-			"categories":  categoryNames,
+			hasPendingResp, err := CommunityClient.HasPendingJoinRequest(ctx, &communityProto.HasPendingJoinRequestRequest{CommunityId: community["id"].(string), UserId: userID})
+			if err == nil && hasPendingResp.HasRequest {
+				continue
+			}
+			filteredCommunities = append(filteredCommunities, community)
 		}
-
-		if community.CreatedAt != nil {
-			communityData["created_at"] = community.CreatedAt.AsTime()
-		}
-
-		result = append(result, communityData)
+		communities = filteredCommunities
 	}
 
-	totalPages := calculateTotalPages(int(totalCount), limit)
-	currentPage := (offset / limit) + 1
-
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"communities": result,
-		"total_count": totalCount,
-		"pagination": gin.H{
-			"current_page": currentPage,
-			"per_page":     limit,
-			"total_pages":  totalPages,
-			"total_count":  totalCount,
-		},
-		"limit_options": []int{25, 50, 100},
-	})
-}
-
-func calculateTotalPages(totalCount, perPage int) int {
-	if perPage <= 0 {
-		return 1
+	totalPages := 0
+	if resp.TotalCount > 0 {
+		totalPages = int(math.Ceil(float64(resp.TotalCount) / float64(limit)))
 	}
-	if totalCount == 0 {
-		return 0
+
+	response := gin.H{
+		"communities": communities,
+		"total":       resp.TotalCount,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
 	}
-	return (totalCount + perPage - 1) / perPage
+
+	utils.SendSuccessResponse(c, 200, response)
 }
 
 func ListCategories(c *gin.Context) {
@@ -815,9 +772,7 @@ func ListCategories(c *gin.Context) {
 		}
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"categories": formattedCategories,
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"categories": formattedCategories})
 }
 
 func AddMember(c *gin.Context) {
@@ -964,7 +919,7 @@ func AddMember(c *gin.Context) {
 		log.Printf("Warning: UserClient is nil, using placeholder data for new member %s", resp.Member.UserId)
 	}
 
-	utils.SendSuccessResponse(c, 201, memberData)
+	utils.SendSuccessResponse(c, 200, memberData)
 }
 
 func RemoveMember(c *gin.Context) {
@@ -1064,9 +1019,7 @@ func RemoveMember(c *gin.Context) {
 		return
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"message": "Member removed successfully",
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"message": "Member removed successfully"})
 }
 
 func ListMembers(c *gin.Context) {
@@ -1468,9 +1421,7 @@ func RemoveRule(c *gin.Context) {
 		return
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"message": "Rule removed successfully",
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"message": "Rule removed successfully"})
 }
 
 func ListRules(c *gin.Context) {
@@ -1518,9 +1469,7 @@ func ListRules(c *gin.Context) {
 		}
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"rules": formattedRules,
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"rules": formattedRules})
 }
 
 func RequestToJoin(c *gin.Context) {
@@ -1531,70 +1480,14 @@ func RequestToJoin(c *gin.Context) {
 	}
 
 	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
-		return
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	resp, err := CommunityClient.RequestToJoin(ctx, &communityProto.RequestToJoinRequest{
-		CommunityId: communityID,
-		UserId:      userID.(string),
-	})
-
-	if err != nil {
-		if e, ok := status.FromError(err); ok && e.Code() == codes.AlreadyExists {
-			utils.SendErrorResponse(c, 400, "ALREADY_REQUESTED", "You have already requested to join this community")
-			return
-		}
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to request to join: "+err.Error())
-		return
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"message": "Join request sent successfully",
-		"join_request": gin.H{
-			"id":           resp.JoinRequest.Id,
-			"community_id": resp.JoinRequest.CommunityId,
-			"user_id":      resp.JoinRequest.UserId,
-			"status":       resp.JoinRequest.Status,
-		},
-	})
-}
-
-func ApproveJoinRequest(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	requestID := c.Param("requestId")
-	if requestID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Request ID is required")
-		return
-	}
 
 	if CommunityClient == nil {
 		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	isAdmin := false
 
@@ -1647,6 +1540,98 @@ func ApproveJoinRequest(c *gin.Context) {
 		return
 	}
 
+	_, err := CommunityClient.RequestToJoin(ctx, &communityProto.RequestToJoinRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+	if err != nil {
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to send join request: "+err.Error())
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{"message": "Request to join sent successfully"})
+}
+
+func ApproveJoinRequest(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	requestID := c.Param("requestId")
+	if requestID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Request ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	isAdmin := false
+
+	// Check if user is a system admin
+	if UserClient != nil {
+		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer userCancel()
+
+		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
+			UserId: userID.(string),
+		})
+
+		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
+			isAdmin = true
+			log.Printf("User %s is a system admin, granting access to approve join request", userID.(string))
+		}
+	}
+
+	if !isAdmin {
+		// Check if user is community creator or admin
+		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
+			CommunityId: communityID,
+		})
+
+		if err != nil {
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
+			return
+		}
+
+		if getCommunityResp.Community.CreatorId == userID.(string) {
+			isAdmin = true
+		} else {
+			// Check if user is a community admin
+			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+				CommunityId: communityID,
+			})
+
+			if err == nil && membersResp.Members != nil {
+				for _, member := range membersResp.Members {
+					if member.UserId == userID.(string) && member.Role == "admin" {
+						isAdmin = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can approve join requests")
+		return
+	}
+
+	// Call the ApproveJoinRequest service
 	resp, err := CommunityClient.ApproveJoinRequest(ctx, &communityProto.ApproveJoinRequestRequest{
 		JoinRequestId: requestID,
 	})
@@ -1656,6 +1641,7 @@ func ApproveJoinRequest(c *gin.Context) {
 		return
 	}
 
+	// Return success response with the approved join request data
 	utils.SendSuccessResponse(c, 200, gin.H{
 		"message": "Join request approved successfully",
 		"join_request": gin.H{
@@ -1666,6 +1652,7 @@ func ApproveJoinRequest(c *gin.Context) {
 		},
 	})
 }
+
 func RejectJoinRequest(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -1744,25 +1731,18 @@ func RejectJoinRequest(c *gin.Context) {
 		return
 	}
 
-	resp, err := CommunityClient.RejectJoinRequest(ctx, &communityProto.RejectJoinRequestRequest{
+	_, err := CommunityClient.RejectJoinRequest(ctx, &communityProto.RejectJoinRequestRequest{
 		JoinRequestId: requestID,
 	})
 
 	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to reject join request: "+err.Error())
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to reject join request")
 		return
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"message": "Join request rejected successfully",
-		"join_request": gin.H{
-			"id":           resp.JoinRequest.Id,
-			"community_id": resp.JoinRequest.CommunityId,
-			"user_id":      resp.JoinRequest.UserId,
-			"status":       resp.JoinRequest.Status,
-		},
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"message": "Join request rejected"})
 }
+
 func ListJoinRequests(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -1877,15 +1857,7 @@ func ListJoinRequests(c *gin.Context) {
 		formattedRequests = append(formattedRequests, requestData)
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"join_requests": formattedRequests,
-		"pagination": gin.H{
-			"total_count":  len(formattedRequests),
-			"current_page": 1,
-			"per_page":     len(formattedRequests),
-			"total_pages":  1,
-		},
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"join_requests": formattedRequests})
 }
 
 func CheckMembershipStatus(c *gin.Context) {
@@ -1921,9 +1893,7 @@ func CheckMembershipStatus(c *gin.Context) {
 	}
 
 	if memberResp.IsMember {
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"status": "member",
-		})
+		utils.SendSuccessResponse(c, 200, gin.H{"status": "member"})
 		return
 	}
 
@@ -1945,335 +1915,53 @@ func CheckMembershipStatus(c *gin.Context) {
 		status = "none"
 	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"status": status,
-	})
+	utils.SendSuccessResponse(c, 200, gin.H{"status": status})
 }
 
 func OldSearchCommunities(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	query := c.Query("q")
-	page := 1
-	limit := 10
+	category := c.Query("category")
 
-	if pageStr := c.Query("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-			page = pageInt
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
 	}
 
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-			limit = limitInt
-		}
-	}
-
+	// Handle both single category and multiple categories
 	var categories []string
-	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
+	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 && categoriesParam[0] != "" {
 		categories = categoriesParam
+	} else if category != "" {
+		categories = []string{category}
 	}
 
-	var isApproved *bool
-	if isApprovedStr := c.Query("is_approved"); isApprovedStr != "" {
-		approved := isApprovedStr == "true"
-		isApproved = &approved
-	}
-
-	if CommunityClient == nil {
-		log.Printf("Error: CommunityClient is nil")
-
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var response *communityProto.ListCommunitiesResponse
-	var err error
-
-	if query == "" && len(categories) == 0 {
-		listReq := &communityProto.ListCommunitiesRequest{
-			Offset: int32((page - 1) * limit),
-			Limit:  int32(limit),
-		}
-
-		if isApproved != nil {
-			listReq.IsApproved = *isApproved
-		}
-
-		response, err = CommunityClient.ListCommunities(ctx, listReq)
-	} else {
-
-		searchReq := &communityProto.SearchCommunitiesRequest{
-			Query:      query,
-			Categories: categories,
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-		}
-
-		if isApproved != nil {
-			searchReq.IsApproved = *isApproved
-		}
-
-		response, err = CommunityClient.SearchCommunities(ctx, searchReq)
-	}
-
-	if err != nil {
-		log.Printf("Error in community search/list RPC call: %v", err)
-
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
-		return
-	}
-
-	if response == nil || response.Communities == nil {
-		log.Printf("Warning: Community search/list returned nil response or nil communities")
-
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
-		return
-	}
-
-	communities := make([]map[string]interface{}, 0)
-	for _, community := range response.Communities {
-
-		if community == nil {
-			log.Printf("Warning: nil community in response")
-			continue
-		}
-
-		communityData := map[string]interface{}{
-			"id":           community.Id,
-			"name":         community.Name,
-			"description":  community.Description,
-			"logo_url":     community.LogoUrl,
-			"banner_url":   community.BannerUrl,
-			"creator_id":   community.CreatorId,
-			"is_approved":  community.IsApproved,
-			"member_count": 0,
-		}
-
-		if community.CreatedAt != nil {
-			communityData["created_at"] = community.CreatedAt.AsTime()
-		} else {
-			communityData["created_at"] = time.Now()
-		}
-
-		if community.Categories != nil {
-			categories := make([]string, 0)
-			for _, category := range community.Categories {
-				if category != nil {
-					categories = append(categories, category.Name)
-				}
-			}
-			communityData["categories"] = categories
-		} else {
-			communityData["categories"] = []string{}
-		}
-
-		communities = append(communities, communityData)
-	}
-
-	totalCount := int32(0)
-	if response.TotalCount > 0 {
-		totalCount = response.TotalCount
-	}
-
-	totalPages := 1
-	if limit > 0 {
-		totalPages = int(math.Ceil(float64(totalCount) / float64(limit)))
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"communities": communities,
-		"total_count": totalCount,
-		"pagination": gin.H{
-			"total_count":  totalCount,
-			"current_page": page,
-			"per_page":     limit,
-			"total_pages":  totalPages,
-		},
-	})
-}
-
-func SearchCommunityByName(c *gin.Context) {
-	rawQuery := c.Query("q")
-	page := 1
-	limit := 25
-
-	if pageStr := c.Query("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-			page = pageInt
-		}
-	}
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-			limit = limitInt
-		}
-	}
-
-	isApproved := true
-	if isApprovedStr := c.Query("is_approved"); isApprovedStr != "" {
-		isApproved = isApprovedStr == "true"
-	}
-
-	if rawQuery == "" {
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
-		return
-	}
-
-	reg, err := regexp.Compile("[^a-zA-Z0-9\\s]+")
-	if err != nil {
-		log.Printf("Regex compilation failed: %v", err)
-		utils.SendErrorResponse(c, 500, "INTERNAL_ERROR", "Failed to process search query")
-		return
-	}
-
-	sanitizedQuery := reg.ReplaceAllString(rawQuery, " ")
-	sanitizedQuery = strings.TrimSpace(sanitizedQuery)
-
-	if sanitizedQuery == "" {
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
-		return
-	}
-
-	if CommunityClient == nil {
-		log.Printf("Error: CommunityClient is nil")
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
+	// Create the search request
+	req := &communityProto.SearchCommunitiesRequest{
+		Query:      query,
 		Offset:     int32((page - 1) * limit),
-		Limit:      int32(100),
-		IsApproved: isApproved,
-	})
+		Limit:      int32(limit),
+		IsApproved: true,
+	}
 
+	// Only add categories if there are actual values
+	if len(categories) > 0 {
+		req.Categories = categories
+	}
+
+	resp, err := CommunityClient.SearchCommunities(ctx, req)
 	if err != nil {
-		log.Printf("Error calling ListCommunities: %v", err)
-		utils.SendSuccessResponse(c, 200, gin.H{
-			"communities": []gin.H{},
-			"total_count": 0,
-			"pagination": gin.H{
-				"total_count":  0,
-				"current_page": page,
-				"per_page":     limit,
-				"total_pages":  0,
-			},
-		})
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to search communities")
 		return
 	}
 
-	filtered := make([]*communityProto.Community, 0)
-
-	queryTerms := strings.Fields(strings.ToLower(sanitizedQuery))
-
-	for _, community := range resp.Communities {
-		if community == nil {
-			continue
-		}
-
-		communityName := strings.ToLower(community.Name)
-		communityDesc := strings.ToLower(community.Description)
-
-		matchFound := false
-		for _, term := range queryTerms {
-			if term == "" {
-				continue
-			}
-
-			if strings.Contains(communityName, term) || strings.Contains(communityDesc, term) {
-				matchFound = true
-				break
-			}
-		}
-
-		if matchFound {
-			filtered = append(filtered, community)
-		}
-	}
-
-	startIdx := 0
-	endIdx := len(filtered)
-	if endIdx > limit {
-		endIdx = limit
-	}
-
-	pagedResults := filtered
-	if startIdx < endIdx {
-		pagedResults = filtered[startIdx:endIdx]
-	} else {
-		pagedResults = []*communityProto.Community{}
-	}
-
-	result := make([]gin.H, 0, len(pagedResults))
-	for _, community := range pagedResults {
-		categoryNames := make([]string, 0)
-		if community.Categories != nil {
-			for _, cat := range community.Categories {
-				if cat != nil {
-					categoryNames = append(categoryNames, cat.Name)
-				}
-			}
-		}
-
-		communityData := gin.H{
+	communities := make([]gin.H, len(resp.Communities))
+	for i, community := range resp.Communities {
+		communities[i] = gin.H{
 			"id":          community.Id,
 			"name":        community.Name,
 			"description": community.Description,
@@ -2281,33 +1969,27 @@ func SearchCommunityByName(c *gin.Context) {
 			"banner_url":  community.BannerUrl,
 			"creator_id":  community.CreatorId,
 			"is_approved": community.IsApproved,
-			"categories":  categoryNames,
+			"created_at":  community.CreatedAt.AsTime(),
 		}
-
-		if community.CreatedAt != nil {
-			communityData["created_at"] = community.CreatedAt.AsTime()
-		}
-
-		result = append(result, communityData)
 	}
 
-	totalCount := int32(len(filtered))
-	totalPages := calculateTotalPages(int(totalCount), limit)
+	totalPages := 0
+	if resp.TotalCount > 0 {
+		totalPages = int(math.Ceil(float64(resp.TotalCount) / float64(limit)))
+	}
 
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"communities": result,
-		"total_count": totalCount,
-		"pagination": gin.H{
-			"current_page": page,
-			"per_page":     limit,
-			"total_pages":  totalPages,
-			"total_count":  totalCount,
-		},
-	})
+	response := gin.H{
+		"communities": communities,
+		"total":       resp.TotalCount,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": totalPages,
+	}
+
+	utils.SendSuccessResponse(c, 200, response)
 }
 
-func GetUserCommunities(c *gin.Context) {
-
+func GetJoinedCommunities(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
 		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
@@ -2490,15 +2172,16 @@ func GetUserCommunities(c *gin.Context) {
 	})
 }
 
-func GetJoinedCommunities(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		utils.SendErrorResponse(c, 400, "INVALID_INPUT", "User ID is required")
+func GetPendingCommunities(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
 	page := 1
 	limit := 25
+	filter := c.Query("filter")
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
@@ -2512,291 +2195,169 @@ func GetJoinedCommunities(c *gin.Context) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	query := c.Query("q")
+	var categories []string
+	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
+		categories = categoriesParam
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var communities []gin.H
-	var totalCount int32
+	var resp *communityProto.ListCommunitiesResponse
+	var err error
 
-	if CommunityClient != nil {
-		resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID,
+	if filter == "joined" || filter == "pending" {
+
+		status := filter
+		resp, err = CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId:     userID.(string),
+			Status:     status,
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+		})
+	} else if filter == "discover" {
+
+		allCommunitiesResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+			IsApproved: true,
+		})
+
+		if err != nil {
+			log.Printf("Error fetching communities: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+			return
+		}
+
+		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID.(string),
 			Status: "member",
-			Offset: int32((page - 1) * limit),
-			Limit:  int32(limit),
+			Limit:  1000,
 		})
 
 		if err != nil {
 			log.Printf("Error fetching joined communities: %v", err)
-		} else if resp != nil {
-
-			communities = make([]gin.H, 0, len(resp.Communities))
-			if resp.Communities != nil {
-				for _, community := range resp.Communities {
-					categoryNames := make([]string, 0)
-					if community.Categories != nil {
-						for _, cat := range community.Categories {
-							if cat != nil {
-								categoryNames = append(categoryNames, cat.Name)
-							}
-						}
-					}
-
-					communityData := gin.H{
-						"id":          community.Id,
-						"name":        community.Name,
-						"description": community.Description,
-						"logo_url":    community.LogoUrl,
-						"banner_url":  community.BannerUrl,
-						"creator_id":  community.CreatorId,
-						"is_approved": community.IsApproved,
-						"categories":  categoryNames,
-
-						"member_count": 0,
-					}
-
-					if community.CreatedAt != nil {
-						communityData["created_at"] = community.CreatedAt.AsTime()
-					}
-
-					communities = append(communities, communityData)
-				}
-			}
-
-			totalCount = resp.TotalCount
 		}
-	}
 
-	if communities == nil {
-		communities = []gin.H{}
-	}
-
-	totalPages := calculateTotalPages(int(totalCount), limit)
-
-	utils.SendDirectSuccessResponse(c, 200, gin.H{
-		"communities": communities,
-		"total":       totalCount,
-		"page":        page,
-		"limit":       limit,
-		"total_pages": totalPages,
-	})
-}
-
-func GetPendingCommunities(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		utils.SendErrorResponse(c, 400, "INVALID_INPUT", "User ID is required")
-		return
-	}
-
-	page := 1
-	limit := 25
-
-	if pageStr := c.Query("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-			page = pageInt
-		}
-	}
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-			limit = limitInt
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	var communities []gin.H
-	var totalCount int32
-
-	if CommunityClient != nil {
-		resp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID,
+		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID.(string),
 			Status: "pending",
-			Offset: int32((page - 1) * limit),
-			Limit:  int32(limit),
+			Limit:  1000,
 		})
 
 		if err != nil {
 			log.Printf("Error fetching pending communities: %v", err)
-		} else if resp != nil {
+		}
 
-			communities = make([]gin.H, 0, len(resp.Communities))
-			if resp.Communities != nil {
-				for _, community := range resp.Communities {
-					categoryNames := make([]string, 0)
-					if community.Categories != nil {
-						for _, cat := range community.Categories {
-							if cat != nil {
-								categoryNames = append(categoryNames, cat.Name)
-							}
-						}
+		joinedCommunityMap := make(map[string]bool)
+		pendingCommunityMap := make(map[string]bool)
+
+		if joinedResp != nil && joinedResp.Communities != nil {
+			for _, community := range joinedResp.Communities {
+				joinedCommunityMap[community.Id] = true
+			}
+		}
+
+		if pendingResp != nil && pendingResp.Communities != nil {
+			for _, community := range pendingResp.Communities {
+				pendingCommunityMap[community.Id] = true
+			}
+		}
+
+		var filteredCommunities []*communityProto.Community
+		for _, community := range allCommunitiesResp.Communities {
+			if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
+				filteredCommunities = append(filteredCommunities, community)
+			}
+		}
+
+		resp = &communityProto.ListCommunitiesResponse{
+			Communities: filteredCommunities,
+			TotalCount:  int32(len(filteredCommunities)),
+		}
+	} else {
+
+		resp, err = CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+			IsApproved: true,
+		})
+	}
+
+	if err != nil {
+		log.Printf("Error fetching communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+		return
+	}
+
+	communitiesResult := make([]gin.H, 0)
+	if resp != nil && resp.Communities != nil {
+		for _, community := range resp.Communities {
+			categoryNames := make([]string, 0)
+			if community.Categories != nil {
+				for _, cat := range community.Categories {
+					if cat != nil {
+						categoryNames = append(categoryNames, cat.Name)
 					}
-
-					communityData := gin.H{
-						"id":          community.Id,
-						"name":        community.Name,
-						"description": community.Description,
-						"logo_url":    community.LogoUrl,
-						"banner_url":  community.BannerUrl,
-						"creator_id":  community.CreatorId,
-						"is_approved": community.IsApproved,
-						"categories":  categoryNames,
-
-						"member_count": 0,
-					}
-
-					if community.CreatedAt != nil {
-						communityData["created_at"] = community.CreatedAt.AsTime()
-					}
-
-					communities = append(communities, communityData)
 				}
 			}
 
-			totalCount = resp.TotalCount
+			communityData := gin.H{
+				"id":          community.Id,
+				"name":        community.Name,
+				"description": community.Description,
+				"logo_url":    community.LogoUrl,
+				"banner_url":  community.BannerUrl,
+				"creator_id":  community.CreatorId,
+				"is_approved": community.IsApproved,
+				"categories":  categoryNames,
+
+				"member_count": 0,
+			}
+
+			if community.CreatedAt != nil {
+				communityData["created_at"] = community.CreatedAt.AsTime()
+			}
+
+			communitiesResult = append(communitiesResult, communityData)
 		}
 	}
 
-	if communities == nil {
-		communities = []gin.H{}
+	totalCount := 0
+	if resp != nil {
+		totalCount = int(resp.TotalCount)
 	}
+	totalPages := calculateTotalPages(totalCount, limit)
+	currentPage := page
 
-	totalPages := calculateTotalPages(int(totalCount), limit)
-
-	utils.SendDirectSuccessResponse(c, 200, gin.H{
-		"communities": communities,
-		"total":       totalCount,
-		"page":        page,
-		"limit":       limit,
-		"total_pages": totalPages,
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"communities": communitiesResult,
+		"pagination": gin.H{
+			"total_count":  totalCount,
+			"current_page": currentPage,
+			"per_page":     limit,
+			"total_pages":  totalPages,
+		},
+		"limit_options": []int{25, 30, 35},
 	})
 }
 
 func GetDiscoverCommunities(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		utils.SendErrorResponse(c, 400, "INVALID_INPUT", "User ID is required")
-		return
-	}
-
-	page := 1
-	limit := 25
-
-	if pageStr := c.Query("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-			page = pageInt
-		}
-	}
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-			limit = limitInt
-		}
-	}
-
-	isApproved := false
-	if isApprovedStr := c.Query("is_approved"); isApprovedStr != "" {
-		isApproved = isApprovedStr == "true"
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
-
-	var communities []gin.H
-	var totalCount int32
-	if CommunityClient != nil {
-
-		allCommunitiesResp, err := CommunityClient.ListCommunities(ctx, &communityProto.ListCommunitiesRequest{
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-			IsApproved: isApproved,
-		})
-
-		if err != nil {
-			log.Printf("Error fetching all communities: %v", err)
-		} else if allCommunitiesResp != nil && allCommunitiesResp.Communities != nil {
-
-			joinedResp, joinedErr := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-				UserId: userID,
-				Status: "member",
-
-				Limit: 100,
-			})
-
-			pendingResp, pendingErr := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-				UserId: userID,
-				Status: "pending",
-
-				Limit: 100,
-			})
-
-			joinedCommunityMap := make(map[string]bool)
-			pendingCommunityMap := make(map[string]bool)
-
-			if joinedErr == nil && joinedResp != nil && joinedResp.Communities != nil {
-				for _, community := range joinedResp.Communities {
-					joinedCommunityMap[community.Id] = true
-				}
-			}
-
-			if pendingErr == nil && pendingResp != nil && pendingResp.Communities != nil {
-				for _, community := range pendingResp.Communities {
-					pendingCommunityMap[community.Id] = true
-				}
-			}
-
-			communities = make([]gin.H, 0)
-			for _, community := range allCommunitiesResp.Communities {
-				if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
-					categoryNames := make([]string, 0)
-					if community.Categories != nil {
-						for _, cat := range community.Categories {
-							if cat != nil {
-								categoryNames = append(categoryNames, cat.Name)
-							}
-						}
-					}
-
-					communityData := gin.H{
-						"id":          community.Id,
-						"name":        community.Name,
-						"description": community.Description,
-						"logo_url":    community.LogoUrl,
-						"banner_url":  community.BannerUrl,
-						"creator_id":  community.CreatorId,
-						"is_approved": community.IsApproved,
-						"categories":  categoryNames,
-
-						"member_count": 0,
-					}
-
-					if community.CreatedAt != nil {
-						communityData["created_at"] = community.CreatedAt.AsTime()
-					}
-
-					communities = append(communities, communityData)
-				}
-			}
-
-			totalCount = int32(len(communities))
-		}
-	}
-
-	if communities == nil {
-		communities = []gin.H{}
-	}
-
-	totalPages := calculateTotalPages(int(totalCount), limit)
-
-	utils.SendDirectSuccessResponse(c, 200, gin.H{
-		"communities": communities,
-		"total":       totalCount,
-		"page":        page,
-		"limit":       limit,
-		"total_pages": totalPages,
-	})
+	c.Request.URL.RawQuery += "&filter=discover"
+	ListCommunities(c)
 }
 
 func GetTopCommunityMembers(c *gin.Context) {

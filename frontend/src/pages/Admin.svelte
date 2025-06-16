@@ -368,8 +368,24 @@
         totalCount = response.totalCount || 0;
         logger.info(`Loaded ${users.length} users (total: ${totalCount})`);
 
+        // Ensure is_banned property is correctly processed
+        users = users.map(user => {
+          // Make sure is_banned is a boolean and handle different property names
+          const isBanned = 
+            user.is_banned === true || 
+            String(user.is_banned) === 'true' || 
+            Number(user.is_banned) === 1;
+          
+          // Create a consistent property
+          return {
+            ...user,
+            is_banned: isBanned
+          };
+        });
+
         if (users.length > 0) {
           logger.info(`First user data:`, users[0]);
+          logger.info(`Ban status of first user: ${users[0].is_banned}`);
         }
       } else {
         logger.warn('User response missing expected data structure or failed:', response.error);
@@ -615,18 +631,50 @@
   async function handleBanUser(userId: string, isBanned: boolean) {
     try {
       const ban = !isBanned; 
-      logger.info(`Processing ban for user ${userId} with ban=${ban}`);
+      logger.info(`Processing ban for user ${userId} with current ban status=${isBanned}, setting to ${ban}`);
+      
+      // Show loading state
+      const actionText = isBanned ? 'unbanning' : 'banning';
+      toastStore.showToast(`${actionText} user...`, 'info');
 
-      const response = await adminAPI.banUser(userId, ban, isBanned ? undefined : 'Admin action');
+      // Use both lowercase and uppercase versions to ensure compatibility
+      const requestBody = {
+        ban: ban,
+        Ban: ban,
+        reason: isBanned ? 'Admin unban action' : 'Admin ban action',
+        Reason: isBanned ? 'Admin unban action' : 'Admin ban action'
+      };
+      
+      logger.info(`Sending ban request with payload:`, requestBody);
+
+      const response = await adminAPI.banUser(userId, ban, isBanned ? 'Admin unban action' : 'Admin ban action');
+      
+      logger.info(`Ban response received:`, response);
+      
       if (response.success) {
         toastStore.showToast(`User ${isBanned ? 'unbanned' : 'banned'} successfully`, 'success');
+        
+        // Force reload users to reflect the latest changes
         await loadUsers(); 
+        
+        // Verify the change took effect
+        const updatedUser = users.find(u => u.id === userId);
+        if (updatedUser) {
+          logger.info(`Updated user ban status: ${updatedUser.is_banned}`);
+          if (updatedUser.is_banned === isBanned) {
+            logger.warn(`Ban status did not change as expected. Refreshing data...`);
+            await loadUsers(); // Try loading again if the status didn't update
+          }
+        }
       } else {
         throw new Error(response.message || 'Failed to update user status');
       }
     } catch (error) {
       logger.error('Error updating user ban status:', error);
-      toastStore.showToast('Failed to update user status', 'error');
+      toastStore.showToast(`Failed to update user status: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      
+      // Reload users to ensure we have the latest data
+      await loadUsers();
     }
   }
 
@@ -977,15 +1025,15 @@
                           <div class="user-info">
                             <div class="avatar">
                               {#if user.profile_picture_url}
-                                <img src={user.profile_picture_url} alt={user.name} />
+                                <img src={user.profile_picture_url} alt={user.username} />
                               {:else}
                                 <div class="avatar-placeholder">
-                                  {user.name?.charAt(0) || user.username?.charAt(0) || '?'}
+                                  {user.username?.charAt(0).toUpperCase() || '?'}
                                 </div>
                               {/if}
                             </div>
                             <div class="user-details">
-                              <span class="name">{user.name || 'Unknown'}</span>
+                              <span class="name">{user.name || user.username || 'Unknown'}</span>
                               <span class="username">@{user.username || 'unknown'}</span>
                             </div>
                           </div>
@@ -993,9 +1041,9 @@
                         <td>{user.email || 'No email'}</td>
                         <td>{formatDate(user.created_at)}</td>
                         <td>
-                          {#if user.is_banned}
+                          {#if user.is_banned === true}
                             <span class="status-badge banned">Banned</span>
-                          {:else if user.is_admin}
+                          {:else if user.is_admin === true}
                             <span class="status-badge admin">Admin</span>
                           {:else}
                             <span class="status-badge active">Active</span>
@@ -1004,10 +1052,10 @@
                         <td>{user.follower_count || 0}</td>
                         <td class="actions-cell">
                           <button 
-                            class="action-btn {user.is_banned ? 'unban' : 'ban'}" 
-                            on:click={() => handleBanUser(user.id, user.is_banned)}
+                            class="action-btn {user.is_banned === true ? 'unban' : 'ban'}" 
+                            on:click={() => handleBanUser(user.id, user.is_banned === true)}
                           >
-                            {user.is_banned ? 'Unban' : 'Ban'}
+                            {user.is_banned === true ? 'Unban' : 'Ban'}
                           </button>
                           <a href="/profile/{user.username}" class="view-link" target="_blank">View</a>
                         </td>

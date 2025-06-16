@@ -198,7 +198,11 @@
     text-transform: capitalize;
   }
 
-  .status-badge.active,
+  .status-badge.active {
+    background-color: var(--color-success-light);
+    color: white;
+  }
+
   .status-badge.reviewed {
     background-color: var(--color-success-light);
     color: var(--color-success);
@@ -210,7 +214,11 @@
     color: var(--color-danger);
   }
 
-  .status-badge.pending,
+  .status-badge.pending {
+    background-color: var(--color-warning-light);
+    color: white;
+  }
+
   .status-badge.pending_approval {
     background-color: var(--color-warning-light);
     color: var(--color-warning);
@@ -219,6 +227,26 @@
   .status-badge.dismissed {
     background-color: var(--bg-accent);
     color: var(--text-secondary);
+  }
+
+  .status-badge.approved {
+    background-color: var(--color-success-light);
+    color: white;
+  }
+
+  .status-badge.rejected {
+    background-color: var(--color-error-light);
+    color: white;
+  }
+
+  .status-badge.admin {
+    background-color: var(--color-primary-light);
+    color: white;
+  }
+
+  .status-badge.banned {
+    background-color: var(--color-error-light);
+    color: white;
   }
 
   .action-buttons {
@@ -471,12 +499,6 @@
     white-space: nowrap;
   }
 
-  .status-badge.admin {
-    background-color: var(--color-primary-light);
-    color: var(--color-primary);
-    margin-left: var(--space-1);
-  }
-
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -667,6 +689,41 @@
     .communities-table {
       overflow-x: auto;
     }
+
+    .users-table {
+      font-size: var(--font-size-sm);
+    }
+
+    .actions-cell {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      min-width: 90px;
+      width: 100%;
+    }
+
+    .action-btn {
+      width: 100%;
+      min-width: 80px;
+    }
+
+    .user-info {
+      gap: var(--space-2);
+    }
+
+    .avatar {
+      width: 30px;
+      height: 30px;
+    }
+    
+    .users-table table {
+      table-layout: fixed;
+    }
+    
+    .users-table th:nth-child(2),
+    .users-table td:nth-child(2) {
+      display: none;
+    }
   }
 
   .community-images {
@@ -706,38 +763,61 @@
     width: 100%;
     overflow-x: auto;
     margin-top: var(--space-4);
-  }
-
-  .no-results {
-    padding: var(--space-6);
-    text-align: center;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
     border-radius: var(--radius-md);
-    margin: var(--space-4) 0;
+    border: 1px solid var(--border-color);
   }
 
   .users-table table {
     width: 100%;
     border-collapse: collapse;
-    background-color: var(--bg-secondary);
-    border-radius: var(--radius-md);
-    overflow: hidden;
+    table-layout: auto; /* Allow the table to adjust column widths based on content */
   }
 
   .users-table th {
     text-align: left;
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border-color);
-    font-weight: var(--font-weight-medium);
+    padding: var(--space-3);
+    background-color: var(--bg-secondary);
     color: var(--text-secondary);
-    background-color: var(--bg-tertiary);
+    font-weight: var(--font-weight-medium);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .users-table td {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--border-color-subtle);
     vertical-align: middle;
+  }
+
+  /* Set specific widths for columns */
+  .users-table th:first-child,
+  .users-table td:first-child {
+    width: 25%; /* User column */
+  }
+
+  .users-table th:nth-child(2),
+  .users-table td:nth-child(2) {
+    width: 20%; /* Email column */
+  }
+
+  .users-table th:nth-child(3),
+  .users-table td:nth-child(3) {
+    width: 15%; /* Joined column */
+  }
+
+  .users-table th:nth-child(4),
+  .users-table td:nth-child(4) {
+    width: 10%; /* Status column */
+  }
+
+  .users-table th:nth-child(5),
+  .users-table td:nth-child(5) {
+    width: 10%; /* Followers column */
+  }
+
+  .users-table th:last-child,
+  .users-table td:last-child {
+    width: 20%; /* Actions column */
+    min-width: 150px;
   }
 
   .user-info {
@@ -795,22 +875,25 @@
 
   .status-badge.active {
     background-color: var(--color-success-light);
-    color: var(--color-success);
+    color: white;
   }
 
   .status-badge.admin {
     background-color: var(--color-primary-light);
-    color: var(--color-primary);
+    color: white;
   }
 
   .status-badge.banned {
     background-color: var(--color-error-light);
-    color: var(--color-error);
+    color: white;
   }
 
   .actions-cell {
     display: flex;
     gap: var(--space-2);
+    min-width: 150px;
+    justify-content: flex-start;
+    align-items: center;
   }
 
   .action-btn {
@@ -821,6 +904,9 @@
     cursor: pointer;
     border: none;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    min-width: 70px;
+    text-align: center;
   }
 
   .action-btn.ban {
@@ -885,25 +971,6 @@
 
   .page-info {
     color: var(--text-secondary);
-  }
-
-  @media (max-width: 768px) {
-    .users-table {
-      font-size: var(--font-size-sm);
-    }
-
-    .actions-cell {
-      flex-direction: column;
-    }
-
-    .user-info {
-      gap: var(--space-2);
-    }
-
-    .avatar {
-      width: 30px;
-      height: 30px;
-    }
   }
 
   .requester-info {
@@ -1251,4 +1318,13 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.9rem;
+  }
+
+  .no-results {
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
   }

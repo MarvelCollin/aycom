@@ -142,9 +142,9 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1.GET("/communities/search", handlers.OldSearchCommunities)
 
-	v1.GET("/communities/joined/:userId", handlers.GetJoinedCommunities)
-	v1.GET("/communities/pending/:userId", handlers.GetPendingCommunities)
-	v1.GET("/communities/discover/:userId", handlers.GetDiscoverCommunities)
+	v1.GET("/communities/user/:userId/joined", handlers.GetJoinedCommunities)
+	v1.GET("/communities/user/:userId/pending", handlers.GetPendingCommunities)
+	v1.GET("/communities/discover", handlers.GetDiscoverCommunities)
 
 	v1.GET("/communities", handlers.ListCommunities)
 	v1.GET("/communities/:id", handlers.GetCommunityByID)
@@ -221,7 +221,6 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		communities.GET("/:id/membership", handlers.CheckMembershipStatus)
 	}
 
-	// New community detail tab endpoints - publicly accessible with optional authentication
 	communityDetails := v1.Group("/communities/:id")
 	communityDetails.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{

@@ -121,91 +121,26 @@ func NewChatService(
 	}
 }
 
-func toModelChatDTO(c *Chat) *model.ChatDTO {
+// Conversion functions for DTOs
+func fromModelChatDTO(dto *model.ChatDTO) *community.Chat {
+	return &community.Chat{
+		Id:        dto.ID,
+		Name:      dto.Name,
+		IsGroup:   dto.IsGroupChat,
+		CreatedBy: dto.CreatorID,
+		CreatedAt: timestamppb.New(dto.CreatedAt),
+		UpdatedAt: timestamppb.New(dto.UpdatedAt),
+	}
+}
+
+func toModelChatDTO(chat *community.Chat) *model.ChatDTO {
 	return &model.ChatDTO{
-		ID:          c.ID,
-		Name:        c.Name,
-		Description: c.Description,
-		CreatorID:   c.CreatorID,
-		CommunityID: c.CommunityID,
-		IsGroupChat: c.IsGroupChat,
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
-	}
-}
-
-func fromModelChatDTO(c *model.ChatDTO) *Chat {
-	return &Chat{
-		ID:          c.ID,
-		Name:        c.Name,
-		Description: c.Description,
-		CreatorID:   c.CreatorID,
-		CommunityID: c.CommunityID,
-		IsGroupChat: c.IsGroupChat,
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
-	}
-}
-
-func toModelMessageDTO(m *Message) *model.MessageDTO {
-	return &model.MessageDTO{
-		ID:               m.ID,
-		ChatID:           m.ChatID,
-		SenderID:         m.SenderID,
-		Content:          m.Content,
-		MediaURL:         m.MediaURL,
-		MediaType:        m.MediaType,
-		Timestamp:        m.Timestamp,
-		Unsent:           m.Unsent,
-		UnsentAt:         m.UnsentAt,
-		DeletedForSender: m.DeletedForSender,
-		DeletedForAll:    m.DeletedForAll,
-		ReplyToMessageID: m.ReplyToMessageID,
-		IsRead:           m.IsRead,
-		IsEdited:         m.IsEdited,
-		IsDeleted:        m.IsDeleted,
-		CreatedAt:        m.CreatedAt,
-		UpdatedAt:        m.UpdatedAt,
-	}
-}
-
-func fromModelMessageDTO(m *model.MessageDTO) *Message {
-	return &Message{
-		ID:               m.ID,
-		ChatID:           m.ChatID,
-		SenderID:         m.SenderID,
-		Content:          m.Content,
-		MediaURL:         m.MediaURL,
-		MediaType:        m.MediaType,
-		Timestamp:        m.Timestamp,
-		Unsent:           m.Unsent,
-		UnsentAt:         m.UnsentAt,
-		DeletedForSender: m.DeletedForSender,
-		DeletedForAll:    m.DeletedForAll,
-		ReplyToMessageID: m.ReplyToMessageID,
-		IsRead:           m.IsRead,
-		IsEdited:         m.IsEdited,
-		IsDeleted:        m.IsDeleted,
-		CreatedAt:        m.CreatedAt,
-		UpdatedAt:        m.UpdatedAt,
-	}
-}
-
-func toModelParticipantDTO(p *Participant) *model.ParticipantDTO {
-	return &model.ParticipantDTO{
-		ChatID:   p.ChatID,
-		UserID:   p.UserID,
-		IsAdmin:  false,
-		JoinedAt: p.JoinedAt,
-	}
-}
-
-func fromModelParticipantDTO(p *model.ParticipantDTO) *Participant {
-	return &Participant{
-		ID:       uuid.New().String(),
-		ChatID:   p.ChatID,
-		UserID:   p.UserID,
-		JoinedAt: p.JoinedAt,
+		ID:          chat.Id,
+		Name:        chat.Name,
+		IsGroupChat: chat.IsGroup,
+		CreatorID:   chat.CreatedBy,
+		CreatedAt:   chat.CreatedAt.AsTime(),
+		UpdatedAt:   chat.UpdatedAt.AsTime(),
 	}
 }
 
@@ -226,7 +161,7 @@ func (s *chatService) CreateChat(name string, description string, creatorID stri
 		UpdatedAt:   now,
 	}
 
-	if err := s.chatRepo.CreateChat(toModelChatDTO(fromModelChatDTO(chat))); err != nil {
+	if err := s.chatRepo.CreateChat(chat); err != nil {
 		log.Printf("Error creating chat: %v", err)
 		return nil, fmt.Errorf("failed to create chat: %v", err)
 	}
@@ -394,40 +329,25 @@ func (s *chatService) SendMessage(chatID string, userID string, content string) 
 	}
 
 	// Create the message
-	messageID := uuid.New().String()
+	messageID := uuid.New()
 	now := time.Now()
 
-	message := &Message{
-		ID:               messageID,
-		ChatID:           chatID,
-		SenderID:         userID,
-		Content:          content,
-		MediaURL:         "",
-		MediaType:        "",
-		Timestamp:        now,
-		Unsent:           false,
-		UnsentAt:         nil,
-		DeletedForSender: false,
-		DeletedForAll:    false,
-		ReplyToMessageID: "",
-		IsRead:           false,
-		IsEdited:         false,
-		IsDeleted:        false,
-		CreatedAt:        now,
-		UpdatedAt:        now,
+	message := &model.MessageDTO{
+		ID:        messageID.String(),
+		ChatID:    chatID,
+		SenderID:  userID,
+		Content:   content,
+		Timestamp: now,
 	}
 
-	// Use the existing conversion function
-	messageDTO := toModelMessageDTO(message)
-
 	// Save the message with error handling
-	if err := s.messageRepo.SaveMessage(messageDTO); err != nil {
+	if err := s.messageRepo.SaveMessage(message); err != nil {
 		log.Printf("Failed to save message: %v", err)
 		return "", fmt.Errorf("failed to save message: %v", err)
 	}
 
 	log.Printf("Message sent successfully: ID=%s, ChatID=%s, SenderID=%s", messageID, chatID, userID)
-	return messageID, nil
+	return messageID.String(), nil
 }
 
 func (s *chatService) GetMessages(chatID string, limit, offset int) ([]*community.Message, error) {

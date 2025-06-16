@@ -876,9 +876,10 @@ export async function searchUsers(
     const makeSearchRequest = async (withAuth: boolean) => {
       const params = new URLSearchParams();
       
-      params.append('query', validatedQuery);
+      params.append('q', validatedQuery);
       params.append('page', page.toString());
       params.append('limit', limit.toString());
+      params.append('fuzzy', 'true'); // Enable fuzzy search by default
   
       let filter = 'all';
       if (options && options.filter) {

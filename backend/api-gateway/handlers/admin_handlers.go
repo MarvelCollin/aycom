@@ -34,15 +34,58 @@ func BanUser(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Ban    bool   `json:"ban" binding:"required"`
-		Reason string `json:"reason"`
+	// Parse the request body as a raw map to handle case-insensitive fields
+	var rawData map[string]interface{}
+	if err := c.ShouldBindJSON(&rawData); err != nil {
+		log.Printf("BanUser Handler: Failed to parse request body: %v", err)
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request format")
+		return
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("BanUser Handler: Invalid request payload: %v", err)
-		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+	// Look for 'ban' or 'Ban' field in the raw data
+	var ban bool
+	var banFound bool
+
+	// Try lowercase first
+	if banValue, exists := rawData["ban"]; exists {
+		if boolValue, ok := banValue.(bool); ok {
+			ban = boolValue
+			banFound = true
+		}
+	}
+
+	// If not found, try uppercase
+	if !banFound {
+		if banValue, exists := rawData["Ban"]; exists {
+			if boolValue, ok := banValue.(bool); ok {
+				ban = boolValue
+				banFound = true
+			}
+		}
+	}
+
+	if !banFound {
+		log.Printf("BanUser Handler: 'ban' field not found in request: %v", rawData)
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Missing required 'ban' field")
 		return
+	}
+
+	adminID, exists := c.Get("userID")
+	if !exists {
+		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Admin ID not found in token")
+		return
+	}
+
+	// Extract reason if present
+	var reason string
+	if reasonValue, exists := rawData["reason"]; exists {
+		if strValue, ok := reasonValue.(string); ok {
+			reason = strValue
+		}
+	} else if reasonValue, exists := rawData["Reason"]; exists {
+		if strValue, ok := reasonValue.(string); ok {
+			reason = strValue
+		}
 	}
 
 	if UserClient == nil {
@@ -53,9 +96,12 @@ func BanUser(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	log.Printf("BanUser Handler: Sending request to user service with ban=%v for user ID %s, reason: %s", ban, userID, reason)
 	response, err := UserClient.BanUser(ctx, &userProto.BanUserRequest{
-		UserId: userID,
-		Ban:    req.Ban,
+		UserId:  userID,
+		Ban:     ban,
+		Reason:  reason,
+		AdminId: adminID.(string),
 	})
 
 	if err != nil {

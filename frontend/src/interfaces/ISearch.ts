@@ -2,7 +2,7 @@
  * Search-related interfaces
  */
 
-import type { IUser } from './IUser';
+import type { IUser, IUserProfile } from './IUser';
 import type { ITweet } from './ISocialMedia';
 import type { ICommunity } from './ICommunity';
 import type { IPagination } from './ICommon';
@@ -23,7 +23,7 @@ export interface ISearchUsersRequest {
 export interface ISearchUsersResponse {
   success: boolean;
   data: {
-    users: IUser[];
+    users: IUserProfile[];
     pagination: IPagination;
   };
 }
@@ -76,6 +76,6 @@ export interface ISearchCommunitiesResponse {
 export interface IUserRecommendationsResponse {
   success: boolean;
   data: {
-    users: IUser[];
+    users: IUserProfile[];
   };
 } 

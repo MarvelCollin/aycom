@@ -12,6 +12,8 @@ export interface ChatMessage {
   content?: string;
   user_id?: string;
   sender_id?: string;
+  sender_name?: string;
+  sender_avatar?: string;
   chat_id: string;
   timestamp?: Date | string;
   message_id?: string;
@@ -19,7 +21,6 @@ export interface ChatMessage {
   is_deleted?: boolean;
   is_read?: boolean;
   is_system?: boolean;
-  is_fallback?: boolean;
 }
 
 export interface WebSocketState {
@@ -44,62 +45,80 @@ const messageHandlers: MessageHandler[] = [];
 function createWebSocketStore() {
   const { subscribe, update, set } = writable<WebSocketState>(initialState);
 
-  let reconnectAttempts = 0;
+  let reconnectAttempts: Record<string, number> = {}; // Per-chat reconnection attempts
   let reconnectTimeouts: Record<string, number> = {};
+  let lastConnectionAttempt: Record<string, number> = {}; // Throttling mechanism
 
-  // Simplified URL building
-  const buildWebSocketUrl = (chatId: string): string => {
-    const token = getAuthToken();
-    
-    // Use consistent URL construction method
-    // Get base URL from config, but fallback to current location
-    let baseUrl = appConfig.api.wsUrl;
-    if (!baseUrl) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname;
-      // Use location.port if available, otherwise default to 8083
-      const port = window.location.port || '8083';
-      baseUrl = `${protocol}//${host}:${port}/api/v1`;
-    }
-    
-    // Ensure baseUrl doesn't end with a slash
-    baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    
-    // Build the WebSocket URL using the base URL
-    let wsUrl = `${baseUrl}/chats/${chatId}/ws`;
-    
-    // Extract user ID from token if available
-    let userId = '';
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        userId = payload.user_id || payload.sub || '';
-      } catch (e) {
-        logger.warn('Could not extract user ID from token');
-        console.error('[WebSocket] Failed to extract user ID from token:', e);
+  const buildWebSocketUrl = (chatId: string) => {
+    try {
+      // Get the auth token
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('No authentication token available');
       }
+      
+      // Determine the correct WebSocket URL based on environment
+      let protocol: string;
+      let hostname: string;
+      let port: string;
+      
+      if (typeof window !== 'undefined') {
+        // Check if we're running in Docker or local development
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (isLocalhost) {
+          // Local development - connect directly to host
+          protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          hostname = window.location.hostname;
+          port = '8083'; // API gateway port mapping
+        } else {
+          // Production or Docker environment
+          protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          hostname = window.location.hostname;
+          port = window.location.port || (protocol === 'wss:' ? '443' : '80');
+        }
+      } else {
+        throw new Error('Window object not available');
+      }
+      
+      // Build the WebSocket URL matching the backend route: /api/v1/chats/:id/ws
+      const wsUrl = `${protocol}//${hostname}:${port}/api/v1/chats/${chatId}/ws?token=${encodeURIComponent(token)}`;
+      
+      logger.info(`Building WebSocket URL: ${wsUrl}`);
+      return wsUrl;
+    } catch (e) {
+      logger.error('Error building WebSocket URL:', e);
+      throw e;
     }
-    
-    // Add query parameters
-    const params: string[] = [];
-    if (token) params.push(`token=${encodeURIComponent(token)}`);
-    if (userId) params.push(`user_id=${encodeURIComponent(userId)}`);
-    
-    if (params.length > 0) {
-      wsUrl += `?${params.join('&')}`;
-    }
-    
-    logger.info(`[WebSocket] Built connection URL: ${wsUrl}`);
-    return wsUrl;
   };
 
   const connect = (chatId: string) => {
     logger.info(`Connecting to WebSocket for chat: ${chatId}`);
-    console.log(`[WebSocket] Attempting to connect for chat ID: ${chatId}`);
+    
+    // Throttle connection attempts - don't allow connections more frequent than every 2 seconds
+    const now = Date.now();
+    const lastAttempt = lastConnectionAttempt[chatId] || 0;
+    if (now - lastAttempt < 2000) {
+      logger.debug(`Connection throttled for chat ${chatId}, last attempt was ${now - lastAttempt}ms ago`);
+      return;
+    }
+    lastConnectionAttempt[chatId] = now;
+    
+    // Validate chat ID format (UUID)
+    if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
+      logger.error(`Invalid chat ID format: ${chatId}`);
+      update(state => ({
+        ...state,
+        lastError: `Invalid chat ID format: ${chatId}`,
+        connectionStatus: { ...state.connectionStatus, [chatId]: 'error' }
+      }));
+      return;
+    }
     
     update(state => ({
       ...state,
-      connectionStatus: { ...state.connectionStatus, [chatId]: 'connecting' }
+      connectionStatus: { ...state.connectionStatus, [chatId]: 'connecting' },
+      lastError: null
     }));
 
     // Clear any existing timeout
@@ -113,10 +132,13 @@ function createWebSocketStore() {
       if (state.chatConnections[chatId]) {
         try {
           state.chatConnections[chatId].close();
+          logger.info(`Closed existing WebSocket connection for chat ${chatId}`);
         } catch (e) {
           logger.warn(`Error closing existing connection: ${e}`);
-          console.error(`[WebSocket] Error closing existing connection for chat ${chatId}:`, e);
         }
+        const connections = { ...state.chatConnections };
+        delete connections[chatId];
+        return { ...state, chatConnections: connections };
       }
       return state;
     });
@@ -124,33 +146,30 @@ function createWebSocketStore() {
     try {
       const wsUrl = buildWebSocketUrl(chatId);
       logger.info(`Attempting to connect to WebSocket: ${wsUrl}`);
-      console.log(`[WebSocket] Attempting connection with URL: ${wsUrl}`);
       
       // Set a connection timeout
       const connectionTimeout = setTimeout(() => {
         logger.warn(`WebSocket connection timeout for chat ${chatId}`);
-        console.warn(`[WebSocket] Connection timeout for chat ${chatId}`);
         
         update(s => ({ 
           ...s, 
-          lastError: 'Connection timeout',
+          lastError: `Connection timeout for chat ${chatId}`,
           connectionStatus: {
             ...s.connectionStatus,
             [chatId]: 'error'
           }
         }));
         
-        // Use fallback mode
-        useLocalFallback(chatId);
-      }, 5000); // 5 second timeout
+        // Attempt to reconnect instead of falling back
+        attemptReconnect(chatId);
+      }, 15000); // Increased timeout to 15 seconds
       
       const ws = new WebSocket(wsUrl);
-      ws.onopen = () => {
-        // Clear the timeout since we connected successfully
+      
+      ws.addEventListener('open', () => {
         clearTimeout(connectionTimeout);
         
         logger.info(`WebSocket connection established for chat ${chatId}`);
-        console.log(`[WebSocket] Connection established successfully for chat ${chatId}`);
         update(s => ({ 
           ...s, 
           connected: true, 
@@ -166,7 +185,11 @@ function createWebSocketStore() {
           }
         }));
         
-        // Send an initial message to confirm connection
+        // Reset reconnection attempts on successful connection
+        reconnectAttempts[chatId] = 0;
+        lastConnectionAttempt[chatId] = 0; // Clear throttling
+        
+        // Send an initial connection check message
         try {
           const token = getAuthToken();
           let userId = '';
@@ -176,7 +199,6 @@ function createWebSocketStore() {
               userId = payload.user_id || payload.sub || '';
             } catch (e) {
               logger.warn('Could not extract user ID from token');
-              console.error('[WebSocket] Failed to extract user ID for initial message:', e);
             }
           }
           
@@ -184,166 +206,90 @@ function createWebSocketStore() {
             type: 'connection_check',
             user_id: userId,
             chat_id: chatId,
-            timestamp: new Date()
+            timestamp: new Date().toISOString()
           };
           ws.send(JSON.stringify(initialMessage));
           logger.debug(`Sent initial connection check for chat ${chatId}`);
         } catch (e) {
           logger.error(`Error sending initial message for chat ${chatId}:`, e);
-          console.error(`[WebSocket] Failed to send initial message for chat ${chatId}:`, e);
         }
-        
-        reconnectAttempts = 0;
-      };
+      });
+      ws.addEventListener('message', (event) => {
+        handleWebSocketMessage(ws, chatId, event);
+      });
       
-      ws.onmessage = (event) => {
-        try {
-          logger.debug(`WebSocket message received for chat ${chatId}:`, event.data);
-          const message = JSON.parse(event.data);
-          
-          messageHandlers.forEach(handler => {
-            // Ensure message has the required properties for ChatMessage
-            const chatMessage: ChatMessage = {
-              ...message,
-              type: message.type || 'text',
-              chat_id: message.chat_id || chatId
-            };
-            handler(chatMessage);
-          });
-        } catch (e) {
-          logger.error(`Error parsing WebSocket message for chat ${chatId}:`, e);
-          console.error(`[WebSocket] Failed to parse message for chat ${chatId}:`, e, 'Raw data:', event.data);
-        }
-      };
-      
-      ws.onerror = (error) => {
-        // Clear the timeout
+      ws.addEventListener('error', (error) => {
         clearTimeout(connectionTimeout);
         
         logger.error(`WebSocket error for chat ${chatId}:`, error);
-        console.error(`[WebSocket] Error in connection for chat ${chatId}:`, error);
-        console.log(`[WebSocket] Error details:`, {
-          url: wsUrl,
-          readyState: ws.readyState,
-          protocol: ws.protocol,
-          bufferedAmount: ws.bufferedAmount
-        });
         
         update(s => ({ 
           ...s, 
-          lastError: 'Connection error',
+          lastError: `Connection error for chat ${chatId}`,
           connectionStatus: {
             ...s.connectionStatus,
             [chatId]: 'error'
           }
         }));
         
-        // Use fallback mode
-        useLocalFallback(chatId);
-      };
+        // Try to reconnect after a delay using per-chat counter
+        const currentAttempts = reconnectAttempts[chatId] || 0;
+        const reconnectDelay = Math.min(1000 * Math.pow(1.5, currentAttempts), 30000);
+        reconnectAttempts[chatId] = currentAttempts + 1;
+        
+        logger.info(`Scheduling reconnection attempt ${currentAttempts + 1} in ${reconnectDelay}ms for chat ${chatId}`);
+        reconnectTimeouts[chatId] = window.setTimeout(() => {
+          attemptReconnect(chatId);
+        }, reconnectDelay);
+      });
       
-      ws.onclose = (event) => {
-        // Clear the timeout
-        clearTimeout(connectionTimeout);
+      ws.addEventListener('close', (event) => {
+        logger.info(`WebSocket connection closed for chat ${chatId}:`, event.code, event.reason);
         
-        logger.info(`WebSocket closed for chat ${chatId}: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
-        console.log(`[WebSocket] Connection closed for chat ${chatId}:`, {
-          code: event.code,
-          reason: event.reason || 'No reason provided',
-          wasClean: event.wasClean,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Log explanations for common close codes
-        const closeCodeMessages: Record<number, string> = {
-          1000: 'Normal closure',
-          1001: 'Going away (page unload)',
-          1002: 'Protocol error',
-          1003: 'Unsupported data',
-          1005: 'No status received',
-          1006: 'Abnormal closure (connection lost)',
-          1007: 'Invalid frame payload data',
-          1008: 'Policy violation',
-          1009: 'Message too big',
-          1010: 'Missing extension',
-          1011: 'Internal server error',
-          1012: 'Service restart',
-          1013: 'Try again later',
-          1015: 'TLS handshake failure'
-        };
-        
-        const codeExplanation = closeCodeMessages[event.code] || 'Unknown close code';
-        console.log(`[WebSocket] Close code explanation: ${codeExplanation}`);
-        
+        // Update connection status
         update(s => {
           const connections = { ...s.chatConnections };
           delete connections[chatId];
-          
-          const status = { ...s.connectionStatus };
-          status[chatId] = 'disconnected';
           
           return { 
             ...s, 
             connected: Object.keys(connections).length > 0,
             chatConnections: connections,
-            connectionStatus: status
+            connectionStatus: {
+              ...s.connectionStatus,
+              [chatId]: 'disconnected'
+            }
           };
         });
         
-        if (event.code !== 1000) {
-          logger.info(`Will attempt to reconnect to chat ${chatId} due to non-clean close`);
-          console.log(`[WebSocket] Will attempt reconnect for chat ${chatId} (non-clean close)`);
-          attemptReconnect(chatId);
+        // If this wasn't a normal closure, try to reconnect using per-chat counter
+        if (event.code !== 1000 && event.code !== 1001) {
+          const currentAttempts = reconnectAttempts[chatId] || 0;
+          const reconnectDelay = Math.min(1000 * Math.pow(1.5, currentAttempts), 30000);
+          reconnectAttempts[chatId] = currentAttempts + 1;
+          
+          logger.info(`Scheduling reconnection attempt ${currentAttempts + 1} in ${reconnectDelay}ms for chat ${chatId}`);
+          reconnectTimeouts[chatId] = window.setTimeout(() => {
+            attemptReconnect(chatId);
+          }, reconnectDelay);
         }
-      };
+      });
       
-      update(state => ({ 
-        ...state, 
-        chatConnections: { 
-          ...state.chatConnections, 
-          [chatId]: ws 
-        } 
-      }));
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Connection creation failed';
-      logger.error(`Failed to create WebSocket connection for chat ${chatId}:`, error);
-      console.error(`[WebSocket] Connection creation error for chat ${chatId}:`, error);
+      logger.error(`Error creating WebSocket connection for chat ${chatId}:`, error);
       
-      update(state => ({
-        ...state,
-        lastError: errorMessage,
+      update(s => ({ 
+        ...s, 
+        lastError: `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         connectionStatus: {
-          ...state.connectionStatus,
+          ...s.connectionStatus,
           [chatId]: 'error'
         }
       }));
       
-      // Use fallback mode
-      useLocalFallback(chatId);
+      // Attempt to reconnect instead of falling back
+      attemptReconnect(chatId);
     }
-  };
-
-  // Add a function to handle fallback mode when WebSocket is not available
-  const useLocalFallback = (chatId: string) => {
-    logger.info(`Using fallback mode for chat ${chatId}`);
-    console.log(`[WebSocket] Using fallback mode for chat ${chatId}`);
-    
-    // Notify handlers that we're in fallback mode
-    messageHandlers.forEach(handler => {
-      try {
-        const fallbackMessage: ChatMessage = {
-          type: 'system',
-          content: 'Using local mode due to connection issues. Messages may not be delivered to other users.',
-          chat_id: chatId,
-          timestamp: new Date().toISOString(),
-          is_system: true,
-          is_fallback: true
-        };
-        handler(fallbackMessage);
-      } catch (e) {
-        logger.error('Error notifying handler about fallback mode:', e);
-      }
-    });
   };
 
   const disconnect = (chatId: string) => {
@@ -395,10 +341,13 @@ function createWebSocketStore() {
 
   const sendMessage = (chatId: string, message: ChatMessage) => {
     update(state => {
-      if (!state.chatConnections[chatId]) {
-        logger.warn(`Cannot send message to chat ${chatId}: not connected`);
+      if (!state.chatConnections[chatId] || state.chatConnections[chatId].readyState !== WebSocket.OPEN) {
+        logger.warn(`Cannot send message to chat ${chatId}: not connected. Attempting to connect...`);
         connect(chatId);
-        return state;
+        return {
+          ...state,
+          lastError: 'Not connected to chat. Attempting to reconnect...'
+        };
       }
       
       try {
@@ -434,14 +383,15 @@ function createWebSocketStore() {
       }
     }));
     
-    const maxReconnectAttempts = 5;
+    const maxReconnectAttempts = 10; // Increased attempts for better reliability
+    const currentAttempts = reconnectAttempts[chatId] || 0;
     
-    if (reconnectAttempts >= maxReconnectAttempts) {
+    if (currentAttempts >= maxReconnectAttempts) {
       logger.warn(`Maximum reconnect attempts (${maxReconnectAttempts}) reached for chat ${chatId}`);
       update(state => ({
         ...state,
         reconnecting: false,
-        lastError: 'Maximum reconnect attempts reached',
+        lastError: `Connection failed after ${maxReconnectAttempts} attempts. Please refresh the page.`,
         connectionStatus: {
           ...state.connectionStatus,
           [chatId]: 'error'
@@ -451,15 +401,16 @@ function createWebSocketStore() {
     }
     
     const baseDelay = 1000;
-    const delay = baseDelay * Math.pow(1.5, reconnectAttempts);
-    reconnectAttempts++;
+    const delay = Math.min(baseDelay * Math.pow(1.5, currentAttempts), 30000);
+    reconnectAttempts[chatId] = currentAttempts + 1;
     
     if (reconnectTimeouts[chatId]) {
       clearTimeout(reconnectTimeouts[chatId]);
     }
     
+    logger.info(`Attempting to reconnect to chat ${chatId} (attempt ${currentAttempts + 1}/${maxReconnectAttempts}) in ${delay}ms`);
+    
     reconnectTimeouts[chatId] = window.setTimeout(() => {
-      logger.info(`Attempting to reconnect to chat ${chatId} (attempt ${reconnectAttempts})`);
       delete reconnectTimeouts[chatId];
       connect(chatId);
     }, delay);
@@ -513,4 +464,59 @@ export function setWebSocketHandlers(setup: (ws: any) => void) {
   if (setupChatMessageStore) {
     setupChatMessageStore(websocketStore);
   }
-} 
+}
+
+// Function to handle incoming WebSocket messages
+const handleWebSocketMessage = (ws: WebSocket, chatId: string, event: MessageEvent) => {
+  try {
+    // Log raw data for debugging
+    console.log(`[WebSocket] Raw message received for chat ${chatId}:`, event.data);
+    
+    // Try to parse the message as JSON
+    let message: any;
+    try {
+      message = JSON.parse(event.data);
+    } catch (parseError) {
+      console.error(`[WebSocket] Failed to parse message as JSON:`, parseError);
+      // Try to handle as plain text
+      message = {
+        type: 'text',
+        content: event.data,
+        chat_id: chatId,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Ensure the message has the required properties
+    const chatMessage: ChatMessage = {
+      type: message.type || 'text',
+      content: message.content || '',
+      chat_id: message.chat_id || chatId,
+      user_id: message.user_id || message.sender_id || '',
+      sender_id: message.sender_id || message.user_id || '',
+      sender_name: message.sender_name || 'User',
+      sender_avatar: message.sender_avatar || null,
+      timestamp: message.timestamp || new Date().toISOString(),
+      message_id: message.message_id || message.id || `ws-${Date.now()}`,
+      is_edited: message.is_edited || false,
+      is_deleted: message.is_deleted || false,
+      is_read: message.is_read || false,
+      is_system: message.is_system || false
+    };
+    
+    // Log the processed message
+    console.log(`[WebSocket] Processed message:`, chatMessage);
+    
+    // Notify all registered handlers
+    messageHandlers.forEach(handler => {
+      try {
+        handler(chatMessage);
+      } catch (handlerError) {
+        console.error(`[WebSocket] Handler error:`, handlerError);
+      }
+    });
+  } catch (e) {
+    logger.error(`Error handling WebSocket message for chat ${chatId}:`, e);
+    console.error(`[WebSocket] Failed to process message:`, e);
+  }
+}; 

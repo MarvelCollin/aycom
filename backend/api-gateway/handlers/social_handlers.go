@@ -1158,7 +1158,7 @@ func SearchSocialUsers(c *gin.Context) {
 	}
 
 	log.Printf("SearchSocialUsers: query=%s, filter=%s, page=%d, limit=%d", query, filter, page, limit)
-	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit)
+	users, totalCount, err := userServiceClient.SearchUsers(query, filter, page, limit, false) // Disable fuzzy for social search
 	if err != nil {
 		log.Printf("Error searching users: %v", err)
 		utils.SendErrorResponse(c, http.StatusInternalServerError, "SERVER_ERROR", "Failed to search users")
@@ -1252,7 +1252,14 @@ func UnpinReply(c *gin.Context) {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
 				httpStatus = http.StatusNotFound
+			} else if st.Code() == codes.InvalidArgument {
+				httpStatus = http.StatusBadRequest
+			} else if st.Code() == codes.Unavailable {
+				httpStatus = http.StatusServiceUnavailable
+			} else if st.Code() == codes.DeadlineExceeded || st.Code() == codes.Canceled {
+				httpStatus = http.StatusGatewayTimeout
 			}
+
 			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
 			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to unpin reply: "+err.Error())

@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"aycom/backend/api-gateway/config"
-	"aycom/backend/api-gateway/utils"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+
+	"aycom/backend/api-gateway/config"
+	"aycom/backend/api-gateway/utils"
 )
 
 type UserServiceClient interface {
@@ -34,7 +34,7 @@ type UserServiceClient interface {
 	GetFollowers(userID string, page, limit int) ([]*User, error)
 	GetFollowing(userID string, page, limit int) ([]*User, error)
 
-	SearchUsers(query string, filter string, page, limit int) ([]*User, int, error)
+	SearchUsers(query string, filter string, page, limit int, enableFuzzy bool) ([]*User, int, error)
 	GetUserRecommendations(userID string, limit int) ([]*User, error)
 	GetAllUsers(page, limit int, sortBy string, ascending bool) ([]*User, int, int, error)
 
@@ -420,12 +420,12 @@ func (c *GRPCUserServiceClient) IsFollowing(followerId, followeeId string) (bool
 	return resp.IsFollowing, nil
 }
 
-func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int) ([]*User, int, error) {
+func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page int, limit int, enableFuzzy bool) ([]*User, int, error) {
 	if c.client == nil {
 		return nil, 0, fmt.Errorf("user service client not initialized")
 	}
 
-	log.Printf("SearchUsers called with query=%s, filter=%s, page=%d, limit=%d", query, filter, page, limit)
+	log.Printf("SearchUsers called with query=%s, filter=%s, page=%d, limit=%d, enableFuzzy=%t", query, filter, page, limit, enableFuzzy)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -436,25 +436,87 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "filter", filter)
 
-	// Send the search query as-is to the user service
-	req := &userProto.SearchUsersRequest{
-		Query: query,
-		Page:  1,   // Get first page with larger limit
-		Limit: 100, // Get more users for fuzzy matching
+	dbQuery := query
+
+	fetchLimit := 100
+	if query != "" && len(query) <= 4 {
+		fetchLimit = 200
 	}
 
-	resp, err := c.client.SearchUsers(ctx, req)
+	// For fuzzy search, we may need to do multiple attempts to get enough candidates
+	var resp *userProto.SearchUsersResponse
+	var err error
+
+	// First attempt: search with original query
+	req := &userProto.SearchUsersRequest{
+		Query: dbQuery,
+		Page:  1,
+		Limit: int32(fetchLimit),
+	}
+
+	resp, err = c.client.SearchUsers(ctx, req)
 	if err != nil {
 		log.Printf("Error calling SearchUsers gRPC: %v", err)
 		return nil, 0, err
 	}
 
-	// Log the number of users returned by the user service
 	log.Printf("User service returned %d users for query '%s'", len(resp.GetUsers()), query)
+
+	// If fuzzy search is enabled and we got few/no results, try broader searches
+	if enableFuzzy && query != "" && len(resp.GetUsers()) < 10 {
+		log.Printf("Fuzzy search enabled with few results (%d), attempting broader search", len(resp.GetUsers()))
+
+		// Try with substrings of the query
+		broadQueries := []string{}
+		if len(query) > 2 {
+			// Try with first 3 characters
+			broadQueries = append(broadQueries, query[:3])
+		}
+		if len(query) > 3 {
+			// Try with first 4 characters
+			broadQueries = append(broadQueries, query[:4])
+		}
+
+		for _, broadQuery := range broadQueries {
+			log.Printf("Trying broader search with query '%s'", broadQuery)
+			broadReq := &userProto.SearchUsersRequest{
+				Query: broadQuery,
+				Page:  1,
+				Limit: int32(fetchLimit),
+			}
+
+			broadResp, broadErr := c.client.SearchUsers(ctx, broadReq)
+			if broadErr != nil {
+				log.Printf("Error in broader search with query '%s': %v", broadQuery, broadErr)
+				continue
+			}
+
+			log.Printf("Broader search with '%s' returned %d users", broadQuery, len(broadResp.GetUsers()))
+
+			// Merge results, avoiding duplicates
+			existingUsers := make(map[string]bool)
+			for _, user := range resp.GetUsers() {
+				existingUsers[user.GetId()] = true
+			}
+
+			for _, user := range broadResp.GetUsers() {
+				if !existingUsers[user.GetId()] {
+					resp.Users = append(resp.Users, user)
+					existingUsers[user.GetId()] = true
+				}
+			}
+
+			// If we have enough candidates now, break
+			if len(resp.GetUsers()) >= 20 {
+				break
+			}
+		}
+
+		log.Printf("After broader searches, have %d total users for fuzzy matching", len(resp.GetUsers()))
+	}
 
 	allUsers := make([]*User, 0)
 
-	// If query is empty, just use the server's results
 	if query == "" {
 		for _, protoUser := range resp.GetUsers() {
 			user := convertProtoToUser(protoUser)
@@ -463,13 +525,22 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 			}
 		}
 	} else {
-		// Apply Damerau-Levenshtein fuzzy matching on top of the results
-		// This adds an extra layer of filtering
+
 		queryLower := strings.ToLower(query)
 
-		// Define fuzzy matching threshold (0.0 to 1.0, where 1.0 is exact match)
-		// Using a much lower threshold to catch more potential matches
-		const similarityThreshold = 0.3
+		var similarityThreshold float64
+		switch {
+		case len(query) <= 2:
+			similarityThreshold = 0.8
+		case len(query) <= 3:
+			similarityThreshold = 0.7
+		case len(query) <= 5:
+			similarityThreshold = 0.5
+		default:
+			similarityThreshold = 0.4
+		}
+
+		requireSubstring := len(query) <= 2
 
 		for _, protoUser := range resp.GetUsers() {
 			user := convertProtoToUser(protoUser)
@@ -477,40 +548,40 @@ func (c *GRPCUserServiceClient) SearchUsers(query string, filter string, page in
 				continue
 			}
 
-			// Check username with fuzzy matching
 			usernameScore := utils.DamerauLevenshteinSimilarity(strings.ToLower(user.Username), queryLower)
 			usernameMatch := usernameScore >= similarityThreshold
 
-			// Also check for direct substring match
 			usernameContains := strings.Contains(strings.ToLower(user.Username), queryLower)
 
-			// Check display name/real name with fuzzy matching
 			nameScore := utils.DamerauLevenshteinSimilarity(strings.ToLower(user.Name), queryLower)
 			nameMatch := nameScore >= similarityThreshold
 
-			// Also check for direct substring match in name
 			nameContains := strings.Contains(strings.ToLower(user.Name), queryLower)
 
-			// Check email (partial match is enough)
 			emailMatch := strings.Contains(strings.ToLower(user.Email), queryLower)
 
-			// Log the fuzzy match scores for debugging
-			log.Printf("Fuzzy match for user '%s': username=%.2f (match=%v), name=%.2f (match=%v), query='%s', direct contains=%v",
-				user.Username, usernameScore, usernameMatch, nameScore, nameMatch, queryLower, usernameContains || nameContains)
+			var shouldInclude bool
+			if requireSubstring {
+				shouldInclude = usernameContains || nameContains || emailMatch ||
+					(usernameScore >= 0.9) || (nameScore >= 0.9)
+			} else {
 
-			// Include user if any field matches
-			if usernameMatch || nameMatch || emailMatch || usernameContains || nameContains {
-				log.Printf("---> MATCHED user '%s' with query '%s' (username=%.2f, name=%.2f, direct contains=%v)",
+				shouldInclude = usernameMatch || nameMatch || emailMatch || usernameContains || nameContains
+			}
+
+			log.Printf("Fuzzy match for user '%s': username=%.2f (match=%v), name=%.2f (match=%v), query='%s', threshold=%.2f, include=%v",
+				user.Username, usernameScore, usernameMatch, nameScore, nameMatch, queryLower, similarityThreshold, shouldInclude)
+
+			if shouldInclude {
+				log.Printf("---> MATCHED user '%s' with query '%s' (username=%.2f, name=%.2f, substring=%v)",
 					user.Username, queryLower, usernameScore, nameScore, usernameContains || nameContains)
 				allUsers = append(allUsers, user)
 			}
 		}
 	}
 
-	// Get total count for pagination
 	totalCount := len(allUsers)
 
-	// Apply pagination to the final results
 	startIndex := (page - 1) * limit
 	endIndex := startIndex + limit
 

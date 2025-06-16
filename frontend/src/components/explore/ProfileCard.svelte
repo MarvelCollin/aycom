@@ -21,9 +21,10 @@
   export let showFollowerCount: boolean = true;
   export let compact: boolean = true; // Default to compact
   export let onToggleFollow: () => void = () => {};
+  export let fuzzyMatchScore: number | undefined = undefined; // Add fuzzy match score
   
   // Log props for debugging
-  $: console.log('ProfileCard props:', { id, username, displayName, isVerified });
+  $: console.log('ProfileCard props:', { id, username, displayName, isVerified, fuzzyMatchScore });
   
   // Handle card click to navigate to user profile
   function handleCardClick() {
@@ -34,6 +35,22 @@
 
   // Get correct avatar URL
   $: avatarUrl = avatar || `https://secure.gravatar.com/avatar/${id}?d=identicon&s=200`;
+  
+  // Function to get color based on fuzzy match score
+  function getFuzzyMatchColor(score: number): string {
+    if (score >= 0.8) return 'fuzzy-match-high';
+    if (score >= 0.6) return 'fuzzy-match-medium';
+    if (score >= 0.3) return 'fuzzy-match-low';
+    return '';
+  }
+  
+  // Function to get fuzzy match label
+  function getFuzzyMatchLabel(score: number): string {
+    if (score >= 0.8) return 'Strong match';
+    if (score >= 0.6) return 'Good match';
+    if (score >= 0.3) return 'Possible match';
+    return '';
+  }
 </script>
 
 <div 
@@ -64,6 +81,16 @@
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
             </svg>
+          </span>
+        {/if}
+        
+        <!-- Fuzzy match indicator -->
+        {#if fuzzyMatchScore !== undefined && fuzzyMatchScore > 0}
+          <span class="fuzzy-match-badge {getFuzzyMatchColor(fuzzyMatchScore)}" title="{getFuzzyMatchLabel(fuzzyMatchScore)} ({Math.round(fuzzyMatchScore * 100)}% similarity)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="fuzzy-match-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            </svg>
+            {Math.round(fuzzyMatchScore * 100)}%
           </span>
         {/if}
       </div>
@@ -217,5 +244,44 @@
     color: var(--color-primary);
     width: 14px;
     height: 14px;
+  }
+  
+  .verified-badge svg {
+    width: 16px;
+    height: 16px;
+    color: var(--color-primary);
+  }
+  
+  /* Fuzzy match badge styles */
+  .fuzzy-match-badge {
+    display: flex;
+    align-items: center;
+    font-size: var(--font-size-xs);
+    padding: 1px 4px;
+    border-radius: var(--radius-full);
+    margin-left: 4px;
+    font-weight: 500;
+    font-size: 0.65rem;
+  }
+  
+  .fuzzy-match-icon {
+    width: 10px;
+    height: 10px;
+    margin-right: 2px;
+  }
+  
+  .fuzzy-match-high {
+    color: #16a34a;
+    background-color: rgba(22, 163, 74, 0.1);
+  }
+  
+  .fuzzy-match-medium {
+    color: #ca8a04;
+    background-color: rgba(202, 138, 4, 0.1);
+  }
+  
+  .fuzzy-match-low {
+    color: #dc2626;
+    background-color: rgba(220, 38, 38, 0.1);
   }
 </style> 

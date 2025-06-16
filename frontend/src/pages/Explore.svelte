@@ -14,7 +14,7 @@
   import { searchCommunities, getCommunities } from '../api/community';
   import { debounce } from '../utils/helpers';
   import { formatTimeAgo } from '../utils/common';
-  import { searchUsers as improvedSearchUsers } from '../api/userApi';
+  import { improvedSearchUsers } from '../api/userApi';
   
   // Import newly created components
   import ExploreSearch from '../components/explore/ExploreSearch.svelte';
@@ -135,6 +135,8 @@
         total_count: number;
         current_page: number;
         total_pages: number;
+        per_page: number;
+        has_more?: boolean;
       };
       isLoading: boolean;
     };
@@ -178,7 +180,8 @@
       pagination: {
         total_count: 0,
         current_page: 1,
-        total_pages: 0
+        total_pages: 0,
+        per_page: 25
       },
       isLoading: false
     },
@@ -207,6 +210,7 @@
     isVerified: boolean;
     followerCount: number;
     isFollowing: boolean;
+    fuzzyMatchScore?: number;
   }> = [];
   let isLoadingUsers = false;
   
@@ -538,10 +542,14 @@
       let processedPeopleData = peopleData;
       if (!processedPeopleData || typeof processedPeopleData !== 'object') {
         console.error("Invalid people data received:", processedPeopleData);
-        processedPeopleData = { users: [], totalCount: 0 };
+        processedPeopleData = { data: { users: [], pagination: { total_count: 0 } } };
       }
       
-      const peopleUsers = (processedPeopleData.users || []).map(user => {
+      // Extract users from the correct location in the response
+      const peopleDataUsers = processedPeopleData.data?.users || processedPeopleData.users || [];
+      const totalPeopleCount = processedPeopleData.data?.pagination?.total_count || processedPeopleData.totalCount || processedPeopleData.total || 0;
+      
+      const peopleUsers = peopleDataUsers.map(user => {
         // Log each user for debugging
         console.log("Processing user:", user);
         
@@ -553,16 +561,38 @@
         return {
           id: user.id || "",
           username: user.username || "",
-          displayName: user.name || user.display_name || user.username || "",
-          avatar: user.profile_picture_url || user.avatar || null,
+          displayName: user.name || user.username || "",
+          avatar: user.profile_picture_url || null,
           bio: user.bio || '',
           isVerified: user.is_verified || false,
           followerCount: user.follower_count || 0,
-          isFollowing: user.is_following || false
+          isFollowing: false // Default to false since IUserProfile doesn't have is_following
         };
       }).filter(user => user !== null); // Filter out any null entries from invalid data
       
       console.log("Mapped people users:", peopleUsers);
+      
+      // Helper function to calculate a simple string similarity
+      function calculateSimpleStringSimilarity(a: string, b: string): number {
+        // Simple substring check
+        if (a.includes(b) || b.includes(a)) {
+          return 0.8; // High match for substring
+        }
+        
+        // Check for common prefix
+        let commonPrefix = 0;
+        const minLength = Math.min(a.length, b.length);
+        for (let i = 0; i < minLength; i++) {
+          if (a[i] === b[i]) {
+            commonPrefix++;
+          } else {
+            break;
+          }
+        }
+        
+        // Return a score based on common prefix length
+        return commonPrefix > 0 ? commonPrefix / Math.max(a.length, b.length) : 0.3;
+      }
       
       // Process top threads results
       const topThreads = (topThreadsData.threads || []).map(thread => ({
@@ -635,11 +665,12 @@
         },
         people: {
           users: peopleUsers,
-          totalCount: processedPeopleData?.totalCount || processedPeopleData?.total || 0,
-          pagination: processedPeopleData?.pagination || { 
-            total_count: processedPeopleData?.totalCount || processedPeopleData?.total || 0,
-            current_page: processedPeopleData?.currentPage || 1,
-            total_pages: Math.ceil((processedPeopleData?.totalCount || processedPeopleData?.total || 0) / peoplePerPage)
+          totalCount: totalPeopleCount,
+          pagination: processedPeopleData?.data?.pagination || processedPeopleData?.pagination || { 
+            current_page: 1,
+            total_pages: Math.ceil(totalPeopleCount / peoplePerPage),
+            per_page: peoplePerPage,
+            total_count: totalPeopleCount
           },
           isLoading: false
         },
@@ -661,10 +692,10 @@
       logger.debug('Search completed', {
         query: searchQuery,
         filter: filterOption,
-        peopleCount: processedPeopleData?.users?.length || 0,
+        peopleCount: peopleDataUsers?.length || 0,
         threadsCount: topThreadsData?.threads?.length || 0,
         mediaCount: mediaData?.threads?.length || 0,
-        totalPeopleCount: processedPeopleData?.totalCount || processedPeopleData?.total || 0
+        totalPeopleCount: totalPeopleCount
       });
       
     } catch (error) {
@@ -957,24 +988,34 @@
         
         // Set the people data for display
         searchResults.people.users = peopleResults.map(user => ({
-          ...user,
-          // Add any additional properties needed for display
+          id: user.id || '',
+          username: user.username || '',
+          displayName: user.name || '',
+          avatar: user.profile_picture_url || null,
+          bio: user.bio || '',
+          isVerified: user.is_verified || false,
+          followerCount: user.follower_count || 0,
+          isFollowing: false // Default to false since IUserProfile doesn't have is_following
         }));
         
         // Update pagination for people tab
         searchResults.people.pagination = {
           current_page: page,
           total_pages: response.data?.pagination?.total_pages || 1,
-          has_more: response.data?.pagination?.has_more || false
+          total_count: response.data?.pagination?.total_count || 0,
+          per_page: peoplePerPage
         };
         
+        // Also update isLoading state
+        searchResults.people.isLoading = false;
+        
         logger.debug(`Found ${peopleCount} people, total: ${totalPeopleCount}`);
+        
+        // Also update the main users display array
+        usersToDisplay = searchResults.people.users;
+        
+        console.log(`Updated people results: ${peopleCount} users, total: ${totalPeopleCount}`);
       }
-      
-      // Also update the main users display array
-      usersToDisplay = peopleResults;
-      
-      console.log(`Updated people results: ${peopleResults.length} users, total: ${totalPeopleCount}`);
     } catch (error) {
       console.error('Error loading people page:', error);
       toastStore.showToast('Failed to load more profiles', 'error');
@@ -997,11 +1038,28 @@
     searchResults.communities.isLoading = true;
     
     try {
-      const { communities, total_count } = await searchCommunities(searchQuery, page, communitiesPerPage);
+      const response = await searchCommunities(searchQuery, page, communitiesPerPage);
+      const communities = response.communities || [];
+      
+      // Safely extract the total count
+      let totalCount = 0;
+      // @ts-ignore - Handle dynamic response format
+      if (response.total_count !== undefined) {
+        // @ts-ignore
+        totalCount = response.total_count;
+      // @ts-ignore
+      } else if (response.total !== undefined) {
+        // @ts-ignore
+        totalCount = response.total;
+      // @ts-ignore
+      } else if (response.pagination && response.pagination.total_count !== undefined) {
+        // @ts-ignore
+        totalCount = response.pagination.total_count;
+      }
       
       searchResults.communities = {
-        communities: communities || [],
-        totalCount: total_count || 0,
+        communities,
+        totalCount,
         isLoading: false
       };
     } catch (error) {
@@ -1381,6 +1439,7 @@
                     isVerified={user.isVerified}
                     followerCount={user.followerCount}
                     isFollowing={user.isFollowing}
+                    fuzzyMatchScore={user.fuzzyMatchScore}
                     onToggleFollow={() => handleToggleFollow(user.id)}
                   />
                 </div>

@@ -182,13 +182,14 @@ func communityChatReadPump(c *Client) {
 			}
 			break
 		}
-
 		processedMsg, err := ProcessIncomingMessage(message, c.UserID, c.ChatID)
 		if err != nil {
-
-			c.Send <- processedMsg
+			// Send error response directly to the client
+			log.Printf("Error processing message: %v", err)
+			c.Send <- processedMsg // processedMsg contains the error response
 		} else {
-
+			// Broadcast the processed message to all clients in the chat
+			log.Printf("Broadcasting message to chat %s", c.ChatID)
 			c.Manager.broadcast <- BroadcastMessage{
 				ChatID:  c.ChatID,
 				Message: processedMsg,

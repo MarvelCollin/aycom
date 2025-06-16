@@ -23,7 +23,17 @@ func (r *AdminRepository) BanUser(userID string, ban bool) error {
 		return errors.New("user ID is required")
 	}
 
-	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("is_banned", ban).Error
+	result := r.db.Model(&model.User{}).Where("id = ?", userID).Update("is_banned", ban)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		log.Printf("BanUser: No user found with ID %s, no rows affected", userID)
+		return errors.New("no user found with the given ID")
+	}
+
+	return nil
 }
 
 func (r *AdminRepository) CreateNewsletter(newsletter *model.Newsletter) error {

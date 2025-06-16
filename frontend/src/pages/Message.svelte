@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { writable, get } from 'svelte/store';
   import LeftSide from '../components/layout/LeftSide.svelte';
   import { useTheme } from '../hooks/useTheme';
   import type { IAuthStore } from '../interfaces/IAuth';
@@ -17,7 +18,9 @@
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   import Toast from '../components/common/Toast.svelte';
+  import type { Toast as ToastType } from '../interfaces/IToast';
   import { formatRelativeTime } from '../utils/date'; 
+  import { getAuthToken } from '../utils/auth';
   
   const { 
     listChats, 
@@ -129,8 +132,7 @@
   let showCreateGroupModal = false;
   let showDebug = false;
   
-  // Toast notifications
-  let toasts = [];
+  // Toast notifications - managed by toastStore
   
   // Group chat modal state
   let showGroupChatModal = false;
@@ -148,16 +150,11 @@
     isMobile = window.innerWidth < 768;
   }
   
-  // Initialize WebSocket monitoring
+  // WebSocket connection status monitoring (no auto-reconnect to prevent loops)
   $: {
-    // Monitor connection status changes and reconnect if needed
     if ($websocketStore) {
       const isWsConnected = $websocketStore.connected;
-      
-      if (!isWsConnected && selectedChat) {
-        logger.debug(`WebSocket detected as disconnected with chat ${selectedChat.id} selected. Will attempt reconnect.`);
-        setTimeout(() => initializeWebSocketConnections(), 1000);
-      }
+      logger.debug(`WebSocket connection status: ${isWsConnected ? 'connected' : 'disconnected'}`);
     }
   }
   
@@ -198,86 +195,138 @@
     }
   }
   
-  // WebSocket handling
-  function handleWebSocketMessage(message: any) {
-    // Processing websocket message...
-    const senderId = message.sender_id;
+  // Function to handle WebSocket messages
+  function handleWebSocketMessage(message: ChatMessage) {
+    logDebug('Received WebSocket message');
+    console.log('WebSocket message details:', message);
     
-    if (senderId === $authStore.user_id) {
-      logger.debug('Skipping own message from WebSocket:', message);
+    if (!message || !message.chat_id) {
+      logger.warn('Invalid message format received from WebSocket');
       return;
     }
     
-    logger.info(`Received new message in chat ${message.chat_id} from ${senderId}`);
-
-    // Format the message with all required properties
-    const newMessage: Message = {
-      id: message.message_id || `ws-${Date.now()}`,
-      chat_id: message.chat_id || '',
-      content: message.content || '',
-      timestamp: ensureStringTimestamp(message.timestamp || new Date()),
-      sender_id: senderId,
-      sender_name: 'User', // Default name
-      sender_avatar: undefined,
-      is_read: false,
-      is_edited: false,
-      is_deleted: message.is_deleted || false
-    };
-      
-    // Update the selected chat if this message belongs to it
-    if (selectedChat && selectedChat.id === message.chat_id) {
-      selectedChat = {
-        ...selectedChat,
-        messages: [...selectedChat.messages, newMessage]
-      };
-      
-      // Scroll to bottom
-      setTimeout(() => {
-        const messagesContainer = document.querySelector('.messages-container');
-        if (messagesContainer) {
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-      }, 100);
+    // Log detailed message info for debugging
+    console.log(`[WebSocket] Message received for chat ${message.chat_id}:`, {
+      type: message.type,
+      content: message.content,
+      sender: message.user_id || message.sender_id,
+      timestamp: message.timestamp
+    });
+    
+    // Process system messages differently
+    if (message.type === 'system') {
+      // Just log system messages for now
+      logger.info(`System message: ${message.content}`);
+      return;
     }
     
-    // Create a properly formatted last message
-    const lastMessage: LastMessage = {
-      content: message.content || '',
-      timestamp: ensureStringTimestamp(typeof message.timestamp === 'string' ? message.timestamp : new Date().toISOString()),
-      sender_id: senderId,
-      sender_name: 'User'
-    };
-
-    // Update the chat in the list with the new last message
-    const updatedChats = chats.map(chat => {
-      if (chat.id === message.chat_id) {
-        return {
-          ...chat,
-          last_message: lastMessage,
-          unread_count: selectedChat?.id === chat.id ? 0 : (chat.unread_count || 0) + 1
-        };
+    // Check if this message is for the selected chat
+    if (selectedChat && message.chat_id === selectedChat.id) {
+      // Skip messages sent by the current user (already handled by optimistic updates)
+      const currentUserId = $authStore.user_id;
+      const messageSenderId = message.user_id || message.sender_id;
+      
+      if (messageSenderId === currentUserId) {
+        logger.debug('Skipping own message from WebSocket (already displayed)');
+        return;
       }
-      return chat;
-    }) as Chat[]; // Type assertion
-    
-    // Update chats state
-    chats = updatedChats;
-    
-    // Also update filtered chats
-    filteredChats = filteredChats.map(chat => {
-      if (chat.id === message.chat_id) {
-        return {
-          ...chat,
-          last_message: lastMessage,
-          unread_count: selectedChat?.id === chat.id ? 0 : (chat.unread_count || 0) + 1
+      
+      // Update the messages in the selected chat
+      if (message.type === 'text' && message.content) {
+        // Create a properly formatted message object
+        const newMessage: Message = {
+          id: message.message_id || `ws-${Date.now()}`,
+          chat_id: message.chat_id,
+          sender_id: messageSenderId || '',
+          content: message.content || '',
+          timestamp: typeof message.timestamp === 'string' 
+            ? message.timestamp 
+            : message.timestamp instanceof Date
+              ? message.timestamp.toISOString()
+              : new Date().toISOString(),
+          is_read: false,
+          is_edited: false,
+          is_deleted: false,
+          sender_name: message.sender_name || 'User',
+          sender_avatar: message.sender_avatar
         };
+        
+        // Add the message to the selected chat
+        selectedChat = {
+          ...selectedChat,
+          messages: [...(selectedChat.messages || []), newMessage]
+        };
+        
+        // Scroll to bottom
+        setTimeout(() => {
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
       }
-      return chat;
-    }) as Chat[];
+    }
     
-    // Play notification sound if not viewing this chat
-    if (selectedChat?.id !== message.chat_id) {
-      // Add sound notification here if needed
+    // Update the last message in the chat list for all chats
+    if (message.type === 'text' && message.content) {
+      // Find the chat in our list
+      const chatIndex = chats.findIndex(c => c.id === message.chat_id);
+      if (chatIndex >= 0) {
+        // Create a properly formatted last message
+        const lastMessage: LastMessage = {
+          content: message.content || '',
+          timestamp: typeof message.timestamp === 'string' 
+            ? message.timestamp 
+            : message.timestamp instanceof Date
+              ? message.timestamp.toISOString()
+              : new Date().toISOString(),
+          sender_id: message.user_id || message.sender_id || '',
+          sender_name: message.sender_name || 'User'
+        };
+        
+        // Update the chat with the new last message
+        const updatedChat = {
+          ...chats[chatIndex],
+          last_message: lastMessage,
+          // Increment unread count if this isn't the selected chat
+          unread_count: selectedChat?.id === message.chat_id 
+            ? chats[chatIndex].unread_count 
+            : (chats[chatIndex].unread_count || 0) + 1
+        };
+        
+        // Move this chat to the top of the list
+        const updatedChats = [
+          updatedChat,
+          ...chats.filter(c => c.id !== message.chat_id)
+        ];
+        
+        // Update the chat list
+        chats = updatedChats;
+        
+        // Also update filtered chats
+        const filteredIndex = filteredChats.findIndex(c => c.id === message.chat_id);
+        if (filteredIndex >= 0) {
+          const updatedFilteredChat = {
+            ...filteredChats[filteredIndex],
+            last_message: lastMessage,
+            unread_count: selectedChat?.id === message.chat_id 
+              ? filteredChats[filteredIndex].unread_count 
+              : (filteredChats[filteredIndex].unread_count || 0) + 1
+          };
+          
+          // Move this chat to the top of the filtered list
+          filteredChats = [
+            updatedFilteredChat,
+            ...filteredChats.filter(c => c.id !== message.chat_id)
+          ];
+        }
+        
+        // Play notification sound if this is not the selected chat
+        if (selectedChat?.id !== message.chat_id) {
+          // TODO: Add sound notification
+          logger.debug('Would play notification sound for new message');
+        }
+      }
     }
   }
   
@@ -411,12 +460,13 @@
           selectChat(processedChats[0]);
         }
       } else {
-        logger.warn('No chats found in response', response);
+        logWarn('No chats found in response');
+        console.warn('API response details:', response);
         chats = [];
         filteredChats = [];
       }
     } catch (error) {
-      handleApiError(error, 'Failed to load chats');
+      logError('Failed to load chats', error);
       chats = [];
       filteredChats = [];
     } finally {
@@ -454,7 +504,7 @@
       const results = await searchUsers(query);
       userSearchResults = transformApiUsers(results);
     } catch (error) {
-      handleApiError(error, 'Failed to search for users');
+      logError('Failed to search for users', error);
       userSearchResults = [];
     } finally {
       isLoadingUsers = false;
@@ -500,7 +550,7 @@
         selectChat(response.chat_id);
       }
     } catch (error) {
-      handleApiError(error, 'Failed to create chat');
+      logError('Failed to create chat', error);
     } finally {
       isLoadingChats = false;
     }
@@ -546,7 +596,7 @@
         avatar = profileData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
       }
     } catch (error) {
-      logger.error('Failed to load profile:', error);
+      logError('Failed to load profile', error);
     } finally {
       isLoadingProfile = false;
     }
@@ -557,8 +607,8 @@
     // Register WebSocket message handler
     setMessageHandler(handleWebSocketMessage);
     
-    // Initialize WebSockets with 500ms delay to ensure chats are loaded
-    setTimeout(initializeWebSocketConnections, 500);
+    // Note: WebSocket connections will be initialized when a chat is selected
+    // This prevents establishing connections to chats that may not be active
     
     logger.info('Message component mounted');
   });
@@ -570,21 +620,667 @@
     websocketStore.disconnectAll();
   });
 
-  // Add a helper function to ensure timestamp is always a string
-  function ensureStringTimestamp(timestamp: string | number | Date): string {
-    if (timestamp instanceof Date) {
+  // Helper function to safely format timestamps
+  function safeFormatRelativeTime(timestamp: string | Date | unknown): string {
+    if (typeof timestamp === 'string') {
+      return formatRelativeTime(timestamp);
+    } else if (timestamp instanceof Date) {
+      return formatRelativeTime(timestamp.toISOString());
+    } else {
+      // Default to current time if invalid
+      return formatRelativeTime(new Date().toISOString());
+    }
+  }
+  
+  // Helper function to ensure timestamp is a string
+  function ensureStringTimestamp(timestamp: string | Date | number | unknown): string {
+    if (typeof timestamp === 'string') {
+      return timestamp;
+    } else if (timestamp instanceof Date) {
       return timestamp.toISOString();
     } else if (typeof timestamp === 'number') {
       return new Date(timestamp).toISOString();
+    } else {
+      return new Date().toISOString();
     }
-    return timestamp;
+  }
+  
+  // Chat interaction functions
+  async function selectChat(chat: Chat | string) {
+    let chatId: string;
+    
+    // Handle both string ID and Chat object
+    if (typeof chat === 'string') {
+      chatId = chat;
+      // Find the chat in our list
+      const chatObj = chats.find(c => c.id === chatId);
+      if (!chatObj) {
+        logger.error(`Chat with ID ${chatId} not found in chats list`);
+        toastStore.showToast(`Chat not found. Please try again.`, 'error');
+        return;
+      }
+      chat = chatObj;
+    } else {
+      chatId = chat.id;
+    }
+    
+    logger.info(`Selecting chat: ${chatId}`);
+    
+    // Validate chat ID format
+    if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
+      logger.error(`Invalid chat ID format: ${chatId}`);
+      toastStore.showToast(`Invalid chat ID format: ${chatId}. Please try again or contact support.`, 'error');
+      return;
+    }
+    
+    selectedChat = { ...chat, messages: [] };
+    
+    // On mobile, hide the chat list
+    if (isMobile) {
+      showMobileMenu = false;
+      handleMobileNavigation('showChat');
+    }
+    
+    // Fetch messages for the selected chat
+    isLoadingMessages = true;
+    try {
+      logger.debug(`Fetching messages for chat ${chatId}`);
+      const response = await listMessages(chatId);
+      
+      if (response && response.messages) {
+        // Sort messages by timestamp to ensure correct order (newest last)
+        const sortedMessages = [...response.messages].sort((a, b) => {
+          const timeA = new Date(a.timestamp).getTime();
+          const timeB = new Date(b.timestamp).getTime();
+          return timeA - timeB;
+        });
+        
+        // Process messages to add any missing properties
+        const processedMessages = sortedMessages.map(msg => ({
+          ...msg,
+          sender_name: msg.sender_name || 'User',
+          sender_avatar: msg.sender_avatar || null,
+          timestamp: ensureStringTimestamp(msg.timestamp)
+        }));
+        
+        selectedChat = {
+          ...selectedChat,
+          messages: processedMessages
+        };
+        
+        logger.info(`Loaded ${processedMessages.length} messages for chat ${chatId}`);
+          
+        // Scroll to bottom of messages
+        setTimeout(() => {
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
+      } else {
+        logWarn(`No messages found for chat ${chatId}`);
+        selectedChat = {
+          ...selectedChat,
+          messages: []
+        };
+      }
+    } catch (error) {
+      logError(`Error loading messages for chat ${chatId}`, error);
+      toastStore.showToast({ message: 'Failed to load messages', type: 'error' });
+      selectedChat = {
+        ...selectedChat,
+        messages: []
+      };
+    } finally {
+      isLoadingMessages = false;
+    }
+    
+    // Connect to WebSocket for this chat
+    try {
+      // Check if already connected to this chat
+      const isConnected = (websocketStore as any).isConnected(chatId);
+      if (!isConnected) {
+        logger.info(`Connecting to WebSocket for chat ${chatId}`);
+        (websocketStore as any).connect(chatId);
+      } else {
+        logger.debug(`Already connected to WebSocket for chat ${chatId}`);
+      }
+    } catch (error) {
+      logError(`Error connecting to WebSocket for chat ${chatId}`, error);
+      toastStore.showToast({ message: 'Could not establish real-time connection', type: 'warning' });
+    }
+    
+    // Mark chat as read by resetting unread count
+    chats = chats.map(c => {
+      if (c.id === chatId) {
+        return { ...c, unread_count: 0 };
+      }
+      return c;
+    }) as Chat[];
+    
+    // Fix the filtered chats assignment
+    filteredChats = [
+      ...(filteredChats.filter(c => c.id === chatId)),
+      ...(filteredChats.filter(c => c.id !== chatId))
+    ].map(chat => ({
+      ...chat,
+      // Ensure that last_message.timestamp is always a string
+      last_message: chat.last_message ? {
+        ...chat.last_message,
+        timestamp: typeof chat.last_message.timestamp === 'string'
+          ? chat.last_message.timestamp
+          : new Date(chat.last_message.timestamp).toISOString()
+      } : undefined
+    })) as Chat[];
+  }
+  
+  function getAvatarColor(name: string) {
+    // Simple hash function for consistent colors
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Convert to HSL with good saturation and lightness
+    const h = Math.abs(hash) % 360;
+    return `hsl(${h}, 70%, 60%)`;
+  }
+  
+  function getChatDisplayName(chat: Chat) {
+    // Group chats should use their name
+    if (chat.type === 'group' && chat.name && chat.name.trim() !== '') {
+      return chat.name;
+    }
+    
+    // For individual chats, show the other participant's name
+    if (chat.participants && chat.participants.length > 0) {
+      // Use only id for filtering as that's in the Participant type
+      const otherParticipants = chat.participants.filter(p => p.id !== $authStore.user_id);
+      
+      if (otherParticipants.length > 0) {
+        const participant = otherParticipants[0];
+        return participant.display_name || participant.username || 'Unknown User';
+      }
+    }
+    
+    // Fallback to chat name or generic name
+    return chat.name && chat.name.trim() !== '' ? chat.name : 'Chat';
+  }
+  
+  async function handleSearch() {
+    if (!searchQuery || searchQuery.trim() === '') {
+      filteredChats = [...chats];
+      return;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    filteredChats = chats.filter(chat => {
+      // Search in chat name
+      const chatName = getChatDisplayName(chat).toLowerCase();
+      if (chatName.includes(query)) return true;
+      
+      // Search in last message
+      if (chat.last_message && chat.last_message.content) {
+        const messageContent = chat.last_message.content.toLowerCase();
+        if (messageContent.includes(query)) return true;
+      }
+      
+      // Search in participants
+      if (chat.participants) {
+        for (const participant of chat.participants) {
+          const name = participant.display_name || participant.username || '';
+          if (name.toLowerCase().includes(query)) return true;
+        }
+      }
+      
+      return false;
+    });
+  }
+  
+  // Message handling functions
+  async function sendMessage(content: string) {
+    if (!content.trim() || !selectedChat) return;
+    
+    // Clear input after sending
+    newMessage = '';
+    selectedAttachments = [];
+    
+    // Generate a temporary message ID
+    const tempMessageId = `temp-${Date.now()}`;
+
+    // Create a temporary message object
+    const tempMessage: Message = {
+      id: tempMessageId,
+      chat_id: selectedChat?.id || '',
+      content,
+      timestamp: new Date().toISOString(),
+      sender_id: $authStore.user_id || '',
+      sender_name: displayName,
+      sender_avatar: avatar,
+      is_read: false,
+      is_deleted: false,
+      is_edited: false,
+      attachments: selectedAttachments.length > 0 ? [...selectedAttachments] : [],
+      is_local: true // Mark as local until confirmed by server
+    };
+    
+    try {
+      // Add message to UI immediately (optimistic update)
+      if (selectedChat) {
+      selectedChat = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, tempMessage]
+      };
+
+        // Scroll to bottom
+        setTimeout(() => {
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
+        }
+        
+        // Update chat in the list with last message
+      const newLastMessage: LastMessage = {
+                content,
+        timestamp: new Date().toISOString(),
+                sender_id: $authStore.user_id || '',
+                sender_name: displayName
+      };
+
+      // Update all chats with the new last message
+      chats = chats.map(chat => {
+        if (chat.id === selectedChat?.id) {
+          return {
+            ...chat,
+            last_message: newLastMessage
+            };
+          }
+          return chat;
+      });
+        
+      // Move the active chat to the top
+      const activeChatId = selectedChat?.id;
+      if (activeChatId) {
+      const activeChat = chats.find(c => c.id === activeChatId);
+      if (activeChat) {
+          // Remove the active chat from the array
+          const otherChats = chats.filter(c => c.id !== activeChatId);
+          // Add it back at the beginning
+          chats = [activeChat, ...otherChats];
+          
+          // Do the same for filtered chats
+          const filteredActiveChat = filteredChats.find(c => c.id === activeChatId);
+          if (filteredActiveChat) {
+            const otherFilteredChats = filteredChats.filter(c => c.id !== activeChatId);
+        filteredChats = [
+              {
+                ...filteredActiveChat,
+                last_message: newLastMessage
+              },
+              ...otherFilteredChats
+            ];
+          }
+        }
+      }
+
+      // Send message via API
+      const messageData = {
+        content: content,
+        message_id: tempMessageId
+      };
+      
+      // Log the API call attempt
+      logInfo(`Sending message to chat ${selectedChat?.id} via API`);
+      
+      // First try to send via WebSocket for immediate real-time delivery
+      const wsMessage: ChatMessage = {
+        type: 'text',
+        content: content,
+        chat_id: selectedChat?.id || '',
+        user_id: $authStore.user_id || '',
+        sender_id: $authStore.user_id || '',
+        sender_name: displayName,
+        sender_avatar: avatar,
+        message_id: tempMessageId,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Send via WebSocket first for real-time delivery
+      websocketStore.sendMessage(selectedChat?.id || '', wsMessage);
+      
+      // Then send via API for persistence
+      try {
+        const result = await apiSendMessage(selectedChat?.id || '', messageData);
+        logInfo('Message sent successfully via API');
+        
+        // Update the message to mark it as confirmed by the server
+        if (selectedChat) {
+          selectedChat = {
+            ...selectedChat,
+            messages: selectedChat.messages.map(msg => 
+              msg.id === tempMessageId 
+                ? { ...msg, is_local: false } 
+                : msg
+            )
+          };
+        }
+      } catch (apiError) {
+        logError('Failed to send message via API', apiError);
+        toastStore.showToast({
+          message: 'Network issue detected. Message may not be delivered.',
+          type: 'error'
+        });
+        
+        // Mark the message as potentially failed
+        if (selectedChat) {
+          selectedChat = {
+            ...selectedChat,
+            messages: selectedChat.messages.map(msg => 
+              msg.id === tempMessageId 
+                ? { ...msg, failed: true } 
+                : msg
+            )
+          };
+        }
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logError('Error sending message', errorMessage);
+      toastStore.showToast({
+        message: `Error sending message: ${errorMessage}`,
+        type: 'error'
+      });
+    }
+  }
+  
+  // Fix unsendMessage function to ensure timestamps are always strings
+  async function unsendMessage(messageId: string) {
+    // Logic to unsend/delete a message
+    if (!selectedChat) return;
+    
+    // Find the message
+    const message = selectedChat.messages.find(m => m.id === messageId);
+    if (!message || message.sender_id !== $authStore.user_id) return;
+    
+    try {
+      // Optimistically update UI
+      selectedChat = {
+        ...selectedChat,
+        messages: selectedChat.messages.map(msg => 
+          msg.id === messageId ? { ...msg, is_deleted: true, content: 'Message deleted' } : msg
+        )
+      };
+      
+      // Call API to unsend
+      await apiUnsendMessage(selectedChat.id, messageId);
+      
+      // Update the chat if the deleted message was the last message
+      const lastMessage = selectedChat.last_message;
+      if (lastMessage && lastMessage.content === message.content) {
+        // Find the previous message to use as the new last message
+        const previousMessages = selectedChat.messages
+          .filter(m => !m.is_deleted && m.id !== messageId)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        const newLastMessage = previousMessages[0];
+          
+        if (newLastMessage) {
+          // Update the chat in the list
+          chats = chats.map(chat => {
+            if (chat.id === selectedChat?.id) {
+              return {
+                ...chat,
+                last_message: {
+                  content: newLastMessage.content,
+                  timestamp: ensureStringTimestamp(newLastMessage.timestamp),
+                  sender_id: newLastMessage.sender_id,
+                  sender_name: newLastMessage.sender_name || ''
+                }
+              };
+            }
+            return chat;
+          }) as Chat[];
+          
+          // Also update filtered chats
+          filteredChats = filteredChats.map(chat => {
+            if (chat.id === selectedChat?.id) {
+              return {
+                ...chat,
+                last_message: {
+                  content: newLastMessage.content,
+                  timestamp: ensureStringTimestamp(newLastMessage.timestamp),
+                  sender_id: newLastMessage.sender_id,
+                  sender_name: newLastMessage.sender_name || ''
+                }
+              };
+            }
+            return chat;
+          }) as Chat[];
+        }
+        }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logError('Failed to unsend message', errorMessage);
+      toastStore.showToast({ message: `Failed to unsend message: ${errorMessage}`, type: 'error' });
+      
+      // Revert the optimistic update on error
+      selectedChat = {
+        ...selectedChat,
+        messages: selectedChat.messages.map(msg => 
+          msg.id === messageId ? { ...message } : msg
+        )
+      };
+    }
+  }
+  
+  /**
+   * Handle creating a group chat
+   */
+  async function handleCreateGroupChat(data: any) {
+    try {
+      isLoadingChats = true;
+      
+      // Handle different data formats from different sources
+      let chatData: { type: string; name: string; participants: string[] };
+      
+      if (data && data.chat) {
+        // Handle format from onSuccess event: { chat: { ... } }
+        chatData = {
+          type: 'group',
+          name: data.chat.name || 'New Group',
+          participants: (data.chat.participants || []).map((p: any) => p.id || p)
+        };
+      } else if (data && data.name && data.participants) {
+        // Handle direct format: { name: string; participants: string[] }
+        chatData = {
+          type: 'group',
+          name: data.name,
+          participants: data.participants
+        };
+    } else {
+        throw new Error('Invalid group chat data format');
+      }
+      
+      const response = await createChat(chatData);
+      
+      if (response && response.chat_id) {
+        showCreateGroupModal = false;
+        await fetchChats();
+        selectChat(response.chat_id);
+        toastStore.showToast(`Group chat "${chatData.name}" created successfully`, 'success');
+      }
+    } catch (error) {
+      logError('Failed to create group chat', error);
+    } finally {
+      isLoadingChats = false;
+    }
   }
 
-  // Mark as active in URL
-  if (typeof window !== 'undefined') {
-    const url = new URL(window.location.href);
-    url.searchParams.set('chat', targetChat.id);
-    window.history.replaceState({}, '', url.toString());
+  // WebSocket connection management
+  const handleReconnect = () => {
+    console.log('[WebSocket] Attempting to reconnect...');
+    
+    // Reconnect to the selected chat
+    if (selectedChat) {
+      console.log(`[WebSocket] Reconnecting to selected chat: ${selectedChat.id}`);
+      websocketStore.connect(selectedChat.id);
+      
+      // Reconnect to recent chats
+      const recentChats = chats.slice(0, 5); // Reconnect to 5 most recent chats
+      recentChats.forEach(chat => {
+        if (selectedChat && chat.id !== selectedChat.id) {
+          console.log(`[WebSocket] Reconnecting to additional chat: ${chat.id}`);
+          websocketStore.connect(chat.id);
+        }
+      });
+    } else {
+      // If no selected chat, just reconnect to recent chats
+      const recentChats = chats.slice(0, 5);
+      recentChats.forEach(chat => {
+        console.log(`[WebSocket] Reconnecting to chat: ${chat.id}`);
+        websocketStore.connect(chat.id);
+      });
+    }
+  };
+
+
+
+
+
+  // Function to test WebSocket connection
+  const testWebSocketConnection = () => {
+    if (selectedChat) {
+      console.log(`[WebSocket] Testing connection for chat: ${selectedChat.id}`);
+      
+      // Get the WebSocket URL
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostname = window.location.hostname;
+      const port = '8083';
+      const token = getAuthToken();
+      
+      if (!token) {
+        console.error('[WebSocket] No authentication token available');
+        return;
+      }
+      
+      // Test both URL formats to see which one works
+      const url1 = `${protocol}//${hostname}:${port}/api/v1/chats/${selectedChat.id}/ws?token=${encodeURIComponent(token)}`;
+      const url2 = `${protocol}//${hostname}:${port}/ws/chat/${selectedChat.id}?token=${encodeURIComponent(token)}`;
+      
+      console.log(`[WebSocket] Testing URL 1: ${url1}`);
+      const ws1 = new WebSocket(url1);
+      
+      ws1.onopen = () => {
+        console.log('[WebSocket] URL 1 connection successful!');
+        ws1.send(JSON.stringify({type: 'test', content: 'Test message from URL 1'}));
+      };
+      
+      ws1.onerror = (error) => {
+        console.error('[WebSocket] URL 1 connection failed:', error);
+        
+        // Try the second URL format
+        console.log(`[WebSocket] Testing URL 2: ${url2}`);
+        const ws2 = new WebSocket(url2);
+        
+        ws2.onopen = () => {
+          console.log('[WebSocket] URL 2 connection successful!');
+          ws2.send(JSON.stringify({type: 'test', content: 'Test message from URL 2'}));
+        };
+        
+        ws2.onerror = (error) => {
+          console.error('[WebSocket] URL 2 connection failed:', error);
+          console.error('[WebSocket] Both connection attempts failed');
+        };
+      };
+    }
+  };
+
+  // Function to fetch messages for a chat
+  async function fetchMessages(chatId: string) {
+    if (!chatId) return;
+    
+    isLoadingMessages = true;
+    
+    try {
+      const response = await chatApi.listMessages(chatId);
+      
+      if (response && response.messages) {
+        // Update the selected chat with the messages
+        if (selectedChat && selectedChat.id === chatId) {
+          selectedChat = {
+            ...selectedChat,
+            messages: response.messages
+          };
+        }
+      }
+    } catch (error) {
+      logError('Failed to load messages', error);
+    } finally {
+      isLoadingMessages = false;
+    }
+  }
+  
+  // Function to mark a chat as read
+  async function markChatAsRead(chatId: string) {
+    if (!chatId) return;
+    
+    try {
+      // Find the chat in our list
+      const chatIndex = chats.findIndex(c => c.id === chatId);
+      if (chatIndex >= 0) {
+        // Update the chat's unread count locally
+        chats[chatIndex].unread_count = 0;
+        
+        // Also update the filtered chats
+        const filteredIndex = filteredChats.findIndex(c => c.id === chatId);
+        if (filteredIndex >= 0) {
+          filteredChats[filteredIndex].unread_count = 0;
+        }
+        
+        // Trigger a UI update
+        chats = [...chats];
+        filteredChats = [...filteredChats];
+      }
+      
+      // TODO: Implement API call to mark chat as read when endpoint is available
+      // For now, we're just updating the UI
+    } catch (error) {
+      logError('Failed to mark chat as read', error);
+    }
+  }
+
+  // Fix the log function to handle the correct number of arguments
+  function logDebug(message: string) {
+    logger.debug(message);
+  }
+  
+  function logInfo(message: string) {
+    logger.info(message);
+  }
+  
+  function logWarn(message: string) {
+    logger.warn(message);
+  }
+  
+  function logError(message: string, error?: any) {
+    if (error) {
+      logger.error(`${message}: ${error}`);
+        } else {
+      logger.error(message);
+    }
+  }
+  
+  // Helper function to ensure we have valid arrays for chats and filteredChats
+  function ensureValidChatArrays() {
+    if (!Array.isArray(chats)) {
+      chats = [];
+    }
+    
+    if (!Array.isArray(filteredChats)) {
+      filteredChats = [];
+    }
   }
 </script>
 
@@ -605,51 +1301,7 @@
     overflow: hidden;
   }
 
-  .websocket-status {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 5px;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-  }
-  
-  .websocket-status.attention {
-    animation: pulse 2s infinite;
-  }
-  
-  @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-  }
-  
-  .status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    background-color: rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(5px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
-  }
-  
-  .status-indicator.connected {
-    color: #4caf50;
-    background-color: rgba(76, 175, 80, 0.1);
-  }
-  
-  .status-indicator.disconnected {
-    color: #f44336;
-    background-color: rgba(244, 67, 54, 0.2);
-    border: 1px solid rgba(244, 67, 54, 0.4);
-  }
+  /* Connection status styles moved to corresponding components or removed */
   
   .status-icon {
     font-size: 14px;
@@ -714,6 +1366,94 @@
   .error-dismiss:hover {
     color: #d32f2f;
   }
+
+  /* Connection status styles */
+  .connection-status-container {
+    padding: 5px 10px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.8rem;
+  }
+
+  .connection-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 0;
+  }
+
+  .status-connected {
+    color: #10b981;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-connecting {
+    color: #f59e0b;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-disconnected {
+    color: #ef4444;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-icon {
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .status-error {
+    margin-top: 5px;
+    padding: 5px 8px;
+    background-color: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    color: #ef4444;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .error-icon {
+    font-size: 12px;
+  }
+
+  .error-text {
+    flex: 1;
+    font-size: 0.8rem;
+  }
+
+  .error-dismiss {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .reconnect-button {
+    background-color: transparent;
+    border: 1px solid currentColor;
+    color: inherit;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    margin-left: 8px;
+  }
+
+  .reconnect-button:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+  }
 </style>
 
 <div class="custom-message-layout {isDarkMode ? 'dark-theme' : ''}">
@@ -757,20 +1497,31 @@
     {/if}
 
     <!-- WebSocket Status Display -->
-    <div class="websocket-status {!$websocketStore.connected ? 'attention' : ''}">
-      <div class="status-indicator {$websocketStore.connected ? 'connected' : 'disconnected'}">
-        <span class="status-icon">{$websocketStore.connected ? '●' : '○'}</span>
-        <span class="status-text">Real-time {$websocketStore.connected ? 'Connected' : 'Disconnected'}</span>
-        {#if !$websocketStore.connected}
-          <button class="reconnect-button" on:click={() => {
-            toastStore.showToast('Reconnecting to chat servers...', 'info');
-            initializeWebSocketConnections();
-          }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
-            </svg>
-            Reconnect Now
-          </button>
+    <div class="connection-status-container">
+      <div class="connection-status">
+        {#if selectedChat}
+          {#if $websocketStore.connectionStatus[selectedChat.id] === 'connected'}
+            <div class="status-connected">
+              <span class="status-icon">●</span>
+              <span class="status-text">Connected</span>
+            </div>
+          {:else if $websocketStore.connectionStatus[selectedChat.id] === 'connecting'}
+            <div class="status-connecting">
+              <span class="status-icon">◌</span>
+              <span class="status-text">Connecting...</span>
+            </div>
+          {:else if $websocketStore.connectionStatus[selectedChat.id] === 'disconnected' || $websocketStore.connectionStatus[selectedChat.id] === 'error'}
+            <div class="status-disconnected">
+              <span class="status-icon">○</span>
+              <span class="status-text">Disconnected</span>
+              <button class="reconnect-button" on:click={handleReconnect}>
+                Reconnect Now
+              </button>
+              <button class="test-connection-button" on:click={testWebSocketConnection}>
+                Test Connection
+              </button>
+            </div>
+          {/if}
         {/if}
       </div>
       {#if $websocketStore.lastError}
@@ -874,7 +1625,7 @@
                       {getChatDisplayName(chat)}
                       </div>
                     {#if chat.last_message?.timestamp}
-                      <div class="timestamp">{formatMessageTime(chat.last_message.timestamp)}</div>
+                      <div class="timestamp">{safeFormatRelativeTime(chat.last_message.timestamp)}</div>
                           {/if}
                   </div>
                   <div class="msg-last-message">
@@ -935,16 +1686,6 @@
         </div>
             
             <div class="msg-chat-header-actions">
-              <button class="msg-action-icon" on:click={() => {/* Implement video call */}} aria-label="Video call">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <button class="msg-action-icon" on:click={() => {/* Implement call */}} aria-label="Voice call">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </button>
               <button class="msg-action-icon" on:click={() => {/* Implement options */}} aria-label="More options">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -1022,7 +1763,7 @@
                       
                     <!-- Message footer with timestamp -->
                       <div class="message-footer">
-                      <span class="timestamp">{formatMessageTime(message.timestamp)}</span>
+                      <span class="timestamp">{safeFormatRelativeTime(message.timestamp)}</span>
                         
                       <!-- Message actions for sent messages -->
                       {#if !message.is_deleted && message.sender_id === $authStore.user_id && !message.is_local}
@@ -1131,6 +1872,6 @@
   />
 {/if}
 
-<Toast {toasts} on:close={(e) => toastStore.removeToast(e.detail)} />
+<Toast on:close={(e) => toastStore.removeToast(e.detail)} />
 
 
