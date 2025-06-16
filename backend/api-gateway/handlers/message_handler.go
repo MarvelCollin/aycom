@@ -891,3 +891,64 @@ func GetChatHistoryList(c *gin.Context) {
 		"chats": formattedChats,
 	})
 }
+
+// DeleteChat handles the deletion of a chat for a user (client-side only)
+func DeleteChat(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	chatID := c.Param("id")
+	if chatID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Chat ID is required")
+		return
+	}
+
+	log.Printf("DeleteChat: User %s is deleting chat %s", userID, chatID)
+
+	// Get the community service client
+	if CommunityClient == nil {
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	// First, verify that the chat exists and the user is a participant
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Get chat participants
+	participantsResp, err := CommunityClient.ListChatParticipants(ctx, &communityProto.ListChatParticipantsRequest{
+		ChatId: chatID,
+	})
+	if err != nil {
+		log.Printf("DeleteChat: Error checking participants: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to verify chat: "+err.Error())
+		return
+	}
+
+	// Check if the user is a participant
+	isParticipant := false
+	for _, participant := range participantsResp.Participants {
+		if participant.UserId == userID.(string) {
+			isParticipant = true
+			break
+		}
+	}
+
+	if !isParticipant {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "You are not a participant in this chat")
+		return
+	}
+
+	// This is a simplified approach that only deletes the chat from the client's view
+	// In a production environment, we would store this in a database
+	// For now, we'll just confirm success to the client and let the client
+	// handle the UI removal of the chat
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Chat deleted successfully",
+		"note":    "This is a client-side delete only. The chat will reappear on reload.",
+	})
+}

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
@@ -15,6 +16,7 @@ import (
 	"aycom/backend/services/community/repository"
 	"aycom/backend/services/community/service"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -121,15 +123,136 @@ func initDatabase() (*gorm.DB, error) {
 	}
 	log.Println("Community service database migrations completed successfully")
 
-	// Seed the database with sample data
-	seeder := db.NewCommunitySeeder(db)
-	if err := seeder.SeedAll(); err != nil {
+	// Seed the database with sample data if needed
+	if err := seedDatabase(db); err != nil {
 		log.Printf("Warning: Failed to seed database: %v", err)
 	} else {
 		log.Println("Database seeded successfully")
 	}
 
 	return db, nil
+}
+
+// Seed the database with sample data
+func seedDatabase(db *gorm.DB) error {
+	// Check if we already have communities
+	var communityCount int64
+	if err := db.Model(&model.Community{}).Count(&communityCount).Error; err != nil {
+		return fmt.Errorf("failed to count communities: %w", err)
+	}
+
+	if communityCount > 0 {
+		log.Println("Communities already exist, skipping seeding")
+		return nil
+	}
+
+	// Use these user IDs for seeding
+	userIDs := []uuid.UUID{
+		uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"), // Current user ID from logs
+		uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"), // Another ID seen in logs
+	}
+
+	// Create communities
+	communities := []model.Community{
+		{
+			CommunityID: uuid.New(),
+			Name:        "Tech Enthusiasts",
+			Description: "A community for technology lovers and early adopters. We discuss the latest gadgets, software releases, and tech trends.",
+			LogoURL:     "https://via.placeholder.com/150",
+			BannerURL:   "https://via.placeholder.com/600x200",
+			CreatorID:   userIDs[0],
+			IsApproved:  true,
+			CreatedAt:   time.Now().Add(-60 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-60 * 24 * time.Hour),
+		},
+		{
+			CommunityID: uuid.New(),
+			Name:        "Fitness & Health",
+			Description: "Join us to discuss fitness routines, health tips, nutrition advice, and wellness strategies.",
+			LogoURL:     "https://via.placeholder.com/150",
+			BannerURL:   "https://via.placeholder.com/600x200",
+			CreatorID:   userIDs[0],
+			IsApproved:  true,
+			CreatedAt:   time.Now().Add(-55 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-55 * 24 * time.Hour),
+		},
+		{
+			CommunityID: uuid.New(),
+			Name:        "Developers Hub",
+			Description: "A community for software developers to share knowledge, discuss programming languages, and collaborate on projects.",
+			LogoURL:     "https://via.placeholder.com/150",
+			BannerURL:   "https://via.placeholder.com/600x200",
+			CreatorID:   userIDs[0],
+			IsApproved:  true,
+			CreatedAt:   time.Now().Add(-50 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-50 * 24 * time.Hour),
+		},
+	}
+
+	if err := db.Create(&communities).Error; err != nil {
+		return fmt.Errorf("failed to seed communities: %w", err)
+	}
+
+	log.Printf("Created %d communities", len(communities))
+
+	// Add community members
+	members := []model.CommunityMember{}
+
+	// Add creators as admins
+	for _, community := range communities {
+		members = append(members, model.CommunityMember{
+			CommunityID: community.CommunityID,
+			UserID:      community.CreatorID,
+			Role:        "admin",
+			CreatedAt:   time.Now().Add(-60 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-60 * 24 * time.Hour),
+		})
+	}
+
+	// Add second user as member to first community and moderator to second
+	if len(communities) >= 2 && len(userIDs) >= 2 {
+		members = append(members, model.CommunityMember{
+			CommunityID: communities[0].CommunityID,
+			UserID:      userIDs[1],
+			Role:        "member",
+			CreatedAt:   time.Now().Add(-55 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-55 * 24 * time.Hour),
+		})
+
+		members = append(members, model.CommunityMember{
+			CommunityID: communities[1].CommunityID,
+			UserID:      userIDs[1],
+			Role:        "moderator",
+			CreatedAt:   time.Now().Add(-50 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-50 * 24 * time.Hour),
+		})
+	}
+
+	if err := db.Create(&members).Error; err != nil {
+		return fmt.Errorf("failed to seed community members: %w", err)
+	}
+
+	log.Printf("Created %d community members", len(members))
+
+	// Create a pending join request for the third community
+	if len(communities) >= 3 && len(userIDs) >= 2 {
+		joinRequest := model.CommunityJoinRequest{
+			RequestID:   uuid.New(),
+			CommunityID: communities[2].CommunityID,
+			UserID:      userIDs[1],
+			Status:      "pending",
+			CreatedAt:   time.Now().Add(-10 * 24 * time.Hour),
+			UpdatedAt:   time.Now().Add(-10 * 24 * time.Hour),
+		}
+
+		if err := db.Create(&joinRequest).Error; err != nil {
+			return fmt.Errorf("failed to seed join request: %w", err)
+		}
+
+		log.Println("Created community join request")
+	}
+
+	return nil
 }
 
 func getEnv(key, fallback string) string {

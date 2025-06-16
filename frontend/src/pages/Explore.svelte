@@ -67,7 +67,7 @@
   let isSearching = false;
   let recentSearches: string[] = [];
   let searchFilter: 'all' | 'following' | 'verified' = 'all';
-  let activeTab: 'top' | 'latest' | 'people' | 'media' | 'communities' | 'trending' = 'top';
+  let activeTab: 'trending' | 'media' | 'people' | 'communities' | 'latest' = 'trending';
   let showRecentSearches = false;
   let isLoadingRecommendations = false;
   
@@ -252,7 +252,7 @@
     is_pending?: boolean;
   }> = [];
   let isLoadingCommunities = false;
-  let defaultActiveTab: 'trending' | 'people' | 'communities' = 'trending';
+  let defaultActiveTab: 'trending' | 'media' | 'people' | 'communities' | 'latest' = 'trending';
   
   // Authentication check - Updated to fix auth issue
   function checkAuth() {
@@ -355,47 +355,94 @@
   
   // Search for recommended profiles - with debounce from lodash-es
   const debouncedSearchProfiles = debounce(async (query: string) => {
+    console.log("Running debouncedSearchProfiles with query:", query);
+    
     if (!query || query.length < 2) {
       searchResults.top.profiles = [];
+      searchResults.top.isLoading = false;
+      console.log("Query too short, cleared profiles");
       return;
     }
     
+    // Set loading state
+    searchResults.top.isLoading = true;
     isLoadingRecommendations = true;
+    
     try {
+      console.log("Fetching user profiles for:", query);
+      
       // Fetch more profiles (increase limit from 10 to 15)
       const { users } = await searchUsers(query.trim(), 1, 15, {
         sort: 'follower_count' // Sort by follower count
       });
       
-      console.log("Recommended profiles found:", users.length);
+      console.log("Recommended profiles API response:", users);
       
-      // Show more recommended profiles (up to 6 instead of 3)
-      searchResults.top.profiles = users.slice(0, 6).map(user => ({
+      if (!users || users.length === 0) {
+        console.log("No profiles found for query:", query);
+        searchResults.top.profiles = [];
+      } else {
+        // Show more recommended profiles (up to 6 instead of 3)
+        searchResults.top.profiles = users.slice(0, 6).map(user => ({
         id: user.id,
         username: user.username,
         displayName: user.display_name || user.username,
         avatar: user.avatar,
-        bio: user.bio,
+          bio: user.bio || "",
         isVerified: user.is_verified || false,
         followerCount: user.follower_count || 0,
         isFollowing: user.is_following || false
       }));
+        
+        // Log the profiles being displayed
+        console.log("Displaying recommended profiles:", searchResults.top.profiles);
+      }
       
-      // Log the profiles being displayed
-      console.log("Displaying recommended profiles:", searchResults.top.profiles);
+      // Ensure we have search mode and top tab active to see recommendations
+      isSearching = true;
+      hasSearched = true;
+      
+      // Force UI update
+      searchResults = { ...searchResults };
       
     } catch (error) {
       logger.error('Error searching profiles:', error);
+      console.error("Error in profile search:", error);
       searchResults.top.profiles = [];
     } finally {
+      searchResults.top.isLoading = false;
       isLoadingRecommendations = false;
     }
   }, 300);
   
   // Handle search input with debounce for recommendations
   function handleSearchInput(event) {
-    searchQuery = event.detail;
-    debouncedSearchProfiles(searchQuery);
+    const query = event.detail;
+    searchQuery = query;
+    console.log("Search input changed:", query);
+    
+    // Always show search mode when typing
+    if (query && query.length > 1) {
+      isSearching = true;
+      hasSearched = true;
+      
+      // Make sure we're on the trending tab to see recommendations
+      activeTab = 'trending';
+      
+      // Start loading state to show something is happening
+      searchResults.top.isLoading = true;
+      
+      // Trigger the debounced search for profiles
+      debouncedSearchProfiles(query);
+    } else {
+      // If search is cleared, reset to non-search mode
+      if (!query || query.length === 0) {
+        isSearching = false;
+        hasSearched = false;
+        activeTab = 'trending';
+      }
+    }
+    
     logger.debug('Search input updated', { searchQuery });
   }
   
@@ -404,6 +451,9 @@
     // If we're on the communities tab in non-search mode, start with the communities tab
     if (!hasSearched && defaultActiveTab === 'communities') {
       activeTab = 'communities';
+    } else {
+      // Default to trending tab for consistency
+      activeTab = 'trending';
     }
     executeSearch();
   }
@@ -412,7 +462,9 @@
   function handleClearSearch() {
     searchQuery = '';
     hasSearched = false;
-    showRecentSearches = false;
+    isSearching = false;
+    showRecentSearches = false; // Make sure no dropdowns are shown
+    activeTab = 'trending'; // Return to trending view
   }
   
   // Handle toggle follow for a user
@@ -443,14 +495,15 @@
       isSearching = false;
       return;
     }
-    
+
     // Save to recent searches
     saveToRecentSearches(searchQuery);
     
-    // Enter search mode and show top results by default
+    // Enter search mode and show trending results by default
     isSearching = true;
     hasSearched = true;
-    activeTab = 'top'; // Always default to top tab to show profile recommendations
+    showRecentSearches = false; // Ensure dropdowns are hidden
+    activeTab = 'trending'; // Always default to trending tab for consistency
     
     // Set all result sections to loading
     searchResults.top.isLoading = true;
@@ -616,7 +669,7 @@
         profile_picture_url: thread.author?.avatar
       }));
       
-      // Get top 3 profiles sorted by follower count for the Top tab
+      // Get top 3 profiles sorted by follower count for the Trending tab
       const topProfiles = [...peopleUsers]
         .sort((a, b) => ((b.follower_count || 0) - (a.follower_count || 0)))
         .slice(0, 3);
@@ -663,9 +716,9 @@
             username: thread.author?.username || 'anonymous',
             displayName: thread.author?.display_name || 'User',
             timestamp: thread.created_at || new Date().toISOString(),
-            likes: thread.like_count || thread.like_count || 0,
-            replies: thread.reply_count || thread.reply_count || 0,
-            reposts: thread.repost_count || thread.repost_count || 0,
+            likes: thread.likes_count || thread.like_count || 0,
+            replies: thread.replies_count || thread.reply_count || 0,
+            reposts: thread.reposts_count || thread.repost_count || 0,
             media: thread.media || [],
             avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
           })),
@@ -952,16 +1005,16 @@
         }
         
         return {
-          id: thread.id || '',
-          content: thread.content || '',
-          username: thread.username || thread.author?.username || '',
-          displayName: thread.display_name || thread.author?.display_name || thread.username || '',
+        id: thread.id || '',
+        content: thread.content || '',
+        username: thread.username || thread.author?.username || '',
+        displayName: thread.display_name || thread.author?.display_name || thread.username || '',
           timestamp: timestamp,
-          likes: thread.likes_count || thread.like_count || 0,
-          replies: thread.replies_count || thread.reply_count || 0,
-          reposts: thread.reposts_count || thread.repost_count || 0,
-          media: thread.media || [],
-          avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
+        likes: thread.likes_count || thread.like_count || 0,
+        replies: thread.replies_count || thread.reply_count || 0,
+        reposts: thread.reposts_count || thread.repost_count || 0,
+        media: thread.media || [],
+        avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
         };
       });
       
@@ -978,16 +1031,16 @@
         }
         
         return {
-          id: thread.id || '',
-          content: thread.content || '',
-          username: thread.username || thread.author?.username || '',
-          name: thread.display_name || thread.author?.display_name || thread.username || '',
+        id: thread.id || '',
+        content: thread.content || '',
+        username: thread.username || thread.author?.username || '',
+        name: thread.display_name || thread.author?.display_name || thread.username || '',
           created_at: created_at,
-          likes_count: thread.likes_count || thread.like_count || 0,
-          replies_count: thread.replies_count || thread.reply_count || 0,
-          reposts_count: thread.reposts_count || thread.repost_count || 0,
-          media: thread.media || [],
-          profile_picture_url: thread.profile_picture_url || thread.author?.profile_picture_url || null
+        likes_count: thread.likes_count || thread.like_count || 0,
+        replies_count: thread.replies_count || thread.reply_count || 0,
+        reposts_count: thread.reposts_count || thread.repost_count || 0,
+        media: thread.media || [],
+        profile_picture_url: thread.profile_picture_url || thread.author?.profile_picture_url || null
         };
       });
     } else {
@@ -1207,7 +1260,7 @@
   }
   
   // Handle tab change for default view
-  function handleDefaultTabChange(newTab) {
+  function handleDefaultTabChange(newTab: 'trending' | 'media' | 'people' | 'communities' | 'latest') {
     defaultActiveTab = newTab;
     logger.debug('Default tab changed', { tab: defaultActiveTab });
     
@@ -1219,6 +1272,12 @@
       fetchAllCommunities();
     } else if (defaultActiveTab === 'people' && usersToDisplay.length === 0 && !isLoadingUsers) {
       fetchAllUsers();
+    } else if (defaultActiveTab === 'media' && searchResults.media.threads.length === 0 && !searchResults.media.isLoading) {
+      // Optionally load media content
+      console.log('Media tab selected, could load media content here');
+    } else if (defaultActiveTab === 'latest' && searchResults.latest.threads.length === 0 && !searchResults.latest.isLoading) {
+      // Optionally load latest content
+      console.log('Latest tab selected, could load latest content here');
     }
   }
   
@@ -1260,12 +1319,20 @@
           bind:searchQuery={searchQuery}
           bind:showRecentSearches={showRecentSearches}
           recentSearches={recentSearches}
+          recommendedProfiles={searchResults.top.profiles}
+          isSearching={isSearching}
+          isLoadingRecommendations={isLoadingRecommendations}
           on:search={handleSearch}
           on:input={handleSearchInput}
           on:focus={handleSearchFocus}
           on:selectRecentSearch={handleRecentSearchSelect}
           on:clearRecentSearches={clearRecentSearches}
           on:clearSearch={handleClearSearch}
+          on:enterPressed={() => {
+            // Force search mode to hide dropdown suggestions
+            isSearching = true;
+            hasSearched = true;
+          }}
         />
       </div>
     </div>
@@ -1319,22 +1386,10 @@
       <div class="tabs-container {isDarkMode ? 'tabs-container-dark' : ''}">
         <div class="modern-tabs">
           <button 
-            class="modern-tab {activeTab === 'top' ? 'active' : ''}"
-            on:click={() => handleTabChange({detail: 'top'})}
+            class="modern-tab {activeTab === 'trending' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'trending'})}
           >
-            Top
-          </button>
-          <button 
-            class="modern-tab {activeTab === 'latest' ? 'active' : ''}"
-            on:click={() => handleTabChange({detail: 'latest'})}
-          >
-            Latest
-          </button>
-          <button 
-            class="modern-tab {activeTab === 'people' ? 'active' : ''}"
-            on:click={() => handleTabChange({detail: 'people'})}
-          >
-            People
+            Trending
           </button>
           <button 
             class="modern-tab {activeTab === 'media' ? 'active' : ''}"
@@ -1343,23 +1398,33 @@
             Media
           </button>
           <button 
+            class="modern-tab {activeTab === 'people' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'people'})}
+          >
+            People
+          </button>
+          <button 
             class="modern-tab {activeTab === 'communities' ? 'active' : ''}"
             on:click={() => handleTabChange({detail: 'communities'})}
           >
             Communities
+          </button>
+          <button 
+            class="modern-tab {activeTab === 'latest' ? 'active' : ''}"
+            on:click={() => handleTabChange({detail: 'latest'})}
+          >
+            Latest
           </button>
         </div>
       </div>
       
       <!-- Search results based on active tab -->
       <div class="search-results-container {isDarkMode ? 'search-results-container-dark' : ''}">
-        {#if activeTab === 'top'}
-          <ExploreTopResults 
-            topProfiles={searchResults.top.profiles}
-            topThreads={searchResults.top.threads}
-            isLoading={searchResults.top.isLoading}
-            on:profileClick={handleProfileClick}
-            on:follow={handleFollowUser}
+        {#if activeTab === 'trending'}
+          <ExploreTrending 
+            trends={trends}
+            isTrendsLoading={isTrendsLoading}
+            on:hashtagClick={handleHashtagClick}
           />
         {:else if activeTab === 'latest'}
           <ExploreLatestResults 
@@ -1382,7 +1447,7 @@
           <!-- Media results component -->
           <ExploreMediaResults 
             media={searchResults.media.threads}
-            isLoading={searchResults.media.isLoading}
+            isLoading={searchResults.media.isLoading || isLoadingUsers}
             hasMore={mediaPage * 12 < searchResults.media.totalCount}
             on:loadMore={loadMoreMedia}
           />
@@ -1412,6 +1477,13 @@
             <span>Trending</span>
           </button>
           <button 
+            class="modern-tab {defaultActiveTab === 'media' ? 'active' : ''}"
+            on:click={() => handleDefaultTabChange('media')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tab-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            <span>Media</span>
+          </button>
+          <button 
             class="modern-tab {defaultActiveTab === 'people' ? 'active' : ''}"
             on:click={() => handleDefaultTabChange('people')}
           >
@@ -1424,6 +1496,13 @@
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tab-icon"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             <span>Communities</span>
+          </button>
+          <button 
+            class="modern-tab {defaultActiveTab === 'latest' ? 'active' : ''}"
+            on:click={() => handleDefaultTabChange('latest')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tab-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span>Latest</span>
           </button>
         </div>
       </div>
@@ -1444,7 +1523,21 @@
             {isTrendsLoading}
             on:hashtagClick={handleHashtagClick}
           />
+        {:else if defaultActiveTab === 'media'}
+          <div class="section-header">
+            <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              Media
+            </h2>
+            <p class="section-description">Posts with photos and videos</p>
+          </div>
           
+          <ExploreMediaResults 
+            media={searchResults.media.threads}
+            isLoading={searchResults.media.isLoading || isLoadingUsers}
+            hasMore={mediaPage * 12 < searchResults.media.totalCount}
+            on:loadMore={loadMoreMedia}
+          />
         {:else if defaultActiveTab === 'people'}
           <div class="section-header">
             <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">
@@ -1506,6 +1599,19 @@
               <p class="empty-state-message">No communities found. Try a different filter.</p>
             </div>
           {/if}
+        {:else if defaultActiveTab === 'latest'}
+          <div class="section-header">
+            <h2 class="section-title {isDarkMode ? 'section-title-dark' : ''}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Latest
+            </h2>
+            <p class="section-description">Recent posts from everyone</p>
+          </div>
+          
+          <ExploreLatestResults 
+            latestThreads={searchResults.latest.threads}
+            isLoading={searchResults.latest.isLoading || isLoadingUsers}
+          />
         {/if}
       </div>
     {/if}

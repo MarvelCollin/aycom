@@ -32,7 +32,18 @@
   function handleSearchInput(event) {
     const value = event.target.value;
     logger.debug('Search input changed', { value });
+    
+    // Dispatch the input event immediately
     dispatch('input', value);
+    
+    // If the query is empty, hide recent searches
+    if (!value || value.length === 0) {
+      showRecentSearches = false;
+      logger.debug('Hiding recent searches due to empty query');
+    }
+    
+    // Log search query changes
+    console.log('Search query changed to:', value);
   }
   
   // Function to get color based on fuzzy match score
@@ -69,9 +80,21 @@
   
   // Handle search keystroke
   function handleKeydown(event) {
+    // If Enter key is pressed, immediately trigger search
     if (event.key === 'Enter') {
       logger.debug('Search triggered via Enter key', { query: searchQuery || '(empty)' });
+      
+      // Hide dropdowns when search is executed
+      showRecentSearches = false;
+      
+      // This will ensure the full search results are shown instead of the dropdown
+      isSearching = true;
+      
+      // Dispatch the search event to trigger the full search
       dispatch('search');
+      
+      // Force the dropdown to close by dispatching an event
+      dispatch('enterPressed');
     }
   }
   
@@ -179,6 +202,9 @@
   <!-- Recommended profiles dropdown -->
   {#if searchQuery && recommendedProfiles.length > 0 && !isSearching}
     <div class="search-dropdown {isDarkMode ? 'search-dropdown-dark' : ''}">
+      <div class="search-dropdown-header">
+        <h3 class="search-dropdown-title">Suggested Profiles</h3>
+      </div>
       <ul class="search-profiles-list">
         {#each recommendedProfiles as profile}
           <li>

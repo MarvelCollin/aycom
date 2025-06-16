@@ -3364,6 +3364,74 @@ func (x *GetBookmarksByUserRequest) GetLimit() int32 {
 	return 0
 }
 
+type GetThreadsByHashtagRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Hashtag       string                 `protobuf:"bytes,1,opt,name=hashtag,proto3" json:"hashtag,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetThreadsByHashtagRequest) Reset() {
+	*x = GetThreadsByHashtagRequest{}
+	mi := &file_proto_thread_thread_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetThreadsByHashtagRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetThreadsByHashtagRequest) ProtoMessage() {}
+
+func (x *GetThreadsByHashtagRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_thread_thread_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetThreadsByHashtagRequest.ProtoReflect.Descriptor instead.
+func (*GetThreadsByHashtagRequest) Descriptor() ([]byte, []int) {
+	return file_proto_thread_thread_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GetThreadsByHashtagRequest) GetHashtag() string {
+	if x != nil {
+		return x.Hashtag
+	}
+	return ""
+}
+
+func (x *GetThreadsByHashtagRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetThreadsByHashtagRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetThreadsByHashtagRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
 var File_proto_thread_thread_proto protoreflect.FileDescriptor
 
 const file_proto_thread_thread_proto_rawDesc = "" +
@@ -3652,7 +3720,12 @@ const file_proto_thread_thread_proto_rawDesc = "" +
 	"\x19GetBookmarksByUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit2\xe1\x12\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"y\n" +
+	"\x1aGetThreadsByHashtagRequest\x12\x18\n" +
+	"\ahashtag\x18\x01 \x01(\tR\ahashtag\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit2\xb7\x13\n" +
 	"\rThreadService\x12C\n" +
 	"\fCreateThread\x12\x1b.thread.CreateThreadRequest\x1a\x16.thread.ThreadResponse\x12A\n" +
 	"\rGetThreadById\x12\x18.thread.GetThreadRequest\x1a\x16.thread.ThreadResponse\x12L\n" +
@@ -3689,7 +3762,8 @@ const file_proto_thread_thread_proto_rawDesc = "" +
 	"\x0eGetPollResults\x12\x1d.thread.GetPollResultsRequest\x1a\x1b.thread.PollResultsResponse\x12^\n" +
 	"\x13GetTrendingHashtags\x12\".thread.GetTrendingHashtagsRequest\x1a#.thread.GetTrendingHashtagsResponse\x12\\\n" +
 	"\x17GetRepliesByParentReply\x12&.thread.GetRepliesByParentReplyRequest\x1a\x17.thread.RepliesResponse\"\x00\x12R\n" +
-	"\x12GetBookmarksByUser\x12!.thread.GetBookmarksByUserRequest\x1a\x17.thread.ThreadsResponse\"\x00B\x1cZ\x1aaycom/backend/proto/threadb\x06proto3"
+	"\x12GetBookmarksByUser\x12!.thread.GetBookmarksByUserRequest\x1a\x17.thread.ThreadsResponse\"\x00\x12T\n" +
+	"\x13GetThreadsByHashtag\x12\".thread.GetThreadsByHashtagRequest\x1a\x17.thread.ThreadsResponse\"\x00B\x1cZ\x1aaycom/backend/proto/threadb\x06proto3"
 
 var (
 	file_proto_thread_thread_proto_rawDescOnce sync.Once
@@ -3703,7 +3777,7 @@ func file_proto_thread_thread_proto_rawDescGZIP() []byte {
 	return file_proto_thread_thread_proto_rawDescData
 }
 
-var file_proto_thread_thread_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_proto_thread_thread_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
 var file_proto_thread_thread_proto_goTypes = []any{
 	(*Thread)(nil),                         // 0: thread.Thread
 	(*Media)(nil),                          // 1: thread.Media
@@ -3756,24 +3830,25 @@ var file_proto_thread_thread_proto_goTypes = []any{
 	(*GetMediaByUserResponse)(nil),         // 48: thread.GetMediaByUserResponse
 	(*MediaItem)(nil),                      // 49: thread.MediaItem
 	(*GetBookmarksByUserRequest)(nil),      // 50: thread.GetBookmarksByUserRequest
-	(*timestamppb.Timestamp)(nil),          // 51: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                  // 52: google.protobuf.Empty
+	(*GetThreadsByHashtagRequest)(nil),     // 51: thread.GetThreadsByHashtagRequest
+	(*timestamppb.Timestamp)(nil),          // 52: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                  // 53: google.protobuf.Empty
 }
 var file_proto_thread_thread_proto_depIdxs = []int32{
 	1,  // 0: thread.Thread.media:type_name -> thread.Media
-	51, // 1: thread.Thread.created_at:type_name -> google.protobuf.Timestamp
-	51, // 2: thread.Thread.updated_at:type_name -> google.protobuf.Timestamp
+	52, // 1: thread.Thread.created_at:type_name -> google.protobuf.Timestamp
+	52, // 2: thread.Thread.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 3: thread.Thread.poll:type_name -> thread.Poll
-	51, // 4: thread.Thread.scheduled_at:type_name -> google.protobuf.Timestamp
+	52, // 4: thread.Thread.scheduled_at:type_name -> google.protobuf.Timestamp
 	3,  // 5: thread.Poll.options:type_name -> thread.PollOption
-	51, // 6: thread.Poll.end_time:type_name -> google.protobuf.Timestamp
+	52, // 6: thread.Poll.end_time:type_name -> google.protobuf.Timestamp
 	1,  // 7: thread.Reply.media:type_name -> thread.Media
-	51, // 8: thread.Reply.created_at:type_name -> google.protobuf.Timestamp
-	51, // 9: thread.Reply.updated_at:type_name -> google.protobuf.Timestamp
+	52, // 8: thread.Reply.created_at:type_name -> google.protobuf.Timestamp
+	52, // 9: thread.Reply.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 10: thread.CreateThreadRequest.media:type_name -> thread.Media
 	6,  // 11: thread.CreateThreadRequest.poll:type_name -> thread.PollRequest
-	51, // 12: thread.CreateThreadRequest.scheduled_at:type_name -> google.protobuf.Timestamp
-	51, // 13: thread.PollRequest.end_time:type_name -> google.protobuf.Timestamp
+	52, // 12: thread.CreateThreadRequest.scheduled_at:type_name -> google.protobuf.Timestamp
+	52, // 13: thread.PollRequest.end_time:type_name -> google.protobuf.Timestamp
 	1,  // 14: thread.UpdateThreadRequest.media:type_name -> thread.Media
 	1,  // 15: thread.CreateReplyRequest.media:type_name -> thread.Media
 	1,  // 16: thread.UpdateReplyRequest.media:type_name -> thread.Media
@@ -3792,7 +3867,7 @@ var file_proto_thread_thread_proto_depIdxs = []int32{
 	34, // 29: thread.PollResultsResponse.results:type_name -> thread.PollOptionResult
 	36, // 30: thread.GetTrendingHashtagsResponse.hashtags:type_name -> thread.HashtagResponse
 	49, // 31: thread.GetMediaByUserResponse.media:type_name -> thread.MediaItem
-	51, // 32: thread.MediaItem.created_at:type_name -> google.protobuf.Timestamp
+	52, // 32: thread.MediaItem.created_at:type_name -> google.protobuf.Timestamp
 	5,  // 33: thread.ThreadService.CreateThread:input_type -> thread.CreateThreadRequest
 	7,  // 34: thread.ThreadService.GetThreadById:input_type -> thread.GetThreadRequest
 	8,  // 35: thread.ThreadService.GetThreadsByUser:input_type -> thread.GetThreadsByUserRequest
@@ -3826,41 +3901,43 @@ var file_proto_thread_thread_proto_depIdxs = []int32{
 	37, // 63: thread.ThreadService.GetTrendingHashtags:input_type -> thread.GetTrendingHashtagsRequest
 	29, // 64: thread.ThreadService.GetRepliesByParentReply:input_type -> thread.GetRepliesByParentReplyRequest
 	50, // 65: thread.ThreadService.GetBookmarksByUser:input_type -> thread.GetBookmarksByUserRequest
-	27, // 66: thread.ThreadService.CreateThread:output_type -> thread.ThreadResponse
-	27, // 67: thread.ThreadService.GetThreadById:output_type -> thread.ThreadResponse
-	28, // 68: thread.ThreadService.GetThreadsByUser:output_type -> thread.ThreadsResponse
-	28, // 69: thread.ThreadService.GetAllThreads:output_type -> thread.ThreadsResponse
-	27, // 70: thread.ThreadService.UpdateThread:output_type -> thread.ThreadResponse
-	52, // 71: thread.ThreadService.DeleteThread:output_type -> google.protobuf.Empty
-	30, // 72: thread.ThreadService.CreateReply:output_type -> thread.ReplyResponse
-	31, // 73: thread.ThreadService.GetRepliesByThread:output_type -> thread.RepliesResponse
-	30, // 74: thread.ThreadService.UpdateReply:output_type -> thread.ReplyResponse
-	52, // 75: thread.ThreadService.DeleteReply:output_type -> google.protobuf.Empty
-	31, // 76: thread.ThreadService.GetRepliesByUser:output_type -> thread.RepliesResponse
-	28, // 77: thread.ThreadService.GetLikedThreadsByUser:output_type -> thread.ThreadsResponse
-	48, // 78: thread.ThreadService.GetMediaByUser:output_type -> thread.GetMediaByUserResponse
-	52, // 79: thread.ThreadService.LikeThread:output_type -> google.protobuf.Empty
-	52, // 80: thread.ThreadService.UnlikeThread:output_type -> google.protobuf.Empty
-	52, // 81: thread.ThreadService.LikeReply:output_type -> google.protobuf.Empty
-	52, // 82: thread.ThreadService.UnlikeReply:output_type -> google.protobuf.Empty
-	52, // 83: thread.ThreadService.RepostThread:output_type -> google.protobuf.Empty
-	52, // 84: thread.ThreadService.RemoveRepost:output_type -> google.protobuf.Empty
-	52, // 85: thread.ThreadService.BookmarkThread:output_type -> google.protobuf.Empty
-	52, // 86: thread.ThreadService.RemoveBookmark:output_type -> google.protobuf.Empty
-	52, // 87: thread.ThreadService.BookmarkReply:output_type -> google.protobuf.Empty
-	52, // 88: thread.ThreadService.RemoveReplyBookmark:output_type -> google.protobuf.Empty
-	52, // 89: thread.ThreadService.PinThread:output_type -> google.protobuf.Empty
-	52, // 90: thread.ThreadService.UnpinThread:output_type -> google.protobuf.Empty
-	52, // 91: thread.ThreadService.PinReply:output_type -> google.protobuf.Empty
-	52, // 92: thread.ThreadService.UnpinReply:output_type -> google.protobuf.Empty
-	32, // 93: thread.ThreadService.CreatePoll:output_type -> thread.PollResponse
-	52, // 94: thread.ThreadService.VotePoll:output_type -> google.protobuf.Empty
-	33, // 95: thread.ThreadService.GetPollResults:output_type -> thread.PollResultsResponse
-	38, // 96: thread.ThreadService.GetTrendingHashtags:output_type -> thread.GetTrendingHashtagsResponse
-	31, // 97: thread.ThreadService.GetRepliesByParentReply:output_type -> thread.RepliesResponse
-	28, // 98: thread.ThreadService.GetBookmarksByUser:output_type -> thread.ThreadsResponse
-	66, // [66:99] is the sub-list for method output_type
-	33, // [33:66] is the sub-list for method input_type
+	51, // 66: thread.ThreadService.GetThreadsByHashtag:input_type -> thread.GetThreadsByHashtagRequest
+	27, // 67: thread.ThreadService.CreateThread:output_type -> thread.ThreadResponse
+	27, // 68: thread.ThreadService.GetThreadById:output_type -> thread.ThreadResponse
+	28, // 69: thread.ThreadService.GetThreadsByUser:output_type -> thread.ThreadsResponse
+	28, // 70: thread.ThreadService.GetAllThreads:output_type -> thread.ThreadsResponse
+	27, // 71: thread.ThreadService.UpdateThread:output_type -> thread.ThreadResponse
+	53, // 72: thread.ThreadService.DeleteThread:output_type -> google.protobuf.Empty
+	30, // 73: thread.ThreadService.CreateReply:output_type -> thread.ReplyResponse
+	31, // 74: thread.ThreadService.GetRepliesByThread:output_type -> thread.RepliesResponse
+	30, // 75: thread.ThreadService.UpdateReply:output_type -> thread.ReplyResponse
+	53, // 76: thread.ThreadService.DeleteReply:output_type -> google.protobuf.Empty
+	31, // 77: thread.ThreadService.GetRepliesByUser:output_type -> thread.RepliesResponse
+	28, // 78: thread.ThreadService.GetLikedThreadsByUser:output_type -> thread.ThreadsResponse
+	48, // 79: thread.ThreadService.GetMediaByUser:output_type -> thread.GetMediaByUserResponse
+	53, // 80: thread.ThreadService.LikeThread:output_type -> google.protobuf.Empty
+	53, // 81: thread.ThreadService.UnlikeThread:output_type -> google.protobuf.Empty
+	53, // 82: thread.ThreadService.LikeReply:output_type -> google.protobuf.Empty
+	53, // 83: thread.ThreadService.UnlikeReply:output_type -> google.protobuf.Empty
+	53, // 84: thread.ThreadService.RepostThread:output_type -> google.protobuf.Empty
+	53, // 85: thread.ThreadService.RemoveRepost:output_type -> google.protobuf.Empty
+	53, // 86: thread.ThreadService.BookmarkThread:output_type -> google.protobuf.Empty
+	53, // 87: thread.ThreadService.RemoveBookmark:output_type -> google.protobuf.Empty
+	53, // 88: thread.ThreadService.BookmarkReply:output_type -> google.protobuf.Empty
+	53, // 89: thread.ThreadService.RemoveReplyBookmark:output_type -> google.protobuf.Empty
+	53, // 90: thread.ThreadService.PinThread:output_type -> google.protobuf.Empty
+	53, // 91: thread.ThreadService.UnpinThread:output_type -> google.protobuf.Empty
+	53, // 92: thread.ThreadService.PinReply:output_type -> google.protobuf.Empty
+	53, // 93: thread.ThreadService.UnpinReply:output_type -> google.protobuf.Empty
+	32, // 94: thread.ThreadService.CreatePoll:output_type -> thread.PollResponse
+	53, // 95: thread.ThreadService.VotePoll:output_type -> google.protobuf.Empty
+	33, // 96: thread.ThreadService.GetPollResults:output_type -> thread.PollResultsResponse
+	38, // 97: thread.ThreadService.GetTrendingHashtags:output_type -> thread.GetTrendingHashtagsResponse
+	31, // 98: thread.ThreadService.GetRepliesByParentReply:output_type -> thread.RepliesResponse
+	28, // 99: thread.ThreadService.GetBookmarksByUser:output_type -> thread.ThreadsResponse
+	28, // 100: thread.ThreadService.GetThreadsByHashtag:output_type -> thread.ThreadsResponse
+	67, // [67:101] is the sub-list for method output_type
+	33, // [33:67] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name
 	33, // [33:33] is the sub-list for extension extendee
 	0,  // [0:33] is the sub-list for field type_name
@@ -3888,7 +3965,7 @@ func file_proto_thread_thread_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_thread_thread_proto_rawDesc), len(file_proto_thread_thread_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   51,
+			NumMessages:   52,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -147,9 +147,26 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 	publicCommunities := v1.Group("/communities")
 	publicCommunities.Use(middleware.OptionalJWTAuth(jwtSecret))
 	{
-		publicCommunities.GET("/user/:userId/joined", handlers.GetJoinedCommunities)
-		publicCommunities.GET("/user/:userId/pending", handlers.GetPendingCommunities)
-		publicCommunities.GET("/discover", handlers.GetDiscoverCommunities)
+		// Use the same handler for all endpoints with different filter parameters
+		publicCommunities.GET("/user/:userId/joined", func(c *gin.Context) {
+			// Append filter=joined to the query
+			c.Request.URL.RawQuery += "&filter=joined"
+			handlers.ListCommunities(c)
+		})
+
+		publicCommunities.GET("/user/:userId/pending", func(c *gin.Context) {
+			// Append filter=pending to the query
+			c.Request.URL.RawQuery += "&filter=pending"
+			handlers.ListCommunities(c)
+		})
+
+		publicCommunities.GET("/user/:userId/discover", func(c *gin.Context) {
+			// Append filter=discover to the query
+			c.Request.URL.RawQuery += "&filter=discover"
+			handlers.ListCommunities(c)
+		})
+
+		// Basic listing endpoint
 		publicCommunities.GET("", handlers.ListCommunities)
 		publicCommunities.GET("/:id", handlers.GetCommunityByID)
 	}

@@ -846,19 +846,27 @@ func GetAllThreads(c *gin.Context) {
 func GetUserReplies(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
-		return
+		log.Printf("No authenticated user for GetUserReplies, proceeding as guest")
 	}
 
-	authenticatedUserIDStr, ok := authenticatedUserID.(string)
-	if !ok {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
-		return
+	authenticatedUserIDStr := ""
+	if exists {
+		var ok bool
+		authenticatedUserIDStr, ok = authenticatedUserID.(string)
+		if !ok {
+			log.Printf("Invalid user ID format in token, proceeding as guest")
+		} else {
+			log.Printf("Authenticated user ID: %s", authenticatedUserIDStr)
+		}
 	}
 
 	userID := c.Param("id")
 
 	if userID == "me" {
+		if authenticatedUserIDStr == "" {
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required to view your own replies")
+			return
+		}
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
 	}
@@ -971,19 +979,27 @@ func GetUserReplies(c *gin.Context) {
 func GetUserLikedThreads(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
-		return
+		log.Printf("No authenticated user for GetUserLikedThreads, proceeding as guest")
 	}
 
-	authenticatedUserIDStr, ok := authenticatedUserID.(string)
-	if !ok {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
-		return
+	authenticatedUserIDStr := ""
+	if exists {
+		var ok bool
+		authenticatedUserIDStr, ok = authenticatedUserID.(string)
+		if !ok {
+			log.Printf("Invalid user ID format in token, proceeding as guest")
+		} else {
+			log.Printf("Authenticated user ID: %s", authenticatedUserIDStr)
+		}
 	}
 
 	userID := c.Param("id")
 
 	if userID == "me" {
+		if authenticatedUserIDStr == "" {
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required to view your own liked threads")
+			return
+		}
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
 	}
@@ -1042,33 +1058,38 @@ func GetUserLikedThreads(c *gin.Context) {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+				// If no liked threads found, return an empty array instead of an error
+				c.JSON(http.StatusOK, gin.H{
+					"threads": []interface{}{},
+					"total":   0,
+				})
+				return
 			}
 			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user liked threads: "+err.Error())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get liked threads: "+err.Error())
 		}
 		return
 	}
 
 	threadItems := make([]map[string]interface{}, len(threads))
 	for i, thread := range threads {
-		threadItems[i] = map[string]interface{}{
+		threadItem := map[string]interface{}{
 			"id":                  thread.ID,
 			"content":             thread.Content,
 			"user_id":             thread.UserID,
-			"thread_id":           thread.ID,
 			"created_at":          thread.CreatedAt,
 			"updated_at":          thread.UpdatedAt,
 			"likes_count":         thread.LikeCount,
 			"replies_count":       thread.ReplyCount,
 			"reposts_count":       thread.RepostCount,
-			"is_liked":            thread.IsLiked,
-			"is_reposted":         thread.IsReposted,
+			"bookmark_count":      thread.BookmarkCount,
+			"is_liked":            true, // Since these are liked threads
 			"is_bookmarked":       thread.IsBookmarked,
 			"username":            thread.Username,
 			"name":                thread.DisplayName,
 			"profile_picture_url": thread.ProfilePicture,
+			"is_pinned":           thread.IsPinned,
 		}
 
 		if len(thread.Media) > 0 {
@@ -1080,34 +1101,44 @@ func GetUserLikedThreads(c *gin.Context) {
 					"url":  m.URL,
 				}
 			}
-			threadItems[i]["media"] = media
+			threadItem["media"] = media
 		} else {
-			threadItems[i]["media"] = []interface{}{}
+			threadItem["media"] = []interface{}{}
 		}
+
+		threadItems[i] = threadItem
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"threads": threadItems,
-		"total":   len(threads),
+		"total":   len(threadItems),
 	})
 }
 
 func GetUserMedia(c *gin.Context) {
 	authenticatedUserID, exists := c.Get("userId")
 	if !exists {
-		utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "User ID not found in token")
-		return
+		log.Printf("No authenticated user for GetUserMedia, proceeding as guest")
 	}
 
-	authenticatedUserIDStr, ok := authenticatedUserID.(string)
-	if !ok {
-		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid User ID format in token")
-		return
+	authenticatedUserIDStr := ""
+	if exists {
+		var ok bool
+		authenticatedUserIDStr, ok = authenticatedUserID.(string)
+		if !ok {
+			log.Printf("Invalid user ID format in token, proceeding as guest")
+		} else {
+			log.Printf("Authenticated user ID: %s", authenticatedUserIDStr)
+		}
 	}
 
 	userID := c.Param("id")
 
 	if userID == "me" {
+		if authenticatedUserIDStr == "" {
+			utils.SendErrorResponse(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required to view your own media")
+			return
+		}
 		userID = authenticatedUserIDStr
 		log.Printf("Using authenticated user ID for 'me' parameter: %s", userID)
 	}
@@ -1141,7 +1172,6 @@ func GetUserMedia(c *gin.Context) {
 
 	_, uuidErr := uuid.Parse(userID)
 	if uuidErr != nil {
-
 		log.Printf("UserID '%s' is not a valid UUID, attempting to resolve as username", userID)
 
 		if userServiceClient == nil {
@@ -1151,7 +1181,6 @@ func GetUserMedia(c *gin.Context) {
 
 		user, err := userServiceClient.GetUserByUsername(userID)
 		if err != nil {
-
 			utils.SendErrorResponse(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("User with username '%s' not found", userID))
 			log.Printf("Failed to resolve username '%s' to UUID: %v", userID, err)
 			return
@@ -1161,33 +1190,74 @@ func GetUserMedia(c *gin.Context) {
 		log.Printf("Resolved username '%s' to UUID '%s'", c.Param("id"), userID)
 	}
 
-	mediaItems, err := threadServiceClient.GetMediaByUser(userID, page, limit)
+	threads, err := threadServiceClient.GetUserMediaThreads(userID, page, limit)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			httpStatus := http.StatusInternalServerError
 			if st.Code() == codes.NotFound {
-				httpStatus = http.StatusNotFound
+				// If no media threads found, return an empty array instead of an error
+				c.JSON(http.StatusOK, gin.H{
+					"threads": []interface{}{},
+					"total":   0,
+				})
+				return
 			}
 			utils.SendErrorResponse(c, httpStatus, st.Code().String(), st.Message())
 		} else {
-			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user media: "+err.Error())
+			utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get media threads: "+err.Error())
 		}
 		return
 	}
 
-	mediaResponse := make([]map[string]interface{}, len(mediaItems))
-	for i, m := range mediaItems {
-		mediaResponse[i] = map[string]interface{}{
-			"id":        m.ID,
-			"thread_id": m.Thumbnail,
-			"url":       m.URL,
-			"type":      m.Type,
+	// Handle the case where no media threads are found but no error occurred
+	if threads == nil || len(threads) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"threads": []interface{}{},
+			"total":   0,
+		})
+		return
+	}
+
+	threadItems := make([]map[string]interface{}, len(threads))
+	for i, thread := range threads {
+		threadItem := map[string]interface{}{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"user_id":             thread.UserID,
+			"created_at":          thread.CreatedAt,
+			"updated_at":          thread.UpdatedAt,
+			"likes_count":         thread.LikeCount,
+			"replies_count":       thread.ReplyCount,
+			"reposts_count":       thread.RepostCount,
+			"bookmark_count":      thread.BookmarkCount,
+			"is_liked":            thread.IsLiked,
+			"is_bookmarked":       thread.IsBookmarked,
+			"username":            thread.Username,
+			"name":                thread.DisplayName,
+			"profile_picture_url": thread.ProfilePicture,
+			"is_pinned":           thread.IsPinned,
 		}
+
+		if len(thread.Media) > 0 {
+			media := make([]map[string]interface{}, len(thread.Media))
+			for j, m := range thread.Media {
+				media[j] = map[string]interface{}{
+					"id":   m.ID,
+					"type": m.Type,
+					"url":  m.URL,
+				}
+			}
+			threadItem["media"] = media
+		} else {
+			threadItem["media"] = []interface{}{}
+		}
+
+		threadItems[i] = threadItem
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"media": mediaResponse,
-		"total": len(mediaItems),
+		"threads": threadItems,
+		"total":   len(threadItems),
 	})
 }
 

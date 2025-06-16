@@ -116,15 +116,25 @@
       }
       
       // Add more detailed logging
-      console.log(`[Communities] Raw API response for ${activeTab} tab:`, JSON.stringify(result));
+      console.log(`[Communities] Raw API response for ${activeTab} tab:`, result);
       logger.info('[Communities] API response:', result);
       
       // Handle response data
       if (result && result.success !== false) {
         // Extract communities from the result
-        communities = result.communities || [];
-        
-        totalCount = result.total || 0;
+        if (result.data && result.data.communities) {
+          // Handle nested response structure
+          communities = result.data.communities || [];
+          totalCount = result.data.pagination?.total_count || 0;
+          currentPage = result.data.pagination?.current_page || currentPage;
+          limit = result.data.pagination?.per_page || limit;
+        } else {
+          // Handle flat response structure
+          communities = result.communities || [];
+          totalCount = result.total || 0;
+          currentPage = result.page || currentPage;
+          limit = result.limit || limit;
+        }
         
         console.log('[Communities] Extracted communities:', communities);
         console.log('[Communities] Total count:', totalCount);
@@ -134,6 +144,17 @@
           console.log('[Communities] Communities is not an array, resetting to empty array');
           communities = [];
         }
+        
+        // Additional debug logging for each community
+        communities.forEach((community, index) => {
+          console.log(`[Communities] Community ${index}:`, {
+            id: community.id,
+            name: community.name,
+            description: community.description?.substring(0, 30) + '...',
+            logo_url: community.logo_url || community.logoUrl,
+            banner_url: community.banner_url || community.bannerUrl
+          });
+        });
         
         // Set up pagination
         totalPages = calculateTotalPages(totalCount, limit);
@@ -316,22 +337,89 @@
   
   // Helper function to get the Supabase URL for community logos
   function getLogoUrl(community: any): string|null {
-    if (!community.logo_url && !community.logoUrl) return null;
+    if (!community) return null;
     
-    const logoUrl = community.logo_url || community.logoUrl;
+    // Check for different property names
+    const logoUrl = community.logo_url || community.logoUrl || community.logo;
     
-    // Use formatStorageUrl utility to handle all URL formatting consistently
-    return formatStorageUrl(logoUrl);
+    if (!logoUrl) return null;
+    
+    try {
+      // First check if this is a known problematic URL and fix it directly
+      const fixedUrl = fixKnownProblematicUrl(logoUrl);
+      if (fixedUrl !== logoUrl) {
+        return fixedUrl;
+      }
+      
+      // Use formatStorageUrl utility to handle all URL formatting consistently
+      return formatStorageUrl(logoUrl);
+    } catch (error) {
+      console.error("Error formatting logo URL:", error, logoUrl);
+      return logoUrl; // Return original as fallback
+    }
   }
   
   // Helper function to get the Supabase URL for community banners
   function getBannerUrl(community: any): string|null {
-    if (!community.banner_url && !community.bannerUrl) return null;
+    if (!community) return null;
     
-    const bannerUrl = community.banner_url || community.bannerUrl;
+    // Check for different property names
+    const bannerUrl = community.banner_url || community.bannerUrl || community.banner;
     
-    // Use formatStorageUrl utility to handle all URL formatting consistently
-    return formatStorageUrl(bannerUrl);
+    if (!bannerUrl) return null;
+    
+    try {
+      // First check if this is a known problematic URL and fix it directly
+      const fixedUrl = fixKnownProblematicUrl(bannerUrl);
+      if (fixedUrl !== bannerUrl) {
+        return fixedUrl;
+      }
+      
+      // Use formatStorageUrl utility to handle all URL formatting consistently
+      return formatStorageUrl(bannerUrl);
+    } catch (error) {
+      console.error("Error formatting banner URL:", error, bannerUrl);
+      return bannerUrl; // Return original as fallback
+    }
+  }
+  
+  // Function to fix known problematic URLs
+  function fixKnownProblematicUrl(url: string): string {
+    // Map of known problematic URLs to their fixed versions
+    const knownUrlFixes: Record<string, string> = {
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614938807_vf09h7v5.jpg',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749614937805_k3pne3t9.jpg': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749614937805_k3pne3t9.jpg',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/uploads/community/community_banner_91df5727a9c5427e94cee0486e3bfdb7_1749202798.png': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/uploads/community/community_banner_91df5727a9c5427e94cee0486e3bfdb7_1749202798.png',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/test/logo.jpg': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/test/logo.jpg',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/test/banner.jpg': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/test/banner.jpg',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749269410545_m10xabzo.png': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269410545_m10xabzo.png',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/uploads/community/community_logo_91df5727a9c5427e94cee0486e3bfdb7_1749202798.jpg': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/uploads/community/community_logo_91df5727a9c5427e94cee0486e3bfdb7_1749202798.jpg',
+      'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/s3/tpaweb/1kolknj_1/1749269411979_4070qdrp.png': 
+        'https://sdhtnvlmuywinhcglfsu.supabase.co/storage/v1/object/public/tpaweb/1kolknj_1/1749269411979_4070qdrp.png'
+    };
+    
+    // If this is a known problematic URL, return the fixed version
+    if (url in knownUrlFixes) {
+      console.log('Fixed known problematic URL:', url, 'to', knownUrlFixes[url]);
+      return knownUrlFixes[url];
+    }
+    
+    // Check if the URL follows a pattern of known problematic URLs
+    if (url.includes('/storage/v1/s3/')) {
+      // Convert s3 URLs to object/public URLs
+      const fixedUrl = url.replace('/storage/v1/s3/', '/storage/v1/object/public/');
+      console.log('Fixed pattern-matched URL:', url, 'to', fixedUrl);
+      return fixedUrl;
+    }
+    
+    return url;
   }
   
   // Initial data loading
@@ -422,12 +510,27 @@
           {#each communities as community (community.id)}
             <div class="community-card">
               <div class="community-banner">
-                {#if community.banner_url || community.bannerUrl}
+                {#if community.banner_url || community.bannerUrl || community.banner}
                   <img 
                     src={getBannerUrl(community)} 
                     alt={`${community.name || 'Community'} banner`} 
+                    crossorigin="anonymous"
+                    loading="lazy"
                     on:error={(e) => {
                       console.error("Community banner image failed to load:", getBannerUrl(community));
+                      // Set a fallback class to show a placeholder instead
+                      const imgElement = e.target as HTMLImageElement;
+                      if (imgElement) {
+                        imgElement.classList.add('image-error');
+                        // Try to set a data attribute to help with debugging
+                        imgElement.setAttribute('data-original-url', 
+                          community.banner_url || community.bannerUrl || community.banner || '');
+                        // Show placeholder
+                        const parent = imgElement.parentElement;
+                        if (parent) {
+                          parent.classList.add('banner-placeholder');
+                        }
+                      }
                     }}
                   />
                 {:else}
@@ -436,14 +539,38 @@
               </div>
               <div class="community-card-content" on:click={() => handleCommunityClick(community.id)}>
                 <div class="community-logo">
-                  {#if community.logo_url || community.logoUrl}
+                  {#if community.logo_url || community.logoUrl || community.logo}
                     <img 
                       src={getLogoUrl(community)} 
                       alt={community.name || 'Community'} 
+                      crossorigin="anonymous"
+                      loading="lazy"
                       on:error={(e) => {
                         console.error("Community logo image failed to load:", getLogoUrl(community));
+                        // Set a fallback class to show a placeholder instead
+                        const imgElement = e.target as HTMLImageElement;
+                        if (imgElement) {
+                          imgElement.classList.add('image-error');
+                          // Show the first letter as fallback
+                          imgElement.style.display = 'none';
+                          if (imgElement.parentElement) {
+                            imgElement.parentElement.classList.add('logo-placeholder');
+                            // Add the first letter as content
+                            const letter = community.name && community.name.length > 0 
+                              ? community.name[0].toUpperCase() 
+                              : 'C';
+                            imgElement.parentElement.setAttribute('data-content', letter);
+                          }
+                          // Try to set a data attribute to help with debugging
+                          imgElement.setAttribute('data-original-url', 
+                            community.logo_url || community.logoUrl || community.logo || '');
+                        }
                       }}
                     />
+                    <!-- Fallback content that will be shown when image fails to load -->
+                    <div class="logo-placeholder-fallback">
+                      {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
+                    </div>
                   {:else}
                     <div class="logo-placeholder">
                       {community.name && community.name.length > 0 ? community.name[0].toUpperCase() : 'C'}
@@ -771,11 +898,18 @@
   .banner-placeholder {
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+    min-height: 120px;
+    background-color: #e2e8f0;
+    background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1), 
+                      linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
   }
   
   .dark .community-banner .banner-placeholder {
-    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    background-color: #334155;
+    background-image: linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569), 
+                      linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569);
   }
   
   .dark .community-card {
@@ -823,15 +957,36 @@
   }
   
   .logo-placeholder {
-    width: 100%;
-    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--primary-color, #3182ce);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #3b82f6;
     color: white;
-    font-size: 1.5rem;
     font-weight: bold;
+    font-size: 1.5rem;
+    position: relative;
+  }
+  
+  .logo-placeholder::after {
+    content: attr(data-content);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-weight: bold;
+    font-size: 1.5rem;
+  }
+  
+  .logo-placeholder-fallback {
+    display: none;
+  }
+  
+  .logo-placeholder .logo-placeholder-fallback {
+    display: block;
   }
   
   .community-info {
@@ -1090,5 +1245,60 @@
       flex-direction: column;
       gap: 1rem;
     }
+  }
+  
+  /* Add styles for image error handling */
+  .image-error {
+    display: none !important;
+  }
+  
+  .banner-placeholder {
+    height: 100%;
+    width: 100%;
+    min-height: 120px;
+    background-color: #e2e8f0;
+    background-image: linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1), 
+                      linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%, #cbd5e1);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+  }
+  
+  .dark .banner-placeholder {
+    background-color: #334155;
+    background-image: linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569), 
+                      linear-gradient(45deg, #475569 25%, transparent 25%, transparent 75%, #475569 75%, #475569);
+  }
+  
+  .logo-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #3b82f6;
+    color: white;
+    font-weight: bold;
+    font-size: 1.5rem;
+    position: relative;
+  }
+  
+  .logo-placeholder::after {
+    content: attr(data-content);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-weight: bold;
+    font-size: 1.5rem;
+  }
+  
+  .logo-placeholder-fallback {
+    display: none;
+  }
+  
+  .logo-placeholder .logo-placeholder-fallback {
+    display: block;
   }
 </style>

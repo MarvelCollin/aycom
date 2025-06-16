@@ -9,7 +9,7 @@
   const { theme } = useTheme();
   
   // Props
-  export let activeTab: 'top' | 'latest' | 'people' | 'media' | 'communities' = 'top';
+  export let activeTab: 'trending' | 'media' | 'people' | 'communities' | 'latest' = 'trending';
   
   // Reactive declarations
   $: isDarkMode = $theme === 'dark';
@@ -19,7 +19,7 @@
   let activeTabElement: HTMLElement;
   
   // Handle tab change
-  function handleTabChange(tab: 'top' | 'latest' | 'people' | 'media' | 'communities') {
+  function handleTabChange(tab: 'trending' | 'media' | 'people' | 'communities' | 'latest') {
     logger.debug('Tab changed', { from: activeTab, to: tab });
     activeTab = tab;
     dispatch('tabChange', tab);
@@ -54,8 +54,9 @@
   // Initialize after component mounts
   onMount(() => {
     // Get active tab element and scroll it into view
-    activeTabElement = document.querySelector('.tab-button.active');
-    if (activeTabElement) {
+    const element = document.querySelector('.tab-button.active');
+    if (element) {
+      activeTabElement = element;
       scrollTabIntoView(activeTabElement);
     }
   });
@@ -64,28 +65,12 @@
 <div class="explore-tabs {isDarkMode ? 'explore-tabs-dark' : ''}">
   <div class="tabs-container" bind:this={tabsContainer}>
     <button 
-      class="tab-button {activeTab === 'top' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
-      on:click={() => handleTabChange('top')}
-      aria-selected={activeTab === 'top'}
+      class="tab-button {activeTab === 'trending' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
+      on:click={() => handleTabChange('trending')}
+      aria-selected={activeTab === 'trending'}
       role="tab"
     >
-      Top
-    </button>
-    <button 
-      class="tab-button {activeTab === 'latest' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
-      on:click={() => handleTabChange('latest')}
-      aria-selected={activeTab === 'latest'}
-      role="tab"
-    >
-      Latest
-    </button>
-    <button 
-      class="tab-button {activeTab === 'people' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
-      on:click={() => handleTabChange('people')}
-      aria-selected={activeTab === 'people'}
-      role="tab"
-    >
-      People
+      Trending
     </button>
     <button 
       class="tab-button {activeTab === 'media' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
@@ -96,12 +81,28 @@
       Media
     </button>
     <button 
+      class="tab-button {activeTab === 'people' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
+      on:click={() => handleTabChange('people')}
+      aria-selected={activeTab === 'people'}
+      role="tab"
+    >
+      People
+    </button>
+    <button 
       class="tab-button {activeTab === 'communities' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
       on:click={() => handleTabChange('communities')}
       aria-selected={activeTab === 'communities'}
       role="tab"
     >
       Communities
+    </button>
+    <button 
+      class="tab-button {activeTab === 'latest' ? 'active' : ''} {isDarkMode ? 'tab-button-dark' : ''}"
+      on:click={() => handleTabChange('latest')}
+      aria-selected={activeTab === 'latest'}
+      role="tab"
+    >
+      Latest
     </button>
   </div>
   <div class="tab-indicator-container">
@@ -185,12 +186,12 @@
     transition: transform 0.3s ease;
   }
   
-  .tab-indicator.top {
+  .tab-indicator.trending {
     width: 20%;
     transform: translateX(0%);
   }
   
-  .tab-indicator.latest {
+  .tab-indicator.media {
     width: 20%;
     transform: translateX(100%);
   }
@@ -200,12 +201,12 @@
     transform: translateX(200%);
   }
   
-  .tab-indicator.media {
+  .tab-indicator.communities {
     width: 20%;
     transform: translateX(300%);
   }
   
-  .tab-indicator.communities {
+  .tab-indicator.latest {
     width: 20%;
     transform: translateX(400%);
   }

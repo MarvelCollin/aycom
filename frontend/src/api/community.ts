@@ -1308,14 +1308,8 @@ export async function getJoinedCommunities(userId: string, params: CommunitiesPa
       const result = await response.json();
       console.log('Joined communities raw response:', result);
       
-      return {
-        success: true,
-        communities: result.communities || [],
-        total: result.total || 0,
-        page: result.page || params.page || 1,
-        limit: result.limit || params.limit || 25,
-        total_pages: result.total_pages || 1
-      };
+      // Return the entire response structure directly
+      return result;
     }
 
     logger.warn('All attempts to fetch joined communities failed, returning empty data set');
@@ -1404,14 +1398,8 @@ export async function getPendingCommunities(userId: string, params: CommunitiesP
       const result = await response.json();
       console.log('Pending communities raw response:', result);
       
-      return {
-        success: true,
-        communities: result.communities || [],
-        total: result.total || 0,
-        page: result.page || params.page || 1,
-        limit: result.limit || params.limit || 25,
-        total_pages: result.total_pages || 1
-      };
+      // Return the entire response structure directly
+      return result;
     }
 
     logger.warn('All attempts to fetch pending communities failed, returning empty data set');
@@ -1460,7 +1448,7 @@ export async function getDiscoverCommunities(userId: string, params: Communities
 
     while (attempts < maxAttempts) {
       try {
-        response = await fetch(`${API_BASE_URL}/communities/discover?${queryParams.toString()}`, {
+        response = await fetch(`${API_BASE_URL}/communities/user/${userId}/discover?${queryParams.toString()}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -1505,14 +1493,8 @@ export async function getDiscoverCommunities(userId: string, params: Communities
       const result = await response.json();
       console.log('Discover communities raw response:', result);
       
-      return {
-        success: true,
-        communities: result.communities || [],
-        total: result.total || 0,
-        page: result.page || params.page || 1,
-        limit: result.limit || params.limit || 25,
-        total_pages: result.total_pages || 1
-      };
+      // Return the entire response structure directly
+      return result;
     }
 
     logger.warn('All attempts to fetch discover communities failed, returning empty data set');

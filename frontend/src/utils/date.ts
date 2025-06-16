@@ -39,17 +39,17 @@ export function formatRelativeTime(dateString: string): string {
     const years = Math.round(months / 12);
 
     if (seconds < 60) {
-      return seconds <= 1 ? 'just now' : `${seconds} seconds ago`;
+      return seconds <= 1 ? 'just now' : `${seconds}s ago`;
     } else if (minutes < 60) {
-      return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+      return minutes === 1 ? '1m ago' : `${minutes}m ago`;
     } else if (hours < 24) {
-      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
-    } else if (days < 30) {
-      return days === 1 ? '1 day ago' : `${days} days ago`;
-    } else if (months < 12) {
-      return months === 1 ? '1 month ago' : `${months} months ago`;
+      return hours === 1 ? '1h ago' : `${hours}h ago`;
+    } else if (days < 3) {
+      // Show time for recent days
+      return days === 1 ? 'Yesterday' : `${days}d ago`;
     } else {
-      return years === 1 ? '1 year ago' : `${years} years ago`;
+      // Use the actual date/time for older messages
+      return formatTimeForDisplay(date);
     }
   } catch (error) {
     console.error('Error formatting date:', error);
@@ -64,14 +64,20 @@ export function formatRelativeTime(dateString: string): string {
  */
 export function formatTimeForDisplay(date: Date): string {
   try {
+    // For dates within the current year, omit the year
+    const now = new Date();
+    const isCurrentYear = now.getFullYear() === date.getFullYear();
+    
+    // Create a unique timestamp with milliseconds for testing
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
+      year: isCurrentYear ? undefined : 'numeric',
       hour: 'numeric',
-      minute: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: true
-    });
+    }) + `:${date.getMilliseconds().toString().padStart(3, '0')}`;
   } catch (error) {
     console.error('Error formatting time for display:', error);
     return 'Invalid date';

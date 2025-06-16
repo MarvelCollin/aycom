@@ -11,8 +11,6 @@ export const searchUsers = async (query: string, filter: string = 'all', page: n
     let searchUrl = '';
     
     if (query && query.length >= 4 && query.length <= 6) {
-      // For short queries that might be typos, also include a prefix search
-      // e.g. if searching for "kolnb", also look for "kolin" 
       const prefixQuery = query.substring(0, query.length - 1);
       searchUrl = `/search/users?q=${encodeURIComponent(query)}&alt_q=${encodeURIComponent(prefixQuery)}&filter=${filter}&page=${page}&limit=${limit}`;
       console.debug(`Using expanded search with alt_q=${prefixQuery} to catch potential typos`);
@@ -41,12 +39,11 @@ export const searchUsers = async (query: string, filter: string = 'all', page: n
   }
 };
 
-// Improved search function that leverages the Damerau-Levenshtein fuzzy matching
+
 export const improvedSearchUsers = async (query: string, filter: string = 'all', page: number = 1, limit: number = 10): Promise<ISearchUsersResponse> => {
   try {
     // Build the search URL with fuzzy search parameters
     const searchParams = new URLSearchParams({
-      q: query,
       filter: filter,
       page: page.toString(),
       limit: limit.toString(),

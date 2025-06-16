@@ -856,45 +856,28 @@ export async function searchUsers(
   limit: number = 10, 
   options?: any
 ): Promise<any> {
+  console.log('Searching users with parameters:', { query, page, limit, options });
+  
   try {
     const token = getAuthToken();
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...(query ? { query } : {})
+    });
     
-    console.log('searchUsers called with query:', query, 'page:', page, 'limit:', limit, 'options:', options);
-
-    const MAX_QUERY_LENGTH = 30;
-    let validatedQuery = query || '';
-    if (validatedQuery.length > MAX_QUERY_LENGTH) {
-      console.warn(`Search query too long (${validatedQuery.length} chars). Truncating to ${MAX_QUERY_LENGTH} characters.`);
-      validatedQuery = validatedQuery.substring(0, MAX_QUERY_LENGTH);
+    // Add optional parameters if provided
+    if (options) {
+      if (options.sort) queryParams.append('sort', options.sort);
+      if (options.filter) queryParams.append('filter', options.filter);
+      if (options.category) queryParams.append('category', options.category);
+      if (options.sort_by) queryParams.append('sort_by', options.sort_by);
     }
     
-    if (!validatedQuery || validatedQuery.trim() === '') {
-      validatedQuery = " ";
-      console.log('Using space character as query placeholder for empty search');
-    }
+    const url = `${API_BASE_URL}/users/search?${queryParams.toString()}`;
+    console.log('Searching users at URL:', url);
 
     const makeSearchRequest = async (withAuth: boolean) => {
-      const params = new URLSearchParams();
-      
-      params.append('q', validatedQuery);
-      params.append('page', page.toString());
-      params.append('limit', limit.toString());
-      params.append('fuzzy', 'true'); // Enable fuzzy search by default
-  
-      let filter = 'all';
-      if (options && options.filter) {
-        filter = options.filter;
-      }
-      params.append('filter', filter);
-      
-      if (options) {
-        Object.keys(options).forEach(key => {
-          if (key !== 'filter' && options[key] !== undefined) {
-            params.append(key, options[key].toString());
-          }
-        });
-      }
-  
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
@@ -903,82 +886,84 @@ export async function searchUsers(
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const requestUrl = `${API_BASE_URL}/users/search?${params.toString()}`;
-      console.log(`Making search request: ${requestUrl}`);
-      
-      return await fetch(requestUrl, {
+      try {
+        const response = await fetch(url, {
         method: 'GET',
         headers,
-        credentials: 'include'
+          credentials: 'include',
       });
-    };
-
-    let response = await makeSearchRequest(!!token);
-    console.log('Search response status:', response.status);
-    
-    if (response.status === 401 && token) {
-      console.log('Search API returned 401, retrying without authentication');
-      response = await makeSearchRequest(false);
-    }
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403 || response.status === 400) {
+          console.error(`User search API error: ${response.status} ${response.statusText}`);
         const errorText = await response.text();
-        console.warn(`Search users returned ${response.status}: ${errorText}`);
-        return {
-          success: true,
-          users: [],
-          total: 0
-        };
-      }
-      throw new Error(`Search users failed (${response.status})`);
+          console.error('Error response:', errorText);
+          
+          // Try to parse the error response
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.message || `Search request failed with status ${response.status}`);
+          } catch (parseError) {
+            throw new Error(`Search request failed with status ${response.status}`);
+          }
     }
 
     const responseText = await response.text();
-    console.log('Search results raw text:', responseText);
+        console.log('User search raw response:', responseText);
     
-    let responseJson;
     try {
-      responseJson = JSON.parse(responseText);
-      console.log('Search results parsed JSON:', responseJson);
-    } catch (e) {
-      console.error('Failed to parse JSON response:', e);
-      return {
-        success: false,
-        users: [],
-        total: 0,
-        error: 'Invalid JSON response from server'
-      };
-    }
-    
-    const data = responseJson.data || responseJson;
-    console.log('Search results unwrapped data:', data);
-    
-    const users = data.users || [];
-    const pagination = data.pagination || {};
-    const totalCount = pagination.total_count || 0;
-    
-    console.log('Parsed users:', users);
-    console.log('Parsed pagination:', pagination);
-    console.log('User count:', users.length);
-    
-    if (users.length > 0) {
-      console.log('First user structure:', users[0]);
-    }
-    
-    return {
-      success: true,
-      users: users,
-      total: totalCount,
-      totalCount: totalCount,
-      pagination: pagination
+          const data = JSON.parse(responseText);
+          console.log('User search parsed data:', data);
+          
+          // Normalize the response structure
+          const normalizedResponse = {
+            success: true,
+            users: data.users || data.data?.users || [],
+            total: data.total || data.total_count || data.data?.pagination?.total_count || 0,
+            pagination: data.pagination || data.data?.pagination || {
+              current_page: page,
+              per_page: limit,
+              total_pages: Math.ceil((data.total || data.total_count || 0) / limit),
+              total_count: data.total || data.total_count || 0
+            }
+          };
+          
+          return normalizedResponse;
+        } catch (parseError) {
+          console.error('Failed to parse user search response:', parseError);
+          throw new Error('Invalid response format from search API');
+        }
+      } catch (fetchError) {
+        console.error('Fetch error in searchUsers:', fetchError);
+        throw fetchError;
+      }
     };
+    
+    // First try with auth token if available
+    if (token) {
+      try {
+        return await makeSearchRequest(true);
+      } catch (authError) {
+        console.warn('Failed to search users with auth, trying without auth:', authError);
+        // If auth fails, try without auth as fallback
+        return await makeSearchRequest(false);
+      }
+    } else {
+      // No auth token available, make request without auth
+      return await makeSearchRequest(false);
+    }
   } catch (error) {
-    console.error('Search users failed:', error);
+    console.error('Error in searchUsers:', error);
+    // Return a valid empty response structure instead of throwing
     return {
       success: false,
       users: [],
       total: 0,
+      pagination: {
+        current_page: page,
+        per_page: limit,
+        total_pages: 0,
+        total_count: 0
+      },
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }

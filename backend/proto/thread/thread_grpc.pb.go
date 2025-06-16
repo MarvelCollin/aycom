@@ -53,6 +53,7 @@ const (
 	ThreadService_GetTrendingHashtags_FullMethodName     = "/thread.ThreadService/GetTrendingHashtags"
 	ThreadService_GetRepliesByParentReply_FullMethodName = "/thread.ThreadService/GetRepliesByParentReply"
 	ThreadService_GetBookmarksByUser_FullMethodName      = "/thread.ThreadService/GetBookmarksByUser"
+	ThreadService_GetThreadsByHashtag_FullMethodName     = "/thread.ThreadService/GetThreadsByHashtag"
 )
 
 // ThreadServiceClient is the client API for ThreadService service.
@@ -92,6 +93,7 @@ type ThreadServiceClient interface {
 	GetTrendingHashtags(ctx context.Context, in *GetTrendingHashtagsRequest, opts ...grpc.CallOption) (*GetTrendingHashtagsResponse, error)
 	GetRepliesByParentReply(ctx context.Context, in *GetRepliesByParentReplyRequest, opts ...grpc.CallOption) (*RepliesResponse, error)
 	GetBookmarksByUser(ctx context.Context, in *GetBookmarksByUserRequest, opts ...grpc.CallOption) (*ThreadsResponse, error)
+	GetThreadsByHashtag(ctx context.Context, in *GetThreadsByHashtagRequest, opts ...grpc.CallOption) (*ThreadsResponse, error)
 }
 
 type threadServiceClient struct {
@@ -432,6 +434,16 @@ func (c *threadServiceClient) GetBookmarksByUser(ctx context.Context, in *GetBoo
 	return out, nil
 }
 
+func (c *threadServiceClient) GetThreadsByHashtag(ctx context.Context, in *GetThreadsByHashtagRequest, opts ...grpc.CallOption) (*ThreadsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ThreadsResponse)
+	err := c.cc.Invoke(ctx, ThreadService_GetThreadsByHashtag_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ThreadServiceServer is the server API for ThreadService service.
 // All implementations must embed UnimplementedThreadServiceServer
 // for forward compatibility.
@@ -469,6 +481,7 @@ type ThreadServiceServer interface {
 	GetTrendingHashtags(context.Context, *GetTrendingHashtagsRequest) (*GetTrendingHashtagsResponse, error)
 	GetRepliesByParentReply(context.Context, *GetRepliesByParentReplyRequest) (*RepliesResponse, error)
 	GetBookmarksByUser(context.Context, *GetBookmarksByUserRequest) (*ThreadsResponse, error)
+	GetThreadsByHashtag(context.Context, *GetThreadsByHashtagRequest) (*ThreadsResponse, error)
 	mustEmbedUnimplementedThreadServiceServer()
 }
 
@@ -577,6 +590,9 @@ func (UnimplementedThreadServiceServer) GetRepliesByParentReply(context.Context,
 }
 func (UnimplementedThreadServiceServer) GetBookmarksByUser(context.Context, *GetBookmarksByUserRequest) (*ThreadsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBookmarksByUser not implemented")
+}
+func (UnimplementedThreadServiceServer) GetThreadsByHashtag(context.Context, *GetThreadsByHashtagRequest) (*ThreadsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetThreadsByHashtag not implemented")
 }
 func (UnimplementedThreadServiceServer) mustEmbedUnimplementedThreadServiceServer() {}
 func (UnimplementedThreadServiceServer) testEmbeddedByValue()                       {}
@@ -1193,6 +1209,24 @@ func _ThreadService_GetBookmarksByUser_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ThreadService_GetThreadsByHashtag_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetThreadsByHashtagRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ThreadServiceServer).GetThreadsByHashtag(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ThreadService_GetThreadsByHashtag_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ThreadServiceServer).GetThreadsByHashtag(ctx, req.(*GetThreadsByHashtagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ThreadService_ServiceDesc is the grpc.ServiceDesc for ThreadService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1331,6 +1365,10 @@ var ThreadService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBookmarksByUser",
 			Handler:    _ThreadService_GetBookmarksByUser_Handler,
+		},
+		{
+			MethodName: "GetThreadsByHashtag",
+			Handler:    _ThreadService_GetThreadsByHashtag_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

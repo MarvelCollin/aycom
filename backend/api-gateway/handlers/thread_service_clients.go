@@ -53,6 +53,8 @@ type ThreadServiceClient interface {
 	UnpinReply(replyID, userID string) error
 
 	GetTrendingHashtags(limit int) ([]string, error)
+
+	GetUserMediaThreads(userID string, page, limit int) ([]*Thread, error)
 }
 
 // Thread represents a thread in the system
@@ -1642,4 +1644,30 @@ func (c *GRPCThreadServiceClient) GetThreadsByHashtag(hashtag string, userID str
 	}
 
 	return filteredThreads, nil
+}
+
+func (c *GRPCThreadServiceClient) GetUserMediaThreads(userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// This is a simplified implementation - in a real service you would have a specific method for media posts
+	// For now, we'll get all threads by the user and filter for ones with media
+	threads, err := c.GetThreadsByUserID(userID, "", page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter for threads with media
+	mediaThreads := make([]*Thread, 0)
+	for _, thread := range threads {
+		if len(thread.Media) > 0 {
+			mediaThreads = append(mediaThreads, thread)
+		}
+	}
+
+	return mediaThreads, nil
 }

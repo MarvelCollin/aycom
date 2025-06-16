@@ -630,1401 +630,31 @@ func GetCommunityByID(c *gin.Context) {
 }
 
 func ListCommunities(c *gin.Context) {
-	// If there's a search query, delegate to the search function instead
-	if query := c.Query("q"); query != "" {
-		OldSearchCommunities(c)
-		return
-	}
-
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "25"))
-	isApproved, _ := strconv.ParseBool(c.DefaultQuery("is_approved", "true"))
-	filter := c.Query("filter")
-
-	// Try to get user ID from context first (from JWT token)
+	// Try to get user ID from JWT token first
 	var userID string
-	if tokenUserID, exists := c.Get("userId"); exists {
+	tokenUserID, exists := c.Get("userId")
+
+	// If authenticated, use token user ID
+	if exists {
 		userID = tokenUserID.(string)
-		log.Printf("Using authenticated user ID: %s", userID)
+		log.Printf("Authenticated user ID: %s", userID)
 	} else {
-		// If not found in context, try from query parameter
-		userID = c.Query("userId")
-		if userID != "" {
+		// If not authenticated, use the user ID from URL parameter or query
+		if paramUserID := c.Param("userId"); paramUserID != "" {
+			userID = paramUserID
+			log.Printf("Using URL parameter user ID: %s", userID)
+		} else if queryUserID := c.Query("userId"); queryUserID != "" {
+			userID = queryUserID
 			log.Printf("Using query parameter user ID: %s", userID)
-		} else {
-			log.Printf("No user ID available, some filtering may be limited")
 		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	var resp *communityProto.ListCommunitiesResponse
-	var err error
-
-	if filter == "discover" {
-		// This is a simplified discover implementation.
-		// A real implementation would have more complex logic.
-		req := &communityProto.ListCommunitiesRequest{
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-			IsApproved: true, // Discover only approved communities
-		}
-		resp, err = CommunityClient.ListCommunities(ctx, req)
-	} else {
-		req := &communityProto.ListCommunitiesRequest{
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-			IsApproved: isApproved,
-		}
-		resp, err = CommunityClient.ListCommunities(ctx, req)
-	}
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list communities")
-		return
-	}
-
-	communities := make([]gin.H, len(resp.Communities))
-	for i, community := range resp.Communities {
-		// In a real application, you would get the member count from the database.
-		// Here we'll just return a placeholder.
-		memberCount := 0
-		listMembersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{CommunityId: community.Id})
-		if err == nil {
-			memberCount = len(listMembersResp.Members)
-		}
-
-		communities[i] = gin.H{
-			"id":           community.Id,
-			"name":         community.Name,
-			"description":  community.Description,
-			"logo_url":     community.LogoUrl,
-			"banner_url":   community.BannerUrl,
-			"creator_id":   community.CreatorId,
-			"is_approved":  community.IsApproved,
-			"created_at":   community.CreatedAt.AsTime(),
-			"member_count": memberCount,
-		}
-	}
-
-	// Filter out joined/pending communities for discover view
-	if filter == "discover" && userID != "" {
-		filteredCommunities := []gin.H{}
-		for _, community := range communities {
-			isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{CommunityId: community["id"].(string), UserId: userID})
-			if err == nil && isMemberResp.IsMember {
-				continue
-			}
-
-			hasPendingResp, err := CommunityClient.HasPendingJoinRequest(ctx, &communityProto.HasPendingJoinRequestRequest{CommunityId: community["id"].(string), UserId: userID})
-			if err == nil && hasPendingResp.HasRequest {
-				continue
-			}
-			filteredCommunities = append(filteredCommunities, community)
-		}
-		communities = filteredCommunities
-	}
-
-	totalPages := 0
-	if resp.TotalCount > 0 {
-		totalPages = int(math.Ceil(float64(resp.TotalCount) / float64(limit)))
-	}
-
-	response := gin.H{
-		"communities": communities,
-		"total":       resp.TotalCount,
-		"page":        page,
-		"limit":       limit,
-		"total_pages": totalPages,
-	}
-
-	utils.SendSuccessResponse(c, 200, response)
-}
-
-func ListCategories(c *gin.Context) {
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err := CommunityClient.ListCategories(ctx, &communityProto.ListCategoriesRequest{})
-	if err != nil {
-		log.Printf("Error calling ListCategories: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list categories: "+err.Error())
-		return
-	}
-
-	formattedCategories := make([]gin.H, 0, len(resp.Categories))
-	for _, category := range resp.Categories {
-		formattedCategories = append(formattedCategories, gin.H{
-			"id":   category.Id,
-			"name": category.Name,
-		})
-	}
-
-	if len(formattedCategories) == 0 {
-		formattedCategories = []gin.H{
-			{"id": "1", "name": "Technology"},
-			{"id": "2", "name": "Gaming"},
-			{"id": "3", "name": "Education"},
-			{"id": "4", "name": "Entertainment"},
-			{"id": "5", "name": "Sports"},
-			{"id": "6", "name": "Business"},
-			{"id": "7", "name": "Art"},
-			{"id": "8", "name": "Science"},
-			{"id": "9", "name": "Health"},
-			{"id": "10", "name": "Music"},
-		}
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"categories": formattedCategories})
-}
-
-func AddMember(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	var req struct {
-		UserID string `json:"user_id" binding:"required"`
-		Role   string `json:"role"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
-		return
-	}
-
-	if req.Role == "" {
-		req.Role = "member"
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can add members")
-		return
-	}
-
-	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
-		CommunityId: communityID,
-		UserId:      req.UserID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check membership: "+err.Error())
-		return
-	}
-
-	if isMemberResp.IsMember {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User is already a member of this community")
-		return
-	}
-
-	resp, err := CommunityClient.AddMember(ctx, &communityProto.AddMemberRequest{
-		CommunityId: communityID,
-		UserId:      req.UserID,
-		Role:        req.Role,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to add member: "+err.Error())
-		return
-	}
-	joinedAt := time.Now()
-	if resp.Member.JoinedAt != nil {
-		joinedAt = resp.Member.JoinedAt.AsTime()
-	}
-
-	memberData := gin.H{
-		"id":                  resp.Member.UserId,
-		"user_id":             resp.Member.UserId,
-		"username":            "user_" + resp.Member.UserId,
-		"name":                "User " + resp.Member.UserId,
-		"role":                resp.Member.Role,
-		"joined_at":           joinedAt,
-		"profile_picture_url": "",
-	}
-
-	if UserClient != nil {
-		userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
-		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
-			UserId: resp.Member.UserId,
-		})
-		userCancel()
-
-		if userErr == nil && userResp != nil && userResp.User != nil {
-			user := userResp.User
-
-			memberData = gin.H{
-				"id":                  resp.Member.UserId,
-				"user_id":             resp.Member.UserId,
-				"username":            user.Username,
-				"name":                user.Name,
-				"role":                resp.Member.Role,
-				"joined_at":           joinedAt,
-				"profile_picture_url": user.ProfilePictureUrl,
-				"is_verified":         user.IsVerified,
-				"bio":                 user.Bio,
-			}
-		} else {
-			log.Printf("Warning: Could not fetch user data for new member %s: %v", resp.Member.UserId, userErr)
-		}
-	} else {
-		log.Printf("Warning: UserClient is nil, using placeholder data for new member %s", resp.Member.UserId)
-	}
-
-	utils.SendSuccessResponse(c, 200, memberData)
-}
-
-func RemoveMember(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	memberUserID := c.Param("userId")
-	if memberUserID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Member User ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	selfRemoval := memberUserID == userID.(string)
-
-	if !selfRemoval {
-		isAdmin := false
-		adminIDStr, adminExists := c.Get("isAdmin")
-		if adminExists && adminIDStr.(bool) {
-			isAdmin = true
-		}
-
-		if !isAdmin {
-
-			getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-				CommunityId: communityID,
-			})
-
-			if err != nil {
-				utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-				return
-			}
-
-			if getCommunityResp.Community.CreatorId == userID.(string) {
-				isAdmin = true
-			} else {
-
-				membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-					CommunityId: communityID,
-				})
-
-				if err == nil && membersResp.Members != nil {
-					for _, member := range membersResp.Members {
-						if member.UserId == userID.(string) && member.Role == "admin" {
-							isAdmin = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-		if !isAdmin {
-			utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can remove other members")
-			return
-		}
-	}
-
-	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
-		CommunityId: communityID,
-		UserId:      memberUserID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check membership: "+err.Error())
-		return
-	}
-
-	if !isMemberResp.IsMember {
-		utils.SendErrorResponse(c, 404, "NOT_FOUND", "User is not a member of this community")
-		return
-	}
-
-	_, err = CommunityClient.RemoveMember(ctx, &communityProto.RemoveMemberRequest{
-		CommunityId: communityID,
-		UserId:      memberUserID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to remove member: "+err.Error())
-		return
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"message": "Member removed successfully"})
-}
-
-func ListMembers(c *gin.Context) {
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "bad_request", "Community ID is required")
-		return
-	}
-
-	limit := 20
-	offset := 0
-
-	if limitParam := c.Query("limit"); limitParam != "" {
-		parsedLimit, err := strconv.Atoi(limitParam)
-		if err == nil && parsedLimit > 0 {
-			limit = parsedLimit
-		}
-	}
-
-	if pageParam := c.Query("page"); pageParam != "" {
-		parsedPage, err := strconv.Atoi(pageParam)
-		if err == nil && parsedPage > 0 {
-			offset = (parsedPage - 1) * limit
-		}
-	}
-
-	if CommunityClient == nil {
-		log.Printf("CommunityClient is nil")
-		utils.SendErrorResponse(c, 500, "server_error", "Community service unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-		CommunityId: communityID,
-	})
-
-	if err != nil {
-		log.Printf("Error calling ListMembers: %v", err)
-
-		if status.Code(err) == codes.NotFound {
-			utils.SendErrorResponse(c, 404, "not_found", "Community not found")
-			return
-		}
-
-		utils.SendErrorResponse(c, 500, "server_error", "Failed to list members: "+err.Error())
-		return
-	}
-	formattedMembers := make([]gin.H, 0)
-	if resp != nil && resp.Members != nil {
-		for _, member := range resp.Members {
-			joinedAt := time.Now()
-			if member.JoinedAt != nil {
-				joinedAt = member.JoinedAt.AsTime()
-			}
-
-			memberData := gin.H{
-				"id":                  member.UserId,
-				"user_id":             member.UserId,
-				"username":            "user_" + member.UserId,
-				"name":                "User " + member.UserId,
-				"role":                member.Role,
-				"joined_at":           joinedAt,
-				"profile_picture_url": "",
-			}
-			if UserClient != nil {
-				userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
-					UserId: member.UserId,
-				})
-				userCancel()
-
-				if userErr == nil && userResp != nil && userResp.User != nil {
-					user := userResp.User
-
-					memberData = gin.H{
-						"id":                  member.UserId,
-						"user_id":             member.UserId,
-						"username":            user.Username,
-						"name":                user.Name,
-						"role":                member.Role,
-						"joined_at":           joinedAt,
-						"profile_picture_url": user.ProfilePictureUrl,
-						"is_verified":         user.IsVerified,
-						"bio":                 user.Bio,
-					}
-				} else {
-					log.Printf("Warning: Could not fetch user data for member %s: %v", member.UserId, userErr)
-				}
-			} else {
-				log.Printf("Warning: UserClient is nil, using placeholder data for member %s", member.UserId)
-			}
-
-			formattedMembers = append(formattedMembers, memberData)
-		}
-	}
-
-	totalCount := int32(len(formattedMembers))
-
-	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
-	currentPage := offset/limit + 1
-
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"members": formattedMembers,
-		"pagination": gin.H{
-			"total_count":  totalCount,
-			"current_page": currentPage,
-			"per_page":     limit,
-			"total_pages":  totalPages,
-		},
-	})
-}
-
-func UpdateMemberRole(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	memberUserID := c.Param("userId")
-	if memberUserID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Member User ID is required")
-		return
-	}
-
-	var req struct {
-		Role string `json:"role" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can update member roles")
-		return
-	}
-
-	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
-		CommunityId: communityID,
-		UserId:      memberUserID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check membership: "+err.Error())
-		return
-	}
-
-	if !isMemberResp.IsMember {
-		utils.SendErrorResponse(c, 404, "NOT_FOUND", "User is not a member of this community")
-		return
-	}
-
-	resp, err := CommunityClient.UpdateMemberRole(ctx, &communityProto.UpdateMemberRoleRequest{
-		CommunityId: communityID,
-		UserId:      memberUserID,
-		Role:        req.Role,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to update member role: "+err.Error())
-		return
-	}
-
-	joinedAt := time.Now()
-	if resp.Member.JoinedAt != nil {
-		joinedAt = resp.Member.JoinedAt.AsTime()
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"id":                  resp.Member.UserId,
-		"user_id":             resp.Member.UserId,
-		"username":            "user_" + resp.Member.UserId,
-		"name":                "User " + resp.Member.UserId,
-		"role":                resp.Member.Role,
-		"joined_at":           joinedAt,
-		"profile_picture_url": "",
-	})
-}
-
-func AddRule(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	var req struct {
-		RuleText string `json:"rule_text" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can add rules")
-		return
-	}
-
-	resp, err := CommunityClient.AddRule(ctx, &communityProto.AddRuleRequest{
-		CommunityId: communityID,
-		RuleText:    req.RuleText,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to add rule: "+err.Error())
-		return
-	}
-
-	utils.SendSuccessResponse(c, 201, gin.H{
-		"id":           resp.Rule.Id,
-		"community_id": resp.Rule.CommunityId,
-		"title":        "Community Rule",
-		"description":  resp.Rule.RuleText,
-		"order":        1,
-	})
-}
-
-func RemoveRule(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	ruleID := c.Param("ruleId")
-	if ruleID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Rule ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can remove rules")
-		return
-	}
-
-	_, err := CommunityClient.RemoveRule(ctx, &communityProto.RemoveRuleRequest{
-		RuleId: ruleID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to remove rule: "+err.Error())
-		return
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"message": "Rule removed successfully"})
-}
-
-func ListRules(c *gin.Context) {
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		log.Printf("CommunityClient is nil")
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err := CommunityClient.ListRules(ctx, &communityProto.ListRulesRequest{
-		CommunityId: communityID,
-	})
-
-	if err != nil {
-		log.Printf("Error calling ListRules: %v", err)
-
-		if status.Code(err) == codes.NotFound {
-			utils.SendErrorResponse(c, 404, "NOT_FOUND", "Community not found")
-			return
-		}
-
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list rules: "+err.Error())
-		return
-	}
-
-	formattedRules := make([]gin.H, 0)
-	if resp != nil && resp.Rules != nil {
-		for i, rule := range resp.Rules {
-			formattedRules = append(formattedRules, gin.H{
-				"id":           rule.Id,
-				"community_id": rule.CommunityId,
-				"title":        "Rule " + strconv.Itoa(i+1),
-				"description":  rule.RuleText,
-				"order":        i + 1,
-			})
-		}
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"rules": formattedRules})
-}
-
-func RequestToJoin(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	isAdmin := false
-
-	if UserClient != nil {
-		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer userCancel()
-
-		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
-			UserId: userID.(string),
-		})
-
-		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
-			isAdmin = true
-			log.Printf("User %s is a system admin, granting access to approve join request", userID.(string))
-		}
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can approve join requests")
-		return
-	}
-
-	_, err := CommunityClient.RequestToJoin(ctx, &communityProto.RequestToJoinRequest{
-		CommunityId: communityID,
-		UserId:      userID.(string),
-	})
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to send join request: "+err.Error())
-		return
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"message": "Request to join sent successfully"})
-}
-
-func ApproveJoinRequest(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	requestID := c.Param("requestId")
-	if requestID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Request ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-
-	// Check if user is a system admin
-	if UserClient != nil {
-		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer userCancel()
-
-		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
-			UserId: userID.(string),
-		})
-
-		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
-			isAdmin = true
-			log.Printf("User %s is a system admin, granting access to approve join request", userID.(string))
-		}
-	}
-
-	if !isAdmin {
-		// Check if user is community creator or admin
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-			// Check if user is a community admin
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can approve join requests")
-		return
-	}
-
-	// Call the ApproveJoinRequest service
-	resp, err := CommunityClient.ApproveJoinRequest(ctx, &communityProto.ApproveJoinRequestRequest{
-		JoinRequestId: requestID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to approve join request: "+err.Error())
-		return
-	}
-
-	// Return success response with the approved join request data
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"message": "Join request approved successfully",
-		"join_request": gin.H{
-			"id":           resp.JoinRequest.Id,
-			"community_id": resp.JoinRequest.CommunityId,
-			"user_id":      resp.JoinRequest.UserId,
-			"status":       resp.JoinRequest.Status,
-		},
-	})
-}
-
-func RejectJoinRequest(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	requestID := c.Param("requestId")
-	if requestID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Request ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-
-	if UserClient != nil {
-		userCtx, userCancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer userCancel()
-
-		userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
-			UserId: userID.(string),
-		})
-
-		if userErr == nil && userResp != nil && userResp.User != nil && userResp.User.IsAdmin {
-			isAdmin = true
-			log.Printf("User %s is a system admin, granting access to reject join request", userID.(string))
-		}
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can reject join requests")
-		return
-	}
-
-	_, err := CommunityClient.RejectJoinRequest(ctx, &communityProto.RejectJoinRequestRequest{
-		JoinRequestId: requestID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to reject join request")
-		return
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"message": "Join request rejected"})
-}
-
-func ListJoinRequests(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	isAdmin := false
-	adminIDStr, adminExists := c.Get("isAdmin")
-	if adminExists && adminIDStr.(bool) {
-		isAdmin = true
-	}
-
-	if !isAdmin {
-
-		getCommunityResp, err := CommunityClient.GetCommunityByID(ctx, &communityProto.GetCommunityByIDRequest{
-			CommunityId: communityID,
-		})
-
-		if err != nil {
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to get community: "+err.Error())
-			return
-		}
-
-		if getCommunityResp.Community.CreatorId == userID.(string) {
-			isAdmin = true
-		} else {
-
-			membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
-				CommunityId: communityID,
-			})
-
-			if err == nil && membersResp.Members != nil {
-				for _, member := range membersResp.Members {
-					if member.UserId == userID.(string) && member.Role == "admin" {
-						isAdmin = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if !isAdmin {
-		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can view join requests")
-		return
-	}
-
-	resp, err := CommunityClient.ListJoinRequests(ctx, &communityProto.ListJoinRequestsRequest{
-		CommunityId: communityID,
-	})
-
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list join requests: "+err.Error())
-		return
-	}
-	formattedRequests := make([]gin.H, 0, len(resp.JoinRequests))
-	for _, req := range resp.JoinRequests {
-
-		requestData := gin.H{
-			"id":                  req.Id,
-			"community_id":        req.CommunityId,
-			"user_id":             req.UserId,
-			"status":              req.Status,
-			"username":            "user_" + req.UserId,
-			"name":                "User " + req.UserId,
-			"profile_picture_url": "",
-		}
-
-		if UserClient != nil {
-			userCtx, userCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			userResp, userErr := UserClient.GetUser(userCtx, &userProto.GetUserRequest{
-				UserId: req.UserId,
-			})
-			userCancel()
-
-			if userErr == nil && userResp != nil && userResp.User != nil {
-				user := userResp.User
-
-				requestData = gin.H{
-					"id":                  req.Id,
-					"community_id":        req.CommunityId,
-					"user_id":             req.UserId,
-					"status":              req.Status,
-					"username":            user.Username,
-					"name":                user.Name,
-					"profile_picture_url": user.ProfilePictureUrl,
-					"is_verified":         user.IsVerified,
-					"bio":                 user.Bio,
-				}
-			} else {
-				log.Printf("Warning: Could not fetch user data for join request %s: %v", req.UserId, userErr)
-			}
-		} else {
-			log.Printf("Warning: UserClient is nil, using placeholder data for join request %s", req.UserId)
-		}
-
-		formattedRequests = append(formattedRequests, requestData)
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"join_requests": formattedRequests})
-}
-
-func CheckMembershipStatus(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
-	}
-
-	communityID := c.Param("id")
-	if communityID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
-		return
-	}
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Community service unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	memberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
-		CommunityId: communityID,
-		UserId:      userID.(string),
-	})
-
-	if err != nil {
-		log.Printf("Error checking membership status: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check membership status: "+err.Error())
-		return
-	}
-
-	if memberResp.IsMember {
-		utils.SendSuccessResponse(c, 200, gin.H{"status": "member"})
-		return
-	}
-
-	pendingResp, err := CommunityClient.HasPendingJoinRequest(ctx, &communityProto.HasPendingJoinRequestRequest{
-		CommunityId: communityID,
-		UserId:      userID.(string),
-	})
-
-	if err != nil {
-		log.Printf("Error checking pending join request: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check join request status: "+err.Error())
-		return
-	}
-
-	var status string
-	if pendingResp.HasRequest {
-		status = "pending"
-	} else {
-		status = "none"
-	}
-
-	utils.SendSuccessResponse(c, 200, gin.H{"status": status})
-}
-
-func OldSearchCommunities(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	query := c.Query("q")
-	category := c.Query("category")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if CommunityClient == nil {
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	// Handle both single category and multiple categories
-	var categories []string
-	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 && categoriesParam[0] != "" {
-		categories = categoriesParam
-	} else if category != "" {
-		categories = []string{category}
-	}
-
-	// Create the search request
-	req := &communityProto.SearchCommunitiesRequest{
-		Query:      query,
-		Offset:     int32((page - 1) * limit),
-		Limit:      int32(limit),
-		IsApproved: true,
-	}
-
-	// Only add categories if there are actual values
-	if len(categories) > 0 {
-		req.Categories = categories
-	}
-
-	resp, err := CommunityClient.SearchCommunities(ctx, req)
-	if err != nil {
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to search communities")
-		return
-	}
-
-	communities := make([]gin.H, len(resp.Communities))
-	for i, community := range resp.Communities {
-		communities[i] = gin.H{
-			"id":          community.Id,
-			"name":        community.Name,
-			"description": community.Description,
-			"logo_url":    community.LogoUrl,
-			"banner_url":  community.BannerUrl,
-			"creator_id":  community.CreatorId,
-			"is_approved": community.IsApproved,
-			"created_at":  community.CreatedAt.AsTime(),
-		}
-	}
-
-	totalPages := 0
-	if resp.TotalCount > 0 {
-		totalPages = int(math.Ceil(float64(resp.TotalCount) / float64(limit)))
-	}
-
-	response := gin.H{
-		"communities": communities,
-		"total":       resp.TotalCount,
-		"page":        page,
-		"limit":       limit,
-		"total_pages": totalPages,
-	}
-
-	utils.SendSuccessResponse(c, 200, response)
-}
-
-func GetJoinedCommunities(c *gin.Context) {
-	// Try to get user ID from JWT token first
-	var userID string
-	tokenUserID, exists := c.Get("userId")
-
-	// If authenticated, use token user ID
-	if exists {
-		userID = tokenUserID.(string)
-	} else {
-		// If not authenticated, use the user ID from URL parameter
-		userID = c.Param("userId")
-		log.Printf("No authentication, using URL parameter user ID: %s", userID)
-	}
-
-	if userID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
-		return
 	}
 
 	page := 1
 	limit := 25
+
+	// Only check the query parameter for filter
 	filter := c.Query("filter")
+	log.Printf("Processing community list request with filter: %s, userID: %s", filter, userID)
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
@@ -2056,20 +686,118 @@ func GetJoinedCommunities(c *gin.Context) {
 	var resp *communityProto.ListCommunitiesResponse
 	var err error
 
-	if filter == "joined" || filter == "pending" {
-
-		status := filter
-		resp, err = CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+	if filter == "joined" && userID != "" {
+		// Get joined communities for the user
+		userCommunitiesResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
 			UserId:     userID,
-			Status:     status,
+			Status:     "member",
 			Query:      query,
 			Categories: categories,
 			Offset:     int32((page - 1) * limit),
 			Limit:      int32(limit),
 		})
-	} else if filter == "discover" {
 
+		if err != nil {
+			log.Printf("Error fetching joined communities: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch joined communities")
+			return
+		}
+
+		resp = &communityProto.ListCommunitiesResponse{
+			Communities: userCommunitiesResp.Communities,
+			TotalCount:  userCommunitiesResp.TotalCount,
+		}
+	} else if filter == "pending" && userID != "" {
+		// Get pending join request communities for the user
+		userCommunitiesResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId:     userID,
+			Status:     "pending",
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit),
+		})
+
+		if err != nil {
+			log.Printf("Error fetching pending communities: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch pending communities")
+			return
+		}
+
+		resp = &communityProto.ListCommunitiesResponse{
+			Communities: userCommunitiesResp.Communities,
+			TotalCount:  userCommunitiesResp.TotalCount,
+		}
+	} else if filter == "discover" && userID != "" {
+		// First, get all approved communities
 		allCommunitiesResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+			Query:      query,
+			Categories: categories,
+			Offset:     int32((page - 1) * limit),
+			Limit:      int32(limit * 2), // Get more to filter
+			IsApproved: true,
+		})
+
+		if err != nil {
+			log.Printf("Error fetching all communities: %v", err)
+			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+			return
+		}
+
+		// Then get user's joined communities to filter them out
+		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID,
+			Status: "member",
+			Limit:  1000, // Get all to filter effectively
+		})
+
+		joinedCommunityMap := make(map[string]bool)
+		if err == nil && joinedResp != nil && joinedResp.Communities != nil {
+			for _, community := range joinedResp.Communities {
+				joinedCommunityMap[community.Id] = true
+			}
+		}
+
+		// Also get user's pending communities to filter them out
+		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
+			UserId: userID,
+			Status: "pending",
+			Limit:  1000, // Get all to filter effectively
+		})
+
+		pendingCommunityMap := make(map[string]bool)
+		if err == nil && pendingResp != nil && pendingResp.Communities != nil {
+			for _, community := range pendingResp.Communities {
+				pendingCommunityMap[community.Id] = true
+			}
+		}
+
+		// Filter communities: include only those that are not joined or pending
+		var filteredCommunities []*communityProto.Community
+		for _, community := range allCommunitiesResp.Communities {
+			if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
+				filteredCommunities = append(filteredCommunities, community)
+			}
+		}
+
+		// Limit the results to the requested page size
+		endIdx := limit
+		if endIdx > len(filteredCommunities) {
+			endIdx = len(filteredCommunities)
+		}
+
+		var pagedCommunities []*communityProto.Community
+		if len(filteredCommunities) > 0 {
+			pagedCommunities = filteredCommunities[:endIdx]
+		}
+
+		resp = &communityProto.ListCommunitiesResponse{
+			Communities: pagedCommunities,
+			TotalCount:  int32(len(filteredCommunities)),
+		}
+	} else {
+		// Default: get all approved communities
+		resp, err = CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
 			Query:      query,
 			Categories: categories,
 			Offset:     int32((page - 1) * limit),
@@ -2082,68 +810,6 @@ func GetJoinedCommunities(c *gin.Context) {
 			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
 			return
 		}
-
-		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID,
-			Status: "member",
-			Limit:  1000,
-		})
-
-		if err != nil {
-			log.Printf("Error fetching joined communities: %v", err)
-		}
-
-		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID,
-			Status: "pending",
-			Limit:  1000,
-		})
-
-		if err != nil {
-			log.Printf("Error fetching pending communities: %v", err)
-		}
-
-		joinedCommunityMap := make(map[string]bool)
-		pendingCommunityMap := make(map[string]bool)
-
-		if joinedResp != nil && joinedResp.Communities != nil {
-			for _, community := range joinedResp.Communities {
-				joinedCommunityMap[community.Id] = true
-			}
-		}
-
-		if pendingResp != nil && pendingResp.Communities != nil {
-			for _, community := range pendingResp.Communities {
-				pendingCommunityMap[community.Id] = true
-			}
-		}
-
-		var filteredCommunities []*communityProto.Community
-		for _, community := range allCommunitiesResp.Communities {
-			if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
-				filteredCommunities = append(filteredCommunities, community)
-			}
-		}
-
-		resp = &communityProto.ListCommunitiesResponse{
-			Communities: filteredCommunities,
-			TotalCount:  int32(len(filteredCommunities)),
-		}
-	} else {
-
-		resp, err = CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-			Query:      query,
-			Categories: categories,
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-			IsApproved: true,
-		})
-	}
-
-	if err != nil {
-		log.Printf("Error fetching communities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
-		return
 	}
 
 	communitiesResult := make([]gin.H, 0)
@@ -2159,210 +825,14 @@ func GetJoinedCommunities(c *gin.Context) {
 			}
 
 			communityData := gin.H{
-				"id":          community.Id,
-				"name":        community.Name,
-				"description": community.Description,
-				"logo_url":    community.LogoUrl,
-				"banner_url":  community.BannerUrl,
-				"creator_id":  community.CreatorId,
-				"is_approved": community.IsApproved,
-				"categories":  categoryNames,
-
-				"member_count": 0,
-			}
-
-			if community.CreatedAt != nil {
-				communityData["created_at"] = community.CreatedAt.AsTime()
-			}
-
-			communitiesResult = append(communitiesResult, communityData)
-		}
-	}
-
-	totalCount := 0
-	if resp != nil {
-		totalCount = int(resp.TotalCount)
-	}
-	totalPages := calculateTotalPages(totalCount, limit)
-	currentPage := page
-
-	utils.SendSuccessResponse(c, 200, gin.H{
-		"communities": communitiesResult,
-		"pagination": gin.H{
-			"total_count":  totalCount,
-			"current_page": currentPage,
-			"per_page":     limit,
-			"total_pages":  totalPages,
-		},
-		"limit_options": []int{25, 30, 35},
-	})
-}
-
-func GetPendingCommunities(c *gin.Context) {
-	// Try to get user ID from JWT token first
-	var userID string
-	tokenUserID, exists := c.Get("userId")
-
-	// If authenticated, use token user ID
-	if exists {
-		userID = tokenUserID.(string)
-	} else {
-		// If not authenticated, use the user ID from URL parameter
-		userID = c.Param("userId")
-		log.Printf("No authentication, using URL parameter user ID: %s", userID)
-	}
-
-	if userID == "" {
-		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
-		return
-	}
-
-	page := 1
-	limit := 25
-	filter := c.Query("filter")
-
-	if pageStr := c.Query("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-			page = pageInt
-		}
-	}
-
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
-			limit = limitInt
-		}
-	}
-
-	query := c.Query("q")
-	var categories []string
-	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
-		categories = categoriesParam
-	}
-
-	if CommunityClient == nil {
-		log.Printf("Error: CommunityClient is nil")
-		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var resp *communityProto.ListCommunitiesResponse
-	var err error
-
-	if filter == "joined" || filter == "pending" {
-
-		status := filter
-		resp, err = CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId:     userID,
-			Status:     status,
-			Query:      query,
-			Categories: categories,
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-		})
-	} else if filter == "discover" {
-
-		allCommunitiesResp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-			Query:      query,
-			Categories: categories,
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-			IsApproved: true,
-		})
-
-		if err != nil {
-			log.Printf("Error fetching communities: %v", err)
-			utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
-			return
-		}
-
-		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID,
-			Status: "member",
-			Limit:  1000,
-		})
-
-		if err != nil {
-			log.Printf("Error fetching joined communities: %v", err)
-		}
-
-		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID,
-			Status: "pending",
-			Limit:  1000,
-		})
-
-		if err != nil {
-			log.Printf("Error fetching pending communities: %v", err)
-		}
-
-		joinedCommunityMap := make(map[string]bool)
-		pendingCommunityMap := make(map[string]bool)
-
-		if joinedResp != nil && joinedResp.Communities != nil {
-			for _, community := range joinedResp.Communities {
-				joinedCommunityMap[community.Id] = true
-			}
-		}
-
-		if pendingResp != nil && pendingResp.Communities != nil {
-			for _, community := range pendingResp.Communities {
-				pendingCommunityMap[community.Id] = true
-			}
-		}
-
-		var filteredCommunities []*communityProto.Community
-		for _, community := range allCommunitiesResp.Communities {
-			if !joinedCommunityMap[community.Id] && !pendingCommunityMap[community.Id] {
-				filteredCommunities = append(filteredCommunities, community)
-			}
-		}
-
-		resp = &communityProto.ListCommunitiesResponse{
-			Communities: filteredCommunities,
-			TotalCount:  int32(len(filteredCommunities)),
-		}
-	} else {
-
-		resp, err = CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
-			Query:      query,
-			Categories: categories,
-			Offset:     int32((page - 1) * limit),
-			Limit:      int32(limit),
-			IsApproved: true,
-		})
-	}
-
-	if err != nil {
-		log.Printf("Error fetching communities: %v", err)
-		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
-		return
-	}
-
-	communitiesResult := make([]gin.H, 0)
-	if resp != nil && resp.Communities != nil {
-		for _, community := range resp.Communities {
-			categoryNames := make([]string, 0)
-			if community.Categories != nil {
-				for _, cat := range community.Categories {
-					if cat != nil {
-						categoryNames = append(categoryNames, cat.Name)
-					}
-				}
-			}
-
-			communityData := gin.H{
-				"id":          community.Id,
-				"name":        community.Name,
-				"description": community.Description,
-				"logo_url":    community.LogoUrl,
-				"banner_url":  community.BannerUrl,
-				"creator_id":  community.CreatorId,
-				"is_approved": community.IsApproved,
-				"categories":  categoryNames,
-
+				"id":           community.Id,
+				"name":         community.Name,
+				"description":  community.Description,
+				"logo_url":     community.LogoUrl,
+				"banner_url":   community.BannerUrl,
+				"creator_id":   community.CreatorId,
+				"is_approved":  community.IsApproved,
+				"categories":   categoryNames,
 				"member_count": 0,
 			}
 
@@ -2394,34 +864,106 @@ func GetPendingCommunities(c *gin.Context) {
 }
 
 func GetDiscoverCommunities(c *gin.Context) {
-	// Try to get user ID from JWT token first
-	var userID string
-	tokenUserID, exists := c.Get("userId")
+	// Get parameters
+	page := 1
+	limit := 25
 
-	// If authenticated, use token user ID
-	if exists {
-		userID = tokenUserID.(string)
-		log.Printf("Authenticated user accessing discover communities: %s", userID)
-	} else {
-		// For unauthenticated users, we can still show discover communities
-		// Just won't filter based on joined/pending status
-		log.Printf("Unauthenticated user accessing discover communities")
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
 	}
 
-	c.Request.URL.RawQuery += "&filter=discover"
-
-	// If there's a userID in the query parameters, use that for filtering
-	if userIDParam := c.Query("userId"); userIDParam != "" && userID == "" {
-		userID = userIDParam
-		log.Printf("Using query parameter user ID for filtering: %s", userID)
-		// Add it to the context so the ListCommunities handler can use it
-		c.Set("userId", userID)
-	} else if userID != "" {
-		// Add the userID to the context for the ListCommunities handler
-		c.Set("userId", userID)
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
 	}
 
-	ListCommunities(c)
+	query := c.Query("q")
+	var categories []string
+	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
+		categories = categoriesParam
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	log.Printf("Getting discover communities")
+
+	// Simply get all approved communities
+	resp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+		Query:      query,
+		Categories: categories,
+		Offset:     int32((page - 1) * limit),
+		Limit:      int32(limit),
+		IsApproved: true,
+	})
+
+	if err != nil {
+		log.Printf("Error fetching all communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to fetch communities")
+		return
+	}
+
+	// Convert the communities to the response format
+	communitiesResult := make([]gin.H, 0)
+	if resp != nil && resp.Communities != nil {
+		for _, community := range resp.Communities {
+			categoryNames := make([]string, 0)
+			if community.Categories != nil {
+				for _, cat := range community.Categories {
+					if cat != nil {
+						categoryNames = append(categoryNames, cat.Name)
+					}
+				}
+			}
+
+			communityData := gin.H{
+				"id":           community.Id,
+				"name":         community.Name,
+				"description":  community.Description,
+				"logo_url":     community.LogoUrl,
+				"banner_url":   community.BannerUrl,
+				"creator_id":   community.CreatorId,
+				"is_approved":  community.IsApproved,
+				"categories":   categoryNames,
+				"member_count": 0,
+			}
+
+			if community.CreatedAt != nil {
+				communityData["created_at"] = community.CreatedAt.AsTime()
+			}
+
+			communitiesResult = append(communitiesResult, communityData)
+		}
+	}
+
+	totalCount := 0
+	if resp != nil {
+		totalCount = int(resp.TotalCount)
+	}
+	totalPages := calculateTotalPages(totalCount, limit)
+	currentPage := page
+
+	result := gin.H{
+		"communities": communitiesResult,
+		"pagination": gin.H{
+			"total_count":  totalCount,
+			"current_page": currentPage,
+			"per_page":     limit,
+			"total_pages":  totalPages,
+		},
+		"limit_options": []int{25, 30, 35},
+	}
+
+	utils.SendSuccessResponse(c, 200, result)
 }
 
 func GetTopCommunityMembers(c *gin.Context) {
@@ -2486,5 +1028,933 @@ func GetCommunityMediaThreads(c *gin.Context) {
 			"per_page":     10,
 			"total_pages":  0,
 		},
+	})
+}
+
+func OldSearchCommunities(c *gin.Context) {
+	query := c.Query("q")
+	page := 1
+	limit := 25
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitInt, err := strconv.Atoi(limitStr); err == nil && limitInt > 0 {
+			limit = limitInt
+		}
+	}
+
+	var categories []string
+	if categoriesParam := c.QueryArray("category"); len(categoriesParam) > 0 {
+		categories = categoriesParam
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := CommunityClient.SearchCommunities(ctx, &communityProto.SearchCommunitiesRequest{
+		Query:      query,
+		Categories: categories,
+		Offset:     int32((page - 1) * limit),
+		Limit:      int32(limit),
+		IsApproved: true,
+	})
+
+	if err != nil {
+		log.Printf("Error searching communities: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to search communities")
+		return
+	}
+
+	communitiesResult := make([]gin.H, 0)
+	if resp != nil && resp.Communities != nil {
+		for _, community := range resp.Communities {
+			categoryNames := make([]string, 0)
+			if community.Categories != nil {
+				for _, cat := range community.Categories {
+					if cat != nil {
+						categoryNames = append(categoryNames, cat.Name)
+					}
+				}
+			}
+
+			communityData := gin.H{
+				"id":           community.Id,
+				"name":         community.Name,
+				"description":  community.Description,
+				"logo_url":     community.LogoUrl,
+				"banner_url":   community.BannerUrl,
+				"creator_id":   community.CreatorId,
+				"is_approved":  community.IsApproved,
+				"categories":   categoryNames,
+				"member_count": 0,
+			}
+
+			if community.CreatedAt != nil {
+				communityData["created_at"] = community.CreatedAt.AsTime()
+			}
+
+			communitiesResult = append(communitiesResult, communityData)
+		}
+	}
+
+	totalCount := 0
+	if resp != nil {
+		totalCount = int(resp.TotalCount)
+	}
+	totalPages := calculateTotalPages(totalCount, limit)
+	currentPage := page
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"communities": communitiesResult,
+		"pagination": gin.H{
+			"total_count":  totalCount,
+			"current_page": currentPage,
+			"per_page":     limit,
+			"total_pages":  totalPages,
+		},
+		"limit_options": []int{25, 30, 35},
+	})
+}
+
+func ListCategories(c *gin.Context) {
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := CommunityClient.ListCategories(ctx, &communityProto.ListCategoriesRequest{})
+	if err != nil {
+		log.Printf("Error listing categories: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list categories")
+		return
+	}
+
+	categories := make([]gin.H, 0)
+	if resp != nil && resp.Categories != nil {
+		for _, cat := range resp.Categories {
+			categoryData := gin.H{
+				"id":   cat.Id,
+				"name": cat.Name,
+			}
+			categories = append(categories, categoryData)
+		}
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"categories": categories,
+	})
+}
+
+func ListMembers(c *gin.Context) {
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+	if err != nil {
+		log.Printf("Error listing members: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list members")
+		return
+	}
+
+	members := make([]gin.H, 0)
+	if resp != nil && resp.Members != nil {
+		for _, member := range resp.Members {
+			memberData := gin.H{
+				"user_id":   member.UserId,
+				"role":      member.Role,
+				"joined_at": member.JoinedAt.AsTime(),
+			}
+			members = append(members, memberData)
+		}
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"members": members,
+	})
+}
+
+func AddMember(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	var req struct {
+		UserID string `json:"user_id" binding:"required"`
+		Role   string `json:"role" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+
+	if err != nil || !isMemberResp.IsMember {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community members can add new members")
+		return
+	}
+
+	// Check if the current user is an admin
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can add new members")
+		return
+	}
+
+	resp, err := CommunityClient.AddMember(ctx, &communityProto.AddMemberRequest{
+		CommunityId: communityID,
+		UserId:      req.UserID,
+		Role:        req.Role,
+	})
+
+	if err != nil {
+		log.Printf("Error adding member: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to add member")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Member added successfully",
+		"member": gin.H{
+			"user_id":   resp.Member.UserId,
+			"role":      resp.Member.Role,
+			"joined_at": resp.Member.JoinedAt.AsTime(),
+		},
+	})
+}
+
+func UpdateMemberRole(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	memberID := c.Param("userId")
+	if memberID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Member ID is required")
+		return
+	}
+
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+
+	if err != nil || !isMemberResp.IsMember {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community members can update roles")
+		return
+	}
+
+	// Check if the current user is an admin
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can update roles")
+		return
+	}
+
+	resp, err := CommunityClient.UpdateMemberRole(ctx, &communityProto.UpdateMemberRoleRequest{
+		CommunityId: communityID,
+		UserId:      memberID,
+		Role:        req.Role,
+	})
+
+	if err != nil {
+		log.Printf("Error updating member role: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to update member role")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Member role updated successfully",
+		"member": gin.H{
+			"user_id": resp.Member.UserId,
+			"role":    resp.Member.Role,
+		},
+	})
+}
+
+func RemoveMember(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	memberID := c.Param("userId")
+	if memberID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Member ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Self-removal is always allowed
+	if userID.(string) != memberID {
+		// Check if the current user is an admin of the community
+		isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
+			CommunityId: communityID,
+			UserId:      userID.(string),
+		})
+
+		if err != nil || !isMemberResp.IsMember {
+			utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community members can remove members")
+			return
+		}
+
+		// Check if the current user is an admin
+		membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+			CommunityId: communityID,
+		})
+
+		isAdmin := false
+		if err == nil && membersResp.Members != nil {
+			for _, member := range membersResp.Members {
+				if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+					isAdmin = true
+					break
+				}
+			}
+		}
+
+		if !isAdmin {
+			utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can remove members")
+			return
+		}
+	}
+
+	_, err := CommunityClient.RemoveMember(ctx, &communityProto.RemoveMemberRequest{
+		CommunityId: communityID,
+		UserId:      memberID,
+	})
+
+	if err != nil {
+		log.Printf("Error removing member: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to remove member")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Member removed successfully",
+	})
+}
+
+func AddRule(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	var req struct {
+		RuleText string `json:"rule_text" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Invalid request format: "+err.Error())
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can add rules")
+		return
+	}
+
+	resp, err := CommunityClient.AddRule(ctx, &communityProto.AddRuleRequest{
+		CommunityId: communityID,
+		RuleText:    req.RuleText,
+	})
+
+	if err != nil {
+		log.Printf("Error adding rule: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to add rule")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Rule added successfully",
+		"rule": gin.H{
+			"id":         resp.Rule.Id,
+			"rule_text":  resp.Rule.RuleText,
+			"created_at": resp.Rule.CreatedAt.AsTime(),
+		},
+	})
+}
+
+func ListRules(c *gin.Context) {
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := CommunityClient.ListRules(ctx, &communityProto.ListRulesRequest{
+		CommunityId: communityID,
+	})
+
+	if err != nil {
+		log.Printf("Error listing rules: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list rules")
+		return
+	}
+
+	rules := make([]gin.H, 0)
+	if resp != nil && resp.Rules != nil {
+		for _, rule := range resp.Rules {
+			ruleData := gin.H{
+				"id":         rule.Id,
+				"rule_text":  rule.RuleText,
+				"created_at": rule.CreatedAt.AsTime(),
+			}
+			rules = append(rules, ruleData)
+		}
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"rules": rules,
+	})
+}
+
+func RemoveRule(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	ruleID := c.Param("ruleId")
+	if ruleID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Rule ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can remove rules")
+		return
+	}
+
+	_, err = CommunityClient.RemoveRule(ctx, &communityProto.RemoveRuleRequest{
+		RuleId: ruleID,
+	})
+
+	if err != nil {
+		log.Printf("Error removing rule: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to remove rule")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Rule removed successfully",
+	})
+}
+
+func RequestToJoin(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the user is already a member
+	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+
+	if err == nil && isMemberResp.IsMember {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User is already a member of this community")
+		return
+	}
+
+	resp, err := CommunityClient.RequestToJoin(ctx, &communityProto.RequestToJoinRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+
+	if err != nil {
+		log.Printf("Error requesting to join: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to request to join")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Join request sent successfully",
+		"request": gin.H{
+			"id":         resp.JoinRequest.Id,
+			"user_id":    resp.JoinRequest.UserId,
+			"created_at": resp.JoinRequest.CreatedAt.AsTime(),
+		},
+	})
+}
+
+func ListJoinRequests(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can view join requests")
+		return
+	}
+
+	resp, err := CommunityClient.ListJoinRequests(ctx, &communityProto.ListJoinRequestsRequest{
+		CommunityId: communityID,
+	})
+
+	if err != nil {
+		log.Printf("Error listing join requests: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to list join requests")
+		return
+	}
+
+	joinRequests := make([]gin.H, 0)
+	if resp != nil && resp.JoinRequests != nil {
+		for _, request := range resp.JoinRequests {
+			requestData := gin.H{
+				"id":         request.Id,
+				"user_id":    request.UserId,
+				"created_at": request.CreatedAt.AsTime(),
+			}
+			joinRequests = append(joinRequests, requestData)
+		}
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"join_requests": joinRequests,
+	})
+}
+
+func ApproveJoinRequest(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	requestID := c.Param("requestId")
+	if requestID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Request ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can approve join requests")
+		return
+	}
+
+	_, err = CommunityClient.ApproveJoinRequest(ctx, &communityProto.ApproveJoinRequestRequest{
+		JoinRequestId: requestID,
+	})
+
+	if err != nil {
+		log.Printf("Error approving join request: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to approve join request")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Join request approved successfully",
+	})
+}
+
+func RejectJoinRequest(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	requestID := c.Param("requestId")
+	if requestID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Request ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if the current user is an admin of the community
+	membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+		CommunityId: communityID,
+	})
+
+	isAdmin := false
+	if err == nil && membersResp.Members != nil {
+		for _, member := range membersResp.Members {
+			if member.UserId == userID.(string) && (member.Role == "admin" || member.Role == "creator") {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if !isAdmin {
+		utils.SendErrorResponse(c, 403, "FORBIDDEN", "Only community admins can reject join requests")
+		return
+	}
+
+	_, err = CommunityClient.RejectJoinRequest(ctx, &communityProto.RejectJoinRequestRequest{
+		JoinRequestId: requestID,
+	})
+
+	if err != nil {
+		log.Printf("Error rejecting join request: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to reject join request")
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"message": "Join request rejected successfully",
+	})
+}
+
+func CheckMembershipStatus(c *gin.Context) {
+	userID, exists := c.Get("userId")
+	if !exists {
+		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	communityID := c.Param("id")
+	if communityID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "Community ID is required")
+		return
+	}
+
+	if CommunityClient == nil {
+		log.Printf("Error: CommunityClient is nil")
+		utils.SendErrorResponse(c, 503, "SERVICE_UNAVAILABLE", "Community service is unavailable")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Check if user is a member
+	isMemberResp, err := CommunityClient.IsMember(ctx, &communityProto.IsMemberRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+
+	if err != nil {
+		log.Printf("Error checking membership: %v", err)
+		utils.SendErrorResponse(c, 500, "SERVER_ERROR", "Failed to check membership status")
+		return
+	}
+
+	if isMemberResp.IsMember {
+		// Get user role
+		membersResp, err := CommunityClient.ListMembers(ctx, &communityProto.ListMembersRequest{
+			CommunityId: communityID,
+		})
+
+		userRole := "member"
+		if err == nil && membersResp.Members != nil {
+			for _, member := range membersResp.Members {
+				if member.UserId == userID.(string) {
+					userRole = member.Role
+					break
+				}
+			}
+		}
+
+		utils.SendSuccessResponse(c, 200, gin.H{
+			"status":    "member",
+			"is_member": true,
+			"user_role": userRole,
+		})
+		return
+	}
+
+	// Check if user has a pending join request
+	pendingResp, err := CommunityClient.HasPendingJoinRequest(ctx, &communityProto.HasPendingJoinRequestRequest{
+		CommunityId: communityID,
+		UserId:      userID.(string),
+	})
+
+	if err == nil && pendingResp.GetHasRequest() {
+		utils.SendSuccessResponse(c, 200, gin.H{
+			"status":    "pending",
+			"is_member": false,
+		})
+		return
+	}
+
+	utils.SendSuccessResponse(c, 200, gin.H{
+		"status":    "none",
+		"is_member": false,
 	})
 }

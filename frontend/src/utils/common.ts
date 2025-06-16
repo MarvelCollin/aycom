@@ -131,20 +131,57 @@ export function truncateText(text: string, maxLength: number = 100): string {
 }
 
 export function isSupabaseStorageUrl(url: string): boolean {
-  const supabaseUrlPattern = /supabase\.co\/storage\/v1\/object\/public\/.+/;
-  return supabaseUrlPattern.test(url);
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.includes('supabase.co') && 
+           (urlObj.pathname.includes('/storage/v1/object/public/') || 
+            urlObj.pathname.includes('/storage/v1/s3/'));
+  } catch (error) {
+    // If the URL is not valid, check with a simple string match
+    return url.includes('supabase.co/storage/v1/object/public/') || 
+           url.includes('supabase.co/storage/v1/s3/');
+  }
 }
 
 export function formatStorageUrl(url: string | null): string {
   if (!url) return '';
 
+  // For debugging
+  console.log('Original URL:', url);
+
   // If the URL is already complete, return it as is
   if (url.startsWith('http://') || url.startsWith('https://')) {
+    // Fix issue with double slashes in paths
+    if (url.includes('//storage/v1/s3/')) {
+      return url.replace('//storage/v1/s3/', '/storage/v1/s3/');
+    }
+    
+    // Check if it's a valid URL with correct access path
+    try {
+      const urlObj = new URL(url);
+      // If URL contains "object/public" but not "s3", convert it to use s3 endpoint
+      if (url.includes('/storage/v1/object/public/') && !url.includes('/storage/v1/s3/')) {
+        return url.replace('/storage/v1/object/public/', '/storage/v1/s3/');
+      }
+      
+      // Check for CORS issues - add crossorigin attribute to images in the component
+      console.log('URL hostname:', urlObj.hostname);
+    } catch (e) {
+      console.error('Error parsing URL:', e);
+    }
+    
     return url;
   }
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sdhtnvlmuywinhcglfsu.supabase.co';
-  const storageEndpoint = `${supabaseUrl}/storage/v1/s3`;
+  
+  // Handle relative paths starting with /
+  if (url.startsWith('/')) {
+    // If it's a simple relative path without storage indicators
+    if (!url.includes('storage/')) {
+      return `${supabaseUrl}/storage/v1/s3/${url.slice(1)}`;
+    }
+  }
 
   // Handle storage path formats and convert if needed
   if (url.includes('storage/v1/object/public/')) {
@@ -168,9 +205,28 @@ export function formatStorageUrl(url: string | null): string {
     return url;
   }
 
+  // Handle URLs with bucket name directly (like profile-pictures/, banners/, etc.)
+  const knownBuckets = ['profile-pictures', 'banners', 'thread-media', 'user-media', 'media', 'tpaweb', 'test', 'uploads'];
+  for (const bucket of knownBuckets) {
+    if (url.startsWith(`${bucket}/`)) {
+      return `${supabaseUrl}/storage/v1/s3/${url}`;
+    }
+  }
+
+  // Special case for community uploads with specific patterns
+  if (url.includes('community/community_')) {
+    return `${supabaseUrl}/storage/v1/s3/uploads/${url}`;
+  }
+
+  // Handle URLs with user IDs or specific patterns
+  if (url.includes('_1/')) {
+    // This is likely a user-specific path in the tpaweb bucket
+    return `${supabaseUrl}/storage/v1/s3/${url}`;
+  }
+
   // Default case - ensure we attach the full URL
   const cleanPath = url.replace(/^\//, ''); // Remove leading slash if present
-  return `${storageEndpoint}/${cleanPath}`;
+  return `${supabaseUrl}/storage/v1/s3/${cleanPath}`;
 }
 
 /**

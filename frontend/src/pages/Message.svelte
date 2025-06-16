@@ -18,7 +18,7 @@
   import ThemeToggle from '../components/common/ThemeToggle.svelte';
   import { transformApiUsers, type StandardUser } from '../utils/userTransform';
   import Toast from '../components/common/Toast.svelte';
-  import type { Toast as ToastType } from '../interfaces/IToast';
+  import type { Toast as ToastType, ToastType as ToastTypeEnum } from '../interfaces/IToast';
   import { formatRelativeTime } from '../utils/date'; 
   import { getAuthToken } from '../utils/auth';
   import { uploadMedia } from '../api/media';
@@ -349,7 +349,10 @@
       
       // Then send via API for persistence
       try {
-        const result = await apiSendMessage(selectedChat?.id || '', messageData);
+        const result = await sendMessageToApi(selectedChat?.id || '', {
+          content: messageData.content,
+          message_id: messageData.message_id
+        });
         logger.debug('Message with attachment sent successfully via API');
         
         // Update the message to mark it as confirmed by the server
@@ -857,22 +860,22 @@
     
     // Function to initialize everything
     const initialize = async () => {
-      // Fetch user profile
-      try {
-        const profileData = await getProfile();
-        if (profileData) {
-          username = profileData.username || '';
-          displayName = profileData.display_name || profileData.username || 'User';
-          avatar = profileData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
-        }
-      } catch (error) {
-        logError('Failed to load profile', error);
-      } finally {
-        isLoadingProfile = false;
+    // Fetch user profile
+    try {
+      const profileData = await getProfile();
+      if (profileData) {
+        username = profileData.username || '';
+        displayName = profileData.display_name || profileData.username || 'User';
+        avatar = profileData.profile_picture_url || 'https://secure.gravatar.com/avatar/0?d=mp';
       }
-      
-      // Load chats
-      await fetchChats();
+    } catch (error) {
+      logError('Failed to load profile', error);
+    } finally {
+      isLoadingProfile = false;
+    }
+    
+    // Load chats
+    await fetchChats();
     };
     
     // Start initialization
@@ -935,7 +938,10 @@
       const chatObj = chats.find(c => c.id === chatId);
       if (!chatObj) {
         logger.error(`Chat with ID ${chatId} not found in chats list`);
-        toastStore.showToast(`Chat not found. Please try again.`, 'error');
+        toastStore.showToast({
+          message: `Chat not found. Please try again.`,
+          type: 'error'
+        });
         return;
       }
       chat = chatObj;
@@ -948,7 +954,10 @@
     // Validate chat ID format
     if (!chatId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
       logger.error(`Invalid chat ID format: ${chatId}`);
-      toastStore.showToast(`Invalid chat ID format: ${chatId}. Please try again or contact support.`, 'error');
+      toastStore.showToast({
+        message: `Invalid chat ID format: ${chatId}. Please try again or contact support.`,
+        type: 'error'
+      });
       return;
     }
     
@@ -1124,21 +1133,21 @@
     
     try {
       // Generate a unique temporary ID for this message
-      const tempMessageId = `temp-${Date.now()}`;
-      
+    const tempMessageId = `temp-${Date.now()}`;
+
       // Trim content and prevent empty messages
       content = content.trim();
       newMessage = '';
       
       // Create message object
       const message: Message = {
-        id: tempMessageId,
+      id: tempMessageId,
         chat_id: selectedChat.id,
-        sender_id: $authStore.user_id || '',
+      sender_id: $authStore.user_id || '',
         content: content,
         timestamp: new Date().toISOString(),
-        is_read: false,
-        is_edited: false,
+      is_read: false,
+      is_edited: false,
         is_deleted: false,
         sender_name: displayName || 'You',
         sender_avatar: avatar,
@@ -1150,32 +1159,32 @@
         ...selectedChat,
         messages: [...selectedChat.messages, message]
       };
-      
+
       // Scroll to bottom after message is added
-      setTimeout(() => {
-        const messagesContainer = document.querySelector('.messages-container');
-        if (messagesContainer) {
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+        setTimeout(() => {
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
       }, 50);
-      
+        
       // Create a last message object for the chat list
       const newLastMessage: LastMessage = {
         content: content,
         timestamp: new Date().toISOString(),
-        sender_id: $authStore.user_id || '',
+                sender_id: $authStore.user_id || '',
         sender_name: displayName || 'You'
       };
-      
+
       // Update chat list with the new message
       chats = chats.map(chat => {
         if (chat.id === selectedChat?.id) {
           return {
             ...chat,
             last_message: newLastMessage
-          };
-        }
-        return chat;
+            };
+          }
+          return chat;
       }) as Chat[];
         
       // Move the active chat to the top
@@ -1203,38 +1212,19 @@
         }
       }
 
-      // Send message via API
-      const messageData = {
-        content: content,
-        message_id: tempMessageId
+      // Send the message to the API
+      const messageData: Record<string, any> = {
+        content: newMessage,
+        sender_id: $authStore.user_id,
+        attachment: selectedAttachments.length > 0 ? selectedAttachments[0] : null
       };
       
-      // Log the API call attempt
-      logInfo(`Sending message to chat ${selectedChat?.id} via API`);
+      logger.debug(`Sending message via API to chat ${selectedChat?.id}`);
       
-      // First try to send via WebSocket for immediate real-time delivery
-      const wsMessage: ChatMessage = {
-        type: 'text' as MessageType,
-        content: content,
-        chat_id: selectedChat?.id || '',
-        user_id: $authStore.user_id || '',
-        sender_id: $authStore.user_id || '',
-        sender_name: displayName || username || 'User',
-        sender_avatar: avatar,
-        message_id: tempMessageId,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Send via WebSocket first for real-time delivery
-      websocketStore.sendMessage(selectedChat?.id || '', wsMessage);
-      logger.info(`Message sent via WebSocket to chat ${selectedChat?.id}`);
-      
-      // Then send via API for persistence
       try {
-        const result = await apiSendMessage(selectedChat?.id || '', messageData);
+        const result = await sendMessageToApi(selectedChat?.id || '', messageData);
         logInfo('Message sent successfully via API:', result);
         
-        // Update the message to mark it as confirmed by the server
         if (selectedChat) {
           selectedChat = {
             ...selectedChat,
@@ -1392,7 +1382,10 @@
         showCreateGroupModal = false;
         await fetchChats();
         selectChat(response.chat_id);
-        toastStore.showToast(`Group chat "${chatData.name}" created successfully`, 'success');
+        toastStore.showToast({
+          message: `Group chat "${chatData.name}" created successfully`,
+          type: 'success'
+        });
       }
     } catch (error) {
       logError('Failed to create group chat', error);
@@ -1547,7 +1540,7 @@
     if (error) {
       console.error(message, error);
       logger.error(message);
-    } else {
+        } else {
       logger.error(message);
     }
   }
@@ -1563,17 +1556,7 @@
     }
   }
 
-  // Function to handle chat delete
-  async function handleDeleteChat(event: MouseEvent, chat: Chat) {
-    // Stop propagation to prevent selecting the chat
-    event.stopPropagation();
-    
-    logger.debug(`Preparing to delete chat: ${chat.id}`);
-    
-    // Set the chat to delete and show confirmation
-    chatToDelete = chat;
-    showDeleteConfirm = true;
-  }
+  // No longer used - functionality moved to requestDeleteChat
 
   // Function to confirm and delete the chat
   async function confirmDeleteChat() {
@@ -1618,6 +1601,24 @@
   function cancelDeleteChat() {
     chatToDelete = null;
     showDeleteConfirm = false;
+  }
+
+  // Function to request deletion of a chat
+  function requestDeleteChat(chatToRemove: Chat) {
+    chatToDelete = chatToRemove;
+    showDeleteConfirm = true;
+    logger.debug(`Preparing to delete chat: ${chatToRemove.id}`);
+  }
+
+  // Use a properly typed function to avoid TypeScript error
+  function showToast(options: { message: string; type: ToastTypeEnum }) {
+    toastStore.showToast(options);
+  }
+
+  // Wrapper function with proper typing to fix TypeScript error
+  async function sendMessageToApi(chatId: string, messageData: any) {
+    // Use the direct import from chatApi instead of the alias
+    return await chatApi.sendMessage(chatId, messageData);
   }
 </script>
 
@@ -1941,11 +1942,35 @@
     position: relative;
     padding: 12px 16px;
     border-radius: 18px;
-    background-color: white;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     margin: 0 8px;
     max-width: 100%;
     word-break: break-word;
+  }
+  
+  /* Sent messages (from the current user) */
+  .message-bubble.sent {
+    background-color: #3b82f6;
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  
+  /* Received messages (from other users) */
+  .message-bubble.received {
+    background-color: #e9e9e9;
+    color: #333;
+    border-bottom-left-radius: 4px;
+  }
+  
+  /* Dark theme overrides */
+  .dark-theme .message-bubble.sent {
+    background-color: #3b82f6;
+    color: white;
+  }
+  
+  .dark-theme .message-bubble.received {
+    background-color: #2a2a2a;
+    color: #f0f0f0;
   }
   
   /* Delete button and confirmation dialog styles */
@@ -2139,6 +2164,15 @@
         <div class="chat-list-header">
           <h2 class="page-title">Messages</h2>
           <div class="header-actions">
+            <button class="msg-new-message-button" on:click={() => showCreateGroupModal = true}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span>New Group</span>
+            </button>
             <button class="msg-new-message-button" on:click={() => showNewChatModal = true}>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -2237,12 +2271,13 @@
                     </div>
                     
                     <div class="chat-actions">
-                      {#if chat.unread_count > 0}
-                        <div class="msg-unread-badge">{chat.unread_count}</div>
-                      {/if}
-                      <button 
+                    {#if chat.unread_count > 0}
+                  <div class="msg-unread-badge">{chat.unread_count}</div>
+                    {/if}
+                      <!-- Delete button -->
+                      <span 
                         class="delete-chat-btn" 
-                        on:click={(e) => handleDeleteChat(e, chat)}
+                        on:click|stopPropagation={() => requestDeleteChat(chat)}
                         aria-label="Delete conversation"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2250,7 +2285,7 @@
                           <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
                           <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
                         </svg>
-                      </button>
+                      </span>
                     </div>
           </div>
             {/each}
@@ -2331,12 +2366,12 @@
                   <div class="message-bubble {message.sender_id === $authStore.user_id ? 'sent' : 'received'}" class:failed={message.failed} class:is-local={message.is_local}>
                     <!-- Message content -->
                     <div class="message-content">
-                      {#if message.is_deleted}
+                    {#if message.is_deleted}
                         <span class="deleted-message">Message deleted</span>
-                      {:else}
+                    {:else}
                         <!-- Display the content text -->
                         {#if message.content && (!message.content.startsWith('{') || !message.content.includes('attachment'))}
-                          <p>{message.content}</p>
+                        <p>{message.content}</p>
                         {/if}
                         
                         <!-- Display attachments if any -->
@@ -2422,14 +2457,14 @@
                               </svg>
                               Retry
                             </button>
-                          </div>
-                        {/if}
+                </div>
+              {/if}
                       {/if}
                     </div>
                       
                     <!-- Message footer with timestamp -->
                       <div class="message-footer">
-                      <span class="timestamp">{safeFormatRelativeTime(message.timestamp)}</span>
+                      <span class="timestamp" data-timestamp={message.timestamp}>{safeFormatRelativeTime(message.timestamp)}</span>
                         
                       <!-- Message actions for sent messages -->
                       {#if !message.is_deleted && message.sender_id === $authStore.user_id && !message.is_local}

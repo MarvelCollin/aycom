@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { useAuth } from '../../hooks/useAuth';
   import * as api from '../../api';
   import { createLoggerWithPrefix } from '../../utils/logger';
@@ -28,6 +28,16 @@
   let isLoading = false;
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let errorMessage = '';
+  let groupNameInput: HTMLInputElement;
+  let searchInput: HTMLInputElement;
+  let selectedIndex = -1;
+
+  // Auto-focus on group name input when component mounts
+  onMount(() => {
+    if (groupNameInput) {
+      groupNameInput.focus();
+    }
+  });
 
   // Get a color for avatar placeholders
   function getAvatarColor(name: string | undefined): string {
@@ -62,6 +72,9 @@
       searchResults = [];
       return;
     }
+
+    // Reset selected index when search changes
+    selectedIndex = -1;
 
     // Clear previous timeout
     if (searchTimeout) clearTimeout(searchTimeout);
@@ -104,7 +117,22 @@
       }
     }, 300); // 300ms debounce
   }
-    // Helper function for empty query search fallback has been removed - API should handle search properly
+
+  // Handle keyboard navigation in search results
+  function handleSearchKeydown(event: KeyboardEvent): void {
+    if (!searchResults.length) return;
+    
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectedIndex = Math.min(selectedIndex + 1, searchResults.length - 1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectedIndex = Math.max(selectedIndex - 1, -1);
+    } else if (event.key === 'Enter' && selectedIndex >= 0) {
+      event.preventDefault();
+      addParticipant(searchResults[selectedIndex]);
+    }
+  }
 
   // Add user to selected participants
   function addParticipant(user: StandardUser): void {
@@ -116,6 +144,12 @@
     searchResults = searchResults.filter(u => u.id !== user.id);
     logger.debug('Added participant', { userId: user.id, username: user.username });
     searchQuery = '';
+    selectedIndex = -1;
+    
+    // Focus back on search input for better UX
+    setTimeout(() => {
+      if (searchInput) searchInput.focus();
+    }, 0);
   }
 
   // Remove user from selected participants
@@ -128,11 +162,13 @@
   async function createGroupChat(): Promise<void> {
     if (!groupName.trim()) {
       errorMessage = 'Please enter a group name';
+      groupNameInput.focus();
       return;
     }
 
     if (selectedParticipants.length === 0) {
       errorMessage = 'Please select at least one participant';
+      searchInput.focus();
       return;
     }
 
@@ -266,7 +302,9 @@
         id="groupName" 
         placeholder="Enter group name" 
         bind:value={groupName}
+        bind:this={groupNameInput}
         on:input={() => errorMessage = ''}
+        on:keydown={(e) => e.key === 'Enter' && searchInput.focus()}
       />
     </div>
 
@@ -277,7 +315,9 @@
         id="searchUsers" 
         placeholder="Search users by name or username" 
         bind:value={searchQuery}
+        bind:this={searchInput}
         on:input={handleInput}
+        on:keydown={handleSearchKeydown}
       />
     </div>
 
@@ -296,9 +336,15 @@
       <div class="search-results">
         <h3>Search Results</h3>
         <ul>
-          {#each searchResults as user}
+          {#each searchResults as user, i}
             <li>
-              <div class="user-item" on:click={() => addParticipant(user)}>
+              <div 
+                class="user-item {i === selectedIndex ? 'selected' : ''}" 
+                on:click={() => addParticipant(user)}
+                on:keydown={(e) => e.key === 'Enter' && addParticipant(user)}
+                role="button"
+                tabindex="0"
+              >
                 <div class="avatar" style="background-color: {getAvatarColor(user.displayName || user.username)}">
                   {#if user.avatar}
                     <img src={user.avatar} alt={user.displayName || user.username} />
@@ -405,6 +451,15 @@
     --button-text: white;
     --error-bg: rgba(239, 68, 68, 0.1);
     --error-text: #ef4444;
+  }
+
+  /* Highlight selected user in search results */
+  .user-item.selected {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+
+  :global(.dark) .user-item.selected {
+    background-color: rgba(59, 130, 246, 0.2);
   }
 
   .modal-header {
