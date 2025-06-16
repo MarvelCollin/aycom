@@ -56,8 +56,7 @@
         logger.debug('Using participants from parent component:', currentChatParticipants);
         participants = currentChatParticipants;
       }
-      
-      currentParticipants = participants;
+        currentParticipants = participants.filter(p => p && (p.id || p.username));
       logger.debug('Final loaded participants:', currentParticipants);
     } catch (error) {
       logger.error('Error loading participants:', error);
@@ -88,13 +87,14 @@
       errorMessage = 'Failed to load users. Try searching by username.';
     }
   }
-
   $: filteredUsers = searchQuery 
     ? availableUsers.filter(user => 
-        user.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (user.displayName || '').toLowerCase().includes(searchQuery.toLowerCase())
+        user && user.id && (
+          user.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          (user.displayName || '').toLowerCase().includes(searchQuery.toLowerCase())
+        )
       )
-    : availableUsers;
+    : availableUsers.filter(user => user && user.id);
 
   $: if (searchQuery && searchQuery.length > 1) {
     performUserSearch(searchQuery);
@@ -136,20 +136,38 @@
       }
     }, 300); 
   }
-
   async function handleAddMember(user: StandardUser): Promise<void> {
     errorMessage = '';
     successMessage = '';
     isAddingMember = true;
 
     try {
-      await addChatParticipant(chatId, { user_id: user.id });
+      logger.debug('Adding member to chat:', { chatId, userId: user.id, userName: user.username });
+      
+      const response = await addChatParticipant(chatId, { user_id: user.id });
+      logger.debug('Add member response:', response);
 
-      currentParticipants = [...currentParticipants, user];
+      // Convert StandardUser to Participant format for consistency
+      const newParticipant: Participant = {
+        id: user.id,
+        username: user.username,
+        name: user.name || user.displayName || user.username,
+        display_name: user.display_name || user.displayName || user.name || user.username,
+        profile_picture_url: user.profile_picture_url || user.avatar || null,
+        is_verified: user.is_verified || false,
+        avatar: user.avatar || user.profile_picture_url || null
+      };
+
+      // Update the participants list
+      currentParticipants = [...currentParticipants, newParticipant];
+      
+      // Remove from available users
       availableUsers = availableUsers.filter(u => u.id !== user.id);
 
-      successMessage = `Added ${user.displayName || user.username} to the chat`;
+      successMessage = `Added ${user.display_name || user.displayName || user.name || user.username} to the chat`;
+      logger.debug('Member added successfully');
 
+      // Notify parent component to refresh
       onMembersUpdated();
     } catch (error) {
       logger.error('Error adding member:', error);
@@ -216,8 +234,7 @@
         {#if currentParticipants.length === 0}
           <p class="empty-state">No members in this chat</p>
         {:else}
-          <div class="member-list">
-            {#each currentParticipants as user (user.id)}
+          <div class="member-list">            {#each currentParticipants as user, index (user.id || `participant-${index}`)}
               <div class="member-item">
                 <div class="user-avatar">
                   {#if user.avatar}
@@ -264,9 +281,8 @@
             <div class="search-dropdown">
               <div class="search-dropdown-section">
                 <h4 class="search-dropdown-title">Users</h4>
-                <ul class="search-dropdown-list">
-                  {#each filteredUsers as user (user.id)}
-                    <li>                      <button 
+                <ul class="search-dropdown-list">                  {#each filteredUsers as user, index (user.id || `user-${index}`)}
+                    <li><button 
                         class="dropdown-item" 
                         type="button"
                         on:click|stopPropagation={() => handleAddMember(user)}

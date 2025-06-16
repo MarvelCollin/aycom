@@ -527,31 +527,54 @@
       // Just log system messages for now
       logger.info(`System message: ${message.content}`);
       return;
-    }
-    
-    // Check if this message is for the selected chat
-    if (selectedChat && message.chat_id === selectedChat.id) {
-      // Skip messages sent by the current user (already handled by optimistic updates)
-      const currentUserId = $authStore.user_id;
-      const messageSenderId = message.user_id || message.sender_id;
-      
-      if (messageSenderId === currentUserId) {
-        logger.debug('Skipping own message from WebSocket (already displayed)');
-        return;
-      }
-      
-      // Update the messages in the selected chat
-      if (message.type === 'text' && message.content) {
-        // Check if message already exists (to avoid duplicates)
-        const messageExists = selectedChat.messages.some(msg => 
-          (msg.id === message.message_id) || 
-          (message.message_id && msg.id === message.message_id)
-        );
-
-        if (messageExists) {
-          logger.debug('Message already exists in chat, skipping');
+    }      // Check if this message is for the selected chat
+      if (selectedChat && message.chat_id === selectedChat.id) {
+        // Skip messages sent by the current user (already handled by optimistic updates)
+        const currentUserId = $authStore.user_id;
+        const messageSenderId = message.user_id || message.sender_id;
+        
+        if (messageSenderId === currentUserId) {
+          logger.debug('Skipping own message from WebSocket (already displayed optimistically)', {
+            messageId: message.message_id,
+            content: message.content?.substring(0, 50)
+          });
           return;
         }
+        
+        // Update the messages in the selected chat
+        if (message.type === 'text' && message.content) {
+          // Enhanced duplicate check - multiple strategies
+          const messageExists = selectedChat.messages.some(msg => {
+            // Strategy 1: Direct ID match
+            if (msg.id === message.message_id || (message.message_id && msg.id === message.message_id)) {
+              return true;
+            }
+            
+            // Strategy 2: Content + sender + timing match (for optimistic updates)
+            if (msg.content === message.content && 
+                msg.sender_id === messageSenderId && 
+                msg.timestamp && message.timestamp) {
+              const timeDiff = Math.abs(new Date(msg.timestamp).getTime() - new Date(message.timestamp).getTime());
+              if (timeDiff < 5000) { // 5 second window
+                return true;
+              }
+            }
+            
+            // Strategy 3: Temporary ID match (for messages being confirmed)
+            if (msg.id?.startsWith('temp-') && message.content === msg.content && messageSenderId === msg.sender_id) {
+              return true;
+            }
+            
+            return false;
+          });
+
+          if (messageExists) {
+            logger.debug('Message already exists in chat, skipping duplicate', {
+              messageId: message.message_id,
+              content: message.content?.substring(0, 50)
+            });
+            return;
+          }
 
         // Create a properly formatted message object
         const newMessage: Message = {
@@ -625,7 +648,7 @@
         // Update the chat list with deduplication
         chats = deduplicateChats(updatedChats);
         
-        // Also update filtered chats
+        // Also update filtered chats with deduplication
         const filteredIndex = filteredChats.findIndex(c => c.id === message.chat_id);
         if (filteredIndex >= 0) {
           const updatedFilteredChat = {
@@ -636,11 +659,12 @@
               : (filteredChats[filteredIndex].unread_count || 0) + 1
           };
           
-          // Move this chat to the top of the filtered list
-          filteredChats = [
+          // Move this chat to the top of the filtered list with deduplication
+          const tempFilteredChats = [
             updatedFilteredChat,
             ...filteredChats.filter(c => c.id !== message.chat_id)
           ];
+          filteredChats = deduplicateChats(tempFilteredChats);
         }
         
         // Play notification sound if this is not the selected chat
@@ -723,18 +747,20 @@
     });
   }
   
-  // Function to deduplicate chats by ID
+  // Function to deduplicate chats by ID and ensure unique entries
   function deduplicateChats(chatList: Chat[]): Chat[] {
     const chatMap = new Map<string, Chat>();
     
     // Use Map to automatically deduplicate by chat ID
     chatList.forEach(chat => {
-      if (chat.id && !chatMap.has(chat.id)) {
+      if (chat && chat.id && !chatMap.has(chat.id)) {
         chatMap.set(chat.id, chat);
       }
     });
     
-    return Array.from(chatMap.values());
+    const result = Array.from(chatMap.values());
+    logger.debug(`Deduplicated ${chatList.length} chats to ${result.length} unique chats`);
+    return result;
   }
 
   async function fetchChats() {
@@ -1231,8 +1257,8 @@
         sender_name: displayName || 'You'
       };
 
-      // Update chat list with the new message
-      chats = chats.map(chat => {
+      // Update chat list with the new message and ensure no duplicates
+      chats = deduplicateChats(chats.map(chat => {
         if (chat.id === selectedChat?.id) {
           return {
             ...chat,
@@ -1240,7 +1266,7 @@
             };
           }
           return chat;
-      }) as Chat[];
+      }) as Chat[]);
         
       // Move the active chat to the top
       const activeChatId = selectedChat?.id;
@@ -1252,17 +1278,17 @@
           // Add it back at the beginning
           chats = [activeChat, ...otherChats];
           
-          // Do the same for filtered chats
+          // Do the same for filtered chats with deduplication
           const filteredActiveChat = filteredChats.find(c => c.id === activeChatId);
           if (filteredActiveChat) {
             const otherFilteredChats = filteredChats.filter(c => c.id !== activeChatId);
-        filteredChats = [
+        filteredChats = deduplicateChats([
               {
                 ...filteredActiveChat,
                 last_message: newLastMessage
               },
               ...otherFilteredChats
-            ];
+            ]);
           }
         }
       }
@@ -1451,16 +1477,29 @@
           name: data.name,
           participants: data.participants
         };
-    } else {
+      } else {
         throw new Error('Invalid group chat data format');
       }
       
+      logger.debug('Creating group chat with data:', chatData);
       const response = await createChat(chatData);
       
-      if (response && response.chat_id) {
+      if (response && (response.chat_id || response.chat)) {
+        const newChatId = response.chat_id || response.chat?.id;
         showCreateGroupModal = false;
+        
+        // Instead of refetching all chats, just reload them once with deduplication
+        logger.debug('Group chat created successfully, refreshing chat list');
         await fetchChats();
-        selectChat(response.chat_id);
+        
+        // Select the new chat if we have its ID
+        if (newChatId) {
+          const newChat = chats.find(c => c.id === newChatId);
+          if (newChat) {
+            selectChat(newChat);
+          }
+        }
+        
         toastStore.showToast({
           message: `Group chat "${chatData.name}" created successfully`,
           type: 'success'
@@ -1468,6 +1507,10 @@
       }
     } catch (error) {
       logError('Failed to create group chat', error);
+      toastStore.showToast({
+        message: 'Failed to create group chat. Please try again.',
+        type: 'error'
+      });
     } finally {
       isLoadingChats = false;
     }
