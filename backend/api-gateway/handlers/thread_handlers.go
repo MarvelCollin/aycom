@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -800,38 +801,39 @@ func GetAllThreads(c *gin.Context) {
 
 	threadList := make([]map[string]interface{}, len(threads))
 	for i, thread := range threads {
-		threadList[i] = map[string]interface{}{
+		// Ensure dates are properly formatted as ISO 8601 strings
+		createdAt := thread.CreatedAt.Format(time.RFC3339)
+		updatedAt := thread.UpdatedAt.Format(time.RFC3339)
+
+		threadData := map[string]interface{}{
 			"id":                  thread.ID,
 			"content":             thread.Content,
-			"created_at":          thread.CreatedAt.Format(time.RFC3339),
-			"updated_at":          thread.UpdatedAt.Format(time.RFC3339),
+			"created_at":          createdAt,
+			"updated_at":          updatedAt,
 			"user_id":             thread.UserID,
 			"username":            thread.Username,
-			"name":                thread.DisplayName,
+			"display_name":        thread.DisplayName,
+			"name":                thread.DisplayName, // Include both for frontend compatibility
 			"profile_picture_url": thread.ProfilePicture,
 			"likes_count":         thread.LikeCount,
+			"like_count":          thread.LikeCount, // Include both for frontend compatibility
 			"replies_count":       thread.ReplyCount,
+			"reply_count":         thread.ReplyCount, // Include both for frontend compatibility
 			"reposts_count":       thread.RepostCount,
-			"bookmark_count":      thread.BookmarkCount,
+			"repost_count":        thread.RepostCount, // Include both for frontend compatibility
 			"is_liked":            thread.IsLiked,
 			"is_reposted":         thread.IsReposted,
 			"is_bookmarked":       thread.IsBookmarked,
 			"is_pinned":           thread.IsPinned,
+			"hashtags":            thread.Hashtags,
 		}
 
+		// Add media if available
 		if len(thread.Media) > 0 {
-			mediaList := make([]map[string]interface{}, len(thread.Media))
-			for j, m := range thread.Media {
-				mediaList[j] = map[string]interface{}{
-					"id":   m.ID,
-					"url":  m.URL,
-					"type": m.Type,
-				}
-			}
-			threadList[i]["media"] = mediaList
-		} else {
-			threadList[i]["media"] = []interface{}{}
+			threadData["media"] = thread.Media
 		}
+
+		threadList[i] = threadData
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1942,4 +1944,122 @@ func GetRepliesByThread(c *gin.Context) {
 		"total":   len(replies),
 		"success": true,
 	})
+}
+
+// GetThreadsByHashtag retrieves threads associated with a specific hashtag
+func GetThreadsByHashtag(c *gin.Context) {
+	hashtag := c.Param("hashtag")
+	if hashtag == "" {
+		utils.SendErrorResponse(c, http.StatusBadRequest, "INVALID_REQUEST", "Hashtag is required")
+		return
+	}
+
+	// Clean the hashtag (remove # if present)
+	if strings.HasPrefix(hashtag, "#") {
+		hashtag = hashtag[1:]
+	}
+
+	// Parse pagination parameters
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	sortBy := c.DefaultQuery("sort_by", "recent")
+	sortOrder := c.DefaultQuery("sort_order", "desc")
+
+	// Log the request
+	log.Printf("GetThreadsByHashtag: hashtag=%s, page=%d, limit=%d, sortBy=%s, sortOrder=%s",
+		hashtag, page, limit, sortBy, sortOrder)
+
+	// Get authenticated user ID if available
+	var userID string
+	userIDValue, exists := c.Get("userId")
+	if exists {
+		if userIDStr, ok := userIDValue.(string); ok {
+			userID = userIDStr
+			log.Printf("Authenticated user for hashtag search: %s", userID)
+		}
+	}
+
+	if threadServiceClient == nil {
+		utils.SendErrorResponse(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Thread service client not initialized")
+		return
+	}
+
+	// Get threads with this hashtag
+	threads, err := threadServiceClient.GetThreadsByHashtag(hashtag, userID, page, limit)
+	if err != nil {
+		log.Printf("Error getting threads by hashtag: %v", err)
+		utils.SendErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get threads by hashtag")
+		return
+	}
+
+	// Sort the threads based on the requested sort parameters
+	if sortBy == "likes" {
+		sort.Slice(threads, func(i, j int) bool {
+			if sortOrder == "desc" {
+				return threads[i].LikeCount > threads[j].LikeCount
+			}
+			return threads[i].LikeCount < threads[j].LikeCount
+		})
+	} else { // Default to sorting by date
+		sort.Slice(threads, func(i, j int) bool {
+			if sortOrder == "desc" {
+				return threads[i].CreatedAt.After(threads[j].CreatedAt)
+			}
+			return threads[i].CreatedAt.Before(threads[j].CreatedAt)
+		})
+	}
+
+	// Format the response to match what frontend expects
+	// Convert threads to frontend format
+	var formattedThreads []map[string]interface{}
+
+	for _, thread := range threads {
+		// Ensure dates are properly formatted as ISO 8601 strings
+		createdAt := thread.CreatedAt.Format(time.RFC3339)
+		updatedAt := thread.UpdatedAt.Format(time.RFC3339)
+
+		threadData := map[string]interface{}{
+			"id":                  thread.ID,
+			"content":             thread.Content,
+			"created_at":          createdAt,
+			"updated_at":          updatedAt,
+			"user_id":             thread.UserID,
+			"username":            thread.Username,
+			"display_name":        thread.DisplayName,
+			"name":                thread.DisplayName, // Include both for frontend compatibility
+			"profile_picture_url": thread.ProfilePicture,
+			"likes_count":         thread.LikeCount,
+			"like_count":          thread.LikeCount, // Include both for frontend compatibility
+			"replies_count":       thread.ReplyCount,
+			"reply_count":         thread.ReplyCount, // Include both for frontend compatibility
+			"reposts_count":       thread.RepostCount,
+			"repost_count":        thread.RepostCount, // Include both for frontend compatibility
+			"is_liked":            thread.IsLiked,
+			"is_reposted":         thread.IsReposted,
+			"is_bookmarked":       thread.IsBookmarked,
+			"is_pinned":           thread.IsPinned,
+			"hashtags":            thread.Hashtags,
+		}
+
+		// Add media if available
+		if len(thread.Media) > 0 {
+			threadData["media"] = thread.Media
+		}
+
+		formattedThreads = append(formattedThreads, threadData)
+	}
+
+	response := gin.H{
+		"success":     true,
+		"threads":     formattedThreads,
+		"total_count": len(threads),
+		"pagination": gin.H{
+			"current_page": page,
+			"total_pages":  1, // Since we don't have exact total count
+			"total_count":  len(threads),
+			"per_page":     limit,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }

@@ -143,12 +143,16 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 
 	v1.GET("/communities/search", handlers.OldSearchCommunities)
 
-	v1.GET("/communities/user/:userId/joined", handlers.GetJoinedCommunities)
-	v1.GET("/communities/user/:userId/pending", handlers.GetPendingCommunities)
-	v1.GET("/communities/discover", handlers.GetDiscoverCommunities)
-
-	v1.GET("/communities", handlers.ListCommunities)
-	v1.GET("/communities/:id", handlers.GetCommunityByID)
+	// Create a public communities group with optional JWT auth for user-specific endpoints
+	publicCommunities := v1.Group("/communities")
+	publicCommunities.Use(middleware.OptionalJWTAuth(jwtSecret))
+	{
+		publicCommunities.GET("/user/:userId/joined", handlers.GetJoinedCommunities)
+		publicCommunities.GET("/user/:userId/pending", handlers.GetPendingCommunities)
+		publicCommunities.GET("/discover", handlers.GetDiscoverCommunities)
+		publicCommunities.GET("", handlers.ListCommunities)
+		publicCommunities.GET("/:id", handlers.GetCommunityByID)
+	}
 
 	publicWebsockets := v1.Group("/chats")
 	{
@@ -240,6 +244,7 @@ func RegisterRoutes(router *gin.Engine, cfg *config.Config) {
 		chats.GET("/:id/participants", handlers.ListChatParticipants)
 		chats.POST("/:id/participants", handlers.AddChatParticipant)
 		chats.DELETE("/:id/participants/:userId", handlers.RemoveChatParticipant)
+		chats.DELETE("/:id", handlers.DeleteChat)
 
 		chats.POST("/:id/messages", handlers.SendMessage)
 		chats.GET("/:id/messages", handlers.ListMessages)

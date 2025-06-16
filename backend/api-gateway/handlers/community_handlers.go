@@ -640,7 +640,21 @@ func ListCommunities(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "25"))
 	isApproved, _ := strconv.ParseBool(c.DefaultQuery("is_approved", "true"))
 	filter := c.Query("filter")
-	userID := c.Query("userId")
+
+	// Try to get user ID from context first (from JWT token)
+	var userID string
+	if tokenUserID, exists := c.Get("userId"); exists {
+		userID = tokenUserID.(string)
+		log.Printf("Using authenticated user ID: %s", userID)
+	} else {
+		// If not found in context, try from query parameter
+		userID = c.Query("userId")
+		if userID != "" {
+			log.Printf("Using query parameter user ID: %s", userID)
+		} else {
+			log.Printf("No user ID available, some filtering may be limited")
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -1990,9 +2004,21 @@ func OldSearchCommunities(c *gin.Context) {
 }
 
 func GetJoinedCommunities(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+	// Try to get user ID from JWT token first
+	var userID string
+	tokenUserID, exists := c.Get("userId")
+
+	// If authenticated, use token user ID
+	if exists {
+		userID = tokenUserID.(string)
+	} else {
+		// If not authenticated, use the user ID from URL parameter
+		userID = c.Param("userId")
+		log.Printf("No authentication, using URL parameter user ID: %s", userID)
+	}
+
+	if userID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
 		return
 	}
 
@@ -2034,7 +2060,7 @@ func GetJoinedCommunities(c *gin.Context) {
 
 		status := filter
 		resp, err = CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId:     userID.(string),
+			UserId:     userID,
 			Status:     status,
 			Query:      query,
 			Categories: categories,
@@ -2058,7 +2084,7 @@ func GetJoinedCommunities(c *gin.Context) {
 		}
 
 		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID.(string),
+			UserId: userID,
 			Status: "member",
 			Limit:  1000,
 		})
@@ -2068,7 +2094,7 @@ func GetJoinedCommunities(c *gin.Context) {
 		}
 
 		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID.(string),
+			UserId: userID,
 			Status: "pending",
 			Limit:  1000,
 		})
@@ -2173,9 +2199,21 @@ func GetJoinedCommunities(c *gin.Context) {
 }
 
 func GetPendingCommunities(c *gin.Context) {
-	userID, exists := c.Get("userId")
-	if !exists {
-		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
+	// Try to get user ID from JWT token first
+	var userID string
+	tokenUserID, exists := c.Get("userId")
+
+	// If authenticated, use token user ID
+	if exists {
+		userID = tokenUserID.(string)
+	} else {
+		// If not authenticated, use the user ID from URL parameter
+		userID = c.Param("userId")
+		log.Printf("No authentication, using URL parameter user ID: %s", userID)
+	}
+
+	if userID == "" {
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "User ID is required")
 		return
 	}
 
@@ -2217,7 +2255,7 @@ func GetPendingCommunities(c *gin.Context) {
 
 		status := filter
 		resp, err = CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId:     userID.(string),
+			UserId:     userID,
 			Status:     status,
 			Query:      query,
 			Categories: categories,
@@ -2241,7 +2279,7 @@ func GetPendingCommunities(c *gin.Context) {
 		}
 
 		joinedResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID.(string),
+			UserId: userID,
 			Status: "member",
 			Limit:  1000,
 		})
@@ -2251,7 +2289,7 @@ func GetPendingCommunities(c *gin.Context) {
 		}
 
 		pendingResp, err := CommunityClient.ListUserCommunities(ctx, &communityProto.ListUserCommunitiesRequest{
-			UserId: userID.(string),
+			UserId: userID,
 			Status: "pending",
 			Limit:  1000,
 		})
@@ -2356,7 +2394,33 @@ func GetPendingCommunities(c *gin.Context) {
 }
 
 func GetDiscoverCommunities(c *gin.Context) {
+	// Try to get user ID from JWT token first
+	var userID string
+	tokenUserID, exists := c.Get("userId")
+
+	// If authenticated, use token user ID
+	if exists {
+		userID = tokenUserID.(string)
+		log.Printf("Authenticated user accessing discover communities: %s", userID)
+	} else {
+		// For unauthenticated users, we can still show discover communities
+		// Just won't filter based on joined/pending status
+		log.Printf("Unauthenticated user accessing discover communities")
+	}
+
 	c.Request.URL.RawQuery += "&filter=discover"
+
+	// If there's a userID in the query parameters, use that for filtering
+	if userIDParam := c.Query("userId"); userIDParam != "" && userID == "" {
+		userID = userIDParam
+		log.Printf("Using query parameter user ID for filtering: %s", userID)
+		// Add it to the context so the ListCommunities handler can use it
+		c.Set("userId", userID)
+	} else if userID != "" {
+		// Add the userID to the context for the ListCommunities handler
+		c.Set("userId", userID)
+	}
+
 	ListCommunities(c)
 }
 

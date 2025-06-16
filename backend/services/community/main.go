@@ -121,6 +121,14 @@ func initDatabase() (*gorm.DB, error) {
 	}
 	log.Println("Community service database migrations completed successfully")
 
+	// Seed the database with sample data
+	seeder := db.NewCommunitySeeder(db)
+	if err := seeder.SeedAll(); err != nil {
+		log.Printf("Warning: Failed to seed database: %v", err)
+	} else {
+		log.Println("Database seeded successfully")
+	}
+
 	return db, nil
 }
 

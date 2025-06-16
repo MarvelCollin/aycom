@@ -8,9 +8,17 @@
   export let isDarkMode = false;
   
   // Format timestamp function for tweet display
-  function formatTime(timestamp: string): string {
+  function formatTime(timestamp: string | null | undefined): string {
+    if (!timestamp) return 'some time ago';
+    
     try {
       const date = new Date(timestamp);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'some time ago';
+      }
+      
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffSec = Math.floor(diffMs / 1000);
@@ -25,7 +33,7 @@
       
       return date.toLocaleDateString();
     } catch (error) {
-      console.error('Error formatting time:', error);
+      console.error('Error formatting time:', error, timestamp);
       return 'some time ago';
     }
   }
@@ -60,7 +68,19 @@
             <p class="font-bold {isDarkMode ? 'text-white' : 'text-black'} mr-1">{thread.name || 'User'}</p>
             <p class="text-gray-500 dark:text-gray-400 text-sm truncate">@{thread.username || 'user'}</p>
             <span class="mx-1 text-gray-500 dark:text-gray-400">·</span>
-            <time datetime={new Date(thread.created_at).toISOString()} class="text-gray-500 dark:text-gray-400 text-sm">
+            <time 
+              datetime={(() => {
+                try {
+                  const date = new Date(thread.created_at);
+                  // Check if date is valid before calling toISOString
+                  return !isNaN(date.getTime()) ? date.toISOString() : '';
+                } catch (e) {
+                  console.error('Invalid date:', thread.created_at);
+                  return '';
+                }
+              })()} 
+              class="text-gray-500 dark:text-gray-400 text-sm"
+            >
               {formatTime(thread.created_at)}
             </time>
           </div>

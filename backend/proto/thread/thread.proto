@@ -49,6 +49,8 @@ service ThreadService {
   rpc GetRepliesByParentReply(GetRepliesByParentReplyRequest) returns (RepliesResponse) {}
   
   rpc GetBookmarksByUser(GetBookmarksByUserRequest) returns (ThreadsResponse) {}
+
+  rpc GetThreadsByHashtag(GetThreadsByHashtagRequest) returns (ThreadsResponse) {}
 }
 
 message Thread {
@@ -392,4 +394,11 @@ message GetBookmarksByUserRequest {
   string user_id = 1;
   int32 page = 2;
   int32 limit = 3;
+}
+
+message GetThreadsByHashtagRequest {
+  string hashtag = 1;
+  string user_id = 2;
+  int32 page = 3;
+  int32 limit = 4;
 }

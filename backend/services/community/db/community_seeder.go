@@ -20,19 +20,75 @@ func NewCommunitySeeder(db *gorm.DB) *CommunitySeeder {
 }
 
 func (s *CommunitySeeder) SeedAll() error {
-	if err := s.SeedCommunities(); err != nil {
+	log.Println("Starting community seeder...")
+
+	// Get current user IDs from the system
+	var userIDs []uuid.UUID
+	if err := s.fetchActiveUserIDs(&userIDs); err != nil {
+		log.Printf("Warning: Could not fetch user IDs: %v. Using default IDs.", err)
+		// Use some default IDs if we can't fetch real ones
+		userIDs = []uuid.UUID{
+			uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"), // Current user ID from logs
+			uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"), // Another ID seen in logs
+		}
+	}
+
+	if len(userIDs) == 0 {
+		log.Printf("Warning: No user IDs available. Using default IDs.")
+		userIDs = []uuid.UUID{
+			uuid.MustParse("91df5727-a9c5-427e-94ce-e0486e3bfdb7"),
+			uuid.MustParse("fd434c0e-95de-41d0-a576-9d4ea2fed7e9"),
+		}
+	}
+
+	log.Printf("Using user IDs for seeding: %v", userIDs)
+
+	if err := s.SeedCommunities(userIDs); err != nil {
 		return err
 	}
-	if err := s.SeedCommunityMembers(); err != nil {
+	if err := s.SeedCommunityMembers(userIDs); err != nil {
 		return err
 	}
-	if err := s.SeedJoinRequests(); err != nil {
+	if err := s.SeedJoinRequests(userIDs); err != nil {
 		return err
 	}
+
+	log.Println("Community seeding completed successfully!")
 	return nil
 }
 
-func (s *CommunitySeeder) SeedCommunities() error {
+// Fetch active user IDs from the user service database via a postgres connection
+func (s *CommunitySeeder) fetchActiveUserIDs(userIDs *[]uuid.UUID) error {
+	// Create a temporary struct to hold user IDs
+	type UserID struct {
+		ID uuid.UUID
+	}
+	var users []UserID
+
+	// Try to get user IDs from our own DB first (from existing members or pending requests)
+	if err := s.db.Raw("SELECT DISTINCT user_id as id FROM community_members WHERE deleted_at IS NULL LIMIT 10").Scan(&users).Error; err != nil {
+		log.Printf("Failed to fetch user IDs from community members: %v", err)
+	}
+
+	if len(users) == 0 {
+		if err := s.db.Raw("SELECT DISTINCT user_id as id FROM community_join_requests WHERE deleted_at IS NULL LIMIT 10").Scan(&users).Error; err != nil {
+			log.Printf("Failed to fetch user IDs from join requests: %v", err)
+		}
+	}
+
+	// If we found some, use them
+	if len(users) > 0 {
+		for _, user := range users {
+			*userIDs = append(*userIDs, user.ID)
+		}
+		return nil
+	}
+
+	// Otherwise, return an error
+	return fmt.Errorf("no user IDs found in database")
+}
+
+func (s *CommunitySeeder) SeedCommunities(userIDs []uuid.UUID) error {
 	var count int64
 	s.db.Table("communities").Count(&count)
 	if count > 0 {
@@ -40,28 +96,16 @@ func (s *CommunitySeeder) SeedCommunities() error {
 		return nil
 	}
 
-	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
-	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
-	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
-	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
-
-	var additionalUsers []struct {
-		ID       uuid.UUID
-		Username string
-	}
-	s.db.Table("users").Select("id, username").Where("username IN ?", []string{"techguru", "fitnesscoach"}).Find(&additionalUsers)
-
-	userMap := make(map[string]uuid.UUID)
-	for _, user := range additionalUsers {
-		userMap[user.Username] = user.ID
-	}
+	// Use the first user ID for creating communities
+	creatorID := userIDs[0]
+	log.Printf("Using creator ID for communities: %s", creatorID)
 
 	type Community struct {
 		CommunityID uuid.UUID  `gorm:"type:uuid;primaryKey;column:community_id"`
 		Name        string     `gorm:"type:varchar(100);unique;not null"`
 		Description string     `gorm:"type:text;not null"`
-		LogoURL     string     `gorm:"type:varchar(512)"`
-		BannerURL   string     `gorm:"type:varchar(512)"`
+		LogoURL     string     `gorm:"type:varchar(512);not null"`
+		BannerURL   string     `gorm:"type:varchar(512);not null"`
 		CreatorID   uuid.UUID  `gorm:"type:uuid;not null"`
 		IsApproved  bool       `gorm:"default:false;not null"`
 		CreatedAt   time.Time  `gorm:"autoCreateTime"`
@@ -74,9 +118,9 @@ func (s *CommunitySeeder) SeedCommunities() error {
 			CommunityID: uuid.New(),
 			Name:        "Tech Enthusiasts",
 			Description: "A community for technology lovers and early adopters. We discuss the latest gadgets, software releases, and tech trends.",
-			LogoURL:     "https://example.com/logos/tech.png",
-			BannerURL:   "https://example.com/banners/tech.png",
-			CreatorID:   userMap["techguru"], 
+			LogoURL:     "https://via.placeholder.com/150",
+			BannerURL:   "https://via.placeholder.com/600x200",
+			CreatorID:   creatorID,
 			IsApproved:  true,
 			CreatedAt:   time.Now().Add(-60 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-60 * 24 * time.Hour),
@@ -85,9 +129,9 @@ func (s *CommunitySeeder) SeedCommunities() error {
 			CommunityID: uuid.New(),
 			Name:        "Fitness & Health",
 			Description: "Join us to discuss fitness routines, health tips, nutrition advice, and wellness strategies.",
-			LogoURL:     "https://example.com/logos/fitness.png",
-			BannerURL:   "https://example.com/banners/fitness.png",
-			CreatorID:   userMap["fitnesscoach"], 
+			LogoURL:     "https://via.placeholder.com/150",
+			BannerURL:   "https://via.placeholder.com/600x200",
+			CreatorID:   creatorID,
 			IsApproved:  true,
 			CreatedAt:   time.Now().Add(-55 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-55 * 24 * time.Hour),
@@ -96,76 +140,13 @@ func (s *CommunitySeeder) SeedCommunities() error {
 			CommunityID: uuid.New(),
 			Name:        "Developers Hub",
 			Description: "A community for software developers to share knowledge, discuss programming languages, and collaborate on projects.",
-			LogoURL:     "https://example.com/logos/dev.png",
-			BannerURL:   "https://example.com/banners/dev.png",
-			CreatorID:   johnID,
+			LogoURL:     "https://via.placeholder.com/150",
+			BannerURL:   "https://via.placeholder.com/600x200",
+			CreatorID:   creatorID,
 			IsApproved:  true,
 			CreatedAt:   time.Now().Add(-50 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-50 * 24 * time.Hour),
 		},
-		{
-			CommunityID: uuid.New(),
-			Name:        "Design Showcase",
-			Description: "Share your design work, get feedback, and find inspiration from other designers around the world.",
-			LogoURL:     "https://example.com/logos/design.png",
-			BannerURL:   "https://example.com/banners/design.png",
-			CreatorID:   janeID,
-			IsApproved:  true,
-			CreatedAt:   time.Now().Add(-45 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-45 * 24 * time.Hour),
-		},
-		{
-			CommunityID: uuid.New(),
-			Name:        "Book Club",
-			Description: "Discuss your favorite books, share recommendations, and join monthly reading challenges.",
-			LogoURL:     "https://example.com/logos/books.png",
-			BannerURL:   "https://example.com/banners/books.png",
-			CreatorID:   samID,
-			IsApproved:  true,
-			CreatedAt:   time.Now().Add(-40 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-40 * 24 * time.Hour),
-		},
-		{
-			CommunityID: uuid.New(),
-			Name:        "Travel Explorers",
-			Description: "Share travel tips, photos, and experiences from around the world. Connect with fellow travelers!",
-			LogoURL:     "https://example.com/logos/travel.png",
-			BannerURL:   "https://example.com/banners/travel.png",
-			CreatorID:   adminID,
-			IsApproved:  true,
-			CreatedAt:   time.Now().Add(-35 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-35 * 24 * time.Hour),
-		},
-		{
-			CommunityID: uuid.New(),
-			Name:        "Foodie Paradise",
-			Description: "For food lovers to share recipes, restaurant reviews, and cooking tips.",
-			LogoURL:     "https://example.com/logos/food.png",
-			BannerURL:   "https://example.com/banners/food.png",
-			CreatorID:   johnID,
-			IsApproved:  true,
-			CreatedAt:   time.Now().Add(-30 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-30 * 24 * time.Hour),
-		},
-		{
-			CommunityID: uuid.New(),
-			Name:        "Photography Club",
-			Description: "Share your photography, learn new techniques, and discuss the latest camera gear.",
-			LogoURL:     "https://example.com/logos/photo.png",
-			BannerURL:   "https://example.com/banners/photo.png",
-			CreatorID:   janeID,
-			IsApproved:  true,
-			CreatedAt:   time.Now().Add(-25 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-25 * 24 * time.Hour),
-		},
-	}
-
-	if _, found := userMap["techguru"]; !found {
-		communities[0].CreatorID = adminID
-	}
-
-	if _, found := userMap["fitnesscoach"]; !found {
-		communities[1].CreatorID = janeID
 	}
 
 	if err := s.db.Table("communities").Create(&communities).Error; err != nil {
@@ -176,157 +157,103 @@ func (s *CommunitySeeder) SeedCommunities() error {
 	return nil
 }
 
-func (s *CommunitySeeder) SeedCommunityMembers() error {
+func (s *CommunitySeeder) SeedCommunityMembers(userIDs []uuid.UUID) error {
+	// First check if there are already community members
 	var count int64
 	s.db.Table("community_members").Count(&count)
 	if count > 0 {
-		log.Println("Community members already exist, skipping seeding")
-		return nil
+		log.Println("Community members already exist, truncating and reseeding")
+		// Remove existing records to start fresh
+		if err := s.db.Exec("DELETE FROM community_members").Error; err != nil {
+			log.Printf("Warning: Failed to delete existing members: %v", err)
+		}
 	}
-
-	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
-	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
-	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
-	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
 
 	var communities []struct {
 		CommunityID uuid.UUID
 		Name        string
 		CreatorID   uuid.UUID
 	}
-	s.db.Table("communities").Select("community_id, name, creator_id").Find(&communities)
 
-	communityMap := make(map[string]uuid.UUID)
-	creatorMap := make(map[uuid.UUID]uuid.UUID) 
-	for _, community := range communities {
-		communityMap[community.Name] = community.CommunityID
-		creatorMap[community.CommunityID] = community.CreatorID
+	if err := s.db.Table("communities").Select("community_id, name, creator_id").Find(&communities).Error; err != nil {
+		return fmt.Errorf("failed to fetch communities: %w", err)
 	}
 
+	if len(communities) == 0 {
+		return fmt.Errorf("no communities found to seed members for")
+	}
+
+	log.Printf("Found %d communities to create members for", len(communities))
+
 	type CommunityMember struct {
-		ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
-		CommunityID uuid.UUID `gorm:"type:uuid;not null"`
-		UserID      uuid.UUID `gorm:"type:uuid;not null"`
-		Role        string    `gorm:"type:varchar(50);not null"`
-		JoinedAt    time.Time
-		CreatedAt   time.Time
-		UpdatedAt   time.Time
+		CommunityID uuid.UUID  `gorm:"type:uuid;primaryKey;column:community_id"`
+		UserID      uuid.UUID  `gorm:"type:uuid;primaryKey;column:user_id"`
+		Role        string     `gorm:"type:varchar(10);not null"`
+		CreatedAt   time.Time  `gorm:"autoCreateTime"`
+		UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
+		DeletedAt   *time.Time `gorm:"index"`
 	}
 
 	members := []CommunityMember{}
 
-	for communityID, creatorID := range creatorMap {
+	// First, add the creator as admin for each community
+	for _, community := range communities {
 		members = append(members, CommunityMember{
-			ID:          uuid.New(),
-			CommunityID: communityID,
-			UserID:      creatorID,
+			CommunityID: community.CommunityID,
+			UserID:      community.CreatorID,
 			Role:        "admin",
-			JoinedAt:    time.Now().Add(-60 * 24 * time.Hour),
 			CreatedAt:   time.Now().Add(-60 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-60 * 24 * time.Hour),
 		})
+
+		log.Printf("Added admin member for community %s: %s", community.Name, community.CreatorID)
 	}
 
-	if techID, ok := communityMap["Tech Enthusiasts"]; ok {
-		members = append(members,
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: techID,
-				UserID:      johnID,
-				Role:        "member",
-				JoinedAt:    time.Now().Add(-59 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-59 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-59 * 24 * time.Hour),
-			},
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: techID,
-				UserID:      janeID,
-				Role:        "moderator",
-				JoinedAt:    time.Now().Add(-58 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-58 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-58 * 24 * time.Hour),
-			},
-		)
-	}
+	// Then add other users as members to some communities
+	for _, userID := range userIDs {
+		// Skip if this is the creator (already added as admin)
+		isCreator := false
+		for _, community := range communities {
+			if community.CreatorID == userID {
+				isCreator = true
+				break
+			}
+		}
 
-	if fitnessID, ok := communityMap["Fitness & Health"]; ok {
-		members = append(members,
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: fitnessID,
-				UserID:      adminID,
-				Role:        "member",
-				JoinedAt:    time.Now().Add(-54 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-54 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-54 * 24 * time.Hour),
-			},
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: fitnessID,
-				UserID:      samID,
-				Role:        "member",
-				JoinedAt:    time.Now().Add(-53 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-53 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-53 * 24 * time.Hour),
-			},
-		)
-	}
-
-	if devID, ok := communityMap["Developers Hub"]; ok {
-		members = append(members,
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: devID,
-				UserID:      adminID,
-				Role:        "moderator",
-				JoinedAt:    time.Now().Add(-49 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-49 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-49 * 24 * time.Hour),
-			},
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: devID,
-				UserID:      janeID,
-				Role:        "member",
-				JoinedAt:    time.Now().Add(-48 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-48 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-48 * 24 * time.Hour),
-			},
-		)
-	}
-
-	for _, community := range communities {
-
-		if community.Name == "Tech Enthusiasts" || community.Name == "Fitness & Health" || community.Name == "Developers Hub" {
+		if isCreator {
 			continue
 		}
 
-		members = append(members,
-			CommunityMember{
-				ID:          uuid.New(),
-				CommunityID: community.CommunityID,
-				UserID:      adminID,
+		// Add this user as a member to the first community
+		if len(communities) > 0 {
+			members = append(members, CommunityMember{
+				CommunityID: communities[0].CommunityID,
+				UserID:      userID,
 				Role:        "member",
-				JoinedAt:    time.Now().Add(-40 * 24 * time.Hour),
-				CreatedAt:   time.Now().Add(-40 * 24 * time.Hour),
-				UpdatedAt:   time.Now().Add(-40 * 24 * time.Hour),
-			},
-		)
+				CreatedAt:   time.Now().Add(-55 * 24 * time.Hour),
+				UpdatedAt:   time.Now().Add(-55 * 24 * time.Hour),
+			})
 
-		if community.CreatorID != johnID {
-			members = append(members,
-				CommunityMember{
-					ID:          uuid.New(),
-					CommunityID: community.CommunityID,
-					UserID:      johnID,
-					Role:        "member",
-					JoinedAt:    time.Now().Add(-39 * 24 * time.Hour),
-					CreatedAt:   time.Now().Add(-39 * 24 * time.Hour),
-					UpdatedAt:   time.Now().Add(-39 * 24 * time.Hour),
-				},
-			)
+			log.Printf("Added regular member for community %s: %s", communities[0].Name, userID)
 		}
+
+		// If there's more than one community, add them as a moderator to the second
+		if len(communities) > 1 {
+			members = append(members, CommunityMember{
+				CommunityID: communities[1].CommunityID,
+				UserID:      userID,
+				Role:        "moderator",
+				CreatedAt:   time.Now().Add(-50 * 24 * time.Hour),
+				UpdatedAt:   time.Now().Add(-50 * 24 * time.Hour),
+			})
+
+			log.Printf("Added moderator member for community %s: %s", communities[1].Name, userID)
+		}
+	}
+
+	if len(members) == 0 {
+		log.Println("Warning: No community members to seed")
+		return nil
 	}
 
 	if err := s.db.Table("community_members").Create(&members).Error; err != nil {
@@ -337,92 +264,85 @@ func (s *CommunitySeeder) SeedCommunityMembers() error {
 	return nil
 }
 
-func (s *CommunitySeeder) SeedJoinRequests() error {
+func (s *CommunitySeeder) SeedJoinRequests(userIDs []uuid.UUID) error {
+	// First check if there are already join requests
 	var count int64
 	s.db.Table("community_join_requests").Count(&count)
 	if count > 0 {
-		log.Println("Community join requests already exist, skipping seeding")
+		log.Println("Community join requests already exist, truncating and reseeding")
+		// Remove existing records to start fresh
+		if err := s.db.Exec("DELETE FROM community_join_requests").Error; err != nil {
+			log.Printf("Warning: Failed to delete existing join requests: %v", err)
+		}
+	}
+
+	// If we don't have enough users, return
+	if len(userIDs) < 2 {
+		log.Println("Not enough users to create join requests")
 		return nil
 	}
 
-	adminID := uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
-	johnID := uuid.MustParse("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12")
-	janeID := uuid.MustParse("c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13")
-	samID := uuid.MustParse("d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
-
-	var communities []struct {
+	// Get communities that the second user isn't already a member of
+	var availableCommunities []struct {
 		CommunityID uuid.UUID
 		Name        string
 	}
-	s.db.Table("communities").Select("community_id, name").Find(&communities)
 
-	communityMap := make(map[string]uuid.UUID)
-	for _, community := range communities {
-		communityMap[community.Name] = community.CommunityID
+	secondUserID := userIDs[1]
+
+	query := `
+		SELECT c.community_id, c.name 
+		FROM communities c
+		WHERE c.community_id NOT IN (
+			SELECT cm.community_id 
+			FROM community_members cm 
+			WHERE cm.user_id = ? AND cm.deleted_at IS NULL
+		)
+		LIMIT 2
+	`
+
+	if err := s.db.Raw(query, secondUserID).Scan(&availableCommunities).Error; err != nil {
+		return fmt.Errorf("failed to fetch available communities: %w", err)
+	}
+
+	if len(availableCommunities) == 0 {
+		log.Println("No available communities found for join requests")
+		return nil
 	}
 
 	type CommunityJoinRequest struct {
-		ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
-		CommunityID uuid.UUID `gorm:"type:uuid;not null"`
-		UserID      uuid.UUID `gorm:"type:uuid;not null"`
-		Status      string    `gorm:"type:varchar(50);not null"`
-		Message     string    `gorm:"type:text"`
-		CreatedAt   time.Time
-		UpdatedAt   time.Time
+		RequestID   uuid.UUID  `gorm:"type:uuid;primaryKey;column:request_id"`
+		CommunityID uuid.UUID  `gorm:"type:uuid;not null"`
+		UserID      uuid.UUID  `gorm:"type:uuid;not null"`
+		Status      string     `gorm:"type:varchar(10);not null"`
+		CreatedAt   time.Time  `gorm:"autoCreateTime"`
+		UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
+		DeletedAt   *time.Time `gorm:"index"`
 	}
 
 	requests := []CommunityJoinRequest{}
 
-	if techID, ok := communityMap["Tech Enthusiasts"]; ok {
+	// Create a pending request for the second user
+	for _, community := range availableCommunities {
 		requests = append(requests, CommunityJoinRequest{
-			ID:          uuid.New(),
-			CommunityID: techID,
-			UserID:      samID,
+			RequestID:   uuid.New(),
+			CommunityID: community.CommunityID,
+			UserID:      secondUserID,
 			Status:      "pending",
-			Message:     "I'm really interested in technology and would love to join your community!",
 			CreatedAt:   time.Now().Add(-10 * 24 * time.Hour),
 			UpdatedAt:   time.Now().Add(-10 * 24 * time.Hour),
 		})
+
+		log.Printf("Added pending join request for community %s by user %s", community.Name, secondUserID)
 	}
 
-	if bookID, ok := communityMap["Book Club"]; ok {
-		requests = append(requests, CommunityJoinRequest{
-			ID:          uuid.New(),
-			CommunityID: bookID,
-			UserID:      janeID,
-			Status:      "pending",
-			Message:     "I'm an avid reader and would like to join your book discussions.",
-			CreatedAt:   time.Now().Add(-8 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-8 * 24 * time.Hour),
-		})
-	}
-
-	if photoID, ok := communityMap["Photography Club"]; ok {
-		requests = append(requests, CommunityJoinRequest{
-			ID:          uuid.New(),
-			CommunityID: photoID,
-			UserID:      adminID,
-			Status:      "pending",
-			Message:     "Photography is one of my hobbies. I'd love to share my work and learn from others.",
-			CreatedAt:   time.Now().Add(-6 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-6 * 24 * time.Hour),
-		})
-	}
-
-	if designID, ok := communityMap["Design Showcase"]; ok {
-		requests = append(requests, CommunityJoinRequest{
-			ID:          uuid.New(),
-			CommunityID: designID,
-			UserID:      johnID,
-			Status:      "pending",
-			Message:     "I'm a developer looking to improve my design skills. Would love to join!",
-			CreatedAt:   time.Now().Add(-5 * 24 * time.Hour),
-			UpdatedAt:   time.Now().Add(-5 * 24 * time.Hour),
-		})
+	if len(requests) == 0 {
+		log.Println("No join requests to seed")
+		return nil
 	}
 
 	if err := s.db.Table("community_join_requests").Create(&requests).Error; err != nil {
-		return fmt.Errorf("failed to create community join requests: %w", err)
+		return fmt.Errorf("failed to create join requests: %w", err)
 	}
 
 	log.Printf("Created %d community join requests", len(requests))

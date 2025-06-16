@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type ThreadServiceClient interface {
 	DeleteThread(threadID, userID string) error
 
 	SearchThreads(query string, userID string, page, limit int) ([]*Thread, error)
+	GetThreadsByHashtag(hashtag string, userID string, page, limit int) ([]*Thread, error)
 
 	LikeThread(threadID, userID string) error
 	UnlikeThread(threadID, userID string) error
@@ -1587,4 +1589,57 @@ func convertProtoReplyToReply(r *threadProto.ReplyResponse) *Reply {
 	}
 
 	return reply
+}
+
+func (c *GRPCThreadServiceClient) GetThreadsByHashtag(hashtag string, userID string, page, limit int) ([]*Thread, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("thread service client not initialized")
+	}
+
+	// Use SearchThreads as a workaround since the GetThreadsByHashtag RPC is not yet compiled
+	threads, err := c.SearchThreads(hashtag, userID, page, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get threads by hashtag: %w", err)
+	}
+
+	// Filter results to only include threads with the exact hashtag
+	var filteredThreads []*Thread
+
+	// Clean the hashtag to ensure consistent matching
+	cleanHashtag := strings.TrimPrefix(hashtag, "#")
+
+	for _, thread := range threads {
+		// Skip nil threads
+		if thread == nil {
+			continue
+		}
+
+		// Check if thread has this hashtag
+		hasHashtag := false
+
+		// Look for the hashtag in the thread's hashtags list
+		if thread.Hashtags != nil {
+			for _, h := range thread.Hashtags {
+				if strings.EqualFold(h, cleanHashtag) {
+					hasHashtag = true
+					break
+				}
+			}
+		}
+
+		// Also check if the hashtag appears in the content
+		if !hasHashtag && thread.Content != "" {
+			// Look for the hashtag in the content (with # prefix)
+			hashtagPattern := fmt.Sprintf("#%s\\b", regexp.QuoteMeta(cleanHashtag))
+			if matched, _ := regexp.MatchString(hashtagPattern, thread.Content); matched {
+				hasHashtag = true
+			}
+		}
+
+		if hasHashtag {
+			filteredThreads = append(filteredThreads, thread)
+		}
+	}
+
+	return filteredThreads, nil
 }

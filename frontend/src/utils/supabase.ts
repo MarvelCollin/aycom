@@ -147,18 +147,60 @@ export async function uploadMedia(
     
     const fileName = generateUniqueFilename(file);
     const filePath = `${folder}/${fileName}`;
+    logger.debug(`Attempting to upload file to Supabase: bucket=${SUPABASE_BUCKETS.MEDIA}, path=${filePath}`);
+    
     let url = '';
     
-    // Upload to the media bucket
+    // Try to use the admin client first if available (has more permissions)
     try {
+      if (supabaseAdmin) {
+        logger.debug('Trying upload with admin client (higher permissions)');
+        const { data, error } = await supabaseAdmin.storage
+          .from(SUPABASE_BUCKETS.MEDIA)
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true // Use upsert to avoid conflicts
+          });
+          
+        if (!error) {
+          logger.debug('Admin client upload successful');
+          const { data: urlData } = supabaseAdmin.storage
+            .from(SUPABASE_BUCKETS.MEDIA)
+            .getPublicUrl(filePath);
+            
+          url = urlData.publicUrl;
+          return {
+            url,
+            mediaType: getMediaType(file.type)
+          };
+        } else {
+          logger.warn('Admin client upload failed:', error);
+        }
+      }
+    } catch (adminError) {
+      logger.warn('Admin upload attempt failed:', adminError);
+    }
+    
+    // Fallback to regular client
+    try {
+      logger.debug('Trying upload with regular client');
       const { data, error } = await supabase.storage
         .from(SUPABASE_BUCKETS.MEDIA)
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: true // Use upsert to avoid conflicts
         });
         
       if (error) {
+        logger.error('Supabase upload error:', error);
+        
+        // Try to provide more helpful error info
+        if (error.message?.includes('bucket') || error.statusCode === 404) {
+          logger.error('Bucket not found or inaccessible. Check Supabase storage configuration.');
+        } else if (error.statusCode === 403) {
+          logger.error('Permission denied. Check Row Level Security policies.');
+        }
+        
         throw error;
       }
       

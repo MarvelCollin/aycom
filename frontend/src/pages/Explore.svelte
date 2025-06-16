@@ -362,13 +362,15 @@
     
     isLoadingRecommendations = true;
     try {
-      const { users } = await searchUsers(query.trim(), 1, 10, {
+      // Fetch more profiles (increase limit from 10 to 15)
+      const { users } = await searchUsers(query.trim(), 1, 15, {
         sort: 'follower_count' // Sort by follower count
       });
       
-      // Backend now handles fuzzy matching with Damerau-Levenshtein algorithm
-      // Just map the results directly
-      searchResults.top.profiles = users.slice(0, 3).map(user => ({
+      console.log("Recommended profiles found:", users.length);
+      
+      // Show more recommended profiles (up to 6 instead of 3)
+      searchResults.top.profiles = users.slice(0, 6).map(user => ({
         id: user.id,
         username: user.username,
         displayName: user.display_name || user.username,
@@ -378,6 +380,9 @@
         followerCount: user.follower_count || 0,
         isFollowing: user.is_following || false
       }));
+      
+      // Log the profiles being displayed
+      console.log("Displaying recommended profiles:", searchResults.top.profiles);
       
     } catch (error) {
       logger.error('Error searching profiles:', error);
@@ -433,23 +438,26 @@
   
   // Main search function
   async function executeSearch() {
-    // If the search query is empty, reset to showing trending hashtags
-    if (!searchQuery || searchQuery.trim() === '') {
-      logger.debug('Empty search query, showing trending tab');
+    if (!searchQuery || searchQuery.length < 2) {
       hasSearched = false;
-      activeTab = 'trending';
+      isSearching = false;
       return;
     }
-
-    // Add to recent searches if not already there
-    if (!recentSearches.includes(searchQuery)) {
-      recentSearches = [searchQuery, ...recentSearches.slice(0, 2)];
-      localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
-    }
     
+    // Save to recent searches
+    saveToRecentSearches(searchQuery);
+    
+    // Enter search mode and show top results by default
     isSearching = true;
     hasSearched = true;
-    showRecentSearches = false;
+    activeTab = 'top'; // Always default to top tab to show profile recommendations
+    
+    // Set all result sections to loading
+    searchResults.top.isLoading = true;
+    searchResults.latest.isLoading = true;
+    searchResults.people.isLoading = true;
+    searchResults.media.isLoading = true;
+    searchResults.communities.isLoading = true;
     
     try {
       const filterOption = searchFilter === 'following' ? 'following' : (searchFilter === 'verified' ? 'verified' : 'all');
@@ -655,11 +663,11 @@
             username: thread.author?.username || 'anonymous',
             displayName: thread.author?.display_name || 'User',
             timestamp: thread.created_at || new Date().toISOString(),
-            likes: thread.like_count || 0,
-            replies: thread.reply_count || 0,
-            reposts: thread.repost_count || 0,
-            media: thread.media,
-            avatar: thread.author?.avatar
+            likes: thread.like_count || thread.like_count || 0,
+            replies: thread.reply_count || thread.reply_count || 0,
+            reposts: thread.repost_count || thread.repost_count || 0,
+            media: thread.media || [],
+            avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
           })),
           isLoading: false
         },
@@ -932,32 +940,56 @@
     
     if (hashtagThreadsData?.threads) {
       // Update latest tab with these threads
-      searchResults.latest.threads = (hashtagThreadsData?.threads || []).map(thread => ({
-        id: thread.id || '',
-        content: thread.content || '',
-        username: thread.username || thread.author?.username || '',
-        displayName: thread.display_name || thread.author?.display_name || thread.username || '',
-        timestamp: thread.created_at || new Date().toISOString(),
-        likes: thread.likes_count || thread.like_count || 0,
-        replies: thread.replies_count || thread.reply_count || 0,
-        reposts: thread.reposts_count || thread.repost_count || 0,
-        media: thread.media || [],
-        avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
-      }));
+      searchResults.latest.threads = (hashtagThreadsData?.threads || []).map(thread => {
+        // Safely handle the timestamp/created_at date
+        let timestamp;
+        try {
+          const date = new Date(thread.created_at || thread.timestamp || new Date());
+          timestamp = !isNaN(date.getTime()) ? thread.created_at : new Date().toISOString();
+        } catch (e) {
+          console.error('Invalid date in thread:', thread.created_at);
+          timestamp = new Date().toISOString();
+        }
+        
+        return {
+          id: thread.id || '',
+          content: thread.content || '',
+          username: thread.username || thread.author?.username || '',
+          displayName: thread.display_name || thread.author?.display_name || thread.username || '',
+          timestamp: timestamp,
+          likes: thread.likes_count || thread.like_count || 0,
+          replies: thread.replies_count || thread.reply_count || 0,
+          reposts: thread.reposts_count || thread.repost_count || 0,
+          media: thread.media || [],
+          avatar: thread.profile_picture_url || thread.author?.profile_picture_url || null
+        };
+      });
       
       // Also update top tab
-      searchResults.top.threads = (hashtagThreadsData?.threads || []).map(thread => ({
-        id: thread.id || '',
-        content: thread.content || '',
-        username: thread.username || thread.author?.username || '',
-        name: thread.display_name || thread.author?.display_name || thread.username || '',
-        created_at: thread.created_at || new Date().toISOString(),
-        likes_count: thread.likes_count || thread.like_count || 0,
-        replies_count: thread.replies_count || thread.reply_count || 0,
-        reposts_count: thread.reposts_count || thread.repost_count || 0,
-        media: thread.media || [],
-        profile_picture_url: thread.profile_picture_url || thread.author?.profile_picture_url || null
-      }));
+      searchResults.top.threads = (hashtagThreadsData?.threads || []).map(thread => {
+        // Safely handle the created_at date
+        let created_at;
+        try {
+          const date = new Date(thread.created_at || thread.timestamp || new Date());
+          created_at = !isNaN(date.getTime()) ? thread.created_at : new Date().toISOString();
+        } catch (e) {
+          console.error('Invalid date in thread for top tab:', thread.created_at);
+          created_at = new Date().toISOString();
+        }
+        
+        return {
+          id: thread.id || '',
+          content: thread.content || '',
+          username: thread.username || thread.author?.username || '',
+          name: thread.display_name || thread.author?.display_name || thread.username || '',
+          created_at: created_at,
+          likes_count: thread.likes_count || thread.like_count || 0,
+          replies_count: thread.replies_count || thread.reply_count || 0,
+          reposts_count: thread.reposts_count || thread.repost_count || 0,
+          media: thread.media || [],
+          profile_picture_url: thread.profile_picture_url || thread.author?.profile_picture_url || null
+        };
+      });
     } else {
       console.error('Error fetching hashtag threads');
       toastStore.showToast('Failed to load hashtag threads', 'error');

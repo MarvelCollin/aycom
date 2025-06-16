@@ -89,11 +89,23 @@
   {:else}
     <!-- Top Profiles Section -->
     {#if topProfiles.length > 0}
-      <div class="mb-6">
-        <div class="flex justify-between items-center mb-3">
-          <h3 class="font-bold text-lg text-primary dark:text-primary-dark">People</h3>
-          <button class="text-blue-500 text-sm" on:click={() => handleViewAll('people')}>
-            View all
+      <div class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-xl text-primary dark:text-primary-dark">
+            <span class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Recommended People
+            </span>
+          </h3>
+          <button class="view-all-button" on:click={() => handleViewAll('people')}>
+            <span>View all</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14"></path>
+              <path d="M12 5l7 7-7 7"></path>
+            </svg>
           </button>
         </div>
         
@@ -109,6 +121,9 @@
                 isVerified={profile.isVerified || profile.is_verified || false}
                 followerCount={profile.followerCount || profile.follower_count || 0}
                 isFollowing={profile.isFollowing || profile.is_following || false}
+                showBio={true}
+                showFollowerCount={true}
+                compact={false}
               />
             </div>
           {/each}
@@ -146,9 +161,10 @@
   
   .profiles-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: var(--space-2);
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
     width: 100%;
+    margin-bottom: 24px;
   }
   
   .skeleton-card {
@@ -162,18 +178,28 @@
     background-color: var(--bg-secondary, #f8f9fa);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color, #e5e7eb);
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     overflow: hidden;
+    padding: var(--space-2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
   }
   
   .profile-card-container:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--color-primary, #3b82f6);
   }
   
   .profile-card-container-dark {
     background-color: var(--dark-bg-secondary, #1f2937);
     border-color: var(--border-color-dark, #374151);
+  }
+  
+  .profile-card-container-dark:hover {
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
   }
   
   .text-primary {
@@ -186,13 +212,43 @@
   
   @media (max-width: 768px) {
     .profiles-grid {
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
   }
   
   @media (max-width: 576px) {
     .profiles-grid {
       grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-2);
     }
+  }
+  
+  .view-all-button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: var(--color-primary, #3b82f6);
+    color: white;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .view-all-button:hover {
+    background-color: var(--color-primary-dark, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .view-all-button svg {
+    transition: transform 0.2s ease;
+  }
+  
+  .view-all-button:hover svg {
+    transform: translateX(2px);
   }
 </style> 

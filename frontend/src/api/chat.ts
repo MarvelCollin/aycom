@@ -1240,3 +1240,60 @@ export async function joinChat(chatId: string) {
     throw error;
   }
 }
+
+/**
+ * Deletes a chat for the current user
+ * @param chatId The ID of the chat to delete
+ * @returns Promise with the result
+ */
+export async function deleteChat(chatId: string) {
+  try {
+    if (!chatId) {
+      logger.error('Cannot delete chat: Missing chat ID');
+      throw new Error('Missing chat ID: A valid chat ID is required');
+    }
+    
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
+      logger.error(`Cannot delete chat: Invalid UUID format for chat ID: ${chatId}`);
+      throw new Error('Invalid chat ID format: Must be a valid UUID');
+    }
+
+    const token = getAuthToken();
+    logger.debug(`Deleting chat ${chatId}`);
+
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete chat');
+      } else {
+        throw new Error(`Failed to delete chat: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        return await response.json();
+      } catch (parseError: unknown) {
+        logger.error(`Failed to parse JSON response for deleting chat ${chatId}:`, parseError);
+        return { success: true };
+      }
+    } else {
+      logger.warn(`Non-JSON response for deleting chat ${chatId}`);
+      return { success: true };
+    }
+  } catch (error) {
+    logger.error(`Delete chat ${chatId} failed:`, error);
+    throw error;
+  }
+}

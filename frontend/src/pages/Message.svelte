@@ -21,6 +21,8 @@
   import type { Toast as ToastType } from '../interfaces/IToast';
   import { formatRelativeTime } from '../utils/date'; 
   import { getAuthToken } from '../utils/auth';
+  import { uploadMedia } from '../api/media';
+  import type { Attachment, Chat, LastMessage, Message, Participant } from '../interfaces/IChat';
   
   const { 
     listChats, 
@@ -33,7 +35,8 @@
     testApiConnection, 
     logAuthTokenInfo, 
     setMessageHandler,
-    listChatParticipants
+    listChatParticipants,
+    deleteChat
   } = chatApi;
   
   import '../styles/pages/messages.css'; // Import the CSS file
@@ -137,12 +140,263 @@
   // Group chat modal state
   let showGroupChatModal = false;
   
-  // Handle attachment selection - placeholder function for now
-  function handleAttachment(type: 'image' | 'gif') {
-    // Implementation can be added later
-    logger.debug(`Attachment selected: ${type}`);
-    // For now, just show a message
-    toastStore.showToast(`${type} attachment feature coming soon`, 'info');
+  // State for file uploads
+  let isUploading = false;
+  
+  // Add state for confirm dialog
+  let showDeleteConfirm = false;
+  let chatToDelete: Chat | null = null;
+  
+  // Handle attachment selection
+  async function handleAttachment(type: 'image' | 'gif') {
+    logger.debug(`Attachment selection requested: ${type}`);
+    
+    // Create a file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = false;
+    
+    // Set accepted file types based on attachment type
+    if (type === 'image') {
+      fileInput.accept = 'image/jpeg,image/png,image/jpg';
+    } else if (type === 'gif') {
+      fileInput.accept = 'image/gif';
+    }
+    
+    // Handle file selection
+    fileInput.onchange = async (event) => {
+      const target = event.target as HTMLInputElement;
+      const files = target.files;
+      
+      if (!files || files.length === 0) {
+        return;
+      }
+      
+      const file = files[0];
+      
+      // Check file size (limit to 10MB)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (file.size > MAX_FILE_SIZE) {
+        toastStore.showToast({
+          message: `File is too large. Maximum size is 10MB.`,
+          type: 'error'
+        });
+        return;
+      }
+      
+      try {
+        isUploading = true;
+        
+        // Upload the file to storage
+        const result = await uploadMedia(file, 'chat');
+        
+        if (!result || !result.url) {
+          throw new Error('Failed to upload file');
+        }
+        
+        // Create an attachment object
+        const attachment: Attachment = {
+          id: `temp-${Date.now()}`,
+          type: result.mediaType === 'video' ? 'video' : 
+                (type === 'gif' ? 'gif' : 'image'),
+          url: result.url
+        };
+        
+        // Add to selected attachments
+        selectedAttachments = [...selectedAttachments, attachment];
+        
+        logger.info(`Attachment uploaded successfully: ${attachment.type}`);
+        
+        // If the attachment is ready, send the message with the attachment
+        if (selectedChat) {
+          // Send a message with the attachment
+          await sendMessageWithAttachment(attachment);
+        }
+      } catch (error) {
+        logger.error('Failed to upload attachment:');
+        toastStore.showToast({
+          message: 'Failed to upload attachment. Please try again.',
+          type: 'error'
+        });
+      } finally {
+        isUploading = false;
+      }
+    };
+    
+    // Trigger the file input click
+    fileInput.click();
+  }
+  
+  // Function to send a message with attachment
+  async function sendMessageWithAttachment(attachment: Attachment) {
+    if (!selectedChat) return;
+    
+    try {
+      // Generate a unique temporary ID for this message
+      const tempMessageId = `temp-${Date.now()}`;
+      
+      // Create content with attachment info
+      const content = JSON.stringify({
+        text: '',
+        attachment: {
+          type: attachment.type,
+          url: attachment.url
+        }
+      });
+      
+      // Create message object
+      const message: Message = {
+        id: tempMessageId,
+        chat_id: selectedChat.id,
+        sender_id: $authStore.user_id || '',
+        content: content,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+        is_edited: false,
+        is_deleted: false,
+        sender_name: displayName || 'You',
+        sender_avatar: avatar,
+        is_local: true,
+        attachments: [attachment]
+      };
+      
+      // Optimistically add message to UI
+      selectedChat = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, message]
+      };
+      
+      // Scroll to bottom after message is added
+      setTimeout(() => {
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      }, 50);
+      
+      // Create a last message object for the chat list
+      const newLastMessage: LastMessage = {
+        content: attachment.type === 'image' ? '📷 Image' : 
+                 attachment.type === 'gif' ? '🎞️ GIF' : 
+                 attachment.type === 'video' ? '🎥 Video' : 'Attachment',
+        timestamp: new Date().toISOString(),
+        sender_id: $authStore.user_id || '',
+        sender_name: displayName || 'You'
+      };
+      
+      // Update chat list with the new message
+      chats = chats.map(chat => {
+        if (chat.id === selectedChat?.id) {
+          return {
+            ...chat,
+            last_message: newLastMessage
+          };
+        }
+        return chat;
+      }) as Chat[];
+        
+      // Move the active chat to the top
+      const activeChatId = selectedChat?.id;
+      if (activeChatId) {
+        const activeChat = chats.find(c => c.id === activeChatId);
+        if (activeChat) {
+          // Remove the active chat from the array
+          const otherChats = chats.filter(c => c.id !== activeChatId);
+          // Add it back at the beginning
+          chats = [activeChat, ...otherChats];
+          
+          // Do the same for filtered chats
+          const filteredActiveChat = filteredChats.find(c => c.id === activeChatId);
+          if (filteredActiveChat) {
+            const otherFilteredChats = filteredChats.filter(c => c.id !== activeChatId);
+            filteredChats = [
+              {
+                ...filteredActiveChat,
+                last_message: newLastMessage
+              },
+              ...otherFilteredChats
+            ];
+          }
+        }
+      }
+
+      // Send message via API
+      const messageData = {
+        content: content,
+        message_id: tempMessageId,
+        attachments: [attachment]
+      };
+      
+      // Log the API call attempt
+      logger.debug(`Sending message with attachment to chat ${selectedChat?.id} via API`);
+      
+      // First try to send via WebSocket for immediate real-time delivery
+      const wsMessage = {
+        type: 'text' as MessageType,
+        content: content,
+        chat_id: selectedChat?.id || '',
+        user_id: $authStore.user_id || '',
+        sender_id: $authStore.user_id || '',
+        sender_name: displayName || username || 'User',
+        sender_avatar: avatar,
+        message_id: tempMessageId,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Send via WebSocket first for real-time delivery
+      websocketStore.sendMessage(selectedChat?.id || '', wsMessage);
+      logger.debug(`Message with attachment sent via WebSocket to chat ${selectedChat?.id}`);
+      
+      // Then send via API for persistence
+      try {
+        const result = await apiSendMessage(selectedChat?.id || '', messageData);
+        logger.debug('Message with attachment sent successfully via API');
+        
+        // Update the message to mark it as confirmed by the server
+        if (selectedChat) {
+          selectedChat = {
+            ...selectedChat,
+            messages: selectedChat.messages.map(msg => 
+              msg.id === tempMessageId 
+                ? { 
+                    ...msg, 
+                    is_local: false,
+                    id: result?.message?.id || result?.message_id || msg.id
+                  } 
+                : msg
+            )
+          };
+        }
+      } catch (apiError) {
+        logger.error('Failed to send message with attachment via API');
+        toastStore.showToast({
+          message: 'Network issue detected. Message may not be delivered.',
+          type: 'error'
+        });
+        
+        // Mark the message as potentially failed
+        if (selectedChat) {
+          selectedChat = {
+            ...selectedChat,
+            messages: selectedChat.messages.map(msg => 
+              msg.id === tempMessageId 
+                ? { ...msg, failed: true } 
+                : msg
+            )
+          };
+        }
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error sending message with attachment');
+      toastStore.showToast({
+        message: `Error sending message with attachment: ${errorMessage}`,
+        type: 'error'
+      });
+    } finally {
+      // Clear selected attachments after sending
+      selectedAttachments = [];
+    }
   }
   
   // Function to check viewport size and set mobile state
@@ -960,7 +1214,7 @@
       
       // First try to send via WebSocket for immediate real-time delivery
       const wsMessage: ChatMessage = {
-        type: 'text',
+        type: 'text' as MessageType,
         content: content,
         chat_id: selectedChat?.id || '',
         user_id: $authStore.user_id || '',
@@ -1174,10 +1428,6 @@
     }
   };
 
-
-
-
-
   // Function to test WebSocket connection
   const testWebSocketConnection = () => {
     if (selectedChat) {
@@ -1312,177 +1562,496 @@
       filteredChats = [];
     }
   }
+
+  // Function to handle chat delete
+  async function handleDeleteChat(event: MouseEvent, chat: Chat) {
+    // Stop propagation to prevent selecting the chat
+    event.stopPropagation();
+    
+    logger.debug(`Preparing to delete chat: ${chat.id}`);
+    
+    // Set the chat to delete and show confirmation
+    chatToDelete = chat;
+    showDeleteConfirm = true;
+  }
+
+  // Function to confirm and delete the chat
+  async function confirmDeleteChat() {
+    if (!chatToDelete) return;
+    
+    try {
+      await deleteChat(chatToDelete.id);
+      
+      // Update the chat lists
+      chats = chats.filter(c => c.id !== chatToDelete?.id);
+      filteredChats = filteredChats.filter(c => c.id !== chatToDelete?.id);
+      
+      // If the deleted chat was selected, clear the selection
+      if (selectedChat && selectedChat.id === chatToDelete.id) {
+        selectedChat = null;
+      }
+      
+      // Select another chat if available
+      if (!selectedChat && chats.length > 0) {
+        selectChat(chats[0]);
+      }
+      
+      // Show success notification
+      toastStore.showToast({
+        message: 'Conversation deleted successfully',
+        type: 'success'
+      });
+    } catch (error) {
+      logger.error('Failed to delete conversation', error);
+      toastStore.showToast({
+        message: 'Failed to delete conversation. Please try again.',
+        type: 'error'
+      });
+    } finally {
+      // Reset state
+      chatToDelete = null;
+      showDeleteConfirm = false;
+    }
+  }
+
+  // Function to cancel deletion
+  function cancelDeleteChat() {
+    chatToDelete = null;
+    showDeleteConfirm = false;
+  }
 </script>
 
 <style>
-  /* Fix for component-level layout issues */
-  :global(body, html, #app) {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    background-color: var(--bg-primary, #121417);
-  }
-  
-  :global(.app-container) {
+  .message-container {
+    display: flex;
     height: 100vh;
     width: 100%;
+    background-color: white;
+  }
+
+  /* Middle section (chat list) */
+  .middle-section {
+    width: 35%;
+    min-width: 320px;
+    border-right: 1px solid #e0e0e0;
+    overflow: hidden;
     display: flex;
+    flex-direction: column;
+  }
+
+  /* Dark mode */
+  .message-container.dark-theme {
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+  }
+
+  .dark-theme .middle-section,
+  .dark-theme .right-section {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .dark-theme input,
+  .dark-theme textarea {
+    background-color: #333;
+    color: #fff;
+    border-color: #444;
+  }
+
+  .dark-theme .msg-search-input {
+    background-color: #333;
+    color: #fff;
+  }
+
+  .dark-theme .msg-chat-item {
+    border-color: #333;
+  }
+
+  .dark-theme .msg-chat-item:hover {
+    background-color: #2a2a2a;
+  }
+
+  .dark-theme .msg-chat-item.selected {
+    background-color: #2a2a2a;
+  }
+
+  .dark-theme .message-input-area {
+    background-color: #2a2a2a;
+    border-color: #444;
+  }
+
+  .dark-theme .message-input {
+    background-color: #333;
+    color: #fff;
+  }
+
+  /* Chat list header */
+  .chat-list-header {
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  /* Search container */
+  .msg-search-container {
+    padding: 12px 16px;
+    position: relative;
+  }
+
+  .msg-search-input {
+    width: 100%;
+    padding: 8px 32px 8px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
+    font-size: 14px;
+  }
+
+  .msg-clear-search {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #888;
+  }
+
+  /* Chat list */
+  .chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+  }
+
+  .msg-chat-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .msg-chat-item:hover {
+    background-color: #f9f9f9;
+  }
+
+  .msg-chat-item.selected {
+    background-color: #f0f0f0;
+  }
+
+  .msg-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .msg-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 20px;
+  }
+
+  .chat-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .chat-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .timestamp {
+    color: #888;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .msg-last-message {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #666;
+    font-size: 14px;
+  }
+
+  .msg-no-messages {
+    font-style: italic;
+    color: #888;
+  }
+
+  .msg-unread-badge {
+    background-color: #0066ff;
+    color: white;
+    border-radius: 50%;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 0 4px;
+  }
+
+  /* Right section (chat content) */
+  .right-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
-  /* Connection status styles moved to corresponding components or removed */
-  
-  .status-icon {
-    font-size: 14px;
-    animation: blink 2s infinite;
-  }
-  
-  @keyframes blink {
-    0% { opacity: 0.5; }
-    50% { opacity: 1; }
-    100% { opacity: 0.5; }
-  }
-  
-  .status-error {
+  /* Chat header */
+  .msg-chat-header {
+    padding: 16px;
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    background-color: rgba(244, 67, 54, 0.2);
-    color: #f44336;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.25);
-    border: 1px solid rgba(244, 67, 54, 0.4);
-    max-width: 300px;
+    border-bottom: 1px solid #e0e0e0;
+    background-color: white;
   }
-  
-  .reconnect-button {
-    background-color: #f44336;
-    color: white;
+
+  .dark-theme .msg-chat-header {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .msg-chat-header-info {
+    flex: 1;
+    margin-left: 12px;
+  }
+
+  .msg-chat-header-name {
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .msg-chat-header-status {
+    color: #888;
+    font-size: 13px;
+  }
+
+  .msg-chat-header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .msg-action-icon {
+    background: none;
     border: none;
-    border-radius: 4px;
-    padding: 4px 10px;
-    margin-left: 8px;
-    font-size: 12px;
-    font-weight: bold;
     cursor: pointer;
+    color: #555;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+
+  .msg-action-icon:hover {
+    background-color: #f0f0f0;
+  }
+
+  .dark-theme .msg-action-icon:hover {
+    background-color: #333;
+  }
+
+  /* Messages container */
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background-color: #f7f7f7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dark-theme .messages-container {
+    background-color: #252525;
+  }
+
+  /* Loading spinner */
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  .loading-spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left-color: #0066ff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+  }
+
+  .dark-theme .loading-spinner {
+    border-color: rgba(255, 255, 255, 0.1);
+    border-left-color: #0066ff;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Message items */
+  .msg-conversation-item {
+    display: flex;
+    margin-bottom: 16px;
+    max-width: 80%;
+  }
+
+  .msg-conversation-item.own-message {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+
+  .message-bubble {
+    position: relative;
+    padding: 12px 16px;
+    border-radius: 18px;
+    background-color: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    margin: 0 8px;
+    max-width: 100%;
+    word-break: break-word;
+  }
+  
+  /* Delete button and confirmation dialog styles */
+  .chat-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    gap: 8px;
+  }
+  
+  .delete-chat-btn {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #888;
+    border-radius: 50%;
     transition: all 0.2s ease;
   }
   
-  .reconnect-button:hover {
-    background-color: #d32f2f;
-    transform: translateY(-1px);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  .delete-chat-btn:hover {
+    color: #ff4d4d;
+    background-color: rgba(255, 77, 77, 0.1);
   }
   
-  .error-dismiss {
-    background: none;
-    border: none;
-    color: #f44336;
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0 4px;
-    margin-left: 5px;
-    font-weight: bold;
+  .msg-chat-item:hover .delete-chat-btn {
+    display: flex;
   }
   
-  .error-dismiss:hover {
-    color: #d32f2f;
-  }
-
-  /* Connection status styles */
-  .connection-status-container {
-    padding: 5px 10px;
-    background-color: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    font-size: 0.8rem;
-  }
-
-  .connection-status {
+  /* Confirmation dialog */
+  .confirmation-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
     display: flex;
-    align-items: center;
     justify-content: center;
-    padding: 5px 0;
-  }
-
-  .status-connected {
-    color: #10b981;
-    display: flex;
     align-items: center;
-    gap: 5px;
+    z-index: 1000;
   }
-
-  .status-connecting {
-    color: #f59e0b;
-    display: flex;
-    align-items: center;
-    gap: 5px;
+  
+  .dialog-content {
+    background-color: white;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
-
-  .status-disconnected {
-    color: #ef4444;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .status-icon {
-    font-size: 10px;
-    line-height: 1;
-  }
-
-  .status-error {
-    margin-top: 5px;
-    padding: 5px 8px;
-    background-color: rgba(239, 68, 68, 0.1);
-    border-radius: 4px;
-    color: #ef4444;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .error-icon {
-    font-size: 12px;
-  }
-
-  .error-text {
-    flex: 1;
-    font-size: 0.8rem;
-  }
-
-  .error-dismiss {
-    background: none;
-    border: none;
-    color: #ef4444;
-    cursor: pointer;
+  
+  .dialog-content p {
+    margin: 0 0 20px;
     font-size: 16px;
-    padding: 0;
+    text-align: center;
+  }
+  
+  .dialog-actions {
     display: flex;
-    align-items: center;
     justify-content: center;
+    gap: 12px;
   }
-
-  .reconnect-button {
-    background-color: transparent;
-    border: 1px solid currentColor;
-    color: inherit;
+  
+  .confirm-button, .cancel-button {
+    padding: 8px 16px;
     border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 0.7rem;
+    font-weight: 500;
     cursor: pointer;
-    margin-left: 8px;
+    transition: all 0.2s ease;
   }
-
-  .reconnect-button:hover {
-    background-color: rgba(239, 68, 68, 0.1);
+  
+  .confirm-button {
+    background-color: #ff4d4d;
+    color: white;
+    border: 1px solid #ff4d4d;
+  }
+  
+  .confirm-button:hover {
+    background-color: #ff3333;
+  }
+  
+  .cancel-button {
+    background-color: white;
+    color: #333;
+    border: 1px solid #ddd;
+  }
+  
+  .cancel-button:hover {
+    background-color: #f5f5f5;
+  }
+  
+  /* Dark mode styles for dialog */
+  .dark-theme .dialog-content {
+    background-color: #2a2a2a;
+    color: #fff;
+  }
+  
+  .dark-theme .cancel-button {
+    background-color: #333;
+    color: #fff;
+    border-color: #444;
+  }
+  
+  .dark-theme .cancel-button:hover {
+    background-color: #444;
   }
 </style>
 
@@ -1666,9 +2235,23 @@
                         {/if}
                       </div>
                     </div>
-                    {#if chat.unread_count > 0}
-                  <div class="msg-unread-badge">{chat.unread_count}</div>
-                    {/if}
+                    
+                    <div class="chat-actions">
+                      {#if chat.unread_count > 0}
+                        <div class="msg-unread-badge">{chat.unread_count}</div>
+                      {/if}
+                      <button 
+                        class="delete-chat-btn" 
+                        on:click={(e) => handleDeleteChat(e, chat)}
+                        aria-label="Delete conversation"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 6h18"></path>
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
           </div>
             {/each}
       {/if}
@@ -1748,10 +2331,73 @@
                   <div class="message-bubble {message.sender_id === $authStore.user_id ? 'sent' : 'received'}" class:failed={message.failed} class:is-local={message.is_local}>
                     <!-- Message content -->
                     <div class="message-content">
-                    {#if message.is_deleted}
+                      {#if message.is_deleted}
                         <span class="deleted-message">Message deleted</span>
-                    {:else}
-                        <p>{message.content}</p>
+                      {:else}
+                        <!-- Display the content text -->
+                        {#if message.content && (!message.content.startsWith('{') || !message.content.includes('attachment'))}
+                          <p>{message.content}</p>
+                        {/if}
+                        
+                        <!-- Display attachments if any -->
+                        {#if message.attachments && message.attachments.length > 0}
+                          <div class="attachments-container">
+                            {#each message.attachments as attachment}
+                              {#if attachment.type === 'image'}
+                                <div class="image-attachment">
+                                  <img src={attachment.url} alt="Image attachment" on:click={() => window.open(attachment.url, '_blank')} />
+                                </div>
+                              {:else if attachment.type === 'gif'}
+                                <div class="gif-attachment">
+                                  <img src={attachment.url} alt="GIF attachment" on:click={() => window.open(attachment.url, '_blank')} />
+                                </div>
+                              {:else if attachment.type === 'video'}
+                                <div class="video-attachment">
+                                  <video controls>
+                                    <source src={attachment.url} type="video/mp4">
+                                    Your browser does not support the video tag.
+                                  </video>
+                                </div>
+                              {/if}
+                            {/each}
+                          </div>
+                        {/if}
+                        
+                        <!-- Try to parse message content for attachment info -->
+                        {#if !message.attachments?.length && message.content && message.content.startsWith('{')}
+                          <!-- Use a helper function approach to parse JSON safely -->
+                          {@const parsedContent = (() => {
+                            try {
+                              return JSON.parse(message.content);
+                            } catch (e) {
+                              return null;
+                            }
+                          })()}
+                          
+                          {#if parsedContent && parsedContent.attachment}
+                            <div class="attachments-container">
+                              {#if parsedContent.attachment.type === 'image'}
+                                <div class="image-attachment">
+                                  <img src={parsedContent.attachment.url} alt="Image attachment" on:click={() => window.open(parsedContent.attachment.url, '_blank')} />
+                                </div>
+                              {:else if parsedContent.attachment.type === 'gif'}
+                                <div class="gif-attachment">
+                                  <img src={parsedContent.attachment.url} alt="GIF attachment" on:click={() => window.open(parsedContent.attachment.url, '_blank')} />
+                                </div>
+                              {:else if parsedContent.attachment.type === 'video'}
+                                <div class="video-attachment">
+                                  <video controls>
+                                    <source src={parsedContent.attachment.url} type="video/mp4">
+                                    Your browser does not support the video tag.
+                                  </video>
+                                </div>
+                              {/if}
+                            </div>
+                            {#if parsedContent.text}
+                              <p>{parsedContent.text}</p>
+                            {/if}
+                          {/if}
+                        {/if}
                         
                         <!-- Show retry option for local/failed messages -->
                         {#if message.failed || message.is_local}
@@ -1767,27 +2413,17 @@
                                   messages: selectedChat.messages.filter(msg => msg.id !== message.id)
                                 };
                               }
-                            }}>Retry</button>
+                            }}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                <path d="M3 3v5h5"></path>
+                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                                <path d="M16 21h5v-5"></path>
+                              </svg>
+                              Retry
+                            </button>
                           </div>
                         {/if}
-                        
-                        <!-- Message attachments -->
-                      {#if message.attachments && message.attachments.length > 0}
-                          <div class="message-attachments">
-                  {#each message.attachments as attachment}
-                              <div class="attachment">
-                            {#if attachment.type === 'image'}
-                                  <img src={attachment.url} alt="" />
-                                {:else if attachment.type === 'file'}
-                                  <div class="file-attachment">
-                                    <span class="file-name">{attachment.name}</span>
-                                    <a href={attachment.url} download>Download</a>
-                                  </div>
-                    {/if}
-                              </div>
-                  {/each}
-                </div>
-              {/if}
                       {/if}
                     </div>
                       
@@ -1903,5 +2539,18 @@
 {/if}
 
 <Toast on:close={(e) => toastStore.removeToast(e.detail)} />
+
+<!-- Confirmation Dialog -->
+{#if showDeleteConfirm}
+  <div class="confirmation-dialog">
+    <div class="dialog-content">
+      <p>Are you sure you want to delete this conversation?</p>
+      <div class="dialog-actions">
+        <button class="confirm-button" on:click={confirmDeleteChat}>Yes</button>
+        <button class="cancel-button" on:click={cancelDeleteChat}>No</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 

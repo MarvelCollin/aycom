@@ -115,40 +115,51 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s ease;
-    gap: var(--space-2);
-    background-color: transparent;
+    transition: all 0.3s ease;
+    gap: var(--space-3);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
   
   .profile-card:hover {
     background-color: var(--bg-hover);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--color-primary);
+  }
+  
+  .profile-card-dark {
+    background-color: var(--dark-bg-secondary);
+    border-color: var(--dark-border-color);
   }
   
   .profile-card-dark:hover {
     background-color: var(--dark-hover-bg);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-color: var(--color-primary);
   }
   
   .profile-card.compact {
-    padding: var(--space-2);
+    padding: var(--space-3);
   }
   
   .profile-content {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
     flex: 1;
     min-width: 0;
   }
   
   .avatar-container {
     flex-shrink: 0;
-    border: 1px solid transparent;
-    width: 40px !important; /* Smaller avatar */
-    height: 40px !important;
+    border: 2px solid var(--border-color);
+    width: 48px !important;
+    height: 48px !important;
     border-radius: 50%;
     position: relative;
     display: flex;
@@ -156,10 +167,12 @@
     justify-content: center;
     overflow: hidden;
     transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
   
   .profile-card:hover .avatar-container {
     border-color: var(--color-primary);
+    transform: scale(1.05);
   }
   
   .avatar-image {
@@ -202,7 +215,7 @@
     font-weight: var(--font-weight-bold);
     color: var(--text-primary);
     margin: 0;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-base);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -210,8 +223,8 @@
   
   .username {
     color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-    margin: 0;
+    font-size: var(--font-size-sm);
+    margin: 2px 0 0 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -219,31 +232,47 @@
   
   .bio-text {
     color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-    margin: var(--space-1) 0 0 0;
+    font-size: var(--font-size-sm);
+    margin: var(--space-2) 0 0 0;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    line-height: 1.3;
+    -webkit-line-clamp: 2;
+    line-height: 1.4;
   }
   
   .follower-count {
     color: var(--text-tertiary);
-    font-size: var(--font-size-xs);
-    margin: 0;
+    font-size: var(--font-size-sm);
+    margin: var(--space-2) 0 0 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .follower-count::before {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    opacity: 0.7;
   }
   
   .follower-number {
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
   }
   
   .verified-badge {
     display: inline-flex;
     color: var(--color-primary);
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
   }
   
   .verified-badge svg {
