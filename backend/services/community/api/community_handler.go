@@ -771,10 +771,69 @@ func (h *CommunityHandler) CreateChat(ctx context.Context, req *communityProto.C
 	}, nil
 }
 func (h *CommunityHandler) AddChatParticipant(ctx context.Context, req *communityProto.AddChatParticipantRequest) (*communityProto.ChatParticipantResponse, error) {
-	return nil, nil
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	if req.ChatId == "" {
+		return nil, status.Error(codes.InvalidArgument, "chat_id is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	log.Printf("AddChatParticipant: Adding user %s to chat %s", req.UserId, req.ChatId)
+
+	// For now, we'll use the requesting user as the one adding the participant
+	// In a real implementation, you might want to get this from the context
+	addedBy := req.UserId // This should ideally come from the authentication context
+
+	err := h.chatService.AddParticipant(req.ChatId, req.UserId, addedBy)
+	if err != nil {
+		log.Printf("AddChatParticipant: Error adding participant: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to add participant: %v", err))
+	}
+
+	log.Printf("AddChatParticipant: Successfully added user %s to chat %s", req.UserId, req.ChatId)
+
+	return &communityProto.ChatParticipantResponse{
+		Participant: &communityProto.ChatParticipant{
+			ChatId:   req.ChatId,
+			UserId:   req.UserId,
+			IsAdmin:  req.IsAdmin,
+			JoinedAt: timestamppb.Now(),
+		},
+	}, nil
 }
 func (h *CommunityHandler) RemoveChatParticipant(ctx context.Context, req *communityProto.RemoveChatParticipantRequest) (*communityProto.EmptyResponse, error) {
-	return nil, nil
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	if req.ChatId == "" {
+		return nil, status.Error(codes.InvalidArgument, "chat_id is required")
+	}
+
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	log.Printf("RemoveChatParticipant: Removing user %s from chat %s", req.UserId, req.ChatId)
+
+	// For now, we'll use the requesting user as the one removing the participant
+	// In a real implementation, you might want to get this from the context
+	removedBy := req.UserId // This should ideally come from the authentication context
+
+	err := h.chatService.RemoveParticipant(req.ChatId, req.UserId, removedBy)
+	if err != nil {
+		log.Printf("RemoveChatParticipant: Error removing participant: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to remove participant: %v", err))
+	}
+
+	log.Printf("RemoveChatParticipant: Successfully removed user %s from chat %s", req.UserId, req.ChatId)
+
+	return &communityProto.EmptyResponse{}, nil
 }
 func (h *CommunityHandler) ListChats(ctx context.Context, req *communityProto.ListChatsRequest) (*communityProto.ListChatsResponse, error) {
 	if req == nil {

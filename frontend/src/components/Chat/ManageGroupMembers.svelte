@@ -182,20 +182,43 @@
       }
     }
   }
-
-  async function handleRemoveMember(user: StandardUser): Promise<void> {
+  async function handleRemoveMember(user: Participant): Promise<void> {
     errorMessage = '';
     successMessage = '';
     isRemovingMember = true;
 
     try {
-      await removeChatParticipant(chatId, user.id);
+      logger.debug('Removing member from chat:', { chatId, userId: user.id, userName: user.username });
+      
+      const response = await removeChatParticipant(chatId, user.id);
+      logger.debug('Remove member response:', response);
 
+      // Remove from participants list
       currentParticipants = currentParticipants.filter(p => p.id !== user.id);
-      availableUsers = [...availableUsers, user];
+      
+      // Convert Participant back to StandardUser format and add to available users
+      const removedUser: StandardUser = {
+        id: user.id,
+        username: user.username,
+        name: user.name || user.display_name || user.username,
+        profile_picture_url: user.profile_picture_url || user.avatar || null,
+        bio: '',
+        is_verified: user.is_verified || false,
+        avatar: user.avatar || user.profile_picture_url || null,
+        displayName: user.display_name || user.name || user.username,
+        display_name: user.display_name || user.name || user.username
+      };
+      
+      // Add back to available users if not already there
+      const userExists = availableUsers.some(u => u.id === user.id);
+      if (!userExists) {
+        availableUsers = [...availableUsers, removedUser];
+      }
 
-      successMessage = `Removed ${user.displayName || user.username} from the chat`;
+      successMessage = `Removed ${user.display_name || user.name || user.username} from the chat`;
+      logger.debug('Member removed successfully');
 
+      // Notify parent component to refresh
       onMembersUpdated();
     } catch (error) {
       logger.error('Error removing member:', error);

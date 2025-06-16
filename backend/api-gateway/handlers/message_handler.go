@@ -106,7 +106,7 @@ func CreateChat(c *gin.Context) {
 }
 
 func AddChatParticipant(c *gin.Context) {
-	userID, exists := c.Get("userId")
+	currentUserID, exists := c.Get("userId")
 	if !exists {
 		log.Printf("AddChatParticipant: Missing userId in context")
 		utils.SendErrorResponse(c, 401, "UNAUTHORIZED", "Authentication required")
@@ -120,7 +120,22 @@ func AddChatParticipant(c *gin.Context) {
 		return
 	}
 
-	log.Printf("AddChatParticipant: Adding user %s to chat %s", userID, chatID)
+	// Parse request body to get the user to add
+	var req struct {
+		UserID  string `json:"user_id" binding:"required"`
+		IsAdmin bool   `json:"is_admin"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("AddChatParticipant: Invalid request body: %v", err)
+		utils.SendErrorResponse(c, 400, "BAD_REQUEST", "user_id is required in request body")
+		return
+	}
+
+	targetUserID := req.UserID
+	isAdmin := req.IsAdmin
+
+	log.Printf("AddChatParticipant: User %s adding user %s to chat %s", currentUserID, targetUserID, chatID)
 
 	// Get the community service client
 	if CommunityClient == nil {
@@ -129,24 +144,13 @@ func AddChatParticipant(c *gin.Context) {
 		return
 	}
 
-	// Parse request body for additional parameters (optional)
-	var req struct {
-		IsAdmin bool `json:"is_admin"`
-	}
-
-	// Default to false if not provided
-	isAdmin := false
-	if err := c.ShouldBindJSON(&req); err == nil {
-		isAdmin = req.IsAdmin
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Call the community service to add the participant
 	_, err := CommunityClient.AddChatParticipant(ctx, &communityProto.AddChatParticipantRequest{
 		ChatId:  chatID,
-		UserId:  userID.(string),
+		UserId:  targetUserID,
 		IsAdmin: isAdmin,
 	})
 
@@ -156,12 +160,13 @@ func AddChatParticipant(c *gin.Context) {
 		return
 	}
 
-	log.Printf("AddChatParticipant: Successfully added user %s to chat %s", userID, chatID)
+	log.Printf("AddChatParticipant: Successfully added user %s to chat %s", targetUserID, chatID)
 	utils.SendSuccessResponse(c, 200, gin.H{
-		"message":  "Participant added successfully",
-		"chat_id":  chatID,
-		"user_id":  userID,
-		"is_admin": isAdmin,
+		"message":     "Participant added successfully",
+		"chat_id":     chatID,
+		"user_id":     targetUserID,
+		"is_admin":    isAdmin,
+		"added_by":    currentUserID,
 	})
 }
 
